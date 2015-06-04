@@ -691,10 +691,13 @@ def create_machine_async(email, backend_id, key_id, machine_name, location_id,
     from multiprocessing.dummy import Pool as ThreadPool
     from mist.io.methods import create_machine
     from mist.io.exceptions import MachineCreationError
+    from mist.io.methods import notify_user
 
+    user = user_from_email(email)
     quantity = int(quantity)
 
     if quantity < 1:
+        notify_user(user, "Error: Quantity should be >= 1")
         raise MachineCreationError("Quantity should be >= 1")
 
     log.warn('MULTICREATE ASYNC %d' % quantity)
@@ -746,7 +749,6 @@ def create_machine_async(email, backend_id, key_id, machine_name, location_id,
         parsed_bindings[machine_name] = docker_port_bindings
         names.append(machine_name)
 
-    user = user_from_email(email)
     specs = []
 
     for name in names:
@@ -765,11 +767,14 @@ def create_machine_async(email, backend_id, key_id, machine_name, location_id,
         args, kwargs = args_kwargs
         error = False
         try:
+            notify_user(user, "Provisioning...")
             node = create_machine(*args, **kwargs)
         except MachineCreationError as exc:
             error = str(exc)
+            notify_user(user, "Error: %s" % error)
         except Exception as exc:
             error = repr(exc)
+            notify_user(user, "Error: %s" % error)
         finally:
             name = args[3]
             log_event(email, 'job', 'machine_creation_finished', job_id=job_id,
