@@ -1,6 +1,7 @@
 import paramiko
 import json
 import uuid
+import re
 import tempfile
 import functools
 
@@ -708,22 +709,49 @@ def create_machine_async(email, backend_id, key_id, machine_name, location_id,
     THREAD_COUNT = 5
     pool = ThreadPool(THREAD_COUNT)
 
+    def parse_docker_port_bindings(names, bindings):
+        """
+        In case of docker quantity > 1, then the port bindings have the form of e.g. 80{+}:80.
+        Here we'll reconstruct the dict.
+        """
+        index = 0
+        parsed_bindings = {}
+
+        for name in names:
+            parsed_bindings[name] = {}
+            for binding in bindings:
+                port_pattern = bindings[binding][0]['HostPort']
+                match = re.search('(\d+)\{\+\}', port_pattern)
+                if match:
+                    parsed_port = int(match.group(1)) + index
+                    parsed_bindings[name][binding] = []
+                    parsed_bindings[name][binding].append({'HostPort': '%s' % str(parsed_port)})
+            index += 1
+
+        return parsed_bindings
+
     names = []
     if quantity > 1:
-        for i in range(1, quantity+1):
+        for i in range(0, quantity):
             names.append('%s-%d' % (machine_name,i))
+
+        parsed_bindings = parse_docker_port_bindings(names, docker_port_bindings)
+
     else:
+        parsed_bindings = {}
+        parsed_bindings[machine_name] = docker_port_bindings
         names.append(machine_name)
 
     user = user_from_email(email)
     specs = []
+
     for name in names:
         specs.append((
             (user, backend_id, key_id, name, location_id, image_id,
              size_id, script, image_extra, disk, image_name, size_name,
              location_name, ips, monitoring, networks, docker_env,
              docker_command, 22, script_id, script_params, job_id,),
-            {'docker_port_bindings': docker_port_bindings,
+            {'docker_port_bindings': parsed_bindings[name],
              'docker_exposed_ports': docker_exposed_ports,
              'docker_volume_bindings': docker_volume_bindings,
              'hostname': hostname, 'plugins': plugins}
