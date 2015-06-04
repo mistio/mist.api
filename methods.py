@@ -1514,7 +1514,7 @@ def create_machine(user, backend_id, key_id, machine_name, location_id,
                    size_name, location_name, ips, monitoring, networks=[],
                    docker_env=[], docker_command=None, ssh_port=22,
                    script_id='', script_params='', job_id=None, docker_port_bindings={},
-                   docker_exposed_ports={}, hostname='', plugins=None):
+                   docker_exposed_ports={}, docker_volume_bindings=[], hostname='', plugins=None):
 
     """Creates a new virtual machine on the specified backend.
 
@@ -1537,7 +1537,6 @@ def create_machine(user, backend_id, key_id, machine_name, location_id,
 
     """
     log.info('Creating machine %s on backend %s' % (machine_name, backend_id))
-
     if backend_id not in user.backends:
         raise BackendNotFoundError(backend_id)
     conn = connect_provider(user.backends[backend_id])
@@ -1570,11 +1569,13 @@ def create_machine(user, backend_id, key_id, machine_name, location_id,
             node = _create_machine_docker(conn, machine_name, image_id, '', public_key=public_key,
                                           docker_env=docker_env, docker_command=docker_command,
                                           docker_port_bindings=docker_port_bindings,
-                                          docker_exposed_ports=docker_exposed_ports)
+                                          docker_exposed_ports=docker_exposed_ports,
+                                          docker_volume_bindings=docker_volume_bindings)
         else:
             node = _create_machine_docker(conn, machine_name, image_id, script, docker_env=docker_env,
                                           docker_command=docker_command, docker_port_bindings=docker_port_bindings,
-                                          docker_exposed_ports=docker_exposed_ports)
+                                          docker_exposed_ports=docker_exposed_ports,
+                                          docker_volume_bindings=docker_volume_bindings)
         if key_id and key_id in user.keypairs:
             node_info = conn.inspect_node(node)
             try:
@@ -1985,7 +1986,7 @@ def _create_machine_softlayer(conn, key_name, private_key, public_key,
     return node
 
 def _create_machine_docker(conn, machine_name, image, script=None, public_key=None, docker_env={}, docker_command=None,
-                           tty_attach=True, docker_port_bindings={}, docker_exposed_ports={}):
+                           tty_attach=True, docker_port_bindings={}, docker_exposed_ports={}, docker_volume_bindings=[]):
     """Create a machine in docker.
 
     """
@@ -2010,6 +2011,7 @@ def _create_machine_docker(conn, machine_name, image, script=None, public_key=No
             tty=tty_attach,
             ports=docker_exposed_ports,
             port_bindings=docker_port_bindings,
+            volume_bindings=docker_volume_bindings,
         )
     except Exception as e:
         raise MachineCreationError("Docker, got exception %s" % e, e)
