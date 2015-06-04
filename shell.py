@@ -23,12 +23,16 @@ from mist.io.exceptions import ServiceUnavailableError
 
 from mist.io.helpers import trigger_session_update
 
+from winrm.protocol import Protocol
+from winrm import Response, Session
+
 try:
     from mist.core import config
 except ImportError:
     from mist.io import config
 
 import logging
+
 logging.basicConfig(level=config.PY_LOG_LEVEL,
                     format=config.PY_LOG_FORMAT,
                     datefmt=config.PY_LOG_FORMAT_DATE)
@@ -127,7 +131,6 @@ class ParamikoShell(object):
                 # eg related to network, but keep until all attempts are made
                 if not attempts:
                     raise ServiceUnavailableError(repr(exc))
-
 
     def disconnect(self):
         """Close the SSH connection."""
@@ -245,7 +248,7 @@ class ParamikoShell(object):
                     if [backend_id, machine_id] == machine[:2]:
                         assoc_keys.append(key_id)
                         if len(machine) > 2 and \
-                                int(time() - machine[2]) < 7*24*3600:
+                                        int(time() - machine[2]) < 7 * 24 * 3600:
                             recent_keys.append(key_id)
                         if len(machine) > 3 and machine[3] == 'root':
                             root_keys.append(key_id)
@@ -374,6 +377,7 @@ class DockerShell(object):
     """
     Docker Shell achieved through the docker hosts API, by opening a websocket
     """
+
     def __init__(self, host):
         self.host = host
         self.ws = websocket.WebSocket()
@@ -474,17 +478,71 @@ class DockerShell(object):
         def run(*args):
             ws.send(self.cmd)
             sleep(1)
-        thread.start_new_thread(run, ())
 
+        thread.start_new_thread(run, ())
 
     def __del__(self):
         self.disconnect()
 
 
+class PowerShell(object):
+    """
+        This is an implementation similar to the on in the Session object in winrm
+        however the shell is not started and closed when sending each command because that
+        is very slow. Instead the connection is kept alive and closed when calling the
+        disconnect method.
+    """
+
+    # for now transport will be plaintext but later it should be through ssl and that
+    # will require the certificate file path and the certificate chain
+    def __init__(self, host, port, username, password, use_ssl=False, ca_trust_path=None, cert_pem=None, cert_pem_key=None):
+        if host is None:
+            raise ValueError('Host is None')
+        if port is None:
+            raise ValueError('Port is None')
+        if username is None:
+            raise ValueError('Username is None')
+        if password is None:
+            raise ValueError('Password is None')
+        if use_ssl and (ca_trust_path is None or cert_pem is None or cert_pem_key is None):
+            raise ValueError('Some SSL credentials where None')
+        self.host = host
+        self.port = port
+        self.username = username
+        self.password = password
+        self.transport = 'plaintext'
+        self.protocol = None
+        self.shell_id = None
+        self.use_ssl = use_ssl
+        self.ca_trust_path = ca_trust_path
+        self.cert_pem = cert_pem
+        self.cert_pem_key = cert_pem_key
+
+    def autoconfigure(self, user, backend_id, machine_id, key_id=key_id):
+        if self.use_ssl:
+            self.protocol = Protocol(endpoint=self.url, transport=self.transport, username=self.username, password=self.password,
+                                     ca_trust_path=self.ca_trust_path, cert_pem=self.cert_pem,
+                                     cert_key_pem=self.cert_pem_key)
+        else:
+            self.protocol = Protocol(endpoint=self.url, transport=self.transport, username=self.username, password=self.password)
+        self.shell_id = self.protocol.open_shell()
+
+    def disconnect(self):
+        log.info('Disconnecting from powershell')
+        self.protocol.close_shell(self.shell_id)
+
+    def command(self, cmd, pty=True):
+        command_id = self.protocol.run_command(self.shell_id, cmd, args)
+        rs = Response(self.protocol.get_command_output(self.shell_id, command_id))
+        self.protocol.cleanup_command(self.shell_id, command_id)
+        return rs
+
+
 class Shell(object):
     """
-    Proxy Shell Class to distinguish weather we are talking about Docker or Paramiko Shell
+    Proxy Shell Class to distinguish whether we are talking about Docker or Paramiko Shell
     """
+
     def __init__(self, host, provider=None, username=None, key=None, password=None, port=22, enforce_paramiko=False):
         """
 
@@ -500,7 +558,9 @@ class Shell(object):
         self.channel = None
         self.ssh = None
 
-        if provider == 'docker' and not enforce_paramiko:
+        if provider == 'powershell':
+            self._shell = PowerShell(host, port, username, password)
+        elif provider == 'docker' and not enforce_paramiko:
             self._shell = DockerShell(host)
         else:
             self._shell = ParamikoShell(host, username=username, key=key, password=password, port=port)
@@ -513,11 +573,16 @@ class Shell(object):
                                              username=username, password=password, port=port)
         elif isinstance(self._shell, DockerShell):
             return self._shell.autoconfigure(user, backend_id, machine_id)
+        elif isinstance(self._shell, PowerShell):
+            return self._shell.autoconfigure(user, backend_id, machine_id, key_id=None, username=None, password=None,
+                                             port=port)
 
     def connect(self, username, key=None, password=None, port=22):
         if isinstance(self._shell, ParamikoShell):
             self._shell.connect(username, key=key, password=password, port=port)
         elif isinstance(self._shell, DockerShell):
+            self._shell.connect()
+        elif isinstance(self._shell, PowerShell):
             self._shell.connect()
 
     def invoke_shell(self, term='xterm', cols=None, rows=None):
@@ -525,22 +590,30 @@ class Shell(object):
             return self._shell.ssh.invoke_shell(term, cols, rows)
         elif isinstance(self._shell, DockerShell):
             return self._shell.ws
+        elif isinstance(self._shell, PowerShell):
+            return self._shell.invoke_shell()
 
     def recv(self, default=1024):
         if isinstance(self._shell, ParamikoShell):
             return self._shell.ssh.recv(default)
         elif isinstance(self._shell, DockerShell):
             return self._shell.ws.recv()
+            # elif isinstance(self._shell, PowerShell):
+            #     return self._shell.recv()
 
     def disconnect(self):
-            self._shell.disconnect()
+        self._shell.disconnect()
 
     def command(self, cmd, pty=True):
         if isinstance(self._shell, ParamikoShell):
             return self._shell.command(cmd, pty=pty)
         elif isinstance(self._shell, DockerShell):
             return self._shell.command(cmd)
+        elif isinstance(self._shell, PowerShell):
+            return self._shell.command()
 
     def command_stream(self, cmd):
         if isinstance(self._shell, ParamikoShell):
             yield self._shell.command_stream(cmd)
+            # elif isinstance(self._shell, PowerShell):
+            #     return self._shell.stream()

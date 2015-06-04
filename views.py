@@ -553,7 +553,7 @@ def machine_actions(request):
 
 @view_config(route_name='machine_rdp', request_method='GET', renderer="json")
 def machine_rdp(request):
-    "Generate and return an rdp file for windows machines"
+    """Generate and return an rdp file for windows machines"""
     backend_id = request.matchdict['backend']
     machine_id = request.matchdict['machine']
     user = user_from_request(request)
