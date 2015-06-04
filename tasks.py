@@ -685,10 +685,13 @@ def create_machine_async(email, backend_id, key_id, machine_name, location_id,
                           script_id=None, script_params=None,
                           quantity=1, persist=False, job_id=None,
                           docker_port_bindings={}, docker_exposed_ports={},
+                          docker_volume_bindings=[],
                           hostname='', plugins=None):
     from multiprocessing.dummy import Pool as ThreadPool
     from mist.io.methods import create_machine
     from mist.io.exceptions import MachineCreationError
+
+    quantity = int(quantity)
     log.warn('MULTICREATE ASYNC %d' % quantity)
 
     if multi_user:
@@ -706,8 +709,11 @@ def create_machine_async(email, backend_id, key_id, machine_name, location_id,
     pool = ThreadPool(THREAD_COUNT)
 
     names = []
-    for i in range(1, quantity+1):
-        names.append('%s-%d' % (machine_name,i))
+    if quantity > 1:
+        for i in range(1, quantity+1):
+            names.append('%s-%d' % (machine_name,i))
+    else:
+        names.append(machine_name)
 
     user = user_from_email(email)
     specs = []
@@ -716,8 +722,11 @@ def create_machine_async(email, backend_id, key_id, machine_name, location_id,
             (user, backend_id, key_id, name, location_id, image_id,
              size_id, script, image_extra, disk, image_name, size_name,
              location_name, ips, monitoring, networks, docker_env,
-             docker_command, 22, script_id, script_params, job_id),
-            {'hostname': hostname, 'plugins': plugins}
+             docker_command, 22, script_id, script_params, job_id,),
+            {'docker_port_bindings': docker_port_bindings,
+             'docker_exposed_ports': docker_exposed_ports,
+             'docker_volume_bindings': docker_volume_bindings,
+             'hostname': hostname, 'plugins': plugins}
         ))
 
     def create_machine_wrapper(args_kwargs):
