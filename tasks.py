@@ -693,6 +693,10 @@ def create_machine_async(email, backend_id, key_id, machine_name, location_id,
     from mist.io.exceptions import MachineCreationError
 
     quantity = int(quantity)
+
+    if quantity < 1:
+        raise MachineCreationError("Quantity should be >= 1")
+
     log.warn('MULTICREATE ASYNC %d' % quantity)
 
     if multi_user:
