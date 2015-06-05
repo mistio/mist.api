@@ -2001,10 +2001,10 @@ def _create_machine_docker(user, backend_id, conn, machine_name, image, script=N
             environment = []
 
         if image not in [i.id for i in conn.list_images()]:
-            notify_user(user, "Pulling image...")
+            notify_user(user, "Pulling image...", email_notify=False)
             pulled_image = conn.pull_image(image_name)
             image = pulled_image.id
-            notify_user(user, "Image successfully pulled")
+            notify_user(user, "Image successfully pulled", email_notify=False)
             task = mist.io.tasks.ListImages()
             task.clear_cache(user.email, backend_id)
             task.delay(user.email, backend_id)
