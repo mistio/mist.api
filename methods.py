@@ -1566,16 +1566,18 @@ def create_machine(user, backend_id, key_id, machine_name, location_id,
     machine_name = machine_name_validator(conn.type, machine_name)
     if conn.type is Provider.DOCKER:
         if key_id:
-            node = _create_machine_docker(conn, machine_name, image_id, '', public_key=public_key,
+            node = _create_machine_docker(user, backend_id, conn, machine_name, image_id, '', public_key=public_key,
                                           docker_env=docker_env, docker_command=docker_command,
                                           docker_port_bindings=docker_port_bindings,
                                           docker_exposed_ports=docker_exposed_ports,
-                                          docker_volume_bindings=docker_volume_bindings)
+                                          docker_volume_bindings=docker_volume_bindings,
+                                          image_name=image_name)
         else:
-            node = _create_machine_docker(conn, machine_name, image_id, script, docker_env=docker_env,
+            node = _create_machine_docker(user, backend_id, conn, machine_name, image_id, script, docker_env=docker_env,
                                           docker_command=docker_command, docker_port_bindings=docker_port_bindings,
                                           docker_exposed_ports=docker_exposed_ports,
-                                          docker_volume_bindings=docker_volume_bindings)
+                                          docker_volume_bindings=docker_volume_bindings,
+                                          image_name=image_name)
         if key_id and key_id in user.keypairs:
             node_info = conn.inspect_node(node)
             try:
@@ -1985,8 +1987,9 @@ def _create_machine_softlayer(conn, key_name, private_key, public_key,
             raise MachineCreationError("Softlayer, got exception %s" % e, e)
     return node
 
-def _create_machine_docker(conn, machine_name, image, script=None, public_key=None, docker_env={}, docker_command=None,
-                           tty_attach=True, docker_port_bindings={}, docker_exposed_ports={}, docker_volume_bindings=[]):
+def _create_machine_docker(user, backend_id, conn, machine_name, image, script=None, public_key=None, docker_env={}, docker_command=None,
+                           tty_attach=True, docker_port_bindings={}, docker_exposed_ports={}, docker_volume_bindings=[],
+                           image_name=""):
     """Create a machine in docker.
 
     """
@@ -1996,6 +1999,15 @@ def _create_machine_docker(conn, machine_name, image, script=None, public_key=No
             environment = ['PUBLIC_KEY=%s' % public_key.strip()]
         else:
             environment = []
+
+        if image not in [i.id for i in conn.list_images()]:
+            notify_user(user, "Pulling image...")
+            pulled_image = conn.pull_image(image_name)
+            image = pulled_image.id
+            notify_user(user, "Image successfully pulled")
+            task = mist.io.tasks.ListImages()
+            task.clear_cache(user.email, backend_id)
+            task.delay(user.email, backend_id)
 
         if docker_env:
             # docker_env is a dict, and we must convert it ot be in the form:
