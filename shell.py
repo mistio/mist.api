@@ -518,7 +518,7 @@ class PowerShell(object):
         self.cert_pem = cert_pem
         self.cert_pem_key = cert_pem_key
 
-    def autoconfigure(self, user, backend_id, machine_id, key_id=key_id):
+    def autoconfigure(self, user, backend_id, machine_id, key_id=None):
         if self.use_ssl:
             self.protocol = Protocol(endpoint=self.url, transport=self.transport, username=self.username, password=self.password,
                                      ca_trust_path=self.ca_trust_path, cert_pem=self.cert_pem,
