@@ -552,6 +552,7 @@ class Shell(object):
         if we want SSH Connection to Docker containers
         :return:
         """
+        log.info('Creating a new Shell instance for host %s' % host)
 
         self._shell = None
         self.host = host
@@ -568,6 +569,8 @@ class Shell(object):
 
     def autoconfigure(self, user, backend_id, machine_id, key_id=None,
                       username=None, password=None, port=22):
+        log.info('Configuring new Shell instance for user: %s, backend_id: %s, machine_id: %s, key_id: %s, username: %s'
+                 ' and port: %s' % (user.email, backend_id, machine_id, key_id, username, port))
         if isinstance(self._shell, ParamikoShell):
             return self._shell.autoconfigure(user, backend_id, machine_id, key_id=key_id,
                                              username=username, password=password, port=port)
