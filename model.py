@@ -146,6 +146,8 @@ class Keypair(OODict):
     private = StrField()
     default = BoolField()
     machines = ListField()
+    is_unix = BoolField()
+    password = StrField()
 
     def generate(self):
         """Generates a new RSA keypair and assignes to self."""
