@@ -1332,6 +1332,7 @@ def get_machine_actions(machine_from_api, conn, extra):
     can_destroy = True
     can_reboot = True
     can_tag = True
+    can_vnc = False
 
     if conn.type in (Provider.RACKSPACE_FIRST_GEN, Provider.LINODE,
                      Provider.NEPHOSCALE, Provider.SOFTLAYER,
@@ -1382,11 +1383,14 @@ def get_machine_actions(machine_from_api, conn, extra):
         can_start = True
         can_stop = True
 
-    if conn.type == Provider.LIBVIRT and extra.get('tags', {}).get('type', None) == 'hypervisor':
-        # allow only reboot action for libvirt hypervisor
-        can_stop = False
-        can_destroy = False
-        can_start = False
+    if conn.type == Provider.LIBVIRT:
+        if extra.get('tags', {}).get('type', None) == 'hypervisor':
+            # allow only reboot action for libvirt hypervisor
+            can_stop = False
+            can_destroy = False
+            can_start = False
+        else:
+            can_vnc = True
 
     if conn.type in (Provider.LINODE, Provider.NEPHOSCALE, Provider.DIGITAL_OCEAN,
                      Provider.DOCKER, Provider.OPENSTACK, Provider.RACKSPACE) or conn.type in config.EC2_PROVIDERS:
@@ -1400,7 +1404,8 @@ def get_machine_actions(machine_from_api, conn, extra):
             'can_destroy': can_destroy,
             'can_reboot': can_reboot,
             'can_tag': can_tag,
-            'can_rename': can_rename}
+            'can_rename': can_rename,
+            'can_vnc': can_vnc}
 
 
 def list_machines(user, backend_id):
@@ -2352,7 +2357,7 @@ def _machine_action(user, backend_id, machine_id, action, plan_id=None, name=Non
     thing that changes is the action. This helper function saves us some code.
 
     """
-    actions = ('start', 'stop', 'reboot', 'destroy', 'resize', 'rename')
+    actions = ('start', 'stop', 'reboot', 'destroy', 'resize', 'rename', 'vnc')
 
     if action not in actions:
         raise BadRequestError("Action '%s' should be one of %s" % (action,
@@ -2427,6 +2432,18 @@ def _machine_action(user, backend_id, machine_id, action, plan_id=None, name=Non
             conn.ex_resize_node(node, plan_id)
         elif action is 'rename':
             conn.ex_rename_node(node, name)
+        elif action is 'vnc':
+            # remote connection to the hypervisor
+            if conn.type == 'libvirt':
+                if conn.secret:
+                    port = conn.ex_set_ssh_fw(machine)
+                else:
+                    # local connection
+                    port = conn._get_vnc_port_for_domain(node)
+                if port:
+                    vnc_url = run_novnc(port)
+                    return vnc_url
+
         elif action is 'reboot':
             if bare_metal:
                 try:
@@ -2521,6 +2538,10 @@ def reboot_machine(user, backend_id, machine_id):
 def rename_machine(user, backend_id, machine_id, name):
     """Renames a machine on a certain backend."""
     _machine_action(user, backend_id, machine_id, 'rename', name=name)
+
+def vnc_machine(user, backend_id, machine_id, name):
+    """vncs to a machine on a certain backend."""
+    _machine_action(user, backend_id, machine_id, 'vnc', name=name)
 
 
 def resize_machine(user, backend_id, machine_id, plan_id):
