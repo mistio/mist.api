@@ -110,6 +110,9 @@ class Backend(OODict):
     machines = make_field(Machines)()
     starred = ListField()
     unstarred = ListField()
+    docker_ssh_key = StrField()
+    docker_ssh_user = StrField()
+    docker_ssh_port = IntField(22)
 
     def __repr__(self):
         print_fields = ['title', 'provider', 'region']

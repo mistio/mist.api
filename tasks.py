@@ -686,7 +686,7 @@ def create_machine_async(email, backend_id, key_id, machine_name, location_id,
                           script_id=None, script_params=None,
                           quantity=1, persist=False, job_id=None,
                           docker_port_bindings={}, docker_exposed_ports={},
-                          docker_volume_bindings=[],
+                          docker_volume_bindings=[], azure_port_bindings = [],
                           hostname='', plugins=None):
     from multiprocessing.dummy import Pool as ThreadPool
     from mist.io.methods import create_machine

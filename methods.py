@@ -323,6 +323,13 @@ def add_backend_v_2(user, title, provider, params):
         node_id = backend.apiurl # id of the hypervisor is the hostname provided
         username = backend.apikey
         associate_key(user, key_id, backend_id, node_id, username=username)
+    elif provider == 'docker' and backend.docker_ssh_key:
+        key_id = backend.docker_ssh_key
+        node_id = backend.apiurl
+        username = backend.docker_ssh_user
+        port = backend.docker_ssh_port
+        associate_key(user, key_id, backend_id, node_id, username=username, port=port)
+
 
     return {'backend_id': backend_id}
 
@@ -720,6 +727,12 @@ def _add_backend_docker(title, provider, params):
     key_file = params.get('key_file', '')
     cert_file = params.get('cert_file', '')
 
+    #docker host ssh connection
+    docker_ssh_key = params.get('machine_key', '')
+    docker_ssh_user = params.get('machine_user', '')
+    docker_ssh_port = int(params.get('machine_port', 22))
+
+
     backend = model.Backend()
     backend.title = title
     backend.provider = provider
@@ -730,6 +743,9 @@ def _add_backend_docker(title, provider, params):
     backend.apisecret = auth_password
     backend.apiurl = docker_host
     backend.enabled = True
+    backend.docker_ssh_key = docker_ssh_key
+    backend.docker_ssh_user = docker_ssh_user
+    backend.docker_ssh_port = docker_port
     backend_id = backend.get_id()
 
     return backend_id, backend
@@ -1266,6 +1282,10 @@ def connect_provider(backend):
     elif backend.provider == Provider.GCE:
         conn = driver(backend.apikey, backend.apisecret, project=backend.tenant_name)
     elif backend.provider == Provider.DOCKER:
+        if backend.docker_ssh_key:
+            show_host = True
+        else:
+            show_host = False
         libcloud.security.VERIFY_SSL_CERT = False;
         if backend.key_file and backend.cert_file:
             # tls auth, needs to pass the key and cert as files
@@ -1275,9 +1295,10 @@ def connect_provider(backend):
             cert_temp_file = NamedTemporaryFile(delete=False)
             cert_temp_file.write(backend.cert_file)
             cert_temp_file.close()
-            conn = driver(host=backend.apiurl, port=backend.docker_port, key_file=key_temp_file.name, cert_file=cert_temp_file.name)
+            conn = driver(host=backend.apiurl, port=backend.docker_port, key_file=key_temp_file.name, cert_file=cert_temp_file.name,
+                          show_host=show_host)
         else:
-            conn = driver(backend.apikey, backend.apisecret, backend.apiurl, backend.docker_port)
+            conn = driver(backend.apikey, backend.apisecret, backend.apiurl, backend.docker_port, show_host=show_host)
     elif backend.provider in [Provider.RACKSPACE_FIRST_GEN,
                               Provider.RACKSPACE]:
         conn = driver(backend.apikey, backend.apisecret,

@@ -47,8 +47,11 @@ class ShellHubWorker(mist.io.hub.main.HubWorker):
             )
         except Exception as exc:
             if self.provider == 'docker':
+                enforce_paramiko = data.get('enforce_paramiko', False)
+
                 self.shell = mist.io.shell.Shell(data['host'],
-                                                 provider='docker')
+                                                 provider='docker', enforce_paramiko=enforce_paramiko)
+
                 key_id, ssh_user = self.shell.autoconfigure(
                     self.user, data['backend_id'], data['machine_id']
                 )
