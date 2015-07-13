@@ -3922,22 +3922,12 @@ def _notify_playbook_result(user, res, backend_id=None, machine_id=None,
 
 
 def deploy_docker_collectd(user, backend_id, machined_id, extra_vars):
-    uuid = extra_vars['uuid']
-    password = extra_vars['password']
-    monitor_uri = extra_vars['monitor']
-
     backend = user.backends[backend_id]
     conn = connect_provider(backend)
 
     machine_name = "%s monitor" % backend.title
 
-    size_name = 'default'
-    size_id = 'default'
-    disk = 'unlimited'
     image_extra = {}
-    location_name = 'default'
-    location_id = 'default'
-    script = ''
 
     docker_env = {
         'COLLECTD_USERNAME': extra_vars['uuid'],
@@ -3950,10 +3940,7 @@ def deploy_docker_collectd(user, backend_id, machined_id, extra_vars):
     image_name = 'mist/collectd'
 
 
-    size = NodeSize(size_id, name=size_name, ram='', disk=disk,
-                    bandwidth='', price='', driver=conn)
     image = NodeImage(image_id, name=image_name, extra=image_extra, driver=conn)
-    location = NodeLocation(location_id, name=location_name, country='', driver=conn)
 
     node = _create_machine_docker(user, backend_id, conn, machine_name, image, docker_env=docker_env,
                                   docker_volume_bindings=docker_volume_bindings)
