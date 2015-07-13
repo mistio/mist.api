@@ -318,7 +318,7 @@ def add_backend_v_2(user, title, provider, params):
     trigger_session_update(user.email, ['backends'])
 
     if provider == 'libvirt' and backend.apisecret:
-    # associate libvirt hypervisor witht the ssh key, if on qemu+ssh
+    # associate libvirt hypervisor with the ssh key, if on qemu+ssh
         key_id = params.get('machine_key')
         node_id = backend.apiurl # id of the hypervisor is the hostname provided
         username = backend.apikey
@@ -3303,8 +3303,12 @@ def enable_monitoring(user, backend_id, machine_id,
         return ret_dict
 
     if not no_ssh:
-        mist.io.tasks.deploy_collectd.delay(user.email, backend_id, machine_id,
-                                            ret_dict['extra_vars'])
+        if backend.provider == 'docker':
+            mist.io.tasks.deploy_docker_collectd(user.email, backend_id, machine_id,
+                                                 ret_dict['extra_vars'])
+        else:
+            mist.io.tasks.deploy_collectd.delay(user.email, backend_id, machine_id,
+                                                ret_dict['extra_vars'])
 
     trigger_session_update(user.email, ['monitoring'])
 
@@ -3915,6 +3919,46 @@ def _notify_playbook_result(user, res, backend_id=None, machine_id=None,
     if not res['success']:
         kwargs['output'] = res['stdout']
     notify_user(user, title, **kwargs)
+
+
+def deploy_docker_collectd(user, backend_id, machined_id, extra_vars):
+    uuid = extra_vars['uuid']
+    password = extra_vars['password']
+    monitor_uri = extra_vars['monitor']
+
+    backend = user.backends[backend_id]
+    conn = connect_provider(backend)
+
+    machine_name = "%s monitor" % backend.title
+
+    size_name = 'default'
+    size_id = 'default'
+    disk = 'unlimited'
+    image_extra = {}
+    location_name = 'default'
+    location_id = 'default'
+    script = ''
+
+    docker_env = {
+        'COLLECTD_USERNAME': extra_vars['uuid'],
+        'COLLECTD_PASSWORD': extra_vars['password'],
+        'MONITOR_SERVER': extra_vars['monitor']
+    }
+
+    docker_volume_bindings = ['/sys/fs/cgroup:/sys/fs/cgroup']
+    image_id = 'mist/collectd'
+    image_name = 'mist/collectd'
+
+
+    size = NodeSize(size_id, name=size_name, ram='', disk=disk,
+                    bandwidth='', price='', driver=conn)
+    image = NodeImage(image_id, name=image_name, extra=image_extra, driver=conn)
+    location = NodeLocation(location_id, name=location_name, country='', driver=conn)
+
+    node = _create_machine_docker(user, backend_id, conn, machine_name, image, docker_env=docker_env,
+                                  docker_volume_bindings=docker_volume_bindings)
+
+    return
 
 
 def deploy_collectd(user, backend_id, machine_id, extra_vars):
