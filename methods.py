@@ -1645,6 +1645,9 @@ def create_machine(user, backend_id, key_id, machine_name, location_id,
         node = _create_machine_digital_ocean(conn, key_id, private_key,
                                              public_key, machine_name,
                                              image, size, location)
+    elif conn.type is Provider.LIBVIRT:
+        node = _create_machine_libvirt(conn, machine_name, disk_path=None,
+                                       disk_size=4, ram=1024, cpus=1, image=None)
     elif conn.type == Provider.AZURE:
         node = _create_machine_azure(conn, key_id, private_key,
                                              public_key, machine_name,
@@ -2108,6 +2111,27 @@ def _create_machine_digital_ocean(conn, key_name, private_key, public_key,
             raise MachineCreationError("Digital Ocean, got exception %s" % e, e)
 
         return node
+
+
+def _create_machine_libvirt(conn, machine_name, disk_path=None,
+                                 disk_size=4, ram=1024, cpus=1, image=None):
+    """Create a machine in Libvirt.
+    """
+
+
+    try:
+        node = conn.create_node(
+            name=machine_name,
+            disk_path=disk_path,
+            disk_size=disk_size,
+            ram=ram,
+            cpus=cpus,
+            image=image
+        )
+    except Exception as e:
+        raise MachineCreationError("KVM, got exception %s" % e, e)
+
+    return node
 
 
 def _create_machine_hostvirtual(conn, public_key, machine_name, image, size, location):
