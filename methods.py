@@ -1314,7 +1314,7 @@ def connect_provider(backend):
             key_temp_file = NamedTemporaryFile(delete=False)
             key_temp_file.write(backend.apisecret)
             key_temp_file.close()
-            conn = driver(backend.apiurl, user=backend.apikey, ssh_key=tmp_key_path, ssh_port=backend.ssh_port)
+            conn = driver(backend.apiurl, user=backend.apikey, ssh_key=tmp_key_path.name, ssh_port=backend.ssh_port)
         else:
             conn = driver(backend.apiurl, user=backend.apikey)
     else:
