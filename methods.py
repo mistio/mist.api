@@ -1583,8 +1583,8 @@ def create_machine(user, backend_id, key_id, machine_name, location_id,
 
     if conn.type is Provider.LIBVIRT:
         node = _create_machine_libvirt(conn, machine_name,
-                                       disk_size=4, ram=512, cpu=1,
-                                       image=image_id, disk_path=None, create_from_existing=None)
+                                       disk_size, ram, cpu,
+                                       image_id, disk_path, create_from_existing)
 
     if key_id and key_id not in user.keypairs:
         raise KeypairNotFoundError(key_id)
@@ -2137,12 +2137,14 @@ def _create_machine_libvirt(conn, machine_name, disk_size=4, ram=512, cpu=1,
     try:
         node = conn.create_node(
             name=machine_name,
-            disk_path=disk_path,
             disk_size=disk_size,
             ram=ram,
             cpu=cpu,
-            image=image
+            image=image,
+            disk_path=disk_path,
+            create_from_existing=create_from_existing
         )
+
     except Exception as e:
         raise MachineCreationError("KVM, got exception %s" % e, e)
 

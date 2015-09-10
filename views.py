@@ -476,7 +476,7 @@ def create_machine(request):
 
             if custom_image_path:
                 image_id = custom_image_path
-            disk_path = request.json_body.get('libvirt_disk_path', '/var/lib/libvirt/')
+            disk_path = request.json_body.get('libvirt_disk_path', '')
             create_from_existing = request.json_body.get('libvirt_existing_disk_path')
 
         else:
