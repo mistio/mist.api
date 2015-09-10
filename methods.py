@@ -1550,7 +1550,8 @@ def create_machine(user, backend_id, key_id, machine_name, location_id,
                    size_name, location_name, ips, monitoring, networks=[],
                    docker_env=[], docker_command=None, ssh_port=22,
                    script_id='', script_params='', job_id=None, docker_port_bindings={},
-                   docker_exposed_ports={}, azure_port_bindings='', hostname='', plugins=None):
+                   docker_exposed_ports={}, azure_port_bindings='', hostname='', plugins=None,
+                   disk_size=None, ram=None, cpu=None, disk_path=None, create_from_existing=None):
 
     """Creates a new virtual machine on the specified backend.
 
@@ -1578,11 +1579,18 @@ def create_machine(user, backend_id, key_id, machine_name, location_id,
         raise BackendNotFoundError(backend_id)
     conn = connect_provider(user.backends[backend_id])
 
+    machine_name = machine_name_validator(conn.type, machine_name)
+
+    if conn.type is Provider.LIBVIRT:
+        node = _create_machine_libvirt(conn, machine_name,
+                                       disk_size=4, ram=512, cpu=1,
+                                       image=image_id, disk_path=None, create_from_existing=None)
+
     if key_id and key_id not in user.keypairs:
         raise KeypairNotFoundError(key_id)
 
     # if key_id not provided, search for default key
-    if conn.type != Provider.DOCKER:
+    if conn.type not in [Provider.LIBVIRT, Provider.DOCKER]:
         if not key_id:
             for kid in user.keypairs:
                 if user.keypairs[kid].default:
@@ -1600,7 +1608,7 @@ def create_machine(user, backend_id, key_id, machine_name, location_id,
                     bandwidth='', price='', driver=conn)
     image = NodeImage(image_id, name=image_name, extra=image_extra, driver=conn)
     location = NodeLocation(location_id, name=location_name, country='', driver=conn)
-    machine_name = machine_name_validator(conn.type, machine_name)
+
     if conn.type is Provider.DOCKER:
         if key_id:
             node = _create_machine_docker(conn, machine_name, image_id, '', public_key=public_key,
@@ -1655,9 +1663,6 @@ def create_machine(user, backend_id, key_id, machine_name, location_id,
         node = _create_machine_digital_ocean(conn, key_id, private_key,
                                              public_key, machine_name,
                                              image, size, location)
-    elif conn.type is Provider.LIBVIRT:
-        node = _create_machine_libvirt(conn, machine_name, disk_path=None,
-                                       disk_size=4, ram=1024, cpus=1, image=None)
     elif conn.type == Provider.AZURE:
         node = _create_machine_azure(conn, key_id, private_key,
                                              public_key, machine_name,
