@@ -723,9 +723,9 @@ def create_machine_async(email, backend_id, key_id, machine_name, location_id,
     THREAD_COUNT = 5
     pool = ThreadPool(THREAD_COUNT)
 
-    names = []
-    for i in range(1, quantity+1):
-        names.append('%s-%d' % (machine_name,i))
+    names = [machine_name]
+    if quantity > 1:
+        names = ['%s-%d' % (machine_name, i + 1) for i in range(quantity)]
 
     user = user_from_email(email)
     specs = []
