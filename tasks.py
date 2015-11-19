@@ -759,6 +759,8 @@ class ListMachines(UserTask):
                         tag_dict = {'key': key, 'value': value}
                         if tag_dict not in machine['tags']:
                             machine['tags'].append(tag_dict)
+                        if key == 'external_ip':
+                            machine['public_ips'].append(value)
                 # FIXME: optimize!
         log.warn('Returning list machines for user %s backend %s' % (email, backend_id))
         return {'backend_id': backend_id, 'machines': machines}

@@ -1,4 +1,9 @@
 import mist.io.methods
+try:  # Multi-user environment
+    from mist.core.helpers import user_from_email
+    multi_user = True
+except ImportError:  # Standalone mist.io
+    multi_user = False
 
 
 class MistInventory(object):
@@ -59,6 +64,19 @@ class MistInventory(object):
         if backend_id not in self._cache:
             print 'Actually doing list_machines for %s' % backend_id
             machines = mist.io.methods.list_machines(self.user, backend_id)
+            if multi_user:
+                for machine in machines:
+                    # check for manually set ips with external_ip tag
+                    kwargs = {}
+                    kwargs['backend_id'] = backend_id
+                    kwargs['machine_id'] = machine.get('id')
+                    from mist.core.methods import list_tags
+                    mistio_tags = list_tags(self.user, resource_type='machine', **kwargs)
+                    for tag in mistio_tags:
+                        for key, value in tag.items():
+                            if key == 'external_ip':
+                                machine['public_ips'].append(value)
+
             self._cache[backend_id] = machines
         return self._cache[backend_id]
 
