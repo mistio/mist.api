@@ -219,6 +219,7 @@ def add_cloud_v_2(user, title, provider, params):
     Version 2 of add_cloud
     Adds a new cloud to the user and returns the cloud_id
     """
+
     if not provider:
         raise RequiredParameterMissingError("provider")
     log.info("Adding new cloud in provider '%s' with Api-Version: 2", provider)
@@ -320,13 +321,13 @@ def add_cloud_v_2(user, title, provider, params):
     with user.lock_n_load():
         user.clouds[cloud_id] = cloud
         user.save()
-    log.info("Cloud with id '%s' added succesfully with Api-Version: 2.", cloud_id)
+    log.info("Cloud with id '%s' added successfully with Api-Version: 2.", cloud_id)
     trigger_session_update(user.email, ['clouds'])
 
     if provider == 'libvirt' and cloud.apisecret:
-    # associate libvirt hypervisor witht the ssh key, if on qemu+ssh
+        # associate libvirt hypervisor with the ssh key, if on qemu+ssh
         key_id = params.get('machine_key')
-        node_id = cloud.apiurl # id of the hypervisor is the hostname provided
+        node_id = cloud.apiurl  # id of the hypervisor is the hostname provided
         username = cloud.apikey
         associate_key(user, key_id, cloud_id, node_id, username=username)
 
