@@ -8,6 +8,7 @@ import base64
 import requests
 import subprocess
 import re
+import string
 from time import sleep, time
 from datetime import datetime
 from hashlib import sha256
@@ -225,11 +226,11 @@ def add_cloud_v_2(user, title, provider, params):
     log.info("Adding new cloud in provider '%s' with Api-Version: 2", provider)
 
     # perform hostname validation if hostname is supplied
-    if provider in ['vcloud', 'bare_metal', 'docker', 'libvirt', 'openstack', 'vsphere', 'coreos']:
+    if provider in ['vcloud', 'docker', 'libvirt', 'openstack', 'vsphere', 'coreos']:
         if provider == 'vcloud':
             hostname = params.get('host', '')
-        elif provider == 'bare_metal':
-            hostname = params.get('machine_ip', '')
+        # elif provider == 'bare_metal':
+        #     hostname = params.get('machine_ip', '')
         elif provider == 'docker':
             hostname = params.get('docker_host', '')
         elif provider == 'libvirt':
@@ -248,12 +249,12 @@ def add_cloud_v_2(user, title, provider, params):
 
     if provider == 'bare_metal':
         cloud_id, mon_dict = _add_cloud_bare_metal(user, title, provider, params)
-        log.info("Cloud with id '%s' added succesfully.", cloud_id)
+        log.info("Cloud with id '%s' added successfully.", cloud_id)
         trigger_session_update(user.email, ['clouds'])
         return {'cloud_id': cloud_id, 'monitoring': mon_dict}
     elif provider == 'coreos':
         cloud_id, mon_dict = _add_cloud_coreos(user, title, provider, params)
-        log.info("Cloud with id '%s' added succesfully.", cloud_id)
+        log.info("Cloud with id '%s' added successfully.", cloud_id)
         trigger_session_update(user.email, ['clouds'])
         return {'cloud_id': cloud_id, 'monitoring': mon_dict}
     elif provider == 'ec2':
@@ -308,7 +309,7 @@ def add_cloud_v_2(user, title, provider, params):
             raise CloudUnavailableError(exc)
         if provider not in ['vshere']:
             # in some providers -eg vSphere- this is not needed
-            # as we are sure we got a succesfull connection with
+            # as we are sure we got a successful connection with
             # the provider if connect_provider doesn't fail
             try:
                 machines = conn.list_nodes()
@@ -338,49 +339,64 @@ def _add_cloud_bare_metal(user, title, provider, params):
     """
     Add a bare metal cloud
     """
+
+    machines = params.get('machines',[])
     remove_on_error = params.get('remove_on_error', True)
-    machine_key = params.get('machine_key', '')
-    machine_user = params.get('machine_user', '')
-    is_windows = params.get('windows', False)
-    if is_windows:
-        os_type = 'windows'
-    else:
-        os_type = 'unix'
-    try:
-        port = int(params.get('machine_port', 22))
-    except:
-        port = 22
-    try:
-        rdp_port = int(params.get('remote_desktop_port', 3389))
-    except:
-        rdp_port = 3389
-    machine_hostname = params.get('machine_ip', '')
 
-    use_ssh = remove_on_error and os_type == 'unix' and machine_key
-    if use_ssh:
-        if machine_key not in user.keypairs:
-            raise KeypairNotFoundError(machine_key)
-        if not machine_hostname:
-            raise BadRequestError("You have specified an SSH key but machine "
-                                  "hostname is empty.")
-        if not machine_user:
-            machine_user = 'root'
-
-    machine_hostname = sanitize_host(machine_hostname)
-    machine = model.Machine()
-    machine.ssh_port = port
-    machine.remote_desktop_port = rdp_port
-    if machine_hostname:
-        machine.dns_name = machine_hostname
-        machine.public_ips = [machine_hostname]
-    machine_id = title.replace('.', '').replace(' ', '')
-    machine.name = title
-    machine.os_type = os_type
+    # instantiate cloud
     cloud = model.Cloud()
     cloud.title = title
     cloud.provider = provider
     cloud.enabled = True
-    cloud.machines[machine_id] = machine
+
+    keep_keys ={}
+    for each_machine in machines:
+        machine_hostname = each_machine.get('machine_ip', '')
+        if machine_hostname:
+            check_host(sanitize_host(machine_hostname))
+        machine_key = each_machine.get('machine_key', '')
+        machine_user = each_machine.get('machine_user', '')
+        is_windows = each_machine.get('windows', False)
+        if is_windows:
+            os_type = 'windows'
+        else:
+            os_type = 'unix'
+        try:
+            port = int(each_machine.get('machine_port', 22))
+        except:
+            port = 22
+        try:
+            rdp_port = int(each_machine.get('remote_desktop_port', 3389))
+        except:
+            rdp_port = 3389
+
+        use_ssh = remove_on_error and os_type == 'unix' and machine_key
+        if use_ssh:
+            if machine_key not in user.keypairs:
+                raise KeypairNotFoundError(machine_key)
+            if not machine_hostname:
+                raise BadRequestError("You have specified an SSH key but machine "
+                                      "hostname is empty.")
+            if not machine_user:
+                machine_user = 'root'
+
+        machine_hostname = sanitize_host(machine_hostname)
+        machine = model.Machine()
+        machine.ssh_port = port
+        machine.remote_desktop_port = rdp_port
+        if machine_hostname:
+            machine.dns_name = machine_hostname
+            machine.public_ips = [machine_hostname]
+        # machine_id = title.replace('.', '').replace(' ', '')
+        machine_id = ''.join(random.SystemRandom().choice(string.hexdigits[:16]) for _ in range(64))
+        machine.uuid = machine_id
+        machine.name = machine_hostname or title
+        machine.os_type = os_type
+        cloud.machines[machine_id] = machine
+        if use_ssh:
+            keep_keys[machine_id] = machine_key
+
+    # create cloud id by provider and machine_name
     cloud_id = cloud.get_id()
     if cloud_id in user.clouds:
         raise CloudExistsError(cloud_id)
@@ -389,29 +405,45 @@ def _add_cloud_bare_metal(user, title, provider, params):
         user.clouds[cloud_id] = cloud
         user.save()
 
-    # try to connect. this will either fail and we'll delete the
-    # cloud, or it will work and it will create the association
-    if use_ssh:
-        try:
-            ssh_command(
-                user, cloud_id, machine_id, machine_hostname, 'uptime',
-                key_id=machine_key, username=machine_user, password=None,
-                port=port
-            )
-        except MachineUnauthorizedError as exc:
-            raise CloudUnauthorizedError(exc)
-        except ServiceUnavailableError as exc:
-            raise MistError("Couldn't connect to host '%s'."
-                            % machine_hostname)
-    if params.get('monitoring'):
-        try:
-            from mist.core.methods import enable_monitoring as _en_monitoring
-        except ImportError:
-            _en_monitoring = enable_monitoring
-        mon_dict = _en_monitoring(user, cloud_id, machine_id,
-                                  no_ssh=not use_ssh)
-    else:
-        mon_dict = {}
+    for k,v in cloud.machines.iteritems():
+        # print "iteritems"
+        # print k
+        # print v
+        machine_id = v._dict['uuid']
+        # print machine_id
+        machine_hostname = v._dict['dns_name']
+        # print machine_hostname
+        port = v._dict['ssh_port']
+        os_type = v._dict['os_type']
+        # print "key"
+        # print keep_keys[k]
+        machine_key = keep_keys[k]
+
+        use_ssh = remove_on_error and os_type == 'unix' and machine_key
+        # try to connect. this will either fail and we'll delete the
+        # cloud, or it will work and it will create the association
+        if use_ssh:
+            try:
+                ssh_command(
+                    user, cloud_id, machine_id, machine_hostname, 'uptime',
+                    key_id=machine_key, username=machine_user, password=None,     # key_id=machine_key
+                    port=port
+                )
+            except MachineUnauthorizedError as exc:
+                raise CloudUnauthorizedError(exc)
+            except ServiceUnavailableError as exc:
+                raise MistError("Couldn't connect to host '%s'."
+                                % machine_hostname)
+    # if params.get('monitoring'):
+    #     try:
+    #         from mist.core.methods import enable_monitoring as _en_monitoring
+    #     except ImportError:
+    #         _en_monitoring = enable_monitoring
+    #     mon_dict = _en_monitoring(user, cloud_id, machine_id,
+    #                               no_ssh=not use_ssh)
+    # else:
+    #     mon_dict = {}
+    mon_dict = {}
 
     return cloud_id, mon_dict
 
@@ -2806,7 +2838,12 @@ def ssh_command(user, cloud_id, machine_id, host, command,
     shell = Shell(host)
     key_id, ssh_user = shell.autoconfigure(user, cloud_id, machine_id,
                                            key_id, username, password, port)
+    print "ssh_command"
+    print key_id
+    print ssh_user
     retval, output = shell.command(command)
+    print retval
+    print output
     shell.disconnect()
     return output
 
