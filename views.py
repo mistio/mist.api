@@ -286,25 +286,75 @@ def rename_cloud(request):
     return OK
 
 
-@view_config(route_name='cloud_action', request_method='POST')
-def toggle_cloud(request):
-    cloud_id = request.matchdict['cloud']
+@view_config(route_name='cloud_action', request_method='POST', renderer='json')
+def edit_cloud(request):
+    """Edit cloud credentials."""
     params = params_from_request(request)
-    new_state = params.get('new_state', '')
-    if not new_state:
-        raise RequiredParameterMissingError('new_state')
 
-    if new_state != "1" and new_state != "0":
-        raise BadRequestError('Invalid cloud state')
+    # remove spaces from start/end of string fields that are often included
+    # when pasting keys, preventing thus succesfull connection with the
+    # cloud
+    for key in params.keys():
+        if type(params[key]) in [unicode, str]:
+            params[key] = params[key].rstrip().lstrip()
 
     user = user_from_request(request)
-    if cloud_id not in user.clouds:
-        raise CloudNotFoundError()
-    with user.lock_n_load():
-        user.clouds[cloud_id].enabled = bool(int(new_state))
-        user.save()
-    trigger_session_update(user.email, ['clouds'])
-    return OK
+    cloud_id = request.matchdict['cloud']
+    title = params.get('title', '')
+    provider = params.get('provider', '')
+
+    # validation
+    # provider = user.clouds[cloud_id].provider
+    # print(provider)
+
+    #for param in ["title", "region", "api_key"]
+    #provider_config = params.get("config")
+
+    # if not provider:
+    #     raise RequiredParameterMissingError('provider')
+
+    methods.edit_cloud(user, cloud_id, title, provider, params)
+
+    cloud = user.clouds[cloud_id]
+    ret = {
+        'index': len(user.clouds) - 1,
+        'id': cloud_id,
+        'apikey': cloud.apikey,
+        'apiurl': cloud.apiurl,
+        'tenant_name': cloud.tenant_name,
+        'title': cloud.title,
+        'provider': cloud.provider,
+        'poll_interval': cloud.poll_interval,
+        'region': cloud.region,
+        'status': 'off',
+        'enabled': cloud.enabled,
+    }
+    # if monitoring:
+    #     ret['monitoring'] = monitoring
+    print(ret)
+    return ret
+    # return OK
+
+
+# @view_config(route_name='cloud_action', request_method='POST')
+# def toggle_cloud(request):
+#     cloud_id = request.matchdict['cloud']
+#     params = params_from_request(request)
+#     new_state = params.get('new_state', '')
+#     if not new_state:
+#         raise RequiredParameterMissingError('new_state')
+#
+#     if new_state != "1" and new_state != "0":
+#         raise BadRequestError('Invalid cloud state')
+#
+#     user = user_from_request(request)
+#     if cloud_id not in user.clouds:
+#         raise CloudNotFoundError()
+#     with user.lock_n_load():
+#         user.clouds[cloud_id].enabled = bool(int(new_state))
+#         user.save()
+#     trigger_session_update(user.email, ['clouds'])
+#     return OK
 
 
 @view_config(route_name='keys', request_method='GET', renderer='json')
