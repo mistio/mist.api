@@ -765,17 +765,13 @@ class ListMachines(UserTask):
         machines = methods.list_machines(user, cloud_id)
         if multi_user:
             for machine in machines:
-                kwargs = {}
-                kwargs['cloud_id'] = cloud_id
-                kwargs['machine_id'] = machine.get('id')
-                from mist.core.methods import list_tags
-                mistio_tags = list_tags(user, resource_type='machine', **kwargs)
+                from mist.core.methods import get_resource_tags
+                mistio_tags = get_resource_tags(user, "machine", cloud_id, machine.get("id"))
                 # optimized for js
                 for tag in mistio_tags:
-                    for key, value in tag.items():
-                        tag_dict = {'key': key, 'value': value}
-                        if tag_dict not in machine['tags']:
-                            machine['tags'].append(tag_dict)
+                    key, value = tag.popitem()
+                    tag_dict = {'key': key, 'value': value}
+                    machine['tags'].append(tag_dict)
                 # FIXME: optimize!
         log.warn('Returning list machines for user %s cloud %s' % (email, cloud_id))
         return {'cloud_id': cloud_id, 'machines': machines}
