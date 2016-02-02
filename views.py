@@ -185,7 +185,7 @@ def add_cloud(request):
 
     params = params_from_request(request)
     # remove spaces from start/end of string fields that are often included
-    # when pasting keys, preventing thus succesfull connection with the
+    # when pasting keys, preventing thus successful connection with the
     # cloud
     for key in params.keys():
         if type(params[key]) in [unicode, str]:
@@ -288,11 +288,11 @@ def rename_cloud(request):
 
 @view_config(route_name='cloud_action', request_method='POST', renderer='json')
 def edit_cloud(request):
-    """Edit cloud credentials."""
-    params = params_from_request(request)
+    """Edits a cloud credentials."""
 
+    params = params_from_request(request)
     # remove spaces from start/end of string fields that are often included
-    # when pasting keys, preventing thus succesfull connection with the
+    # when pasting keys, preventing thus successful connection with the
     # cloud
     for key in params.keys():
         if type(params[key]) in [unicode, str]:
@@ -309,12 +309,13 @@ def edit_cloud(request):
 
     #for param in ["title", "region", "api_key"]
     #provider_config = params.get("config")
+    print(user.clouds[cloud_id].provider)
+    if not provider:
+        raise RequiredParameterMissingError('provider')
 
-    # if not provider:
-    #     raise RequiredParameterMissingError('provider')
-
-    methods.edit_cloud(user, cloud_id, title, provider, params)
-
+    monitoring = None
+    ret = methods.edit_cloud(user, cloud_id, title, provider, params)
+    monitoring = ret.get('monitoring')
     cloud = user.clouds[cloud_id]
     ret = {
         'index': len(user.clouds) - 1,
@@ -329,8 +330,8 @@ def edit_cloud(request):
         'status': 'off',
         'enabled': cloud.enabled,
     }
-    # if monitoring:
-    #     ret['monitoring'] = monitoring
+    if monitoring:
+        ret['monitoring'] = monitoring
     print(ret)
     return ret
     # return OK
