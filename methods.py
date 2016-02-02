@@ -308,7 +308,7 @@ def add_cloud_v_2(user, title, provider, params):
             raise CloudUnavailableError(exc)
         if provider not in ['vshere']:
             # in some providers -eg vSphere- this is not needed
-            # as we are sure we got a succesfull connection with
+            # as we are sure we got a successful connection with
             # the provider if connect_provider doesn't fail
             try:
                 machines = conn.list_nodes()
@@ -321,11 +321,11 @@ def add_cloud_v_2(user, title, provider, params):
     with user.lock_n_load():
         user.clouds[cloud_id] = cloud
         user.save()
-    log.info("Cloud with id '%s' added succesfully with Api-Version: 2.", cloud_id)
+    log.info("Cloud with id '%s' added successfully with Api-Version: 2.", cloud_id)
     trigger_session_update(user.email, ['clouds'])
 
     if provider == 'libvirt' and cloud.apisecret:
-    # associate libvirt hypervisor witht the ssh key, if on qemu+ssh
+    # associate libvirt hypervisor with the ssh key, if on qemu+ssh
         key_id = params.get('machine_key')
         node_id = cloud.apiurl # id of the hypervisor is the hostname provided
         username = cloud.apikey
@@ -988,17 +988,16 @@ def edit_cloud(user, cloud_id, title, provider, params):
 
     baremetal = provider == 'bare_metal'
 
-    # TODO
     if provider == 'bare_metal':
-        cloud_id, mon_dict = _add_cloud_bare_metal(user, title, provider, params)
-        log.info("Cloud with id '%s' added succesfully.", cloud_id)
+        mon_dict = _edit_cloud_bare_metal(user, title, provider, params)
+        log.info("Cloud with id '%s' edited successfully.", cloud_id)
         trigger_session_update(user.email, ['clouds'])
-        # return {'cloud_id': cloud_id, 'monitoring': mon_dict}
+        return {'monitoring': mon_dict}
     elif provider == 'coreos':
-        cloud_id, mon_dict = _add_cloud_coreos(user, title, provider, params)
-        log.info("Cloud with id '%s' added succesfully.", cloud_id)
+        mon_dict = _add_cloud_coreos(user, title, provider, params)
+        log.info("Cloud with id '%s' added successfully.", cloud_id)
         trigger_session_update(user.email, ['clouds'])
-        # return {'cloud_id': cloud_id, 'monitoring': mon_dict}
+        return {'monitoring': mon_dict}
     elif provider == 'ec2':
         _edit_cloud_ec2(user, cloud_id, title, params)
     elif provider == 'rackspace':
@@ -1022,7 +1021,7 @@ def edit_cloud(user, cloud_id, title, provider, params):
     elif provider == 'openstack':
         _edit_cloud_openstack(user, cloud_id, title, provider, params)
     elif provider in ['vcloud', 'indonesian_vcloud']:
-        cloud_id, cloud = _add_cloud_vcloud(title, provider, params)
+        _edit_cloud_vcloud(user, title, cloud_id, provider, params)
     elif provider == 'libvirt':
         _edit_cloud_libvirt(user, cloud_id, title, provider, params)
     elif provider == 'hostvirtual':
@@ -1035,6 +1034,210 @@ def edit_cloud(user, cloud_id, title, provider, params):
         _edit_cloud_packet(user, cloud_id, title, provider, params)
     else:
         raise BadRequestError("Provider unknown.")
+
+
+def _edit_cloud_bare_metal(user, cloud_id, title, provider, params):
+    """
+    Edit a bare metal cloud
+    """
+    remove_on_error = params.get('remove_on_error', True)
+    machine_key = params.get('machine_key', '')
+    machine_user = params.get('machine_user', '')
+    is_windows = params.get('windows', False)
+    if is_windows:
+        os_type = 'windows'
+    else:
+        os_type = 'unix'
+    try:
+        port = int(params.get('machine_port', 22))
+    except:
+        port = 22
+    try:
+        rdp_port = int(params.get('remote_desktop_port', 3389))
+    except:
+        rdp_port = 3389
+    machine_hostname = params.get('machine_ip', '')
+
+    use_ssh = remove_on_error and os_type == 'unix' and machine_key
+    if use_ssh:
+        if machine_key not in user.keypairs:
+            raise KeypairNotFoundError(machine_key)
+        if not machine_hostname:
+            raise BadRequestError("You have specified an SSH key but machine "
+                                  "hostname is empty.")
+        if not machine_user:
+            machine_user = 'root'
+
+    machine_hostname = sanitize_host(machine_hostname)
+    machine = model.Machine()
+    machine.ssh_port = port
+    machine.remote_desktop_port = rdp_port
+    if machine_hostname:
+        machine.dns_name = machine_hostname
+        machine.public_ips = [machine_hostname]
+    machine_id = title.replace('.', '').replace(' ', '')
+    machine.name = title
+    machine.os_type = os_type
+
+    log.info("Edit cloud credentials: %s", cloud_id)
+    if cloud_id not in user.clouds:
+        raise CloudNotFoundError(cloud_id)
+    for cloud in user.clouds:
+        if cloud.title == title:
+            raise CloudNameExistsError(title)
+    with user.lock_n_load():
+        user.clouds[cloud_id].title = title
+        user.clouds[cloud_id].provider = provider
+        user.clouds[cloud_id].machines[machine_id] = machine
+        user.clouds[cloud_id].enabled = True
+        user.save()
+    log.info("Successfully edit cloud credentials '%s'", cloud_id)
+    trigger_session_update(user.email, ['clouds'])
+
+    # try to connect. this will either fail and we'll delete the
+    # cloud, or it will work and it will create the association
+    if use_ssh:
+        try:
+            ssh_command(
+                user, cloud_id, machine_id, machine_hostname, 'uptime',
+                key_id=machine_key, username=machine_user, password=None,
+                port=port
+            )
+        except MachineUnauthorizedError as exc:
+            raise CloudUnauthorizedError(exc)
+        except ServiceUnavailableError as exc:
+            raise MistError("Couldn't connect to host '%s'."
+                            % machine_hostname)
+    if params.get('monitoring'):
+        try:
+            from mist.core.methods import enable_monitoring as _en_monitoring
+        except ImportError:
+            _en_monitoring = enable_monitoring
+        mon_dict = _en_monitoring(user, cloud_id, machine_id,
+                                  no_ssh=not use_ssh)
+    else:
+        mon_dict = {}
+
+    return cloud_id, mon_dict
+
+
+def _edit_cloud_coreos(user, cloud_id, title, provider, params):
+    """
+    Edit a coreos cloud
+    """
+    remove_on_error = params.get('remove_on_error', True)
+    machine_key = params.get('machine_key', '')
+    machine_user = params.get('machine_user', '')
+    os_type = 'coreos'
+
+    try:
+        port = int(params.get('machine_port', 22))
+    except:
+        port = 22
+    machine_hostname = str(params.get('machine_ip', ''))
+
+    if not machine_hostname:
+        raise RequiredParameterMissingError('machine_ip')
+    machine_hostname = sanitize_host(machine_hostname)
+
+    use_ssh = remove_on_error and machine_key
+    if use_ssh:
+        if machine_key not in user.keypairs:
+            raise KeypairNotFoundError(machine_key)
+        if not machine_user:
+            machine_user = 'root'
+
+    machine = model.Machine()
+    machine.ssh_port = port
+    if machine_hostname:
+        machine.dns_name = machine_hostname
+        machine.public_ips = [machine_hostname]
+    machine_id = machine_hostname.replace('.', '').replace(' ', '')
+    machine.name = title
+    machine.os_type = os_type
+
+    log.info("Edit cloud credentials: %s", cloud_id)
+    if cloud_id not in user.clouds:
+        raise CloudNotFoundError(cloud_id)
+    for cloud in user.clouds:
+        if cloud.title == title:
+            raise CloudNameExistsError(title)
+    with user.lock_n_load():
+        user.clouds[cloud_id].title = title
+        user.clouds[cloud_id].provider = provider
+        user.clouds[cloud_id].machines[machine_id] = machine
+        user.clouds[cloud_id].enabled = True
+        user.save()
+    log.info("Successfully edit cloud credentials '%s'", cloud_id)
+    trigger_session_update(user.email, ['clouds'])
+
+    # try to connect. this will either fail and we'll delete the
+    # cloud, or it will work and it will create the association
+    if use_ssh:
+        try:
+            ssh_command(
+                user, cloud_id, machine_id, machine_hostname, 'uptime',
+                key_id=machine_key, username=machine_user, password=None,
+                port=port
+            )
+        except MachineUnauthorizedError as exc:
+            raise CloudUnauthorizedError(exc)
+        except ServiceUnavailableError as exc:
+            raise MistError("Couldn't connect to host '%s'."
+                            % machine_hostname)
+    if params.get('monitoring'):
+        try:
+            from mist.core.methods import enable_monitoring as _en_monitoring
+        except ImportError:
+            _en_monitoring = enable_monitoring
+        mon_dict = _en_monitoring(user, cloud_id, machine_id,
+                                  no_ssh=not use_ssh)
+    else:
+        mon_dict = {}
+
+    return cloud_id, mon_dict
+
+
+def _edit_cloud_vcloud(user, cloud_id, title, provider, params):
+    username = params.get('username', '')
+    if not username:
+        raise RequiredParameterMissingError('username')
+
+    password = params.get('password', '')
+    if not password:
+        raise RequiredParameterMissingError('password')
+
+    organization = params.get('organization', '')
+    if not organization:
+        raise RequiredParameterMissingError('organization')
+
+    username = '%s@%s' % (username, organization)
+
+    host = params.get('host', '')
+    if provider == 'vcloud':
+        if not host:
+            raise RequiredParameterMissingError('host')
+        host = sanitize_host(host)
+    elif provider == 'indonesian_vcloud':
+        host = params.get('indonesianRegion','my.idcloudonline.com')
+        if host not in ['my.idcloudonline.com', 'compute.idcloudonline.com']:
+            host = 'my.idcloudonline.com'
+
+    log.info("Edit cloud credentials: %s", cloud_id)
+    if cloud_id not in user.clouds:
+        raise CloudNotFoundError(cloud_id)
+    for cloud in user.clouds:
+        if cloud.title == title:
+            raise CloudNameExistsError(title)
+    with user.lock_n_load():
+        user.clouds[cloud_id].title = title
+        user.clouds[cloud_id].provider = provider
+        user.clouds[cloud_id].apikey = username
+        user.clouds[cloud_id].apisecret = password
+        user.clouds[cloud_id].apiurl = host
+        user.clouds[cloud_id].enabled = True
+    log.info("Successfully edit cloud credentials '%s'", cloud_id)
+    trigger_session_update(user.email, ['clouds'])
 
 
 def _edit_cloud_ec2(user, cloud_id, title, params):
@@ -1064,16 +1267,16 @@ def _edit_cloud_ec2(user, cloud_id, title, params):
                 raise CloudNameExistsError(title)
         with user.lock_n_load():
             user.clouds[cloud_id].title = title
+            user.clouds[cloud_id].region = region
             user.clouds[cloud_id].api_key = api_key
             user.clouds[cloud_id].api_secret = api_secret
-            user.clouds[cloud_id].region = region
             user.clouds[cloud_id].enabled = True
             user.save()
         log.info("Successfully edit cloud credentials '%s'", cloud_id)
         trigger_session_update(user.email, ['clouds'])
 
 
-def _edit_cloud_rackspace(user, cloud_id, title, params):
+def _edit_cloud_rackspace(user, cloud_id, title, provider, params):
     username = params.get('username', '')
     if not username:
         raise RequiredParameterMissingError('username')
@@ -1198,7 +1401,7 @@ def _edit_cloud_gce(user, cloud_id, title, provider, params):
     email = params.get('email', '')
     if not email:
         # support both ways to authenticate a service account,
-        # by either using a project id and json key file (highly reccomended)
+        # by either using a project id and json key file (highly recommended)
         # and also by specifying email, project id and private key file
         try:
             creds = json.loads(private_key)
