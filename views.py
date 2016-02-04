@@ -271,24 +271,24 @@ def delete_cloud(request):
     return OK
 
 
-@view_config(route_name='cloud_action', request_method='PUT')
-def rename_cloud(request):
-    """Renames a cloud."""
-
-    cloud_id = request.matchdict['cloud']
-    params = params_from_request(request)
-    new_name = params.get('new_name', '')
-    if not new_name:
-        raise RequiredParameterMissingError('new_name')
-
-    user = user_from_request(request)
-    methods.rename_cloud(user, cloud_id, new_name)
-    return OK
+# @view_config(route_name='cloud_action', request_method='PUT')
+# def rename_cloud(request):
+#     """Renames a cloud."""
+#
+#     cloud_id = request.matchdict['cloud']
+#     params = params_from_request(request)
+#     new_name = params.get('new_name', '')
+#     if not new_name:
+#         raise RequiredParameterMissingError('new_name')
+#
+#     user = user_from_request(request)
+#     methods.rename_cloud(user, cloud_id, new_name)
+#     return OK
 
 
 @view_config(route_name='cloud_action', request_method='POST', renderer='json')
-def edit_cloud(request):
-    """Edits a cloud credentials."""
+def cloud_action(request):
+    """Edits a cloud with actions for edit credentials, toggle and rename"""
 
     params = params_from_request(request)
     # remove spaces from start/end of string fields that are often included
@@ -300,8 +300,62 @@ def edit_cloud(request):
 
     user = user_from_request(request)
     cloud_id = request.matchdict['cloud']
-    title = params.get('title', '')
-    provider = params.get('provider', '')
+    if cloud_id not in user.clouds:
+        raise CloudNotFoundError()
+
+    action_type = params.get('action_type', 'edit_cloud')
+    # edits cloud credentials
+    if action_type == 'edit_cloud':
+        title = params.get('title', '')
+        provider = params.get('provider', '')
+        if not provider:
+            raise RequiredParameterMissingError('provider')
+        params['cloud_id']= cloud_id
+        params['dry'] = True
+
+        monitoring = None
+        ret = methods.add_cloud_v_2(user, title, provider, params)
+        monitoring = ret.get('monitoring')
+        cloud = user.clouds[cloud_id]
+        ret = {
+            'index': len(user.clouds) - 1,
+            'id': cloud_id,
+            'apikey': cloud.apikey,
+            'apiurl': cloud.apiurl,
+            'tenant_name': cloud.tenant_name,
+            'title': cloud.title,
+            'provider': cloud.provider,
+            'poll_interval': cloud.poll_interval,
+            'region': cloud.region,
+            'status': 'off',
+            'enabled': cloud.enabled,
+        }
+        if monitoring:
+            ret['monitoring'] = monitoring
+        return ret
+    # toggles cloud state
+    elif action_type == 'toggle_cloud':
+        new_state = params.get('new_state', '')
+        if not new_state:
+            raise RequiredParameterMissingError('new_state')
+
+        if new_state != "1" and new_state != "0":
+            raise BadRequestError('Invalid cloud state')
+
+        with user.lock_n_load():
+            user.clouds[cloud_id].enabled = bool(int(new_state))
+            user.save()
+        trigger_session_update(user.email, ['clouds'])
+        return OK
+    # Renames a cloud
+    elif action_type == 'rename_cloud':
+        new_name = params.get('title', '')
+        if not new_name:
+            raise RequiredParameterMissingError('new_name')
+        methods.rename_cloud(user, cloud_id, new_name)
+        return OK
+
+
 
     # validation
     # provider = user.clouds[cloud_id].provider
@@ -309,32 +363,7 @@ def edit_cloud(request):
 
     #for param in ["title", "region", "api_key"]
     #provider_config = params.get("config")
-    print(user.clouds[cloud_id].provider)
-    if not provider:
-        raise RequiredParameterMissingError('provider')
-
-    monitoring = None
-    ret = methods.edit_cloud(user, cloud_id, title, provider, params)
-    monitoring = ret.get('monitoring')
-    cloud = user.clouds[cloud_id]
-    ret = {
-        'index': len(user.clouds) - 1,
-        'id': cloud_id,
-        'apikey': cloud.apikey,
-        'apiurl': cloud.apiurl,
-        'tenant_name': cloud.tenant_name,
-        'title': cloud.title,
-        'provider': cloud.provider,
-        'poll_interval': cloud.poll_interval,
-        'region': cloud.region,
-        'status': 'off',
-        'enabled': cloud.enabled,
-    }
-    if monitoring:
-        ret['monitoring'] = monitoring
-    print(ret)
-    return ret
-    # return OK
+    # print(user.clouds[cloud_id].provider)
 
 
 # @view_config(route_name='cloud_action', request_method='POST')
