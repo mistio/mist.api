@@ -219,10 +219,17 @@ def add_cloud_v_2(user, title, provider, params):
     """
     Version 2 of add_cloud
     Adds a new cloud to the user and returns the cloud_id
+    If dry=True , it edits cloud credentials
     """
+    dry = params.get('dry', False)
+    cloudid = params.get('cloud_id')
     if not provider:
         raise RequiredParameterMissingError("provider")
-    log.info("Adding new cloud in provider '%s' with Api-Version: 2", provider)
+
+    if dry:
+        log.info("Editing cloud credentials in provider '%s'", provider)
+    else:
+        log.info("Adding new cloud in provider '%s' with Api-Version: 2", provider)
 
     # perform hostname validation if hostname is supplied
     if provider in ['vcloud', 'bare_metal', 'docker', 'libvirt', 'openstack', 'vsphere', 'coreos']:
@@ -246,14 +253,24 @@ def add_cloud_v_2(user, title, provider, params):
 
     baremetal = provider == 'bare_metal'
 
-    if provider == 'bare_metal':
+    if dry and provider == 'bare_metal':
+        mon_dict = _edit_cloud_bare_metal(user, cloudid, title, provider, params)
+        log.info("Cloud with id '%s' edited successfully.", cloudid)
+        trigger_session_update(user.email, ['clouds'])
+        return {'monitoring': mon_dict}
+    elif dry and provider == "coreos":
+        mon_dict = _edit_cloud_coreos(user, cloudid, title, provider, params)
+        log.info("Cloud with id '%s' added successfully.", cloudid)
+        trigger_session_update(user.email, ['clouds'])
+        return {'monitoring': mon_dict}
+    elif provider == 'bare_metal':
         cloud_id, mon_dict = _add_cloud_bare_metal(user, title, provider, params)
-        log.info("Cloud with id '%s' added succesfully.", cloud_id)
+        log.info("Cloud with id '%s' added successfully.", cloud_id)
         trigger_session_update(user.email, ['clouds'])
         return {'cloud_id': cloud_id, 'monitoring': mon_dict}
     elif provider == 'coreos':
         cloud_id, mon_dict = _add_cloud_coreos(user, title, provider, params)
-        log.info("Cloud with id '%s' added succesfully.", cloud_id)
+        log.info("Cloud with id '%s' added successfully.", cloud_id)
         trigger_session_update(user.email, ['clouds'])
         return {'cloud_id': cloud_id, 'monitoring': mon_dict}
     elif provider == 'ec2':
@@ -293,7 +310,8 @@ def add_cloud_v_2(user, title, provider, params):
     else:
         raise BadRequestError("Provider unknown.")
 
-    if cloud_id in user.clouds:
+
+    if not dry and cloud_id in user.clouds:
         raise CloudExistsError(cloud_id)
     remove_on_error = params.get('remove_on_error', True)
     # validate cloud before adding
@@ -318,18 +336,38 @@ def add_cloud_v_2(user, title, provider, params):
                 log.error("Error while trying list_nodes: %r", exc)
                 raise CloudUnavailableError(exc=exc)
 
-    with user.lock_n_load():
-        user.clouds[cloud_id] = cloud
-        user.save()
-    log.info("Cloud with id '%s' added successfully with Api-Version: 2.", cloud_id)
-    trigger_session_update(user.email, ['clouds'])
+    if dry:
+        log.info("Edit cloud credentials: %s", cloudid)
+        if cloudid not in user.clouds:
+            raise CloudNotFoundError(cloudid)
+        # for cloud in user.clouds:
+        #     if cloud.title == title:
+        #         raise CloudNameExistsError(title)
+        with user.lock_n_load():
+            user.clouds[cloudid] = cloud
+            user.save()
+        log.info("Cloud with id '%s' edited successfully", cloudid)
+        trigger_session_update(user.email, ['clouds'])
 
-    if provider == 'libvirt' and cloud.apisecret:
-    # associate libvirt hypervisor with the ssh key, if on qemu+ssh
-        key_id = params.get('machine_key')
-        node_id = cloud.apiurl # id of the hypervisor is the hostname provided
-        username = cloud.apikey
-        associate_key(user, key_id, cloud_id, node_id, username=username)
+        if provider == 'libvirt' and cloud.apisecret:
+        # associate libvirt hypervisor with the ssh key, if on qemu+ssh
+            key_id = params.get('machine_key')
+            node_id = cloud.apiurl # id of the hypervisor is the hostname provided
+            username = cloud.apikey
+            associate_key(user, key_id, cloudid, node_id, username=username)
+    else:
+        with user.lock_n_load():
+            user.clouds[cloud_id] = cloud
+            user.save()
+        log.info("Cloud with id '%s' added successfully with Api-Version: 2.", cloud_id)
+        trigger_session_update(user.email, ['clouds'])
+
+        if provider == 'libvirt' and cloud.apisecret:
+        # associate libvirt hypervisor with the ssh key, if on qemu+ssh
+            key_id = params.get('machine_key')
+            node_id = cloud.apiurl # id of the hypervisor is the hostname provided
+            username = cloud.apikey
+            associate_key(user, key_id, cloud_id, node_id, username=username)
 
     return {'cloud_id': cloud_id}
 
@@ -959,83 +997,6 @@ def rename_cloud(user, cloud_id, new_name):
     trigger_session_update(user.email, ['clouds'])
 
 
-def edit_cloud(user, cloud_id, title, provider, params):
-    """Edit cloud credentials with given cloud_id. """
-
-    if not provider:
-        raise RequiredParameterMissingError("provider")
-    log.info("Edit cloud credentials in provider '%s' ", provider)
-
-    # perform hostname validation if hostname is supplied
-    if provider in ['vcloud', 'bare_metal', 'docker', 'libvirt', 'openstack', 'vsphere', 'coreos']:
-        if provider == 'vcloud':
-            hostname = params.get('host', '')
-        elif provider == 'bare_metal':
-            hostname = params.get('machine_ip', '')
-        elif provider == 'docker':
-            hostname = params.get('docker_host', '')
-        elif provider == 'libvirt':
-            hostname = params.get('machine_hostname', '')
-        elif provider == 'openstack':
-            hostname = params.get('auth_url', '')
-        elif provider == 'vsphere':
-            hostname = params.get('host', '')
-        elif provider == 'coreos':
-            hostname = params.get('machine_ip', '')
-
-        if hostname:
-            check_host(sanitize_host(hostname))
-
-    baremetal = provider == 'bare_metal'
-
-    if provider == 'bare_metal':
-        mon_dict = _edit_cloud_bare_metal(user, title, provider, params)
-        log.info("Cloud with id '%s' edited successfully.", cloud_id)
-        trigger_session_update(user.email, ['clouds'])
-        return {'monitoring': mon_dict}
-    elif provider == 'coreos':
-        mon_dict = _add_cloud_coreos(user, title, provider, params)
-        log.info("Cloud with id '%s' added successfully.", cloud_id)
-        trigger_session_update(user.email, ['clouds'])
-        return {'monitoring': mon_dict}
-    elif provider == 'ec2':
-        _edit_cloud_ec2(user, cloud_id, title, params)
-    elif provider == 'rackspace':
-        _edit_cloud_rackspace(user, cloud_id, title, params)
-    elif provider == 'nephoscale':
-        _edit_cloud_nephoscale(user, cloud_id, title, provider, params)
-    elif provider == 'digitalocean':
-        _edit_cloud_digitalocean(user, cloud_id, title, provider, params)
-    elif provider == 'softlayer':
-        _edit_cloud_softlayer(user, cloud_id, title, provider, params)
-    elif provider == 'gce':
-        _edit_cloud_gce(user, cloud_id, title, provider, params)
-    elif provider == 'azure':
-        _edit_cloud_azure(user, cloud_id, title, provider, params)
-    elif provider == 'linode':
-        _edit_cloud_linode(user, cloud_id, title, provider, params)
-    elif provider == 'docker':
-        _edit_cloud_docker(user, cloud_id, title, provider, params)
-    elif provider == 'hpcloud':
-        _edit_cloud_hp(user, cloud_id, title, provider, params)
-    elif provider == 'openstack':
-        _edit_cloud_openstack(user, cloud_id, title, provider, params)
-    elif provider in ['vcloud', 'indonesian_vcloud']:
-        _edit_cloud_vcloud(user, title, cloud_id, provider, params)
-    elif provider == 'libvirt':
-        _edit_cloud_libvirt(user, cloud_id, title, provider, params)
-    elif provider == 'hostvirtual':
-        _edit_cloud_hostvirtual(user, cloud_id, title, provider, params)
-    elif provider == 'vultr':
-        _edit_cloud_vultr(user, cloud_id, title, provider, params)
-    elif provider == 'vsphere':
-        _edit_cloud_vsphere(user, cloud_id, title, provider, params)
-    elif provider == 'packet':
-        _edit_cloud_packet(user, cloud_id, title, provider, params)
-    else:
-        raise BadRequestError("Provider unknown.")
-
-
 def _edit_cloud_bare_metal(user, cloud_id, title, provider, params):
     """
     Edit a bare metal cloud
@@ -1118,7 +1079,7 @@ def _edit_cloud_bare_metal(user, cloud_id, title, provider, params):
     else:
         mon_dict = {}
 
-    return cloud_id, mon_dict
+    return mon_dict
 
 
 def _edit_cloud_coreos(user, cloud_id, title, provider, params):
@@ -1195,561 +1156,7 @@ def _edit_cloud_coreos(user, cloud_id, title, provider, params):
     else:
         mon_dict = {}
 
-    return cloud_id, mon_dict
-
-
-def _edit_cloud_vcloud(user, cloud_id, title, provider, params):
-    username = params.get('username', '')
-    if not username:
-        raise RequiredParameterMissingError('username')
-
-    password = params.get('password', '')
-    if not password:
-        raise RequiredParameterMissingError('password')
-
-    organization = params.get('organization', '')
-    if not organization:
-        raise RequiredParameterMissingError('organization')
-
-    username = '%s@%s' % (username, organization)
-
-    host = params.get('host', '')
-    if provider == 'vcloud':
-        if not host:
-            raise RequiredParameterMissingError('host')
-        host = sanitize_host(host)
-    elif provider == 'indonesian_vcloud':
-        host = params.get('indonesianRegion','my.idcloudonline.com')
-        if host not in ['my.idcloudonline.com', 'compute.idcloudonline.com']:
-            host = 'my.idcloudonline.com'
-
-    log.info("Edit cloud credentials: %s", cloud_id)
-    if cloud_id not in user.clouds:
-        raise CloudNotFoundError(cloud_id)
-    for cloud in user.clouds:
-        if cloud.title == title:
-            raise CloudNameExistsError(title)
-    with user.lock_n_load():
-        user.clouds[cloud_id].title = title
-        user.clouds[cloud_id].provider = provider
-        user.clouds[cloud_id].apikey = username
-        user.clouds[cloud_id].apisecret = password
-        user.clouds[cloud_id].apiurl = host
-        user.clouds[cloud_id].enabled = True
-    log.info("Successfully edit cloud credentials '%s'", cloud_id)
-    trigger_session_update(user.email, ['clouds'])
-
-
-def _edit_cloud_ec2(user, cloud_id, title, params):
-        api_key = params.get('api_key', '')
-        if not api_key:
-            raise RequiredParameterMissingError('api_key')
-
-        api_secret = params.get('api_secret', '')
-        if not api_secret:
-            raise RequiredParameterMissingError('api_secret')
-
-        region = params.get('region', '')
-        if not region:
-            raise RequiredParameterMissingError('region')
-
-        if api_secret == 'getsecretfromdb':
-            for cloud_id in user.clouds:
-                if api_key == user.clouds[cloud_id].apikey:
-                    api_secret = user.clouds[cloud_id].apisecret
-                    break
-
-        log.info("Edit cloud credentials: %s", cloud_id)
-        if cloud_id not in user.clouds:
-            raise CloudNotFoundError(cloud_id)
-        for cloud in user.clouds:
-            if cloud.title == title:
-                raise CloudNameExistsError(title)
-        with user.lock_n_load():
-            user.clouds[cloud_id].title = title
-            user.clouds[cloud_id].region = region
-            user.clouds[cloud_id].api_key = api_key
-            user.clouds[cloud_id].api_secret = api_secret
-            user.clouds[cloud_id].enabled = True
-            user.save()
-        log.info("Successfully edit cloud credentials '%s'", cloud_id)
-        trigger_session_update(user.email, ['clouds'])
-
-
-def _edit_cloud_rackspace(user, cloud_id, title, provider, params):
-    username = params.get('username', '')
-    if not username:
-        raise RequiredParameterMissingError('username')
-
-    api_key = params.get('api_key', '')
-    if not api_key:
-        raise RequiredParameterMissingError('api_key')
-
-    region = params.get('region', '')
-    if not region:
-        raise RequiredParameterMissingError('region')
-
-    if 'rackspace_first_gen' in region:
-        provider, region = region.split(':')[0], region.split(':')[1]
-
-    if api_key == 'getsecretfromdb':
-        for cloud_id in user.clouds:
-            if username == user.clouds[cloud_id].apikey:
-                api_key = user.clouds[cloud_id].apisecret
-                break
-
-    log.info("Edit cloud credentials: %s", cloud_id)
-    if cloud_id not in user.clouds:
-        raise CloudNotFoundError(cloud_id)
-    for cloud in user.clouds:
-        if cloud.title == title:
-            raise CloudNameExistsError(title)
-    with user.lock_n_load():
-        user.clouds[cloud_id].title = title
-        user.clouds[cloud_id].provider = provider
-        user.clouds[cloud_id].api_key = username
-        user.clouds[cloud_id].api_secret = api_key
-        user.clouds[cloud_id].enabled = True
-        user.clouds[cloud_id].region = region
-        user.save()
-    log.info("Successfully edit cloud credentials '%s'", cloud_id)
-    trigger_session_update(user.email, ['clouds'])
-
-
-def _edit_cloud_nephoscale(user, cloud_id, title, provider, params):
-    username = params.get('username', '')
-    if not username:
-        raise RequiredParameterMissingError('username')
-
-    password = params.get('password', '')
-    if not password:
-        raise RequiredParameterMissingError('password')
-
-    log.info("Edit cloud credentials: %s", cloud_id)
-    if cloud_id not in user.clouds:
-        raise CloudNotFoundError(cloud_id)
-    for cloud in user.clouds:
-        if cloud.title == title:
-            raise CloudNameExistsError(title)
-    with user.lock_n_load():
-        user.clouds[cloud_id].title = title
-        user.clouds[cloud_id].provider = provider
-        user.clouds[cloud_id].api_key = username
-        user.clouds[cloud_id].api_secret = password
-        user.clouds[cloud_id].enabled = True
-        user.save()
-    log.info("Successfully edit cloud credentials '%s'", cloud_id)
-    trigger_session_update(user.email, ['clouds'])
-
-
-def _edit_cloud_softlayer(user, cloud_id, title, provider, params):
-    username = params.get('username', '')
-    if not username:
-        raise RequiredParameterMissingError('username')
-
-    api_key = params.get('api_key', '')
-    if not api_key:
-        raise RequiredParameterMissingError('api_key')
-
-    log.info("Edit cloud credentials: %s", cloud_id)
-    if cloud_id not in user.clouds:
-        raise CloudNotFoundError(cloud_id)
-    for cloud in user.clouds:
-        if cloud.title == title:
-            raise CloudNameExistsError(title)
-    with user.lock_n_load():
-        user.clouds[cloud_id].title = title
-        user.clouds[cloud_id].provider = provider
-        user.clouds[cloud_id].api_key = username
-        user.clouds[cloud_id].enabled = True
-        user.save()
-    log.info("Successfully edit cloud credentials '%s'", cloud_id)
-    trigger_session_update(user.email, ['clouds'])
-
-
-def _edit_cloud_digitalocean(user, cloud_id, title, provider, params):
-    token = params.get('token', '')
-    if not token:
-        raise RequiredParameterMissingError('token')
-
-    log.info("Edit cloud credentials: %s", cloud_id)
-    if cloud_id not in user.clouds:
-        raise CloudNotFoundError(cloud_id)
-    for cloud in user.clouds:
-        if cloud.title == title:
-            raise CloudNameExistsError(title)
-    with user.lock_n_load():
-        user.clouds[cloud_id].title = title
-        user.clouds[cloud_id].provider = provider
-        user.clouds[cloud_id].apikey = token
-        user.clouds[cloud_id].apisecret = token
-        user.clouds[cloud_id].enabled = True
-        user.save()
-    log.info("Successfully edit cloud credentials '%s'", cloud_id)
-    trigger_session_update(user.email, ['clouds'])
-
-
-def _edit_cloud_gce(user, cloud_id, title, provider, params):
-    private_key = params.get('private_key', '')
-    if not private_key:
-        raise RequiredParameterMissingError('private_key')
-
-    project_id = params.get('project_id', '')
-    if not project_id:
-        raise RequiredParameterMissingError('project_id')
-
-    email = params.get('email', '')
-    if not email:
-        # support both ways to authenticate a service account,
-        # by either using a project id and json key file (highly recommended)
-        # and also by specifying email, project id and private key file
-        try:
-            creds = json.loads(private_key)
-            email = creds['client_email']
-            private_key = creds['private_key']
-        except:
-            raise MistError("Make sure you upload a valid json file")
-
-    log.info("Edit cloud credentials: %s", cloud_id)
-    if cloud_id not in user.clouds:
-        raise CloudNotFoundError(cloud_id)
-    for cloud in user.clouds:
-        if cloud.title == title:
-            raise CloudNameExistsError(title)
-    with user.lock_n_load():
-        user.clouds[cloud_id].title = title
-        user.clouds[cloud_id].provider = provider
-        user.clouds[cloud_id].apikey = email
-        user.clouds[cloud_id].apisecret = private_key
-        user.clouds[cloud_id].tenant_name = project_id
-        user.clouds[cloud_id].enabled = True
-        user.save()
-    log.info("Successfully edit cloud credentials '%s'", cloud_id)
-    trigger_session_update(user.email, ['clouds'])
-
-
-def _edit_cloud_azure(user, cloud_id, title, provider, params):
-    subscription_id = params.get('subscription_id', '')
-    if not subscription_id:
-        raise RequiredParameterMissingError('subscription_id')
-
-    certificate = params.get('certificate', '')
-    if not certificate:
-        raise RequiredParameterMissingError('certificate')
-
-    log.info("Edit cloud credentials: %s", cloud_id)
-    if cloud_id not in user.clouds:
-        raise CloudNotFoundError(cloud_id)
-    for cloud in user.clouds:
-        if cloud.title == title:
-            raise CloudNameExistsError(title)
-    with user.lock_n_load():
-        user.clouds[cloud_id].title = title
-        user.clouds[cloud_id].provider = provider
-        user.clouds[cloud_id].apikey = subscription_id
-        user.clouds[cloud_id].apisecret = certificate
-        user.clouds[cloud_id].enabled = True
-        user.save()
-    log.info("Successfully edit cloud credentials '%s'", cloud_id)
-    trigger_session_update(user.email, ['clouds'])
-
-
-def _edit_cloud_linode(user, cloud_id, title, provider, params):
-    api_key = params.get('api_key', '')
-    if not api_key:
-        raise RequiredParameterMissingError('api_key')
-
-    log.info("Edit cloud credentials: %s", cloud_id)
-    if cloud_id not in user.clouds:
-        raise CloudNotFoundError(cloud_id)
-    for cloud in user.clouds:
-        if cloud.title == title:
-            raise CloudNameExistsError(title)
-    with user.lock_n_load():
-        user.clouds[cloud_id].title = title
-        user.clouds[cloud_id].provider = provider
-        user.clouds[cloud_id].apikey = api_key
-        user.clouds[cloud_id].apisecret = api_key
-        user.clouds[cloud_id].enabled = True
-        user.save()
-    log.info("Successfully edit cloud credentials '%s'", cloud_id)
-    trigger_session_update(user.email, ['clouds'])
-
-
-def _edit_cloud_docker(user, cloud_id, title, provider, params):
-    try:
-        docker_port = int(params.get('docker_port', 4243))
-    except:
-        docker_port = 4243
-
-    docker_host = params.get('docker_host', '')
-    if not docker_host:
-        raise RequiredParameterMissingError('docker_host')
-
-    auth_user = params.get('auth_user', '')
-    auth_password = params.get('auth_password', '')
-
-    # tls auth
-    key_file = params.get('key_file', '')
-    cert_file = params.get('cert_file', '')
-    ca_cert_file = params.get('ca_cert_file', '')
-
-    log.info("Edit cloud credentials: %s", cloud_id)
-    if cloud_id not in user.clouds:
-        raise CloudNotFoundError(cloud_id)
-    for cloud in user.clouds:
-        if cloud.title == title:
-            raise CloudNameExistsError(title)
-    with user.lock_n_load():
-        user.clouds[cloud_id].title = title
-        user.clouds[cloud_id].provider = provider
-        user.clouds[cloud_id].docker_port = docker_port
-        user.clouds[cloud_id].apikey = auth_user
-        user.clouds[cloud_id].key_file = key_file
-        user.clouds[cloud_id].cert_file = cert_file
-        user.clouds[cloud_id].ca_cert_file = ca_cert_file
-        user.clouds[cloud_id].apisecret = auth_password
-        user.clouds[cloud_id].apiurl = docker_host
-        user.clouds[cloud_id].enabled = True
-        user.save()
-    log.info("Successfully edit cloud credentials '%s'", cloud_id)
-    trigger_session_update(user.email, ['clouds'])
-
-
-def _edit_cloud_libvirt(user, cloud_id, title, provider, params):
-    machine_hostname = params.get('machine_hostname', '')
-    if not machine_hostname:
-        raise RequiredParameterMissingError('machine_hostname')
-    machine_hostname = sanitize_host(machine_hostname)
-    apikey = params.get('machine_user', 'root')
-
-    apisecret = params.get('machine_key', '')
-    images_location = params.get('images_location', '/var/lib/libvirt/images')
-
-    if apisecret:
-        if apisecret not in user.keypairs:
-            raise KeypairNotFoundError(apisecret)
-        apisecret = user.keypairs[apisecret].private
-
-    try:
-        port = int(params.get('ssh_port', 22))
-    except:
-        port = 22
-
-    log.info("Edit cloud credentials: %s", cloud_id)
-    if cloud_id not in user.clouds:
-        raise CloudNotFoundError(cloud_id)
-    for cloud in user.clouds:
-        if cloud.title == title:
-            raise CloudNameExistsError(title)
-    with user.lock_n_load():
-        user.clouds[cloud_id].title = title
-        user.clouds[cloud_id].provider = provider
-        user.clouds[cloud_id].apikey = apikey
-        user.clouds[cloud_id].apisecret = apisecret
-        user.clouds[cloud_id].apiurl = machine_hostname
-        user.clouds[cloud_id].ssh_port = port
-        user.clouds[cloud_id].images_location = images_location
-        user.clouds[cloud_id].enabled = True
-        user.save()
-    log.info("Successfully edit cloud credentials '%s'", cloud_id)
-    trigger_session_update(user.email, ['clouds'])
-
-
-def _edit_cloud_hp(user, cloud_id, title, provider, params):
-    username = params.get('username', '')
-    if not username:
-        raise RequiredParameterMissingError('username')
-
-    password = params.get('password', '')
-    if not password:
-        raise RequiredParameterMissingError('password')
-
-    tenant_name = params.get('tenant_name', '')
-    if not tenant_name:
-        raise RequiredParameterMissingError('tenant_name')
-
-    apiurl = params.get('apiurl') or ''
-    if 'hpcloudsvc' in apiurl:
-            apiurl = HPCLOUD_AUTH_URL
-
-    region = params.get('region', '')
-    if not region:
-        raise RequiredParameterMissingError('region')
-
-    if password == 'getsecretfromdb':
-        for cloud_id in user.clouds:
-            if username == user.clouds[cloud_id].apikey:
-                password = user.clouds[cloud_id].apisecret
-                break
-
-    log.info("Edit cloud credentials: %s", cloud_id)
-    if cloud_id not in user.clouds:
-        raise CloudNotFoundError(cloud_id)
-    for cloud in user.clouds:
-        if cloud.title == title:
-            raise CloudNameExistsError(title)
-    with user.lock_n_load():
-        user.clouds[cloud_id].title = title
-        user.clouds[cloud_id].provider = provider
-        user.clouds[cloud_id].apikey = username
-        user.clouds[cloud_id].apisecret = password
-        user.clouds[cloud_id].apiurl = apiurl
-        user.clouds[cloud_id].region = region
-        user.clouds[cloud_id].tenant_name = tenant_name
-        user.clouds[cloud_id].enabled = True
-        user.save()
-    log.info("Successfully edit cloud credentials '%s'", cloud_id)
-    trigger_session_update(user.email, ['clouds'])
-
-
-def _edit_cloud_openstack(user, cloud_id, title, provider, params):
-    username = params.get('username', '')
-    if not username:
-        raise RequiredParameterMissingError('username')
-
-    password = params.get('password', '')
-    if not password:
-        raise RequiredParameterMissingError('password')
-
-    auth_url = params.get('auth_url')
-    if not auth_url:
-        raise RequiredParameterMissingError('auth_url')
-
-    if auth_url.endswith('/v2.0/'):
-        auth_url = auth_url.split('/v2.0/')[0]
-    elif auth_url.endswith('/v2.0'):
-        auth_url = auth_url.split('/v2.0')[0]
-
-    auth_url = auth_url.rstrip('/')
-
-    tenant_name = params.get('tenant_name', '')
-    if not tenant_name:
-        raise RequiredParameterMissingError('tenant_name')
-
-    region = params.get('region', '')
-    compute_endpoint = params.get('compute_endpoint', '')
-
-    log.info("Edit cloud credentials: %s", cloud_id)
-    if cloud_id not in user.clouds:
-        raise CloudNotFoundError(cloud_id)
-    for cloud in user.clouds:
-        if cloud.title == title:
-            raise CloudNameExistsError(title)
-    with user.lock_n_load():
-        user.clouds[cloud_id].title = title
-        user.clouds[cloud_id].provider = provider
-        user.clouds[cloud_id].api_key = username
-        user.clouds[cloud_id].api_secret = password
-        user.clouds[cloud_id].apiurl = auth_url
-        user.clouds[cloud_id].tenant_name = tenant_name
-        user.clouds[cloud_id].region = region
-        user.clouds[cloud_id].compute_endpoint = compute_endpoint
-        user.clouds[cloud_id].enabled = True
-        user.save()
-    log.info("Successfully edit cloud credentials '%s'", cloud_id)
-    trigger_session_update(user.email, ['clouds'])
-
-
-def _edit_cloud_hostvirtual(user, cloud_id, title, provider, params):
-    api_key = params.get('api_key', '')
-    if not api_key:
-        raise RequiredParameterMissingError('api_key')
-
-    log.info("Edit cloud credentials: %s", cloud_id)
-    if cloud_id not in user.clouds:
-        raise CloudNotFoundError(cloud_id)
-    for cloud in user.clouds:
-        if cloud.title == title:
-            raise CloudNameExistsError(title)
-    with user.lock_n_load():
-        user.clouds[cloud_id].title = title
-        user.clouds[cloud_id].provider = provider
-        user.clouds[cloud_id].apikey = api_key
-        user.clouds[cloud_id].apisecret = api_key
-        user.clouds[cloud_id].enabled = True
-        user.save()
-    log.info("Successfully edit cloud credentials '%s'", cloud_id)
-    trigger_session_update(user.email, ['clouds'])
-
-
-def _edit_cloud_vultr(user, cloud_id, title, provider, params):
-    api_key = params.get('api_key', '')
-    if not api_key:
-        raise RequiredParameterMissingError('api_key')
-
-    log.info("Edit cloud credentials: %s", cloud_id)
-    if cloud_id not in user.clouds:
-        raise CloudNotFoundError(cloud_id)
-    for cloud in user.clouds:
-        if cloud.title == title:
-            raise CloudNameExistsError(title)
-    with user.lock_n_load():
-        user.clouds[cloud_id].title = title
-        user.clouds[cloud_id].provider = provider
-        user.clouds[cloud_id].apikey = api_key
-        user.clouds[cloud_id].apisecret = api_key
-        user.clouds[cloud_id].enabled = True
-        user.save()
-    log.info("Successfully edit cloud credentials '%s'", cloud_id)
-    trigger_session_update(user.email, ['clouds'])
-
-
-def _edit_cloud_packet(user, cloud_id, title, provider, params):
-    api_key = params.get('api_key', '')
-    if not api_key:
-        raise RequiredParameterMissingError('api_key')
-    project_id = params.get('project_id', '')
-
-    log.info("Edit cloud credentials: %s", cloud_id)
-    if cloud_id not in user.clouds:
-        raise CloudNotFoundError(cloud_id)
-    for cloud in user.clouds:
-        if cloud.title == title:
-            raise CloudNameExistsError(title)
-    with user.lock_n_load():
-        user.clouds[cloud_id].title = title
-        user.clouds[cloud_id].provider = provider
-        user.clouds[cloud_id].apikey = api_key
-        user.clouds[cloud_id].apisecret = api_key
-        user.clouds[cloud_id].enabled = True
-        if project_id:
-            user.clouds[cloud_id].tenant_name = project_id
-        user.save()
-    log.info("Successfully edit cloud credentials '%s'", cloud_id)
-    trigger_session_update(user.email, ['clouds'])
-
-
-def _edit_cloud_vsphere(user, cloud_id, title, provider, params):
-    username = params.get('username', '')
-    if not username:
-        raise RequiredParameterMissingError('username')
-
-    password = params.get('password', '')
-    if not password:
-        raise RequiredParameterMissingError('password')
-
-    host = params.get('host', '')
-    if not host:
-        raise RequiredParameterMissingError('host')
-    host = sanitize_host(host)
-
-    log.info("Edit cloud credentials: %s", cloud_id)
-    if cloud_id not in user.clouds:
-        raise CloudNotFoundError(cloud_id)
-    for cloud in user.clouds:
-        if cloud.title == title:
-            raise CloudNameExistsError(title)
-    with user.lock_n_load():
-        user.clouds[cloud_id].title = title
-        user.clouds[cloud_id].provider = provider
-        user.clouds[cloud_id].apikey = username
-        user.clouds[cloud_id].apisecret = password
-        user.clouds[cloud_id].apiurl = host
-        user.clouds[cloud_id].enabled = True
-        user.save()
-    log.info("Successfully edit cloud credentials '%s'", cloud_id)
-    trigger_session_update(user.email, ['clouds'])
+    return mon_dict
 
 
 def delete_cloud(user, cloud_id):
