@@ -1719,7 +1719,7 @@ def create_machine(user, cloud_id, key_id, machine_name, location_id,
     elif conn.type is Provider.SOFTLAYER:
         node = _create_machine_softlayer(conn, key_id, private_key, public_key,
                                          machine_name, image, size,
-                                         location)
+                                         location, cloud_init)
     elif conn.type is Provider.DIGITAL_OCEAN:
         node = _create_machine_digital_ocean(conn, key_id, private_key,
                                              public_key, machine_name,
@@ -2104,7 +2104,7 @@ def _create_machine_nephoscale(conn, key_name, private_key, public_key,
 
 
 def _create_machine_softlayer(conn, key_name, private_key, public_key,
-                             machine_name, image, size, location):
+                             machine_name, image, size, location, cloud_init):
     """Create a machine in Softlayer.
 
     Here there is no checking done, all parameters are expected to be
@@ -2143,7 +2143,8 @@ def _create_machine_softlayer(conn, key_name, private_key, public_key,
                 image=image,
                 size=size,
                 location=location,
-                sshKeys=server_key
+                sshKeys=server_key,
+                postInstallScriptUri=cloud_init # on SoftLayer this will be a URL containing a script to run
             )
         except Exception as e:
             raise MachineCreationError("Softlayer, got exception %s" % e, e)
