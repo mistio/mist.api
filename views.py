@@ -173,12 +173,13 @@ def list_clouds(request):
     """
     Request a list of all added clouds.
     ---
+    ***
+    - rtype: cloud
+      action: read
     """
     auth_context = mist.core.auth.methods.auth_context_from_request(request)
-    if not auth_context.has_perm('cloud', 'read'):
+    if not auth_context.check_request():
         raise UnauthorizedError()
-    print "#"*100
-    print mist.core.methods.filter_list_clouds(auth_context)
     return mist.core.methods.filter_list_clouds(auth_context)
 
 
@@ -234,6 +235,11 @@ def add_cloud(request):
       description: The human readable title of the cloud.
       required: true
       type: string
+    ***
+    - rtype: cloud
+      action: read
+    - rtype: cloud
+      action: add
     """
     params = params_from_request(request)
     auth_context = mist.core.auth.methods.auth_context_from_request(request)
@@ -417,6 +423,9 @@ def list_keys(request):
     List keys
     Retrieves a list of all added Keys
     ---
+    ***
+    - rtype: key
+      action: read
     """
     user = user_from_request(request)
     return methods.list_keys(user)
@@ -437,6 +446,9 @@ def add_key(request):
       description: ' The private key'
       required: true
       type: string
+    ***
+    - rtype: key
+      action: add
     """
     params = params_from_request(request)
     key_id = params.get('id', '')
@@ -444,8 +456,8 @@ def add_key(request):
 
     auth_context = mist.core.auth.methods.auth_context_from_request(request)
     user = auth_context.owner
-    key_tags = mist.core.methods.get_key_tags(user, key_id)
-    if not auth_context.has_perm('key', 'add'):
+
+    if not auth_context.check_request():
         raise UnauthorizedError()
 
     key_id = methods.add_key(user, key_id, private_key)
@@ -480,13 +492,20 @@ def delete_key(request):
       in: path
       required: true
       type: string
+    ***
+    - rtype: key
+      action: remove
     """
+    auth_context = mist.core.auth.methods.auth_context_from_request(request)
+    user = auth_context.owner
+
+    if not auth_context.check_request():
+        raise UnauthorizedError()
 
     key_id = request.matchdict.get('key')
     if not key_id:
         raise KeypairParameterMissingError()
 
-    user = user_from_request(request)
     methods.delete_key(user, key_id)
     return list_keys(request)
 
@@ -506,12 +525,20 @@ def delete_keys(request):
       required: true
       type: array
       items:
-        type: string
-        name: key_id
+        - type: string
+          name: key_id
+    ***
+    - rtype: key
+      action: remove
     """
-    user = user_from_request(request)
     params = params_from_request(request)
     key_ids = params.get('key_ids', [])
+    auth_context = mist.core.auth.methods.auth_context_from_request(request)
+    user = auth_context.owner
+
+    if not auth_context.check_request():
+        raise UnauthorizedError()
+
     if type(key_ids) != list or len(key_ids) == 0:
         raise RequiredParameterMissingError('No key ids provided')
     # remove duplicate ids if there are any
@@ -552,14 +579,22 @@ def edit_key(request):
       in: path
       required: true
       type: string
+    ***
+    - rtype: key
+      action: edit
     """
+    auth_context = mist.core.auth.methods.auth_context_from_request(request)
+    user = auth_context.owner
+
+    if not auth_context.check_request():
+        raise UnauthorizedError()
+
     old_id = request.matchdict['key']
     params = params_from_request(request)
     new_id = params.get('new_id')
     if not new_id:
         raise RequiredParameterMissingError("new_id")
 
-    user = user_from_request(request)
     methods.edit_key(user, new_id, old_id)
     return {'new_id': new_id}
 
@@ -578,7 +613,11 @@ def set_default_key(request):
       type: string
     """
     key_id = request.matchdict['key']
-    user = user_from_request(request)
+    auth_context = mist.core.auth.methods.auth_context_from_request(request)
+    user = auth_context.owner
+
+    if not auth_context.check_request():
+        raise UnauthorizedError()
 
     methods.set_default_key(user, key_id)
     return OK
@@ -597,9 +636,16 @@ def get_private_key(request):
       in: path
       required: true
       type: string
+    ***
+    - rtype: key
+      action: read_private
     """
 
-    user = user_from_request(request)
+    auth_context = mist.core.auth.methods.auth_context_from_request(request)
+    user = auth_context.owner
+
+    if not auth_context.check_request():
+        raise UnauthorizedError()
     key_id = request.matchdict['key']
     if not key_id:
         raise RequiredParameterMissingError("key_id")
@@ -618,8 +664,15 @@ def get_public_key(request):
       in: path
       required: true
       type: string
+    ***
+    - rtype: key
+      action: read
     """
-    user = user_from_request(request)
+    auth_context = mist.core.auth.methods.auth_context_from_request(request)
+    user = auth_context.owner
+
+    if not auth_context.check_request():
+        raise UnauthorizedError()
     key_id = request.matchdict['key']
     if not key_id:
         raise RequiredParameterMissingError("key_id")
@@ -668,6 +721,11 @@ def associate_key(request):
     ssh_user:
       description: The ssh user
       type: string
+    ***
+    - rtype: machine
+      action: associate_key
+    - rtype: key
+      action: read_private
     """
     key_id = request.matchdict['key']
     cloud_id = request.matchdict['cloud']
@@ -684,7 +742,11 @@ def associate_key(request):
         host = None
     if not host:
         raise RequiredParameterMissingError('host')
-    user = user_from_request(request)
+    auth_context = mist.core.auth.methods.auth_context_from_request(request)
+    user = auth_context.owner
+
+    if not auth_context.check_request():
+        raise UnauthorizedError()
     methods.associate_key(user, key_id, cloud_id, machine_id, host,
                           username=ssh_user, port=ssh_port)
     return user.keypairs[key_id].machines
@@ -712,6 +774,11 @@ def disassociate_key(request):
       type: string
     host:
       type: string
+    ***
+    - rtype: machine
+      action: disassociate_key
+    - rtype: key
+      action: read
     """
     key_id = request.matchdict['key']
     cloud_id = request.matchdict['cloud']
@@ -720,7 +787,11 @@ def disassociate_key(request):
         host = request.json_body.get('host')
     except:
         host = None
-    user = user_from_request(request)
+    auth_context = mist.core.auth.methods.auth_context_from_request(request)
+    user = auth_context.owner
+
+    if not auth_context.check_request():
+        raise UnauthorizedError()
     methods.disassociate_key(user, key_id, cloud_id, machine_id, host)
     return user.keypairs[key_id].machines
 # TODO
@@ -736,9 +807,16 @@ def list_machines(request):
       in: path
       required: true
       type: string
+    ***
+    - rtype: machine
+      action: read
     """
 
-    user = user_from_request(request)
+    auth_context = mist.core.auth.methods.auth_context_from_request(request)
+    user = auth_context.owner
+
+    if not auth_context.check_request():
+        raise UnauthorizedError()
     cloud_id = request.matchdict['cloud']
     return methods.list_machines(user, cloud_id)
 
@@ -844,6 +922,19 @@ def create_machine(request):
       type: string
     ssh_port:
       type: integer
+    ***
+    - rtype: machine
+      action: read
+    - rtype: cloud
+      action: read
+    - rtype: cloud
+      action: create_resources
+    - rtype: key
+      action: read_private
+      if: key_id
+    - rtype: script
+      action: run
+      if: script_id
     """
     cloud_id = request.matchdict['cloud']
 
@@ -894,7 +985,11 @@ def create_machine(request):
     except Exception as e:
         raise RequiredParameterMissingError(e)
 
-    user = user_from_request(request)
+    auth_context = mist.core.auth.methods.auth_context_from_request(request)
+    user = auth_context.owner
+
+    if not auth_context.check_request():
+        raise UnauthorizedError()
     import uuid
     job_id = uuid.uuid4().hex
     from mist.io import tasks
@@ -956,11 +1051,19 @@ def machine_actions(request):
     size:
       description: The size id of the plan to resize
       type: string
+    ***
+    - rtype: machine
+      action: $action
     """
     # TODO: We shouldn't return list_machines, just 200. Save the API!
+    auth_context = mist.core.auth.methods.auth_context_from_request(request)
+    user = auth_context.owner
+
+    if not auth_context.check_request():
+        raise UnauthorizedError()
+
     cloud_id = request.matchdict['cloud']
     machine_id = request.matchdict['machine']
-    user = user_from_request(request)
     params = params_from_request(request)
     action = params.get('action', '')
     plan_id = params.get('plan_id', '')
@@ -1018,9 +1121,14 @@ def machine_rdp(request):
       required: true
       type: string
     """
+    auth_context = mist.core.auth.methods.auth_context_from_request(request)
+    user = auth_context.owner
+
+    if not auth_context.check_request():
+        raise UnauthorizedError()
+
     cloud_id = request.matchdict['cloud']
     machine_id = request.matchdict['machine']
-    user = user_from_request(request)
     rdp_port = request.params.get('rdp_port', 3389)
     host = request.params.get('host')
 
@@ -1069,7 +1177,11 @@ def set_machine_tags(request):
     if type(tags) != list:
         raise BadRequestError('tags should be list of tags')
 
-    user = user_from_request(request)
+    auth_context = mist.core.auth.methods.auth_context_from_request(request)
+    user = auth_context.owner
+
+    if not auth_context.check_request():
+        raise UnauthorizedError()
     methods.set_machine_tags(user, cloud_id, machine_id, tags)
     return OK
 
@@ -1125,6 +1237,9 @@ def list_images(request):
       type: string
     search_term:
       type: string
+    ***
+    - rtype: cloud
+      action: read
     """
 
     cloud_id = request.matchdict['cloud']
@@ -1132,7 +1247,11 @@ def list_images(request):
         term = request.json_body.get('search_term', '').lower()
     except:
         term = None
-    user = user_from_request(request)
+    auth_context = mist.core.auth.methods.auth_context_from_request(request)
+    user = auth_context.owner
+
+    if not auth_context.check_request():
+        raise UnauthorizedError()
     return methods.list_images(user, cloud_id, term)
 
 
@@ -1170,9 +1289,16 @@ def list_sizes(request):
       in: path
       required: true
       type: string
+    ***
+    - rtype: cloud
+      action: read
     """
     cloud_id = request.matchdict['cloud']
-    user = user_from_request(request)
+    auth_context = mist.core.auth.methods.auth_context_from_request(request)
+    user = auth_context.owner
+
+    if not auth_context.check_request():
+        raise UnauthorizedError()
     return methods.list_sizes(user, cloud_id)
 
 
@@ -1192,9 +1318,16 @@ def list_locations(request):
       in: path
       required: true
       type: string
+    ***
+    - rtype: cloud
+      action: read
     """
     cloud_id = request.matchdict['cloud']
-    user = user_from_request(request)
+    auth_context = mist.core.auth.methods.auth_context_from_request(request)
+    user = auth_context.owner
+
+    if not auth_context.check_request():
+        raise UnauthorizedError()
     return methods.list_locations(user, cloud_id)
 
 
@@ -1211,9 +1344,16 @@ def list_networks(request):
       in: path
       required: true
       type: string
+    ***
+    - rtype: cloud
+      action: read
     """
     cloud_id = request.matchdict['cloud']
-    user = user_from_request(request)
+    auth_context = mist.core.auth.methods.auth_context_from_request(request)
+    user = auth_context.owner
+
+    if not auth_context.check_request():
+        raise UnauthorizedError()
     return methods.list_networks(user, cloud_id)
 
 
@@ -1239,6 +1379,9 @@ def create_network(request):
       type: string
     subnet:
       type: string
+    ***
+    - rtype: cloud
+      action: create_resources
     """
     cloud_id = request.matchdict['cloud']
 
@@ -1249,7 +1392,11 @@ def create_network(request):
 
     subnet = request.json_body.get('subnet', None)
     router = request.json_body.get('router', None)
-    user = user_from_request(request)
+    auth_context = mist.core.auth.methods.auth_context_from_request(request)
+    user = auth_context.owner
+
+    if not auth_context.check_request():
+        raise UnauthorizedError()
     return methods.create_network(user, cloud_id, network, subnet, router)
 
 
@@ -1268,11 +1415,18 @@ def delete_network(request):
       in: path
       required: true
       type: string
+    ***
+    - rtype: cloud
+      action: create_resources
     """
     cloud_id = request.matchdict['cloud']
     network_id = request.matchdict['network']
 
-    user = user_from_request(request)
+    auth_context = mist.core.auth.methods.auth_context_from_request(request)
+    user = auth_context.owner
+
+    if not auth_context.check_request():
+        raise UnauthorizedError()
     methods.delete_network(user, cloud_id, network_id)
 
     return OK
@@ -1309,8 +1463,11 @@ def associate_ip(request):
     ip = params.get('ip')
     machine = params.get('machine')
     assign = params.get('assign', True)
-    user = user_from_request(request)
+    auth_context = mist.core.auth.methods.auth_context_from_request(request)
+    user = auth_context.owner
 
+    if not auth_context.check_request():
+        raise UnauthorizedError()
     ret = methods.associate_ip(user, cloud_id, network_id, ip, machine,
                                assign)
     if ret:
@@ -1344,6 +1501,9 @@ def probe(request):
       in: query
       required: false
       type: string
+    ***
+    - rtype: machine
+      action: read
     """
     machine_id = request.matchdict['machine']
     cloud_id = request.matchdict['cloud']
@@ -1354,7 +1514,11 @@ def probe(request):
     # FIXME: simply don't pass a key parameter
     if key_id == 'undefined':
         key_id = ''
-    user = user_from_request(request)
+    auth_context = mist.core.auth.methods.auth_context_from_request(request)
+    user = auth_context.owner
+
+    if not auth_context.check_request():
+        raise UnauthorizedError()
     ret = methods.probe(user, cloud_id, machine_id, host, key_id, ssh_user)
     return ret
 
@@ -1367,7 +1531,11 @@ def check_monitoring(request):
     Ask the mist.io service if monitoring is enabled for this machine.
     ---
     """
-    user = user_from_request(request)
+    auth_context = mist.core.auth.methods.auth_context_from_request(request)
+    user = auth_context.owner
+
+    if not auth_context.check_request():
+        raise UnauthorizedError()
     ret = methods.check_monitoring(user)
     return ret
 
@@ -1408,7 +1576,11 @@ def update_monitoring(request):
         type: string
       type: array
     """
-    user = user_from_request(request)
+    auth_context = mist.core.auth.methods.auth_context_from_request(request)
+    user = auth_context.owner
+
+    if not auth_context.check_request():
+        raise UnauthorizedError()
     cloud_id = request.matchdict['cloud']
     machine_id = request.matchdict['machine']
     params = params_from_request(request)
@@ -1502,6 +1674,9 @@ def get_stats(request):
       in: query
       required: false
       type: string
+    ***
+    - rtype: machine
+      action: read
     """
     data = methods.get_stats(
         user_from_request(request),
@@ -1556,6 +1731,9 @@ def assoc_metric(request):
     metric_id:
       description: ' Metric_id '
       type: string
+    ***
+    - rtype: machine
+      action: edit_graphs
     """
     user = user_from_request(request)
     cloud_id = request.matchdict['cloud']
@@ -1586,6 +1764,9 @@ def disassoc_metric(request):
     metric_id:
       description: ' Metric_id '
       type: string
+    ***
+    - rtype: machine
+      action: edit_graphs
     """
     user = user_from_request(request)
     cloud_id = request.matchdict['cloud']

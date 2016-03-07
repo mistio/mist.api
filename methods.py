@@ -191,12 +191,16 @@ def add_cloud(user, title, provider, apikey, apisecret, apiurl, tenant_name,
             try:
                 conn = connect_provider(cloud)
             except Exception as exc:
+                cloud.delete()
+                cloud.delete()
                 raise CloudUnauthorizedError(exc=exc)
             try:
                 machines = conn.list_nodes()
             except InvalidCredsError:
+                cloud.delete()
                 raise CloudUnauthorizedError()
             except Exception as exc:
+                cloud.delete()
                 log.error("Error while trying list_nodes: %r", exc)
                 raise CloudUnavailableError(exc=exc)
         cloud.save()
@@ -293,6 +297,7 @@ def add_cloud_v_2(user, title, provider, params):
             raise CloudUnauthorizedError(exc)
         except Exception as exc:
             log.error("Error while adding cloud%r" % exc)
+            cloud.delete()
             raise CloudUnavailableError(exc)
         if provider not in ['vshere']:
             # in some providers -eg vSphere- this is not needed
@@ -301,6 +306,7 @@ def add_cloud_v_2(user, title, provider, params):
             try:
                 machines = conn.list_nodes()
             except InvalidCredsError as exc:
+                cloud.delete()
                 raise CloudUnauthorizedError(exc)
             except Exception as exc:
                 log.error("Error while trying list_nodes: %r", exc)
