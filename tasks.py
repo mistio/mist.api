@@ -5,6 +5,7 @@ import tempfile
 import functools
 
 import libcloud.security
+from libcloud.compute.types import NodeState
 
 from time import time, sleep
 from uuid import uuid4
@@ -48,6 +49,7 @@ except ImportError:  # Standalone mist.io
 from mist.io.helpers import amqp_publish_user
 from mist.io.helpers import amqp_user_listening
 from mist.io.helpers import amqp_log
+
 
 # libcloud certificate fix for OS X
 libcloud.security.CA_CERTS_PATH.append(cert_path)
@@ -93,11 +95,13 @@ def ssh_command(email, cloud_id, machine_id, host, command,
 
 
 @app.task(bind=True, default_retry_delay=3*60)
-def post_deploy_steps(self, email, cloud_id, machine_id, monitoring, command,
+def post_deploy_steps(self, email, cloud_id, machine_id, monitoring, command='',
                       key_id=None, username=None, password=None, port=22,
                       script_id='', script_params='', job_id=None,
-                      hostname='', plugins=None,
-                      post_script_id='', post_script_params=''):
+                      hostname='', plugins=None, script=None,
+                      post_script_id='', post_script_params='', cronjob={}):
+
+
     from mist.io.methods import connect_provider, probe_ssh_only
     from mist.io.methods import notify_user, notify_admin
     from mist.io.methods import create_dns_a_record
@@ -108,13 +112,13 @@ def post_deploy_steps(self, email, cloud_id, machine_id, monitoring, command,
     else:
         from mist.io.methods import enable_monitoring
         log_event = lambda *args, **kwargs: None
-
     job_id = job_id or uuid.uuid4().hex
 
     user = user_from_email(email)
     tmp_log = lambda msg, *args: log.error('Post deploy: %s' % msg, *args)
     tmp_log('Entering post deploy steps for %s %s %s',
             user.email, cloud_id, machine_id)
+
     try:
         # find the node we're looking for and get its hostname
         node = None
@@ -135,6 +139,10 @@ def post_deploy_steps(self, email, cloud_id, machine_id, monitoring, command,
             host = ips[0]
         else:
             tmp_log('ip not found, retrying')
+            raise self.retry(exc=Exception(), countdown=60, max_retries=20)
+
+        if node.state != NodeState.RUNNING:
+            tmp_log('not running state')
             raise self.retry(exc=Exception(), countdown=60, max_retries=20)
 
         try:
@@ -225,8 +233,11 @@ def post_deploy_steps(self, email, cloud_id, machine_id, monitoring, command,
                 except Exception as e:
                     print repr(e)
                     error = True
-                    notify_user(user, "Enable monitoring failed for machine %s" % machine_id, repr(e))
-                    notify_admin('Enable monitoring on creation failed for user %s machine %s: %r' % (email, machine_id, e))
+                    notify_user(user, "Enable monitoring failed for machine %s"
+                                % machine_id, repr(e))
+                    notify_admin('Enable monitoring on creation failed for '
+                                 'user %s machine %s: %r'
+                                 % (email, machine_id, e))
                     log_event(action='enable_monitoring_failed', error=repr(e),
                               **log_dict)
 
@@ -240,6 +251,25 @@ def post_deploy_steps(self, email, cloud_id, machine_id, monitoring, command,
                 error = ret['error']
                 tmp_log('executed post_script_id %s', script_id)
 
+            # only for mist.core, set cronjob entry as a post deploy step
+            if cronjob:
+                try:
+                    from mist.core.methods import add_cronjob_entry
+                    tmp_log('Add cronjob entry %s', cronjob["name"])
+                    cronjob["machines_per_cloud"] = [[cloud_id, machine_id]]
+                    cronjob_info = add_cronjob_entry(user, cronjob)
+                    tmp_log("A cronjob entry was added")
+                    log_event(action='add cronjob entry',
+                              cronjob=cronjob_info.to_json(), **log_dict)
+
+                except Exception as e:
+                    print repr(e)
+                    error = True
+                    notify_user(user, "add cronjob entry failed for machine %s"
+                                % machine_id, repr(e))
+                    log_event(action='Add cronjob entry failed', error=repr(e),
+                              **log_dict)
+
             log_event(action='post_deploy_finished', error=error, **log_dict)
 
         except (ServiceUnavailableError, SSHException) as exc:
@@ -250,7 +280,8 @@ def post_deploy_steps(self, email, cloud_id, machine_id, monitoring, command,
         if str(exc).startswith('Retry'):
             raise
         notify_user(user, "Deployment script failed for machine %s" % machine_id)
-        notify_admin("Deployment script failed for machine %s in cloud %s by user %s" % (machine_id, cloud_id, email), repr(exc))
+        notify_admin("Deployment script failed for machine %s in cloud "
+                     "%s by user %s" % (machine_id, cloud_id, email), repr(exc))
         log_event(
             email=email,
             event_type='job',
@@ -263,73 +294,14 @@ def post_deploy_steps(self, email, cloud_id, machine_id, monitoring, command,
             job_id=job_id
         )
 
-@app.task(bind=True, default_retry_delay=2*60)
-def hpcloud_post_create_steps(self, email, cloud_id, machine_id, monitoring,
-                              command, key_id, username, password, public_key,
-                              script_id='', script_params='', job_id=None,
-                              hostname='', plugins=None,
-                              post_script_id='', post_script_params=''):
-    from mist.io.methods import connect_provider
-    user = user_from_email(email)
-
-    try:
-        conn = connect_provider(user.clouds[cloud_id])
-        nodes = conn.list_nodes()
-        node = None
-
-        for n in nodes:
-            if n.id == machine_id:
-                node = n
-                break
-
-        if node and node.state == 0 and len(node.public_ips):
-            # filter out IPv6 addresses
-            ips = filter(lambda ip: ':' not in ip, node.public_ips)
-            host = ips[0]
-
-            post_deploy_steps.delay(
-                email, cloud_id, machine_id, monitoring, command, key_id,
-                script_id=script_id, script_params=script_params,
-                job_id=job_id, hostname=hostname, plugins=plugins,
-                post_script_id=post_script_id,
-                post_script_params=post_script_params,
-            )
-
-        else:
-            try:
-                available_networks = conn.ex_list_networks()
-                external_networks = [net for net in available_networks if net.router_external]
-                if external_networks:
-                    ext_net_id = external_networks[0].id
-                else:
-                    ext_net_id = ""
-
-                ports = conn.ex_list_ports()
-
-                port = [port for port in ports if port.get("device_id", "") == node.id][0]
-
-                ip = conn.ex_create_floating_ip(ext_net_id, port['id'])
-                post_deploy_steps.delay(
-                    email, cloud_id, machine_id, monitoring, command, key_id,
-                    script_id=script_id, script_params=script_params,
-                    job_id=job_id, hostname=hostname, plugins=plugins,
-                    post_script_id=post_script_id,
-                    post_script_params=post_script_params,
-                )
-
-            except:
-                raise self.retry(exc=Exception(), max_retries=20)
-    except Exception as exc:
-        if str(exc).startswith('Retry'):
-            raise
-
 
 @app.task(bind=True, default_retry_delay=2*60)
 def openstack_post_create_steps(self, email, cloud_id, machine_id, monitoring,
-                              command, key_id, username, password, public_key,
-                              script_id='', script_params='', job_id=None,
-                              hostname='', plugins=None,
-                              post_script_id='', post_script_params='', networks=[]):
+                                command, key_id, username, password, public_key,
+                                script_id='', script_params='', job_id=None,
+                                hostname='', plugins=None,
+                                post_script_id='', post_script_params='',
+                                networks=[], cronjob={}):
 
     from mist.io.methods import connect_provider
     user = user_from_email(email)
@@ -354,7 +326,7 @@ def openstack_post_create_steps(self, email, cloud_id, machine_id, monitoring,
                 script_id=script_id, script_params=script_params,
                 job_id=job_id, hostname=hostname, plugins=plugins,
                 post_script_id=post_script_id,
-                post_script_params=post_script_params,
+                post_script_params=post_script_params, cronjob=cronjob
             )
 
         else:
@@ -363,14 +335,16 @@ def openstack_post_create_steps(self, email, cloud_id, machine_id, monitoring,
                 for network in networks['public']:
                     created_floating_ips += [floating_ip for floating_ip in network['floating_ips']]
 
-                # From the already created floating ips try to find one that is not associated to a node
+                # From the already created floating ips try to find one that
+                # is not associated to a node
                 unassociated_floating_ip = None
                 for ip in created_floating_ips:
                     if not ip['node_id']:
                         unassociated_floating_ip = ip
                         break
 
-                # Find the ports which are associated to the machine (e.g. the ports of the private ips)
+                # Find the ports which are associated to the machine
+                # (e.g. the ports of the private ips)
                 # and use one to associate a floating ip
                 ports = conn.ex_list_ports()
                 machine_port_id = None
@@ -408,7 +382,7 @@ def azure_post_create_steps(self, email, cloud_id, machine_id, monitoring,
                             command, key_id, username, password, public_key,
                             script_id='', script_params='', job_id=None,
                             hostname='', plugins=None,
-                            post_script_id='', post_script_params=''):
+                            post_script_id='', post_script_params='',cronjob={}):
     from mist.io.methods import connect_provider
     user = user_from_email(email)
 
@@ -430,10 +404,11 @@ def azure_post_create_steps(self, email, cloud_id, machine_id, monitoring,
             raise self.retry(exc=Exception(), max_retries=20)
 
         try:
-            # login with user, password. Deploy the public key, enable sudo access for
-            # username, disable password authentication and reload ssh.
-            # After this is done, call post_deploy_steps if deploy script or monitoring
-            # is provided
+            # login with user, password. Deploy the public key, enable sudo
+            # access for username, disable password authentication
+            # and reload ssh.
+            # After this is done, call post_deploy_steps if deploy script
+            # or monitoring is provided
             ssh = paramiko.SSHClient()
             ssh.load_system_host_keys()
             ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -465,7 +440,7 @@ def azure_post_create_steps(self, email, cloud_id, machine_id, monitoring,
                 script_id=script_id, script_params=script_params,
                 job_id=job_id, hostname=hostname, plugins=plugins,
                 post_script_id=post_script_id,
-                post_script_params=post_script_params,
+                post_script_params=post_script_params, cronjob=cronjob,
             )
 
         except Exception as exc:
@@ -480,7 +455,7 @@ def rackspace_first_gen_post_create_steps(
     self, email, cloud_id, machine_id, monitoring, command, key_id,
     password, public_key, username='root', script_id='', script_params='',
     job_id=None, hostname='', plugins=None, post_script_id='',
-    post_script_params=''
+    post_script_params='', cronjob={}
 ):
     from mist.io.methods import connect_provider
     user = user_from_email(email)
@@ -503,8 +478,10 @@ def rackspace_first_gen_post_create_steps(
             raise self.retry(exc=Exception(), max_retries=20)
 
         try:
-            # login with user, password and deploy the ssh public key. Disable password authentication and reload ssh.
-            # After this is done, call post_deploy_steps if deploy script or monitoring
+            # login with user, password and deploy the ssh public key.
+            # Disable password authentication and reload ssh.
+            # After this is done, call post_deploy_steps
+            # if deploy script or monitoring
             # is provided
             ssh=paramiko.SSHClient()
             ssh.load_system_host_keys()
@@ -523,7 +500,7 @@ def rackspace_first_gen_post_create_steps(
                 script_id=script_id, script_params=script_params,
                 job_id=job_id, hostname=hostname, plugins=plugins,
                 post_script_id=post_script_id,
-                post_script_params=post_script_params,
+                post_script_params=post_script_params, cronjob=cronjob
             )
 
         except Exception as exc:
@@ -782,7 +759,8 @@ class ListMachines(UserTask):
                         if tag_dict not in machine['tags']:
                             machine['tags'].append(tag_dict)
                 # FIXME: optimize!
-        log.warn('Returning list machines for user %s cloud %s' % (email, cloud_id))
+        log.warn('Returning list machines for user %s cloud %s'
+                 % (email, cloud_id))
         return {'cloud_id': cloud_id, 'machines': machines}
 
     def error_rerun_handler(self, exc, errors, email, cloud_id):
@@ -793,8 +771,9 @@ class ListMachines(UserTask):
 
         user = user_from_email(email)
 
-        if len(errors) == 6: # If does not respond for a minute
-            notify_user(user, 'Cloud %s does not respond' % user.clouds[cloud_id].title,
+        if len(errors) == 6:  # If does not respond for a minute
+            notify_user(user, 'Cloud %s does not respond'
+                        % user.clouds[cloud_id].title,
                         email_notify=False, cloud_id=cloud_id)
 
         # Keep retrying every 30 secs for 10 minutes, then every 60 secs for
@@ -875,7 +854,10 @@ def create_machine_async(email, cloud_id, key_id, machine_name, location_id,
                          docker_port_bindings={}, docker_exposed_ports={},
                          azure_port_bindings='', hostname='', plugins=None,
                          disk_size=None, disk_path=None,
-                         cloud_init='', associate_floating_ip=False, associate_floating_ip_subnet=None, project_id=None):
+                         cloud_init='', associate_floating_ip=False,
+                         associate_floating_ip_subnet=None, project_id=None,
+                         bare_metal=False, hourly=True,
+                         cronjob={}):
     from multiprocessing.dummy import Pool as ThreadPool
     from mist.io.methods import create_machine
     from mist.io.exceptions import MachineCreationError
@@ -887,20 +869,21 @@ def create_machine_async(email, cloud_id, key_id, machine_name, location_id,
         log_event = lambda *args, **kwargs: None
     job_id = job_id or uuid.uuid4().hex
 
+    if quantity == 1:
+        names = [machine_name]
+    else:
+        names = []
+        for i in range(1, quantity+1):
+            names.append('%s-%d' % (machine_name, i))
+
     log_event(email, 'job', 'async_machine_creation_started', job_id=job_id,
               cloud_id=cloud_id, script=script, script_id=script_id,
               script_params=script_params, monitoring=monitoring,
-              persist=persist, quantity=quantity)
+              persist=persist, quantity=quantity, key_id=key_id,
+              machine_names=names)
 
     THREAD_COUNT = 5
     pool = ThreadPool(THREAD_COUNT)
-
-    names = []
-    if quantity == 1:
-        names.append(machine_name)
-    else:
-        for i in range(1, quantity + 1):
-            names.append('%s-%d' % (machine_name, i))
 
     user = user_from_email(email)
     specs = []
@@ -918,12 +901,14 @@ def create_machine_async(email, cloud_id, key_id, machine_name, location_id,
              'cloud_init': cloud_init,
              'disk_size': disk_size,
              'disk_path': disk_path,
-             'project_id': project_id}
+             'project_id': project_id,
+             'cronjob': cronjob}
         ))
 
     def create_machine_wrapper(args_kwargs):
         args, kwargs = args_kwargs
         error = False
+        node = {}
         try:
             node = create_machine(*args, **kwargs)
         except MachineCreationError as exc:
@@ -933,7 +918,8 @@ def create_machine_async(email, cloud_id, key_id, machine_name, location_id,
         finally:
             name = args[3]
             log_event(email, 'job', 'machine_creation_finished', job_id=job_id,
-                      cloud_id=cloud_id, machine_name=name, error=error)
+                      cloud_id=cloud_id, machine_name=name, error=error,
+                      machine_id=node.get('id', ''))
 
     pool.map(create_machine_wrapper, specs)
     pool.close()
