@@ -30,7 +30,7 @@ import mongoengine as me
 
 from libcloud.compute.providers import get_driver
 from libcloud.compute.base import NodeImage
-from libcloud.compute.types import Provider
+from libcloud.compute.types import Provider, NodeState
 
 
 from mist.io import config
@@ -81,6 +81,38 @@ class AmazonController(BaseController):
 
         super(AmazonController, self).add(**kwargs)
 
+    def _add_machine_actions(self, mist_machine_id, api_machine_id, machine_api,
+                             machine_model, machine_dict):
+        # defaults for running state
+        can_start = False
+        can_stop = True
+        can_destroy = True
+        can_reboot = True
+
+        if machine_api.state in (NodeState.REBOOTING, NodeState.PENDING):
+            can_start = False
+            can_stop = False
+            can_reboot = False
+        elif machine_api.state in (NodeState.UNKNOWN, NodeState.STOPPED):
+            # We assume unknown state mean stopped
+            can_stop = False
+            can_start = True
+            can_reboot = False
+        elif machine_api.state in (NodeState.TERMINATED,):
+            can_start = False
+            can_destroy = False
+            can_stop = False
+            can_reboot = False
+
+        machine_dict.update({
+            'can_stop': can_stop,
+            'can_start': can_start,
+            'can_destroy': can_destroy,
+            'can_reboot': can_reboot,
+            'can_rename': True,
+            'can_tag': True,
+            })
+
     def list_images(self, search=None):
         default_images = config.EC2_IMAGES[self.cloud.region]
         image_ids = default_images.keys() + self.cloud.starred
@@ -123,6 +155,16 @@ class AmazonController(BaseController):
                 pass
         return self._post_parse_locations(locations)
 
+    def get_available_machine_actions(self, machine_id=None):
+        return {
+            'can_stop': True,
+            'can_start': False,
+            'can_destroy': True,
+            'can_reboot': True,
+            'can_rename': True,
+            'can_tag': True,
+        }
+
     def _post_parse_machine(self, mist_machine_id, api_machine_id, machine_api,
                             machine_model, machine_dict):
         # This is windows for windows servers and None for Linux.
@@ -137,6 +179,46 @@ class DigitalOceanController(BaseController):
     def _connect(self):
         return get_driver(Provider.DIGITAL_OCEAN)(self.cloud.token)
 
+    def _add_machine_actions(self, mist_machine_id, api_machine_id, machine_api,
+                             machine_model, machine_dict):
+        can_start = False
+        can_stop = True
+        can_destroy = True
+        can_reboot = True
+
+        if machine_api.state in (NodeState.REBOOTING, NodeState.PENDING):
+            can_start = False
+            can_stop = False
+            can_reboot = False
+        elif machine_api.state in (NodeState.UNKNOWN, NodeState.STOPPED):
+            # We assume unknown state mean stopped
+            can_stop = False
+            can_start = True
+            can_reboot = False
+        elif machine_api.state in (NodeState.TERMINATED,):
+            can_start = False
+            can_destroy = False
+            can_stop = False
+            can_reboot = False
+
+        machine_dict.update({
+            'can_stop': can_stop,
+            'can_start': can_start,
+            'can_destroy': can_destroy,
+            'can_reboot': can_reboot,
+            'can_rename': True,
+            'can_tag': True,
+        })
+
+    def get_available_machine_actions(self, machine_id=None):
+        return {
+            'can_stop': True,
+            'can_start': False,
+            'can_destroy': True,
+            'can_reboot': True,
+            'can_rename': True,
+            'can_tag': True,
+        }
 
 class DigitalOceanFirstGenController(BaseController):
 
@@ -146,7 +228,7 @@ class DigitalOceanFirstGenController(BaseController):
         return get_driver(Provider.DIGITAL_OCEAN_FIRST_GEN)(
             self.cloud.apikey, self.cloud.apisecret
         )
-
+    
 
 class LinodeController(BaseController):
 
@@ -155,6 +237,40 @@ class LinodeController(BaseController):
     def _connect(self):
         return get_driver(Provider.LINODE)(self.cloud.apikey)
 
+    def _add_machine_actions(self, mist_machine_id, api_machine_id, machine_api,
+                             machine_model, machine_dict):
+        # defaults for running state
+        can_start = False
+        can_stop = True
+        can_destroy = True
+        can_reboot = True
+
+        if machine_api.state == NodeState.PENDING:
+            can_start = True
+        if machine_api.state == NodeState.REBOOTING:
+            can_start = False
+            can_stop = False
+            can_reboot = False
+        elif machine_api.state in (NodeState.UNKNOWN, NodeState.STOPPED):
+            # We assume unknown state mean stopped
+            can_stop = False
+            can_start = True
+            can_reboot = False
+        elif machine_api.state in (NodeState.TERMINATED,):
+            can_start = False
+            can_destroy = False
+            can_stop = False
+            can_reboot = False
+
+        machine_dict.update({
+            'can_stop': can_stop,
+            'can_start': can_start,
+            'can_destroy': can_destroy,
+            'can_reboot': can_reboot,
+            'can_rename': True,
+            'can_tag': True,
+        })
+
     def _post_parse_machine(self, mist_machine_id, api_machine_id, machine_api,
                             machine_model, machine_dict):
         datacenter = machine_dict['extra'].get('DATACENTER')
@@ -162,6 +278,15 @@ class LinodeController(BaseController):
         if datacenter:
             machine_dict['tags']['DATACENTERID'] = datacenter
 
+    def get_available_machine_actions(self, machine_id=None):
+        return {
+            'can_stop': True,
+            'can_start': False,
+            'can_destroy': True,
+            'can_reboot': True,
+            'can_rename': True,
+            'can_tag': True,
+        }
 
 class RackSpaceController(BaseController):
 
@@ -185,6 +310,47 @@ class RackSpaceController(BaseController):
                 kwargs['apikey'] = cloud.apikey
         super(RackSpaceController, self).add(**kwargs)
 
+    def get_available_machine_actions(self, machine_id=None):
+        return {
+            'can_stop': True,
+            'can_start': False,
+            'can_destroy': True,
+            'can_reboot': True,
+            'can_rename': True,
+            'can_tag': True,
+        }
+
+    def _add_machine_actions(self, mist_machine_id, api_machine_id, machine_api,
+                             machine_model, machine_dict):
+        can_start = False
+        can_stop = True
+        can_destroy = True
+        can_reboot = True
+
+        if machine_api.state in (NodeState.REBOOTING, NodeState.PENDING):
+            can_start = False
+            can_stop = False
+            can_reboot = False
+        elif machine_api.state in (NodeState.UNKNOWN, NodeState.STOPPED):
+            # We assume unknown state mean stopped
+            can_stop = False
+            can_start = True
+            can_reboot = False
+        elif machine_api.state in (NodeState.TERMINATED,):
+            can_start = False
+            can_destroy = False
+            can_stop = False
+            can_reboot = False
+
+        machine_dict.update({
+            'can_stop': can_stop,
+            'can_start': can_start,
+            'can_destroy': can_destroy,
+            'can_reboot': can_reboot,
+            'can_rename': True,
+            'can_tag': True,
+        })
+
 
 class SoftLayerController(BaseController):
 
@@ -194,11 +360,51 @@ class SoftLayerController(BaseController):
         return get_driver(Provider.SOFTLAYER)(self.cloud.username,
                                               self.cloud.apikey)
 
+    def _add_machine_actions(self, mist_machine_id, api_machine_id, machine_api,
+                             machine_model, machine_dict):
+        can_start = False
+        can_stop = True
+        can_destroy = True
+        can_reboot = True
+
+        if machine_api.state in (NodeState.REBOOTING, NodeState.PENDING):
+            can_start = False
+            can_stop = False
+            can_reboot = False
+        elif machine_api.state in (NodeState.UNKNOWN, NodeState.STOPPED):
+            # We assume unknown state mean stopped
+            can_stop = False
+            can_start = True
+            can_reboot = False
+        elif machine_api.state in (NodeState.TERMINATED,):
+            can_start = False
+            can_destroy = False
+            can_stop = False
+            can_reboot = False
+
+        machine_dict.update({
+            'can_stop': can_stop,
+            'can_start': can_start,
+            'can_destroy': can_destroy,
+            'can_reboot': can_reboot,
+            'can_rename': False,
+            'can_tag': True,
+        })
     def _post_parse_machine(self, mist_machine_id, api_machine_id, machine_api,
                             machine_model, machine_dict):
         machine_dict['extra']['os_type'] = 'linux'
         if 'windows' in str(machine_dict['extra'].get('image', '')).lower():
             machine_dict['extra']['os_type'] = 'windows'
+
+    def get_available_machine_actions(self, machine_id=None):
+        return {
+            'can_stop': True,
+            'can_start': False,
+            'can_destroy': True,
+            'can_reboot': True,
+            'can_rename': False,
+            'can_tag': True,
+        }
 
 
 class NephoScaleController(BaseController):
@@ -214,11 +420,52 @@ class NephoScaleController(BaseController):
         sizes.extend(self.connection.list_sizes(baremetal=True))
         return self._post_parse_sizes(sizes)
 
+    def _add_machine_actions(self, mist_machine_id, api_machine_id, machine_api,
+                             machine_model, machine_dict):
+        can_start = False
+        can_stop = True
+        can_destroy = True
+        can_reboot = True
+
+        if machine_api.state in (NodeState.REBOOTING, NodeState.PENDING):
+            can_start = False
+            can_stop = False
+            can_reboot = False
+        elif machine_api.state in (NodeState.UNKNOWN, NodeState.STOPPED):
+            # We assume unknown state mean stopped
+            can_stop = False
+            can_start = True
+            can_reboot = False
+        elif machine_api.state in (NodeState.TERMINATED,):
+            can_start = False
+            can_destroy = False
+            can_stop = False
+            can_reboot = False
+
+        machine_dict.update({
+            'can_stop': can_stop,
+            'can_start': can_start,
+            'can_destroy': can_destroy,
+            'can_reboot': can_reboot,
+            'can_rename': True,
+            'can_tag': True,
+        })
+
     def _post_parse_machine(self, mist_machine_id, api_machine_id, machine_api,
                             machine_model, machine_dict):
         machine_dict['extra']['os_type'] = 'linux'
         if 'windows' in str(machine_dict['extra'].get('image', '')).lower():
             machine_dict['extra']['os_type'] = 'windows'
+
+    def get_available_machine_actions(self, machine_id=None):
+        return {
+            'can_stop': True,
+            'can_start': False,
+            'can_destroy': True,
+            'can_reboot': True,
+            'can_rename': True,
+            'can_tag': True,
+        }
 
 
 class AzureController(BaseController):
@@ -231,6 +478,38 @@ class AzureController(BaseController):
         tmp_cert_file.close()
         return get_driver(Provider.AZURE)(self.cloud.subscription_id,
                                           tmp_cert_file.name)
+
+    def _add_machine_actions(self, mist_machine_id, api_machine_id, machine_api,
+                             machine_model, machine_dict):
+        # defaults for running state
+        can_start = False
+        can_stop = True
+        can_destroy = True
+        can_reboot = True
+
+        if machine_api.state in (NodeState.REBOOTING, NodeState.PENDING):
+            can_start = False
+            can_stop = False
+            can_reboot = False
+        elif machine_api.state in (NodeState.UNKNOWN, NodeState.STOPPED):
+            # We assume unknown state mean stopped
+            can_stop = False
+            can_start = True
+            can_reboot = False
+        elif machine_api.state in (NodeState.TERMINATED,):
+            can_start = False
+            can_destroy = False
+            can_stop = False
+            can_reboot = False
+
+        machine_dict.update({
+            'can_stop': can_stop,
+            'can_start': can_start,
+            'can_destroy': can_destroy,
+            'can_reboot': can_reboot,
+            'can_rename': False,
+            'can_tag': True,
+        })
 
     def list_images(self, search=None):
         images = self.connection.list_images()
@@ -246,6 +525,16 @@ class AzureController(BaseController):
                 images_dict[image.name] = image
 
         return self._post_parse_images(images_dict.values(), search)
+
+    def get_available_machine_actions(self, machine_id=None):
+        return {
+            'can_stop': True,
+            'can_start': False,
+            'can_destroy': True,
+            'can_reboot': True,
+            'can_rename': False,
+            'can_tag': True,
+        }
 
 
 class GoogleController(BaseController):
@@ -278,6 +567,37 @@ class GoogleController(BaseController):
                 raise MistError("Make sure you upload a valid json file.")
         super(GoogleController, self).add(**kwargs)
 
+    def _add_machine_actions(self, mist_machine_id, api_machine_id, machine_api,
+                             machine_model, machine_dict):
+        can_start = False
+        can_stop = True
+        can_destroy = True
+        can_reboot = True
+
+        if machine_api.state in (NodeState.REBOOTING, NodeState.PENDING):
+            can_start = False
+            can_stop = False
+            can_reboot = False
+        elif machine_api.state in (NodeState.UNKNOWN, NodeState.STOPPED):
+            # We assume unknown state mean stopped
+            can_stop = False
+            can_start = True
+            can_reboot = False
+        elif machine_api.state in (NodeState.TERMINATED,):
+            can_start = False
+            can_destroy = False
+            can_stop = False
+            can_reboot = False
+
+        machine_dict.update({
+            'can_stop': can_stop,
+            'can_start': can_start,
+            'can_destroy': can_destroy,
+            'can_reboot': can_reboot,
+            'can_rename': False,
+            'can_tag': True,
+        })
+
     def list_images(self, search=None):
         images = self.connection.list_images()
 
@@ -298,6 +618,16 @@ class GoogleController(BaseController):
                 'country': zone.country,
             }
         return self._post_parse_sizes(sizes)
+
+    def get_available_machine_actions(self, machine_id=None):
+        return {
+            'can_stop': True,
+            'can_start': False,
+            'can_destroy': True,
+            'can_reboot': True,
+            'can_rename': False,
+            'can_tag': True,
+        }
 
     def _post_parse_machine(self, mist_machine_id, api_machine_id, machine_api,
                             machine_model, machine_dict):
@@ -360,6 +690,47 @@ class HostVirtualController(BaseController):
     def _connect(self):
         return get_driver(Provider.HOSTVIRTUAL)(self.cloud.apikey)
 
+    def _add_machine_actions(self, mist_machine_id, api_machine_id, machine_api,
+                             machine_model, machine_dict):
+        can_start = False
+        can_stop = True
+        can_destroy = True
+        can_reboot = True
+
+        if machine_api.state in (NodeState.REBOOTING, NodeState.PENDING):
+            can_start = False
+            can_stop = False
+            can_reboot = False
+        elif machine_api.state in (NodeState.UNKNOWN, NodeState.STOPPED):
+            # We assume unknown state mean stopped
+            can_stop = False
+            can_start = True
+            can_reboot = False
+        elif machine_api.state in (NodeState.TERMINATED,):
+            can_start = False
+            can_destroy = False
+            can_stop = False
+            can_reboot = False
+
+        machine_dict.update({
+            'can_stop': can_stop,
+            'can_start': can_start,
+            'can_destroy': can_destroy,
+            'can_reboot': can_reboot,
+            'can_rename': False,
+            'can_tag': True,
+        })
+
+    def get_available_machine_actions(self, machine_id=None):
+        return {
+            'can_stop': True,
+            'can_start': False,
+            'can_destroy': True,
+            'can_reboot': True,
+            'can_rename': False,
+            'can_tag': True,
+        }
+
 
 class PacketController(BaseController):
 
@@ -369,6 +740,47 @@ class PacketController(BaseController):
         return get_driver(Provider.PACKET)(self.cloud.apikey,
                                            project=self.cloud.project_id)
 
+    def _add_machine_actions(self, mist_machine_id, api_machine_id, machine_api,
+                             machine_model, machine_dict):
+        # defaults for running state
+        can_start = False
+        can_stop = True
+        can_destroy = True
+        can_reboot = True
+
+        if machine_api.state in (NodeState.REBOOTING, NodeState.PENDING):
+            can_start = False
+            can_stop = False
+            can_reboot = False
+        elif machine_api.state in (NodeState.UNKNOWN, NodeState.STOPPED):
+            # We assume unknown state mean stopped
+            can_stop = False
+            can_start = True
+            can_reboot = False
+        elif machine_api.state in (NodeState.TERMINATED,):
+            can_start = False
+            can_destroy = False
+            can_stop = False
+            can_reboot = False
+
+        machine_dict.update({
+            'can_stop': can_stop,
+            'can_start': can_start,
+            'can_destroy': can_destroy,
+            'can_reboot': can_reboot,
+            'can_rename': False,
+            'can_tag': True,
+})
+    def get_available_machine_actions(self, machine_id=None):
+        return {
+            'can_stop': True,
+            'can_start': False,
+            'can_destroy': True,
+            'can_reboot': True,
+            'can_rename': False,
+            'can_tag': True,
+        }
+
 
 class VultrController(BaseController):
 
@@ -376,6 +788,47 @@ class VultrController(BaseController):
 
     def _connect(self):
         return get_driver(Provider.VULTR)(self.cloud.apikey)
+
+    def _add_machine_actions(self, mist_machine_id, api_machine_id, machine_api,
+                                 machine_model, machine_dict):
+        can_start = False
+        can_stop = True
+        can_destroy = True
+        can_reboot = True
+
+        if machine_api.state in (NodeState.REBOOTING, NodeState.PENDING):
+            can_start = False
+            can_stop = False
+            can_reboot = False
+        elif machine_api.state in (NodeState.UNKNOWN, NodeState.STOPPED):
+            # We assume unknown state mean stopped
+            can_stop = False
+            can_start = True
+            can_reboot = False
+        elif machine_api.state in (NodeState.TERMINATED,):
+            can_start = False
+            can_destroy = False
+            can_stop = False
+            can_reboot = False
+
+        machine_dict.update({
+            'can_stop': can_stop,
+            'can_start': can_start,
+            'can_destroy': can_destroy,
+            'can_reboot': can_reboot,
+            'can_rename': False,
+            'can_tag': True,
+        })
+
+    def get_available_machine_actions(self, machine_id=None):
+        return {
+            'can_stop': True,
+            'can_start': False,
+            'can_destroy': True,
+            'can_reboot': True,
+            'can_rename': False,
+            'can_tag': True,
+        }
 
 
 class VSphereController(BaseController):
@@ -403,6 +856,48 @@ class VSphereController(BaseController):
         kwargs['host'] = sanitize_host(kwargs['host'])
         super(VSphereController, self).add(**kwargs)
 
+    def _add_machine_actions(self, mist_machine_id, api_machine_id, machine_api,
+                             machine_model, machine_dict):
+        can_start = False
+        can_stop = True
+        can_destroy = True
+        can_reboot = True
+
+        if machine_api.state in (NodeState.REBOOTING, NodeState.PENDING):
+            can_start = False
+            can_stop = False
+            can_reboot = False
+        elif machine_api.state in (NodeState.UNKNOWN, NodeState.STOPPED):
+            # We assume unknown state mean stopped
+            can_stop = False
+            can_start = True
+            can_reboot = False
+        elif machine_api.state in (NodeState.TERMINATED,):
+            can_start = False
+            can_destroy = False
+            can_stop = False
+            can_reboot = False
+
+        machine_dict.update({
+            'can_stop': can_stop,
+            'can_start': can_start,
+            'can_destroy': can_destroy,
+            'can_reboot': can_reboot,
+            'can_rename': False,
+            'can_tag': True,
+        })
+
+    def get_available_machine_actions(self, machine_id=None):
+        return {
+            'can_stop': True,
+            'can_start': False,
+            'can_destroy': True,
+            'can_reboot': True,
+            'can_rename': False,
+            'can_tag': True,
+        }
+
+
 
 class VCloudController(BaseController):
 
@@ -426,10 +921,54 @@ class VCloudController(BaseController):
         kwargs['host'] = sanitize_host(kwargs['host'])
         super(VCloudController, self).add(**kwargs)
 
+    def _add_machine_actions(self, mist_machine_id, api_machine_id, machine_api,
+                            machine_model, machine_dict):
+        can_start = False
+        can_stop = True
+        can_destroy = True
+        can_reboot = True
+
+        if machine_api.state is NodeState.REBOOTING:
+            can_start = False
+            can_stop = False
+            can_reboot = False
+        elif machine_api.state is NodeState.PENDING:
+            can_start = True
+            can_stop = True
+        elif machine_api.state in (NodeState.UNKNOWN, NodeState.STOPPED):
+            # We assume unknown state mean stopped
+            can_stop = False
+            can_start = True
+            can_reboot = False
+        elif machine_api.state in (NodeState.TERMINATED,):
+            can_start = False
+            can_destroy = False
+            can_stop = False
+            can_reboot = False
+
+        machine_dict.update({
+            'can_stop': can_stop,
+            'can_start': can_start,
+            'can_destroy': can_destroy,
+            'can_reboot': can_reboot,
+            'can_rename': False,
+            'can_tag': True,
+        })
+
     def _post_parse_machine(self, mist_machine_id, api_machine_id, machine_api,
                             machine_model, machine_dict):
         if machine_dict['extra'].get('vdc'):
             machine_dict['tags']['vdc'] = machine_dict['extra']['vdc']
+
+    def get_available_machine_actions(self, machine_id=None):
+        return {
+            'can_stop': True,
+            'can_start': True,
+            'can_destroy': True,
+            'can_reboot': True,
+            'can_rename': False,
+            'can_tag': True,
+        }
 
 
 class IndonesianVCloudController(VCloudController):
@@ -442,6 +981,50 @@ class IndonesianVCloudController(VCloudController):
                                   'compute.idcloudonline.com'):
             raise me.ValidationError("Invalid host '%s'." % kwargs['host'])
         super(IndonesianVCloudController, self).add(**kwargs)
+
+    def _add_machine_actions(self, mist_machine_id, api_machine_id, machine_api,
+                             machine_model, machine_dict):
+        can_start = False
+        can_stop = True
+        can_destroy = True
+        can_reboot = True
+
+        if machine_api.state is NodeState.REBOOTING:
+            can_start = False
+            can_stop = False
+            can_reboot = False
+        elif machine_api.state is NodeState.PENDING:
+            can_start = True
+            can_stop = True
+        elif machine_api.state in (NodeState.UNKNOWN, NodeState.STOPPED):
+            # We assume unknown state mean stopped
+            can_stop = False
+            can_start = True
+            can_reboot = False
+        elif machine_api.state in (NodeState.TERMINATED,):
+            can_start = False
+            can_destroy = False
+            can_stop = False
+            can_reboot = False
+
+        machine_dict.update({
+            'can_stop': can_stop,
+            'can_start': can_start,
+            'can_destroy': can_destroy,
+            'can_reboot': can_reboot,
+            'can_rename': False,
+            'can_tag': True,
+        })
+
+    def get_available_machine_actions(self, machine_id=None):
+        return {
+            'can_stop': True,
+            'can_start': True,
+            'can_destroy': True,
+            'can_reboot': True,
+            'can_rename': False,
+            'can_tag': True,
+        }
 
 
 class OpenStackController(BaseController):
@@ -470,6 +1053,49 @@ class OpenStackController(BaseController):
                 url = url.split('/v2.0')[0]
             kwargs['url'] = url.rstrip('/')
         super(OpenStackController, self).add(**kwargs)
+
+    def _add_machine_actions(self, mist_machine_id, api_machine_id, machine_api,
+                             machine_model, machine_dict):
+        can_start = False
+        can_stop = True
+        can_destroy = True
+        can_reboot = True
+
+        if machine_api.state == NodeState.PENDING:
+            can_start = True
+        if machine_api.state == NodeState.REBOOTING:
+            can_start = False
+            can_stop = False
+            can_reboot = False
+        elif machine_api.state in (NodeState.UNKNOWN, NodeState.STOPPED):
+            # We assume unknown state mean stopped
+            can_stop = False
+            can_start = True
+            can_reboot = False
+        elif machine_api.state in (NodeState.TERMINATED,):
+            can_start = False
+            can_destroy = False
+            can_stop = False
+            can_reboot = False
+
+        machine_dict.update({
+            'can_stop': can_stop,
+            'can_start': can_start,
+            'can_destroy': can_destroy,
+            'can_reboot': can_reboot,
+            'can_rename': True,
+            'can_tag': True,
+        })
+
+    def get_available_machine_actions(self, machine_id=None):
+        return {
+            'can_stop': True,
+            'can_start': False,
+            'can_destroy': True,
+            'can_reboot': True,
+            'can_rename': True,
+            'can_tag': True,
+        }
 
 
 class DockerController(BaseController):
@@ -514,6 +1140,39 @@ class DockerController(BaseController):
             kwargs['host'] = sanitize_host(kwargs['host'])
         super(DockerController, self).add(**kwargs)
 
+    def _add_machine_actions(self, mist_machine_id, api_machine_id, machine_api,
+                             machine_model, machine_dict):
+        can_start = False
+        can_stop = True
+        can_destroy = True
+        can_reboot = True
+
+        if machine_api.state == NodeState.PENDING:
+            can_start = True
+        if machine_api.state == NodeState.REBOOTING:
+            can_start = False
+            can_stop = False
+            can_reboot = False
+        elif machine_api.state in (NodeState.UNKNOWN, NodeState.STOPPED):
+            # We assume unknown state mean stopped
+            can_stop = False
+            can_start = True
+            can_reboot = False
+        elif machine_api.state in (NodeState.TERMINATED,):
+            can_start = False
+            can_destroy = False
+            can_stop = False
+            can_reboot = False
+
+        machine_dict.update({
+            'can_stop': can_stop,
+            'can_start': can_start,
+            'can_destroy': can_destroy,
+            'can_reboot': can_reboot,
+            'can_rename': False,
+            'can_tag': True,
+        })
+
     def list_images(self, search=None):
         # Fetch mist's recommended images
         images = [NodeImage(id=image, name=name,
@@ -531,6 +1190,16 @@ class DockerController(BaseController):
 
     def image_is_default(self, image_id):
         return image_id in config.DOCKER_IMAGES
+
+    def get_available_machine_actions(self, machine_id=None):
+        return {
+            'can_stop': True,
+            'can_start': False,
+            'can_destroy': True,
+            'can_reboot': True,
+            'can_rename': False,
+            'can_tag': True,
+        }
 
 
 class LibvirtController(BaseController):
@@ -573,17 +1242,82 @@ class LibvirtController(BaseController):
                 raise NotFoundError("Keypair does not exist.")
         super(LibvirtController, self).add(**kwargs)
 
+    def _add_machine_actions(self, mist_machine_id, api_machine_id, machine_api,
+                             machine_model, machine_dict):
+        can_start = False
+        can_stop = True
+        can_destroy = True
+        can_reboot = True
+        can_undefine = True
+        can_suspend = False
+        can_resume = False
+
+        if machine_api.state in (NodeState.REBOOTING, NodeState.PENDING):
+            can_start = False
+            can_stop = False
+            can_reboot = False
+        elif machine_api.state in (NodeState.UNKNOWN, NodeState.STOPPED):
+            # We assume unknown state mean stopped
+            can_stop = False
+            can_start = True
+            can_reboot = False
+        elif machine_api.state in (NodeState.TERMINATED,):
+            can_start = True
+            can_destroy = False
+            can_stop = False
+            can_reboot = False
+        elif machine_api.state is NodeState.RUNNING:
+            can_suspend = True
+        elif machine_api.state is NodeState.SUSPENDED:
+            can_resume = True
+
+        if machine_dict['extra'].get('tags'):
+            hypervisor = machine_dict['extra']['tags'].get('type')
+            if hypervisor == 'hypervisor':
+                can_stop = False
+                can_destroy = False
+                can_start = False
+                can_undefine = False
+                can_suspend = False
+                can_resume = False
+
+        machine_dict.update({
+            'can_stop': can_stop,
+            'can_start': can_start,
+            'can_destroy': can_destroy,
+            'can_reboot': can_reboot,
+            'can_rename': False,
+            'can_tag': True,
+            'can_undefine': can_undefine,
+            'can_suspend': can_suspend,
+            'can_resume': can_resume
+        })
+
     def _post_parse_machine(self, mist_machine_id, api_machine_id, machine_api,
-                            machine_model, machine_dict):
-        xml_desc = machine_dict['extra'].get('xml_description')
-        if xml_desc:
-            machine_dict['extra']['xml_description'] = escape(xml_desc)
+                                machine_model, machine_dict):
+            xml_desc = machine_dict['extra'].get('xml_description')
+            if xml_desc:
+                machine_dict['extra']['xml_description'] = escape(xml_desc)
 
     def list_images(self, search=None):
-        return self._post_parse_images(
-            self.connection.list_images(location=self.cloud.images_location),
-            search
-        )
+            return self._post_parse_images(
+                self.connection.list_images(location=self.cloud.images_location),
+                search
+            )
+
+    def get_available_machine_actions(self, machine_id=None):
+        return {
+            'can_stop': False,
+            'can_start': False,
+            'can_destroy': False,
+            'can_reboot': True,
+            'can_rename': False,
+            'can_tag': True,
+            'can_undefine': False,
+            'can_resume': False,
+            'can_suspend': False
+        }
+
 
 
 # FIXME
