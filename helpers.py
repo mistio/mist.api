@@ -7,13 +7,16 @@ import time
 import json
 import random
 import socket
-import tempfile
 import logging
+import datetime
+import tempfile
 import functools
 from hashlib import sha1
 from contextlib import contextmanager
 
+import iso8601
 import netaddr
+
 from amqp import Message
 from amqp.connection import Connection
 from amqp.exceptions import NotFound as AmqpNotFound
@@ -348,8 +351,7 @@ def extract_prefix(url, prefixes=['http://', 'https://']):
         return ''
 
 
-def check_host(host, allow_localhost=config.ALLOW_CONNECT_LOCALHOST,
-               allow_private=config.ALLOW_CONNECT_PRIVATE):
+def check_host(host, allow_localhost=config.ALLOW_CONNECT_LOCALHOST):
     """Check if a given host is a valid DNS name or IPv4 address"""
 
     try:
@@ -392,13 +394,11 @@ def check_host(host, allow_localhost=config.ALLOW_CONNECT_LOCALHOST,
         '255.255.255.255/32': ("reserved for the 'limited broadcast' "
                                "destination address"),
     }
+
     if not allow_localhost:
         forbidden_subnets['127.0.0.0/8'] = ("used for loopback addresses "
                                             "to the local host")
-    if not allow_private:
-        for cidr in ('10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16'):
-            forbidden_subnets[cidr] = ("used for local communications "
-                                       "within a private network")
+
     cidr = netaddr.smallest_matching_cidr(ipaddr, forbidden_subnets.keys())
     if cidr:
         raise MistError("%s is not allowed. It belongs to '%s' "
@@ -418,3 +418,36 @@ def transform_key_machine_associations(machines, key):
                                         key_assoc.sudo,
                                         key_assoc.port])
     return key_associations
+
+
+def get_datetime(timestamp):
+    """Parse several representations of time into a datetime object"""
+    if isinstance(timestamp, datetime.datetime):
+        # Timestamp is already a datetime object.
+        return timestamp
+    if isinstance(timestamp, (int, float)):
+        try:
+            # Handle Unix timestamps.
+            return datetime.datetime.fromtimestamp(timestamp)
+        except ValueError:
+            pass
+        try:
+            # Handle Unix timestamps in milliseconds.
+            return datetime.datetime.fromtimestamp(timestamp / 1000)
+        except ValueError:
+            pass
+    if isinstance(timestamp, basestring):
+        try:
+            timestamp = float(timestamp)
+        except (ValueError, TypeError):
+            pass
+        else:
+            # Timestamp is probably Unix timestamp given as string.
+            return parse_timestamp_to_datetime(timestamp)
+        try:
+            # Try to parse as string date in common formats.
+            return iso8601.parse_date(timestamp)
+        except:
+            pass
+    # Fuck this shit.
+    raise ValueError("Couldn't extract date object from %r" % timestamp)

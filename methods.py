@@ -71,6 +71,9 @@ from mist.io.clouds.models import Cloud
 
 from mist.core.vpn.methods import destination_nat as dnat
 from mist.core.vpn.methods import super_ping
+from mist.core.vpn.methods import to_tunnel
+
+from mist.core.exceptions import VPNTunnelError
 
 import mist.io.clouds.models as cloud_models
 
@@ -133,15 +136,13 @@ def add_cloud_v_2(user, title, provider, params):
     log.info("Cloud with id '%s' added succesfully with Api-Version: 2.", cloud_id)
     trigger_session_update(user, ['clouds'])
 
-    # FIXME: Is this still needed? If so it should be migrated to
-    # clouds.controllers.LibvirtController
-    #
-    # if provider == 'libvirt' and cloud.apisecret:
-    # # associate libvirt hypervisor witht the ssh key, if on qemu+ssh
-    #     key_id = params.get('machine_key')
-    #     node_id = cloud.apiurl  # id of the hypervisor is the hostname provided
-    #     username = cloud.apikey
-    #     associate_key(user, key_id, cloud_id, node_id, username=username)
+    # FIXME: This should be migrated to clouds.controllers.LibvirtController
+    if provider == 'libvirt' and cloud.apisecret:
+    # associate libvirt hypervisor witht the ssh key, if on qemu+ssh
+        key_id = params.get('machine_key')
+        node_id = cloud.apiurl  # id of the hypervisor is the hostname provided
+        username = cloud.apikey
+        associate_key(user, key_id, cloud_id, node_id, username=username, port=cloud.ssh_port)
 
     return {'cloud_id': cloud.id}
 
@@ -189,6 +190,12 @@ def _add_cloud_bare_metal(user, title, provider, params):
         raise BadRequestError({"msg": e.message, "errors": e.to_dict()})
     except NotUniqueError:
         raise CloudExistsError()
+
+    try:
+        to_tunnel(user, machine_hostname)
+    except VPNTunnelError as err:
+        Cloud.objects.get(owner=user, id=cloud.id).delete()
+        raise err
 
     machine = Machine()
     machine.cloud = cloud
@@ -269,6 +276,12 @@ def _add_cloud_coreos(user, title, provider, params):
         raise BadRequestError({"msg": e.message, "errors": e.to_dict()})
     except NotUniqueError:
         raise CloudExistsError()
+
+    try:
+        to_tunnel(user, machine_hostname)
+    except VPNTunnelError as err:
+        Cloud.objects.get(owner=user, id=cloud.id).delete()
+        raise err
 
     machine = Machine()
     machine.ssh_port = port
@@ -623,120 +636,9 @@ def connect_provider(cloud):
     return cloud.ctl.connect()
 
 
-def get_machine_actions(machine_from_api, conn, extra):
-    """Returns available machine actions based on cloud type.
-
-    Rackspace, Linode and openstack support the same options, but EC2 also
-    supports start/stop.
-
-    The available actions are based on the machine state. The state
-    codes supported by mist.io are those of libcloud, check config.py.
-
-    """
-
-    if conn.type in ['bare_metal', 'coreos']:
-        can_start = False
-        can_destroy = False
-        can_stop = False
-        can_reboot = False
-
-        if extra.get('can_reboot', False):
-        # allow reboot action for bare metal with key associated
-            can_reboot = True
-
-
 def list_machines(user, cloud_id):
     """List all machines in this cloud via API call to the provider."""
-
-    # FIXME: Code left below hasn't yet been migrated to clouds.handlers.
     return Cloud.objects.get(owner=user, id=cloud_id).ctl.list_machines()
-
-
-    for m in machines_from_provider:
-
-        if m.driver.type == 'bare_metal':
-            m.extra['can_reboot'] = False
-            if machine_entry.key_associations:
-                m.extra['can_reboot'] = True
-
-        try:
-            machine_cost = machine_cost_calculator(m)
-        except:
-            machine_cost = {}
-        cost_per_month = machine_cost.get('cost_per_month', 0)
-        cost_per_hour = machine_cost.get('cost_per_hour', 0)
-        if cost_per_hour:
-            machine['extra']['cost_per_hour'] = cost_per_hour
-        if cost_per_month:
-            machine['extra']['cost_per_month'] = cost_per_month
-
-        # the reason this goes down is that we want to allow
-        # cost_per_hour/cost_per_month to be overrided by users
-        if not machine_entry.created:
-            # if the machine has no created value then try to get one from the
-            # provider
-            try:
-                create_date, create_date_timestamp = machine_create_date(m)
-                if create_date_timestamp:
-                    machine_entry.created = create_date_timestamp
-                    machine_entry.save()
-            except:
-                pass
-
-        if machine_entry.created:
-            # if a value is available then send it to the ui
-            create_date_timestamp = machine_entry.created
-            try:
-                create_date = datetime.fromtimestamp(create_date_timestamp).strftime("%b %d, %Y at %I:%M:%S %p")
-                machine['extra']['create_date'] = create_date
-                machine['extra']['create_date_timestamp'] = create_date_timestamp
-            except:
-                pass
-
-        all_tags = tags_from_provider
-
-        try:
-            from mist.core.methods import get_machine_tags
-            mistio_tags = get_machine_tags(user, cloud_id, m.id)
-        except:
-            mistio_tags = {}
-
-        for tag in mistio_tags:
-            key, value = tag.popitem()
-            tag_dict = {'key': key, 'value': value}
-            if tag_dict not in all_tags:
-                all_tags.append(tag_dict)
-            # cost_per_hour + cost_per_month fixed tags for
-            # machine cost analysis
-            if key == 'cost_per_hour':
-                cost_per_hour = value
-                month_days = calendar.monthrange(now.year, now.month)[1]
-                try:
-                    cost_per_hour = float(cost_per_hour)
-                    if MAX_USER_PROVIDER_COST_PER_HOUR > cost_per_hour >= 0:
-                        m.extra['cost_per_hour'] = "{0:.2f}".format(cost_per_hour)
-                        cost_per_month = float(cost_per_hour) * 24 * month_days
-                        m.extra['cost_per_month'] = "{0:.2f}".format(cost_per_month)
-                except:
-                    pass
-            if key == 'cost_per_month':
-                cost_per_month = value
-                try:
-                    cost_per_month = float(cost_per_month)
-                    if MAX_USER_PROVIDER_COST_PER_MONTH > cost_per_month >= 0:
-                        m.extra['cost_per_month'] = "{0:.2f}".format(cost_per_month)
-                except:
-                    pass
-
-        machine['tags'] = all_tags
-
-        if m.state in ['TERMINATED', 'terminated']:
-            machine['extra'].pop('cost_per_month', None)
-            machine['extra'].pop('cost_per_hour', None)
-
-        ret.append(machine)
-
-    return ret
 
 
 def create_machine(user, cloud_id, key_id, machine_name, location_id,
@@ -3291,213 +3193,6 @@ def get_deploy_collectd_command_windows(uuid, password, monitor, port=25826):
 
 def get_deploy_collectd_command_coreos(uuid, password, monitor, port=25826):
     return "sudo docker run -d -v /sys/fs/cgroup:/sys/fs/cgroup -e COLLECTD_USERNAME=%s -e COLLECTD_PASSWORD=%s -e MONITOR_SERVER=%s -e COLLECTD_PORT=%s mist/collectd" % (uuid, password, monitor, port)
-
-
-def machine_cost_calculator(m):
-    """
-    Calculates and returns the cost for a VM.
-    Highly provider specific, since there is not a
-    straightforward way to get this info
-
-    Supported providers:
-        GCE, Packet.net, DigitalOcean, SoftLayer, AWS, Rackspace, Linode, Vultr, Azure
-    TODO: NephoScale, HostVirtual
-    """
-    cost = {'cost_per_hour': 0, 'cost_per_month': 0}
-    now = datetime.now()
-    month_days = calendar.monthrange(now.year, now.month)[1]
-    if m.driver.type in config.EC2_PROVIDERS:
-        # Need to get image in order to specify the OS type
-        # out of the image id
-        instance_image = m.extra.get('image_id')
-        try:
-            os_type = CloudImage.objects.get(cloud_provider=m.driver.type, image_id=instance_image).os_type
-        except:
-            os_type = 'linux'
-        sizes = m.driver.list_sizes()
-        size = m.extra.get('instance_type')
-        for node_size in sizes:
-            if node_size.id == size:
-                plan_price = node_size.price.get(os_type)
-                if not plan_price:
-                    # use the default which is linux
-                    plan_price = node_size.price.get('linux')
-                plan_price = float(plan_price.replace('/hour','').replace('$', ''))
-                # just need the float value
-                cost['cost_per_hour'] = plan_price
-                cost['cost_per_month'] = float(plan_price) * 24 * month_days
-    if m.driver.type == Provider.AZURE:
-        # TODO: get prices per location
-        location = m.extra.get('location')
-        os_type = m.extra.get('os_type', 'linux')
-        size = m.extra.get('instance_size')
-        price = get_size_price(driver_type='compute', driver_name='azure', size_id=size)
-        if price:
-            plan_price = price.get(os_type, 0)
-            if not plan_price:
-                plan_price = price.get('linux')
-            cost['cost_per_hour'] = float(plan_price)
-            cost['cost_per_month'] = float(plan_price) * 24 * month_days
-
-    if m.driver.type in [Provider.RACKSPACE, Provider.RACKSPACE_FIRST_GEN]:
-        # Need to get image in order to specify the OS type
-        # out of the image id
-        instance_image = m.extra.get('imageId')
-        try:
-            image = CloudImage.objects.get(cloud_provider=m.driver.type, image_id=instance_image).os_type
-        except:
-            os_type = 'linux'
-        size = m.extra.get('flavorId')
-        location = m.driver.region[:3]
-        driver_name = 'rackspacenova' + location
-        price = get_size_price(driver_type='compute', driver_name=driver_name, size_id=size)
-        if price:
-            plan_price = price.get(os_type, 'linux')
-            # just need the float value
-            cost['cost_per_hour'] = plan_price
-            cost['cost_per_month'] = float(plan_price) * 730
-            # 730 is the number of hours per month as on https://www.rackspace.com/calculator
-            # TODO: RackSpace mentions on https://www.rackspace.com/cloud/public-pricing
-            # there's a minimum service charge of $50/mo across all Cloud Servers
-    if m.driver.type == Provider.LINODE:
-        size = m.extra.get('PLANID')
-        price = get_size_price(driver_type='compute', driver_name='linode', size_id=size)
-        if price:
-            cost['cost_per_month'] = price
-    if m.driver.type == Provider.PACKET:
-        size = m.extra.get('plan')
-        price = get_size_price(driver_type='compute', driver_name='packet', size_id=size)
-        if price:
-            cost['cost_per_hour'] = price
-            cost['cost_per_month'] = float(price) * 24 * month_days
-    if m.driver.type == Provider.GCE:
-        # https://cloud.google.com/compute/pricing
-        size = m.extra.get('machineType')
-        location = m.extra.get('location').split('-')[0] # eg europe-west1-d
-        driver_name = 'google_' + location
-        price = get_size_price(driver_type='compute', driver_name=driver_name, size_id=size)
-        os_type = m.extra.get('os_type')
-        if 'sles' in m.image:
-            os_type = 'sles'
-        if 'rhel' in m.image:
-            os_type = 'rhel'
-        if 'win' in m.image:
-            os_type = 'win'
-        os_cost_per_hour = 0
-        if price:
-            if os_type == 'sles':
-                if size in ['f1-micro', 'g1-small']:
-                    os_cost_per_hour = 0.02
-                else:
-                    os_cost_per_hour = 0.11
-            if os_type == 'win':
-                if size in ['f1-micro', 'g1-small']:
-                    os_cost_per_hour = 0.02
-                else:
-                    cores = size.split('-')[-1]
-                    os_cost_per_hour = cores * 0.04
-            if os_type == 'rhel':
-                if size in ['n1-highmem-2', 'n1-highcpu-2', 'n1-highmem-4', 'n1-highcpu-4', 'f1-micro', 'g1-small', 'n1-standard-1', 'n1-standard-2', 'n1-standard-4']:
-                    os_cost_per_hour = 0.06
-                else:
-                    os_cost_per_hour = 0.13
-
-            try:
-                total_hour_price = price + os_cost_per_hour
-                cost['cost_per_hour'] = float(total_hour_price)
-                if 'preemptible' in size:
-                    # no monthly discount
-                    cost['cost_per_month'] = float(total_hour_price) * 24 * month_days
-                else:
-                    # monthly discount of 30% if the VM runs all the billing month
-                    # monthly discount on instance size only (not on OS image)
-                    cost['cost_per_month'] = float(price) * 24 * month_days * 0.7 + float(os_cost_per_hour) * 24 * month_days
-                # TODO: better calculate the discounts, taking under consideration
-                # when the VM has been initiated
-            except:
-                pass
-
-    if m.driver.type == Provider.DIGITAL_OCEAN:
-        size = m.extra.get('size', {})
-        cost['cost_per_month'] = size.get('price_monthly')
-        cost['cost_per_hour'] = size.get('price_hourly')
-    if m.driver.type == Provider.VULTR:
-        cost['cost_per_month'] = m.extra.get('cost_per_month')
-    if m.driver.type == Provider.SOFTLAYER:
-        # SoftLayer includes recurringFee on the VM metadata but
-        # this is only for the compute - CPU pricing
-        # other costs (ram, bandwidth, image) are included
-        # on billingItemChildren
-        extra_recurring_fee = 0
-
-        if not m.extra.get('hourlyRecurringFee'):
-            for billing_item in m.extra.get('billingItemChildren', []):
-                # don't calculate billing that is cancelled
-                if not billing_item.get('cancellationDate'):
-                    extra_recurring_fee += float(billing_item.get('recurringFee'))
-            cost['cost_per_month'] = float(m.extra.get('recurringFee')) + extra_recurring_fee
-        else:
-            # m.extra.get('recurringFee') here will show what it has
-            # cost for the current month, up to now
-            for billing_item in m.extra.get('billingItemChildren', []):
-                # don't calculate billing that is cancelled
-                if not billing_item.get('cancellationDate'):
-                    extra_recurring_fee += float(billing_item.get('hourlyRecurringFee'))
-
-            cost_per_hour = float(m.extra.get('hourlyRecurringFee')) + float(extra_recurring_fee)
-            cost['cost_per_hour'] = cost_per_hour
-            cost['cost_per_month'] = cost_per_hour * 24 * month_days
-
-    for key, value in cost.items():
-        if value and not isinstance(value, int):
-            try:
-                # value can be float or str, we want to cast to float with 2 dec points
-                value = float(value)
-                cost[key] = "{0:.2f}".format(value)
-            except:
-                cost[key] = 0
-    return cost
-
-
-def machine_create_date(m):
-    """
-    Returns the create date out of the VM metadata
-    Supports:
-        AWS, DigitalOcean, Packet.net, Linode, SoftLayer, Rackspace Cloud,
-        OpenStack, Nephoscale, Vultr, GCE, Docker, Azure
-    TODO:
-        vCloud, vSphere
-    """
-    if m.driver.type in config.EC2_PROVIDERS:
-        create_date = m.created_at
-    elif m.driver.type in [Provider.DIGITAL_OCEAN, Provider.PACKET]:
-        create_date = m.extra.get('created_at')
-        create_date = iso8601.parse_date(create_date)
-    elif m.driver.type == Provider.LINODE:
-        create_date = m.extra.get('CREATE_DT')
-        create_date = iso8601.parse_date(create_date)
-    elif m.driver.type in [Provider.SOFTLAYER, Provider.RACKSPACE, Provider.RACKSPACE_FIRST_GEN, Provider.OPENSTACK]:
-        create_date = m.extra.get('created')
-        create_date = iso8601.parse_date(create_date)
-    elif m.driver.type == Provider.NEPHOSCALE:
-        create_date = m.extra.get('create_time')
-        create_date = iso8601.parse_date(create_date)
-    elif m.driver.type == Provider.VULTR:
-        create_date = m.extra.get('date_created')
-        create_date = iso8601.parse_date(create_date)
-    elif m.driver.type == Provider.GCE:
-        create_date = m.extra.get('creationTimestamp')
-        create_date = iso8601.parse_date(create_date)
-    elif m.driver.type == Provider.DOCKER:
-        create_date = m.created_at
-        create_date = datetime.fromtimestamp(create_date / 1e3)
-    else:
-        return None, None
-
-    create_date_timestamp = mktime(create_date.timetuple())
-    create_date = create_date.strftime("%b %d, %Y at %I:%M:%S %p")
-
-    return create_date, create_date_timestamp
 
 
 def machine_name_validator(provider, name):
