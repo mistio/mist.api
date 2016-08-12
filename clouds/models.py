@@ -175,15 +175,6 @@ class DigitalOceanCloud(Cloud):
     _controller_cls = controllers.DigitalOceanController
 
 
-class DigitalOceanFirstGenCloud(Cloud):
-
-    apikey = me.StringField(required=True)
-    apisecret = me.StringField(required=True)
-
-    _private_fields = ('apisecret', )
-    _controller_cls = controllers.DigitalOceanFirstGenController
-
-
 class LinodeCloud(Cloud):
 
     apikey = me.StringField(required=True)
@@ -339,12 +330,6 @@ class LibvirtCloud(Cloud):
         cdict = super(LibvirtCloud, self).as_dict()
         cdict['key'] = self.key.id
         return cdict
-
-
-# FIXME
-class CoreOSCloud(Cloud):
-
-    _controller_cls = controllers.CoreOSController
 
 
 # FIXME

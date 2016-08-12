@@ -188,16 +188,6 @@ class DigitalOceanController(BaseController):
         return size.get('price_hourly', 0), size.get('price_monthly', 0)
 
 
-class DigitalOceanFirstGenController(BaseController):
-
-    provider = 'digitalocean_first_gen'
-
-    def _connect(self):
-        return get_driver(Provider.DIGITAL_OCEAN_FIRST_GEN)(
-            self.cloud.apikey, self.cloud.apisecret
-        )
-    
-
 class LinodeController(BaseController):
 
     provider = 'linode'
@@ -848,15 +838,6 @@ class LibvirtController(BaseController):
 
     def _list_images__fetch_images(self, search=None):
         return self.connection.list_images(location=self.cloud.images_location)
-
-
-# FIXME
-class CoreOSController(BaseController):
-
-    provider = 'coreos'
-
-    # def _connect(self):
-    #     return CoreOSDriver(Machine.objects(cloud=self.cloud))
 
 
 # FIXME
