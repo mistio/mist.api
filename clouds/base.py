@@ -393,6 +393,11 @@ class BaseController(object):
             log.exception("Error while running list_nodes on %s", self.cloud)
             raise CloudUnavailableError(exc=exc)
 
+        # Get extra nodes, eg host node for Docker
+        extra_nodes = self._get_extra_nodes()
+        if extra_nodes:
+            nodes.extend(extra_nodes)
+
         now = datetime.datetime.utcnow()
 
         # Process each machine in returned list.
@@ -522,6 +527,10 @@ class BaseController(object):
                         missing_since=None).update(missing_since=now)
 
         return machines
+
+    def _get_extra_nodes(self):
+        # Should be list with libcloud nodes
+        return
 
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
         return

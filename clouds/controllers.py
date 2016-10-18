@@ -19,7 +19,7 @@ accessed through a cloud model, using the `ctl` abbreviation, like this:
 
 """
 
-
+import md5
 import uuid
 import json
 import socket
@@ -797,6 +797,17 @@ class DockerController(BaseController):
                                            self.cloud.password,
                                            host, port,
                                            docker_host=self.cloud.host)
+
+    def _get_extra_nodes(self):
+        # append docker host as well
+        public_ips = [self.cloud.host]
+        extra = {'type': 'docker_host'}
+        name = self.cloud.title
+        node_id = md5.md5(self.cloud.host).hexdigest()
+        node = Node(id=node_id, name=name,
+                    state=NodeState.RUNNING, public_ips=public_ips,
+                    private_ips=[], driver=self.connection, extra=extra)
+        return [node]
 
     def _add__preparse_kwargs(self, kwargs):
         rename_kwargs(kwargs, 'docker_port', 'port')
