@@ -1,11 +1,10 @@
-"""Definition of `ComputeController`
+"""Definition of base classes for Clouds
 
-The `ComputeController` is a sub-controller, which is set as an attribute to a
-`BaseController` class. The `ComputeController` is responsible for interacting
-with libcloud's compute API.
+This currently contains only BaseController. It includes basic functionality
+for a given cloud (including libcloud calls, fetching and storing information
+to db etc. Cloud specific controllers are in `mist.io.clouds.controllers`.
 
 """
-
 
 import ssl
 import json
@@ -16,9 +15,9 @@ import calendar
 
 import mongoengine as me
 
-from libcloud.compute.base import NodeLocation, Node
 from libcloud.common.types import InvalidCredsError
 from libcloud.compute.types import NodeState
+from libcloud.compute.base import NodeLocation, Node
 
 from mist.io import config
 
@@ -33,7 +32,7 @@ from mist.io.exceptions import CloudUnauthorizedError
 
 from mist.io.helpers import get_datetime
 
-from mist.io.clouds.main.base import BaseController
+from mist.io.clouds.controllers.base import BaseController
 
 from mist.core.tag.models import Tag
 
@@ -43,11 +42,11 @@ from mist.core.tag.models import Tag
 log = logging.getLogger(__name__)
 
 
-class ComputeController(object):
-    """Base class to be inherited by the every clouds compute sub-controller
+class BaseComputeController(BaseController):
+    """Abstract base class for every cloud/provider controller
 
-    This base controller factors out all the basic steps common to all or
-    most clouds into a base class, and defines an interface for provider or
+    This base controller factors out all the steps common to all or most
+    clouds into a base class, and defines an interface for provider or
     technology specific cloud controllers.
 
     Subclasses are meant to extend or override methods of this base class to
@@ -63,55 +62,54 @@ class ComputeController(object):
     Any methods and attributes that don't start with an underscore are the
     controller's public API.
 
-    In the `ComputeController`, these public methods will in most cases contain
-    a basic implementation that works for most clouds, along with the proper
-    logging and error handling. In almost all cases, subclasses SHOULD NOT
-    override or extend the public methods of `BaseController`. To account for
-    cloud/subclass specific behaviour, one is expected to override the
-    internal/private methods of `ComputeController`.
+    In the `BaseComputeController`, these public methods will in most cases
+    contain a basic implementation that works for most clouds, along with the
+    proper logging and error handling. In almost all cases, subclasses SHOULD
+    NOT override or extend the public methods of `BaseComputeController`. To
+    account for cloud/subclass specific behaviour, one is expected to override
+    the internal/private methods of `BaseComputeController`.
 
     Any methods and attributes that start with an underscore are the
     controller's internal/private API.
 
     To account for cloud/subclass specific behaviour, the public methods of
-    `ComputeController` call a number of private methods. These methods will
-    always start with an underscore, such as `_list_machines__machine_actions`.
-    When an internal method is only ever used in the process of one public
-    method, it is prefixed as such to make identification and purpose more
-    obvious. For example, method `self._list_machines__postparse_machine` is
-    called in order to apply any special post-processing to the fields of a
-    node returned by `self.list_machines`.
+    `BaseComputeController` call a number of private methods. These methods
+    will always start with an underscore, such as `self._connect`. When an
+    internal method is only ever used in the process of one public method, it
+    is prefixed as such to make identification and purpose more obvious. For
+    example, method `self._list_machines__postparse_machine` is called in the
+    process of `self.list_machines` to postparse a machine and inject or modify
+    its attributes.
 
-    This `ComputeController` defines a strict interface to controlling clouds.
-    For each different cloud type, a subclass needs to be defined. Each
-    subclass MUST receive its main controller as its sole init argument
+    This `BaseComputeController` defines a strict interface to controlling
+    clouds.  For each different cloud type, a subclass needs to be defined. The
+    subclass must at least define a proper `self._connect` method. For simple
+    clouds, this may be enough. To provide cloud specific processing, hook the
+    code on the appropriate private method. Each method defined here documents
+    its intended purpose and use.
 
     """
 
-    def __init__(self, main_controller=None):
-        """Initialize a cloud's compute sub-controller given a main controller
+    def check_connection(self):
+        """Raise exception if we can't connect to cloud provider
 
-        Most times one is expected to access a sub-controller from inside the
-        cloud, like this:
+        In case of error, an instance of `CloudUnavailableError` or
+        `CloudUnauthorizedError` should be raised.
 
-            cloud = mist.io.clouds.models.Cloud.objects.get(id=cloud_id)
-            print cloud.ctl.compute.list_machines()
+        For most cloud providers, who use an HTTP API, calling `connect`
+        doesn't really establish a connection, so we also have to attempt to
+        make an actual call such as `list_machines` to verify that the
+        connection actually works.
 
-        Subclasses SHOULD NOT override this method.
+        If a subclass's `connect` not raising errors is enough to make sure
+        that establishing a connection works, then these subclasses should
+        override this method and only call `connect`.
 
-        If a subclass has to initialize a certain instance attribute, it SHOULD
-        extend this method instead.
+        In most cases, subclasses SHOULD NOT override or extend this method.
 
         """
-        if not main_controller or not isinstance(main_controller,
-                                                 BaseController):
-            raise TypeError(
-                "Can't initialize %s. "
-                "All subcontrollers should inherit a main controller "
-                "pointing to a subclass of `BaseController`." % self
-            )
-
-        self.ctl = main_controller
+        super(BaseComputeController, self).check_connection()
+        self.list_machines()
 
     def list_machines(self):
         """Return list of machines for cloud
@@ -141,20 +139,19 @@ class ComputeController(object):
 
         # Try to query list of machines from provider API.
         try:
-            nodes = self.ctl.connection.list_nodes()
+            nodes = self.connection.list_nodes()
             log.info("List nodes returned %d results for %s.",
-                     len(nodes), self.ctl.cloud)
+                     len(nodes), self.cloud)
         except InvalidCredsError as exc:
             log.warning("Invalid creds on running list_nodes on %s: %s",
-                        self.ctl.cloud, exc)
+                        self.cloud, exc)
             raise CloudUnauthorizedError()
         except ssl.SSLError as exc:
             log.error("SSLError on running list_nodes on %s: %s",
-                      self.ctl.cloud, exc)
+                      self.cloud, exc)
             raise CloudUnavailableError(exc=exc)
         except Exception as exc:
-            log.exception("Error while running list_nodes on %s",
-                          self.ctl.cloud)
+            log.exception("Error while running list_nodes on %s", self.cloud)
             raise CloudUnavailableError(exc=exc)
 
         now = datetime.datetime.utcnow()
@@ -165,10 +162,10 @@ class ComputeController(object):
 
             # Fetch machine mongoengine model from db, or initialize one.
             try:
-                machine = Machine.objects.get(cloud=self.ctl.cloud,
+                machine = Machine.objects.get(cloud=self.cloud,
                                               machine_id=node.id)
             except Machine.DoesNotExist:
-                machine = Machine(cloud=self.ctl.cloud,
+                machine = Machine(cloud=self.cloud,
                                   machine_id=node.id).save()
 
             # Update machine_model's last_seen fields.
@@ -203,7 +200,7 @@ class ComputeController(object):
 
             # Get machine tags from db
             tags = {tag.key: tag.value for tag in Tag.objects(
-                owner=self.ctl.cloud.owner, resource=machine,
+                owner=self.cloud.owner, resource=machine,
             ).only('key', 'value')}
 
             # Get machine creation date.
@@ -214,7 +211,7 @@ class ComputeController(object):
                     machine.created = get_datetime(created)
             except Exception as exc:
                 log.exception("Error finding creation date for %s in %s.",
-                              self.ctl.cloud, machine)
+                              self.cloud, machine)
             # TODO: Consider if we should fall back to using current date.
             # if not machine_model.created:
             #     machine_model.created = datetime.datetime.utcnow()
@@ -225,14 +222,14 @@ class ComputeController(object):
             except Exception as exc:
                 log.exception("Error while finding machine actions "
                               "for machine %s:%s for %s",
-                              machine.id, node.name, self.ctl.cloud)
+                              machine.id, node.name, self.cloud)
 
             # Apply any cloud/provider specific post processing.
             try:
                 self._list_machines__postparse_machine(machine, node)
             except Exception as exc:
                 log.exception("Error while post parsing machine %s:%s for %s",
-                              machine.id, node.name, self.ctl.cloud)
+                              machine.id, node.name, self.cloud)
 
             # Apply any cloud/provider cost reporting.
             try:
@@ -262,7 +259,7 @@ class ComputeController(object):
             except Exception as exc:
                 log.exception("Error while calculating cost "
                               "for machine %s:%s for %s",
-                              machine.id, node.name, self.ctl.cloud)
+                              machine.id, node.name, self.cloud)
             if node.state.lower() == 'terminated':
                 machine.cost.hourly = 0
                 machine.cost.monthly = 0
@@ -281,7 +278,7 @@ class ComputeController(object):
             machines.append(machine)
 
         # Set last_seen on machine models we didn't see for the first time now.
-        Machine.objects(cloud=self.ctl.cloud,
+        Machine.objects(cloud=self.cloud,
                         id__nin=[m.id for m in machines],
                         missing_since=None).update(missing_since=now)
 
@@ -442,11 +439,11 @@ class ComputeController(object):
         Subclasses MAY override this method.
 
         """
-        return self.ctl.connection.list_images()
+        return self.connection.list_images()
 
     def image_is_starred(self, image_id):
-        starred = image_id in self.ctl.cloud.starred
-        unstarred = image_id in self.ctl.cloud.unstarred
+        starred = image_id in self.cloud.starred
+        unstarred = image_id in self.cloud.unstarred
         default = self.image_is_default(image_id)
         return starred or (default and not unstarred)
 
@@ -496,7 +493,7 @@ class ComputeController(object):
         Subclasses MAY override this method.
 
         """
-        return self.ctl.connection.list_sizes()
+        return self.connection.list_sizes()
 
     def list_locations(self):
         """Return list of available locations for current cloud
@@ -542,10 +539,10 @@ class ComputeController(object):
 
         """
         try:
-            return self.ctl.connection.list_locations()
+            return self.connection.list_locations()
         except:
             return [NodeLocation('', name='default', country='',
-                                 driver=self.ctl.connection)]
+                                 driver=self.connection)]
 
     def _get_machine_libcloud(self, machine, no_fail=False):
         """Return an instance of a libcloud node
@@ -553,14 +550,14 @@ class ComputeController(object):
         This is a private method, used mainly by machine action methods.
         """
         # assert isinstance(machine.cloud, Machine)
-        assert self.ctl.cloud == machine.cloud
-        for node in self.ctl.connection.list_nodes():
+        assert self.cloud == machine.cloud
+        for node in self.connection.list_nodes():
             if node.id == machine.machine_id:
                 return node
         if no_fail:
             return Node(machine.machine_id, name=machine.machine_id,
                         state=0, public_ips=[], private_ips=[],
-                        driver=self.ctl.connection)
+                        driver=self.connection)
         raise MachineNotFoundError(
             "Machine with machine_id '%s'." % machine.machine_id
         )
@@ -583,7 +580,7 @@ class ComputeController(object):
 
         """
         # assert isinstance(machine.cloud, Machine)
-        assert self.ctl.cloud == machine.cloud
+        assert self.cloud == machine.cloud
         if not machine.actions.start:
             raise ForbiddenError("Machine doesn't support start.")
         log.debug("Starting machine %s", machine)
@@ -608,7 +605,7 @@ class ComputeController(object):
         Differnent cloud controllers should override this private method, which
         is called by the public method `start_machine`.
         """
-        self.ctl.connection.ex_start_node(machine_libcloud)
+        self.connection.ex_start_node(machine_libcloud)
 
     def stop_machine(self, machine):
         """Stop machine
@@ -628,7 +625,7 @@ class ComputeController(object):
 
         """
         # assert isinstance(machine.cloud, Machine)
-        assert self.ctl.cloud == machine.cloud
+        assert self.cloud == machine.cloud
         if not machine.actions.stop:
             raise ForbiddenError("Machine doesn't support stop.")
         log.debug("Stopping machine %s", machine)
@@ -653,7 +650,7 @@ class ComputeController(object):
         Differnent cloud controllers should override this private method, which
         is called by the public method `stop_machine`.
         """
-        self.ctl.connection.ex_stop_node(machine_libcloud)
+        self.connection.ex_stop_node(machine_libcloud)
         return True
 
     def reboot_machine(self, machine):
@@ -674,7 +671,7 @@ class ComputeController(object):
 
         """
         # assert isinstance(machine.cloud, Machine)
-        assert self.ctl.cloud == machine.cloud
+        assert self.cloud == machine.cloud
         if not machine.actions.reboot:
             raise ForbiddenError("Machine doesn't support reboot.")
         log.debug("Rebooting machine %s", machine)
@@ -719,7 +716,7 @@ class ComputeController(object):
 
         """
         # assert isinstance(machine.cloud, Machine)
-        assert self.ctl.cloud == machine.cloud
+        assert self.cloud == machine.cloud
         if not machine.actions.destroy:
             raise ForbiddenError("Machine doesn't support destroy.")
         log.debug("Destroying machine %s", machine)
@@ -770,7 +767,7 @@ class ComputeController(object):
 
         """
         # assert isinstance(machine.cloud, Machine)
-        assert self.ctl.cloud == machine.cloud
+        assert self.cloud == machine.cloud
         if not machine.actions.resize:
             raise ForbiddenError("Machine doesn't support resize.")
         log.debug("Resizing machine %s", machine)
@@ -795,7 +792,7 @@ class ComputeController(object):
         Differnent cloud controllers should override this private method, which
         is called by the public method `resize_machine`.
         """
-        self.ctl.connection.ex_resize_node(machine_libcloud, plan_id)
+        self.connection.ex_resize_node(machine_libcloud, plan_id)
 
     def rename_machine(self, machine, name):
         """Rename machine
@@ -815,7 +812,7 @@ class ComputeController(object):
 
         """
         # assert isinstance(machine.cloud, Machine)
-        assert self.ctl.cloud == machine.cloud
+        assert self.cloud == machine.cloud
         if not machine.actions.rename:
             raise ForbiddenError("Machine doesn't support rename.")
         log.debug("Renaming machine %s", machine)
@@ -840,7 +837,7 @@ class ComputeController(object):
         Differnent cloud controllers should override this private method, which
         is called by the public method `rename_machine`.
         """
-        self.ctl.connection.ex_rename_node(machine_libcloud, name)
+        self.connection.ex_rename_node(machine_libcloud, name)
 
     def resume_machine(self, machine):
         """Resume machine
@@ -860,7 +857,7 @@ class ComputeController(object):
 
         """
         # assert isinstance(machine.cloud, Machine)
-        assert self.ctl.cloud == machine.cloud
+        assert self.cloud == machine.cloud
         if not machine.actions.resume:
             raise ForbiddenError("Machine doesn't support resume.")
         log.debug("Resuming machine %s", machine)
@@ -878,7 +875,7 @@ class ComputeController(object):
     def _resume_machine(self, machine, machine_libcloud):
         """Private method to resume a given machine
 
-        Only LibvirtController subclass implements this method.
+        Only LibvirtComputeController subclass implements this method.
 
         Params:
             machine: instance of machine model of this cloud
@@ -907,7 +904,7 @@ class ComputeController(object):
 
         """
         # assert isinstance(machine.cloud, Machine)
-        assert self.ctl.cloud == machine.cloud
+        assert self.cloud == machine.cloud
         if not machine.actions.suspend:
             raise ForbiddenError("Machine doesn't support suspend.")
         log.debug("Suspending machine %s", machine)
@@ -925,7 +922,7 @@ class ComputeController(object):
     def _suspend_machine(self, machine, machine_libcloud):
         """Private method to suspend a given machine
 
-        Only LibvirtController subclass implements this method.
+        Only LibvirtComputeController subclass implements this method.
 
         Params:
             machine: instance of machine model of this cloud
@@ -954,7 +951,7 @@ class ComputeController(object):
 
         """
         # assert isinstance(machine.cloud, Machine)
-        assert self.ctl.cloud == machine.cloud
+        assert self.cloud == machine.cloud
         if not machine.actions.undefine:
             raise ForbiddenError("Machine doesn't support undefine.")
         log.debug("Undefining machine %s", machine)
@@ -972,7 +969,7 @@ class ComputeController(object):
     def _undefine_machine(self, machine, machine_libcloud):
         """Private method to undefine a given machine
 
-        Only LibvirtController subclass implements this method.
+        Only LibvirtComputeController subclass implements this method.
 
         Params:
             machine: instance of machine model of this cloud
