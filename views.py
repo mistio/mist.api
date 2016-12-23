@@ -492,6 +492,7 @@ def add_key(request):
       type: string
 
     """
+    import ipdb;ipdb.set_trace()
     params = params_from_request(request)
     key_name = params.pop('name', None)
     private_key = params.get('priv', None)
