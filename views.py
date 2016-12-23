@@ -492,7 +492,6 @@ def add_key(request):
       type: string
 
     """
-    import ipdb;ipdb.set_trace()
     params = params_from_request(request)
     key_name = params.pop('name', None)
     private_key = params.get('priv', None)
@@ -1401,10 +1400,12 @@ def star_image(request):
       required: true
       type: string
     """
+    import ipdb;ipdb.set_trace()
     cloud_id = request.matchdict['cloud']
     image_id = request.matchdict['image']
     auth_context = auth_context_from_request(request)
     auth_context.check_perm("cloud", "edit", cloud_id)
+    trigger_session_update(auth_context.owner, ['images'])
     return methods.star_image(auth_context.owner, cloud_id, image_id)
 
 
