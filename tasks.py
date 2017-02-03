@@ -1053,6 +1053,9 @@ def group_machines_actions(owner_id, action, name, cloud_machines_pairs):
     else:
         log.info('Schedule action succeeded: %s', log_dict)
 
+    owner = Owner.objects.get(id=owner_id)
+    trigger_session_update(owner, ['schedules'])
+
     return log_dict
 
 
@@ -1201,7 +1204,8 @@ def group_run_script(owner_id, script_id, name, cloud_machines_pairs):
         log.info('Schedule run_script failed: %s', log_dict)
     else:
         log.info('Schedule run_script succeeded: %s', log_dict)
-
+    owner = Owner.objects.get(id=owner_id)
+    trigger_session_update(owner, ['schedules'])
     return log_dict
 
 
