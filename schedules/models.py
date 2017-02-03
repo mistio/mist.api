@@ -402,6 +402,9 @@ class Schedule(me.Document):
             self.task_enabled = False
         if self.expires and self.expires < datetime.datetime.now():
             self.task_enabled = False
+        if self.total_run_count and self.max_run_count:
+            if self.total_run_count >= self.max_run_count:
+                self.task_enabled = False
 
     def delete(self):
         super(Schedule, self).delete()
