@@ -866,8 +866,14 @@ def create_dns_zone(request):
     type = params.get('type', '')
     ttl = params.get('ttl', 0)
     extra = params.get('extra', '')
+    kwargs = {
+        'domain': domain,
+        'type': type,
+        'ttl': ttl,
+        'extra': extra
+    }
 
-    return cloud.ctl.dns.create_zone(domain, type, ttl, extra)
+    return cloud.ctl.dns.create_zone(kwargs)
 
 @view_config(route_name='api_v1_records', request_method='POST', renderer='json')
 def create_dns_record(request):
@@ -906,8 +912,14 @@ def create_dns_record(request):
     if not data:
         raise RequiredParameterMissingError('data')
     ttl = params.get('ttl', 0)
+    kwargs = {
+        'name': name,
+        'type': type,
+        'data': data,
+        'extra': extra
+    }
 
-    return zone.ctl.create_record(name, type, data, ttl)
+    return zone.ctl.create_record(kwargs)
 
 @view_config(route_name='api_v1_zone', request_method='DELETE', renderer='json')
 def delete_dns_zone(request):

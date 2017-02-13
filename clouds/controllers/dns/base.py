@@ -252,14 +252,14 @@ class BaseDNSController(BaseController):
             log.exception("Error while running delete_zone on %s", self.cloud)
             raise CloudUnavailableError(exc=exc)
 
-    def create_zone(self, domain, type='master', ttl=None, extra=None):
+    def create_zone(self, kwargs):
         """
         This is the public method that is called to create a new DNS zone.
         """
         # TODO: Adding here for circular dependency issue. Need to fix this.
         from mist.io.dns.models import Zone
 
-        node = self._create_zone__for_cloud(domain, type, ttl, extra)
+        node = self._create_zone__for_cloud(kwargs)
         if node:
             zone = Zone(cloud=self.cloud, owner=self.cloud.owner,
                         zone_id=node.id, domain=node.domain,
@@ -267,7 +267,7 @@ class BaseDNSController(BaseController):
                         extra=node.extra)
             zone.save()
 
-    def _create_zone__for_cloud(self, domain, type, ttl, extra):
+    def _create_zone__for_cloud(self, kwargs):
         """
         This is the private method called to create a record under a specific
         zone. The underlying functionality is implement in the same way for
@@ -275,10 +275,14 @@ class BaseDNSController(BaseController):
         this.
         ----
         """
-        if not re.match(".*\.$", domain):
-            domain += "."
+        if not re.match(".*\.$", kwargs['domain']):
+            kwargs['domain'] += "."
+        if 'extra' not in kwargs:
+            kwargs['extra'] = None
         try:
-            zone = self.connection.create_zone(domain, type, ttl, extra)
+            zone = self.connection.create_zone(
+                kwargs['domain'], kwargs['type'],
+                kwargs['ttl'], kwargs['extra'])
             log.info("Zone %s created successfully for %s.",
                      zone.domain, self.cloud)
             return zone
@@ -294,7 +298,7 @@ class BaseDNSController(BaseController):
             log.exception("Error while running create_zone on %s", self.cloud)
             raise CloudUnavailableError(exc=exc)
 
-    def create_record(self, zone, name, type, data, ttl):
+    def create_record(self, kwargs):
         """
         This is the public method that is called to create a new DNS record
         under a specific zone.
@@ -302,16 +306,15 @@ class BaseDNSController(BaseController):
         # TODO: Adding here for circular dependency issue. Need to fix this.
         from mist.io.dns.models import Record
 
-        node = self._create_record__for_zone(zone, name, type, data,
-                                             ttl)
+        node = self._create_record__for_zone(kwargs)
         record = Record(record_id=node.id, name=node.name,
-                        type=node.type, ttl=node.ttl, zone=zone)
+                        type=node.type, ttl=node.ttl, zone=kwargs['zone'])
         self._list__records_postparse_data(node, record)
         record.save()
 
 
 
-    def _create_record__for_zone(self, zone, name, type, data, ttl):
+    def _create_record__for_zone(self, kwargs):
         """
         This is the private method called to create a record under a specific
         zone. The underlying functionality is implement in the same way for
@@ -319,11 +322,11 @@ class BaseDNSController(BaseController):
         this.
         ----
         """
-        name, data, extra = self._create_record__prepare_args(zone, name, data,
-                                                              ttl)
+        self._create_record__prepare_args(kwargs)
         try:
-            zone = self.connection.get_zone(zone.zone_id)
-            record = zone.create_record(name, type, data, extra)
+            zone = self.connection.get_zone(kwargs['zone'].zone_id)
+            record = zone.create_record(kwargs['name'], kwargs['type'],
+                                        kwargs['data'], kwargs['extra'])
             log.info("Type %s record created successfully for %s.",
                      record.type, self.cloud)
             return record
@@ -336,7 +339,7 @@ class BaseDNSController(BaseController):
                       self.cloud, exc)
             raise CloudUnavailableError(exc=exc)
         except ZoneDoesNotExistError as exc:
-            log.warning("No zone found for %s in: %s ", zone.zone_id, 
+            log.warning("No zone found for %s in: %s ", kwargs['zone'].zone_id,
                         self.cloud)
             raise ZoneNotFoundError(exc=exc)
         except Exception as exc:
@@ -344,7 +347,7 @@ class BaseDNSController(BaseController):
                           self.cloud)
             raise CloudUnavailableError(exc=exc)
 
-    def _create_record__prepare_args(self, zone, name, data, ttl):
+    def _create_record__prepare_args(self, kwargs):
         """
         This is a private method that should be implemented for each specific
         provider depending on how they expect the record data.

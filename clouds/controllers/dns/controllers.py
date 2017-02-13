@@ -42,13 +42,12 @@ class AmazonDNSController(BaseDNSController):
         return get_driver(Provider.ROUTE53)(self.cloud.apikey,
                                             self.cloud.apisecret)
 
-    def _create_record__prepare_args(self, zone, name, data, ttl):
+    def _create_record__prepare_args(self, kwargs):
         """
         This is a private
         ---
         """
-        extra = {'ttl': ttl}
-        return name, data, extra
+        kwargs['extra'] = {'ttl': kwargs['ttl']}
 
     def _list__records_postparse_data(self, node, record):
         """Get the provider specific information into the Mongo model"""
@@ -66,18 +65,17 @@ class GoogleDNSController(BaseDNSController):
                                            self.cloud.private_key,
                                            project=self.cloud.project_id)
 
-    def _create_record__prepare_args(self, zone, name, data, ttl):
+    def _create_record__prepare_args(self, kwargs):
         """
         This is a private
         ---
         """
-        if not re.match(".*\.$", name):
-            name += "."
-        name += zone.domain
-        extra = None
-        record_data = {'ttl': ttl, 'rrdatas': []}
-        record_data['rrdatas'].append(data)
-        return name, record_data, extra
+        if not re.match(".*\.$", kwargs['name']):
+            kwargs['name'] += "."
+        kwargs['name'] += kwargs['zone'].domain
+        kwargs['extra'] = None
+        kwargs['record_data'] = {'ttl': kwargs['ttl'], 'rrdatas': []}
+        kwargs['record_data']['rrdatas'].append(kwargs['data'])
 
     def _list__records_postparse_data(self, node, record):
         """Get the provider specific information into the Mongo model"""
