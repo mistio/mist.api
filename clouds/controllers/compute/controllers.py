@@ -694,7 +694,7 @@ class DockerComputeController(BaseComputeController):
                 ca_cert_temp_file.close()
                 ca_cert = ca_cert_temp_file.name
 
-            return get_driver(Provider.DOCKER)(host=host,
+            return get_driver(Container_Provider.DOCKER)(host=host,
                                                port=port,
                                                key_file=key_temp_file.name,
                                                cert_file=cert_temp_file.name,
@@ -702,7 +702,7 @@ class DockerComputeController(BaseComputeController):
                                                verify_match_hostname=False)
 
         # Username/Password authentication.
-        return get_driver(Provider.DOCKER)(self.cloud.username,
+        return get_driver(Container_Provider.DOCKER)(self.cloud.username,
                                            self.cloud.password,
                                            host, port)
 

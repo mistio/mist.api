@@ -71,18 +71,6 @@ class AmazonMainController(BaseMainController):
             if cloud is not None:
                 kwargs['apisecret'] = cloud.apisecret
 
-    def _update__preparse_kwargs(self, kwargs):
-        # Regions translations, eg ec2_ap_northeast to ap-northeast-1.
-        region = kwargs.get('region', self.cloud.region)
-        if region.startswith('ec2_'):
-            region = region[4:]
-            parts = region.split('_')
-            if parts[-1] == 'oregon':
-                parts[-1] = '2'
-            if not parts[-1].isdigit():
-                parts.append('1')
-            kwargs['region'] = '-'.join(parts)
-
 
 class DigitalOceanMainController(BaseMainController):
 
@@ -209,24 +197,6 @@ class VCloudMainController(BaseMainController):
         if host:
             kwargs['host'] = sanitize_host(host)
             check_host(kwargs['host'])
-
-
-class IndonesianVCloudMainController(VCloudMainController):
-
-    provider = 'indonesian_vcloud'
-    ComputeController = compute_ctls.VCloudComputeController
-
-    def _add__preparse_kwargs(self, kwargs):
-        if kwargs.get('host') not in ('my.idcloudonline.com',
-                                      'compute.idcloudonline.com'):
-            kwargs['host'] = 'my.idcloudonline.com'
-
-    def _update__preparse_kwargs(self, kwargs):
-        host = kwargs.get('host', self.cloud.host) or 'my.idcloudonline.com'
-        if host not in ('my.idcloudonline.com', 'compute.idcloudonline.com'):
-            raise me.ValidationError("Invalid host '%s'." % host)
-        super(IndonesianVCloudMainController,
-              self)._update__preparse_kwargs(kwargs)
 
 
 class OpenStackMainController(BaseMainController):

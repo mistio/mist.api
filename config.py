@@ -11,6 +11,8 @@ import logging
 
 
 from libcloud.compute.types import Provider
+from libcloud.container.types import Provider as Container_Provider
+
 from libcloud.compute.types import NodeState
 
 
@@ -81,25 +83,6 @@ STATES = {
     NodeState.RECONFIGURING: 'reconfiguring'
 }
 
-
-
-# All EC2 providers, useful for type checking
-EC2_PROVIDERS = (
-    Provider.EC2_US_EAST,
-    Provider.EC2_AP_NORTHEAST,
-    Provider.EC2_AP_NORTHEAST1,
-    Provider.EC2_AP_NORTHEAST2,
-    Provider.EC2_EU_WEST,
-    Provider.EC2_EU_CENTRAL,
-    Provider.EC2_US_WEST,
-    Provider.EC2_AP_SOUTHEAST,
-    Provider.EC2_AP_SOUTHEAST2,
-    Provider.EC2_SA_EAST,
-    Provider.EC2_US_WEST_OREGON,
-#    Provider.EC2_AP_SOUTH1,
-)
-
-
 EC2_SECURITYGROUP = {
     'name': 'mistio',
     'description': 'Security group created by mist.io'
@@ -144,48 +127,56 @@ SUPPORTED_PROVIDERS_V_2 = [
         'regions': [
             {
                 'location': 'Tokyo',
-                'id': Provider.EC2_AP_NORTHEAST
+                'id': 'ap-northeast-1'
             },
             {
                 'location': 'Seoul',
-                'id': Provider.EC2_AP_NORTHEAST2
+                'id': 'ap-northeast-2'
             },
             {
                 'location': 'Singapore',
-                'id': Provider.EC2_AP_SOUTHEAST
+                'id': 'ap-southeast-1'
             },
             {
                 'location': 'Sydney',
-                'id': Provider.EC2_AP_SOUTHEAST2
+                'id': 'ap-southeast-2'
             },
             {
                 'location': 'Frankfurt',
-                'id': Provider.EC2_EU_CENTRAL
+                'id': 'eu-central-1'
             },
             {
                 'location': 'Ireland',
-                'id': Provider.EC2_EU_WEST
+                'id': 'eu-west-1'
+            },
+            {
+                'location': 'London',
+                'id': 'eu-west-2'
             },
             {
                 'location': 'Sao Paulo',
-                'id': Provider.EC2_SA_EAST
+                'id': 'sa-east-1'
             },
             {
                 'location': 'N. Virginia',
-                'id': Provider.EC2_US_EAST
+                'id': 'us-east-1'
             },
             {
                 'location': 'N. California',
-                'id': Provider.EC2_US_WEST
+                'id': 'us-west-1'
             },
             {
                 'location': 'Oregon',
-                'id': Provider.EC2_US_WEST_OREGON
+                'id': 'us-west-2'
             },
-#            {
-#                'location': 'Mumbai',
-#                'id': Provider.EC2_AP_SOUTH1
-#            },
+            {
+                'location': 'Ohio',
+                'id': 'us-east-2'
+            },
+            {
+                'location': 'Mumbai',
+                'id': 'ap-south-1'
+            },
         ]
     },
     # GCE
@@ -267,19 +258,13 @@ SUPPORTED_PROVIDERS_V_2 = [
     # Docker
     {
         'title': 'Docker',
-        'provider': Provider.DOCKER,
+        'provider': Container_Provider.DOCKER,
         'regions': []
     },
     # vCloud
     {
         'title': 'VMware vCloud',
         'provider': Provider.VCLOUD,
-        'regions': []
-    },
-    # Indonesian vCloud
-    {
-        'title': 'Indonesian Cloud',
-        'provider': Provider.INDONESIAN_VCLOUD,
         'regions': []
     },
     # libvirt
@@ -314,168 +299,42 @@ SUPPORTED_PROVIDERS_V_2 = [
     }
 ]
 
-SUPPORTED_PROVIDERS = [
-    # BareMetal
-    {
-        'title': 'Bare Metal Server',
-        'provider': 'bare_metal'
-    },
-    # Azure
-    {
-        'title': 'Azure',
-        'provider': Provider.AZURE
-    },
-    # Azure ARM
-    {
-        'title': 'Azure ARM',
-        'provider': Provider.AZURE_ARM
-    },
-    # EC2
-    {
-        'title': 'EC2 AP Tokyo',
-        'provider': Provider.EC2_AP_NORTHEAST1
-    },
-    {
-        'title': 'EC2 AP Seoul',
-        'provider': Provider.EC2_AP_NORTHEAST2
-    },
-#    {
-#        'title': 'EC2 AP Mumbai',
-#        'provider': Provider.EC2_AP_SOUTH1
-#    },
-    {
-        'title': 'EC2 AP SOUTHEAST',
-        'provider': Provider.EC2_AP_SOUTHEAST
-    },
-    {
-        'title': 'EC2 AP Sydney',
-        'provider': Provider.EC2_AP_SOUTHEAST2
-    },
-    {
-        'title': 'EC2 EU Frankfurt',
-        'provider': Provider.EC2_EU_CENTRAL
-    },
-
-    {
-        'title': 'EC2 EU Ireland',
-        'provider': Provider.EC2_EU_WEST
-    },
-    {
-        'title': 'EC2 SA EAST',
-        'provider': Provider.EC2_SA_EAST
-    },
-    {
-        'title': 'EC2 US EAST',
-        'provider': Provider.EC2_US_EAST
-    },
-    {
-        'title': 'EC2 US WEST',
-        'provider': Provider.EC2_US_WEST
-    },
-    {
-        'title': 'EC2 US WEST OREGON',
-        'provider': Provider.EC2_US_WEST_OREGON
-    },
-    # GCE
-    {
-        'title': 'Google Compute Engine',
-        'provider' : Provider.GCE
-    },
-
-    # NephoScale
-    {
-        'title': 'NephoScale',
-        'provider' : Provider.NEPHOSCALE
-    },
-    # DigitalOcean
-    {
-        'title': 'DigitalOcean',
-        'provider' : Provider.DIGITAL_OCEAN
-    },
-    # Linode
-    {
-        'title': 'Linode',
-        'provider' : Provider.LINODE
-    },
-    # OpenStack TODO: re-enable & test
-    {
-        'title': 'OpenStack',
-        'provider': Provider.OPENSTACK
-    },
-    # Rackspace
-    {
-        'title': 'Rackspace DFW',
-        'provider': "%s:dfw" % Provider.RACKSPACE
-    },
-    {
-        'title': 'Rackspace ORD',
-        'provider' : "%s:ord" % Provider.RACKSPACE
-    },
-    {
-        'title': 'Rackspace IAD',
-        'provider' : "%s:iad" % Provider.RACKSPACE
-    },
-    {
-        'title': 'Rackspace LON',
-        'provider' : "%s:lon" % Provider.RACKSPACE
-    },
-    {
-        'title': 'Rackspace AU',
-        'provider' : "%s:syd" % Provider.RACKSPACE
-    },
-    {
-        'title': 'Rackspace HKG',
-        'provider' : "%s:hkg" % Provider.RACKSPACE
-    },
-    {
-        'title': 'Rackspace US (OLD)',
-        'provider' : "%s:us" % Provider.RACKSPACE_FIRST_GEN
-    },
-    {
-        'title': 'Rackspace UK (OLD)',
-        'provider' : "%s:uk" % Provider.RACKSPACE_FIRST_GEN
-    },
-    # Softlayer
-    {
-        'title': 'SoftLayer',
-        'provider' : Provider.SOFTLAYER
-    },
-    # Docker
-    {
-        'title': 'Docker',
-        'provider' : Provider.DOCKER
-    },
-    # vCloud
-    {
-        'title': 'VMware vCloud',
-        'provider' : Provider.VCLOUD
-    }
-]
-
+#TODO: update images:
+#ap-northeast-1
+#ap-northeast-2
+#ap-southeast-1
+#ap-southeast-2
+#eu-west-2
+#sa-east-1
+#us-east-1
+#us-west-1
+#us-west-2
+#us-east-2
+#ap-south-1
 
 # Base AMIs
 EC2_IMAGES = {
-    'eu-west-1': {
-        'ami-d41d58a7': 'Amazon Linux AMI 2016.09.0 (HVM), SSD Volume Type',
-        'ami-0e10557d': 'Amazon Linux AMI 2016.09.0 (PV)',
-        'ami-05bfde76': 'Ubuntu Server 14.04 LTS (PV), SSD Volume Type',
-        'ami-ed82e39e': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-        'ami-8b8c57f8': 'Red Hat Enterprise Linux 7.2 (HVM), SSD Volume Type',
-        'ami-f4278487': 'SUSE Linux Enterprise Server 12 SP1 (HVM), SSD Volume Type',
-        'ami-fa7cdd89': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',
-        'ami-b6b8d8c5': 'CoreOS stable 1068.8.0 (PV)',
-        'ami-cbb5d5b8': 'CoreOS stable 1068.8.0 (HVM)',
-    },
     'eu-central-1': {
-        'ami-0044b96f': 'Amazon Linux AMI 2016.09.0 (HVM), SSD Volume Type',
-        'ami-1345b87c': 'Amazon Linux AMI 2016.09.0 (PV)',
-        'ami-875042eb': 'Red Hat Enterprise Linux 7.2 (HVM), SSD Volume Type',
-        'ami-a9a557c6': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
-        'ami-26c43149': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
+        'ami-af0fc0c0': 'Amazon Linux AMI 2016.09.1 (HVM), SSD Volume Type',
+        'ami-3b0fc054': 'Amazon Linux AMI 2016.09.1 (PV)',
+        'ami-5aee2235': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-78559817': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
+        'ami-e4c63e8b': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
+        'ami-c425e4ab': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',
         'ami-2eaeb342': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',
-        'ami-6bd2ce07': 'SUSE Linux Enterprise Server 12 SP1 (HVM), SSD Volume Type',
-        'ami-7b7a8f14': 'CoreOS stable 1068.8.0 (HVM)',
-        'ami-d1c431be': 'CoreOS stable 1068.8.0 (PV)',
+        'ami-e37b8e8c': 'CoreOS-stable-1068.8.0 (PV)',
+        'ami-7b7a8f14': 'CoreOS-stable-1068.8.0 (HVM',
+    },
+    'eu-west-1': {
+        'ami-70edb016': 'Amazon Linux AMI 2016.09.1 (HVM), SSD Volume Type',
+        'ami-e0f2af86': 'Amazon Linux AMI 2016.09.1 (PV)',
+        'ami-02ace471': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
+        'ami-d8f4deab': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-a192bad2': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
+        'ami-fa7cdd89': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',
+        'ami-9186a1e2': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',
+        'ami-cbb5d5b8': 'CoreOS stable 1068.8.0 (HVM)',
+        'ami-b6b8d8c5': 'CoreOS stable 1068.8.0 (PV)',
     },
     'us-east-1': {
         'ami-c481fad3': 'Amazon Linux AMI 2016.09.0 (HVM), SSD Volume Type',
@@ -573,36 +432,6 @@ EC2_IMAGES = {
         'ami-ec5f2a83': 'CoreOS-stable-1068.10.0',
     },
 }
-
-
-EC2_IMAGES[Provider.EC2_EU_WEST] = EC2_IMAGES['eu-west-1']
-EC2_IMAGES[Provider.EC2_SA_EAST] = EC2_IMAGES['sa-east-1']
-EC2_IMAGES[Provider.EC2_AP_NORTHEAST] = EC2_IMAGES['ap-northeast-1']
-EC2_IMAGES[Provider.EC2_AP_SOUTHEAST2] = EC2_IMAGES['ap-southeast-2']
-EC2_IMAGES[Provider.EC2_AP_SOUTHEAST] = EC2_IMAGES['ap-southeast-1']
-EC2_IMAGES[Provider.EC2_US_WEST] = EC2_IMAGES['us-west-1']
-EC2_IMAGES[Provider.EC2_US_WEST_OREGON] = EC2_IMAGES['us-west-2']
-EC2_IMAGES[Provider.EC2_US_EAST] = EC2_IMAGES['us-east-1']
-EC2_IMAGES[Provider.EC2_EU_CENTRAL] = EC2_IMAGES['eu-central-1']
-EC2_IMAGES[Provider.EC2_AP_NORTHEAST2] = EC2_IMAGES['ap-northeast-2']
-EC2_IMAGES[Provider.EC2_AP_NORTHEAST1] = EC2_IMAGES['ap-northeast-1']
-#EC2_IMAGES[Provider.EC2_AP_SOUTH1] = EC2_IMAGES['ap-south-1']
-
-# Provider.EC2_EU_WEST etc naming is deprecated by libcloud.
-#
-# Now we call driver = get_driver(Providers.EC2_EU_WEST) in helpers.connect
-# which calls the default EC2 driver passing datacenter argument. Instead we
-# should call the default driver of EC2 passing the datacenter, example
-#
-# driver = get_driver(Providers.EC2)
-# conn = driver(key, secret, datacenter='eu-west-1')
-#
-# What we gain:
-# 1 Avoid using libcloud deprecated code
-# 2 No need to keep a separate mapping of ec2 providers
-#
-# EC2 datacenters are ['us-east-1', 'us-west-2', 'us-west-1', 'eu-west-1',
-# 'ap-southeast-1', 'ap-northeast-1', 'ap-southeast-2','sa-east-1']
 
 DOCKER_IMAGES = {
     'mist/ubuntu-14.04': 'Ubuntu 14.04',

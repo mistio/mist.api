@@ -196,7 +196,6 @@ def add_cloud(request):
       - azure
       - azure_arm
       - linode
-      - indonesian_vcloud
       - hostvirtual
       - vultr
       required: true
@@ -2417,16 +2416,5 @@ def list_supported_providers(request):
     """
     List supported providers
     Return all of our SUPPORTED PROVIDERS
-    ---
-    api_version:
-      enum:
-      - 1
-      - 2
-      in: header
-      type: integer
     """
-    api_version = request.headers.get('Api-Version', 1)
-    if int(api_version) == 2:
-        return {'supported_providers': config.SUPPORTED_PROVIDERS_V_2}
-    else:
-        return {'supported_providers': config.SUPPORTED_PROVIDERS}
+    return {'supported_providers': config.SUPPORTED_PROVIDERS_V_2}

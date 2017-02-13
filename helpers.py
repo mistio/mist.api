@@ -1181,7 +1181,6 @@ def logging_view_decorator(func):
         if log_dict['action'] == 'add_cloud':
             provider = params.get('provider')
             censor = {'vcloud': 'password',
-                      'indonesian_vcloud': 'password',
                       'ec2': 'api_secret',
                       'rackspace': 'api_key',
                       'nephoscale': 'password',

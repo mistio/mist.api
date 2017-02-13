@@ -313,16 +313,6 @@ class VCloud(Cloud):
     _controller_cls = controllers.VCloudMainController
 
 
-class IndonesianVCloud(Cloud):
-
-    host = me.StringField(required=True)
-    username = me.StringField(required=True)
-    password = me.StringField(required=True)
-
-    _private_fields = ('password', )
-    _controller_cls = controllers.IndonesianVCloudMainController
-
-
 class OpenStackCloud(Cloud):
 
     username = me.StringField(required=True)

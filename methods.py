@@ -17,6 +17,7 @@ from tempfile import NamedTemporaryFile
 from libcloud.compute.base import Node, NodeSize, NodeImage, NodeLocation
 from libcloud.compute.base import NodeAuthSSHKey
 from libcloud.compute.types import Provider, NodeState
+from libcloud.container.types import Provider as Container_Provider
 from libcloud.common.types import InvalidCredsError
 from libcloud.utils.networking import is_private_subnet
 from libcloud.dns.types import Provider as DnsProvider
@@ -234,7 +235,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
         key = Key.objects.get(owner=owner, id=key_id, deleted=None)
 
     # if key_id not provided, search for default key
-    if conn.type not in [Provider.LIBVIRT, Provider.DOCKER]:
+    if conn.type not in [Provider.LIBVIRT, Container_Provider.DOCKER]:
         if not key_id:
             key = Key.objects.get(owner=owner, default=True, deleted=None)
             key_id = key.name
@@ -251,7 +252,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
     location = NodeLocation(location_id, name=location_name, country='',
                             driver=conn)
 
-    if conn.type is Provider.DOCKER:
+    if conn.type is Container_Provider.DOCKER:
         if public_key:
             node = _create_machine_docker(conn, machine_name, image_id, '',
                                           public_key=public_key,
@@ -275,7 +276,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
         node = _create_machine_openstack(conn, private_key, public_key,
                                          machine_name, image, size, location,
                                          networks, cloud_init)
-    elif conn.type in config.EC2_PROVIDERS and private_key:
+    elif conn.type is Provider.EC2 and private_key:
         locations = conn.list_locations()
         for loc in locations:
             if loc.id == location_id:
@@ -310,7 +311,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                                      public_key, machine_name,
                                      image, size, location, cloud_init=cloud_init,
                                      cloud_service_name=None, azure_port_bindings=azure_port_bindings)
-    elif conn.type in [Provider.VCLOUD, Provider.INDONESIAN_VCLOUD]:
+    elif conn.type in [Provider.VCLOUD]:
         node = _create_machine_vcloud(conn, machine_name, image, size, public_key, networks)
     elif conn.type is Provider.LINODE and private_key:
         # FIXME: The orchestration UI does not provide all the necessary
@@ -2142,15 +2143,15 @@ def machine_name_validator(provider, name):
     Validates machine names before creating a machine
     Provider specific
     """
-    if not name and provider not in config.EC2_PROVIDERS:
+    if not name and provider != Provider.EC2:
         raise MachineNameValidationError("machine name cannot be empty")
-    if provider is Provider.DOCKER:
+    if provider is Container_Provider.DOCKER:
         pass
     elif provider in [Provider.RACKSPACE_FIRST_GEN, Provider.RACKSPACE]:
         pass
     elif provider in [Provider.OPENSTACK]:
         pass
-    elif provider in config.EC2_PROVIDERS:
+    elif provider is Provider.EC2:
         if len(name) > 255:
             raise MachineNameValidationError("machine name max chars allowed is 255")
     elif provider is Provider.NEPHOSCALE:
@@ -2172,7 +2173,7 @@ def machine_name_validator(provider, name):
                                              "or numbers, dashes and periods")
     elif provider == Provider.AZURE:
         pass
-    elif provider in [Provider.VCLOUD, Provider.INDONESIAN_VCLOUD]:
+    elif provider in [Provider.VCLOUD]:
         pass
     elif provider is Provider.LINODE:
         if len(name) < 3:
