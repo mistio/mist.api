@@ -5,7 +5,7 @@ from mongoengine import ValidationError
 from mongoengine import OperationError
 
 from mist.core.methods import assign_promo
-from mist.core.methods import get_secure_rand_token
+from mist.io.auth.models import get_secure_rand_token
 from mist.io.helpers import log_event
 
 from mist.core import config
