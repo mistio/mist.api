@@ -1346,7 +1346,7 @@ def run_script(owner, script_id, cloud_id, machine_id, params='', host='',
     if ret['error']:
         title += " for user %s" % str(owner)
         notify_admin(
-            title, "%s\n\n%s" % (ret['stdout'], ret['error']), team = 'dev'
+            title, "%s\n\n%s" % (ret['stdout'], ret['error']), team='dev'
         )
     return ret
 
