@@ -245,8 +245,7 @@ class MainConnection(MistConnection):
         self.list_tunnels()
         self.list_clouds()
         self.check_monitoring()
-        if config.ACTIVATE_POLLER:
-            self.periodic_update_poller()
+        self.periodic_update_poller()
 
     @tornado.gen.coroutine
     def periodic_update_poller(self):
@@ -300,44 +299,32 @@ class MainConnection(MistConnection):
                   core_methods.filter_list_vpn_tunnels(self.auth_context))
 
     def list_clouds(self):
-        if config.ACTIVATE_POLLER:
-            self.update_poller()
+        self.update_poller()
         self.send('list_clouds', filter_list_clouds(self.auth_context))
         clouds = Cloud.objects(owner=self.owner, enabled=True, deleted=None)
         log.info(clouds)
-        periodic_tasks = []
-        if not config.ACTIVATE_POLLER:
-            periodic_tasks.append(('list_machines', tasks.ListMachines()))
-        else:
-            for cloud in clouds:
-                after = datetime.datetime.utcnow() - datetime.timedelta(days=1)
-                machines = Machine.objects(cloud=cloud, missing_since=None,
-                                           last_seen__gt=after)
-                machines = filter_list_machines(
-                    self.auth_context, cloud_id=cloud.id,
-                    machines=[machine.as_dict_old() for machine in machines]
-                )
-                if machines:
-                    log.info("Emitting list_machines from poller's cache.")
-                    self.send('list_machines',
-                              {'cloud_id': cloud.id, 'machines': machines})
+        for cloud in clouds:
+            after = datetime.datetime.utcnow() - datetime.timedelta(days=1)
+            machines = Machine.objects(cloud=cloud, missing_since=None,
+                                       last_seen__gt=after)
+            machines = filter_list_machines(
+                self.auth_context, cloud_id=cloud.id,
+                machines=[machine.as_dict() for machine in machines]
+            )
+            if machines:
+                log.info("Emitting list_machines from poller's cache.")
+                self.send('list_machines',
+                          {'cloud_id': cloud.id, 'machines': machines})
 
-        periodic_tasks.extend([('list_images', tasks.ListImages()),
-                               ('list_sizes', tasks.ListSizes()),
-                               ('list_networks', tasks.ListNetworks()),
-                               ('list_locations', tasks.ListLocations()),
-                               ('list_projects', tasks.ListProjects())])
-        for key, task in periodic_tasks:
+        for key, task in [('list_images', tasks.ListImages()),
+                          ('list_sizes', tasks.ListSizes()),
+                          ('list_networks', tasks.ListNetworks()),
+                          ('list_locations', tasks.ListLocations()),
+                          ('list_projects', tasks.ListProjects())]:
             for cloud in clouds:
                 cached = task.smart_delay(self.owner.id, cloud.id)
                 if cached is not None:
                     log.info("Emitting %s from cache", key)
-                    if key == 'list_machines':
-                        cached['machines'] = filter_list_machines(
-                            self.auth_context, **cached
-                        )
-                        if cached['machines'] is None:
-                            continue
                     self.send(key, cached)
 
     def check_monitoring(self):

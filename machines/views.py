@@ -44,7 +44,8 @@ def list_machines(request):
     auth_context = auth_context_from_request(request)
     cloud_id = request.matchdict['cloud']
     # SEC get filtered resources based on auth_context
-    machines = methods.filter_list_machines(auth_context, cloud_id)
+    machines = methods.filter_list_machines(auth_context, cloud_id,
+                                            old_dict=True)
 
     try:
         cloud = Cloud.objects.get(owner=auth_context.owner,
@@ -378,7 +379,7 @@ def machine_actions(request):
         getattr(machine.ctl, action)(plan_id)
 
     # TODO: We shouldn't return list_machines, just OK. Save the API!
-    return methods.filter_list_machines(auth_context, cloud_id)
+    return methods.filter_list_machines(auth_context, cloud_id, old_dict=True)
 
 
 @view_config(route_name='api_v1_machine_rdp',

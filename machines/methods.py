@@ -91,11 +91,12 @@ def machine_name_validator(provider, name):
     return name
 
 
-def list_machines(owner, cloud_id):
+def list_machines(owner, cloud_id, old_dict=False):
     """List all machines in this cloud via API call to the provider."""
     machines = Cloud.objects.get(owner=owner, id=cloud_id,
                                  deleted=None).ctl.compute.list_machines()
-    return [machine.as_dict_old() for machine in machines]
+    method = Machine.as_dict_old if old_dict else Machine.as_dict
+    return map(method, machines)
 
 
 def create_machine(owner, cloud_id, key_id, machine_name, location_id,
@@ -1100,7 +1101,8 @@ def destroy_machine(user, cloud_id, machine_id):
 
 
 # SEC
-def filter_list_machines(auth_context, cloud_id, machines=None, perm='read'):
+def filter_list_machines(auth_context, cloud_id, machines=None, perm='read',
+                         old_dict=False):
     """Returns a list of machines.
 
     In case of non-Owners, the QuerySet only includes machines found in the
@@ -1109,7 +1111,8 @@ def filter_list_machines(auth_context, cloud_id, machines=None, perm='read'):
     assert cloud_id
 
     if machines is None:
-        machines = list_machines(auth_context.owner, cloud_id)
+        machines = list_machines(auth_context.owner, cloud_id,
+                                 old_dict=old_dict)
     if not machines:  # Exit early in case the cloud provider returned 0 nodes.
         return []
 
@@ -1124,6 +1127,6 @@ def filter_list_machines(auth_context, cloud_id, machines=None, perm='read'):
             return []
         allowed_ids = set(auth_context.get_allowed_resources(rtype='machines'))
         machines = [machine for machine in machines
-                    if machine['uuid'] in allowed_ids]
+                    if machine['uuid' if old_dict else 'id'] in allowed_ids]
 
     return machines

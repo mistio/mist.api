@@ -739,67 +739,6 @@ class ListProjects(UserTask):
         return {'cloud_id': cloud_id, 'projects': projects}
 
 
-class ListMachines(UserTask):
-    abstract = False
-    task_key = 'list_machines'
-    result_expires = 60 * 60 * 24
-    result_fresh = 10
-    polling = True
-    soft_time_limit = 60
-
-    def execute(self, owner_id, cloud_id):
-        from mist.io.machines.methods import list_machines
-        owner = Owner.objects.get(id=owner_id)
-        log.warn('Running list machines for user %s cloud %s',
-                 owner.id, cloud_id)
-        machines = list_machines(owner, cloud_id)
-
-        for machine in machines:
-            # TODO tags tags tags
-            if machine.get("tags"):
-                tags = {}
-                for tag in machine["tags"]:
-                    tags[tag["key"]]= tag["value"]
-            try:
-                from mist.io.tag.methods import resolve_id_and_get_tags
-                mistio_tags = resolve_id_and_get_tags(owner, 'machine',
-                                                      machine.get("id"),
-                                                      cloud_id=cloud_id)
-            except:
-                log.info("Machine has not tags in mist db")
-                mistio_tags = {}
-            else:
-                machine["tags"] = []
-                # optimized for js
-                for tag in mistio_tags:
-                    machine['tags'].append(tag)
-            # FIXME: optimize!
-        log.warn('Returning list machines for user %s cloud %s',
-             owner.id, cloud_id)
-        return {'cloud_id': cloud_id, 'machines': machines}
-
-    def error_rerun_handler(self, exc, errors, owner_id, cloud_id):
-        from mist.io.methods import notify_user
-
-        if len(errors) < 6:
-            return self.result_fresh  # Retry when the result is no longer fresh
-        owner = Owner.objects.get(id=owner_id)
-        cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
-
-        if len(errors) == 6:  # If does not respond for a minute
-            notify_user(owner, 'Cloud %s does not respond' % cloud.title,
-                        email_notify=False, cloud_id=cloud_id)
-
-        # Keep retrying every 30 secs for 10 minutes, then every 60 secs for
-        # 20 minutes and finally every 20 minutes
-        times = [30]*20 + [60]*20
-        index = len(errors) - 6
-        if index < len(times):
-            return times[index]
-        else: #
-            return 20*60
-
-
 class ProbeSSH(UserTask):
     abstract = False
     task_key = 'probe'

@@ -99,7 +99,7 @@ def list_machines(schedule_id):
     if amqp_owner_listening(cloud.owner.id):
         amqp_publish_user(cloud.owner.id, routing_key='list_machines',
                           data={'cloud_id': cloud.id,
-                                'machines': [machine.as_dict_old()
+                                'machines': [machine.as_dict()
                                              for machine in machines]})
 
     # Push historic information for inventory and cost reporting.
