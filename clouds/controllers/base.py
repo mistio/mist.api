@@ -1,5 +1,5 @@
 import ssl
-
+import weakref
 import logging
 
 from libcloud.common.types import InvalidCredsError
@@ -37,9 +37,19 @@ class BaseController(object):
         # FIXME: Solve circular dependencies.
         from mist.io.clouds.controllers.main.base import BaseMainController
         assert isinstance(main_ctl, BaseMainController)
-        self.cloud = main_ctl.cloud
+
+        # We use a weakref to enable proper garbage collection. Without it
+        # we have circular references (cloud <-> ctl) and custom destructor
+        # (__del__ method) which prevents garbage collection and causes
+        # memory leakage.
+        self._cloud = weakref.ref(main_ctl.cloud)
+
         self.provider = main_ctl.provider
         self._conn = None
+
+    @property
+    def cloud(self):
+        return self._cloud()
 
     def _connect(self):
         """Return libcloud-like connection to cloud

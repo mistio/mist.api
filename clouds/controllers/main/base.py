@@ -14,6 +14,7 @@ Cloud specific main controllers are in
 
 """
 
+import weakref
 import logging
 import datetime
 
@@ -97,7 +98,11 @@ class BaseMainController(object):
 
         """
 
-        self.cloud = cloud
+        # We use a weakref to enable proper garbage collection. Without it
+        # we have circular references (cloud <-> ctl) and custom destructor
+        # (__del__ method) which prevents garbage collection and causes
+        # memory leakage.
+        self._cloud = weakref.ref(cloud)
         self._conn = None
 
         # Initialize compute controller.
@@ -113,6 +118,10 @@ class BaseMainController(object):
         if self.NetworkController is not None:
             assert issubclass(self.NetworkController, BaseNetworkController)
             self.network = self.NetworkController(self)
+
+    @property
+    def cloud(self):
+        return self._cloud()
 
     def add(self, fail_on_error=True, fail_on_invalid_params=True, **kwargs):
         """Add new Cloud to the database
