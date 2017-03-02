@@ -1,3 +1,6 @@
+import weakref
+
+
 class MachineController(object):
     def __init__(self, machine):
         """Initialize machine controller given a machine
@@ -8,8 +11,11 @@ class MachineController(object):
           machine = mist.io.machines.models.Machine.objects.get(id=machine_id)
           machine.cloud.ctl.compute.reboot()
         """
+        self._machine = weakref.ref(machine)
 
-        self.machine = machine
+    @property
+    def machine(self):
+        return self._machine()
 
     def start(self):
         return self.machine.cloud.ctl.compute.start_machine(self.machine)

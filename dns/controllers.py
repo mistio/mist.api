@@ -1,10 +1,17 @@
-# Wrapper class for DNS actions
+"""Wrapper class for DNS actions"""
+
+import weakref
+
 
 class ZoneController(object):
 
     def __init__(self, zone):
         """Initialize zone controller given a zone"""
-        self.zone = zone
+        self._zone = weakref.ref(zone)
+
+    @property
+    def zone(self):
+        return self._zone()
 
     def create_zone(self, **kwargs):
         """Create a zone under the specific cloud"""
@@ -25,7 +32,11 @@ class RecordController(object):
 
     def __init__(self, record):
         """Initialize record controller given a record"""
-        self.record = record
+        self._record = weakref.ref(record)
+
+    @property
+    def record(self):
+        return self._record()
 
     def create_record(self, **kwargs):
         """Wrapper for the DNS cloud controller create_record() functionality

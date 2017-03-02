@@ -1,4 +1,5 @@
 import logging
+import weakref
 import requests
 import datetime
 import StringIO
@@ -22,7 +23,11 @@ class BaseScriptController(object):
             script = mist.io.scripts.models.Script.objects.get(id=script.id)
             script.ctl.edit('renamed')
         """
-        self.script = script
+        self._script = weakref.ref(script)
+
+    @property
+    def script(self):
+        return self._script()
 
     def add(self, fail_on_invalid_params=False, **kwargs):
 

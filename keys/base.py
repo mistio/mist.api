@@ -1,5 +1,8 @@
 import logging
+import weakref
+
 import mongoengine as me
+
 from mist.io.exceptions import KeyExistsError
 from mist.io.exceptions import BadRequestError
 from mist.io.helpers import rename_kwargs
@@ -18,7 +21,11 @@ class BaseKeyController(object):
           key = mist.io.keys.models.Key.objects.get(id=key.id)
           key.ctl.construct_public_from_private()
         """
-        self.key = key
+        self._key = weakref.ref(key)
+
+    @property
+    def key(self):
+        return self._key()
 
     def add(self, fail_on_invalid_params=True, **kwargs):
         """Add an entry to the database

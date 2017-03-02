@@ -1,3 +1,6 @@
+import weakref
+
+
 class NetworkController(object):
     def __init__(self, network):
         """Initialize the `NetworkController` given a network.
@@ -9,8 +12,15 @@ class NetworkController(object):
           network.ctl.list_subnets()
 
         """
-        self.network = network
-        self.cloud = network.cloud
+        self._network = weakref.ref(network)
+
+    @property
+    def network(self):
+        return self._network()
+
+    @property
+    def cloud(self):
+        return self.network.cloud
 
     def create(self, **kwargs):
         """Create `self.network`."""
@@ -36,8 +46,15 @@ class SubnetController(object):
           subnet.ctl.delete()
 
         """
-        self.subnet = subnet
-        self.cloud = subnet.network.cloud
+        self._subnet = weakref.ref(subnet)
+
+    @property
+    def subnet(self):
+        return self._subnet()
+
+    @property
+    def cloud(self):
+        return self.subnet.network.cloud
 
     def create(self, **kwargs):
         """Create `self.subnet`."""
