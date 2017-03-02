@@ -611,6 +611,10 @@ class VultrComputeController(BaseComputeController):
     def _list_machines__cost_machine(self,  machine, machine_libcloud):
         return machine_libcloud.extra.get('cost_per_month', 0)
 
+    def _list_sizes__fetch_sizes(self):
+        sizes = self.connection.list_sizes(baremetal=False)
+        return [size for size in sizes if not size.extra.get('deprecated')]
+
 
 class VSphereComputeController(BaseComputeController):
 
