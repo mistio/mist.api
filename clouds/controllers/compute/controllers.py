@@ -171,6 +171,9 @@ class DigitalOceanComputeController(BaseComputeController):
         size = machine_libcloud.extra.get('size', {})
         return size.get('price_hourly', 0), size.get('price_monthly', 0)
 
+    def _stop_machine(self, machine, machine_libcloud):
+        self.connection.ex_shutdown_node(machine_libcloud)
+
 
 class LinodeComputeController(BaseComputeController):
 

@@ -739,30 +739,28 @@ def _create_machine_digital_ocean(conn, key_name, private_key, public_key,
     """
     key = public_key.replace('\n', '')
 
-    # on API v1 list keys returns only ids, without actual public keys
-    # So the check fails. If there's already a key with the same pub key,
-    # create key call will fail!
     try:
         server_key = ''
-        keys = conn.ex_list_ssh_keys()
+        keys = conn.list_key_pairs()
+        server_keys = [key.extra.get('id') for key in keys]
         for k in keys:
-            if key == k.pub_key:
+            if key == k.public_key:
                 server_key = k
                 break
         if not server_key:
-            server_key = conn.ex_create_ssh_key(machine_name, key)
+            server_key = conn.create_key_pair(machine_name, public_key=key)
     except:
         try:
-            server_key = conn.ex_create_ssh_key('mistio' + str(random.randint(1, 100000)), key)
+            server_key = conn.create_key_pair('mistio' + str(random.randint(1, 100000)), public_key=key)
         except:
-            # on API v1 if we can't create that key, means that key is already
+            # if we can't create that key, means that key is already
             # on our account. Since we don't know the id, we pass all the ids
-            server_keys = [str(key.id) for key in keys]
+            pass
 
     if not server_key:
         ex_ssh_key_ids = server_keys
     else:
-        ex_ssh_key_ids = [str(server_key.id)]
+        ex_ssh_key_ids = [server_key.extra.get('id')]
 
     # check if location allows the private_networking setting
     private_networking = False
@@ -777,22 +775,23 @@ def _create_machine_digital_ocean(conn, key_name, private_key, public_key,
         # do not break if this fails for some reason
         pass
 
-    with get_temp_file(private_key) as tmp_key_path:
-        try:
-            node = conn.create_node(
-                name=machine_name,
-                image=image,
-                size=size,
-                ex_ssh_key_ids=ex_ssh_key_ids,
-                location=location,
-                ssh_key=tmp_key_path,
-                private_networking=private_networking,
-                user_data=user_data
-            )
-        except Exception as e:
-            raise MachineCreationError("Digital Ocean, got exception %s" % e, e)
+    ex_create_attr = {
+        'ssh_keys' : ex_ssh_key_ids,
+        'private_networking': private_networking
+    }
+    try:
+        node = conn.create_node(
+            name=machine_name,
+            size=size,
+            image=image,
+            location=location,
+            ex_create_attr=ex_create_attr,
+            ex_user_data=user_data
+        )
+    except Exception as e:
+        raise MachineCreationError("Digital Ocean, got exception %s" % e, e)
 
-        return node
+    return node
 
 
 def _create_machine_libvirt(conn, machine_name, disk_size, ram, cpu,
