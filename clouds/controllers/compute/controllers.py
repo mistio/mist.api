@@ -72,6 +72,15 @@ class AmazonComputeController(BaseComputeController):
         # This is windows for windows servers and None for Linux.
         machine.os_type = machine_libcloud.extra.get('platform', 'linux')
 
+        try:
+            # return list of ids for network interfaces as str
+            network_interfaces = machine.extra['network_interfaces']
+            network_interfaces = [network_interface.id for network_interface in network_interfaces]
+            network_interfaces = ','.join(network_interfaces)
+            machine.extra['network_interfaces'] = network_interfaces
+        except:
+            machine.extra['network_interfaces'] = []
+
     def _list_machines__cost_machine(self,  machine, machine_libcloud):
         # TODO: stopped instances still charge for the EBS device
         # https://aws.amazon.com/ebs/pricing/

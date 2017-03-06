@@ -529,17 +529,16 @@ def _create_machine_ec2(conn, key_name, private_key, public_key,
     sanitized by create_machine.
 
     """
-    with get_temp_file(public_key) as tmp_key_path:
+    try:
+        # create keypair with key name and pub key
+        conn.ex_import_keypair(key_name, public_key)
+    except:
+        # get existing key with that pub key
         try:
-            # create keypair with key name and pub key
-            conn.ex_import_keypair(name=key_name, keyfile=tmp_key_path)
-        except:
-            # get existing key with that pub key
-            try:
-                keypair = conn.ex_find_or_import_keypair_by_key_material(pubkey=public_key)
-                key_name = keypair['keyName']
-            except Exception as exc:
-                raise CloudUnavailableError("Failed to import key")
+            keypair = conn.ex_find_or_import_keypair_by_key_material(public_key)
+            key_name = keypair['keyName']
+        except Exception as exc:
+            raise CloudUnavailableError("Failed to import key")
 
     # create security group
     name = config.EC2_SECURITYGROUP.get('name', '')
