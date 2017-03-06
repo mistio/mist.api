@@ -559,7 +559,6 @@ def _create_machine_ec2(conn, key_name, private_key, public_key,
             image=image,
             size=size,
             location=location,
-            max_tries=1,
             ex_keyname=key_name,
             ex_securitygroup=config.EC2_SECURITYGROUP['name'],
             ex_userdata=user_data
