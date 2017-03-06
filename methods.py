@@ -623,23 +623,21 @@ def _create_machine_nephoscale(conn, key_name, private_key, public_key,
     else:
         baremetal = False
 
-    with get_temp_file(private_key) as tmp_key_path:
-        try:
-            node = conn.create_node(
-                name=machine_name,
-                hostname=machine_name[:15],
-                image=image,
-                size=size,
-                zone=location.id,
-                server_key=server_key,
-                console_key=console_key,
-                ssh_key=tmp_key_path,
-                baremetal=baremetal,
-                ips=ips
-            )
-        except Exception as e:
-            raise MachineCreationError("Nephoscale, got exception %s" % e, e)
-        return node
+    try:
+        node = conn.create_node(
+            name=machine_name,
+            hostname=machine_name[:15],
+            image=image,
+            size=size,
+            zone=location.id,
+            server_key=server_key,
+            console_key=console_key,
+            baremetal=baremetal,
+            ips=ips
+        )
+    except Exception as e:
+        raise MachineCreationError("Nephoscale, got exception %s" % e, e)
+    return node
 
 
 def _create_machine_softlayer(conn, key_name, private_key, public_key,
