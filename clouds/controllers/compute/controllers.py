@@ -452,10 +452,24 @@ class GoogleComputeController(BaseComputeController):
 
         # Wrap in try/except to prevent from future GCE API changes.
         # Identify server OS.
-        machine.os_type = 'linux'
+        os_type = 'linux'
+        machine.os_type = machine.extra['os_type'] = os_type
+
         try:
+            license = extra.get('license')
+            if license:
+                if 'sles' in license:
+                    os_type = 'sles'
+                if 'rhel' in license:
+                    os_type = 'rhel'
+                if 'win' in license:
+                    os_type = 'win'
+                    machine.os_type = 'windows'
+                machine.extra['os_type'] = os_type
+
             if 'windows-cloud' in extra['disks'][0]['licenses'][0]:
                 machine.os_type = 'windows'
+                machine.extra['os_type'] = 'win'
         except:
             log.exception("Couldn't parse os_type for machine %s:%s for %s",
                           machine.id, machine.name, self.cloud)
@@ -501,7 +515,7 @@ class GoogleComputeController(BaseComputeController):
             return 0, 0
         # https://cloud.google.com/compute/pricing
         size = machine_libcloud.extra.get('machineType').split('/')[-1]
-        location = machine_libcloud.extra.get('location')
+        location = machine_libcloud.extra.get('zone')
         # Get the location, locations currently are
         # europe us asia-east asia-northeast
         # all with different pricing
