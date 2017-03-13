@@ -22,6 +22,7 @@ controller, using the `ctl` abbreviation, like this:
 
 """
 
+import re
 import logging
 
 from libcloud.dns.types import Provider
@@ -41,22 +42,13 @@ class AmazonDNSController(BaseDNSController):
         return get_driver(Provider.ROUTE53)(self.cloud.apikey,
                                             self.cloud.apisecret)
 
-    def _create_record__prepare_args(self, zone, kwargs):
+    def _create_record__prepare_args(self, name, data, ttl):
         """
-        This is a private method to transform the arguments to the provider
-        specific form.
+        This is a private
         ---
         """
-        # Route53 requires just the subdomain for A, AAAA, and CNAME records.
-        if (kwargs['type'] in ['A', 'AAAA', 'CNAME'] and
-                kwargs['name'].endswith(zone.domain)):
-            kwargs['name'] = kwargs['name'][:-len(zone.domain)]
-        kwargs['extra'] = {'ttl': kwargs.pop('ttl', 0)}
-
-    def _list_records__postparse_data(self, pr_record, record):
-        """Get the provider specific information into the Mongo model"""
-        if pr_record.data not in record.rdata:
-            record.rdata.append(pr_record.data)
+        extra = {'ttl': ttl}
+        return name, data, extra
 
 
 class GoogleDNSController(BaseDNSController):
@@ -68,22 +60,14 @@ class GoogleDNSController(BaseDNSController):
                                            self.cloud.private_key,
                                            project=self.cloud.project_id)
 
-    def _create_record__prepare_args(self, zone, kwargs):
+    def _create_record__prepare_args(self, name, data, ttl):
         """
-        This is a private method to transform the arguments to the provider
-        specific form.
+        This is a private
         ---
         """
-        # Google requires the full subdomain+domain for A, AAAA, and CNAME
-        # records with a trailing dot.
-        if (kwargs['type'] in ['A', 'AAAA', 'CNAME'] and
-                not kwargs['name'].endswith('.')):
-            kwargs['name'] += "."
-
-        data = kwargs.pop('data', '')
-        kwargs['data'] = {'ttl': kwargs.pop('ttl', 0), 'rrdatas': []}
-        kwargs['data']['rrdatas'].append(data)
-
-    def _list_records__postparse_data(self, pr_record, record):
-        """Get the provider specific information into the Mongo model"""
-        record.rdata = pr_record.data['rrdatas']
+        if not re.match(".*\.$", name):
+            name += "."
+        extra = None
+        record_data = {'ttl': ttl, 'rrdatas': []}
+        record_data['rrdatas'].append(data)
+        return name, record_data, extra
