@@ -62,6 +62,9 @@ def create_dns_zone(request):
     ---
     """
     auth_context = auth_context_from_request(request)
+
+    auth_context.check_perm("zone", "add", None)
+
     cloud_id = request.matchdict['cloud']
     # Try to get the specific cloud for which we will create the zone.
     try:
@@ -82,6 +85,9 @@ def create_dns_record(request):
     ---
     """
     auth_context = auth_context_from_request(request)
+
+    auth_context.check_perm("record", "add", None)
+
     cloud_id = request.matchdict['cloud']
     # Try to get the specific cloud for which we will create the zone.
     try:
@@ -101,7 +107,7 @@ def create_dns_record(request):
     rec = Record.add(owner=auth_context.owner, zone=zone, **params).as_dict()
 
     # Schedule a UI update
-    trigger_session_update(auth_context.owner, ['clouds'])
+    trigger_session_update(auth_context.owner, ['zones'])
     return rec
 
 @view_config(route_name='api_v1_zone', request_method='DELETE', renderer='json')
@@ -123,10 +129,12 @@ def delete_dns_zone(request):
     except Zone.DoesNotExist:
         raise NotFoundError('Zone does not exist')
 
+    auth_context.check_perm("zone", "remove", zone_id)
+
     zone.ctl.delete_zone()
 
     # Schedule a UI update
-    trigger_session_update(auth_context.owner, ['clouds'])
+    trigger_session_update(auth_context.owner, ['zones'])
     return OK
 
 @view_config(route_name='api_v1_record', request_method='DELETE', renderer='json')
@@ -152,8 +160,10 @@ def delete_dns_record(request):
     except Record.DoesNotExist:
         raise NotFoundError('Record does not exist')
 
+    auth_context.check_perm("record", "remove", record_id)
+
     record.ctl.delete_record()
 
     # Schedule a UI update
-    trigger_session_update(auth_context.owner, ['clouds'])
+    trigger_session_update(auth_context.owner, ['zones'])
     return OK

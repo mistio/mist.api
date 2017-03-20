@@ -453,6 +453,8 @@ class MainConnection(MistConnection):
                 self.list_scripts()
             if 'schedules' in sections:
                 self.list_schedules()
+            if 'zones' in sections:
+                self.list_zones()
             if 'templates' in sections:
                 self.list_templates()
             if 'stacks' in sections:
