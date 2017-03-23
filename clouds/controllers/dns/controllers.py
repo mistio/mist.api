@@ -50,7 +50,7 @@ class AmazonDNSController(BaseDNSController):
         # Route53 requires just the subdomain for A, AAAA, and CNAME records.
         if (kwargs['type'] in ['A', 'AAAA', 'CNAME'] and
                 kwargs['name'].endswith(zone.domain)):
-            kwargs['name'] = kwargs['name'][:-len(zone.domain)]
+            kwargs['name'] = kwargs['name'][:-(len(zone.domain)+1)]
         kwargs['extra'] = {'ttl': kwargs.pop('ttl', 0)}
 
     def _list_records__postparse_data(self, pr_record, record):
