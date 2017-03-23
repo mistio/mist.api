@@ -1,0 +1,6 @@
+[submodule "run_script"]
+	path = run_script
+	url = ../../mistio/run_script.git
+[submodule "libcloud"]
+	path = libcloud
+	url = ../../mistio/libcloud.git
