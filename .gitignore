@@ -94,3 +94,9 @@ ENV/
 
 # Vim swap files
 .*.sw[op]
+
+# Test settings files
+/tests/clouds.yaml
+
+# Local settings files
+/settings.py
