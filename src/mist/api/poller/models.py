@@ -211,9 +211,8 @@ class CloudPollingSchedule(PollingSchedule):
     @property
     def enabled(self):
         try:
-            return (super(CloudPollingSchedule, self).enabled
-                    and self.cloud.enabled
-                    and not self.cloud.deleted)
+            return (super(CloudPollingSchedule, self).enabled and
+                    self.cloud.enabled and not self.cloud.deleted)
         except me.DoesNotExist:
             log.error('Cannot get cloud for polling schedule.')
             return False

@@ -25,7 +25,7 @@ from mist.api.poller.models import ListMachinesPollingSchedule
 
 from mist.api.auth.methods import auth_context_from_session_id
 
-from mist.api.exceptions import BadRequestError, UnauthorizedError, MistError
+from mist.api.exceptions import UnauthorizedError, MistError
 from mist.api.exceptions import PolicyUnauthorizedError
 from mist.api.amqp_tornado import Consumer
 

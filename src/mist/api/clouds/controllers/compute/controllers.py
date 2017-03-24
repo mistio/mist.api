@@ -76,7 +76,7 @@ class AmazonComputeController(BaseComputeController):
         # This is windows for windows servers and None for Linux.
         machine.os_type = machine_libcloud.extra.get('platform', 'linux')
 
-    def _list_machines__cost_machine(self,  machine, machine_libcloud):
+    def _list_machines__cost_machine(self, machine, machine_libcloud):
         # TODO: stopped instances still charge for the EBS device
         # https://aws.amazon.com/ebs/pricing/
         # Need to add this cost for all instances
@@ -260,7 +260,7 @@ class SoftLayerComputeController(BaseComputeController):
         if 'windows' in str(machine_libcloud.extra.get('image', '')).lower():
             machine.os_type = 'windows'
 
-    def _list_machines__cost_machine(self,  machine, machine_libcloud):
+    def _list_machines__cost_machine(self, machine, machine_libcloud):
         # SoftLayer includes recurringFee on the VM metadata but
         # this is only for the compute - CPU pricing.
         # Other costs (ram, bandwidth, image) are included
@@ -299,7 +299,7 @@ class NephoScaleComputeController(BaseComputeController):
         return get_driver(Provider.NEPHOSCALE)(self.cloud.username,
                                                self.cloud.password)
 
-    def _list_machines__machine_actions(self,  machine, machine_libcloud):
+    def _list_machines__machine_actions(self, machine, machine_libcloud):
         super(
             NephoScaleComputeController, self
         )._list_machines__machine_actions(machine, machine_libcloud)
@@ -328,7 +328,7 @@ class AzureComputeController(BaseComputeController):
         return get_driver(Provider.AZURE)(self.cloud.subscription_id,
                                           tmp_cert_file.name)
 
-    def _list_machines__cost_machine(self,  machine, machine_libcloud):
+    def _list_machines__cost_machine(self, machine, machine_libcloud):
         if machine_libcloud.state not in [NodeState.RUNNING, NodeState.PAUSED]:
             return 0, 0
         return machine_libcloud.extra.get('cost_per_hour', 0), 0
@@ -369,7 +369,7 @@ class AzureComputeController(BaseComputeController):
             raise MachineNotFoundError("Machine with id '%s'." %
                                        machine.machine_id)
 
-    def _start_machine(self,  machine, machine_libcloud):
+    def _start_machine(self, machine, machine_libcloud):
         cloud_service = self._cloud_service(machine.machine_id)
         self.connection.ex_start_node(machine_libcloud,
                                       ex_cloud_service_name=cloud_service)
@@ -389,7 +389,7 @@ class AzureComputeController(BaseComputeController):
         self.connection.destroy_node(machine_libcloud,
                                      ex_cloud_service_name=cloud_service)
 
-    def _list_machines__machine_actions(self,  machine, machine_libcloud):
+    def _list_machines__machine_actions(self, machine, machine_libcloud):
         super(AzureComputeController, self)._list_machines__machine_actions(
             machine, machine_libcloud)
         if machine_libcloud.state is NodeState.PAUSED:
@@ -404,7 +404,7 @@ class AzureArmComputeController(BaseComputeController):
                                               self.cloud.key,
                                               self.cloud.secret)
 
-    def _list_machines__cost_machine(self,  machine, machine_libcloud):
+    def _list_machines__cost_machine(self, machine, machine_libcloud):
         if machine_libcloud.state not in [NodeState.RUNNING, NodeState.PAUSED]:
             return 0, 0
         return machine_libcloud.extra.get('cost_per_hour', 0), 0
@@ -421,7 +421,7 @@ class AzureArmComputeController(BaseComputeController):
     def _destroy_machine(self, machine, machine_libcloud):
         self.connection.destroy_node(machine_libcloud)
 
-    def _list_machines__machine_actions(self,  machine, machine_libcloud):
+    def _list_machines__machine_actions(self, machine, machine_libcloud):
         super(AzureArmComputeController, self)._list_machines__machine_actions(
             machine, machine_libcloud)
         if machine_libcloud.state is NodeState.PAUSED:
@@ -503,7 +503,7 @@ class GoogleComputeController(BaseComputeController):
             image.extra.pop('licenses', None)
         return images
 
-    def _list_machines__cost_machine(self,  machine, machine_libcloud):
+    def _list_machines__cost_machine(self, machine, machine_libcloud):
         if machine_libcloud.state == NodeState.TERMINATED:
             return 0, 0
         # https://cloud.google.com/compute/pricing
@@ -612,7 +612,7 @@ class PacketComputeController(BaseComputeController):
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
         return machine_libcloud.extra.get('created_at')  # iso8601 string
 
-    def _list_machines__cost_machine(self,  machine, machine_libcloud):
+    def _list_machines__cost_machine(self, machine, machine_libcloud):
         size = machine_libcloud.extra.get('plan')
         price = get_size_price(driver_type='compute', driver_name='packet',
                                size_id=size)
@@ -627,7 +627,7 @@ class VultrComputeController(BaseComputeController):
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
         return machine_libcloud.extra.get('date_created')  # iso8601 string
 
-    def _list_machines__cost_machine(self,  machine, machine_libcloud):
+    def _list_machines__cost_machine(self, machine, machine_libcloud):
         return machine_libcloud.extra.get('cost_per_month', 0)
 
 
@@ -658,7 +658,7 @@ class VCloudComputeController(BaseComputeController):
                                          port=self.cloud.port,
                                          verify_match_hostname=False)
 
-    def _list_machines__machine_actions(self,  machine, machine_libcloud):
+    def _list_machines__machine_actions(self, machine, machine_libcloud):
         super(VCloudComputeController, self)._list_machines__machine_actions(
             machine, machine_libcloud)
         if machine_libcloud.state is NodeState.PENDING:
@@ -683,7 +683,7 @@ class OpenStackComputeController(BaseComputeController):
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
         return machine_libcloud.extra.get('created')  # iso8601 string
 
-    def _list_machines__machine_actions(self,  machine, machine_libcloud):
+    def _list_machines__machine_actions(self, machine, machine_libcloud):
         super(
             OpenStackComputeController, self
         )._list_machines__machine_actions(machine, machine_libcloud)
@@ -804,7 +804,7 @@ class DockerComputeController(BaseComputeController):
     def image_is_default(self, image_id):
         return image_id in config.DOCKER_IMAGES
 
-    def _action_change_port(self,  machine, machine_libcloud):
+    def _action_change_port(self, machine, machine_libcloud):
         """This part exists here for docker specific reasons. After start,
         reboot and destroy actions, docker machine instance need to rearrange
         its port. Finally save the machine in db.
@@ -824,7 +824,7 @@ class DockerComputeController(BaseComputeController):
             key_assoc.port = port
         machine.save()
 
-    def _start_machine(self,  machine, machine_libcloud):
+    def _start_machine(self, machine, machine_libcloud):
         self.connection.ex_start_node(machine_libcloud)
         self._action_change_port(machine, machine_libcloud)
 
@@ -833,7 +833,7 @@ class DockerComputeController(BaseComputeController):
             return self.reboot_machine_ssh(machine)
         return super(DockerComputeController, self).reboot_machine(machine)
 
-    def _reboot_machine(self,  machine, machine_libcloud):
+    def _reboot_machine(self, machine, machine_libcloud):
         machine_libcloud.reboot()
         self._action_change_port(machine, machine_libcloud)
 
@@ -867,7 +867,7 @@ class LibvirtComputeController(BaseComputeController):
                                                 user=self.cloud.username,
                                                 tcp_port=int(port))
 
-    def _list_machines__machine_actions(self,  machine, machine_libcloud):
+    def _list_machines__machine_actions(self, machine, machine_libcloud):
         super(LibvirtComputeController, self)._list_machines__machine_actions(
             machine, machine_libcloud)
         if machine.extra.get('tags', {}).get('type') == 'hypervisor':
@@ -884,7 +884,7 @@ class LibvirtComputeController(BaseComputeController):
             if machine_libcloud.state is NodeState.SUSPENDED:
                 machine.actions.resume = True
 
-    def _list_machines__postparse_machine(self,  machine, machine_libcloud):
+    def _list_machines__postparse_machine(self, machine, machine_libcloud):
         xml_desc = machine_libcloud.extra.get('xml_description')
         if xml_desc:
             machine.extra['xml_description'] = escape(xml_desc)
@@ -932,7 +932,7 @@ class OnAppComputeController(BaseComputeController):
                                           secret=self.cloud.apikey,
                                           host=self.cloud.host)
 
-    def _list_machines__machine_actions(self,  machine, machine_libcloud):
+    def _list_machines__machine_actions(self, machine, machine_libcloud):
         super(OnAppComputeController, self)._list_machines__machine_actions(
             machine, machine_libcloud)
         if machine_libcloud.state is NodeState.RUNNING:
@@ -957,7 +957,7 @@ class OnAppComputeController(BaseComputeController):
         machine.extra['size'] = "%scpu, %sM ram" % \
             (machine.extra.get('cpus'), machine.extra.get('memory'))
 
-    def _list_machines__cost_machine(self,  machine, machine_libcloud):
+    def _list_machines__cost_machine(self, machine, machine_libcloud):
         # TODO: investigate how price_per_hour and price_per_hour_powered_off
         # differ
         # also what happens if VM is stopped

@@ -213,8 +213,8 @@ class TaggedMachinesSchedule(BaseMachinesCondition):
                 if not key:
                     raise me.ValidationError('You cannot add a tag '
                                              'without a key')
-                elif not regex.match(key) or (value
-                                              and not regex.match(value)):
+                elif not regex.match(key) or (value and
+                                              not regex.match(value)):
                     raise me.ValidationError('Tags must be in key=value '
                                              'format and only contain the '
                                              'characters a-z, 0-9, _, -')
@@ -355,7 +355,7 @@ class Schedule(me.Document):
         # if self.start_after and self.start_after < datetime.datetime.now():
         #     return False
         if self.max_run_count and (
-                    (self.total_run_count or 0) >= self.max_run_count
+            (self.total_run_count or 0) >= self.max_run_count
         ):
             return False
         else:

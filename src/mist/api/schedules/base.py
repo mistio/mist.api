@@ -129,16 +129,14 @@ class BaseController(object):
         if kwargs.get('expires'):
             try:
                 kwargs['expires'] = datetime.datetime.strptime(
-                                    kwargs['expires'], '%Y-%m-%d %H:%M:%S')
+                    kwargs['expires'], '%Y-%m-%d %H:%M:%S')
             except ValueError:
                 raise BadRequestError('Expiration date value was not valid')
 
         if kwargs.get('start_after'):
             try:
                 kwargs['start_after'] = datetime.datetime.strptime(
-                                        kwargs['start_after'],
-                                        '%Y-%m-%d %H:%M:%S'
-                )
+                    kwargs['start_after'], '%Y-%m-%d %H:%M:%S')
             except ValueError:
                 raise BadRequestError('Start-after date value was not valid')
 
@@ -288,8 +286,8 @@ class BaseController(object):
                 schedules.ListOfMachinesSchedule(machines=machines_obj)
 
         # check permissions for machines' tags
-        if machines_tags and (not isinstance(machines_tags, dict)
-                              and machines_tags != ''):
+        if machines_tags and (not isinstance(machines_tags, dict) and
+                              machines_tags != ''):
             try:
                 machines_tags = json.loads(machines_tags)
             except:

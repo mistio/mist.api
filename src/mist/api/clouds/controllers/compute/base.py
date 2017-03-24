@@ -182,8 +182,8 @@ class BaseComputeController(BaseController):
             image_id = str(node.image or node.extra.get('imageId') or
                            node.extra.get('image_id') or
                            node.extra.get('image') or '')
-            size = (node.size or node.extra.get('flavorId')
-                    or node.extra.get('instancetype'))
+            size = (node.size or node.extra.get('flavorId') or
+                    node.extra.get('instancetype'))
 
             machine.name = node.name
             machine.image_id = image_id
@@ -512,13 +512,13 @@ class BaseComputeController(BaseController):
         if search:
             search = str(search).lower()
             images = [img for img in images
-                      if search in img.id.lower()
-                      or search in img.name.lower()]
+                      if search in img.id.lower() or
+                      search in img.name.lower()]
 
         # Filter out invalid images.
         images = [img for img in images
-                  if img.name and img.id[:3] not in ('aki', 'ari')
-                  and 'windows' not in img.name.lower()]
+                  if img.name and img.id[:3] not in ('aki', 'ari') and
+                  'windows' not in img.name.lower()]
 
         # Turn images to dict to return and star them.
         images = [{'id': img.id,

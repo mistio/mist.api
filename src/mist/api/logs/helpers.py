@@ -152,7 +152,7 @@ def get_open_incidents(owner_id, callback=None, tornado_async=False, **kwargs):
     for key in ('rule_id', 'cloud_id', 'machine_id'):
         if key in kwargs:
             query['query']['bool']['filter']['bool']['must'].append(
-                    {'term': {key: kwargs[key]}}
+                {'term': {key: kwargs[key]}}
             )
 
     if not tornado_async:

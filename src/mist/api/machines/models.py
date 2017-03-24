@@ -187,7 +187,7 @@ class Machine(me.Document):
 
         # tags as a list return for the ui
         tags = {tag.key: tag.value for tag in mist.api.tag.models.Tag.objects(
-             owner=self.cloud.owner, resource=self
+            owner=self.cloud.owner, resource=self
         ).only('key', 'value')}
         # Optimize tags data structure for js...
         if isinstance(tags, dict):

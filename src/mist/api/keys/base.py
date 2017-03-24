@@ -9,7 +9,7 @@ log = logging.getLogger(__name__)
 
 
 class BaseKeyController(object):
-    def __init__(self,  key):
+    def __init__(self, key):
         """Initialize a key controller given a key
 
         Most times one is expected to access a controller from inside the

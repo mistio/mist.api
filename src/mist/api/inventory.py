@@ -1,5 +1,5 @@
 from mist.api.clouds.models import Cloud
-from mist.api.machines.models import Machine, KeyAssociation
+from mist.api.machines.models import Machine
 from mist.api.keys.models import SSHKey, SignedSSHKey
 
 try:
@@ -67,7 +67,7 @@ class MistInventory(object):
         ans_cfg = '[defaults]\nhostfile=./inventory\nhost_key_checking=False\n'
         files = {'ansible.cfg': ans_cfg, 'inventory': ans_inv}
         for key_id, private_key in self.keys.items():
-             files.update({'id_rsa/%s' % key_id: private_key})
+            files.update({'id_rsa/%s' % key_id: private_key})
         return files
 
     def _list_machines(self, cloud_id):
@@ -86,7 +86,8 @@ class MistInventory(object):
                 ips = [ip for ip in machine['public_ips'] if ':' not in ip]
                 # in case ips is empty search for private IPs
                 if not ips:
-                    ips = [ip for ip in machine['private_ips'] if ':' not in ip]
+                    ips = [ip for ip in machine['private_ips']
+                           if ':' not in ip]
                 if not name:
                     name = machine_id
                 if not ips:

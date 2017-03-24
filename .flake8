@@ -1,0 +1,27 @@
+[flake8]
+show-source = True
+statistics = True
+count = True
+ignore =
+exclude =
+    .git,
+    __pycache__,
+    env,
+    libcloud,
+    paramiko,
+    run_script,
+    celerybeat-mongo,
+
+    src/mist/api/auth/,
+    src/mist/api/dns/,
+    src/mist/api/hub/,
+    src/mist/api/tag/,
+    src/mist/api/__init__.py,
+    src/mist/api/helpers.py,
+    src/mist/api/config.py,
+    src/mist/api/views.py,
+    src/mist/api/tasks.py,
+    src/mist/api/shell.py,
+    src/mist/api/methods.py,
+    src/mist/api/amqp_tornado.py,
+    src/mist/api/scripts/controllers.py,

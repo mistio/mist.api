@@ -422,18 +422,17 @@ class Team(me.EmbeddedDocument):
         return '%s (%d members)' % (self.name, len(self.members))
 
 
-class Organization(Owner):
-    _owners_team_kwargs = {}
+def _get_default_org_teams():
     if HAS_POLICY:
-        _owners_team_kwargs['policy'] = Policy(operator='ALLOW')
+        return [Team(name='Owners', policy=Policy(operator='ALLOW'))]
+    return [Team(name='Owners')]
 
+
+class Organization(Owner):
     name = me.StringField(required=True)
     members = me.ListField(me.ReferenceField(User), required=True)
     members_count = me.IntField(default=0)
-    teams = me.EmbeddedDocumentListField(
-        Team,
-        default=lambda: [Team(name='Owners', **_owners_team_kwargs)]
-    )
+    teams = me.EmbeddedDocumentListField(Team, default=_get_default_org_teams)
     teams_count = me.IntField(default=0)
     # These are assigned only to organization from now on
     promo_codes = me.ListField()

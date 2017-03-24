@@ -112,7 +112,7 @@ class BaseNetworkController(BaseController):
 
         # Create the network.
         libcloud_net = self.cloud.ctl.compute.connection.ex_create_network(
-                                                                  **kwargs)
+            **kwargs)
 
         try:
             network.network_id = libcloud_net.id
@@ -367,8 +367,8 @@ class BaseNetworkController(BaseController):
 
             # Get the Subnet's CIDR.
             try:
-                subnet.cidr = self._list_subnets__cidr_range(
-                                     subnet, libcloud_subnet)
+                subnet.cidr = self._list_subnets__cidr_range(subnet,
+                                                             libcloud_subnet)
             except Exception as exc:
                 log.exception('Failed to get the CIDR of %s: %s', subnet, exc)
 
