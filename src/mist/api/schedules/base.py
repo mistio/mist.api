@@ -2,27 +2,27 @@
 
 This currently contains only BaseController. It includes basic functionality
 for a given schedule.
-Cloud specific controllers are in `mist.io.schedules.controllers`.
+Cloud specific controllers are in `mist.api.schedules.controllers`.
 """
 import json
 import logging
 import datetime
 import mongoengine as me
-from mist.io.scripts.models import Script
-from mist.io.exceptions import MistError
-from mist.io.exceptions import InternalServerError
-from mist.io.exceptions import BadRequestError
-from mist.io.exceptions import ScriptNotFoundError
-from mist.io.exceptions import ScheduleOperationError
-from mist.io.exceptions import ScheduleNameExistsError
+from mist.api.scripts.models import Script
+from mist.api.exceptions import MistError
+from mist.api.exceptions import InternalServerError
+from mist.api.exceptions import BadRequestError
+from mist.api.exceptions import ScriptNotFoundError
+from mist.api.exceptions import ScheduleOperationError
+from mist.api.exceptions import ScheduleNameExistsError
 
-from mist.io.machines.models import Machine
-from mist.io.exceptions import NotFoundError
+from mist.api.machines.models import Machine
+from mist.api.exceptions import NotFoundError
 
 try:
     from mist.core.rbac.methods import AuthContext
 except ImportError:
-    from mist.io.dummy.rbac import AuthContext
+    from mist.api.dummy.rbac import AuthContext
 
 log = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ class BaseController(object):
         Most times one is expected to access a controller from inside the
         schedule. Like this:
 
-          schedule = mist.io.schedules.models.Schedule.objects.get(id=s_id)
+          schedule = mist.api.schedules.models.Schedule.objects.get(id=s_id)
           schedule.ctl.add()
         """
         self.schedule = schedule
@@ -94,7 +94,7 @@ class BaseController(object):
 
     def update(self, **kwargs):
         """Edit an existing Schedule"""
-        import mist.io.schedules.models as schedules
+        import mist.api.schedules.models as schedules
 
         if self.auth_context is not None:
             auth_context = self.auth_context
@@ -253,7 +253,7 @@ class BaseController(object):
         Subclasses MAY override this method.
 
         """
-        import mist.io.schedules.models as schedules
+        import mist.api.schedules.models as schedules
 
         machines_uuids = kwargs.get('machines_uuids', '')
         machines_tags = kwargs.get('machines_tags', '')

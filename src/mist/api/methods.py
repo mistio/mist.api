@@ -22,33 +22,33 @@ import ansible.callbacks
 import ansible.utils
 import ansible.constants
 
-from mist.io.shell import Shell
+from mist.api.shell import Shell
 
-from mist.io.helpers import get_auth_header
+from mist.api.helpers import get_auth_header
 
-from mist.io.exceptions import *
+from mist.api.exceptions import *
 
-from mist.io.helpers import trigger_session_update
-from mist.io.helpers import amqp_publish_user
-from mist.io.helpers import StdStreamCapture
+from mist.api.helpers import trigger_session_update
+from mist.api.helpers import amqp_publish_user
+from mist.api.helpers import StdStreamCapture
 
-from mist.io.helpers import dirty_cow, parse_os_release
+from mist.api.helpers import dirty_cow, parse_os_release
 
-import mist.io.tasks
-import mist.io.inventory
+import mist.api.tasks
+import mist.api.inventory
 
-from mist.io.clouds.models import Cloud
-from mist.io.networks.models import NETWORKS, SUBNETS, Network, Subnet
-from mist.io.machines.models import Machine
+from mist.api.clouds.models import Cloud
+from mist.api.networks.models import NETWORKS, SUBNETS, Network, Subnet
+from mist.api.machines.models import Machine
 
 try:
     from mist.core.vpn.methods import super_ping
 except ImportError:
-    from mist.io.dummy.methods import super_ping
+    from mist.api.dummy.methods import super_ping
 
-from mist.io import config
+from mist.api import config
 
-import mist.io.clouds.models as cloud_models
+import mist.api.clouds.models as cloud_models
 
 import logging
 
@@ -70,7 +70,7 @@ def connect_provider(cloud):
 def ssh_command(owner, cloud_id, machine_id, host, command,
                 key_id=None, username=None, password=None, port=22):
     """
-    We initialize a Shell instant (for mist.io.shell).
+    We initialize a Shell instant (for mist.api.shell).
 
     Autoconfigures shell and returns command's output as string.
     Raises MachineUnauthorizedError if it doesn't manage to connect.
@@ -109,7 +109,7 @@ def star_image(owner, cloud_id, image_id):
         if image_id in cloud.unstarred:
             cloud.unstarred.remove(image_id)
     cloud.save()
-    task = mist.io.tasks.ListImages()
+    task = mist.api.tasks.ListImages()
     task.clear_cache(owner.id, cloud_id)
     task.delay(owner.id, cloud_id)
     return not star
@@ -197,7 +197,7 @@ def delete_subnet(owner, subnet):
 def check_monitoring(user):
     raise NotImplementedError()
 
-    """Ask the mist.io service if monitoring is enabled for this machine."""
+    """Ask the mist.api service if monitoring is enabled for this machine."""
     try:
         ret = requests.get(config.CORE_URI + '/monitoring',
                            headers={'Authorization': get_auth_header(user)},
@@ -258,7 +258,7 @@ def enable_monitoring(user, cloud_id, machine_id,
         return ret_dict
 
     if not no_ssh:
-        deploy = mist.io.tasks.deploy_collectd
+        deploy = mist.api.tasks.deploy_collectd
         if deploy_async:
             deploy = deploy.delay
         deploy(user.email, cloud_id, machine_id, ret_dict['extra_vars'])
@@ -293,7 +293,7 @@ def disable_monitoring(user, cloud_id, machine_id, no_ssh=False):
     host = ret_dict.get('host')
 
     if not no_ssh:
-        mist.io.tasks.undeploy_collectd.delay(user.email,
+        mist.api.tasks.undeploy_collectd.delay(user.email,
                                               cloud_id, machine_id)
     trigger_session_update(user, ['monitoring'])
 
@@ -421,7 +421,7 @@ def find_public_ips(ips):
 def notify_admin(title, message="", team="all"):
     """ This will only work on a multi-user setup configured to send emails """
     try:
-        from mist.io.helpers import send_email
+        from mist.api.helpers import send_email
         send_email(title, message,
                    config.NOTIFICATION_EMAIL.get(team,
                                                  config.NOTIFICATION_EMAIL))
@@ -486,7 +486,7 @@ def notify_user(owner, title, message="", email_notify=True, **kwargs):
 
     try:  # Send email in multi-user env
         if email_notify:
-            from mist.io.helpers import send_email
+            from mist.api.helpers import send_email
             email = owner.email if hasattr(owner, 'email') else owner.get_email()
             send_email("[mist.io] %s" % title, body.encode('utf-8', 'ignore'),
                        email)
@@ -650,7 +650,7 @@ def run_playbook(owner, cloud_id, machine_id, playbook_path, extra_vars=None,
         'inventory': '',
         'stats': {},
     }
-    inventory = mist.io.inventory.MistInventory(owner,
+    inventory = mist.api.inventory.MistInventory(owner,
                                                 [(cloud_id, machine_id)])
     if len(inventory.hosts) != 1:
         log.error("Expected 1 host, found %s", inventory.hosts)
@@ -771,7 +771,7 @@ def undeploy_collectd(owner, cloud_id, machine_id):
 def get_deploy_collectd_command_unix(uuid, password, monitor, port=25826):
     url = "https://github.com/mistio/deploy_collectd/raw/master/local_run.py"
     cmd = "wget -O mist_collectd.py %s && $(command -v sudo) python mist_collectd.py %s %s" % (url, uuid, password)
-    if monitor != 'monitor1.mist.io':
+    if monitor != 'monitor1.mist.api':
         cmd += " -m %s" % monitor
     if str(port) != '25826':
         cmd += " -p %s" % port

@@ -1,21 +1,21 @@
 import mongoengine as me
 from pyramid.response import Response
 
-from mist.io.users.models import User, Organization
-from mist.io.auth.models import ApiToken
-from mist.io.auth.models import AuthToken, SessionToken
-from mist.io.auth.methods import get_random_name_for_token
-from mist.io.auth.methods import auth_context_from_request
-from mist.io.auth.methods import token_with_name_not_exists
+from mist.api.users.models import User, Organization
+from mist.api.auth.models import ApiToken
+from mist.api.auth.models import AuthToken, SessionToken
+from mist.api.auth.methods import get_random_name_for_token
+from mist.api.auth.methods import auth_context_from_request
+from mist.api.auth.methods import token_with_name_not_exists
 
-from mist.io.helpers import ip_from_request
-from mist.io.helpers import view_config, params_from_request
+from mist.api.helpers import ip_from_request
+from mist.api.helpers import view_config, params_from_request
 
-from mist.io.exceptions import NotFoundError
-from mist.io.exceptions import BadRequestError, UserUnauthorizedError
-from mist.io.exceptions import RequiredParameterMissingError, ForbiddenError
+from mist.api.exceptions import NotFoundError
+from mist.api.exceptions import BadRequestError, UserUnauthorizedError
+from mist.api.exceptions import RequiredParameterMissingError, ForbiddenError
 
-from mist.io import config
+from mist.api import config
 
 OK = Response("OK", 200)
 

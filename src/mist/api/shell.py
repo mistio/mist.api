@@ -1,4 +1,4 @@
-"""mist.io.shell
+"""mist.api.shell
 
 This module contains everything that is need to communicate with machines via
 SSH.
@@ -15,23 +15,23 @@ import mongoengine as me
 from time import sleep
 from StringIO import StringIO
 
-from mist.io.clouds.models import Cloud
-from mist.io.machines.models import Machine, KeyAssociation
-from mist.io.keys.models import Key, SignedSSHKey
+from mist.api.clouds.models import Cloud
+from mist.api.machines.models import Machine, KeyAssociation
+from mist.api.keys.models import Key, SignedSSHKey
 
-from mist.io.exceptions import MachineUnauthorizedError
-from mist.io.exceptions import RequiredParameterMissingError
-from mist.io.exceptions import ServiceUnavailableError
+from mist.api.exceptions import MachineUnauthorizedError
+from mist.api.exceptions import RequiredParameterMissingError
+from mist.api.exceptions import ServiceUnavailableError
 
-from mist.io.helpers import trigger_session_update
-from mist.io.helpers import get_story
+from mist.api.helpers import trigger_session_update
+from mist.api.helpers import get_story
 
-from mist.io import config
+from mist.api import config
 
 try:
     from mist.core.vpn.methods import destination_nat as dnat
 except ImportError:
-    from mist.io.dummy.methods import dnat
+    from mist.api.dummy.methods import dnat
 
 import logging
 

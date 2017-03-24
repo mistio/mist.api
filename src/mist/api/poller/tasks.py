@@ -1,12 +1,12 @@
 import logging
 import datetime
 
-from mist.io.helpers import amqp_publish
-from mist.io.helpers import amqp_publish_user
-from mist.io.helpers import amqp_owner_listening
+from mist.api.helpers import amqp_publish
+from mist.api.helpers import amqp_publish_user
+from mist.api.helpers import amqp_owner_listening
 
-from mist.io.methods import notify_user
-from mist.io.tasks import app
+from mist.api.methods import notify_user
+from mist.api.tasks import app
 
 
 log = logging.getLogger(__name__)
@@ -24,7 +24,7 @@ def autodisable_cloud(cloud):
 @app.task
 def debug(schedule_id):
     # FIXME: Resolve circular imports
-    from mist.io.poller.models import DebugPollingSchedule
+    from mist.api.poller.models import DebugPollingSchedule
     sched = DebugPollingSchedule.objects.get(schedule_id)
     path = '/tmp/poller-debug.txt'
     msg = '%s - %s' % (datetime.datetime.now(), sched.value)
@@ -39,7 +39,7 @@ def list_machines(schedule_id):
 
     # Fetch schedule and cloud from database.
     # FIXME: resolve circular deps error
-    from mist.io.poller.models import ListMachinesPollingSchedule
+    from mist.api.poller.models import ListMachinesPollingSchedule
     sched = ListMachinesPollingSchedule.objects.get(id=schedule_id)
     cloud = sched.cloud
     now = datetime.datetime.now()

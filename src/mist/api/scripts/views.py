@@ -3,24 +3,24 @@ import json
 import mongoengine as me
 from pyramid.response import Response
 
-from mist.io import tasks
+from mist.api import tasks
 
-from mist.io.machines.models import Machine
-from mist.io.scripts.models import Script, ExecutableScript
-from mist.io.scripts.models import AnsibleScript, CollectdScript
+from mist.api.machines.models import Machine
+from mist.api.scripts.models import Script, ExecutableScript
+from mist.api.scripts.models import AnsibleScript, CollectdScript
 
-from mist.io.auth.methods import auth_context_from_request
+from mist.api.auth.methods import auth_context_from_request
 
-from mist.io.exceptions import RequiredParameterMissingError
-from mist.io.exceptions import BadRequestError, NotFoundError
-from mist.io.exceptions import PolicyUnauthorizedError, UnauthorizedError
+from mist.api.exceptions import RequiredParameterMissingError
+from mist.api.exceptions import BadRequestError, NotFoundError
+from mist.api.exceptions import PolicyUnauthorizedError, UnauthorizedError
 
-from mist.io.helpers import get_stories
-from mist.io.helpers import view_config, params_from_request
+from mist.api.helpers import get_stories
+from mist.api.helpers import view_config, params_from_request
 
-from mist.io.scripts.methods import filter_list_scripts
+from mist.api.scripts.methods import filter_list_scripts
 
-from mist.io.tag.methods import add_tags_to_resource
+from mist.api.tag.methods import add_tags_to_resource
 
 OK = Response("OK", 200)
 

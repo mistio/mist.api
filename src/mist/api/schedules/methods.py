@@ -1,5 +1,5 @@
-from mist.io.schedules.models import Schedule
-from mist.io.tag.methods import get_tags_for_resource
+from mist.api.schedules.models import Schedule
+from mist.api.tag.methods import get_tags_for_resource
 
 
 def list_schedules(owner):

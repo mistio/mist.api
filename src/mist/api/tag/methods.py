@@ -1,7 +1,7 @@
 from mongoengine import Q
-from mist.io.tag.models import Tag
-from mist.io.helpers import trigger_session_update
-from mist.io.helpers import get_object_with_id
+from mist.api.tag.models import Tag
+from mist.api.helpers import trigger_session_update
+from mist.api.helpers import get_object_with_id
 
 
 def get_tags_for_resource(owner, resource_obj, *args, **kwargs):

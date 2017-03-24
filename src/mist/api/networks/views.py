@@ -1,21 +1,21 @@
 import mongoengine as me
 from pyramid.response import Response
 
-import mist.io.networks.methods as methods
+import mist.api.networks.methods as methods
 
-from mist.io.clouds.models import Cloud
-from mist.io.machines.models import Machine
-from mist.io.networks.models import Network
+from mist.api.clouds.models import Cloud
+from mist.api.machines.models import Machine
+from mist.api.networks.models import Network
 
-from mist.io.auth.methods import auth_context_from_request
+from mist.api.auth.methods import auth_context_from_request
 
-from mist.io.exceptions import CloudNotFoundError
-from mist.io.exceptions import RequiredParameterMissingError
-from mist.io.exceptions import PolicyUnauthorizedError, NetworkNotFoundError
+from mist.api.exceptions import CloudNotFoundError
+from mist.api.exceptions import RequiredParameterMissingError
+from mist.api.exceptions import PolicyUnauthorizedError, NetworkNotFoundError
 
-from mist.io.helpers import params_from_request, view_config
+from mist.api.helpers import params_from_request, view_config
 
-from mist.io.methods import create_subnet
+from mist.api.methods import create_subnet
 
 OK = Response("OK", 200)
 

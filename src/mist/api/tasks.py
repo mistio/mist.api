@@ -20,27 +20,27 @@ from amqp.connection import Connection
 
 from paramiko.ssh_exception import SSHException
 
-from mist.io.exceptions import MistError, NotFoundError
-from mist.io.exceptions import ServiceUnavailableError, MachineNotFoundError
-from mist.io.shell import Shell
+from mist.api.exceptions import MistError, NotFoundError
+from mist.api.exceptions import ServiceUnavailableError, MachineNotFoundError
+from mist.api.shell import Shell
 
-from mist.io.users.models import User, Owner, Organization
-from mist.io.clouds.models import Cloud
-from mist.io.machines.models import Machine
-from mist.io.scripts.models import Script
-from mist.io.schedules.models import Schedule
-from mist.io.dns.models import Zone, Record
+from mist.api.users.models import User, Owner, Organization
+from mist.api.clouds.models import Cloud
+from mist.api.machines.models import Machine
+from mist.api.scripts.models import Script
+from mist.api.schedules.models import Schedule
+from mist.api.dns.models import Zone, Record
 
 celery_cfg = 'mist.core.celery_config'
 
-from mist.io.helpers import log_event
-from mist.io.helpers import send_email as helper_send_email
-from mist.io.helpers import amqp_publish_user
-from mist.io.helpers import amqp_owner_listening
-from mist.io.helpers import amqp_log
-from mist.io.helpers import trigger_session_update
+from mist.api.helpers import log_event
+from mist.api.helpers import send_email as helper_send_email
+from mist.api.helpers import amqp_publish_user
+from mist.api.helpers import amqp_owner_listening
+from mist.api.helpers import amqp_log
+from mist.api.helpers import trigger_session_update
 
-from mist.io import config
+from mist.api import config
 
 logging.basicConfig(level=config.PY_LOG_LEVEL,
                     format=config.PY_LOG_FORMAT,
@@ -64,7 +64,7 @@ def ssh_command(owner, cloud_id, machine_id, host, command,
     retval, output = shell.command(command)
     shell.disconnect()
     if retval:
-        from mist.io.methods import notify_user
+        from mist.api.methods import notify_user
         notify_user(owner, "Async command failed for machine %s (%s)" %
                     (machine_id, host), output)
 
@@ -76,13 +76,13 @@ def post_deploy_steps(self, owner, cloud_id, machine_id, monitoring,
                       hostname='', plugins=None, script='',
                       post_script_id='', post_script_params='', schedule={}):
 
-    from mist.io.methods import connect_provider, probe_ssh_only
-    from mist.io.methods import notify_user, notify_admin
+    from mist.api.methods import connect_provider, probe_ssh_only
+    from mist.api.methods import notify_user, notify_admin
 
     try:
         from mist.core.methods import enable_monitoring
     except ImportError:
-        from mist.io.dummy.methods import enable_monitoring
+        from mist.api.dummy.methods import enable_monitoring
 
     job_id = job_id or uuid.uuid4().hex
     if owner.find("@") != -1:
@@ -134,7 +134,7 @@ def post_deploy_steps(self, owner, cloud_id, machine_id, monitoring,
             try:
                 from mist.core.rbac.methods import AuthContext
             except ImportError:
-                from mist.io.dummy.rbac import AuthContext
+                from mist.api.dummy.rbac import AuthContext
 
             try:
                 name = schedule.pop('name') + '_' + machine_id
@@ -160,7 +160,7 @@ def post_deploy_steps(self, owner, cloud_id, machine_id, monitoring,
                           error=error, **log_dict)
 
         try:
-            from mist.io.shell import Shell
+            from mist.api.shell import Shell
             shell = Shell(host)
             # connect with ssh even if no command, to create association
             # to be able to enable monitoring
@@ -302,7 +302,7 @@ def openstack_post_create_steps(self, owner, cloud_id, machine_id, monitoring,
                                 post_script_id='', post_script_params='',
                                 networks=[], schedule={}):
 
-    from mist.io.methods import connect_provider
+    from mist.api.methods import connect_provider
     if owner.find("@")!=-1:
         owner = Owner.objects.get(email=owner)
     else:
@@ -391,7 +391,7 @@ def azure_post_create_steps(self, owner, cloud_id, machine_id, monitoring,
                             script_id='', script_params='', job_id=None,
                             hostname='', plugins=None, post_script_id='',
                             post_script_params='', schedule={}):
-    from mist.io.methods import connect_provider
+    from mist.api.methods import connect_provider
     if owner.find("@")!=-1:
         owner = User.objects.get(email=owner)
     else:
@@ -470,7 +470,7 @@ def rackspace_first_gen_post_create_steps(
     public_key, username='root', script='', script_id='', script_params='',
     job_id=None, hostname='', plugins=None, post_script_id='',
     post_script_params='', schedule={}):
-    from mist.io.methods import connect_provider
+    from mist.api.methods import connect_provider
     if owner.find("@")!=-1:
         owner = User.objects.get(email=owner)
     else:
@@ -676,7 +676,7 @@ class ListSizes(UserTask):
     soft_time_limit = 30
 
     def execute(self, owner_id, cloud_id):
-        from mist.io import methods
+        from mist.api import methods
         owner = Owner.objects.get(id=owner_id)
         sizes = methods.list_sizes(owner, cloud_id)
         return {'cloud_id': cloud_id, 'sizes': sizes}
@@ -691,7 +691,7 @@ class ListLocations(UserTask):
     soft_time_limit = 30
 
     def execute(self, owner_id, cloud_id):
-        from mist.io import methods
+        from mist.api import methods
         owner = Owner.objects.get(id=owner_id)
         locations = methods.list_locations(owner, cloud_id)
         return {'cloud_id': cloud_id, 'locations': locations}
@@ -709,7 +709,7 @@ class ListNetworks(UserTask):
         owner = Owner.objects.get(id=owner_id)
         log.warn('Running list networks for user %s cloud %s'
                  % (owner.id, cloud_id))
-        from mist.io.networks.methods import list_networks
+        from mist.api.networks.methods import list_networks
         networks = list_networks(owner, cloud_id)
         log.warn('Returning list networks for user %s cloud %s'
                  % (owner.id, cloud_id))
@@ -757,7 +757,7 @@ class ListImages(UserTask):
     soft_time_limit = 60*2
 
     def execute(self, owner_id, cloud_id):
-        from mist.io import methods
+        from mist.api import methods
         owner = Owner.objects.get(id=owner_id)
         log.warn('Running list images for user %s cloud %s',
                  owner.id, cloud_id)
@@ -779,7 +779,7 @@ class ListProjects(UserTask):
         owner = Owner.objects.get(id=owner_id)
         log.warn('Running list projects for user %s cloud %s',
                  owner.id, cloud_id)
-        from mist.io import methods
+        from mist.api import methods
         projects = methods.list_projects(owner, cloud_id)
         log.warn('Returning list projects for user %s cloud %s',
                  owner.id, cloud_id)
@@ -795,7 +795,7 @@ class ListMachines(UserTask):
     soft_time_limit = 60
 
     def execute(self, owner_id, cloud_id):
-        from mist.io.machines.methods import list_machines
+        from mist.api.machines.methods import list_machines
         owner = Owner.objects.get(id=owner_id)
         log.warn('Running list machines for user %s cloud %s',
                  owner.id, cloud_id)
@@ -808,7 +808,7 @@ class ListMachines(UserTask):
                 for tag in machine["tags"]:
                     tags[tag["key"]]= tag["value"]
             try:
-                from mist.io.tag.methods import resolve_id_and_get_tags
+                from mist.api.tag.methods import resolve_id_and_get_tags
                 mistio_tags = resolve_id_and_get_tags(owner, 'machine',
                                                       machine.get("id"),
                                                       cloud_id=cloud_id)
@@ -826,7 +826,7 @@ class ListMachines(UserTask):
         return {'cloud_id': cloud_id, 'machines': machines}
 
     def error_rerun_handler(self, exc, errors, owner_id, cloud_id):
-        from mist.io.methods import notify_user
+        from mist.api.methods import notify_user
 
         if len(errors) < 6:
             return self.result_fresh  # Retry when the result is no longer fresh
@@ -857,7 +857,7 @@ class ProbeSSH(UserTask):
 
     def execute(self, owner_id, cloud_id, machine_id, host):
         owner = Owner.objects.get(id=owner_id)
-        from mist.io.methods import probe_ssh_only
+        from mist.api.methods import probe_ssh_only
         res = probe_ssh_only(owner, cloud_id, machine_id, host)
         return {'cloud_id': cloud_id,
                 'machine_id': machine_id,
@@ -879,7 +879,7 @@ class Ping(UserTask):
     soft_time_limit = 30
 
     def execute(self, owner_id, cloud_id, machine_id, host):
-        from mist.io import methods
+        from mist.api import methods
         res = methods.ping(host, owner_id)
         return {'cloud_id': cloud_id,
                 'machine_id': machine_id,
@@ -894,7 +894,7 @@ class Ping(UserTask):
 def deploy_collectd(owner, cloud_id, machine_id, extra_vars, job_id='',
                     plugins=None):
     # FIXME
-    from mist.io.methods import deploy_collectd
+    from mist.api.methods import deploy_collectd
 
     if isinstance(owner, basestring) and '@' in owner:
         owner = User.objects.get(email=owner)
@@ -958,8 +958,8 @@ def undeploy_collectd(owner, cloud_id, machine_id):
         owner = User.objects.get(email=owner)
     else:
         owner = Owner.objects.get(id=owner)
-    import mist.io.methods
-    mist.io.methods.undeploy_collectd(owner, cloud_id, machine_id)
+    import mist.api.methods
+    mist.api.methods.undeploy_collectd(owner, cloud_id, machine_id)
 
 
 @app.task
@@ -979,8 +979,8 @@ def create_machine_async(owner, cloud_id, key_id, machine_name, location_id,
                          softlayer_backend_vlan_id=None, size_ram=256, size_cpu=1,
                          size_disk_primary=5, size_disk_swap=1):
     from multiprocessing.dummy import Pool as ThreadPool
-    from mist.io.machines.methods import create_machine
-    from mist.io.exceptions import MachineCreationError
+    from mist.api.machines.methods import create_machine
+    from mist.api.exceptions import MachineCreationError
     log.warn('MULTICREATE ASYNC %d' % quantity)
 
     job_id = job_id or uuid.uuid4().hex
@@ -1157,8 +1157,8 @@ def run_machine_action(owner_id, action, name, cloud_id, machine_id):
         if action in ('start', 'stop', 'reboot', 'destroy'):
             # call list machines here cause we don't have another way
             # to update machine state if user isn't logged in
-            from mist.io.machines.methods import list_machines, destroy_machine
-            from mist.io.methods import notify_admin, notify_user
+            from mist.api.machines.methods import list_machines, destroy_machine
+            from mist.api.methods import notify_admin, notify_user
             list_machines(owner, cloud_id)
 
             if action == 'start':
@@ -1274,9 +1274,9 @@ def group_run_script(owner_id, script_id, name, cloud_machines_pairs):
 def run_script(owner, script_id, cloud_id, machine_id, params='', host='',
                key_id='', username='', password='', port=22, job_id='',
                action_prefix='', su=False, env=""):
-    import mist.io.shell
-    from mist.io.methods import notify_admin, notify_user
-    from mist.io.machines.methods import list_machines
+    import mist.api.shell
+    from mist.api.methods import notify_admin, notify_user
+    from mist.api.machines.methods import list_machines
 
     if not isinstance(owner, Owner):
         if isinstance(owner, basestring):
@@ -1325,7 +1325,7 @@ def run_script(owner, script_id, cloud_id, machine_id, params='', host='',
                     break
         if not host:
             raise MistError("No host provided and none could be discovered.")
-        shell = mist.io.shell.Shell(host)
+        shell = mist.api.shell.Shell(host)
         ret['key_id'], ret['ssh_user'] = shell.autoconfigure(
             owner, cloud_id, machine_id, username, password, port
         )
@@ -1410,7 +1410,7 @@ def run_script(owner, script_id, cloud_id, machine_id, params='', host='',
 
 @app.task
 def revoke_token(token):
-    from mist.io.auth.models import AuthToken
+    from mist.api.auth.models import AuthToken
     auth_token = AuthToken.objects.get(token=token)
     auth_token.invalidate()
     auth_token.save()

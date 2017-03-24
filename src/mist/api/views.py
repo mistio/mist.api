@@ -1,4 +1,4 @@
-"""mist.io.views
+"""mist.api.views
 
 Here we define the HTTP API of the app. The view functions here are
 responsible for taking parameters from the web requests, passing them on to
@@ -22,46 +22,46 @@ from pyramid.response import Response
 from pyramid.renderers import render_to_response
 from pyramid.httpexceptions import HTTPFound, HTTPNotFound
 
-import mist.io.tasks as tasks
-from mist.io.scripts.models import CollectdScript
-from mist.io.clouds.models import Cloud
-from mist.io.dns.models import Zone, Record
-from mist.io.machines.models import Machine
-from mist.io.networks.models import Network, Subnet
-from mist.io.users.models import Avatar, Owner, User, Organization
-from mist.io.users.models import MemberInvitation
-from mist.io.auth.models import SessionToken, ApiToken
+import mist.api.tasks as tasks
+from mist.api.scripts.models import CollectdScript
+from mist.api.clouds.models import Cloud
+from mist.api.dns.models import Zone, Record
+from mist.api.machines.models import Machine
+from mist.api.networks.models import Network, Subnet
+from mist.api.users.models import Avatar, Owner, User, Organization
+from mist.api.users.models import MemberInvitation
+from mist.api.auth.models import SessionToken, ApiToken
 
-from mist.io.users.methods import register_user
+from mist.api.users.methods import register_user
 
-from mist.io import methods
+from mist.api import methods
 
-from mist.io.exceptions import RequiredParameterMissingError
-from mist.io.exceptions import NotFoundError, BadRequestError, ForbiddenError
-from mist.io.exceptions import SSLError, ServiceUnavailableError
-from mist.io.exceptions import KeyParameterMissingError, MistError
-from mist.io.exceptions import PolicyUnauthorizedError, UnauthorizedError
-from mist.io.exceptions import CloudNotFoundError, ScheduleTaskNotFound
-from mist.io.exceptions import NetworkNotFoundError, SubnetNotFoundError
-from mist.io.exceptions import UserUnauthorizedError, RedirectError
-from mist.io.exceptions import UserNotFoundError, ConflictError
-from mist.io.exceptions import LoginThrottledError
+from mist.api.exceptions import RequiredParameterMissingError
+from mist.api.exceptions import NotFoundError, BadRequestError, ForbiddenError
+from mist.api.exceptions import SSLError, ServiceUnavailableError
+from mist.api.exceptions import KeyParameterMissingError, MistError
+from mist.api.exceptions import PolicyUnauthorizedError, UnauthorizedError
+from mist.api.exceptions import CloudNotFoundError, ScheduleTaskNotFound
+from mist.api.exceptions import NetworkNotFoundError, SubnetNotFoundError
+from mist.api.exceptions import UserUnauthorizedError, RedirectError
+from mist.api.exceptions import UserNotFoundError, ConflictError
+from mist.api.exceptions import LoginThrottledError
 
-from mist.io.helpers import encrypt, decrypt
-from mist.io.helpers import get_auth_header, params_from_request
-from mist.io.helpers import trigger_session_update, amqp_publish_user
-from mist.io.helpers import view_config, log_event, ip_from_request
-from mist.io.helpers import send_email
+from mist.api.helpers import encrypt, decrypt
+from mist.api.helpers import get_auth_header, params_from_request
+from mist.api.helpers import trigger_session_update, amqp_publish_user
+from mist.api.helpers import view_config, log_event, ip_from_request
+from mist.api.helpers import send_email
 
-from mist.io.auth.methods import auth_context_from_request
-from mist.io.auth.methods import user_from_request, session_from_request
-from mist.io.auth.methods import get_csrf_token
-from mist.io.auth.methods import reissue_cookie_session
-from mist.io.auth.models import get_secure_rand_token
+from mist.api.auth.methods import auth_context_from_request
+from mist.api.auth.methods import user_from_request, session_from_request
+from mist.api.auth.methods import get_csrf_token
+from mist.api.auth.methods import reissue_cookie_session
+from mist.api.auth.models import get_secure_rand_token
 
-from mist.io.logs.methods import get_events as get_log_events
+from mist.api.logs.methods import get_events as get_log_events
 
-from mist.io import config
+from mist.api import config
 
 import logging
 logging.basicConfig(level=config.PY_LOG_LEVEL,
@@ -464,7 +464,7 @@ def register(request):
                                               "confirmation email.")
 
     if request_demo:
-        # if user requested a demo then notify the mist.io team
+        # if user requested a demo then notify the mist.api team
         subject = "Demo request"
         body = "User %s has requested a demo\n" % user.email
         tasks.send_email.delay(subject, body, config.NOTIFICATION_EMAIL['demo'])
@@ -479,7 +479,7 @@ def register(request):
               % (user.first_name, user.last_name)
     elif request_beta:
         user = None
-        # if user requested a demo then notify the mist.io team
+        # if user requested a demo then notify the mist.api team
         subject = "Private beta request"
         body = "User %s <%s> has requested access to the private beta\n" % \
             (params.get('name').encode('utf-8', 'ignore'), email)
@@ -488,7 +488,7 @@ def register(request):
         msg = "Dear %s, we will contact you within 24 hours with more " \
               "information about the Mist.io private beta program. In the " \
               "meantime, if you have any questions don't hesitate to contact" \
-              " us at info@mist.io" % params.get('name').encode('utf-8', 'ignore')
+              " us at info@mist.api" % params.get('name').encode('utf-8', 'ignore')
     else:
         msg = "Dear %s,\n"\
               "you will soon receive an activation email. "\
@@ -1138,7 +1138,7 @@ def ping(request):
 def check_monitoring(request):
     """
     Check monitoring
-    Ask the mist.io service if monitoring is enabled for this machine.
+    Ask the mist.api service if monitoring is enabled for this machine.
     ---
     """
     raise NotImplementedError()
@@ -1194,7 +1194,7 @@ def update_monitoring(request):
         email = params.get('email')
         password = params.get('password')
         if not email or not password:
-            raise UnauthorizedError("You need to authenticate to mist.io.")
+            raise UnauthorizedError("You need to authenticate to mist.api.")
         payload = {'email': email, 'password': password}
         try:
             ret = requests.post(config.CORE_URI + '/auth', params=payload,
@@ -1212,9 +1212,9 @@ def update_monitoring(request):
             user.email = ""
             user.mist_api_token = ""
             user.save()
-            raise UnauthorizedError("You need to authenticate to mist.io.")
+            raise UnauthorizedError("You need to authenticate to mist.api.")
         else:
-            raise UnauthorizedError("You need to authenticate to mist.io.")
+            raise UnauthorizedError("You need to authenticate to mist.api.")
 
     action = params.get('action') or 'enable'
     name = params.get('name', '')
@@ -1725,7 +1725,7 @@ def upload_avatar(request):
     body = request.POST['file'].file.read()
     if len(body) > 256*1024:
         raise BadRequestError("File too large")
-    from mist.io.users.models import Avatar
+    from mist.api.users.models import Avatar
     avatar = Avatar()
     avatar.owner = user
     avatar.body = body

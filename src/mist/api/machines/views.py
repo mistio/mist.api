@@ -2,25 +2,25 @@ import uuid
 import logging
 from pyramid.response import Response
 
-import mist.io.machines.methods as methods
+import mist.api.machines.methods as methods
 
-from mist.io.clouds.models import Cloud
-from mist.io.machines.models import Machine
+from mist.api.clouds.models import Cloud
+from mist.api.machines.models import Machine
 
-from mist.io import tasks
+from mist.api import tasks
 
-from mist.io.auth.methods import auth_context_from_request
-from mist.io.helpers import view_config, params_from_request
+from mist.api.auth.methods import auth_context_from_request
+from mist.api.helpers import view_config, params_from_request
 
-from mist.io.exceptions import RequiredParameterMissingError
-from mist.io.exceptions import BadRequestError, NotFoundError
+from mist.api.exceptions import RequiredParameterMissingError
+from mist.api.exceptions import BadRequestError, NotFoundError
 
-from mist.io import config
+from mist.api import config
 
 try:
     from mist.core.vpn.methods import destination_nat as dnat
 except ImportError:
-    from mist.io.dummy.methods import dnat
+    from mist.api.dummy.methods import dnat
 
 logging.basicConfig(level=config.PY_LOG_LEVEL,
                     format=config.PY_LOG_FORMAT,

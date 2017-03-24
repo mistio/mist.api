@@ -8,29 +8,29 @@ from libcloud.compute.types import Provider
 from libcloud.compute.base import NodeAuthSSHKey
 from tempfile import NamedTemporaryFile
 
-import mist.io.tasks
+import mist.api.tasks
 
-from mist.io.clouds.models import Cloud
-from mist.io.machines.models import Machine
-from mist.io.keys.models import Key
+from mist.api.clouds.models import Cloud
+from mist.api.machines.models import Machine
+from mist.api.keys.models import Key
 
-from mist.io.exceptions import PolicyUnauthorizedError
-from mist.io.exceptions import MachineNameValidationError
-from mist.io.exceptions import BadRequestError, MachineCreationError
-from mist.io.exceptions import CloudUnavailableError, InternalServerError
+from mist.api.exceptions import PolicyUnauthorizedError
+from mist.api.exceptions import MachineNameValidationError
+from mist.api.exceptions import BadRequestError, MachineCreationError
+from mist.api.exceptions import CloudUnavailableError, InternalServerError
 
-from mist.io.helpers import get_temp_file
+from mist.api.helpers import get_temp_file
 
-from mist.io.methods import connect_provider
-from mist.io.networks.methods import list_networks
-from mist.io.tag.methods import resolve_id_and_set_tags
+from mist.api.methods import connect_provider
+from mist.api.networks.methods import list_networks
+from mist.api.tag.methods import resolve_id_and_set_tags
 
 try:
     from mist.core.methods import disable_monitoring
 except ImportError:
-    from mist.io.dummy.methods import disable_monitoring
+    from mist.api.dummy.methods import disable_monitoring
 
-from mist.io import config
+from mist.api import config
 
 import logging
 
@@ -132,11 +132,11 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
     and doesn't get it from size.id. So, send size.disk from the client and
     use it in all cases just to avoid provider checking. Finally, Linode API
     does not support association between a machine and the image it came from.
-    We could set this, at least for machines created through mist.io in
+    We could set this, at least for machines created through mist.api in
     ex_comment, lroot or lconfig. lroot seems more appropriate. However,
     liblcoud doesn't support linode.config.list at the moment, so no way to
     get them. Also, it will create inconsistencies for machines created
-    through mist.io and those from the Linode interface.
+    through mist.api and those from the Linode interface.
 
     """
     # script: a command that is given once
@@ -317,7 +317,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
     if conn.type == Provider.AZURE:
         # for Azure, connect with the generated password, deploy the ssh key
         # when this is ok, it calls post_deploy for script/monitoring
-        mist.io.tasks.azure_post_create_steps.delay(
+        mist.api.tasks.azure_post_create_steps.delay(
             owner.id, cloud_id, node.id, monitoring, key_id,
             node.extra.get('username'), node.extra.get('password'), public_key,
             script=script,
@@ -328,7 +328,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
     elif conn.type == Provider.OPENSTACK:
         if associate_floating_ip:
             networks = list_networks(owner, cloud_id)
-            mist.io.tasks.openstack_post_create_steps.delay(
+            mist.api.tasks.openstack_post_create_steps.delay(
                 owner.id, cloud_id, node.id, monitoring, key_id,
                 node.extra.get('username'), node.extra.get('password'),
                 public_key, script=script, script_id=script_id,
@@ -341,7 +341,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
         # for Rackspace First Gen, cannot specify ssh keys. When node is
         # created we have the generated password, so deploy the ssh key
         # when this is ok and call post_deploy for script/monitoring
-        mist.io.tasks.rackspace_first_gen_post_create_steps.delay(
+        mist.api.tasks.rackspace_first_gen_post_create_steps.delay(
             owner.id, cloud_id, node.id, monitoring, key_id,
             node.extra.get('password'), public_key, script=script,
             script_id=script_id, script_params=script_params,
@@ -351,7 +351,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
         )
 
     elif key_id:
-        mist.io.tasks.post_deploy_steps.delay(
+        mist.api.tasks.post_deploy_steps.delay(
             owner.id, cloud_id, node.id, monitoring, script=script,
             key_id=key_id, script_id=script_id, script_params=script_params,
             job_id=job_id, hostname=hostname, plugins=plugins,
@@ -560,7 +560,7 @@ def _create_machine_nephoscale(conn, key_name, private_key, public_key,
             public_key=key
         )
 
-    # mist.io does not support console key add through the wizzard.
+    # mist.api does not support console key add through the wizzard.
     # Try to add one
     try:
         console_key = conn.ex_create_keypair(

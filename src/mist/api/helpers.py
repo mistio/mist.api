@@ -43,13 +43,13 @@ from distutils.version import LooseVersion
 from elasticsearch import Elasticsearch
 from elasticsearch_tornado import EsClient
 
-import mist.io.users.models
-from mist.io.auth.models import ApiToken, SessionToken, datetime_to_str
+import mist.api.users.models
+from mist.api.auth.models import ApiToken, SessionToken, datetime_to_str
 
-from mist.io.exceptions import MistError, NotFoundError
-from mist.io.exceptions import RequiredParameterMissingError
+from mist.api.exceptions import MistError, NotFoundError
+from mist.api.exceptions import RequiredParameterMissingError
 
-from mist.io import config
+from mist.api import config
 
 
 import logging
@@ -306,10 +306,10 @@ def _amqp_owner_exchange(owner):
     # The exchange/queue name consists of a non-empty sequence of these
     # characters: letters, digits, hyphen, underscore, period, or colon.
     if isinstance(owner, basestring) and '@' in owner:
-        owner = mist.io.users.models.User.objects.get(email=owner)
-    elif not isinstance(owner, mist.io.users.models.Owner):
+        owner = mist.api.users.models.User.objects.get(email=owner)
+    elif not isinstance(owner, mist.api.users.models.Owner):
         try:
-            owner = mist.io.users.models.Owner.objects.get(id=owner)
+            owner = mist.api.users.models.Owner.objects.get(id=owner)
         except Exception as exc:
             raise Exception('%r %r' % (exc, owner))
     return "owner_%s" % owner.id
@@ -670,15 +670,15 @@ def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3):
 
 
 rtype_to_classpath = {
-    'cloud': 'mist.io.clouds.models.Cloud',
-    'clouds': 'mist.io.clouds.models.Cloud',
-    'machine': 'mist.io.machines.models.Machine',
-    'machines': 'mist.io.machines.models.Machine',
-    'script': 'mist.io.scripts.models.Script',
-    'key': 'mist.io.keys.models.Key',
+    'cloud': 'mist.api.clouds.models.Cloud',
+    'clouds': 'mist.api.clouds.models.Cloud',
+    'machine': 'mist.api.machines.models.Machine',
+    'machines': 'mist.api.machines.models.Machine',
+    'script': 'mist.api.scripts.models.Script',
+    'key': 'mist.api.keys.models.Key',
     'template': 'mist.core.orchestration.models.Template',
     'stack': 'mist.core.orchestration.models.Stack',
-    'schedule': 'mist.io.schedules.models.Schedule',
+    'schedule': 'mist.api.schedules.models.Schedule',
     'tunnel': 'mist.core.vpn.models.Tunnel',
 }
 
@@ -808,7 +808,7 @@ def log_event(owner_id, event_type, action, error=None, story_id='',
         }
         if user_id:
             event['user_id'] = user_id
-            event['email'] = mist.io.users.models.User.objects.get(
+            event['email'] = mist.api.users.models.User.objects.get(
                 id=user_id).email
         for key in ('cloud_id', 'machine_id', 'script_id', 'rule_id',
                     'job_id', 'shell_id', 'session_id', 'incident_id'):
@@ -818,7 +818,7 @@ def log_event(owner_id, event_type, action, error=None, story_id='',
         try:
             from mist.core.experiments.helpers import cross_populate_session_data
         except ImportError:
-            from mist.io.dummy.methods import cross_populate_session_data
+            from mist.api.dummy.methods import cross_populate_session_data
         event = cross_populate_session_data(event, kwargs)
 
         event['_id'] = str(coll.save(event.copy()))
@@ -828,7 +828,7 @@ def log_event(owner_id, event_type, action, error=None, story_id='',
             try:
                 stories = log_story(event, _mongo_conn=conn)
                 if config.LOGS_FROM_ELASTIC:
-                    from mist.io.logs.methods import log_story as log_story_to_elastic
+                    from mist.api.logs.methods import log_story as log_story_to_elastic
                     event.update({'log_id': uuid.uuid4().hex})
                     log_story_to_elastic(event, tornado_async=tornado_async)
             except Exception as exc:
@@ -1070,7 +1070,7 @@ def get_stories(story_type='', owner_id='', user_id='',
                 limit=0, **kwargs):
 
     if config.LOGS_FROM_ELASTIC:
-        from mist.io.logs.methods import get_stories as get_stories_from_elastic
+        from mist.api.logs.methods import get_stories as get_stories_from_elastic
         return get_stories_from_elastic(
             story_type=story_type, owner_id=owner_id, user_id=user_id,
             cloud_id=cloud_id, machine_id=machine_id, script_id=script_id,
@@ -1223,7 +1223,7 @@ def logging_view_decorator(func):
             sudoer = session.get_user()
             if sudoer != user:
                 log_dict['sudoer_id'] = sudoer.id
-            auth_context = mist.io.auth.methods.auth_context_from_request(
+            auth_context = mist.api.auth.methods.auth_context_from_request(
                 request)
             log_dict['owner_id'] = auth_context.owner.id
         else:
@@ -1324,7 +1324,7 @@ def logging_view_decorator(func):
                 log_dict['action'] = 'disable_monitoring'
 
         # we save log_dict in mongo logging collection
-        mist.io.helpers.log_event(**log_dict)
+        mist.api.helpers.log_event(**log_dict)
 
         # if a bad exception didn't occur then return, else log it to file
         if not exc_flag:
@@ -1359,9 +1359,9 @@ def logging_view_decorator(func):
             _id = log_dict.get('%s_id' % key)
             if _id:
                 try:
-                    value = mist.io.users.models.Owner.objects.get(id=_id)
+                    value = mist.api.users.models.Owner.objects.get(id=_id)
                     lines.append("%s: %s" % (key, value))
-                except mist.io.users.models.Owner.DoesNotExist:
+                except mist.api.users.models.Owner.DoesNotExist:
                     pass
                 except Exception as exc:
                     log.error("Error finding user in logged exc: %r", exc)

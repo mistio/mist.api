@@ -1,23 +1,23 @@
 import mongoengine as me
 from pyramid.response import Response
 
-from mist.io.clouds.models import Cloud
-from mist.io.machines.models import Machine
-from mist.io.keys.models import SignedSSHKey, SSHKey, Key
+from mist.api.clouds.models import Cloud
+from mist.api.machines.models import Machine
+from mist.api.keys.models import SignedSSHKey, SSHKey, Key
 
-from mist.io.auth.methods import auth_context_from_request
+from mist.api.auth.methods import auth_context_from_request
 
-from mist.io.helpers import view_config, params_from_request
-from mist.io.helpers import transform_key_machine_associations
+from mist.api.helpers import view_config, params_from_request
+from mist.api.helpers import transform_key_machine_associations
 
-from mist.io.keys.methods import filter_list_keys
-from mist.io.keys.methods import delete_key as m_delete_key
+from mist.api.keys.methods import filter_list_keys
+from mist.api.keys.methods import delete_key as m_delete_key
 
-from mist.io.exceptions import PolicyUnauthorizedError
-from mist.io.exceptions import BadRequestError, KeyParameterMissingError
-from mist.io.exceptions import RequiredParameterMissingError, NotFoundError
+from mist.api.exceptions import PolicyUnauthorizedError
+from mist.api.exceptions import BadRequestError, KeyParameterMissingError
+from mist.api.exceptions import RequiredParameterMissingError, NotFoundError
 
-from mist.io.tag.methods import add_tags_to_resource
+from mist.api.tag.methods import add_tags_to_resource
 
 OK = Response("OK", 200)
 

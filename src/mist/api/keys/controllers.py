@@ -1,7 +1,7 @@
 import logging
 from Crypto.PublicKey import RSA
-from mist.io.keys.base import BaseKeyController
-from mist.io.exceptions import MachineUnauthorizedError
+from mist.api.keys.base import BaseKeyController
+from mist.api.exceptions import MachineUnauthorizedError
 
 log = logging.getLogger(__name__)
 
@@ -48,7 +48,7 @@ class SSHKeyController(BaseKeyController):
         log.debug("command = %s", command)
 
         # FIXME
-        from mist.io.methods import ssh_command
+        from mist.api.methods import ssh_command
 
         deploy_error = False
 
@@ -81,7 +81,7 @@ class SSHKeyController(BaseKeyController):
             '&& chmod go-w ~/.ssh/authorized_keys'
         try:
             # FIXME
-            from mist.io.methods import ssh_command
+            from mist.api.methods import ssh_command
             ssh_command(self.key.owner, machine.cloud.id,
                         machine.machine_id, machine.hostname, command)
         except Exception as exc:

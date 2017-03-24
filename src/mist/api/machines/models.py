@@ -3,11 +3,11 @@ import json
 import uuid
 import mongoengine as me
 
-import mist.io.tag.models
-from mist.io.keys.models import Key
-from mist.io.machines.controllers import MachineController
+import mist.api.tag.models
+from mist.api.keys.models import Key
+from mist.api.machines.controllers import MachineController
 
-from mist.io import config
+from mist.api import config
 
 
 class KeyAssociation(me.EmbeddedDocument):
@@ -21,7 +21,7 @@ class KeyAssociation(me.EmbeddedDocument):
 class InstallationStatus(me.EmbeddedDocument):
     # automatic: refers to automatic installations from mist.core
     # manual: refers to manual deployments and everything from
-    #         standalone mist.io
+    #         standalone mist.api
 
     # automatic:
     # - preparing: Set on first API call before everything else
@@ -74,9 +74,9 @@ class Monitoring(me.EmbeddedDocument):
 
     def get_commands(self):
         # FIXME: This is a hack.
-        from mist.io.methods import get_deploy_collectd_command_unix
-        from mist.io.methods import get_deploy_collectd_command_windows
-        from mist.io.methods import get_deploy_collectd_command_coreos
+        from mist.api.methods import get_deploy_collectd_command_unix
+        from mist.api.methods import get_deploy_collectd_command_windows
+        from mist.api.methods import get_deploy_collectd_command_coreos
         args = (self._instance.id, self.collectd_password,
                 config.COLLECTD_HOST, config.COLLECTD_PORT)
         return {
@@ -179,14 +179,14 @@ class Machine(me.Document):
 
     def delete(self):
         super(Machine, self).delete()
-        mist.io.tag.models.Tag.objects(resource=self).delete()
+        mist.api.tag.models.Tag.objects(resource=self).delete()
         self.owner.mapper.remove(self)
 
     def as_dict(self):
         # Return a dict as it will be returned to the API
 
         # tags as a list return for the ui
-        tags = {tag.key: tag.value for tag in mist.io.tag.models.Tag.objects(
+        tags = {tag.key: tag.value for tag in mist.api.tag.models.Tag.objects(
              owner=self.cloud.owner, resource=self
         ).only('key', 'value')}
         # Optimize tags data structure for js...
@@ -229,7 +229,7 @@ class Machine(me.Document):
                            'cost_per_month': '%.2f' % (self.cost.monthly),
                            'cost_per_hour': '%.2f' % (self.cost.hourly)})
         # tags as a list return for the ui
-        tags = {tag.key: tag.value for tag in mist.io.tag.models.Tag.objects(
+        tags = {tag.key: tag.value for tag in mist.api.tag.models.Tag.objects(
             owner=self.cloud.owner, resource=self).only('key', 'value')}
         # Optimize tags data structure for js...
         if isinstance(tags, dict):

@@ -1,23 +1,23 @@
-import mist.io.clouds.models as cloud_models
+import mist.api.clouds.models as cloud_models
 
-from mist.io.clouds.models import Cloud
-from mist.io.machines.models import Machine
+from mist.api.clouds.models import Cloud
+from mist.api.machines.models import Machine
 
-from mist.io.helpers import trigger_session_update
+from mist.api.helpers import trigger_session_update
 
-from mist.io.exceptions import RequiredParameterMissingError
-from mist.io.exceptions import BadRequestError, NotFoundError
+from mist.api.exceptions import RequiredParameterMissingError
+from mist.api.exceptions import BadRequestError, NotFoundError
 
-from mist.io.tag.methods import get_tags_for_resource
+from mist.api.tag.methods import get_tags_for_resource
 
 try:
     from mist.core.methods import enable_monitoring
     from mist.core.methods import disable_monitoring_cloud
 except ImportError:
-    from mist.io.dummy.methods import enable_monitoring
-    from mist.io.dummy.methods import disable_monitoring_cloud
+    from mist.api.dummy.methods import enable_monitoring
+    from mist.api.dummy.methods import disable_monitoring_cloud
 
-from mist.io import config
+from mist.api import config
 
 import logging
 

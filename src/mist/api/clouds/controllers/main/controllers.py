@@ -7,7 +7,7 @@ itself. These operations are mostly the same for all different clouds.
 A cloud controller is initialized given a cloud. Most of the time it will be
 accessed through a cloud model, using the `ctl` abbreviation, like this:
 
-    cloud = mist.io.clouds.models.Cloud.objects.get(id=cloud_id)
+    cloud = mist.api.clouds.models.Cloud.objects.get(id=cloud_id)
     cloud.ctl.enable()
 
 The main controller also acts as a gateway to specific controllers. For
@@ -15,7 +15,7 @@ example, one may do
 
     print cloud.ctl.compute.list_machines()
 
-See `mist.io.clouds.controllers.main.base` for more information.
+See `mist.api.clouds.controllers.main.base` for more information.
 
 """
 
@@ -29,30 +29,30 @@ import mongoengine as me
 
 from libcloud.utils.networking import is_private_subnet
 
-from mist.io.exceptions import MistError
-from mist.io.exceptions import NotFoundError
-from mist.io.exceptions import BadRequestError
-from mist.io.exceptions import CloudExistsError
-from mist.io.exceptions import CloudUnauthorizedError
-from mist.io.exceptions import ServiceUnavailableError
-from mist.io.exceptions import MachineUnauthorizedError
-from mist.io.exceptions import RequiredParameterMissingError
+from mist.api.exceptions import MistError
+from mist.api.exceptions import NotFoundError
+from mist.api.exceptions import BadRequestError
+from mist.api.exceptions import CloudExistsError
+from mist.api.exceptions import CloudUnauthorizedError
+from mist.api.exceptions import ServiceUnavailableError
+from mist.api.exceptions import MachineUnauthorizedError
+from mist.api.exceptions import RequiredParameterMissingError
 
-from mist.io.helpers import sanitize_host, check_host
+from mist.api.helpers import sanitize_host, check_host
 
-from mist.io.keys.models import Key
-from mist.io.machines.models import Machine
+from mist.api.keys.models import Key
+from mist.api.machines.models import Machine
 
-from mist.io.helpers import rename_kwargs
-from mist.io.clouds.controllers.main.base import BaseMainController
-from mist.io.clouds.controllers.compute import controllers as compute_ctls
-from mist.io.clouds.controllers.network import controllers as network_ctls
-from mist.io.clouds.controllers.dns import controllers as dns_ctls
+from mist.api.helpers import rename_kwargs
+from mist.api.clouds.controllers.main.base import BaseMainController
+from mist.api.clouds.controllers.compute import controllers as compute_ctls
+from mist.api.clouds.controllers.network import controllers as network_ctls
+from mist.api.clouds.controllers.dns import controllers as dns_ctls
 
 try:
     from mist.core.vpn.methods import to_tunnel
 except ImportError:
-    from mist.io.dummy.methods import to_tunnel
+    from mist.api.dummy.methods import to_tunnel
 
 
 log = logging.getLogger(__name__)
@@ -427,7 +427,7 @@ class OtherMainController(BaseMainController):
         This is a special method that exists only on this Cloud subclass.
         """
         # FIXME: Move ssh command to Machine controller once it is migrated.
-        from mist.io.methods import ssh_command
+        from mist.api.methods import ssh_command
 
         try:
             ssh_port = int(ssh_port)

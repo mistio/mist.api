@@ -6,8 +6,8 @@ import mongoengine as me
 from functools import partial
 from datetime import datetime, timedelta
 
-from mist.io.users.models import User, Organization
-from mist.io.exceptions import UserNotFoundError
+from mist.api.users.models import User, Organization
+from mist.api.exceptions import UserNotFoundError
 
 try:
     from mist.core.rbac.models import Policy

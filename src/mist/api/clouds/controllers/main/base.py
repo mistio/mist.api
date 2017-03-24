@@ -10,7 +10,7 @@ example, one may do
     cloud.ctl.compute.list_machines()
 
 Cloud specific main controllers are in
-`mist.io.clouds.controllers.main.controllers`.
+`mist.api.clouds.controllers.main.controllers`.
 
 """
 
@@ -19,18 +19,18 @@ import datetime
 
 import mongoengine as me
 
-from mist.io.exceptions import MistError
-from mist.io.exceptions import BadRequestError
-from mist.io.exceptions import CloudExistsError
-from mist.io.exceptions import InternalServerError
-from mist.io.exceptions import CloudUnavailableError
-from mist.io.exceptions import CloudUnauthorizedError
+from mist.api.exceptions import MistError
+from mist.api.exceptions import BadRequestError
+from mist.api.exceptions import CloudExistsError
+from mist.api.exceptions import InternalServerError
+from mist.api.exceptions import CloudUnavailableError
+from mist.api.exceptions import CloudUnauthorizedError
 
-from mist.io.helpers import rename_kwargs
-from mist.io.clouds.controllers.network.base import BaseNetworkController
+from mist.api.helpers import rename_kwargs
+from mist.api.clouds.controllers.network.base import BaseNetworkController
 
-from mist.io.clouds.controllers.compute.base import BaseComputeController
-from mist.io.clouds.controllers.dns.base import BaseDNSController
+from mist.api.clouds.controllers.compute.base import BaseComputeController
+from mist.api.clouds.controllers.dns.base import BaseDNSController
 
 
 log = logging.getLogger(__name__)
@@ -52,10 +52,10 @@ class BaseMainController(object):
 
     For this to work, subclasses must define the appropriate subcontroller
     class, by defining for example a `ComputeController` attribute with a
-    subclass of mist.io.clouds.controllers.compute.base.BaseComputeController.
+    subclass of mist.api.clouds.controllers.compute.base.BaseComputeController.
 
     For specific clouds, main controllers are defined in
-    `mist.io.clouds.controllers.main.controllers`.
+    `mist.api.clouds.controllers.main.controllers`.
 
     Subclasses are meant to extend or override methods of this base class to
     account for differencies between different cloud types.
@@ -87,7 +87,7 @@ class BaseMainController(object):
         Most times one is expected to access a controller from inside the
         cloud, like this:
 
-            cloud = mist.io.clouds.models.Cloud.objects.get(id=cloud_id)
+            cloud = mist.api.clouds.models.Cloud.objects.get(id=cloud_id)
             print cloud.ctl.disable()
 
         Subclasses SHOULD NOT override this method.
@@ -158,7 +158,7 @@ class BaseMainController(object):
             # FIXME: Move this to top of the file once Machine model is
             # migrated.  The import statement is currently here to avoid
             # circular import issues.
-            from mist.io.machines.models import Machine
+            from mist.api.machines.models import Machine
             # Remove any machines created from check_connection performing a
             # list_machines.
             Machine.objects(cloud=self.cloud).delete()
@@ -311,7 +311,7 @@ class BaseMainController(object):
         self.cloud.save()
 
         # FIXME: Resolve circular import issues
-        from mist.io.poller.models import ListMachinesPollingSchedule
+        from mist.api.poller.models import ListMachinesPollingSchedule
 
         ListMachinesPollingSchedule.add(cloud=self.cloud)
 
@@ -327,7 +327,7 @@ class BaseMainController(object):
         self.cloud.save()
         if expire:
             # FIXME: Circular dependency.
-            from mist.io.machines.models import Machine
+            from mist.api.machines.models import Machine
             Machine.objects(cloud=self.cloud).delete()
             self.cloud.delete()
 

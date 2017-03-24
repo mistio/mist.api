@@ -1,5 +1,5 @@
 import mongoengine as me
-from mist.io.users.models import Organization
+from mist.api.users.models import Organization
 
 
 class MOrg(me.Document):

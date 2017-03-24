@@ -10,18 +10,18 @@ import logging
 
 import mongoengine as me
 
-from mist.io.clouds.controllers.base import BaseController
+from mist.api.clouds.controllers.base import BaseController
 
 from libcloud.common.types import InvalidCredsError
 from libcloud.dns.types import ZoneDoesNotExistError, RecordDoesNotExistError
 
-from mist.io.exceptions import CloudUnavailableError
-from mist.io.exceptions import CloudUnauthorizedError
-from mist.io.exceptions import ZoneNotFoundError
-from mist.io.exceptions import RecordNotFoundError
-from mist.io.exceptions import BadRequestError
-from mist.io.exceptions import RecordExistsError
-from mist.io.exceptions import ZoneExistsError
+from mist.api.exceptions import CloudUnavailableError
+from mist.api.exceptions import CloudUnauthorizedError
+from mist.api.exceptions import ZoneNotFoundError
+from mist.api.exceptions import RecordNotFoundError
+from mist.api.exceptions import BadRequestError
+from mist.api.exceptions import RecordExistsError
+from mist.api.exceptions import ZoneExistsError
 
 
 log = logging.getLogger(__name__)
@@ -76,7 +76,7 @@ class BaseDNSController(BaseController):
         """
 
         # TODO: Adding here for circular dependency issue. Need to fix this.
-        from mist.io.dns.models import Zone
+        from mist.api.dns.models import Zone
 
         # Fetch zones from libcloud connection.
         pr_zones = self._list_zones__fetch_zones()
@@ -145,7 +145,7 @@ class BaseDNSController(BaseController):
         pr_records = self._list_records__fetch_records(zone.zone_id)
 
         # TODO: Adding here for circular dependency issue. Need to fix this.
-        from mist.io.dns.models import Record
+        from mist.api.dns.models import Record
 
         records = []
         for pr_record in pr_records:
@@ -402,7 +402,7 @@ class BaseDNSController(BaseController):
         ---
         """
         # TODO: Adding here for circular dependency issue. Need to fix this.
-        from mist.io.dns.models import Zone
+        from mist.api.dns.models import Zone
 
         # Split hostname in dot separated parts.
         parts = [part for part in name.split('.') if part]

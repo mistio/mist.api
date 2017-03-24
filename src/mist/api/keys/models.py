@@ -2,13 +2,13 @@
 import logging
 from uuid import uuid4
 import mongoengine as me
-import mist.io.tag.models
+import mist.api.tag.models
 from Crypto.PublicKey import RSA
-from mist.io.users.models import Owner
-from mist.io.exceptions import BadRequestError
-from mist.io.keys import controllers
-from mist.io.keys.base import BaseKeyController
-from mist.io.exceptions import RequiredParameterMissingError
+from mist.api.users.models import Owner
+from mist.api.exceptions import BadRequestError
+from mist.api.keys import controllers
+from mist.api.keys.base import BaseKeyController
+from mist.api.exceptions import RequiredParameterMissingError
 
 log = logging.getLogger(__name__)
 
@@ -44,8 +44,8 @@ class Key(me.Document):
 
     Each Key subclass should define a `_controller_cls` class attribute. Its
     value should be a subclass of
-    `mist.io.keys.controllers.BaseKeyController'. These
-    subclasses are stored in `mist.io.keys.BaseKeyController`. When a key is
+    `mist.api.keys.controllers.BaseKeyController'. These
+    subclasses are stored in `mist.api.keys.BaseKeyController`. When a key is
     instanciated, it is given a `ctl` attribute which gives access to the
     keys controller. This way it is possible to do things like:
 
@@ -123,7 +123,7 @@ class Key(me.Document):
 
     def delete(self):
         super(Key, self).delete()
-        mist.io.tag.models.Tag.objects(resource=self).delete()
+        mist.api.tag.models.Tag.objects(resource=self).delete()
         self.owner.mapper.remove(self)
 
     def as_dict(self):

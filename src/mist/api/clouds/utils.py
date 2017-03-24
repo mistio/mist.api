@@ -5,8 +5,8 @@ from libcloud.common.types import LibcloudError, InvalidCredsError
 from libcloud.common.types import MalformedResponseError
 from libcloud.common.exceptions import BaseHTTPError, RateLimitReachedError
 
-from mist.io.exceptions import CloudUnauthorizedError, CloudUnavailableError
-from mist.io.exceptions import RateLimitError, BadRequestError
+from mist.api.exceptions import CloudUnauthorizedError, CloudUnavailableError
+from mist.api.exceptions import RateLimitError, BadRequestError
 
 
 log = logging.getLogger(__name__)

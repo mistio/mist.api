@@ -1,20 +1,20 @@
-import mist.io.users.models
-import mist.io.auth.models
-import mist.io.tag.models
+import mist.api.users.models
+import mist.api.auth.models
+import mist.api.tag.models
 
 
 class AuthContext(object):
     def __init__(self, user, token):
 
-        assert isinstance(user, mist.io.users.models.User)
+        assert isinstance(user, mist.api.users.models.User)
         self.user = user
 
-        assert isinstance(token, mist.io.auth.models.AuthToken)
+        assert isinstance(token, mist.api.auth.models.AuthToken)
         self.token = token
 
         assert (
             hasattr(token, 'org') and
-            isinstance(token.org, mist.io.users.models.Organization)
+            isinstance(token.org, mist.api.users.models.Organization)
         )
         self.org = token.org
 

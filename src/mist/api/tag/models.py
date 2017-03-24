@@ -1,6 +1,6 @@
 import mongoengine as me
 
-from mist.io.users.models import Owner
+from mist.api.users.models import Owner
 
 
 class Tag(me.Document):

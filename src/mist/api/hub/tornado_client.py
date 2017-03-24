@@ -5,16 +5,16 @@ import logging
 import pika
 import tornado.ioloop
 
-import mist.io.amqp_tornado
-import mist.io.hub.main
+import mist.api.amqp_tornado
+import mist.api.hub.main
 
-from mist.io import config
+from mist.api import config
 
 
 log = logging.getLogger(__name__)
 
 
-class _HubTornadoConsumer(mist.io.amqp_tornado.Consumer):
+class _HubTornadoConsumer(mist.api.amqp_tornado.Consumer):
     """AMQP consumer used by Tornado-compatible hub client"""
 
     def __init__(self, uuid, exchange, worker_type, key, worker_kwargs,

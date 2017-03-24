@@ -1,14 +1,14 @@
 """Script entity model."""
 from uuid import uuid4
 import mongoengine as me
-import mist.io.tag.models
+import mist.api.tag.models
 from urlparse import urlparse
-from mist.io.users.models import Owner
-from mist.io.exceptions import BadRequestError
-from mist.io.scripts.base import BaseScriptController
-from mist.io.exceptions import RequiredParameterMissingError
+from mist.api.users.models import Owner
+from mist.api.exceptions import BadRequestError
+from mist.api.scripts.base import BaseScriptController
+from mist.api.exceptions import RequiredParameterMissingError
 
-import mist.io.scripts.controllers as controllers
+import mist.api.scripts.controllers as controllers
 
 
 class Location(me.EmbeddedDocument):
@@ -115,8 +115,8 @@ class Script(me.Document):
 
         Each Script subclass should define a `_controller_cls` class attribute.
         Its value should be a subclass of
-        `mist.io.scripts.controllers.BaseScriptController'. These
-        subclasses are stored in `mist.io.scripts.BaseScriptController`.
+        `mist.api.scripts.controllers.BaseScriptController'. These
+        subclasses are stored in `mist.api.scripts.BaseScriptController`.
         When a script is instanciated, it is given a `ctl` attribute which
         gives access to the scripts controller.
         This way it is possible to do things like:
@@ -201,7 +201,7 @@ class Script(me.Document):
 
     def delete(self):
         super(Script, self).delete()
-        mist.io.tag.models.Tag.objects(resource=self).delete()
+        mist.api.tag.models.Tag.objects(resource=self).delete()
         self.owner.mapper.remove(self)
 
     def as_dict_old(self):

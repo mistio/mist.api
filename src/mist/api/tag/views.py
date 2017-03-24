@@ -1,27 +1,27 @@
 import mongoengine as me
 from pyramid.response import Response
 
-from mist.io.keys.models import Key
-from mist.io.clouds.models import Cloud
-from mist.io.scripts.models import Script
-from mist.io.machines.models import Machine
-from mist.io.networks.models import Network
-from mist.io.schedules.models import Schedule
+from mist.api.keys.models import Key
+from mist.api.clouds.models import Cloud
+from mist.api.scripts.models import Script
+from mist.api.machines.models import Machine
+from mist.api.networks.models import Network
+from mist.api.schedules.models import Schedule
 
-from mist.io.tag.methods import delete_security_tag
-from mist.io.tag.methods import modify_security_tags
-from mist.io.tag.methods import add_tags_to_resource
-from mist.io.tag.methods import resolve_id_and_get_tags
-from mist.io.tag.methods import remove_tags_from_resource
-from mist.io.tag.methods import resolve_id_and_delete_tags
+from mist.api.tag.methods import delete_security_tag
+from mist.api.tag.methods import modify_security_tags
+from mist.api.tag.methods import add_tags_to_resource
+from mist.api.tag.methods import resolve_id_and_get_tags
+from mist.api.tag.methods import remove_tags_from_resource
+from mist.api.tag.methods import resolve_id_and_delete_tags
 
-from mist.io.auth.methods import auth_context_from_request
+from mist.api.auth.methods import auth_context_from_request
 
-from mist.io.helpers import get_resource_model
-from mist.io.helpers import view_config, params_from_request
+from mist.api.helpers import get_resource_model
+from mist.api.helpers import view_config, params_from_request
 
-from mist.io.exceptions import RequiredParameterMissingError
-from mist.io.exceptions import NotFoundError, BadRequestError
+from mist.api.exceptions import RequiredParameterMissingError
+from mist.api.exceptions import NotFoundError, BadRequestError
 
 OK = Response("OK", 200)
 

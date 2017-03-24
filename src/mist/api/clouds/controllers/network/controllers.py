@@ -6,12 +6,12 @@ This file should only contain subclasses of `BaseNetworkController`.
 
 import logging
 
-from mist.io.helpers import rename_kwargs
+from mist.api.helpers import rename_kwargs
 
-from mist.io.exceptions import SubnetNotFoundError
-from mist.io.exceptions import NetworkNotFoundError
+from mist.api.exceptions import SubnetNotFoundError
+from mist.api.exceptions import NetworkNotFoundError
 
-from mist.io.clouds.controllers.network.base import BaseNetworkController
+from mist.api.clouds.controllers.network.base import BaseNetworkController
 
 
 log = logging.getLogger(__name__)

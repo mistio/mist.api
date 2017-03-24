@@ -3,26 +3,26 @@ import string
 import urllib
 from mongoengine import DoesNotExist
 
-from mist.io.users.models import Organization, User
+from mist.api.users.models import Organization, User
 
-import mist.io.helpers
+import mist.api.helpers
 
-from mist.io.exceptions import ConflictError
-from mist.io.exceptions import RedirectError
-from mist.io.exceptions import UserNotFoundError
-from mist.io.exceptions import UserUnauthorizedError
-from mist.io.exceptions import AdminUnauthorizedError
-from mist.io.exceptions import InternalServerError
+from mist.api.exceptions import ConflictError
+from mist.api.exceptions import RedirectError
+from mist.api.exceptions import UserNotFoundError
+from mist.api.exceptions import UserUnauthorizedError
+from mist.api.exceptions import AdminUnauthorizedError
+from mist.api.exceptions import InternalServerError
 
-from mist.io.tasks import revoke_token
+from mist.api.tasks import revoke_token
 
 try:
     from mist.core.rbac.methods import AuthContext
 except:
-    from mist.io.dummy.rbac import AuthContext
+    from mist.api.dummy.rbac import AuthContext
 
-from mist.io.auth.models import ApiToken
-from mist.io.auth.models import SessionToken
+from mist.api.auth.models import ApiToken
+from mist.api.auth.models import SessionToken
 
 
 def migrate_old_api_token(request):
@@ -75,7 +75,7 @@ def migrate_old_api_token(request):
 
         token = ApiToken(token=padded_mist_api_token, user_id=user.get_id(),
                          name=get_random_name_for_token(user),
-                         ip_address=mist.io.helpers.ip_from_request(request),
+                         ip_address=mist.api.helpers.ip_from_request(request),
                          user_agent=request.user_agent)
         token.save()
     return token
@@ -112,7 +112,7 @@ def session_from_request(request):
     if session is None:
         session = SessionToken(
             user_agent=request.user_agent,
-            ip_address=mist.io.helpers.ip_from_request(request)
+            ip_address=mist.api.helpers.ip_from_request(request)
         )
         session.save()
     request.environ['session'] = session
@@ -120,7 +120,7 @@ def session_from_request(request):
 
 
 def user_from_request(request, admin=False, redirect=False):
-    """Given request, initiate User instance (mist.io.users.model.User)
+    """Given request, initiate User instance (mist.api.users.model.User)
 
     First try to check if there is a valid api token header, else check if
     there is a valid cookie session, else raise UserUnauthorizedError.
@@ -246,7 +246,7 @@ def reissue_cookie_session(request, user_id='', su='', org=None, after=0,
                 else:
                     # if for some reason the user is not a member of any
                     # existing organization then create an anonymous one now
-                    from mist.io.users.methods import create_org_for_user
+                    from mist.api.users.methods import create_org_for_user
                     org = create_org_for_user(user_for_session)
 
     if kwargs.get('ttl') and kwargs.get('ttl') >= 0:
@@ -256,7 +256,7 @@ def reissue_cookie_session(request, user_id='', su='', org=None, after=0,
     if kwargs.get('social_auth_backend'):
         session.context['social_auth_backend'] = kwargs.get('social_auth_backend')
 
-    session.ip_address = mist.io.helpers.ip_from_request(request)
+    session.ip_address = mist.api.helpers.ip_from_request(request)
     session.user_agent = request.user_agent
     session.org = org
     session.su = su

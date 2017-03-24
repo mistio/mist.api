@@ -6,7 +6,7 @@ import logging
 from pyramid.config import Configurator
 from pyramid.renderers import JSON
 
-from mist.io import config
+from mist.api import config
 
 logging.basicConfig(level=config.PY_LOG_LEVEL,
                     format=config.PY_LOG_FORMAT,

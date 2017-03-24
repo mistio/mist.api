@@ -1,10 +1,10 @@
-from mist.io.clouds.models import Cloud
-from mist.io.networks.models import NETWORKS
+from mist.api.clouds.models import Cloud
+from mist.api.networks.models import NETWORKS
 
-from mist.io.exceptions import CloudNotFoundError
-from mist.io.helpers import trigger_session_update
+from mist.api.exceptions import CloudNotFoundError
+from mist.api.helpers import trigger_session_update
 
-from mist.io.methods import connect_provider
+from mist.api.methods import connect_provider
 
 from libcloud.compute.types import Provider
 

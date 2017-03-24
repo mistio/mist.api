@@ -5,7 +5,7 @@ class MachineController(object):
         Most times one is expected to access a controller from inside the
         machine, like this:
 
-          machine = mist.io.machines.models.Machine.objects.get(id=machine_id)
+          machine = mist.api.machines.models.Machine.objects.get(id=machine_id)
           machine.cloud.ctl.compute.reboot()
         """
 

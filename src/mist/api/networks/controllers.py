@@ -5,7 +5,7 @@ class NetworkController(object):
         Most times one is expected to access a controller from inside the
         network object, like this:
 
-          network = mist.io.networks.models.Network.objects.get(id=network_id)
+          network = mist.api.networks.models.Network.objects.get(id=network_id)
           network.ctl.list_subnets()
 
         """
@@ -32,7 +32,7 @@ class SubnetController(object):
         Most times one is expected to access a controller from inside the
         subnet object, like this:
 
-          subnet = mist.io.networks.models.Subnet.objects.get(id=subnet_id)
+          subnet = mist.api.networks.models.Subnet.objects.get(id=subnet_id)
           subnet.ctl.delete()
 
         """

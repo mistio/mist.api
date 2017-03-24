@@ -1,22 +1,22 @@
 import logging
 
 from pyramid.response import Response
-from mist.io.clouds.models import Cloud
-from mist.io.auth.methods import auth_context_from_request
+from mist.api.clouds.models import Cloud
+from mist.api.auth.methods import auth_context_from_request
 
-from mist.io.helpers import trigger_session_update
-from mist.io.helpers import view_config, params_from_request
+from mist.api.helpers import trigger_session_update
+from mist.api.helpers import view_config, params_from_request
 
-from mist.io.exceptions import BadRequestError
-from mist.io.exceptions import RequiredParameterMissingError, NotFoundError
+from mist.api.exceptions import BadRequestError
+from mist.api.exceptions import RequiredParameterMissingError, NotFoundError
 
-from mist.io.clouds.methods import filter_list_clouds, add_cloud_v_2
-from mist.io.clouds.methods import rename_cloud as m_rename_cloud
-from mist.io.clouds.methods import delete_cloud as m_delete_cloud
+from mist.api.clouds.methods import filter_list_clouds, add_cloud_v_2
+from mist.api.clouds.methods import rename_cloud as m_rename_cloud
+from mist.api.clouds.methods import delete_cloud as m_delete_cloud
 
-from mist.io.tag.methods import add_tags_to_resource
+from mist.api.tag.methods import add_tags_to_resource
 
-from mist.io import config
+from mist.api import config
 
 logging.basicConfig(level=config.PY_LOG_LEVEL,
                     format=config.PY_LOG_FORMAT,

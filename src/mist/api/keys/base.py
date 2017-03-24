@@ -1,9 +1,9 @@
 import logging
 import mongoengine as me
-from mist.io.exceptions import KeyExistsError
-from mist.io.exceptions import BadRequestError
-from mist.io.helpers import rename_kwargs
-from mist.io.helpers import trigger_session_update
+from mist.api.exceptions import KeyExistsError
+from mist.api.exceptions import BadRequestError
+from mist.api.helpers import rename_kwargs
+from mist.api.helpers import trigger_session_update
 
 log = logging.getLogger(__name__)
 
@@ -15,7 +15,7 @@ class BaseKeyController(object):
         Most times one is expected to access a controller from inside the
         keypair, like this:
 
-          key = mist.io.keys.models.Key.objects.get(id=key.id)
+          key = mist.api.keys.models.Key.objects.get(id=key.id)
           key.ctl.construct_public_from_private()
         """
         self.key = key
@@ -28,7 +28,7 @@ class BaseKeyController(object):
         `self.key`. The `self.key` is not yet saved.
 
         """
-        from mist.io.keys.models import Key
+        from mist.api.keys.models import Key
 
         rename_kwargs(kwargs, 'priv', 'private')
         # Check for invalid `kwargs` keys.
@@ -86,7 +86,7 @@ class BaseKeyController(object):
         trigger_session_update(self.key.owner, ['keys'])
 
     def set_default(self):
-        from mist.io.keys.models import Key
+        from mist.api.keys.models import Key
         """Set a new key as default key, given a key_id"""
 
         log.info("Setting key with id '%s' as default.", self.key.id)
@@ -101,7 +101,7 @@ class BaseKeyController(object):
     def associate(self, machine, username='', port=22, no_connect=False):
         """Associates a key with a machine."""
 
-        from mist.io.machines.models import KeyAssociation
+        from mist.api.machines.models import KeyAssociation
 
         log.info("Associating key %s to machine %s", self.key.id,
                  machine.machine_id)

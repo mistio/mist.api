@@ -1,12 +1,12 @@
 import json
 import logging
 
-from mist.io.helpers import es_client as es
+from mist.api.helpers import es_client as es
 
-from mist.io.exceptions import NotFoundError
-from mist.io.exceptions import RateLimitError
-from mist.io.exceptions import BadRequestError
-from mist.io.exceptions import ServiceUnavailableError
+from mist.api.exceptions import NotFoundError
+from mist.api.exceptions import RateLimitError
+from mist.api.exceptions import BadRequestError
+from mist.api.exceptions import ServiceUnavailableError
 
 
 log = logging.getLogger(__name__)

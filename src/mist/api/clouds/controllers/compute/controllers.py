@@ -14,7 +14,7 @@ implemented all methods.
 A cloud controller is initialized given a cloud. Most of the time it will be
 accessed through a cloud model, using the `ctl` abbreviation, like this:
 
-    cloud = mist.io.clouds.models.Cloud.objects.get(id=cloud_id)
+    cloud = mist.api.clouds.models.Cloud.objects.get(id=cloud_id)
     print cloud.ctl.compute.list_machines()
 
 """
@@ -36,22 +36,22 @@ from libcloud.compute.base import Node, NodeImage
 from libcloud.compute.providers import get_driver
 from libcloud.compute.types import Provider, NodeState
 
-from mist.io.exceptions import MistError
-from mist.io.exceptions import InternalServerError
-from mist.io.exceptions import MachineNotFoundError
+from mist.api.exceptions import MistError
+from mist.api.exceptions import InternalServerError
+from mist.api.exceptions import MachineNotFoundError
 
-from mist.io.machines.models import Machine
+from mist.api.machines.models import Machine
 
-from mist.io.misc.cloud import CloudImage
+from mist.api.misc.cloud import CloudImage
 
-from mist.io.clouds.controllers.main.base import BaseComputeController
+from mist.api.clouds.controllers.main.base import BaseComputeController
 
-from mist.io import config
+from mist.api import config
 
 try:
     from mist.core.vpn.methods import destination_nat as dnat
 except ImportError:
-    from mist.io.dummy.methods import dnat
+    from mist.api.dummy.methods import dnat
 
 
 log = logging.getLogger(__name__)
@@ -902,7 +902,7 @@ class LibvirtComputeController(BaseComputeController):
                     machine_libcloud.private_ips[0]
                 command = '$(command -v sudo) shutdown -r now'
                 # todo move it up
-                from mist.io.methods import ssh_command
+                from mist.api.methods import ssh_command
                 ssh_command(self.cloud.owner, self.cloud.id,
                             machine_libcloud.id, hostname, command)
                 return True

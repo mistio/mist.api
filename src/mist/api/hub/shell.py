@@ -6,17 +6,17 @@ import gevent
 import gevent.socket
 
 
-import mist.io.exceptions
-import mist.io.shell
-import mist.io.hub.main
+import mist.api.exceptions
+import mist.api.shell
+import mist.api.hub.main
 
-import mist.io.users.models
+import mist.api.users.models
 
 
 log = logging.getLogger(__name__)
 
 
-class ShellHubWorker(mist.io.hub.main.HubWorker):
+class ShellHubWorker(mist.api.hub.main.HubWorker):
     def __init__(self, *args, **kwargs):
         super(ShellHubWorker, self).__init__(*args, **kwargs)
         self.shell = None
@@ -28,7 +28,7 @@ class ShellHubWorker(mist.io.hub.main.HubWorker):
                           self.lbl, key)
                 self.stop()
         self.provider = ''
-        self.owner = mist.io.users.models.Owner(id=self.params['owner_id'])
+        self.owner = mist.api.users.models.Owner(id=self.params['owner_id'])
 
     def on_ready(self, msg=''):
         super(ShellHubWorker, self).on_ready(msg)
@@ -42,13 +42,13 @@ class ShellHubWorker(mist.io.hub.main.HubWorker):
         data = self.params
         self.provider = data.get('provider', '')
         try:
-            self.shell = mist.io.shell.Shell(data['host'])
+            self.shell = mist.api.shell.Shell(data['host'])
             key_id, ssh_user = self.shell.autoconfigure(
                 self.owner, data['cloud_id'], data['machine_id']
             )
         except Exception as exc:
             if self.provider == 'docker':
-                self.shell = mist.io.shell.Shell(data['host'],
+                self.shell = mist.api.shell.Shell(data['host'],
                                                  provider='docker')
                 key_id, ssh_user = self.shell.autoconfigure(
                     self.owner, data['cloud_id'], data['machine_id'], job_id=data['job_id']
@@ -57,7 +57,7 @@ class ShellHubWorker(mist.io.hub.main.HubWorker):
                 log.warning("%s: Couldn't connect with SSH, error %r.",
                             self.lbl, exc)
                 if isinstance(exc,
-                              mist.io.exceptions.MachineUnauthorizedError):
+                              mist.api.exceptions.MachineUnauthorizedError):
                     err = 'Permission denied (publickey).'
                 else:
                     err = str(exc)
@@ -121,9 +121,9 @@ class ShellHubWorker(mist.io.hub.main.HubWorker):
             self.shell = None
 
 
-class ShellHubClient(mist.io.hub.main.HubClient):
-    def __init__(self, exchange=mist.io.hub.main.EXCHANGE,
-                 key=mist.io.hub.main.REQUESTS_KEY, worker_kwargs=None):
+class ShellHubClient(mist.api.hub.main.HubClient):
+    def __init__(self, exchange=mist.api.hub.main.EXCHANGE,
+                 key=mist.api.hub.main.REQUESTS_KEY, worker_kwargs=None):
         super(ShellHubClient, self).__init__(exchange, key, 'shell',
                                              worker_kwargs)
 
@@ -162,5 +162,5 @@ if __name__ == "__main__":
         'columns': 80,
         'rows': 40,
     }
-    mist.io.hub.main.main(workers={'shell': ShellHubWorker},
+    mist.api.hub.main.main(workers={'shell': ShellHubWorker},
                           client=ShellHubClient, worker_kwargs=worker_kwargs)

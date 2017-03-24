@@ -2,19 +2,19 @@ import mongoengine as me
 from datetime import datetime
 from pyramid.response import Response
 
-from mist.io.schedules.models import Schedule
+from mist.api.schedules.models import Schedule
 
-from mist.io.auth.methods import auth_context_from_request
+from mist.api.auth.methods import auth_context_from_request
 
-from mist.io.exceptions import ScheduleTaskNotFound
-from mist.io.exceptions import RequiredParameterMissingError
+from mist.api.exceptions import ScheduleTaskNotFound
+from mist.api.exceptions import RequiredParameterMissingError
 
-from mist.io.helpers import trigger_session_update
-from mist.io.helpers import view_config, params_from_request
+from mist.api.helpers import trigger_session_update
+from mist.api.helpers import view_config, params_from_request
 
-from mist.io.schedules.methods import filter_list_schedules
+from mist.api.schedules.methods import filter_list_schedules
 
-from mist.io.tag.methods import resolve_id_and_set_tags
+from mist.api.tag.methods import resolve_id_and_set_tags
 
 
 OK = Response("OK", 200)

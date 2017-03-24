@@ -3,13 +3,13 @@ import uuid
 import netaddr
 import mongoengine as me
 
-from mist.io.exceptions import RequiredParameterMissingError
+from mist.api.exceptions import RequiredParameterMissingError
 
-from mist.io.clouds.models import Cloud
-from mist.io.clouds.models import CLOUDS
+from mist.api.clouds.models import Cloud
+from mist.api.clouds.models import CLOUDS
 
-from mist.io.networks.controllers import SubnetController
-from mist.io.networks.controllers import NetworkController
+from mist.api.networks.controllers import SubnetController
+from mist.api.networks.controllers import NetworkController
 
 
 # Automatically populated mappings of all Network and Subnet subclasses,

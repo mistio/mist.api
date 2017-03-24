@@ -2,7 +2,7 @@
 
 This currently contains only BaseController. It includes basic functionality
 for a given cloud (including libcloud calls, fetching and storing information
-to db etc. Cloud specific controllers are in `mist.io.clouds.controllers`.
+to db etc. Cloud specific controllers are in `mist.api.clouds.controllers`.
 
 """
 
@@ -20,30 +20,30 @@ from libcloud.common.types import InvalidCredsError
 from libcloud.compute.types import NodeState
 from libcloud.compute.base import NodeLocation, Node
 
-from mist.io import config
+from mist.api import config
 
-from mist.io.exceptions import MistError
-from mist.io.exceptions import ConflictError
-from mist.io.exceptions import ForbiddenError
-from mist.io.exceptions import BadRequestError
-from mist.io.exceptions import InternalServerError
-from mist.io.exceptions import MachineNotFoundError
-from mist.io.exceptions import CloudUnavailableError
-from mist.io.exceptions import CloudUnauthorizedError
+from mist.api.exceptions import MistError
+from mist.api.exceptions import ConflictError
+from mist.api.exceptions import ForbiddenError
+from mist.api.exceptions import BadRequestError
+from mist.api.exceptions import InternalServerError
+from mist.api.exceptions import MachineNotFoundError
+from mist.api.exceptions import CloudUnavailableError
+from mist.api.exceptions import CloudUnauthorizedError
 
-from mist.io.helpers import get_datetime
+from mist.api.helpers import get_datetime
 
 try:
     from mist.core.vpn.methods import destination_nat as dnat
     from mist.core.vpn.methods import super_ping
 except ImportError:
-    from mist.io.dummy.methods import dnat, super_ping
+    from mist.api.dummy.methods import dnat, super_ping
 
-from mist.io.clouds.controllers.base import BaseController
+from mist.api.clouds.controllers.base import BaseController
 
-from mist.io.tag.models import Tag
+from mist.api.tag.models import Tag
 
-from mist.io.machines.models import Machine
+from mist.api.machines.models import Machine
 
 
 log = logging.getLogger(__name__)
@@ -316,7 +316,7 @@ class BaseComputeController(BaseController):
 
         # Update machine counts on cloud and org.
         # FIXME: resolve circular import issues
-        from mist.io.clouds.models import Cloud
+        from mist.api.clouds.models import Cloud
         self.cloud.machine_count = len(machines)
         self.cloud.save()
         self.cloud.owner.total_machine_count = sum(
@@ -814,7 +814,7 @@ class BaseComputeController(BaseController):
                 hostname = machine.private_ips[0]
             command = '$(command -v sudo) shutdown -r now'
             # TODO move it up
-            from mist.io.methods import ssh_command
+            from mist.api.methods import ssh_command
             ssh_command(self.cloud.owner, self.cloud.id,
                         machine.machine_id, hostname, command)
         except MistError as exc:

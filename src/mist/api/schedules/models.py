@@ -4,13 +4,13 @@ import datetime
 from uuid import uuid4
 import celery.schedules
 import mongoengine as me
-from mist.io.tag.models import Tag
-from mist.io.machines.models import Machine
-from mist.io.exceptions import BadRequestError
-from mist.io.users.models import Owner, Organization
+from mist.api.tag.models import Tag
+from mist.api.machines.models import Machine
+from mist.api.exceptions import BadRequestError
+from mist.api.users.models import Owner, Organization
 from celerybeatmongo.schedulers import MongoScheduler
-from mist.io.exceptions import ScheduleNameExistsError
-from mist.io.exceptions import RequiredParameterMissingError
+from mist.api.exceptions import ScheduleNameExistsError
+from mist.api.exceptions import RequiredParameterMissingError
 
 
 #: Authorized values for Interval.period
@@ -132,7 +132,7 @@ class ActionTask(BaseTaskType):
 
     @property
     def task(self):
-        return 'mist.io.tasks.group_machines_actions'
+        return 'mist.api.tasks.group_machines_actions'
 
     def __str__(self):
         return 'Action: %s' % self.action
@@ -147,7 +147,7 @@ class ScriptTask(BaseTaskType):
 
     @property
     def task(self):
-        return 'mist.io.tasks.group_run_script'
+        return 'mist.api.tasks.group_run_script'
 
     def __str__(self):
         return 'Run script: %s' % self.script_id
@@ -292,9 +292,9 @@ class Schedule(me.Document):
 
     def __init__(self, *args, **kwargs):
         # FIXME
-        import mist.io.schedules.base
+        import mist.api.schedules.base
         super(Schedule, self).__init__(*args, **kwargs)
-        self.ctl = mist.io.schedules.base.BaseController(self)
+        self.ctl = mist.api.schedules.base.BaseController(self)
 
     @classmethod
     def add(cls, auth_context, name, **kwargs):

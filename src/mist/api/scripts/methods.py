@@ -1,5 +1,5 @@
-from mist.io.scripts.models import Script
-from mist.io.tag.methods import get_tags_for_resource
+from mist.api.scripts.models import Script
+from mist.api.tag.methods import get_tags_for_resource
 
 
 def list_scripts(owner):

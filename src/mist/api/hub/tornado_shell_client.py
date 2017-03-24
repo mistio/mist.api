@@ -2,7 +2,7 @@ import logging
 
 import tornado.ioloop
 
-from mist.io.hub.tornado_client import HubClient
+from mist.api.hub.tornado_client import HubClient
 
 
 log = logging.getLogger(__name__)

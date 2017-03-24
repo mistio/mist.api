@@ -3,23 +3,23 @@ import time
 import logging
 import datetime
 
-from mist.io.helpers import es_client as es
+from mist.api.helpers import es_client as es
 
 try:
     from mist.core.rbac.methods import filter_logs
 except ImportError:
-    from mist.io.dummy.rbac import filter_logs
+    from mist.api.dummy.rbac import filter_logs
 
-from mist.io.exceptions import NotFoundError
+from mist.api.exceptions import NotFoundError
 
-from mist.io.logs.helpers import get_event
-from mist.io.logs.helpers import get_simple_story
-from mist.io.logs.helpers import get_open_incidents
-from mist.io.logs.helpers import start_machine_story
+from mist.api.logs.helpers import get_event
+from mist.api.logs.helpers import get_simple_story
+from mist.api.logs.helpers import get_open_incidents
+from mist.api.logs.helpers import start_machine_story
 
-from mist.io.logs.helpers import _on_response_callback
+from mist.api.logs.helpers import _on_response_callback
 
-from mist.io.logs.constants import FIELDS, CLOSES_INCIDENT
+from mist.api.logs.constants import FIELDS, CLOSES_INCIDENT
 
 
 log = logging.getLogger(__name__)

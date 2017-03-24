@@ -1,4 +1,4 @@
-"""mist.io.socket.
+"""mist.api.socket.
 
 Here we define the sockjs Connection and handlers.
 
@@ -17,26 +17,26 @@ import datetime
 import tornado.gen
 
 from sockjs.tornado import SockJSConnection, SockJSRouter
-from mist.io.sockjs_mux import MultiplexConnection
+from mist.api.sockjs_mux import MultiplexConnection
 
-from mist.io.clouds.models import Cloud
-from mist.io.machines.models import Machine
-from mist.io.poller.models import ListMachinesPollingSchedule
+from mist.api.clouds.models import Cloud
+from mist.api.machines.models import Machine
+from mist.api.poller.models import ListMachinesPollingSchedule
 
-from mist.io.auth.methods import auth_context_from_session_id
+from mist.api.auth.methods import auth_context_from_session_id
 
-from mist.io.exceptions import BadRequestError, UnauthorizedError, MistError
-from mist.io.exceptions import PolicyUnauthorizedError
-from mist.io.amqp_tornado import Consumer
+from mist.api.exceptions import BadRequestError, UnauthorizedError, MistError
+from mist.api.exceptions import PolicyUnauthorizedError
+from mist.api.amqp_tornado import Consumer
 
-from mist.io.clouds.methods import filter_list_clouds
-from mist.io.keys.methods import filter_list_keys
-from mist.io.machines.methods import filter_list_machines
-from mist.io.scripts.methods import filter_list_scripts
-from mist.io.schedules.methods import filter_list_schedules
+from mist.api.clouds.methods import filter_list_clouds
+from mist.api.keys.methods import filter_list_keys
+from mist.api.machines.methods import filter_list_machines
+from mist.api.scripts.methods import filter_list_scripts
+from mist.api.schedules.methods import filter_list_schedules
 
-from mist.io import tasks
-from mist.io.hub.tornado_shell_client import ShellHubClient
+from mist.api import tasks
+from mist.api.hub.tornado_shell_client import ShellHubClient
 
 try:
     from mist.core.methods import get_stats, get_load, check_monitoring
@@ -46,14 +46,14 @@ try:
     from mist.core.orchestration.methods import filter_list_templates
     from mist.core.orchestration.methods import filter_list_stacks
 except ImportError:
-    from mist.io.dummy.methods import get_stats, get_load, check_monitoring
-    from mist.io.dummy.methods import get_user_data, filter_list_tags
-    from mist.io.dummy.methods import filter_list_vpn_tunnels
-    from mist.io.dummy.rbac import filter_org
-    from mist.io.dummy.methods import filter_list_templates
-    from mist.io.dummy.methods import filter_list_stacks
+    from mist.api.dummy.methods import get_stats, get_load, check_monitoring
+    from mist.api.dummy.methods import get_user_data, filter_list_tags
+    from mist.api.dummy.methods import filter_list_vpn_tunnels
+    from mist.api.dummy.rbac import filter_org
+    from mist.api.dummy.methods import filter_list_templates
+    from mist.api.dummy.methods import filter_list_stacks
 
-from mist.io import config
+from mist.api import config
 
 import logging
 logging.basicConfig(level=config.PY_LOG_LEVEL,

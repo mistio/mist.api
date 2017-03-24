@@ -1,15 +1,15 @@
 from datetime import datetime
 
-from mist.io.keys.models import Key
-from mist.io.clouds.models import Cloud
-from mist.io.machines.models import Machine
+from mist.api.keys.models import Key
+from mist.api.clouds.models import Cloud
+from mist.api.machines.models import Machine
 
-from mist.io.tag.methods import get_tags_for_resource
+from mist.api.tag.methods import get_tags_for_resource
 
-from mist.io.helpers import trigger_session_update
-from mist.io.helpers import transform_key_machine_associations
+from mist.api.helpers import trigger_session_update
+from mist.api.helpers import transform_key_machine_associations
 
-from mist.io import config
+from mist.api import config
 
 import logging
 

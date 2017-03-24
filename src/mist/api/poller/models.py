@@ -6,7 +6,7 @@ import celery
 import mongoengine as me
 
 
-from mist.io.clouds.models import Cloud
+from mist.api.clouds.models import Cloud
 
 
 log = logging.getLogger(__name__)
@@ -181,7 +181,7 @@ class PollingSchedule(me.Document):
 
 class DebugPollingSchedule(PollingSchedule):
 
-    task = 'mist.io.poller.tasks.debug'
+    task = 'mist.api.poller.tasks.debug'
 
     value = me.StringField()
 
@@ -234,4 +234,4 @@ class CloudPollingSchedule(PollingSchedule):
 
 class ListMachinesPollingSchedule(CloudPollingSchedule):
 
-    task = 'mist.io.poller.tasks.list_machines'
+    task = 'mist.api.poller.tasks.list_machines'

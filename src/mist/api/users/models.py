@@ -21,10 +21,10 @@ try:
     from mist.core.rbac.mappings import RBACMapping
     from mist.core.rbac.mappings import PermissionMapper
 except ImportError:
-    from mist.io.dummy.mappings import RBACMapping
-    from mist.io.dummy.mappings import PermissionMapper
+    from mist.api.dummy.mappings import RBACMapping
+    from mist.api.dummy.mappings import PermissionMapper
 
-from mist.io import config
+from mist.api import config
 
 
 logging.basicConfig(level=config.PY_LOG_LEVEL,
@@ -217,8 +217,8 @@ class Owner(me.Document):
     }
 
     def count_mon_machines(self):
-        from mist.io.clouds.models import Cloud
-        from mist.io.machines.models import Machine
+        from mist.api.clouds.models import Cloud
+        from mist.api.machines.models import Machine
         clouds = Cloud.objects(owner=self, deleted=None)
         return Machine.objects(cloud__in=clouds,
                                monitoring__hasmonitoring=True).count()
@@ -230,8 +230,8 @@ class Owner(me.Document):
         return self.id
 
     def get_external_id(self, service):
-        import mist.io.helpers
-        return mist.io.helpers.encrypt(self.id, key_salt=service, no_iv=True)
+        import mist.api.helpers
+        return mist.api.helpers.encrypt(self.id, key_salt=service, no_iv=True)
 
     def as_dict(self):
         # FIXME: Now, this is just silly

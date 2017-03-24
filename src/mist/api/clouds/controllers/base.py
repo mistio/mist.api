@@ -4,8 +4,8 @@ import logging
 
 from libcloud.common.types import InvalidCredsError
 
-from mist.io.exceptions import CloudUnavailableError
-from mist.io.exceptions import CloudUnauthorizedError
+from mist.api.exceptions import CloudUnavailableError
+from mist.api.exceptions import CloudUnauthorizedError
 
 
 log = logging.getLogger(__name__)
@@ -50,7 +50,7 @@ class BaseController(object):
         Most times one is expected to access a controller from inside the
         cloud, like this:
 
-            cloud = mist.io.clouds.models.Cloud.objects.get(id=cloud_id)
+            cloud = mist.api.clouds.models.Cloud.objects.get(id=cloud_id)
             print cloud.ctl.list_machines()
 
         Subclasses SHOULD NOT override this method.
@@ -60,7 +60,7 @@ class BaseController(object):
 
         """
         # FIXME: Solve circular dependencies.
-        from mist.io.clouds.controllers.main.base import BaseMainController
+        from mist.api.clouds.controllers.main.base import BaseMainController
         assert isinstance(main_ctl, BaseMainController)
         self.cloud = main_ctl.cloud
         self.provider = main_ctl.provider

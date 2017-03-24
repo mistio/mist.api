@@ -1,5 +1,5 @@
 """Basic configuration and mappings
-   Here we define constants needed by mist.io
+   Here we define constants needed by mist.api
    Also, the configuration from settings.py is exposed through this module.
 """
 import os

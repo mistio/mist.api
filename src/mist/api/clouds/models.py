@@ -4,15 +4,15 @@ import uuid
 
 import mongoengine as me
 
-from mist.io.tag.models import Tag
-from mist.io.keys.models import Key
-from mist.io.users.models import Organization
+from mist.api.tag.models import Tag
+from mist.api.keys.models import Key
+from mist.api.users.models import Organization
 
-from mist.io.clouds.controllers.main import controllers
+from mist.api.clouds.controllers.main import controllers
 
-from mist.io.exceptions import BadRequestError
-from mist.io.exceptions import CloudExistsError
-from mist.io.exceptions import RequiredParameterMissingError
+from mist.api.exceptions import BadRequestError
+from mist.api.exceptions import CloudExistsError
+from mist.api.exceptions import RequiredParameterMissingError
 
 
 # This is a map from provider name to provider class, eg:
@@ -61,8 +61,8 @@ class Cloud(me.Document):
 
     Each Cloud subclass should define a `_controller_cls` class attribute. Its
     value should be a subclass of
-    `mist.io.clouds.controllers.main.base.BaseMainController`. These
-    subclasses are stored in `mist.io.clouds.controllers`. When a cloud is
+    `mist.api.clouds.controllers.main.base.BaseMainController`. These
+    subclasses are stored in `mist.api.clouds.controllers`. When a cloud is
     instanciated, it is given a `ctl` attribute which gives access to the
     clouds controller. This way it is possible to do things like:
 

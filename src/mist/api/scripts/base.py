@@ -4,11 +4,11 @@ import datetime
 import StringIO
 import mongoengine as me
 from pyramid.response import Response
-from mist.io.exceptions import BadRequestError
-from mist.io.helpers import trigger_session_update
-from mist.io.exceptions import ScriptNameExistsError
+from mist.api.exceptions import BadRequestError
+from mist.api.helpers import trigger_session_update
+from mist.api.exceptions import ScriptNameExistsError
 
-from mist.io import config
+from mist.api import config
 
 log = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ class BaseScriptController(object):
         Most times one is expected to access a controller from inside the
         script, like this:
 
-            script = mist.io.scripts.models.Script.objects.get(id=script.id)
+            script = mist.api.scripts.models.Script.objects.get(id=script.id)
             script.ctl.edit('renamed')
         """
         self.script = script
@@ -34,7 +34,7 @@ class BaseScriptController(object):
         `self.script`. The `self.script` is not yet saved.
         """
 
-        import mist.io.scripts.models as scripts
+        import mist.api.scripts.models as scripts
 
         # set description
         self.script.description = kwargs.pop('description', '')
