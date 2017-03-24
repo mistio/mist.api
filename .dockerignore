@@ -1,5 +1,6 @@
 **/.git
 **/*.py[cod]
+**/.*.sw[op]
 **/Dockerfile
 **/.gitignore
 **/.dockerignore

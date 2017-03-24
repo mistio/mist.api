@@ -21,3 +21,7 @@ RUN pip install -e libcloud/
 COPY . /mist.api/
 
 RUN pip install -e src/
+
+RUN touch clean
+
+ENTRYPOINT ["/mist.api/bin/docker-init"]

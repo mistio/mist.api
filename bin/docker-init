@@ -1,0 +1,14 @@
+#!/bin/sh
+
+set -e
+
+if [ ! -e clean ]; then
+    set -x
+    pip install -e paramiko/
+    pip install -e libcloud/
+    pip install -e celerybeat-mongo/
+    pip install -e src/
+    set +x
+fi
+
+exec "$@"
