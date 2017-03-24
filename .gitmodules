@@ -4,3 +4,9 @@
 [submodule "libcloud"]
 	path = libcloud
 	url = ../../mistio/libcloud.git
+[submodule "paramiko"]
+	path = paramiko
+	url = git@gitlab.ops.mist.io:mistio/paramiko.git
+[submodule "celerybeat-mongo"]
+	path = celerybeat-mongo
+	url = git@gitlab.ops.mist.io:mistio/celerybeat-mongo.git

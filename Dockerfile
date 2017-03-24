@@ -6,14 +6,18 @@ WORKDIR /mist.api/
 
 RUN pip install --no-cache-dir -r /mist.api/requirements.txt
 
+COPY paramiko /mist.api/paramiko
+
+RUN pip install -e paramiko/
+
+COPY celerybeat-mongo /mist.api/celerybeat-mongo
+
+RUN pip install -e celerybeat-mongo/
+
 COPY libcloud /mist.api/libcloud
 
 RUN pip install -e libcloud/
 
-COPY run_script /mist.api/run_script
-
 COPY . /mist.api/
-
-RUN rm src/pip-delete-this-directory.txt
 
 RUN pip install -e src/
