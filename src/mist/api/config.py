@@ -720,7 +720,7 @@ for key in FROM_ENV_ARRAYS:
 
 
 # Get settings from settings file.
-settings_file = os.getenv('SETTINGS_FILE') or 'settings.py'
+settings_file = os.path.abspath(os.getenv('SETTINGS_FILE') or 'settings.py')
 if os.path.exists(settings_file):
     print >> sys.stderr, "Reading local settings from %s" % settings_file
     conf = {}
@@ -730,6 +730,8 @@ if os.path.exists(settings_file):
             locals()[key].update(conf[key])
         else:
             locals()[key] = conf[key]
+else:
+    print >> sys.stderr, "Couldn't find settings file in %s" % settings_file
 
 
 # Update celery settings.

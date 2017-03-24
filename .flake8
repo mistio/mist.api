@@ -12,6 +12,8 @@ exclude =
     run_script,
     celerybeat-mongo,
 
+    settings.py,
+    tests/,
     src/mist/api/auth/,
     src/mist/api/dns/,
     src/mist/api/hub/,
