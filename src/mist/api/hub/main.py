@@ -58,7 +58,9 @@ class AmqpGeventBase(object):
         gid = self.greenlet_id
         if gid not in self.conns:
             log.debug("%s: Opening new AMQP connection.", self.lbl)
-            self.conns[gid] = amqp.Connection(config.AMQP_URI)
+            conn = amqp.Connection(config.AMQP_URI)
+            conn.connect()
+            self.conns[gid] = conn
         return self.conns[gid]
 
     def close_conn(self):
@@ -79,9 +81,10 @@ class AmqpGeventBase(object):
             while True:
                 try:
                     conn = self.conn
-                except:
+                except Exception as exc:
                     i += 1
-                    log.error("Connecting to amqp has failed %d times.", i)
+                    log.error("Connecting to amqp has failed %d times: %r",
+                              i, exc)
                     if i > 50:
                         raise
                     gevent.sleep(5)
