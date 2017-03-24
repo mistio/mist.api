@@ -9,8 +9,9 @@ import gevent.socket
 import mist.api.exceptions
 import mist.api.shell
 import mist.api.hub.main
-
 import mist.api.users.models
+import mist.api.helpers
+from mist.api.misc.shell import ShellCapture
 
 
 log = logging.getLogger(__name__)
@@ -122,6 +123,59 @@ class ShellHubWorker(mist.api.hub.main.HubWorker):
             self.shell = None
 
 
+class LoggingShellHubWorker(ShellHubWorker):
+    def __init__(self, *args, **kwargs):
+        super(ShellHubWorker, self).__init__(*args, **kwargs)
+        self.capture = []
+        self.capture_started_at = 0
+        self.stopped = False
+
+    def on_ready(self, msg=''):
+        super(ShellHubWorker, self).on_ready(msg)
+        # Don't log cfy container log views
+        if self.params.get('provider') != 'docker' or not self.params.get('job_id'):
+            mist.api.helpers.log_event(action='open', event_type='shell',
+                                      shell_id=self.uuid, **self.params)
+
+    def emit_shell_data(self, data):
+        self.capture.append((time.time(), 'data', data))
+        super(ShellHubWorker, self).emit_shell_data(data)
+
+    def on_resize(self, msg):
+        res = super(ShellHubWorker, self).on_resize(msg)
+        if res:
+            self.capture.append((time.time(), 'resize', res))
+
+    def stop(self):
+        if self.shell and not self.stopped:
+            # if not self.shell then namespace initialized
+            # but shell_open has happened
+            if self.capture:
+                # save captured data
+                capture = ShellCapture()
+                capture.owner = mist.api.users.models.Owner(
+                    id=self.params['owner_id']
+                )
+                capture.capture_id = self.uuid
+                capture.cloud_id = self.params['cloud_id']
+                capture.machine_id = self.params['machine_id']
+                capture.key_id = self.params.get('key_id')
+                capture.host = self.params['host']
+                capture.ssh_user = self.params.get('ssh_user')
+                capture.started_at = self.capture_started_at
+                capture.finished_at = time.time()
+                capture.columns = self.params['columns']
+                capture.rows = self.params['rows']
+                capture.capture = [(tstamp - self.capture[0][0], event, data)
+                                   for tstamp, event, data in self.capture]
+                capture.save()
+            # Don't log cfy container log views
+            if self.params.get('provider') != 'docker' or not self.params.get('job_id'):
+                mist.api.helpers.log_event(action='close', event_type='shell',
+                                          shell_id=self.uuid, **self.params)
+        super(ShellHubWorker, self).stop()
+
+
 class ShellHubClient(mist.api.hub.main.HubClient):
     def __init__(self, exchange=mist.api.hub.main.EXCHANGE,
                  key=mist.api.hub.main.REQUESTS_KEY, worker_kwargs=None):
@@ -153,3 +207,7 @@ class ShellHubClient(mist.api.hub.main.HubClient):
     def stop(self):
         self.send_close()
         super(ShellHubClient, self).stop()
+
+
+if __name__ == "__main__":
+    mist.api.hub.main.main(workers={'shell': LoggingShellHubWorker})
