@@ -679,11 +679,13 @@ def dirname(path, num=1):
     return path
 
 
-CORE_CONFIG_PATH = os.path.join(dirname(__file__, 5),
+CORE_CONFIG_PATH = os.path.join(dirname(__file__, 6),
                                 'mist', 'core', 'config.py')
 if os.path.exists(CORE_CONFIG_PATH):
     print >> sys.stderr, "Will load core config from %s" % CORE_CONFIG_PATH
     execfile(CORE_CONFIG_PATH)
+else:
+    print >> sys.stderr, "Couldn't find core config in %S" % CORE_CONFIG_PATH
 
 
 # Get settings from environmental variables.
