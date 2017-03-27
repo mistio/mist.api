@@ -1,0 +1,43 @@
+#!/bin/sh
+
+set -e
+
+QUEUES="celery,machines,scripts,command,ping,probe"
+LOGLEVEL="WARNING"
+
+USAGE="Usage: $0 [-h] [-q <QUEUES>] [-l <LOGLEVEL>]
+
+Start uwsgi
+
+Options:
+    -h              Show this help message and exit.
+    -q <QUEUES>     Comma separated list of queues to subscribe to. Defaults to
+                    $QUEUES.
+    -l <LOGLEVEL>   Log level. Defaults to $LOGLEVEL.
+"
+
+while getopts ":hq:l:" opt; do
+    case "$opt" in
+        h)
+            echo "$USAGE"
+            exit
+            ;;
+        q)
+            QUEUES=$OPTARG
+            ;;
+        l)
+            LOGLEVEL=$OPTARG
+            ;;
+        \?)
+            echo "Invalid option: -$OPTARG" >&2
+            echo "$USAGE" >&2
+            exit 1
+    esac
+done
+
+set -x
+exec celery worker \
+    -A mist.api.tasks \
+    -Q $QUEUES \
+    -l $LOGLEVEL \
+    -Ofair

@@ -1,0 +1,53 @@
+#!/bin/sh
+
+set -e
+
+SOCKET="0.0.0.0:80"
+
+USAGE="Usage: $0 [-h] [-d] [-s <SOCKET>]
+
+Start uwsgi
+
+Options:
+    -h              Show this help message and exit.
+    -d              Run uwsgi with single worker for debug purposes.
+    -s <SOCKET>     IP:Port where uwsgi should listen to, defaults to $SOCKET.
+"
+
+while getopts ":hds:" opt; do
+    case "$opt" in
+        h)
+            echo "$USAGE"
+            exit
+            ;;
+        d)
+            DEBUG=1
+            ;;
+        s)
+            SOCKET=$OPTARG
+            ;;
+        \?)
+            echo "Invalid option: -$OPTARG" >&2
+            echo "$USAGE" >&2
+            exit 1
+    esac
+done
+
+if [ -z "$DEBUG" ]; then
+    ARGS="--cheaper-algo spare
+          --cheaper 8
+          --cheaper-initial 8
+          --cheaper-step 2
+          --cheaper-overload 1
+          --workers 32"
+else
+    ARGS="--workers 1"
+fi
+
+set -x
+exec uwsgi \
+    --plugin /usr/lib/uwsgi/python_plugin.so \
+    --paste-logger \
+    --http-socket $SOCKET \
+    --ini-paste uwsgi.ini \
+    $ARGS
