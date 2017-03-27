@@ -16,7 +16,7 @@ import traceback
 import mongoengine as me
 
 from time import time
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 
 from pyramid.response import Response
 from pyramid.renderers import render_to_response
@@ -25,7 +25,6 @@ from pyramid.httpexceptions import HTTPFound, HTTPNotFound
 import mist.api.tasks as tasks
 from mist.api.scripts.models import CollectdScript
 from mist.api.clouds.models import Cloud
-from mist.api.dns.models import Zone, Record
 from mist.api.machines.models import Machine
 from mist.api.networks.models import Network, Subnet
 from mist.api.users.models import Avatar, Owner, User, Organization
@@ -45,7 +44,8 @@ from mist.api.exceptions import CloudNotFoundError, ScheduleTaskNotFound
 from mist.api.exceptions import NetworkNotFoundError, SubnetNotFoundError
 from mist.api.exceptions import UserUnauthorizedError, RedirectError
 from mist.api.exceptions import UserNotFoundError, ConflictError
-from mist.api.exceptions import LoginThrottledError
+from mist.api.exceptions import LoginThrottledError, TeamOperationError
+from mist.api.exceptions import MethodNotAllowedError
 
 from mist.api.helpers import encrypt, decrypt
 from mist.api.helpers import get_auth_header, params_from_request
@@ -773,7 +773,7 @@ def confirm_invitation(request):
         raise RequiredParameterMissingError('invitoken')
     try:
         invitation = MemberInvitation.objects.get(token=invitoken)
-    except DoesNotExist:
+    except me.DoesNotExist:
         raise NotFoundError('Invalid invitation token')
 
     user = invitation.user
