@@ -59,7 +59,8 @@ class AmqpGeventBase(object):
         if gid not in self.conns:
             log.debug("%s: Opening new AMQP connection.", self.lbl)
             conn = amqp.Connection(config.AMQP_URI)
-            conn.connect()
+            # TODO: The following line is needed for later versions of amqp lib
+            # conn.connect()
             self.conns[gid] = conn
         return self.conns[gid]
 
