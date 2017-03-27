@@ -1420,3 +1420,69 @@ def es_client(async=False):
             config.ELASTICSEARCH['elastic_host'],
             port=config.ELASTICSEARCH['elastic_port'], method=method,
         )
+
+
+# TODO: Deprecate.
+def get_log_events(owner_id='', user_id='', event_type='', action='',
+                   error=None, start=0, stop=0, limit=0, newest=True,
+                   auth_context=None, **kwargs):
+    """
+    Get logging events
+    :param owner_id:
+    :param user_id:
+    :param event_type:
+    :param action:
+    :param error:
+    :param start:
+    :param stop:
+    :param limit:
+    :param newest:
+    :param kwargs:
+    :return:
+    """
+
+    connection = MongoClient(config.MONGO_URI)
+    logging = connection['mist'].logging
+    query = kwargs
+    if auth_context and auth_context.user.role != 'Admin':
+        query['type'] = {'$ne': 'ui'}
+    if owner_id:
+        query['owner_id'] = owner_id
+    if user_id:
+        query['user_id'] = user_id
+    if event_type:
+        if isinstance(event_type, basestring):
+            event_type = event_type.split(',')
+        try:
+            query['type'] = {'$in': list(event_type)}
+            if not event_type and auth_context and auth_context.user.role != 'Admin':
+                query['type']['$ne'] = 'ui'
+        except:
+            pass
+    if action:
+        query['action'] = action
+    if error:
+        query['error'] = {'$nin': [None, False]}
+    timerange = {}
+    if start:
+        timerange['$gte'] = start
+    if stop:
+        timerange['$lt'] = stop
+    if timerange:
+        query['time'] = timerange
+    order = -1 if newest is True else None
+    cursor = logging.find(query).sort('time', order).limit(limit)
+    for event in cursor:
+        event.pop('_id')  # remove mongo _id field
+        try:
+            # bring extra key-value pairs to top level
+            for key, val in json.loads(event.pop('extra')).items():
+                event[key] = val
+        except:
+            pass
+
+        if not event.get('type') or not event.get('action'):
+            log.error("Event missing type or action: %s", event)
+            continue
+        yield event
+    connection.close()
