@@ -6,6 +6,7 @@ from libcloud.common.types import InvalidCredsError
 
 from mist.api.exceptions import CloudUnavailableError
 from mist.api.exceptions import CloudUnauthorizedError
+from mist.api.exceptions import SSLError
 
 
 log = logging.getLogger(__name__)
@@ -98,10 +99,10 @@ class BaseController(object):
             raise CloudUnauthorizedError("Invalid creds.")
         except ssl.SSLError as exc:
             log.error("SSLError on connecting to %s: %s", self.cloud, exc)
-            raise CloudUnavailableError(exc=exc)
+            raise SSLError(exc=exc)
         except Exception as exc:
             log.exception("Error while connecting to %s", self.cloud)
-            raise CloudUnavailableError(exc=exc)
+            raise CloudUnavailableError(exc=exc, msg=exc.message)
 
     @property
     def connection(self):
