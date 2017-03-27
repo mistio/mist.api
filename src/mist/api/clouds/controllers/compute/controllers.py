@@ -958,10 +958,10 @@ class OnAppComputeController(BaseComputeController):
             (machine.extra.get('cpus'), machine.extra.get('memory'))
 
     def _list_machines__cost_machine(self, machine, machine_libcloud):
-        # TODO: investigate how price_per_hour and price_per_hour_powered_off
-        # differ
-        # also what happens if VM is stopped
-        return machine_libcloud.extra.get('price_per_hour', 0), 0
+        if machine_libcloud.state == NodeState.STOPPED:
+            return machine_libcloud.extra.get('price_per_hour_powered_off', 0), 0
+        else:
+            return machine_libcloud.extra.get('price_per_hour', 0), 0
 
     def _resume_machine(self, machine, machine_libcloud):
         self.connection.ex_resume_node(machine_libcloud)
