@@ -93,6 +93,12 @@ def machine_name_validator(provider, name):
                 "machine name may only contain ASCII letters or numbers, "
                 "dashes and underscores. Must begin and end with letters "
                 "or numbers, and be at least 3 characters long")
+    elif provider == Provider.ONAPP:
+        if not re.search(r'^[0-9a-zA-Z-.]+[0-9a-zA-Z.]$', name):
+            raise MachineNameValidationError(
+                "machine name may only contain ASCII letters "
+                "or numbers, dashes and periods. Name should not "
+                "end with a dash")
     return name
 
 
