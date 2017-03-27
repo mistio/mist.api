@@ -59,9 +59,14 @@ from mist.api.auth.methods import get_csrf_token
 from mist.api.auth.methods import reissue_cookie_session
 from mist.api.auth.models import get_secure_rand_token
 
-from mist.api.logs.methods import get_events as get_log_events
-
 from mist.api import config
+
+# FIXME
+if config.LOGS_FROM_ELASTIC:
+    from mist.api.logs.methods import get_events
+    get_log_events = get_events
+else:
+    from mist.core.helpers import get_log_events
 
 import logging
 logging.basicConfig(level=config.PY_LOG_LEVEL,
