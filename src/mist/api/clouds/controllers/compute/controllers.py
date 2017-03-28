@@ -992,7 +992,7 @@ class OnAppComputeController(BaseComputeController):
             for l in locations:
                 for hypervisor in hypervisors.object:
                     h = hypervisor['hypervisor_group']
-                    if h['location_group_id'] == l['id']:
+                    if str(h['location_group_id']) == l.id:
                         # get max_memory/max_cpu
                         l.extra["max_memory"] = h["max_host_free_memory"]
                         l.extra["max_cpu"] = h["max_host_cpu"]
