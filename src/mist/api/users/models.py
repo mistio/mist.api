@@ -442,15 +442,12 @@ class Organization(Owner):
     insights_enabled = me.BooleanField(default=False)
 
     created = me.DateTimeField(default=datetime.datetime.now)
+    registered_by = me.StringField()
 
     @property
     def mapper(self):
         """Returns the `PermissionMapper` for the current Org context."""
         return PermissionMapper(self)
-
-    @property
-    def registered_by(self):
-        return self.teams.get(name='Owners').members[0].registration_method
 
     def __str__(self):
         return 'Org %s (%d teams - %d members)' % (self.name, len(self.teams),
