@@ -49,7 +49,7 @@ class AmazonDNSController(BaseDNSController):
         """
         # Route53 requires just the subdomain for A, AAAA, CNAME, MX records.
         if kwargs['name'].endswith(zone.domain):
-            kwargs['name'] = kwargs['name'][:-(len(zone.domain)+1)]
+            kwargs['name'] = kwargs['name'][:-(len(zone.domain) + 1)]
         if kwargs['type'] == 'CNAME' and not kwargs['data'].endswith('.'):
             kwargs['data'] += '.'
         # Route 53 requires TXT rdata to be whitin quotes
