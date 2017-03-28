@@ -443,6 +443,7 @@ class Organization(Owner):
     insights_enabled = me.BooleanField(default=False)
 
     created = me.DateTimeField(default=datetime.datetime.now)
+    registered_by = me.StringField()
 
     @property
     def mapper(self):
