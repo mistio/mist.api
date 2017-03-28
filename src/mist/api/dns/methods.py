@@ -1,8 +1,8 @@
-from mist.io.dns.models import Zone
-from mist.io.users.models import User, Owner, Organization
-from mist.io.clouds.models import Cloud
+from mist.api.dns.models import Zone
+from mist.api.users.models import User, Owner, Organization
+from mist.api.clouds.models import Cloud
 
-from mist.io import config
+from mist.api import config
 
 import logging
 

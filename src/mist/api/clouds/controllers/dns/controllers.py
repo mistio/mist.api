@@ -27,7 +27,7 @@ import logging
 from libcloud.dns.types import Provider
 from libcloud.dns.providers import get_driver
 
-from mist.io.clouds.controllers.dns.base import BaseDNSController
+from mist.api.clouds.controllers.dns.base import BaseDNSController
 
 log = logging.getLogger(__name__)
 
@@ -66,13 +66,6 @@ class AmazonDNSController(BaseDNSController):
             record.rdata.append(pr_record.data)
 
 
-class DigitalOceanDNSController(BaseDNSController):
-    """ DigitalOcean specific overrides"""
-
-    def _connect(self):
-        return get_driver(Provider.DIGITAL_OCEAN)(self.cloud.token)
-
-
 class GoogleDNSController(BaseDNSController):
     """
     Google DNS provider specific overrides.
@@ -103,37 +96,3 @@ class GoogleDNSController(BaseDNSController):
     def _list_records__postparse_data(self, pr_record, record):
         """Get the provider specific information into the Mongo model"""
         record.rdata = pr_record.data['rrdatas']
-
-
-class LinodeDNSController(BaseDNSController):
-    """ Linode specific overrides"""
-
-    def _connect(self):
-        return get_driver(Provider.LINODE)(self.cloud.apikey)
-
-
-class RackSpaceDNSController(BaseDNSController):
-    """ RackSpace specific overrides"""
-
-    def _connect(self):
-        if self.cloud.region in ('us', 'uk'):
-            driver = get_driver(Provider.RACKSPACE_FIRST_GEN)
-        else:
-            driver = get_driver(Provider.RACKSPACE)
-        return driver(self.cloud.username, self.cloud.apikey,
-                      region=self.cloud.region)
-
-
-class SoftLayerDNSController(BaseDNSController):
-    """ SoftLayer specific overrides"""
-
-    def _connect(self):
-        return get_driver(Provider.SOFTLAYER)(self.cloud.username,
-                                              self.cloud.apikey)
-
-
-class VultrDNSController(BaseDNSController):
-    """ Vultr specific overrides"""
-
-    def _connect(self):
-        return get_driver(Provider.VULTR)(self.cloud.apikey)

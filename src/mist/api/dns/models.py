@@ -6,14 +6,14 @@ import ipaddress as ip
 
 import mongoengine as me
 
-from mist.io.clouds.models import Cloud
-from mist.io.users.models import Organization
-from mist.io.dns.controllers import ZoneController, RecordController
-from mist.io.clouds.controllers.dns.base import BaseDNSController
+from mist.api.clouds.models import Cloud
+from mist.api.users.models import Organization
+from mist.api.dns.controllers import ZoneController, RecordController
+from mist.api.clouds.controllers.dns.base import BaseDNSController
 
-from mist.io.exceptions import BadRequestError
-from mist.io.exceptions import ZoneExistsError
-from mist.io.exceptions import RequiredParameterMissingError
+from mist.api.exceptions import BadRequestError
+from mist.api.exceptions import ZoneExistsError
+from mist.api.exceptions import RequiredParameterMissingError
 
 class Zone(me.Document):
     """This is the class definition for the Mongo Engine Document related to a
