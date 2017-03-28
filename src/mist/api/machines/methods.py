@@ -678,8 +678,8 @@ def _create_machine_onapp(conn, public_key,
     if public_key:
         # get user_id, push ssh key. This will be deployed on the new server
         try:
-            res = conn.connection.request('/profile.json')
-            user_id = res.object['user']['id']
+            res = conn.ex_list_profile_info()
+            user_id = res['id']
             conn.create_key_pair(user_id, public_key)
         except:
             pass
