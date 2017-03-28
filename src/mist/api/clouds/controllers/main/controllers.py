@@ -101,13 +101,6 @@ class LinodeMainController(BaseMainController):
     ComputeController = compute_ctls.LinodeComputeController
 
 
-class OnAppMainController(BaseMainController):
-
-    provider = 'onapp'
-    ComputeController = compute_ctls.OnAppComputeController
-    NetworkController = network_ctls.OnAppNetworkController
-
-
 class RackSpaceMainController(BaseMainController):
 
     provider = 'rackspace'
