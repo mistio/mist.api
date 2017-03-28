@@ -286,9 +286,9 @@ class OpenStackSubnet(Subnet):
     allocation_pools = me.ListField(default=lambda: [])
 
 
-_populate_class_mapping(NETWORKS, 'Network', Network)
-_populate_class_mapping(SUBNETS, 'Subnet', Subnet)
-
-
 class OnAppNetwork(Network):
     pass
+
+
+_populate_class_mapping(NETWORKS, 'Network', Network)
+_populate_class_mapping(SUBNETS, 'Subnet', Subnet)

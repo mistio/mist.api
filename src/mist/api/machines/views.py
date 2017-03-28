@@ -325,7 +325,6 @@ def create_machine(request):
               'cpu_sockets': cpu_sockets,
               'cpu_threads': cpu_threads,
               'port_speed': port_speed}
-    import rpdb; rpdb.set_trace()
     if not async:
         ret = methods.create_machine(auth_context.owner, *args, **kwargs)
     else:

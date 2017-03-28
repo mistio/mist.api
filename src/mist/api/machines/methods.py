@@ -125,7 +125,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                    softlayer_backend_vlan_id=None,
                    size_ram=256, size_cpu=1,
                    size_disk_primary=5, size_disk_swap=1, boot=True, build=True,
-                   cpu_priority=1, cpu_socket=1, cpu_threads=1, port_speed=0):
+                   cpu_priority=1, cpu_sockets=1, cpu_threads=1, port_speed=0):
     """Creates a new virtual machine on the specified cloud.
 
     If the cloud is Rackspace it attempts to deploy the node with an ssh key
