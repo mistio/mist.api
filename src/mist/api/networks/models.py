@@ -288,3 +288,7 @@ class OpenStackSubnet(Subnet):
 
 _populate_class_mapping(NETWORKS, 'Network', Network)
 _populate_class_mapping(SUBNETS, 'Subnet', Subnet)
+
+
+class OnAppNetwork(Network):
+    pass

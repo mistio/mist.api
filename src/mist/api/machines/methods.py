@@ -124,7 +124,8 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                    bare_metal=False, hourly=True,
                    softlayer_backend_vlan_id=None,
                    size_ram=256, size_cpu=1,
-                   size_disk_primary=5, size_disk_swap=1):
+                   size_disk_primary=5, size_disk_swap=1, boot=True, build=True,
+                   cpu_priority=1, cpu_socket=1, cpu_threads=1, port_speed=0):
     """Creates a new virtual machine on the specified cloud.
 
     If the cloud is Rackspace it attempts to deploy the node with an ssh key
@@ -245,6 +246,8 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
             conn, public_key,
             machine_name, image, size_ram,
             size_cpu, size_disk_primary, size_disk_swap,
+            boot, build, cpu_priority, cpu_sockets,
+            cpu_threads, port_speed,
             location, networks
         )
     elif conn.type is Provider.DIGITAL_OCEAN:
@@ -664,6 +667,8 @@ def _create_machine_softlayer(conn, key_name, private_key, public_key,
 def _create_machine_onapp(conn, public_key,
                           machine_name, image, size_ram,
                           size_cpu, size_disk_primary, size_disk_swap,
+                          boot, build, cpu_priority, cpu_sockets,
+                          cpu_threads, port_speed,
                           location, networks):
     """Create a machine in OnApp.
 
@@ -691,6 +696,11 @@ def _create_machine_onapp(conn, public_key,
             ex_memory=str(size_ram),
             ex_cpus=str(size_cpu),
             ex_cpu_shares="1",
+            booted=boot,
+            built=build,
+            cpu_priority=cpu_priority,
+            cpu_sockets=cpu_sockets,
+            cpu_threads=cpu_threads,
             ex_hostname=machine_name,
             ex_template_id=image.id,
             ex_primary_disk_size=str(size_disk_primary),
@@ -699,7 +709,7 @@ def _create_machine_onapp(conn, public_key,
             ex_required_ip_address_assignment="1",
             ex_hypervisor_group_id=hypervisor_group_id,
             ex_primary_network_group_id=network,
-            rate_limit=0
+            rate_limit=port_speed
         )
     except Exception as e:
         raise MachineCreationError("OnApp, got exception %s" % e, e)
