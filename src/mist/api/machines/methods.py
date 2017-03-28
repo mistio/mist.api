@@ -94,6 +94,7 @@ def machine_name_validator(provider, name):
                 "dashes and underscores. Must begin and end with letters "
                 "or numbers, and be at least 3 characters long")
     elif provider == Provider.ONAPP:
+        name = name.strip().replace(' ', '-')
         if not re.search(r'^[0-9a-zA-Z-.]+[0-9a-zA-Z.]$', name):
             raise MachineNameValidationError(
                 "machine name may only contain ASCII letters "
@@ -690,22 +691,22 @@ def _create_machine_onapp(conn, public_key,
             pass
 
     network = networks[0] if networks else ""
+    boot = 1 if boot else 0
+    build = 1 if build else 0
     try:
         node = conn.create_node(
             name=machine_name,
             ex_memory=str(size_ram),
             ex_cpus=str(size_cpu),
-            ex_cpu_shares="1",
-            booted=boot,
-            built=build,
-            cpu_priority=cpu_priority,
-            cpu_sockets=cpu_sockets,
-            cpu_threads=cpu_threads,
+            ex_cpu_shares=cpu_priority,
+            ex_required_virtual_machine_build=build,
+            ex_required_virtual_machine_startup=boot,
+            ex_cpu_sockets=cpu_sockets,
+            ex_cpu_threads=cpu_threads,
             ex_hostname=machine_name,
             ex_template_id=image.id,
             ex_primary_disk_size=str(size_disk_primary),
             ex_swap_disk_size=str(size_disk_swap),
-            ex_required_virtual_machine_build="1",
             ex_required_ip_address_assignment="1",
             ex_hypervisor_group_id=hypervisor_group_id,
             ex_primary_network_group_id=network,
