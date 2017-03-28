@@ -6,14 +6,14 @@ import ipaddress as ip
 
 import mongoengine as me
 
-from mist.api.clouds.models import Cloud
-from mist.api.users.models import Organization
-from mist.api.dns.controllers import ZoneController, RecordController
-from mist.api.clouds.controllers.dns.base import BaseDNSController
+from mist.io.clouds.models import Cloud
+from mist.io.users.models import Organization
+from mist.io.dns.controllers import ZoneController, RecordController
+from mist.io.clouds.controllers.dns.base import BaseDNSController
 
-from mist.api.exceptions import BadRequestError
-from mist.api.exceptions import ZoneExistsError
-from mist.api.exceptions import RequiredParameterMissingError
+from mist.io.exceptions import BadRequestError
+from mist.io.exceptions import ZoneExistsError
+from mist.io.exceptions import RequiredParameterMissingError
 
 class Zone(me.Document):
     """This is the class definition for the Mongo Engine Document related to a
@@ -193,6 +193,11 @@ class Record(me.Document):
         if self.type == "CNAME":
             if not self.rdata[0].endswith('.'):
                 self.rdata[0] += '.'
+        if self.type == 'TXT':
+            if not self.rdata[0].endswith('"'):
+                self.rdata[0] += '"'
+            if not self.rdata[0].startswith('"'):
+                self.rdata[0] = '"' + self.rdata[0]
         if self.type == "A" or self.type == "AAAA" or self.type == "CNAME":
             if not len(self.rdata) == 1:
                 raise me.ValidationError('We cannot have more than one rdata'
