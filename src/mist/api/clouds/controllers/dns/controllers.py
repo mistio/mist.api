@@ -17,7 +17,7 @@ will be interconnected at the main controller's level.
 Most of the time a sub-controller will be accessed through a cloud's main
 controller, using the `ctl` abbreviation, like this:
 
-    cloud = mist.io.clouds.models.Cloud.objects.get(id=cloud_id)
+    cloud = mist.api.clouds.models.Cloud.objects.get(id=cloud_id)
     print cloud.ctl.dns.list_zones()
 
 """
