@@ -93,6 +93,13 @@ def machine_name_validator(provider, name):
                 "machine name may only contain ASCII letters or numbers, "
                 "dashes and underscores. Must begin and end with letters "
                 "or numbers, and be at least 3 characters long")
+    elif provider == Provider.ONAPP:
+        name = name.strip().replace(' ', '-')
+        if not re.search(r'^[0-9a-zA-Z-.]+[0-9a-zA-Z.]$', name):
+            raise MachineNameValidationError(
+                "machine name may only contain ASCII letters "
+                "or numbers, dashes and periods. Name should not "
+                "end with a dash")
     return name
 
 
@@ -118,7 +125,9 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                    bare_metal=False, hourly=True,
                    softlayer_backend_vlan_id=None,
                    size_ram=256, size_cpu=1,
-                   size_disk_primary=5, size_disk_swap=1):
+                   size_disk_primary=5, size_disk_swap=1, boot=True, build=True,
+                   cpu_priority=1, cpu_sockets=1, cpu_threads=1, port_speed=0,
+                   hypervisor_group_id=None):
     """Creates a new virtual machine on the specified cloud.
 
     If the cloud is Rackspace it attempts to deploy the node with an ssh key
@@ -239,7 +248,9 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
             conn, public_key,
             machine_name, image, size_ram,
             size_cpu, size_disk_primary, size_disk_swap,
-            location, networks
+            boot, build, cpu_priority, cpu_sockets,
+            cpu_threads, port_speed,
+            location, networks, hypervisor_group_id
         )
     elif conn.type is Provider.DIGITAL_OCEAN:
         node = _create_machine_digital_ocean(
@@ -658,42 +669,40 @@ def _create_machine_softlayer(conn, key_name, private_key, public_key,
 def _create_machine_onapp(conn, public_key,
                           machine_name, image, size_ram,
                           size_cpu, size_disk_primary, size_disk_swap,
-                          location, networks):
+                          boot, build, cpu_priority, cpu_sockets,
+                          cpu_threads, port_speed,
+                          location, networks, hypervisor_group_id):
     """Create a machine in OnApp.
 
     """
-    # need to get hypervisor_group_id out of location
-    locations = conn.list_locations()
-    for loc in locations:
-        if loc.id == location.id:
-            hypervisor_group_id = loc.extra.get('hypervisor_group_id')
-            break
-
     if public_key:
         # get user_id, push ssh key. This will be deployed on the new server
         try:
-            res = conn.connection.request('/profile.json')
-            user_id = res.object['user']['id']
+            res = conn.ex_list_profile_info()
+            user_id = res['id']
             conn.create_key_pair(user_id, public_key)
         except:
             pass
-
-    network = networks[0] if networks else ""
+    boot = 1 if boot else 0
+    build = 1 if build else 0
     try:
         node = conn.create_node(
-            name=machine_name,
-            ex_memory=str(size_ram),
-            ex_cpus=str(size_cpu),
-            ex_cpu_shares="1",
-            ex_hostname=machine_name,
-            ex_template_id=image.id,
-            ex_primary_disk_size=str(size_disk_primary),
-            ex_swap_disk_size=str(size_disk_swap),
-            ex_required_virtual_machine_build="1",
-            ex_required_ip_address_assignment="1",
+            machine_name,
+            str(size_ram),
+            str(size_cpu),
+            cpu_priority,
+            machine_name,
+            image.id,
+            str(size_disk_primary),
+            str(size_disk_swap),
+            ex_required_virtual_machine_build=build,
+            ex_required_ip_address_assignment=1,
+            ex_required_virtual_machine_startup=boot,
+            ex_cpu_sockets=cpu_sockets,
+            ex_cpu_threads=cpu_threads,
             ex_hypervisor_group_id=hypervisor_group_id,
-            ex_primary_network_group_id=network,
-            rate_limit=0
+            ex_primary_network_group_id=networks,
+            rate_limit=port_speed
         )
     except Exception as e:
         raise MachineCreationError("OnApp, got exception %s" % e, e)

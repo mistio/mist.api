@@ -242,6 +242,13 @@ def create_machine(request):
     size_cpu = params.get('size_cpu', 1)
     size_disk_primary = params.get('size_disk_primary', 5)
     size_disk_swap = params.get('size_disk_swap', 1)
+    boot = params.get('boot', True)
+    build = params.get('build', True)
+    cpu_priority = params.get('cpu_priority', 1)
+    cpu_sockets = params.get('cpu_sockets', 1)
+    cpu_threads = params.get('cpu_threads', 1)
+    port_speed = params.get('port_speed', 0)
+    hypervisor_group_id = params.get('hypervisor_group_id')
 
     auth_context = auth_context_from_request(request)
 
@@ -312,7 +319,14 @@ def create_machine(request):
               'size_ram': size_ram,
               'size_cpu': size_cpu,
               'size_disk_primary': size_disk_primary,
-              'size_disk_swap': size_disk_swap}
+              'size_disk_swap': size_disk_swap,
+              'boot': boot,
+              'build': build,
+              'cpu_priority': cpu_priority,
+              'cpu_sockets': cpu_sockets,
+              'cpu_threads': cpu_threads,
+              'port_speed': port_speed,
+              'hypervisor_group_id': hypervisor_group_id}
     if not async:
         ret = methods.create_machine(auth_context.owner, *args, **kwargs)
     else:
