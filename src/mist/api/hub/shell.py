@@ -1,10 +1,9 @@
 import sys
+import time
 import logging
-
 
 import gevent
 import gevent.socket
-
 
 import mist.api.exceptions
 import mist.api.shell
@@ -22,12 +21,14 @@ class ShellHubWorker(mist.api.hub.main.HubWorker):
         super(ShellHubWorker, self).__init__(*args, **kwargs)
         self.shell = None
         self.channel = None
-        for key in ('owner_id', 'email', 'cloud_id', 'machine_id', 'host',
+        for key in ('owner_id', 'cloud_id', 'machine_id', 'host',
                     'columns', 'rows'):
             if not self.params.get(key):
-                log.error("%s: Param '%s' missing from worker kwargs.",
-                          self.lbl, key)
+                err = "%s: Param '%s' missing from worker kwargs." % (self.lbl,
+                                                                      key)
+                log.error(err)
                 self.stop()
+                raise Exception(err)
         self.provider = ''
         self.owner = mist.api.users.models.Owner(id=self.params['owner_id'])
 
@@ -125,13 +126,13 @@ class ShellHubWorker(mist.api.hub.main.HubWorker):
 
 class LoggingShellHubWorker(ShellHubWorker):
     def __init__(self, *args, **kwargs):
-        super(ShellHubWorker, self).__init__(*args, **kwargs)
+        super(LoggingShellHubWorker, self).__init__(*args, **kwargs)
         self.capture = []
         self.capture_started_at = 0
         self.stopped = False
 
     def on_ready(self, msg=''):
-        super(ShellHubWorker, self).on_ready(msg)
+        super(LoggingShellHubWorker, self).on_ready(msg)
         # Don't log cfy container log views
         if self.params.get('provider') != 'docker' or not self.params.get('job_id'):
             mist.api.helpers.log_event(action='open', event_type='shell',
@@ -139,10 +140,10 @@ class LoggingShellHubWorker(ShellHubWorker):
 
     def emit_shell_data(self, data):
         self.capture.append((time.time(), 'data', data))
-        super(ShellHubWorker, self).emit_shell_data(data)
+        super(LoggingShellHubWorker, self).emit_shell_data(data)
 
     def on_resize(self, msg):
-        res = super(ShellHubWorker, self).on_resize(msg)
+        res = super(LoggingShellHubWorker, self).on_resize(msg)
         if res:
             self.capture.append((time.time(), 'resize', res))
 
@@ -173,7 +174,7 @@ class LoggingShellHubWorker(ShellHubWorker):
             if self.params.get('provider') != 'docker' or not self.params.get('job_id'):
                 mist.api.helpers.log_event(action='close', event_type='shell',
                                           shell_id=self.uuid, **self.params)
-        super(ShellHubWorker, self).stop()
+        super(LoggingShellHubWorker, self).stop()
 
 
 class ShellHubClient(mist.api.hub.main.HubClient):
