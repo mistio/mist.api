@@ -237,7 +237,7 @@ class BaseDNSController(BaseController):
         except ZoneDoesNotExistError as exc:
             log.warning("No zone found for %s in: %s ", zone_id, self.cloud)
             raise ZoneNotFoundError(exc=exc)
-        except RecordDoesNotExistError:
+        except RecordDoesNotExistError as exc:
             log.warning("No record found for id: %s under zone %s",
                         record_id, zone_id)
             raise RecordNotFoundError(exc=exc)

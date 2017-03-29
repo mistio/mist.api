@@ -17,7 +17,7 @@ will be interconnected at the main controller's level.
 Most of the time a sub-controller will be accessed through a cloud's main
 controller, using the `ctl` abbreviation, like this:
 
-    cloud = mist.io.clouds.models.Cloud.objects.get(id=cloud_id)
+    cloud = mist.api.clouds.models.Cloud.objects.get(id=cloud_id)
     print cloud.ctl.dns.list_zones()
 
 """
@@ -27,7 +27,7 @@ import logging
 from libcloud.dns.types import Provider
 from libcloud.dns.providers import get_driver
 
-from mist.io.clouds.controllers.dns.base import BaseDNSController
+from mist.api.clouds.controllers.dns.base import BaseDNSController
 
 log = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ class AmazonDNSController(BaseDNSController):
         """
         # Route53 requires just the subdomain for A, AAAA, CNAME, MX records.
         if kwargs['name'].endswith(zone.domain):
-            kwargs['name'] = kwargs['name'][:-(len(zone.domain)+1)]
+            kwargs['name'] = kwargs['name'][:-(len(zone.domain) + 1)]
         if kwargs['type'] == 'CNAME' and not kwargs['data'].endswith('.'):
             kwargs['data'] += '.'
         # Route 53 requires TXT rdata to be whitin quotes
@@ -64,13 +64,6 @@ class AmazonDNSController(BaseDNSController):
         """Get the provider specific information into the Mongo model"""
         if pr_record.data not in record.rdata:
             record.rdata.append(pr_record.data)
-
-
-class DigitalOceanDNSController(BaseDNSController):
-    """ DigitalOcean specific overrides"""
-
-    def _connect(self):
-        return get_driver(Provider.DIGITAL_OCEAN)(self.cloud.token)
 
 
 class GoogleDNSController(BaseDNSController):
@@ -103,37 +96,3 @@ class GoogleDNSController(BaseDNSController):
     def _list_records__postparse_data(self, pr_record, record):
         """Get the provider specific information into the Mongo model"""
         record.rdata = pr_record.data['rrdatas']
-
-
-class LinodeDNSController(BaseDNSController):
-    """ Linode specific overrides"""
-
-    def _connect(self):
-        return get_driver(Provider.LINODE)(self.cloud.apikey)
-
-
-class RackSpaceDNSController(BaseDNSController):
-    """ RackSpace specific overrides"""
-
-    def _connect(self):
-        if self.cloud.region in ('us', 'uk'):
-            driver = get_driver(Provider.RACKSPACE_FIRST_GEN)
-        else:
-            driver = get_driver(Provider.RACKSPACE)
-        return driver(self.cloud.username, self.cloud.apikey,
-                      region=self.cloud.region)
-
-
-class SoftLayerDNSController(BaseDNSController):
-    """ SoftLayer specific overrides"""
-
-    def _connect(self):
-        return get_driver(Provider.SOFTLAYER)(self.cloud.username,
-                                              self.cloud.apikey)
-
-
-class VultrDNSController(BaseDNSController):
-    """ Vultr specific overrides"""
-
-    def _connect(self):
-        return get_driver(Provider.VULTR)(self.cloud.apikey)

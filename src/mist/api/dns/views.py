@@ -1,16 +1,16 @@
 import mongoengine as me
 from pyramid.response import Response
 
-from mist.io.clouds.models import Cloud
-from mist.io.dns.models import Zone, Record
+from mist.api.clouds.models import Cloud
+from mist.api.dns.models import Zone, Record
 
-from mist.io.auth.methods import auth_context_from_request
+from mist.api.auth.methods import auth_context_from_request
 
-from mist.io.exceptions import NotFoundError
-from mist.io.exceptions import CloudNotFoundError
+from mist.api.exceptions import NotFoundError
+from mist.api.exceptions import CloudNotFoundError
 
-from mist.io.helpers import trigger_session_update
-from mist.io.helpers import params_from_request, view_config
+from mist.api.helpers import trigger_session_update
+from mist.api.helpers import params_from_request, view_config
 
 OK = Response("OK", 200)
 
