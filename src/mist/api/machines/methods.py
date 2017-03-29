@@ -126,7 +126,8 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                    softlayer_backend_vlan_id=None,
                    size_ram=256, size_cpu=1,
                    size_disk_primary=5, size_disk_swap=1, boot=True, build=True,
-                   cpu_priority=1, cpu_sockets=1, cpu_threads=1, port_speed=0):
+                   cpu_priority=1, cpu_sockets=1, cpu_threads=1, port_speed=0,
+                   hypervisor_group_id=None):
     """Creates a new virtual machine on the specified cloud.
 
     If the cloud is Rackspace it attempts to deploy the node with an ssh key
@@ -249,7 +250,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
             size_cpu, size_disk_primary, size_disk_swap,
             boot, build, cpu_priority, cpu_sockets,
             cpu_threads, port_speed,
-            location, networks
+            location, networks, hypervisor_group_id
         )
     elif conn.type is Provider.DIGITAL_OCEAN:
         node = _create_machine_digital_ocean(
@@ -670,11 +671,10 @@ def _create_machine_onapp(conn, public_key,
                           size_cpu, size_disk_primary, size_disk_swap,
                           boot, build, cpu_priority, cpu_sockets,
                           cpu_threads, port_speed,
-                          location, networks):
+                          location, networks, hypervisor_group_id):
     """Create a machine in OnApp.
 
     """
-    # hypervisor_group_id here is what was sent as location_id
     if public_key:
         # get user_id, push ssh key. This will be deployed on the new server
         try:
@@ -700,7 +700,7 @@ def _create_machine_onapp(conn, public_key,
             ex_required_virtual_machine_startup=boot,
             ex_cpu_sockets=cpu_sockets,
             ex_cpu_threads=cpu_threads,
-            ex_hypervisor_group_id=location.id,
+            ex_hypervisor_group_id=hypervisor_group_id,
             ex_primary_network_group_id=networks,
             rate_limit=port_speed
         )
