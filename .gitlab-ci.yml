@@ -3,19 +3,11 @@ stages:
   - test
 
 #################### BUILD STAGE ####################
-.docker_build_template: &docker_build_template
-  stage: build
-  before_script:
-    - docker login --username "$DOCKER_USERNAME" -u _json_key -p "$KEYFILE_JSON" https://gcr.io
-    - docker login -u "$DOCKER_HUB_USERNAME" -p "$DOCKER_HUB_PASSWORD"
-  tags:
-    - builder
-  dependencies: []
-
 build_mist_image:
-  <<: *docker_build_template
+  stage: build
+  variables:
+    GIT_SUBMODULE_STRATEGY: recursive
   script:
-    - git submodule update --recursive --init
     - docker build --rm -t gcr.io/mist-ops/mist:io-$CI_COMMIT_SHA .
     - docker tag gcr.io/mist-ops/mist:io-$CI_COMMIT_SHA gcr.io/mist-ops/mist:io-$CI_COMMIT_REF_SLUG
     - docker tag gcr.io/mist-ops/mist:io-$CI_COMMIT_SHA mist/mist:io-$CI_COMMIT_SHA
@@ -24,6 +16,9 @@ build_mist_image:
     - docker push gcr.io/mist-ops/mist:io-$CI_COMMIT_REF_SLUG
     - docker push mist/mist:io-$CI_COMMIT_SHA
     - docker push mist/mist:io-$CI_COMMIT_REF_SLUG
+  tags:
+    - builder
+  dependencies: []
 
 
 #################### TEST STAGE ####################
