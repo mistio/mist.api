@@ -252,7 +252,8 @@ class BaseMainController(object):
         if fail_on_error:
             try:
                 self.compute.check_connection()
-            except (CloudUnavailableError, CloudUnauthorizedError, SSLError) as exc:
+            except (CloudUnavailableError, CloudUnauthorizedError,
+                    SSLError) as exc:
                 log.error("Will not update cloud %s because "
                           "we couldn't connect: %r", self.cloud, exc)
                 raise
