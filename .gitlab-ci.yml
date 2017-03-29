@@ -15,6 +15,7 @@ stages:
 build_mist_image:
   <<: *docker_build_template
   script:
+    - git submodule update --recursive --init
     - docker build --rm -t gcr.io/mist-ops/mist:io-$CI_COMMIT_SHA .
     - docker tag gcr.io/mist-ops/mist:io-$CI_COMMIT_SHA gcr.io/mist-ops/mist:io-$CI_COMMIT_REF_SLUG
     - docker tag gcr.io/mist-ops/mist:io-$CI_COMMIT_SHA mist/mist:io-$CI_COMMIT_SHA
