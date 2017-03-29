@@ -1,4 +1,4 @@
-FROM gcr.io/mist-ops/alpine:3.4
+FROM mist/alpine:3.4
 
 COPY requirements.txt /mist.api/requirements.txt
 
