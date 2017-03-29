@@ -674,13 +674,7 @@ def _create_machine_onapp(conn, public_key,
     """Create a machine in OnApp.
 
     """
-    # need to get hypervisor_group_id out of location
-    locations = conn.list_locations()
-    for loc in locations:
-        if loc.id == location.id:
-            hypervisor_group_id = loc.extra.get('hypervisor_group_id')
-            break
-
+    # hypervisor_group_id here is what was sent as location_id
     if public_key:
         # get user_id, push ssh key. This will be deployed on the new server
         try:
@@ -689,27 +683,25 @@ def _create_machine_onapp(conn, public_key,
             conn.create_key_pair(user_id, public_key)
         except:
             pass
-
-    network = networks[0] if networks else ""
     boot = 1 if boot else 0
     build = 1 if build else 0
     try:
         node = conn.create_node(
-            name=machine_name,
-            ex_memory=str(size_ram),
-            ex_cpus=str(size_cpu),
-            ex_cpu_shares=cpu_priority,
+            machine_name,
+            str(size_ram),
+            str(size_cpu),
+            cpu_priority,
+            machine_name,
+            image.id,
+            str(size_disk_primary),
+            str(size_disk_swap),
             ex_required_virtual_machine_build=build,
+            ex_required_ip_address_assignment=1,
             ex_required_virtual_machine_startup=boot,
             ex_cpu_sockets=cpu_sockets,
             ex_cpu_threads=cpu_threads,
-            ex_hostname=machine_name,
-            ex_template_id=image.id,
-            ex_primary_disk_size=str(size_disk_primary),
-            ex_swap_disk_size=str(size_disk_swap),
-            ex_required_ip_address_assignment="1",
-            ex_hypervisor_group_id=hypervisor_group_id,
-            ex_primary_network_group_id=network,
+            ex_hypervisor_group_id=location.id,
+            ex_primary_network_group_id=networks,
             rate_limit=port_speed
         )
     except Exception as e:
