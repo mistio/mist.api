@@ -1,8 +1,33 @@
 stages:
+  - build
   - test
 
+#################### BUILD STAGE ####################
+.docker_build_template: &docker_build_template
+  stage: build
+  before_script:
+    - docker login --username "$DOCKER_USERNAME" -u _json_key -p "$KEYFILE_JSON" https://gcr.io
+    - docker login -u "$DOCKER_HUB_USERNAME" -p "$DOCKER_HUB_PASSWORD"
+  tags:
+    - builder
+  dependencies: []
 
+build_mist_image:
+  <<: *docker_build_template
+  script:
+    - docker build --rm -t gcr.io/mist-ops/mist:io-$CI_COMMIT_SHA .
+    - docker tag gcr.io/mist-ops/mist:io-$CI_COMMIT_SHA gcr.io/mist-ops/mist:io-$CI_COMMIT_REF_SLUG
+    - docker tag gcr.io/mist-ops/mist:io-$CI_COMMIT_SHA mist/mist:io-$CI_COMMIT_SHA
+    - docker tag gcr.io/mist-ops/mist:io-$CI_COMMIT_REF_SLUG mist/mist:io-$CI_COMMIT_REF_SLUG
+    - docker push gcr.io/mist-ops/mist:io-$CI_COMMIT_SHA
+    - docker push gcr.io/mist-ops/mist:io-$CI_COMMIT_REF_SLUG
+    - docker push mist/mist:io-$CI_COMMIT_SHA
+    - docker push mist/mist:io-$CI_COMMIT_REF_SLUG
+
+
+#################### TEST STAGE ####################
 flake8:
+  stage: test
   image: python:2.7-alpine
   before_script:
     - pip install flake8
