@@ -125,6 +125,8 @@ class BaseController(object):
             kwargs['max_run_count'] = None
         if kwargs.get('start_after') == '':
             kwargs['start_after'] = None
+        if kwargs.get('mconditions') == '':
+            kwargs['mconditions'] = None
         # transform string to datetime
         if kwargs.get('expires'):
             try:
@@ -144,6 +146,24 @@ class BaseController(object):
         for key, value in kwargs.iteritems():
             if key in self.schedule._fields.keys():
                 setattr(self.schedule, key, value)
+
+        mconditions = kwargs.get('mconditions', {})
+        if mconditions:
+            for k in mconditions:
+                if k not in ['period', 'value', 'monthly']:
+                    raise BadRequestError("Invalid key given: %s" % k)
+            if mconditions['value'] == '':
+                mconditions['value'] = None
+                mconditions['period'] = None
+            if mconditions['monthly'] == '':
+                del mconditions['monthly']
+                cost = schedules.Cost()
+                mconditions.update({'cost': cost})
+            if mconditions.get('monthly'):
+                cost = schedules.Cost(monthly=mconditions['monthly'])
+                del mconditions['monthly']
+                mconditions.update({'cost': cost})
+            self.schedule.mconditions = schedules.MConditions(**mconditions)
 
         now = datetime.datetime.now()
         if self.schedule.expires and self.schedule.expires < now:
