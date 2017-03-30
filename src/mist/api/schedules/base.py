@@ -19,6 +19,9 @@ from mist.api.exceptions import ScheduleNameExistsError
 from mist.api.machines.models import Machine
 from mist.api.exceptions import NotFoundError
 
+from mist.api.conditions import FieldCondition, MachinesCondition
+from mist.api.conditions import TaggingCondition, MachinesAgeCondition
+
 try:
     from mist.core.rbac.methods import AuthContext
 except ImportError:
@@ -68,9 +71,11 @@ class BaseController(object):
             raise BadRequestError("You must provide script_id "
                                   "or machine's action")
 
-        if not (kwargs.get('machines_uuids') or kwargs.get('machines_tags')):
-            raise BadRequestError(
-                "You must provide a list of machine ids or tags")
+        # TODO: Remove machine_uuids and machine_tags
+        if not (kwargs.get('conditions') or kwargs.get('machines_uuids') or
+                kwargs.get('machines_tags')):
+            raise BadRequestError("You must provide a list of conditions, "
+                                  "machine ids or tags")
 
         if kwargs.get('schedule_type') not in ['crontab',
                                                'interval', 'one_off']:
@@ -125,8 +130,6 @@ class BaseController(object):
             kwargs['max_run_count'] = None
         if kwargs.get('start_after') == '':
             kwargs['start_after'] = None
-        if kwargs.get('mconditions') == '':
-            kwargs['mconditions'] = None
         # transform string to datetime
         if kwargs.get('expires'):
             try:
@@ -146,18 +149,6 @@ class BaseController(object):
         for key, value in kwargs.iteritems():
             if key in self.schedule._fields.keys():
                 setattr(self.schedule, key, value)
-
-        mconditions = kwargs.get('mconditions', {})
-        if mconditions:
-            for k in mconditions:
-                if k not in ['period', 'value', 'monthly']:
-                    raise BadRequestError("Invalid key given: %s" % k)
-            if mconditions['value'] == '':
-                mconditions['value'] = None
-                mconditions['period'] = None
-            if mconditions['monthly'] == '':
-                mconditions['monthly'] = None
-            self.schedule.mconditions = schedules.MConditions(**mconditions)
 
         now = datetime.datetime.now()
         if self.schedule.expires and self.schedule.expires < now:
@@ -265,57 +256,67 @@ class BaseController(object):
         Subclasses MAY override this method.
 
         """
-        import mist.api.schedules.models as schedules
+        cond_cls = {'tags': TaggingCondition,
+                    'machines': MachinesCondition,
+                    'field': FieldCondition,
+                    'age': MachinesAgeCondition}
+        self.schedule.conditions = []
+        for condition in kwargs.get('conditions', []):
+            if condition.get('type') not in cond_cls:
+                raise BadRequestError()
+            if condition['type'] == 'field':
+                if condition['field'] not in ('created', 'state',
+                                              'cost__monthly'):
+                    raise BadRequestError()
+            cond = cond_cls[condition.pop('type')]()
+            cond.update(**condition)
+            self.conditions.append(cond)
 
-        machines_uuids = kwargs.get('machines_uuids', '')
-        machines_tags = kwargs.get('machines_tags', '')
+        # TODO: Remove machine uuids and machine tags
+        if kwargs.get('machines_uuids'):
+            cond = MachinesCondition(ids=kwargs['machines_uuids'])
+            self.conditions.append(cond)
+        if kwargs.get('machines_tags'):
+            tags = kwargs['machines_tags']
+            if not isinstance(tags, dict):
+                try:
+                    tags = json.loads(tags)
+                except:
+                    raise BadRequestError("Tags are not in an acceptable form")
+            cond = TaggingCondition(tags=tags)
+            self.conditions.append(cond)
+
         action = kwargs.get('action', '')
 
-        # convert machines' uuids to machine objects
-        # and check permissions
-        if machines_uuids:
-            machines_obj = []
-            for machine_uuid in machines_uuids:
-                try:
-                    machine = Machine.objects.get(id=machine_uuid,
-                                                  state__ne='terminated')
-                except me.DoesNotExist:
-                    raise NotFoundError('Machine state is terminated')
+        # check permissions
+        check = False
+        for condition in self.conditions:
+            if condition.ctype == 'machines':
+                for mid in condition.ids:
+                    try:
+                        machine = Machine.objects.get(id=mid)
+                    except Machine.DoesNotExist:
+                        raise NotFoundError('Machine state is terminated')
 
-                cloud_id = machine.cloud.id
-                # SEC require permission READ on cloud
-                auth_context.check_perm("cloud", "read", cloud_id)
+                    # SEC require permission READ on cloud
+                    auth_context.check_perm("cloud", "read", machine.cloud.id)
 
+                    if action:
+                        # SEC require permission ACTION on machine
+                        auth_context.check_perm("machine", action, mid)
+                    else:
+                        # SEC require permission RUN_SCRIPT on machine
+                        auth_context.check_perm("machine", "run_script", mid)
+                check = True
+            elif condition.ctype == 'tags':
                 if action:
                     # SEC require permission ACTION on machine
-                    auth_context.check_perm("machine", action, machine_uuid)
+                    auth_context.check_perm("machine", action, None)
                 else:
                     # SEC require permission RUN_SCRIPT on machine
-                    auth_context.check_perm("machine", "run_script",
-                                            machine_uuid)
-
-                machines_obj.append(machine)
-
-            self.schedule.machines_condition = \
-                schedules.ListOfMachinesSchedule(machines=machines_obj)
-
-        # check permissions for machines' tags
-        if machines_tags and (not isinstance(machines_tags, dict) and
-                              machines_tags != ''):
-            try:
-                machines_tags = json.loads(machines_tags)
-            except:
-                raise BadRequestError("Tags are not in an acceptable form")
-
-        if machines_tags:
-            if action:
-                # SEC require permission ACTION on machine
-                auth_context.check_perm("machine", action, None)
-            else:
-                # SEC require permission RUN_SCRIPT on machine
-                auth_context.check_perm("machine", "run_script", None)
-
-            self.schedule.machines_condition = \
-                schedules.TaggedMachinesSchedule(tags=machines_tags)
+                    auth_context.check_perm("machine", "run_script", None)
+                check = True
+        if not check:
+            raise BadRequestError("Specify at least machine ids or tags")
 
         return

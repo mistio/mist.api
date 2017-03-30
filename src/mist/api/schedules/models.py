@@ -1,5 +1,4 @@
 """Schedule entity model."""
-import re
 import datetime
 from uuid import uuid4
 import celery.schedules
@@ -7,10 +6,11 @@ import mongoengine as me
 from mist.api.tag.models import Tag
 from mist.api.machines.models import Machine
 from mist.api.exceptions import BadRequestError
-from mist.api.users.models import Owner, Organization
+from mist.api.users.models import Organization
 from celerybeatmongo.schedulers import MongoScheduler
 from mist.api.exceptions import ScheduleNameExistsError
 from mist.api.exceptions import RequiredParameterMissingError
+from mist.api.conditions import ConditionalClassMixin
 
 
 #: Authorized values for Interval.period
@@ -153,129 +153,7 @@ class ScriptTask(BaseTaskType):
         return 'Run script: %s' % self.script_id
 
 
-def machine_conditions(machine, mconditions):
-    if not mconditions:
-        return machine.id
-    if hasattr(mconditions, 'period'):
-        now = datetime.datetime.now()
-        if now - machine.created > mconditions.age:
-            return machine.id
-    if hasattr(mconditions, 'monthly'):
-        # elif mconditions.cost.monthly != 0:
-        if machine.cost.monthly > mconditions.monthly:
-            return machine.id
-
-
-class BaseMachinesCondition(me.EmbeddedDocument):
-    """Abstract Base class used as a common interface
-        for scheduler's resource types. List of
-        machines_uuids or machines_tags"""
-
-    meta = {'allow_inheritance': True}
-
-    @property
-    def sched_machines(self):
-        raise NotImplementedError()
-
-
-class ListOfMachinesSchedule(BaseMachinesCondition):
-    machines = me.ListField(me.ReferenceField(Machine, required=True,),
-                            required=True)
-
-    @property
-    def sched_machines(self):
-        machines_uuids = []
-        for machine in self.machines:
-            if machine.state == 'terminated':
-                continue
-            elif hasattr(self._instance, 'mconditions'):
-                m_uuid = machine_conditions(machine,
-                                            self._instance.mconditions)
-                if m_uuid: machines_uuids.append(machine.id)
-            else:
-                machines_uuids.append(machine.id)
-
-        return machines_uuids
-
-    # def __str__(self):
-    #     return 'Machines: %s' % self.machines
-
-
-class TaggedMachinesSchedule(BaseMachinesCondition):
-    tags = me.DictField(required=True, default={})
-
-    @property
-    def sched_machines(self):
-        # all machines currently matching the tags
-        machines_uuids = []
-        for k, v in self.tags.iteritems():
-            machines_from_tags = Tag.objects(owner=self._instance.owner,
-                                             resource_type='machines',
-                                             key=k)  # value=v
-            for m in machines_from_tags:
-                #  FIXME this is ugly, but we must refactor tags
-                if m.value == v or (v is None and m.value == ''):
-                    if m.resource.state == 'terminated':
-                        continue
-                    elif hasattr(self._instance, 'mconditions'):
-                        m_uuid = machine_conditions(m.resource,
-                                                    self._instance.mconditions)
-                        if m_uuid: machines_uuids.append(m.resource.id)
-                    else:
-                        machines_uuids.append(m.resource.id)
-
-            return machines_uuids
-
-    def validate(self, clean=True):
-        if self.tags:
-            regex = re.compile(r'^[a-z0-9_-]+$')
-            for key, value in self.tags.iteritems():
-                if not key:
-                    raise me.ValidationError('You cannot add a tag '
-                                             'without a key')
-                elif not regex.match(key) or (value and
-                                              not regex.match(value)):
-                    raise me.ValidationError('Tags must be in key=value '
-                                             'format and only contain the '
-                                             'characters a-z, 0-9, _, -')
-        super(TaggedMachinesSchedule, self).validate(clean=True)
-
-    def clean(self):
-        if not self.tags:
-            self.tags = {}
-        elif not isinstance(self.tags, dict):
-            raise me.ValidationError('Tags must be a dictionary')
-
-    def __str__(self):
-        return 'Tags: %s' % self.tags
-
-
-# copy this from machines.models
-#class Cost(me.EmbeddedDocument):
-#    hourly = me.FloatField(default=0)
-#    monthly = me.FloatField(default=0)
-
-    # def as_dict(self):
-    #     return json.loads(self.to_json())
-
-
-# FIXME we need a base class for general conditions, for future use
-class MConditions(me.EmbeddedDocument):
-    value = me.IntField(min_value=0, default=0)  # required=True
-    period = me.StringField(choices=PERIODS)
-    monthly = me.FloatField(default=0)
-    # FIXME operator we need this
-    operator = me.StringField()
-    # cost = me.EmbeddedDocumentField(Cost)  # default=lambda: Cost()
-
-    @property
-    def age(self):
-        return datetime.timedelta(**{self.period: self.value})
-
-    # as dict or str or sth
-
-
-class Schedule(me.Document):
+class Schedule(me.Document, ConditionalClassMixin):
     """Abstract base class for every schedule attr mongoengine model.
     This model is based on celery periodic task and creates defines the fields
     common to all schedules of all types. For each different schedule type, a
@@ -290,6 +168,8 @@ class Schedule(me.Document):
         Schedule.objects(owner=owner).count()
 
     """
+
+    condition_resource_cls = Machine
 
     meta = {
         'collection': 'schedules',
@@ -308,7 +188,6 @@ class Schedule(me.Document):
     name = me.StringField(required=True)
     description = me.StringField()
     deleted = me.DateTimeField()
-    owner = me.ReferenceField(Owner, required=True)
 
     # celery periodic task specific fields
     queue = me.StringField()
@@ -319,8 +198,6 @@ class Schedule(me.Document):
     # mist specific fields
     schedule_type = me.EmbeddedDocumentField(BaseScheduleType, required=True)
     task_type = me.EmbeddedDocumentField(BaseTaskType, required=True)
-    machines_condition = me.EmbeddedDocumentField(BaseMachinesCondition,
-                                                  required=True)
 
     # celerybeat-mongo specific fields
     expires = me.DateTimeField()
@@ -330,7 +207,6 @@ class Schedule(me.Document):
     last_run_at = me.DateTimeField()
     total_run_count = me.IntField(min_value=0, default=0)
     max_run_count = me.IntField(min_value=0, default=0)
-    mconditions = me.EmbeddedDocumentField(MConditions)
 
     no_changes = False
 
@@ -377,10 +253,9 @@ class Schedule(me.Document):
 
     @property
     def args(self):
-        m = self.machines_condition.sched_machines
+        mids = [machine.id for machine in self.get_resources().only('id')]
         fire_up = self.task_type.args
-
-        return [self.owner.id, fire_up, self.name, m]
+        return [self.owner.id, fire_up, self.name, mids]
 
     @property
     def kwargs(self):
@@ -394,7 +269,7 @@ class Schedule(me.Document):
     def enabled(self):
         if self.deleted:
             return False
-        if not self.machines_condition.sched_machines:
+        if not self.get_resources().count():
             return False
         if self.expires and self.expires < datetime.datetime.now():
             return False
@@ -478,14 +353,17 @@ class Schedule(me.Document):
             'last_run_at': last_run,
             'total_run_count': self.total_run_count,
             'max_run_count': self.max_run_count,
+            'conditions': [],
         }
 
-        if isinstance(self.machines_condition, ListOfMachinesSchedule):
-            machines_uuids = [machine.id for machine in
-                              self.machines_condition.machines]
-            sdict.update({'machines_uuids': machines_uuids})
-        else:
-            sdict.update({'machines_tags': self.machines_condition.tags})
+        for condition in self.conditions:
+            sdict['conditions'].append(condition.as_dict())
+
+            # TODO: Remove following block
+            if condition.ctype == 'tags':
+                sdict.update({'machines_tags': condition.tags})
+            elif condition.ctype == 'machines':
+                sdict.update({'machines_uuids': condition.ids})
 
         return sdict
 
