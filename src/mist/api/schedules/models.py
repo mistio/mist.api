@@ -153,6 +153,17 @@ class ScriptTask(BaseTaskType):
         return 'Run script: %s' % self.script_id
 
 
+def machine_conditions(machine, mconditions):
+    if mconditions.period:
+        now = datetime.datetime.now()
+        if now - machine.created > mconditions.age:
+            return machine.id
+    if mconditions.cost:
+        # elif mconditions.cost.monthly != 0:
+        if machine.cost.monthly > mconditions.cost.monthly:
+            return machine.id
+
+
 class BaseMachinesCondition(me.EmbeddedDocument):
     """Abstract Base class used as a common interface
         for scheduler's resource types. List of
@@ -171,14 +182,17 @@ class ListOfMachinesSchedule(BaseMachinesCondition):
 
     @property
     def sched_machines(self):
-        cloud_machines_pairs = []
+        machines_uuids = []
         for machine in self.machines:
-            if machine.state != 'terminated':
-                machine_id = machine.machine_id
-                cloud_id = machine.cloud.id
-                cloud_machines_pairs.append((cloud_id, machine_id))
-
-        return cloud_machines_pairs
+            if machine.state == 'terminated':
+                continue
+            elif not hasattr(self._instance, 'mconditions'):
+                machines_uuids.append(machine.id)
+            else:
+                m_uuid = machine_conditions(machine,
+                                            self._instance.mconditions)
+                if m_uuid: machines_uuids.append(machine.id)
+        return machines_uuids
 
     # def __str__(self):
     #     return 'Machines: %s' % self.machines
@@ -190,7 +204,7 @@ class TaggedMachinesSchedule(BaseMachinesCondition):
     @property
     def sched_machines(self):
         # all machines currently matching the tags
-        cloud_machines_pairs = []
+        machines_uuids = []
         for k, v in self.tags.iteritems():
             machines_from_tags = Tag.objects(owner=self._instance.owner,
                                              resource_type='machines',
@@ -198,13 +212,16 @@ class TaggedMachinesSchedule(BaseMachinesCondition):
             for m in machines_from_tags:
                 #  FIXME this is ugly, but we must refactor tags
                 if m.value == v or (v is None and m.value == ''):
-                    if m.resource.state != 'terminated':
-                        machine_id = m.resource.machine_id
-                        cloud_id = m.resource.cloud.id
-                        #  this
-                        cloud_machines_pairs.append((cloud_id, machine_id))
+                    if m.resource.state == 'terminated':
+                        continue
+                    elif not hasattr(self._instance, 'mconditions'):
+                        machines_uuids.append(m.resource.id)
+                    else:
+                        m_uuid = machine_conditions(m.resource,
+                                                    self._instance.mconditions)
+                        if m_uuid: machines_uuids.append(m.resource.id)
 
-        return cloud_machines_pairs
+        return machines_uuids
 
     def validate(self, clean=True):
         if self.tags:
@@ -228,6 +245,30 @@ class TaggedMachinesSchedule(BaseMachinesCondition):
 
     def __str__(self):
         return 'Tags: %s' % self.tags
+
+
+# copy this from machines.models
+class Cost(me.EmbeddedDocument):
+    hourly = me.FloatField(default=0)
+    monthly = me.FloatField(default=0)
+
+    # def as_dict(self):
+    #     return json.loads(self.to_json())
+
+
+# FIXME we need a base class for general conditions, for future use
+class MConditions(me.EmbeddedDocument):
+    value = me.IntField(min_value=0, default=0)  # required=True
+    period = me.StringField(choices=PERIODS)
+    # FIXME operator we need this
+    operator = me.StringField()
+    cost = me.EmbeddedDocumentField(Cost)  # default=lambda: Cost()
+
+    @property
+    def age(self):
+        return datetime.timedelta(**{self.period: self.value})
+
+    # as dict or str or sth
 
 
 class Schedule(me.Document):
@@ -285,6 +326,7 @@ class Schedule(me.Document):
     last_run_at = me.DateTimeField()
     total_run_count = me.IntField(min_value=0, default=0)
     max_run_count = me.IntField(min_value=0, default=0)
+    mconditions = me.EmbeddedDocumentField(MConditions)
 
     no_changes = False
 
