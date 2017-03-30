@@ -60,8 +60,48 @@ class AmazonDNSController(BaseDNSController):
                 kwargs['data'] = '"' + kwargs['data']
         kwargs['extra'] = {'ttl': kwargs.pop('ttl', 0)}
 
+    def _create_zone__prepare_args(self, **kwargs):
+        if not kwargs['domain'].endswith('.'):
+            kwargs['domain'] += '.'
+
     def _list_records__postparse_data(self, pr_record, record):
         """Get the provider specific information into the Mongo model"""
+        if pr_record.data not in record.rdata:
+            record.rdata.append(pr_record.data)
+
+
+class DigitalOceanDNSController(BaseDNSController):
+    """
+    DigitalOcean specific overrides.
+    """
+
+    def _connect(self):
+        return get_driver(Provider.DIGITAL_OCEAN)(self.cloud.token)
+
+    def _create_record__prepare_args(self, zone, kwargs):
+        """
+        This is a private method to transform the arguments to the provider
+        specific form.
+        ---
+        """
+        if kwargs['type'] == 'CNAME' and not kwargs['data'].endswith('.'):
+            kwargs['data'] += '.'
+        # Route 53 requires TXT rdata to be whitin quotes
+        if kwargs['type'] == 'TXT':
+            if not kwargs['data'].endswith('"'):
+                kwargs['data'] += '"'
+            if not kwargs['data'].startswith('"'):
+                kwargs['data'] = '"' + kwargs['data']
+        # DO does not accept a ttl
+        kwargs.pop('ttl', 0)
+
+    def _create_zone__prepare_args(self, **kwargs):
+        if kwargs['domain'].endswith('.'):
+            kwargs['domain'] = kwargs['domain'][:-1]
+
+    def _list_records__postparse_data(self, pr_record, record):
+        """Get the provider specific information into the Mongo model"""
+        print "Record: %s" % pr_record.id
         if pr_record.data not in record.rdata:
             record.rdata.append(pr_record.data)
 
@@ -93,6 +133,52 @@ class GoogleDNSController(BaseDNSController):
         kwargs['data'] = {'ttl': kwargs.pop('ttl', 0), 'rrdatas': []}
         kwargs['data']['rrdatas'].append(data)
 
+    def _create_zone__prepare_args(self, **kwargs):
+        if not kwargs['domain'].endswith('.'):
+            kwargs['domain'] += '.'
+
     def _list_records__postparse_data(self, pr_record, record):
         """Get the provider specific information into the Mongo model"""
         record.rdata = pr_record.data['rrdatas']
+
+
+class LinodeDNSController(BaseDNSController):
+    """
+    Linode specific overrides.
+    """
+
+    def _connect(self):
+        return get_driver(Provider.LINODE)(self.cloud.apikey)
+
+
+class RackSpaceDNSController(BaseDNSController):
+    """
+    RackSpace specific overrides.
+    """
+
+    def _connect(self):
+        if self.cloud.region in ('us', 'uk'):
+            driver = get_driver(Provider.RACKSPACE_FIRST_GEN)
+        else:
+            driver = get_driver(Provider.RACKSPACE)
+        return driver(self.cloud.username, self.cloud.apikey,
+                      region=self.cloud.region)
+
+
+class SoftLayerDNSController(BaseDNSController):
+    """
+    SoftLayer specific overrides.
+    """
+
+    def _connect(self):
+        return get_driver(Provider.SOFTLAYER)(self.cloud.username,
+                                              self.cloud.apikey)
+
+
+class VultrDNSController(BaseDNSController):
+    """
+    Vultr specific overrides.
+    """
+
+    def _connect(self):
+        return get_driver(Provider.VULTR)(self.cloud.apikey)
