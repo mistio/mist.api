@@ -1,9 +1,11 @@
-import paramiko
-import logging
-import json
-import uuid
+import os
 import re
+import uuid
+import json
+import logging
 from time import time
+
+import paramiko
 
 from libcloud.compute.types import NodeState
 
@@ -1342,7 +1344,13 @@ def run_script(owner, script_id, cloud_id, machine_id, params='', host='',
         path, params, wparams = script.ctl.run_script(shell,
                                                       params=params,
                                                       job_id=ret.get('job_id'))
-        with open('src/run_script/run.py') as fobj:
+
+        with open(os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
+                os.path.abspath(__file__)
+            )))),
+            'run_script', 'run.py'
+        )) as fobj:
             wscript = fobj.read()
 
         # check whether python exists
