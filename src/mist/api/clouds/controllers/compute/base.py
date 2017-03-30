@@ -30,6 +30,7 @@ from mist.api.exceptions import InternalServerError
 from mist.api.exceptions import MachineNotFoundError
 from mist.api.exceptions import CloudUnavailableError
 from mist.api.exceptions import CloudUnauthorizedError
+from mist.api.exceptions import SSLError
 
 from mist.api.helpers import get_datetime
 
@@ -149,11 +150,11 @@ class BaseComputeController(BaseController):
         except InvalidCredsError as exc:
             log.warning("Invalid creds on running list_nodes on %s: %s",
                         self.cloud, exc)
-            raise CloudUnauthorizedError()
+            raise CloudUnauthorizedError(msg=exc.message)
         except ssl.SSLError as exc:
             log.error("SSLError on running list_nodes on %s: %s",
                       self.cloud, exc)
-            raise CloudUnavailableError(exc=exc)
+            raise SSLError(exc=exc)
         except Exception as exc:
             log.exception("Error while running list_nodes on %s", self.cloud)
             raise CloudUnavailableError(exc=exc)

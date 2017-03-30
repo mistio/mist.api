@@ -106,6 +106,18 @@ def get_events(auth_context=None, owner_id='', user_id='',
         query["query"]["bool"]["filter"]["bool"]["must"].append(
             {"term": {"error": False}}
         )
+
+    if 'filter' in kwargs:
+        f = kwargs.pop('filter')
+        query_string = {
+            'query': f,
+            'analyze_wildcard': True,
+            'default_operator': 'and'
+        }
+        query["query"]["bool"]["filter"]["bool"]["must"].append({
+            'query_string': query_string
+        })
+
     # Extend query with additional kwargs.
     for key, value in kwargs.iteritems():
         query["query"]["bool"]["filter"]["bool"]["must"].append(

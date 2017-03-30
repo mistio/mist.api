@@ -434,6 +434,7 @@ class Organization(Owner):
     members_count = me.IntField(default=0)
     teams = me.EmbeddedDocumentListField(Team, default=_get_default_org_teams)
     teams_count = me.IntField(default=0)
+    clouds_count = me.IntField(default=0)
     # These are assigned only to organization from now on
     promo_codes = me.ListField()
     selected_plan = me.StringField()
@@ -442,6 +443,7 @@ class Organization(Owner):
     insights_enabled = me.BooleanField(default=False)
 
     created = me.DateTimeField(default=datetime.datetime.now)
+    registered_by = me.StringField()
 
     @property
     def mapper(self):

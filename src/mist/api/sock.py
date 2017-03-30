@@ -358,7 +358,7 @@ class MainConnection(MistConnection):
             }
             if error:
                 ret['error'] = error
-            log.error(ret)
+                log.error(ret)
             self.send('stats', ret)
 
         try:
