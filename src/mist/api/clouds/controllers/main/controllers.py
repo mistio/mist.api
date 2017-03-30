@@ -104,7 +104,6 @@ class LinodeMainController(BaseMainController):
 
 
 class OnAppMainController(BaseMainController):
-
     provider = 'onapp'
     ComputeController = compute_ctls.OnAppComputeController
 

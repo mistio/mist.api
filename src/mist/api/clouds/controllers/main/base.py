@@ -25,6 +25,7 @@ from mist.api.exceptions import CloudExistsError
 from mist.api.exceptions import InternalServerError
 from mist.api.exceptions import CloudUnavailableError
 from mist.api.exceptions import CloudUnauthorizedError
+from mist.api.exceptions import SSLError
 
 from mist.api.helpers import rename_kwargs
 from mist.api.clouds.controllers.network.base import BaseNetworkController
@@ -251,7 +252,8 @@ class BaseMainController(object):
         if fail_on_error:
             try:
                 self.compute.check_connection()
-            except (CloudUnavailableError, CloudUnauthorizedError) as exc:
+            except (CloudUnavailableError, CloudUnauthorizedError,
+                    SSLError) as exc:
                 log.error("Will not update cloud %s because "
                           "we couldn't connect: %r", self.cloud, exc)
                 raise
