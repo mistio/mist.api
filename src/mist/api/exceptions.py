@@ -115,7 +115,7 @@ class ServiceUnavailableError(MistError):
 
 
 class SSLError(MistError):
-    msg = "SSL certificate verification error"
+    msg = "SSL certificate verification error with host"
 
 
 class RequiredParameterMissingError(BadRequestError):
