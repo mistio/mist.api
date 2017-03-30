@@ -154,13 +154,15 @@ class ScriptTask(BaseTaskType):
 
 
 def machine_conditions(machine, mconditions):
-    if mconditions.period:
+    if not mconditions:
+        return machine.id
+    if hasattr(mconditions, 'period'):
         now = datetime.datetime.now()
         if now - machine.created > mconditions.age:
             return machine.id
-    if mconditions.cost:
+    if hasattr(mconditions, 'monthly'):
         # elif mconditions.cost.monthly != 0:
-        if machine.cost.monthly > mconditions.cost.monthly:
+        if machine.cost.monthly > mconditions.monthly:
             return machine.id
 
 
@@ -186,12 +188,13 @@ class ListOfMachinesSchedule(BaseMachinesCondition):
         for machine in self.machines:
             if machine.state == 'terminated':
                 continue
-            elif not hasattr(self._instance, 'mconditions'):
-                machines_uuids.append(machine.id)
-            else:
+            elif hasattr(self._instance, 'mconditions'):
                 m_uuid = machine_conditions(machine,
                                             self._instance.mconditions)
                 if m_uuid: machines_uuids.append(machine.id)
+            else:
+                machines_uuids.append(machine.id)
+
         return machines_uuids
 
     # def __str__(self):
@@ -214,14 +217,14 @@ class TaggedMachinesSchedule(BaseMachinesCondition):
                 if m.value == v or (v is None and m.value == ''):
                     if m.resource.state == 'terminated':
                         continue
-                    elif not hasattr(self._instance, 'mconditions'):
-                        machines_uuids.append(m.resource.id)
-                    else:
+                    elif hasattr(self._instance, 'mconditions'):
                         m_uuid = machine_conditions(m.resource,
                                                     self._instance.mconditions)
                         if m_uuid: machines_uuids.append(m.resource.id)
+                    else:
+                        machines_uuids.append(m.resource.id)
 
-        return machines_uuids
+            return machines_uuids
 
     def validate(self, clean=True):
         if self.tags:
@@ -248,9 +251,9 @@ class TaggedMachinesSchedule(BaseMachinesCondition):
 
 
 # copy this from machines.models
-class Cost(me.EmbeddedDocument):
-    hourly = me.FloatField(default=0)
-    monthly = me.FloatField(default=0)
+#class Cost(me.EmbeddedDocument):
+#    hourly = me.FloatField(default=0)
+#    monthly = me.FloatField(default=0)
 
     # def as_dict(self):
     #     return json.loads(self.to_json())
@@ -260,9 +263,10 @@ class Cost(me.EmbeddedDocument):
 class MConditions(me.EmbeddedDocument):
     value = me.IntField(min_value=0, default=0)  # required=True
     period = me.StringField(choices=PERIODS)
+    monthly = me.FloatField(default=0)
     # FIXME operator we need this
     operator = me.StringField()
-    cost = me.EmbeddedDocumentField(Cost)  # default=lambda: Cost()
+    # cost = me.EmbeddedDocumentField(Cost)  # default=lambda: Cost()
 
     @property
     def age(self):

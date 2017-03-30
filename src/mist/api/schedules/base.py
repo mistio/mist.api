@@ -156,13 +156,7 @@ class BaseController(object):
                 mconditions['value'] = None
                 mconditions['period'] = None
             if mconditions['monthly'] == '':
-                del mconditions['monthly']
-                cost = schedules.Cost()
-                mconditions.update({'cost': cost})
-            if mconditions.get('monthly'):
-                cost = schedules.Cost(monthly=mconditions['monthly'])
-                del mconditions['monthly']
-                mconditions.update({'cost': cost})
+                mconditions['monthly'] = None
             self.schedule.mconditions = schedules.MConditions(**mconditions)
 
         now = datetime.datetime.now()
