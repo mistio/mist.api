@@ -958,16 +958,96 @@ class OnAppComputeController(BaseComputeController):
             (machine.extra.get('cpus'), machine.extra.get('memory'))
 
     def _list_machines__cost_machine(self, machine, machine_libcloud):
-        # TODO: investigate how price_per_hour and price_per_hour_powered_off
-        # differ
-        # also what happens if VM is stopped
-        return machine_libcloud.extra.get('price_per_hour', 0), 0
+        if machine_libcloud.state == NodeState.STOPPED:
+            return machine_libcloud.extra.get('price_per_hour_powered_off',
+                                              0), 0
+        else:
+            return machine_libcloud.extra.get('price_per_hour', 0), 0
 
     def _resume_machine(self, machine, machine_libcloud):
         self.connection.ex_resume_node(machine_libcloud)
 
     def _suspend_machine(self, machine, machine_libcloud):
         self.connection.ex_suspend_node(machine_libcloud)
+
+    def _list_locations__fetch_locations(self):
+        """Get locations
+
+        We will perform a few calls to get hypervisor_group_id
+        paramater sent for create machine, and the max sizes to
+        populate the create machine wizard for cpu/disk/memory,
+        since this info can be retrieved per location.
+        We will also get network information and match it per
+        location, useful only to choose network on new VMs
+
+        """
+        # calls performed:
+        # 1) get list of compute zones - associate
+        # location with hypervisor_group_id, max_cpu, max_memory
+        # 2) get data store zones and data stores to get max_disk_size
+        # 3) get network ids per location
+
+        locations = self.connection.list_locations()
+        if locations:
+            hypervisors = self.connection.connection.request(
+                "/settings/hypervisor_zones.json")
+            for l in locations:
+                for hypervisor in hypervisors.object:
+                    h = hypervisor.get("hypervisor_group")
+                    if str(h.get("location_group_id")) == l.id:
+                        # get max_memory/max_cpu
+                        l.extra["max_memory"] = h.get("max_host_free_memory")
+                        l.extra["max_cpu"] = h.get("max_host_cpu")
+                        l.extra["hypervisor_group_id"] = h.get("id")
+                        break
+
+            try:
+                data_store_zones = self.connection.connection.request(
+                    "/settings/data_store_zones.json").object
+                data_stores = self.connection.connection.request(
+                    "/settings/data_stores.json").object
+            except:
+                pass
+
+            for l in locations:
+                # get data store zones, and match with locations
+                # through location_group_id
+                # then calculate max_disk_size per data store,
+                # by matching data store zones and data stores
+                try:
+                    store_zones = [dsg for dsg in data_store_zones if l.id is
+                                   str(dsg['data_store_group']
+                                       ['location_group_id'])]
+                    for store_zone in store_zones:
+                        stores = [store for store in data_stores if
+                                  store['data_store']['data_store_group_id'] is
+                                  store_zone['data_store_group']['id']]
+                        for store in stores:
+                            l.extra['max_disk_size'] = store['data_store']
+                            ['data_store_size'] - store['data_store']['usage']
+                except:
+                    pass
+
+            try:
+                networks = self.connection.connection.request(
+                    "/settings/network_zones.json").object
+            except:
+                pass
+
+            for l in locations:
+                # match locations with network ids (through location_group_id)
+                l.extra['networks'] = []
+
+                try:
+                    for network in networks:
+                        net = network["network_group"]
+                        if str(net["location_group_id"]) == l.id:
+                            l.extra['networks'].append({'name': net['label'],
+                                                        'id': net['id']})
+                except:
+                    pass
+
+        return locations
 
 
 class OtherComputeController(BaseComputeController):
