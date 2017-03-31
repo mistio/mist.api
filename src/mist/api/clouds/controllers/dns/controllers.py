@@ -150,7 +150,7 @@ class LinodeDNSController(BaseDNSController):
 
     def _connect(self):
         return get_driver(Provider.LINODE)(self.cloud.apikey)
-        
+
     def _create_zone__prepare_args(self, **kwargs):
         if kwargs['type'] == "master":
             kwargs['extra'] = {'SOA_email': kwargs.pop('SOA_email', "")}
