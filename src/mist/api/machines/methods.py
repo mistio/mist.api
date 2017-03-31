@@ -125,7 +125,8 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                    bare_metal=False, hourly=True,
                    softlayer_backend_vlan_id=None,
                    size_ram=256, size_cpu=1,
-                   size_disk_primary=5, size_disk_swap=1, boot=True, build=True,
+                   size_disk_primary=5, size_disk_swap=1,
+                   boot=True, build=True,
                    cpu_priority=1, cpu_sockets=1, cpu_threads=1, port_speed=0,
                    hypervisor_group_id=None):
     """Creates a new virtual machine on the specified cloud.
