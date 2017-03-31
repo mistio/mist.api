@@ -101,7 +101,8 @@ class DigitalOceanDNSController(BaseDNSController):
 
     def _list_records__postparse_data(self, pr_record, record):
         """Get the provider specific information into the Mongo model"""
-        print "Record: %s" % pr_record.id
+        if pr_record.type == "CNAME" and not pr_record.data.endswith('.'):
+            pr_record.data += '.'
         if pr_record.data not in record.rdata:
             record.rdata.append(pr_record.data)
 
@@ -149,6 +150,9 @@ class LinodeDNSController(BaseDNSController):
 
     def _connect(self):
         return get_driver(Provider.LINODE)(self.cloud.apikey)
+    def _create_zone__prepare_args(self, **kwargs):
+        if kwargs['type'] == "master":
+            kwargs['extra'] = {'SOA_email': kwargs.pop('SOA_email', "")}
 
 
 class RackSpaceDNSController(BaseDNSController):
