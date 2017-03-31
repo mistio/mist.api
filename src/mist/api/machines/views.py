@@ -235,7 +235,18 @@ def create_machine(request):
     # servers, while False means the server has montly pricing
     softlayer_backend_vlan_id = params.get('softlayer_backend_vlan_id', None)
     hourly = params.get('billing', True)
-    job_id = params.get('job_id', uuid.uuid4().hex)
+    job_id = params.get('job_id')
+    job_id = params.get('job_id')
+    # The `job` variable points to the event that started the job. If a job_id
+    # is not provided, then it means that this is the beginning of a new story
+    # that starts with a `create_machine` event. If a job_id is provided that
+    # means that the current event will be part of already existing, unknown
+    # story. TODO: Provide the `job` in the request's params or query it.
+    if not job_id:
+        job = 'create_machine'
+        job_id = uuid.uuid4().hex
+    else:
+        job = None
 
     # these are needed for OnApp
     size_ram = params.get('size_ram', 256)
@@ -298,7 +309,7 @@ def create_machine(request):
             location_name, ips, monitoring, networks,
             docker_env, docker_command)
     kwargs = {'script_id': script_id,
-              'script_params': script_params, 'script': script,
+              'script_params': script_params, 'script': script, 'job': job,
               'job_id': job_id, 'docker_port_bindings': docker_port_bindings,
               'docker_exposed_ports': docker_exposed_ports,
               'azure_port_bindings': azure_port_bindings,
@@ -334,6 +345,7 @@ def create_machine(request):
         kwargs.update({'quantity': quantity, 'persist': persist})
         tasks.create_machine_async.apply_async(args, kwargs, countdown=2)
         ret = {'job_id': job_id}
+    ret.update({'job': job})
     return ret
 
 
