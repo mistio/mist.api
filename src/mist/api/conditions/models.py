@@ -31,14 +31,20 @@ class ConditionalClassMixin(object):
 
     condition_resource_cls = None  # Instance of mongoengine model class
 
-    owner = me.ForeignKey(Organization, required=True)
+    owner = me.ReferenceField(Organization, required=True) # as ForeignKey
     conditions = me.EmbeddedDocumentListField(BaseCondition)
 
+    def owner_query(self):
+        return me.Q(owner=self.owner)
+
     def get_resources(self):
-        query = me.Q(owner=self.owner)
+        query = self.owner_query()
         for condition in self.conditions:
             query &= condition.q
         return self.condition_resource_cls.objects(query)
+
+    def get_ids(self):
+        return [resource.id for resource in self.get_resources().only('id')]
 
 
 class FieldCondition(BaseCondition):
@@ -46,7 +52,7 @@ class FieldCondition(BaseCondition):
     ctype = 'field'
 
     field = me.StringField(required=True)
-    value = me.GenericField(required=True)
+    value = me.GenericReferenceField(required=True)
     operator = me.StringField(required=True, default='eq',
                               choices=('eq', 'ne', 'gt', 'lt'))
 

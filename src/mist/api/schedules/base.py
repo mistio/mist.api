@@ -19,8 +19,8 @@ from mist.api.exceptions import ScheduleNameExistsError
 from mist.api.machines.models import Machine
 from mist.api.exceptions import NotFoundError
 
-from mist.api.conditions import FieldCondition, MachinesCondition
-from mist.api.conditions import TaggingCondition, MachinesAgeCondition
+from mist.api.conditions.models import FieldCondition, MachinesCondition
+from mist.api.conditions.models import TaggingCondition, MachinesAgeCondition
 
 try:
     from mist.core.rbac.methods import AuthContext
@@ -260,6 +260,7 @@ class BaseController(object):
                     'machines': MachinesCondition,
                     'field': FieldCondition,
                     'age': MachinesAgeCondition}
+
         self.schedule.conditions = []
         for condition in kwargs.get('conditions', []):
             if condition.get('type') not in cond_cls:
@@ -270,12 +271,12 @@ class BaseController(object):
                     raise BadRequestError()
             cond = cond_cls[condition.pop('type')]()
             cond.update(**condition)
-            self.conditions.append(cond)
+            self.schedule.conditions.append(cond)
 
         # TODO: Remove machine uuids and machine tags
         if kwargs.get('machines_uuids'):
             cond = MachinesCondition(ids=kwargs['machines_uuids'])
-            self.conditions.append(cond)
+            self.schedule.conditions.append(cond)
         if kwargs.get('machines_tags'):
             tags = kwargs['machines_tags']
             if not isinstance(tags, dict):
@@ -284,13 +285,13 @@ class BaseController(object):
                 except:
                     raise BadRequestError("Tags are not in an acceptable form")
             cond = TaggingCondition(tags=tags)
-            self.conditions.append(cond)
+            self.schedule.conditions.append(cond)
 
         action = kwargs.get('action', '')
 
         # check permissions
         check = False
-        for condition in self.conditions:
+        for condition in self.schedule.conditions:
             if condition.ctype == 'machines':
                 for mid in condition.ids:
                     try:

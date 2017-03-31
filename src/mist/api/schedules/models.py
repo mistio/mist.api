@@ -4,13 +4,14 @@ from uuid import uuid4
 import celery.schedules
 import mongoengine as me
 from mist.api.tag.models import Tag
+from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 from mist.api.exceptions import BadRequestError
 from mist.api.users.models import Organization
 from celerybeatmongo.schedulers import MongoScheduler
 from mist.api.exceptions import ScheduleNameExistsError
 from mist.api.exceptions import RequiredParameterMissingError
-from mist.api.conditions import ConditionalClassMixin
+from mist.api.conditions.models import ConditionalClassMixin
 
 
 #: Authorized values for Interval.period
@@ -217,6 +218,9 @@ class Schedule(me.Document, ConditionalClassMixin):
         import mist.api.schedules.base
         super(Schedule, self).__init__(*args, **kwargs)
         self.ctl = mist.api.schedules.base.BaseController(self)
+
+    def owner_query(self):
+        return me.Q(cloud__in=Cloud.objects(owner=self.owner).only('id'))
 
     @classmethod
     def add(cls, auth_context, name, **kwargs):

@@ -1098,7 +1098,7 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
         'description': schedule.description or '',
         'schedule_type': unicode(schedule.schedule_type or ''),
         'owner_id': owner_id,
-        'machines_match': schedule.machines_condition.sched_machines,
+        'machines_match': schedule.get_ids(),
         'machine_action': action,
         'expires': str(schedule.expires or ''),
         'task_enabled': schedule.task_enabled,
@@ -1255,7 +1255,7 @@ def group_run_script(owner_id, script_id, name, machines_uuids):
         'description': schedule.description or '',
         'schedule_type': unicode(schedule.schedule_type or ''),
         'owner_id': owner_id,
-        'machines_match': schedule.machines_condition.sched_machines,
+        'machines_match': schedule.get_ids(),
         'script_id': script_id,
         'expires': str(schedule.expires or ''),
         'task_enabled': schedule.task_enabled,
@@ -1444,6 +1444,3 @@ def revoke_token(token):
     auth_token = AuthToken.objects.get(token=token)
     auth_token.invalidate()
     auth_token.save()
-
-
-
