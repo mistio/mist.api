@@ -31,7 +31,7 @@ class ConditionalClassMixin(object):
 
     condition_resource_cls = None  # Instance of mongoengine model class
 
-    owner = me.ReferenceField(Organization, required=True) # as ForeignKey
+    owner = me.ReferenceField(Organization, required=True)
     conditions = me.EmbeddedDocumentListField(BaseCondition)
 
     def owner_query(self):
