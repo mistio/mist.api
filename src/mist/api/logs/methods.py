@@ -5,23 +5,22 @@ import datetime
 
 from mist.api.helpers import es_client as es
 
+from mist.api.exceptions import NotFoundError
+
+from mist.api.logs.helpers import _filtered_query
+from mist.api.logs.helpers import _on_response_callback
+
+from mist.api.logs.constants import EXCLUDED_BUCKETS
+from mist.api.logs.constants import FIELDS, TYPES, JOBS
+from mist.api.logs.constants import STARTS_STORY, CLOSES_STORY, CLOSES_INCIDENT
+
 try:
     from mist.core.rbac.methods import filter_logs
 except ImportError:
     from mist.api.dummy.rbac import filter_logs
 
-from mist.api.exceptions import NotFoundError
 
-from mist.api.logs.helpers import get_event
-from mist.api.logs.helpers import get_simple_story
-from mist.api.logs.helpers import get_open_incidents
-from mist.api.logs.helpers import start_machine_story
-
-from mist.api.logs.helpers import _on_response_callback
-
-from mist.api.logs.constants import FIELDS, CLOSES_INCIDENT
-
-
+logging.getLogger('elasticsearch').setLevel(logging.ERROR)
 log = logging.getLogger(__name__)
 
 
@@ -147,254 +146,6 @@ def get_events(auth_context=None, owner_id='', user_id='',
         yield event
 
 
-# TODO: Rethink this!
-def log_story(event, tornado_async=False):
-    """Log a story.
-
-    Log a new story or update an existing one given the event provided.
-
-    A story is a collection of logs, arranged in a meaningful sequence,
-    which pertain to a certain outcome. For instance, a 'session' is a
-    2-event story that consists of a 'connect' and 'disconnect' action,
-    and describes a specific User session, its duration, and more. Other
-    stories, such as machine creation, may consist of more than 2 events.
-
-    All stories must contain one of:
-        - job_id
-        - shell_id
-        - session_id
-        - incident_id
-
-    The above fields are also stored as the story's unique ID.
-
-    All stories contain a `log_ids` list field, which points to all relevant
-    logs, as well as `started_at` and `finished_at` timestamps. In order for
-    additional key-value pairs to be explicitly present in a story, one must
-    append them to `FIELDS`.
-
-    All Elasticsearch indices are in the form of stories-<date>.
-
-    Arguments:
-        - event: The event that triggers the creation/update of a story.
-        - tornado_async: Denotes where to execute Tornado-safe HTTP requests.
-
-    """
-    # Ensure `owner_id` is present, since ES indices are based on it.
-    assert event.get('owner_id'), 'OwnerID'
-
-    eaction = event['action']
-    event_id = event['log_id']
-
-    # Discover related stories for the given event based on the keys below.
-    # If none exists, a new story is started.
-    for key in ('job_id', 'shell_id', 'session_id', 'incident_id'):
-        if event.get(key):
-            story_id = event[key]
-            story_type = key.split('_')[0]
-
-            def _on_simple_story_callback(response):
-                result = _on_response_callback(response, tornado_async)
-                if result:
-                    _on_old_story_callback(event, result[0], tornado_async)
-                    log.warn('Found old_story of type "%s" with story_id %s'
-                             ' for event %s', story_type, story_id, event_id)
-                else:
-                    story = {
-                        'type': story_type,
-                        'error': event['error'],
-                        'log_ids': [event_id],
-                        'story_id': story_id,
-                        'started_at': event['time'], 'finished_at': 0
-                    }
-                    story.update({
-                        key: event[key] for key in event if key in FIELDS
-                    })
-                    _on_new_story_callback(event, story, tornado_async)
-                    log.warn('Created new_story of type "%s" with story_id %s'
-                             ' for event %s', story_type, story_id, event_id)
-
-            # Search for existing story.
-            get_simple_story(owner_id=event['owner_id'],
-                             story_id=story_id, story_type=story_type,
-                             callback=_on_simple_story_callback,
-                             tornado_async=tornado_async)
-            break
-
-    # Discover relevant stories in order to close any related, open incidents.
-    if eaction in CLOSES_INCIDENT:
-
-        def _on_open_incidents_callback(response):
-            incidents = _on_response_callback(response)
-            log.warn('Event %s [%s] will close %s open incident(s)',
-                     event_id, eaction, len(incidents))
-            for inc in incidents:
-                _on_old_story_callback(event, inc, tornado_async)
-
-        get_open_incidents(callback=_on_open_incidents_callback,
-                           tornado_async=tornado_async, **event)
-
-
-def _on_new_story_callback(event, story, tornado_async=False):
-    """Process new stories.
-
-    This method is invoked by a new story in order to be further processed
-    and pushed to Elasticsearch.
-
-    Arguments:
-        - event: The event that initiated the story.
-        - story: The newly created story.
-        - tornado_async: Denotes where to execute a Tornado-safe HTTP request.
-
-    """
-    etype, eaction = event['type'], event['action']
-
-    if story['error']:  # If an error occurred, close the story.
-        story['finished_at'] = event['time']
-    elif etype == 'request' and eaction == 'create_machine':
-        try:
-            start_machine_story(story, event)
-        except Exception as exc:
-            log.error('Error whle creating machine story '
-                      '%s: %s', story['story_id'], exc)
-
-    # Save to Elasticsearch. Refresh the index immediately.
-    index = 'stories-%s' % datetime.datetime.utcnow().strftime('%Y.%m')
-    if not tornado_async:
-        es().index(
-            index=index, doc_type=story['type'], body=story, refresh='true'
-        )
-    else:
-        es(tornado_async).index_doc(index=index, doc_type=story['type'],
-                                    body=json.dumps(story),
-                                    params={'refresh': 'true'})
-
-
-def _on_old_story_callback(event, story, tornado_async=False):
-    """Process old stories.
-
-    This method is invoked when an old story should be updated. An existing
-    story is updated given the event that triggered the update, as well as the
-    initial event that created the story.
-
-    Arguments:
-        - event: The event that triggered the story's update.
-        - story: The story to be updated.
-        - tornado_async: Denotes where to execute a Tornado-safe HTTP request.
-
-    """
-    stype = story['_type']
-    etype, eaction = event['type'], event['action']
-
-    def _on_update_callback(response):
-        result = _on_response_callback(response, tornado_async)
-        started = result[0]['_source']
-
-        # Incrementally extend the update script.
-        # Start by adding the event's log_id to the story's `log_ids`.
-        inline = 'ctx._source.log_ids.add(params.event_id)'
-
-        # If an error occured, update the story.
-        if event['error']:
-            inline += '; ctx._source.error = "%s"' % event['error']
-
-        # Close shell/session/incident stories, if applicable.
-        if (stype == 'shell' and eaction == 'close') or \
-           (stype == 'session' and eaction == 'disconnect') or \
-           (stype == 'incident' and eaction in CLOSES_INCIDENT):
-            inline += '; ctx._source.finished_at = %f' % event['time']
-
-        elif stype == 'job' and etype == 'job':
-            # Script execution.
-            if started['action'] == 'run_script':
-                if eaction == 'script_finished':
-                    inline += '; ctx._source.finished_at = %f' % event['time']
-            # Orchestration workflow.
-            elif started['action'] in ('create_stack', 'workflow_started',
-                                                       'execute_workflow'):
-                if eaction == 'workflow_finished':
-                    inline += '; ctx._source.finished_at = %f' % event['time']
-            # Collectd deployment.
-            elif started['action'] == 'deploy_collectd_started':
-                if eaction == 'deploy_collectd_finished':
-                    inline += '; ctx._source.finished_at = %f' % event['time']
-            # Collectd undeployment.
-            elif started['action'] == 'undeploy_collectd_started':
-                if eaction == 'undeploy_collectd_finished':
-                    inline += '; ctx._source.finished_at = %f' % event['time']
-            # Machine creation.
-            elif started['action'] == 'create_machine':
-                assert 'summary' in story['_source']
-                ctask, ntasks = None, ()
-
-                # Get the current task and potential, next tasks.
-                if eaction == 'machine_creation_finished':
-                    ctask, ntasks = 'create', ('probe', 'script', 'monitoring')
-                elif eaction == 'probe':
-                    ctask, ntasks = 'probe', ('script', 'monitoring')
-                elif eaction in ('deploy_collectd_finished',
-                                 'enable_monitoring_failed'):
-                    assert 'monitoring' in story['_source']['summary']
-                    ctask = 'monitoring'
-                elif eaction in ('script_finished',
-                                 'deployment_script_finished'):
-                    assert 'script' in story['_source']['summary']
-                    ctask = 'script'
-
-                # Update the story's summary. If the current task failed,
-                # all remaining tasks are marked as skipped.
-                if ctask:
-                    inline += '; ctx._source.summary.%s.pending -= 1' % ctask
-                    if event['error']:
-                        inline += '; ctx._source.summary.%s.error += 1' % ctask
-                        for task in ntasks:
-                            if task not in story['_source']['summary']:
-                                continue
-                            inline += (
-                                '; ctx._source.summary.{0}.skipped += 1'
-                                '; ctx._source.summary.{0}.pending -= 1'
-                            ).format(task)
-                    else:
-                        inline += '; ctx._source.summary.%s.success += 1' % ctask  # NOQA
-
-                # If no pending jobs, close the story.
-                inline += """;
-                    int pending = 0;
-                    for ( String i : ctx._source.summary.keySet() ) {
-                        pending += ctx._source.summary[i].pending;
-                    }
-                    if ( pending == 0 ) {
-                        ctx._source.finished_at = %(time)f;
-                    }
-                """ % {'time': event['time']}
-
-        script = {
-            'script': {
-                'lang': 'painless',
-                'inline': inline,
-                'params': {
-                    'event_id': event['log_id']
-                }
-            }
-        }
-
-        # Perform an atomic update to the story document.
-        if not tornado_async:
-            es().update(
-                index=story['_index'], doc_type=stype, id=story['_id'],
-                body=script
-            )
-        else:
-            es(tornado_async).update_doc(
-                index=story['_index'], doc_type=stype, doc_id=story['_id'],
-                body=json.dumps(script)
-            )
-
-    # Fetch the event that started the story. Invoke the update callback.
-    get_event(owner_id=event['owner_id'],
-              event_id=story['_source']['log_ids'][0], fields='action',
-              callback=_on_update_callback, tornado_async=tornado_async)
-
-
 def get_stories(story_type='', owner_id='', user_id='',
                 sort='started_at', sort_order=-1, limit=0,
                 error=None, range=None, pending=None, expand=False,
@@ -402,35 +153,86 @@ def get_stories(story_type='', owner_id='', user_id='',
     """Fetch stories.
 
     Query Elasticsearch for story documents based on the provided arguments.
-    By default, the story documents are not processed and they are returned
-    in their regular format.
+    By default, the stories are not fully expanded, but rather returned in a
+    simple, compact format. On the other hand, if `expand=True`, the stories'
+    full version is returned, consisting of the actual, detailed log entries.
 
-    If `expand=True`, the `log_ids` are replaced with the actual log entries
-    creating fully detailed stories.
+    Stories are not actual Elasticsearch documents, but exist only as a high-
+    level concept. Each story is basically a collection of logs, arranged in
+    a meaningful sequence, which pertain to and describe a specific event.
+
+    Stories are created by performing Elasticsearch aggregations on logs. Such
+    aggregations are mainly executed on the `stories` field contained in every
+    log that is associated with a particular story (or stories). The `stories`
+    field is a list of lists in the form of:
+
+        (opens|closes|updates, job|shell|session|incident, story_id)
+
+    which intends to describe how a certain log affects a story. Logs may open,
+    close, or update stories of type job, shell, session, or incident. Each log
+    should also specify the `story_id` of the story it refers to.
 
     """
-    # Prepare query to fetch stories.
-    index = 'stories-*'
+    # Do not return fully detailed stories, unless specified, especially when
+    # in Tornado context. If the short version is requested, return only the
+    # absolute necessary fields needed to create the story.
+    if not expand:
+        includes = ["log_id", "stories", "error", "time"]
+    else:
+        includes = []
+        assert not tornado_async
+    if story_type:
+        assert story_type in ('job', 'shell', 'session', 'incident')
+
+    # Construct base Elasticsearch query.
+    index = "app-logs-*"
     query = {
         "query": {
             "bool": {
                 "filter": {
                     "bool": {
                         "must": [],
-                        "must_not": []
+                        "must_not": [],
                     }
                 }
             }
         },
-        "sort": [
-            {
-                sort: {
-                    "order": ("desc" if sort_order == -1 else "asc")
+        "sort": [{
+            "@timestamp": {
+                "order": "desc" if sort_order == -1 else "asc"
+            }
+        }],
+        "size": 0
+    }
+    # Create aggregations. Request buckets of logs per story_id.
+    query["aggs"] = {
+        "stories": {
+            "terms": {
+                "field": "stories",
+                "size": limit or 1000
+            },
+            "aggs": {
+                "top_logs": {
+                    "top_hits": {
+                        "sort": [{
+                            "@timestamp": {
+                                "order": "asc"
+                            }
+                        }],
+                        "_source": {
+                            "includes": includes,
+                        },
+                        "size": 50
+                    }
                 }
             }
-        ],
-        "size": (limit or 20)
+        }
     }
+    # Match the type of the associated stories.
+    if story_type:
+        query["query"]["bool"]["filter"]["bool"]["must"].append(
+            {"term": {"stories": story_type}}
+        )
     # Fetch logs corresponding to the current Organization.
     if owner_id:
         query["query"]["bool"]["filter"]["bool"]["must"].append(
@@ -441,28 +243,10 @@ def get_stories(story_type='', owner_id='', user_id='',
         query["query"]["bool"]["filter"]["bool"]["must"].append(
             {"term": {"user_id": user_id}}
         )
-    # Specify whether to fetch stories with an error.
-    if error:
-        query["query"]["bool"]["filter"]["bool"]["must_not"].append(
-            {"term": {"error": False}}
-        )
-    elif error is False:
-        query["query"]["bool"]["filter"]["bool"]["must"].append(
-            {"term": {"error": False}}
-        )
     # Specify the time range of the stories.
     if range:
         query["query"]["bool"]["filter"]["bool"]["must"].append(
             {"range": range}
-        )
-    # Denote whether to fetch pending or closed stories.
-    elif pending is True:
-        query["query"]["bool"]["filter"]["bool"]["must"].append(
-            {"term": {"finished_at": 0}}
-        )
-    elif pending is False:
-        query["query"]["bool"]["filter"]["bool"]["must_not"].append(
-            {"term": {"finished_at": 0}}
         )
     # Extend query based on additional terms.
     for key, value in kwargs.iteritems():
@@ -473,85 +257,195 @@ def get_stories(story_type='', owner_id='', user_id='',
             {"term": {key: value}}
         )
 
+    # Process returned stories.
     def _on_stories_callback(response):
-        results = _on_response_callback(response, tornado_async)
-        stories = [result['_source'] for result in results]
-
-        # Return stories without replacing the `logs_ids` with the actual logs.
-        if not expand:
-            if tornado_callback is not None:
-                return tornado_callback(stories, pending)
-            return stories
-
-        # Ensure that stories are not expanded in Tornado-context.
-        assert not tornado_async
-
-        # Prepare query to fetch relevant logs.
-        index = "app-logs-*"
-        query = {
-            "query": {
-                "bool": {
-                    "filter": {
-                        "bool": {
-                            "must": [
-                                {
-                                    "terms": {
-                                        "log_id": [
-                                            log_id for story in stories for
-                                            log_id in story['log_ids']
-                                        ]
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                }
-            },
-            "size": 20
-        }
-        # Fetch logs of the current Organization, if provided.
-        if owner_id:
-            query["query"]["bool"]["filter"]["bool"]["must"].append(
-                {"term": {"owner_id": owner_id}}
-            )
-
-        # Fetch corresponding events.
-        # NOTE: Avoid specifying the `doc_type`, since log and story types
-        # do not always match.
-        results = es().search(index=index, body=query)
-        results = [result['_source'] for result in results['hits']['hits']]
-
-        events = {r.pop('log_id'): r for r in results}
-
-        # Create full stories by replacing the list of log_ids with the
-        # actual log.
-        for story in stories:
-            story['logs'] = []
-            for log_id in story.pop('log_ids'):
-                event = events.get(log_id)
-                if not event:
-                    log.error('Failed to find log %s while assembling '
-                              'story %s', log_id, story['story_id'])
-                    continue
-                if 'extra' in event:
-                    try:
-                        extra = json.loads(event.pop('extra'))
-                        for key, value in extra.iteritems():
-                            event[key] = value
-                    except Exception as exc:
-                        log.error('Error parsing log %s: %s', log_id, exc)
-                story['logs'].append(event)
-        return stories
+        result = _on_response_callback(response, tornado_async)
+        return process_stories(
+            buckets=result["aggregations"]["stories"]["buckets"],
+            callback=tornado_callback, type=story_type, pending=pending
+        )
 
     # Fetch stories. Invoke callback to process and return results.
-    if not tornado_async:
-        result = es().search(index=index, doc_type=story_type, body=query)
-        return _on_stories_callback(result)
+    def _on_request_callback(query):
+        if not tornado_async:
+            result = es().search(index=index, doc_type=TYPES.get(story_type),
+                                 body=query)
+            return _on_stories_callback(result)
+        else:
+            es(tornado_async).search(index=index,
+                                     body=json.dumps(query),
+                                     doc_type=TYPES.get(story_type),
+                                     callback=_on_stories_callback)
+
+    # Process aggregation results in order to be applied as filters.
+    def _on_filters_callback(response):
+        results = _on_response_callback(response, tornado_async)
+        filters = results["aggregations"]["main_bucket"]["buckets"]
+        process_filters(query, filters, pending, error)
+        return _on_request_callback(query)
+
+    # Perform a filter aggregation, if required, on stories based on their
+    # pending and/or error status, which will be applied as a filter by the
+    # main query. If such filtering does not need to take place, the main
+    # query is performed right away.
+    if pending is not None or error is not None:
+        return _filtered_query(owner_id, close=pending, error=error,
+                               range=range, type=story_type,
+                               callback=_on_filters_callback,
+                               tornado_async=tornado_async, **kwargs)
     else:
-        es(tornado_async).search(index=index,
-                                 doc_type=story_type,
-                                 body=json.dumps(query),
-                                 callback=_on_stories_callback)
+        return _on_request_callback(query)
+
+
+def process_stories(buckets, type=None, pending=None, callback=None):
+    """Process fetched logs.
+
+    Process results of Elasticsearch aggregations on logs in order to create
+    stories.
+
+    Arguments:
+        - buckets: buckets of logs returned by Elasticsearch aggregations.
+        - type: the story's type - one of (job, shell, session, incident).
+        - pending: denotes whether we are processing stories still pending.
+        - callback: the callback to be invoked, after processing, if provided.
+
+    """
+    stories = []
+    for bucket in buckets:
+        if bucket['key'] in EXCLUDED_BUCKETS:
+            continue
+        start = bucket['top_logs']['hits']['hits'][0]['_source']['time']
+        story = {
+            'logs': [],
+            'type': type,
+            'error': False,
+            'story_id': bucket['key'],
+            'started_at': start,
+            'finished_at': 0
+        }
+
+        for doc in bucket['top_logs']['hits']['hits']:
+            body = doc['_source']
+
+            # Set proper story_type, if missing.
+            if not story['type']:
+                if doc['_type'] in ('job', 'shell', 'session', 'incident'):
+                    story['type'] = doc['_type']
+
+            # Bring more key-value pairs to the top level.
+            for key, value in body.iteritems():
+                if key in FIELDS and key not in story:
+                    story[key] = value
+
+            # Bring extra key-value pairs to the log's top level.
+            if 'extra' in body:
+                try:
+                    extra = json.loads(body.pop('extra'))
+                    for key, value in extra.iteritems():
+                        body[key] = value
+                except Exception as exc:
+                    log.error('Error parsing log %s: %s', body['log_id'], exc)
+
+            # Provide the error message at the top level, if one occured.
+            error = body.get('error')
+            if error and not story.get('error'):
+                story['error'] = error
+
+            # Set the story's `finished_at` timestamp, if not still pending.
+            for act, _, sid in body.get('stories', []):
+                if sid == story['story_id'] and act == 'closes':
+                    story['finished_at'] = body['time']
+                    break
+
+            # Append the log to the story's `logs`.
+            story['logs'].append(body)
+
+        stories.append(story)
+
+    if callback is not None:
+        return callback(stories, pending)
+    return stories
+
+
+def process_filters(query, filters, close=None, error=None):
+    """Process query filters.
+
+    Process filter results returned by the `_filtered_query` helper. Such
+    filters are meant to be appended to the main query used to fetch logs
+    in order to further filter the stories to be returned.
+
+    There are two types of filters executed in this context:
+        - Filtering of logs indicating closed stories
+        - Filtering of logs indicating stories that ended with an error
+
+    Arguments:
+        - query: an already initialized Elasticsearch query.
+        - filters: the filters to be processed and appended to the query.
+        - close,error: denotes whether the filters have been run against
+                       pending stories or stories that ended with an error.
+
+    """
+    for filter in ("close", "error"):
+        stories = []
+        if locals()[filter] is not None:
+            if filter == "close":
+                append_to = "must_not" if close else "must"
+            if filter == "error":
+                append_to = "must_not" if not error else "must"
+            for story in filters[filter]["stories"]["buckets"]:
+                if story["key"] in EXCLUDED_BUCKETS:
+                    continue
+                stories.append(story["key"])
+            query["query"]["bool"]["filter"]["bool"][append_to].append(
+                {"terms": {"stories": stories}}
+            )
+
+
+def associate_stories(event):
+    """Associate potential stories to the event provided."""
+    story_id = event['story_id']
+    story_type = event['type'] if event['type'] != 'request' else 'job'
+    try:
+        job = json.loads(event['extra']).pop('job', None)
+    except Exception as exc:
+        job = None
+        log.warn('Failed to extract job param from extra: %s', exc)
+
+    # Decide whether the event tends to open, update, or close a story.
+    action = 'updates'
+    if event['error']:
+        action = 'closes'
+    elif event['action'] in JOBS.itervalues():
+        if job in JOBS:
+            action = 'closes'
+    elif event['action'] in CLOSES_STORY:
+        action = 'closes'
+    elif event['action'] in STARTS_STORY:
+        action = 'opens'
+
+    # Append metadata to the event's `stories`.
+    event['stories'].append((action, story_type, story_id))
+
+
+def close_open_incidents(event):
+    """Close any open incidents based on the event provided."""
+    if 'stories' not in event:
+        event['stories'] = []
+
+    kwargs = {
+        'story_type': 'incident',
+        'owner_id': event['owner_id'],
+        'pending': True,
+    }
+    for key in ('rule_id', 'cloud_id', 'machine_id'):
+        if key in event:
+            kwargs[key] = event[key]
+
+    incidents = get_stories(**kwargs)
+    for inc in incidents:
+        event['stories'].append(('closes', 'incident', inc['story_id']))
+
+    log.warn('%s incident(s) closed by %s', len(incidents), event['log_id'])
 
 
 def get_story(owner_id, story_id, story_type=None, expand=True):
@@ -568,26 +462,75 @@ def get_story(owner_id, story_id, story_type=None, expand=True):
     return story[0]
 
 
-def close_story(story_id):
+def close_story(owner_id, story_id):
     """Close an open story."""
-    story = get_simple_story(owner_id='', story_id=story_id)  # TODO: owner_id
-    if not story:
-        log.error('Failed to find story %s', story_id)
-    elif story['_source']['finished_at']:
-        log.error('Story %s already closed', story_id)
+    index = 'app-logs-*'
+    query = {
+        'query': {
+            'bool': {
+                'filter': {
+                    'bool': {
+                        'must': [
+                            {'term': {'owner_id': owner_id}},
+                            {'term': {'story_id': story_id}},
+                        ]
+                    }
+                }
+            }
+        },
+        'sort': [{
+            '@timestamp': {
+                'order': 'desc'
+            }
+        }],
+        'size': 1
+    }
+
+    result = es().search(index=index, body=query)
+    if not result['hits']['hits']:
+        raise NotFoundError('story_id %s' % story_id)
+
+    # Get the latest log entry.
+    doc = result['hits']['hits'][0]
+    body = doc['_source']
+    # Get proper story_type.
+    story_type = doc['_type'] if doc['_type'] != 'request' else 'job'
+    # Mark the latest log entry as the one closing the story.
+    for story in body['stories']:
+        if tuple(story) == ('closes', story_type, story_id):
+            log.error('Story %s already closed', story_id)
+            break
     else:
-        doc = story['_source']
-        doc['finished_at'] = time.time()
-        es().index(index=story['_index'], doc_type=story['_type'],
-                   id=story['_id'], body=doc)
+        body['stories'].append(('closes', story_type, story_id))
+        es().index(index=doc['_index'], doc_type=doc['_type'], id=doc['_id'],
+                   body=body)
 
 
-def delete_story(story_id):
+def delete_story(owner_id, story_id):
     """Delete a story."""
-    story = get_simple_story(owner_id='', story_id=story_id)  # TODO: owner_id
-    if story:
-        es().delete(
-            index=story['_index'], doc_type=story['_type'], id=story['_id']
-        )
-        return
-    log.error('Failed to find story %s', story_id)
+    index = 'app-logs-*'
+    query = {
+        'query': {
+            'bool': {
+                'filter': {
+                    'bool': {
+                        'must': [
+                            {'term': {'owner_id': owner_id}},
+                            {'term': {'story_id': story_id}},
+                        ]
+                    }
+                }
+            }
+        }
+    }
+    # Delete all documents matching the above query.
+    result = es().delete_by_query(index=index, body=query, conflicts='proceed')
+    if not result['deleted']:
+        raise NotFoundError('story_id %s' % story_id)
+    # Report results.
+    msg = 'Deleted %s log(s) with story_id %s' % (result['deleted'], story_id)
+    if result['version_conflicts']:
+        msg += ' Skipped %s version_conflicts' % result['version_conflicts']
+    if result['failures']:
+        msg += ' Finished with failures: %s' % result['failures']
+    log.warn(msg)
