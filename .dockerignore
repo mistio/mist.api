@@ -4,3 +4,4 @@
 **/Dockerfile
 **/.gitignore
 **/.dockerignore
+**/.gitlab-ci.yml
