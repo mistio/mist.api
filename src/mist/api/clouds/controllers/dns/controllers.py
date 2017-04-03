@@ -194,4 +194,9 @@ class VultrDNSController(BaseDNSController):
 
     def _create_zone__prepare_args(self, kwargs):
         if kwargs['ip']:
-            kwargs['extra'] = {'serverip': kwargs.pop('ip', None)
+            kwargs['extra'] = {'serverip': kwargs.pop('ip', None)}
+
+    def _list_records__postparse_data(self, pr_record, record):
+        """Get the provider specific information into the Mongo model"""
+        if pr_record.data not in record.rdata:
+            record.rdata.append(pr_record.data)
