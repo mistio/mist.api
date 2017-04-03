@@ -259,6 +259,7 @@ def dirty_cow(os, os_version, kernel_version):
 def amqp_publish(exchange, routing_key, data,
                  ex_type='fanout', ex_declare=False, auto_delete=True):
     connection = Connection(config.AMQP_URI)
+    connection.connect()
     channel = connection.channel()
     if ex_declare:
         channel.exchange_declare(exchange=exchange, type=ex_type, auto_delete=auto_delete)
@@ -281,6 +282,7 @@ def amqp_subscribe(exchange, callback, queue='',
         return wrapped
 
     connection = Connection(config.AMQP_URI)
+    connection.connect()
     channel = connection.channel()
     channel.exchange_declare(exchange=exchange, type=ex_type, auto_delete=True)
     resp = channel.queue_declare(queue, exclusive=True)
@@ -294,7 +296,7 @@ def amqp_subscribe(exchange, callback, queue='',
                           no_ack=True)
     try:
         while True:
-            channel.wait()
+            connection.drain_events()
     except BaseException as exc:
         # catch BaseException so that it catches KeyboardInterrupt
         channel.close()
@@ -331,6 +333,7 @@ def amqp_subscribe_user(owner, queue, callback):
 
 def amqp_owner_listening(owner):
     connection = Connection(config.AMQP_URI)
+    connection.connect()
     channel = connection.channel()
     try:
         channel.exchange_declare(exchange=_amqp_owner_exchange(owner),

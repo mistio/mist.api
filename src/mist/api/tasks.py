@@ -17,9 +17,6 @@ from celery import group
 from celery import Celery, Task
 from celery.exceptions import SoftTimeLimitExceeded
 
-from amqp import Message
-from amqp.connection import Connection
-
 from paramiko.ssh_exception import SSHException
 
 from mist.api.exceptions import MistError, NotFoundError
