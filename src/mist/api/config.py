@@ -36,6 +36,8 @@ ELASTICSEARCH = {
 
 LOGS_FROM_ELASTIC = True
 
+BUILD_TAG = ""
+
 PY_LOG_LEVEL = logging.INFO
 PY_LOG_FORMAT = '%(asctime)s %(levelname)s %(threadName)s %(module)s - %(funcName)s: %(message)s'
 PY_LOG_FORMAT_DATE = "%Y-%m-%d %H:%M:%S"
@@ -683,6 +685,8 @@ GCE_IMAGES = [
 ]
 
 
+## DO NOT PUT ANYTHING BELOW HERE UNLESS YOU KNOW WHAT YOU ARE DOING
+
 # Get settings from mist.core.
 def dirname(path, num=1):
     for i in xrange(num):
@@ -703,6 +707,7 @@ else:
 FROM_ENV_STRINGS = [
     'AMQP_URI', 'BROKER_URL', 'CORE_URI', 'MONGO_URI', 'MONGO_DB', 'DOCKER_IP',
     'DOCKER_PORT', 'DOCKER_TLS_KEY', 'DOCKER_TLS_CERT', 'DOCKER_TLS_CA',
+    'BUILD_TAG',
 ]
 FROM_ENV_INTS = [
 ]
@@ -770,3 +775,4 @@ HOMEPAGE_INPUTS = {
     'olark_id': OLARK_ID,
     'categories': LANDING_CATEGORIES
 }
+## DO NOT PUT REGULAR SETTINGS BELOW, PUT THEM ABOVE THIS SECTION
