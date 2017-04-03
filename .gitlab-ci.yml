@@ -8,14 +8,14 @@ build_mist_image:
   variables:
     GIT_SUBMODULE_STRATEGY: recursive
   script:
-    - docker build --rm -t gcr.io/mist-ops/mist:io-$CI_COMMIT_SHA .
-    - docker tag gcr.io/mist-ops/mist:io-$CI_COMMIT_SHA gcr.io/mist-ops/mist:io-$CI_COMMIT_REF_SLUG
-    - docker tag gcr.io/mist-ops/mist:io-$CI_COMMIT_SHA mist/mist:io-$CI_COMMIT_SHA
-    - docker tag gcr.io/mist-ops/mist:io-$CI_COMMIT_REF_SLUG mist/mist:io-$CI_COMMIT_REF_SLUG
-    - docker push gcr.io/mist-ops/mist:io-$CI_COMMIT_SHA
-    - docker push gcr.io/mist-ops/mist:io-$CI_COMMIT_REF_SLUG
-    - docker push mist/mist:io-$CI_COMMIT_SHA
-    - docker push mist/mist:io-$CI_COMMIT_REF_SLUG
+    - docker build --rm -t gcr.io/mist-ops/mist:api-$CI_COMMIT_SHA .
+    - docker tag gcr.io/mist-ops/mist:api-$CI_COMMIT_SHA gcr.io/mist-ops/mist:api-$CI_COMMIT_REF_SLUG
+    - docker tag gcr.io/mist-ops/mist:api-$CI_COMMIT_SHA mist/mist:api-$CI_COMMIT_SHA
+    - docker tag gcr.io/mist-ops/mist:api-$CI_COMMIT_REF_SLUG mist/mist:api-$CI_COMMIT_REF_SLUG
+    - docker push gcr.io/mist-ops/mist:api-$CI_COMMIT_SHA
+    - docker push gcr.io/mist-ops/mist:api-$CI_COMMIT_REF_SLUG
+    - docker push mist/mist:api-$CI_COMMIT_SHA
+    - docker push mist/mist:api-$CI_COMMIT_REF_SLUG
   tags:
     - builder
   dependencies: []
