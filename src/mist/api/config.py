@@ -25,6 +25,17 @@ MEMCACHED_HOST = ["memcached:11211"]
 BROKER_URL = "amqp://guest:guest@rabbitmq/"
 SSL_VERIFY = True
 
+ELASTICSEARCH = {
+    'elastic_host': 'elasticsearch',
+    'elastic_port': '9200',
+    'elastic_username': '',
+    'elastic_password': '',
+    'elastic_use_ssl': False,
+    'elastic_verify_certs': False
+}
+
+LOGS_FROM_ELASTIC = True
+
 PY_LOG_LEVEL = logging.INFO
 PY_LOG_FORMAT = '%(asctime)s %(levelname)s %(threadName)s %(module)s - %(funcName)s: %(message)s'
 PY_LOG_FORMAT_DATE = "%Y-%m-%d %H:%M:%S"
@@ -685,7 +696,7 @@ if os.path.exists(CORE_CONFIG_PATH):
     print >> sys.stderr, "Will load core config from %s" % CORE_CONFIG_PATH
     execfile(CORE_CONFIG_PATH)
 else:
-    print >> sys.stderr, "Couldn't find core config in %S" % CORE_CONFIG_PATH
+    print >> sys.stderr, "Couldn't find core config in %s" % CORE_CONFIG_PATH
 
 
 # Get settings from environmental variables.
