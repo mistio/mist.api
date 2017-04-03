@@ -25,4 +25,5 @@ sockjs-tornado
 stripe
 tornado
 tornado_profile
+uwsgidecorators
 websocket

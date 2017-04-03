@@ -1,9 +1,12 @@
 """Routes and wsgi app creation"""
 
+import time
 import logging
 
 from pyramid.config import Configurator
 from pyramid.renderers import JSON
+
+import mongoengine as me
 
 from mist.api import config
 
@@ -12,9 +15,43 @@ logging.basicConfig(level=config.PY_LOG_LEVEL,
                     datefmt=config.PY_LOG_FORMAT_DATE)
 
 
+log = logging.getLogger(__name__)
+
+
 class Root(object):
     def __init__(self, request):
         self.request = request
+
+
+def mongo_connect():
+    """Connect mongoengine to mongo db. This connection is reused everywhere"""
+    for _ in xrange(30):
+        try:
+            log.info("Attempting to connect to %s at %s...", config.MONGO_DB,
+                     config.MONGO_URI)
+            me.connect(db=config.MONGO_DB, host=config.MONGO_URI)
+        except Exception as exc:
+            log.warning("Error connecting to mongo, will retry in 1 sec: %r",
+                        exc)
+            time.sleep(1)
+        else:
+            log.info("Connected...")
+            break
+    else:
+        log.critical("Unable to connect to %s at %s: %r", config.MONGO_DB,
+                     config.MONGO_URI, exc)
+        raise exc
+
+
+try:
+    import uwsgi  # noqa
+except ImportError:
+    log.debug('Not in uwsgi context')
+    mongo_connect()
+else:
+    log.info('Uwsgi context')
+    from uwsgidecorators import postfork
+    mongo_connect = postfork(mongo_connect)
 
 
 def main(global_config, **settings):
