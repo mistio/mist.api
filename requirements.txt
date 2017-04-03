@@ -17,7 +17,7 @@ parse
 passlib
 pika
 pymongo
-pyramid
+pyramid==1.4
 python-memcached
 python-openid
 requests
