@@ -60,7 +60,7 @@ class AmazonDNSController(BaseDNSController):
                 kwargs['data'] = '"' + kwargs['data']
         kwargs['extra'] = {'ttl': kwargs.pop('ttl', 0)}
 
-    def _create_zone__prepare_args(self, **kwargs):
+    def _create_zone__prepare_args(self, kwargs):
         if not kwargs['domain'].endswith('.'):
             kwargs['domain'] += '.'
 
@@ -86,16 +86,16 @@ class DigitalOceanDNSController(BaseDNSController):
         """
         if kwargs['type'] == 'CNAME' and not kwargs['data'].endswith('.'):
             kwargs['data'] += '.'
-        # Route 53 requires TXT rdata to be whitin quotes
+        # DO requires TXT rdata to be whitin quotes
         if kwargs['type'] == 'TXT':
             if not kwargs['data'].endswith('"'):
                 kwargs['data'] += '"'
             if not kwargs['data'].startswith('"'):
                 kwargs['data'] = '"' + kwargs['data']
-        # DO does not accept a ttl
+        # DO does not accept a ttl, if there is then remove it
         kwargs.pop('ttl', 0)
 
-    def _create_zone__prepare_args(self, **kwargs):
+    def _create_zone__prepare_args(self, kwargs):
         if kwargs['domain'].endswith('.'):
             kwargs['domain'] = kwargs['domain'][:-1]
 
@@ -134,7 +134,7 @@ class GoogleDNSController(BaseDNSController):
         kwargs['data'] = {'ttl': kwargs.pop('ttl', 0), 'rrdatas': []}
         kwargs['data']['rrdatas'].append(data)
 
-    def _create_zone__prepare_args(self, **kwargs):
+    def _create_zone__prepare_args(self, kwargs):
         if not kwargs['domain'].endswith('.'):
             kwargs['domain'] += '.'
 
@@ -151,7 +151,7 @@ class LinodeDNSController(BaseDNSController):
     def _connect(self):
         return get_driver(Provider.LINODE)(self.cloud.apikey)
 
-    def _create_zone__prepare_args(self, **kwargs):
+    def _create_zone__prepare_args(self, kwargs):
         if kwargs['type'] == "master":
             kwargs['extra'] = {'SOA_email': kwargs.pop('SOA_email', "")}
 
@@ -179,6 +179,10 @@ class SoftLayerDNSController(BaseDNSController):
         return get_driver(Provider.SOFTLAYER)(self.cloud.username,
                                               self.cloud.apikey)
 
+    def _create_zone__prepare_args(self, kwargs):
+        if kwargs['type']:
+            kwargs.pop('type', None)
+
 
 class VultrDNSController(BaseDNSController):
     """
@@ -187,3 +191,7 @@ class VultrDNSController(BaseDNSController):
 
     def _connect(self):
         return get_driver(Provider.VULTR)(self.cloud.apikey)
+
+    def _create_zone__prepare_args(self, kwargs):
+        if kwargs['ip']:
+            kwargs['extra'] = {'serverip': kwargs.pop('ip', None)

@@ -270,7 +270,8 @@ class BaseDNSController(BaseController):
         """
         This is the public method that is called to create a new DNS zone.
         """
-        self._create_zone__prepare_args(**kwargs)
+        self._create_zone__prepare_args(kwargs)
+        print "kwargs_new: %s" % kwargs
         pr_zone = self._create_zone__for_cloud(**kwargs)
         # Set fields to cloud model and perform early validation.
         zone.zone_id = pr_zone.id
@@ -289,7 +290,7 @@ class BaseDNSController(BaseController):
             log.error("Zone %s not unique error: %s", zone, exc)
             raise ZoneExistsError()
 
-    def _create_zone__prepare_args(self, **kwargs):
+    def _create_zone__prepare_args(self, kwargs):
         """ This private method to prepare the args for the zone creation."""
         return
 
