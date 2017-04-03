@@ -24,8 +24,10 @@ build_mist_image:
 #################### TEST STAGE ####################
 flake8:
   stage: test
-  image: python:2.7-alpine
+  image: gcr.io/mist-ops/mist:api-$CI_COMMIT_SHA
+  variables:
+    GIT_STRATEGY: none
   before_script:
-    - pip install flake8
+    - cd /mist.api
   script:
     - flake8
