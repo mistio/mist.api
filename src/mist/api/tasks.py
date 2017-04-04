@@ -56,10 +56,8 @@ app.conf.update(**config.CELERY_SETTINGS)
 @app.task
 def ssh_command(owner, cloud_id, machine_id, host, command,
                       key_id=None, username=None, password=None, port=22):
-    if owner.find("@")!=-1:
-        owner = User.objects.get(email=owner)
-    else:
-        owner = Owner.objects.get(id=owner)
+
+    owner = Owner.objects.get(id=owner)
     shell = Shell(host)
     key_id, ssh_user = shell.autoconfigure(owner, cloud_id, machine_id,
                                            key_id, username, password, port)
@@ -87,10 +85,7 @@ def post_deploy_steps(self, owner, cloud_id, machine_id, monitoring,
         from mist.api.dummy.methods import enable_monitoring
 
     job_id = job_id or uuid.uuid4().hex
-    if owner.find("@") != -1:
-        owner = User.objects.get(email=owner)
-    else:
-        owner = Owner.objects.get(id=owner)
+    owner = Owner.objects.get(id=owner)
     tmp_log = lambda msg, *args: log.error('Post deploy: %s' % msg, *args)
     tmp_log('Entering post deploy steps for %s %s %s',
             owner.id, cloud_id, machine_id)
@@ -305,10 +300,7 @@ def openstack_post_create_steps(self, owner, cloud_id, machine_id, monitoring,
                                 networks=[], schedule={}):
 
     from mist.api.methods import connect_provider
-    if owner.find("@")!=-1:
-        owner = Owner.objects.get(email=owner)
-    else:
-        owner = Owner.objects.get(id=owner)
+    owner = Owner.objects.get(id=owner)
 
     try:
         cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
@@ -394,11 +386,8 @@ def azure_post_create_steps(self, owner, cloud_id, machine_id, monitoring,
                             hostname='', plugins=None, post_script_id='',
                             post_script_params='', schedule={}):
     from mist.api.methods import connect_provider
-    if owner.find("@")!=-1:
-        owner = User.objects.get(email=owner)
-    else:
-        owner = Owner.objects.get(id=owner)
 
+    owner = Owner.objects.get(id=owner)
     try:
         # find the node we're looking for and get its hostname
         cloud = Cloud.objects.get(id=cloud_id, deleted=None)
@@ -473,10 +462,8 @@ def rackspace_first_gen_post_create_steps(
     job_id=None, hostname='', plugins=None, post_script_id='',
     post_script_params='', schedule={}):
     from mist.api.methods import connect_provider
-    if owner.find("@")!=-1:
-        owner = User.objects.get(email=owner)
-    else:
-        owner = Owner.objects.get(id=owner)
+
+    owner = Owner.objects.get(id=owner)
     try:
         # find the node we're looking for and get its hostname
         cloud = Cloud.objects.get(id=cloud_id, deleted=None)
@@ -956,11 +943,8 @@ def deploy_collectd(owner, cloud_id, machine_id, extra_vars, job_id='',
 
 @app.task
 def undeploy_collectd(owner, cloud_id, machine_id):
-    if owner.find("@") != -1:
-        owner = User.objects.get(email=owner)
-    else:
-        owner = Owner.objects.get(id=owner)
     import mist.api.methods
+    owner = Owner.objects.get(id=owner)
     mist.api.methods.undeploy_collectd(owner, cloud_id, machine_id)
 
 
@@ -988,11 +972,7 @@ def create_machine_async(owner, cloud_id, key_id, machine_name, location_id,
     log.warn('MULTICREATE ASYNC %d' % quantity)
 
     job_id = job_id or uuid.uuid4().hex
-
-    if owner.find("@") != -1:
-        owner = Owner.objects.get(email=owner)
-    else:
-        owner = Owner.objects.get(id=owner)
+    owner = Owner.objects.get(id=owner)
 
     names = []
     if quantity == 1:
@@ -1290,11 +1270,7 @@ def run_script(owner, script_id, cloud_id, machine_id, params='', host='',
     from mist.api.machines.methods import list_machines
 
     if not isinstance(owner, Owner):
-        if isinstance(owner, basestring):
-            if '@' in owner:
-                owner = User.objects.get(email=owner)
-            else:
-                owner = Owner.objects.get(id=owner)
+        owner = Owner.objects.get(id=owner)
     ret = {
         'owner_id': owner.id,
         'job_id': job_id or uuid.uuid4().hex,
