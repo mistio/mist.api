@@ -208,6 +208,7 @@ class Schedule(me.Document, ConditionalClassMixin):
     last_run_at = me.DateTimeField()
     total_run_count = me.IntField(min_value=0, default=0)
     max_run_count = me.IntField(min_value=0, default=0)
+    _preparsed_fields = ('schedule_type', 'task_type', 'conditions')
 
     no_changes = False
 
@@ -218,6 +219,9 @@ class Schedule(me.Document, ConditionalClassMixin):
         import mist.api.schedules.base
         super(Schedule, self).__init__(*args, **kwargs)
         self.ctl = mist.api.schedules.base.BaseController(self)
+
+        self._parsed_fields = [field for field in self._fields
+                               if field not in Schedule._preparsed_fields]
 
     def owner_query(self):
         return me.Q(cloud__in=Cloud.objects(owner=self.owner).only('id'))

@@ -147,7 +147,7 @@ class BaseController(object):
 
         # set schedule attributes
         for key, value in kwargs.iteritems():
-            if key in self.schedule._fields.keys():
+            if key in self.schedule._parsed_fields:
                 setattr(self.schedule, key, value)
 
         now = datetime.datetime.now()
