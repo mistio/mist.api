@@ -158,25 +158,6 @@ class LinodeDNSController(BaseDNSController):
             kwargs['extra'] = {'master_ips': kwargs.pop('master_ips', "")}
 
 
-class RackSpaceDNSController(BaseDNSController):
-    """
-    RackSpace specific overrides.
-    """
-
-    def _connect(self):
-        if self.cloud.region in ('us', 'uk'):
-            driver = get_driver(Provider.RACKSPACE_FIRST_GEN)
-        else:
-            driver = get_driver(Provider.RACKSPACE)
-        return driver(self.cloud.username, self.cloud.apikey,
-                      region=self.cloud.region)
-    
-    def _list_records__postparse_data(self, pr_record, record):
-        """Get the provider specific information into the Mongo model"""
-        if pr_record.data not in record.rdata:
-            record.rdata.append(pr_record.data)
-
-
 class SoftLayerDNSController(BaseDNSController):
     """
     SoftLayer specific overrides.
