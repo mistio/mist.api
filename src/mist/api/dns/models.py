@@ -200,7 +200,7 @@ class Record(me.Document):
                 self.rdata[0] = '"' + self.rdata[0]
         if self.type == "A" or self.type == "AAAA" or self.type == "CNAME":
             if not len(self.rdata) == 1:
-                raise me.ValidationError('We cannot have more than one rdata'
+                raise me.ValidationError('We cannot have more than one rdata '
                                          'values for this type of record.')
 
     def __str__(self):

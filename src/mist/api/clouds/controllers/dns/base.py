@@ -84,7 +84,7 @@ class BaseDNSController(BaseController):
         zones = []
         for pr_zone in pr_zones:
             try:
-                zone = Zone.objects.get(cloud=self.cloud, zone_id=pr_zone.id)
+                zone = Zone.objects.get(owner=self.cloud.owner, zone_id=pr_zone.id)
             except Zone.DoesNotExist:
                 log.info("Zone: %s/domain: %s not in the database, creating.",
                          pr_zone.id, pr_zone.domain)
@@ -271,7 +271,6 @@ class BaseDNSController(BaseController):
         This is the public method that is called to create a new DNS zone.
         """
         self._create_zone__prepare_args(kwargs)
-        print "kwargs_new: %s" % kwargs
         pr_zone = self._create_zone__for_cloud(**kwargs)
         # Set fields to cloud model and perform early validation.
         zone.zone_id = pr_zone.id

@@ -153,7 +153,9 @@ class LinodeDNSController(BaseDNSController):
 
     def _create_zone__prepare_args(self, kwargs):
         if kwargs['type'] == "master":
-            kwargs['extra'] = {'SOA_email': kwargs.pop('SOA_email', "")}
+            kwargs['extra'] = {'SOA_Email': kwargs.pop('SOA_Email', "")}
+        if kwargs['type'] == "slave":
+            kwargs['extra'] = {'master_ips': kwargs.pop('master_ips', "")}
 
 
 class RackSpaceDNSController(BaseDNSController):
@@ -168,6 +170,11 @@ class RackSpaceDNSController(BaseDNSController):
             driver = get_driver(Provider.RACKSPACE)
         return driver(self.cloud.username, self.cloud.apikey,
                       region=self.cloud.region)
+    
+    def _list_records__postparse_data(self, pr_record, record):
+        """Get the provider specific information into the Mongo model"""
+        if pr_record.data not in record.rdata:
+            record.rdata.append(pr_record.data)
 
 
 class SoftLayerDNSController(BaseDNSController):
@@ -183,6 +190,11 @@ class SoftLayerDNSController(BaseDNSController):
         if kwargs['type']:
             kwargs.pop('type', None)
 
+    def _list_records__postparse_data(self, pr_record, record):
+        """Get the provider specific information into the Mongo model"""
+        if pr_record.data not in record.rdata:
+            record.rdata.append(pr_record.data)
+
 
 class VultrDNSController(BaseDNSController):
     """
@@ -193,10 +205,12 @@ class VultrDNSController(BaseDNSController):
         return get_driver(Provider.VULTR)(self.cloud.apikey)
 
     def _create_zone__prepare_args(self, kwargs):
-        if kwargs['ip']:
+        if 'ip' in kwargs:
             kwargs['extra'] = {'serverip': kwargs.pop('ip', None)}
 
     def _list_records__postparse_data(self, pr_record, record):
         """Get the provider specific information into the Mongo model"""
+        if pr_record.type == "CNAME" and not pr_record.data.endswith('.'):
+            pr_record.data += '.'
         if pr_record.data not in record.rdata:
             record.rdata.append(pr_record.data)
