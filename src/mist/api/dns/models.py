@@ -15,6 +15,21 @@ from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import ZoneExistsError
 from mist.api.exceptions import RequiredParameterMissingError
 
+# This is a map from type to record class, eg:
+# 'A': ARecord
+# It is autofilled by _populate_records which is run on the end of this file.
+RECORDS = {}
+
+
+def _populate_records():
+    """Populates RECORDS variable with mappings from types to records"""
+    for key, value in globals().items():
+        if key.endswith('Record') and key != 'Record':
+            value = globals()[key]
+            if issubclass(value, Record) and value is not Record:
+                RECORDS[value.type] = value
+
+
 class Zone(me.Document):
     """This is the class definition for the Mongo Engine Document related to a
     DNS zone.
@@ -31,12 +46,14 @@ class Zone(me.Document):
     cloud = me.ReferenceField(Cloud, required=True,
                               reverse_delete_rule=me.CASCADE)
 
+    deleted = me.DateTimeField()
+
     meta = {
         'collection': 'zones',
         'indexes': [
             'owner',
             {
-                'fields': ['cloud', 'zone_id'],
+                'fields': ['cloud', 'zone_id', 'deleted'],
                 'sparse': False,
                 'unique': True,
                 'cls': False,
@@ -79,6 +96,10 @@ class Zone(me.Document):
         zone.ctl.create_zone(**kwargs)
         return zone
 
+    def delete(self):
+        super(Zone, self).delete()
+        self.owner.mapper.remove(self)
+
     def as_dict(self):
         """Return a dict with the model values."""
         return {
@@ -101,7 +122,6 @@ class Zone(me.Document):
                                           self.owner)
 
 
-
 class Record(me.Document):
     """This is the class definition for the Mongo Engine Document related to a
     DNS record.
@@ -111,7 +131,7 @@ class Record(me.Document):
 
     record_id = me.StringField(required=True)
     name = me.StringField(required=True)
-    type = me.StringField(required=True)
+    type = None
     rdata = me.ListField(required=True)
     extra = me.DictField()
     ttl = me.IntField(default=0)
@@ -120,8 +140,11 @@ class Record(me.Document):
     zone = me.ReferenceField(Zone, required=True,
                              reverse_delete_rule=me.CASCADE)
 
+    deleted = me.DateTimeField()
+
     meta = {
         'collection': 'records',
+        'allow_inheritance': True,
         'indexes': [
             {
                 'fields': ['zone', 'record_id'],
@@ -175,33 +198,13 @@ class Record(me.Document):
         record.ctl.create_record(**kwargs)
         return record
 
+    def delete(self):
+        super(Record, self).delete()
+        self.owner.mapper.remove(self)
+
     def clean(self):
         """Overriding the default clean method to implement param checking"""
-        # We need to be checking the rdata based on the type of record
-        if self.type == 'A':
-            try:
-                ip_addr = self.rdata[0].decode('utf-8')
-                ip.ip_address(ip_addr)
-            except ValueError:
-                raise me.ValidationError('IPv4 address provided is not valid')
-        if self.type == 'AAAA':
-            try:
-                ip_addr = self.rdata[0].decode('utf-8')
-                ip.ip_address(ip_addr)
-            except ValueError:
-                raise me.ValidationError('IPv6 address provided is not valid')
-        if self.type == "CNAME":
-            if not self.rdata[0].endswith('.'):
-                self.rdata[0] += '.'
-        if self.type == 'TXT':
-            if not self.rdata[0].endswith('"'):
-                self.rdata[0] += '"'
-            if not self.rdata[0].startswith('"'):
-                self.rdata[0] = '"' + self.rdata[0]
-        if self.type == "A" or self.type == "AAAA" or self.type == "CNAME":
-            if not len(self.rdata) == 1:
-                raise me.ValidationError('We cannot have more than one rdata'
-                                         'values for this type of record.')
+        return
 
     def __str__(self):
         return 'Record %s (name:%s, type:%s) of %s' % (
@@ -219,3 +222,76 @@ class Record(me.Document):
             'extra': self.extra,
             'zone': self.zone.id
         }
+
+class ARecord(Record):
+
+    type = "A"
+
+    def clean(self):
+        """Overriding the default clean method to implement param checking"""
+        try:
+            ip_addr = self.rdata[0].decode('utf-8')
+            ip.ip_address(ip_addr)
+        except ValueError:
+            raise me.ValidationError('IPv4 address provided is not valid')
+        if not len(self.rdata) == 1:
+            raise me.ValidationError('We cannot have more than one rdata'
+                                     'values for this type of record.')
+
+
+class AAAARecord(Record):
+
+    type = "AAAA"
+
+    def clean(self):
+        """Overriding the default clean method to implement param checking"""
+        try:
+            ip_addr = self.rdata[0].decode('utf-8')
+            ip.ip_address(ip_addr)
+        except ValueError:
+            raise me.ValidationError('IPv6 address provided is not valid')
+        if not len(self.rdata) == 1:
+            raise me.ValidationError('We cannot have more than one rdata'
+                                     'values for this type of record.')
+
+
+class CNAMERecord(Record):
+
+    type = "CNAME"
+
+    def clean(self):
+        """Overriding the default clean method to implement param checking"""
+        if not self.rdata[0].endswith('.'):
+            self.rdata[0] += '.'
+        if not len(self.rdata) == 1:
+            raise me.ValidationError('We cannot have more than one rdata'
+                                     'values for this type of record.')
+
+
+class MXRecord(Record):
+
+    type = "MX"
+
+
+class NSRecord(Record):
+
+    type = "NS"
+
+
+class SOARecord(Record):
+
+    type = "SOA"
+
+
+class TXTRecord(Record):
+
+    type = "TXT"
+
+    def clean(self):
+        """Overriding the default clean method to implement param checking"""
+        if not self.rdata[0].endswith('"'):
+            self.rdata[0] += '"'
+        if not self.rdata[0].startswith('"'):
+            self.rdata[0] = '"' + self.rdata[0]
+
+_populate_records()

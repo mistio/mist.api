@@ -82,6 +82,7 @@ class BaseDNSController(BaseController):
         pr_zones = self._list_zones__fetch_zones()
 
         zones = []
+        new_zones = []
         for pr_zone in pr_zones:
             try:
                 zone = Zone.objects.get(cloud=self.cloud, zone_id=pr_zone.id)
@@ -90,6 +91,7 @@ class BaseDNSController(BaseController):
                          pr_zone.id, pr_zone.domain)
                 zone = Zone(cloud=self.cloud, owner=self.cloud.owner,
                             zone_id=pr_zone.id)
+                new_zones.append(zone)
             zone.domain = pr_zone.domain
             zone.type = pr_zone.type
             zone.ttl = pr_zone.ttl
@@ -104,6 +106,7 @@ class BaseDNSController(BaseController):
                 log.error("Zone %s not unique error: %s", zone, exc)
                 raise ZoneExistsError()
             zones.append(zone)
+        self.cloud.owner.mapper.update(new_zones)
 
         # Delete any zones in the DB that were not returned by the provider
         # meaning they were deleted otherwise.
@@ -145,16 +148,25 @@ class BaseDNSController(BaseController):
         pr_records = self._list_records__fetch_records(zone.zone_id)
 
         # TODO: Adding here for circular dependency issue. Need to fix this.
-        from mist.api.dns.models import Record
+        from mist.api.dns.models import Record, RECORDS
 
         records = []
+        new_records = []
         for pr_record in pr_records:
+            dns_cls = RECORDS[pr_record.type]
             try:
-                record = Record.objects.get(zone=zone, record_id=pr_record.id)
+                record = dns_cls.objects.get(zone=zone, record_id=pr_record.id,
+                                             deleted=None)
+                print "try"
             except Record.DoesNotExist:
                 log.info("Record: %s not in the database, creating.",
                          pr_record.id)
-                record = Record(record_id=pr_record.id, zone=zone)
+                if pr_record.type not in RECORDS:
+                    raise BadRequestError("Invalid type '%s'" % pr_record.type)
+
+                record = dns_cls(record_id=pr_record.id, zone=zone)
+                new_records.append(record)
+                print "except"
             # We need to check if any of the information returned by the
             # provider is different than what we have in the DB
             record.name = pr_record.name
@@ -165,9 +177,10 @@ class BaseDNSController(BaseController):
             self._list_records__postparse_data(pr_record, record)
             try:
                 record.save()
-            except me.NotUniqueError as exc:
-                log.error("Record %s not unique error: %s", record, exc)
-                raise RecordExistsError()
+            except me.ValidationError as exc:
+                log.error("Error updating %s: %s", record, exc.to_dict())
+                raise BadRequestError({'msg': exc.message,
+                                       'errors': exc.to_dict()})
             except me.NotUniqueError as exc:
                 log.error("Record %s not unique error: %s", record, exc)
                 raise RecordExistsError()
@@ -179,6 +192,7 @@ class BaseDNSController(BaseController):
                     records.remove(rec)
                     break
             records.append(record)
+        self.cloud.owner.mapper.update(new_records)
 
         # Then delete any records that are in the DB for this zone but were not
         # returned by the list_records() method meaning the were deleted in the
