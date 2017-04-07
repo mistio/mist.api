@@ -1123,7 +1123,6 @@ def check_ip(owner, machine, dst_port=''):  # maybe also pass dst_ip
        firstly trying the hostname, after the public and private ips.
        """
 
-    # for machine we have
     # machine.hostname, public_ips, private_ips, ssh_port, rdp_port,
 
     # machine.hostname is dns_name from the provider or the
@@ -1138,7 +1137,7 @@ def check_ip(owner, machine, dst_port=''):  # maybe also pass dst_ip
     private_ips = [ip for ip in machine.private_ips if ':' not in ip]
 
     list_ips = public_ips + private_ips
-    if hostname and hostname != public_ips[0]:
+    if hostname not in public_ips:
         list_ips.insert(0, hostname)
 
     if not list_ips:
@@ -1153,10 +1152,10 @@ def check_ip(owner, machine, dst_port=''):  # maybe also pass dst_ip
                 ports_list.insert(0, port)
 
     socket_timeout = 3
-    for port in ports_list:
-        for ip in list_ips:
+    for ip in list_ips:
+        for port in ports_list:
             log.info("Attempting to connect to %s:%d", ip, port)
-            try:  # maybe to use threads?
+            try:  # maybe to use celery chain and group
                 s = socket.create_connection(
                     dnat(owner, ip, port),
                     socket_timeout
@@ -1172,12 +1171,12 @@ def check_ip(owner, machine, dst_port=''):  # maybe also pass dst_ip
                         log.info("Successfully pinged %s", ip)
                         machine.hostname = ip
                         machine.save()
-                        return ip  # what to return here in place of port
+                        return ip
                 except:
                     log.info("Failed to ping %s", ip)
                     continue
-                return False
+                return None
             log.info("Connected to %s:%d", ip, port)
             machine.hostname = ip
             machine.save()
-            return ip, port
+            return ip
