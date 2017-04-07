@@ -56,6 +56,9 @@ else:
 
 def main(global_config, **settings):
     """This function returns a Pyramid WSGI application."""
+
+    import mist.api.auth.middleware
+
     settings = {}
 
     configurator = Configurator(root_factory=Root, settings=settings)
@@ -86,9 +89,12 @@ def main(global_config, **settings):
 
     configurator.include(add_routes)
     configurator.scan()
-    app = configurator.make_wsgi_app()
 
-    return app
+    return mist.api.auth.middleware.AuthMiddleware(
+        mist.api.auth.middleware.CsrfMiddleware(
+            configurator.make_wsgi_app()
+        )
+    )
 
 
 def add_routes(configurator):
