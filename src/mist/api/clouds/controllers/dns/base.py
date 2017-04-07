@@ -156,18 +156,17 @@ class BaseDNSController(BaseController):
         for pr_record in pr_records:
             dns_cls = RECORDS[pr_record.type]
             try:
-                record = dns_cls.objects.get(zone=zone, record_id=pr_record.id,
-                                             deleted=None)
-                print "try"
+                record = Record.objects.get(zone=zone, record_id=pr_record.id,
+                                            deleted=None)
             except Record.DoesNotExist:
                 log.info("Record: %s not in the database, creating.",
                          pr_record.id)
                 if pr_record.type not in RECORDS:
-                    raise BadRequestError("Invalid type '%s'" % pr_record.type)
+                    log.error("Unsupported record type '%s'", pr_record.type)
+                    continue
 
                 record = dns_cls(record_id=pr_record.id, zone=zone)
                 new_records.append(record)
-                print "except"
             # We need to check if any of the information returned by the
             # provider is different than what we have in the DB
             record.name = pr_record.name

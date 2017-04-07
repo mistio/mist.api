@@ -6,6 +6,7 @@ import ipaddress as ip
 
 import mongoengine as me
 
+from mist.api.tag.models import Tag
 from mist.api.clouds.models import Cloud
 from mist.api.users.models import Organization
 from mist.api.dns.controllers import ZoneController, RecordController
@@ -27,7 +28,7 @@ def _populate_records():
         if key.endswith('Record') and key != 'Record':
             value = globals()[key]
             if issubclass(value, Record) and value is not Record:
-                RECORDS[value.type] = value
+                RECORDS[value._record_type] = value
 
 
 class Zone(me.Document):
@@ -98,6 +99,7 @@ class Zone(me.Document):
 
     def delete(self):
         super(Zone, self).delete()
+        Tag.objects(resource=self).delete()
         self.owner.mapper.remove(self)
 
     def as_dict(self):
@@ -131,7 +133,7 @@ class Record(me.Document):
 
     record_id = me.StringField(required=True)
     name = me.StringField(required=True)
-    type = None
+    type = me.StringField(required=True)
     rdata = me.ListField(required=True)
     extra = me.DictField()
     ttl = me.IntField(default=0)
@@ -147,13 +149,14 @@ class Record(me.Document):
         'allow_inheritance': True,
         'indexes': [
             {
-                'fields': ['zone', 'record_id'],
+                'fields': ['zone', 'record_id', 'deleted'],
                 'sparse': False,
                 'unique': True,
                 'cls': False,
             }
         ],
     }
+    _record_type = None
 
     def __init__(self, *args, **kwargs):
         super(Record, self).__init__(*args, **kwargs)
@@ -200,11 +203,12 @@ class Record(me.Document):
 
     def delete(self):
         super(Record, self).delete()
-        self.owner.mapper.remove(self)
+        Tag.objects(resource=self).delete()
+        self.zone.owner.mapper.remove(self)
 
     def clean(self):
         """Overriding the default clean method to implement param checking"""
-        return
+        self.type = self._record_type
 
     def __str__(self):
         return 'Record %s (name:%s, type:%s) of %s' % (
@@ -225,10 +229,11 @@ class Record(me.Document):
 
 class ARecord(Record):
 
-    type = "A"
+    _record_type = "A"
 
     def clean(self):
         """Overriding the default clean method to implement param checking"""
+        super(ARecord, self).clean()
         try:
             ip_addr = self.rdata[0].decode('utf-8')
             ip.ip_address(ip_addr)
@@ -241,10 +246,11 @@ class ARecord(Record):
 
 class AAAARecord(Record):
 
-    type = "AAAA"
+    _record_type = "AAAA"
 
     def clean(self):
         """Overriding the default clean method to implement param checking"""
+        super(AAAARecord, self).clean()
         try:
             ip_addr = self.rdata[0].decode('utf-8')
             ip.ip_address(ip_addr)
@@ -257,10 +263,11 @@ class AAAARecord(Record):
 
 class CNAMERecord(Record):
 
-    type = "CNAME"
+    _record_type = "CNAME"
 
     def clean(self):
         """Overriding the default clean method to implement param checking"""
+        super(CNAMERecord, self).clean()
         if not self.rdata[0].endswith('.'):
             self.rdata[0] += '.'
         if not len(self.rdata) == 1:
@@ -270,25 +277,38 @@ class CNAMERecord(Record):
 
 class MXRecord(Record):
 
-    type = "MX"
+    _record_type = "MX"
+
+    def clean(self):
+        """Overriding the default clean method to implement param checking"""
+        super(MXRecord, self).clean()
 
 
 class NSRecord(Record):
 
-    type = "NS"
+    _record_type = "NS"
+
+    def clean(self):
+        """Overriding the default clean method to implement param checking"""
+        super(NSRecord, self).clean()
 
 
 class SOARecord(Record):
 
-    type = "SOA"
+    _record_type = "SOA"
+
+    def clean(self):
+        """Overriding the default clean method to implement param checking"""
+        super(SOARecord, self).clean()
 
 
 class TXTRecord(Record):
 
-    type = "TXT"
+    _record_type = "TXT"
 
     def clean(self):
         """Overriding the default clean method to implement param checking"""
+        super(TXTRecord, self).clean()
         if not self.rdata[0].endswith('"'):
             self.rdata[0] += '"'
         if not self.rdata[0].startswith('"'):

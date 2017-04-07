@@ -1,6 +1,10 @@
 from mist.api.dns.models import Zone
 from mist.api.users.models import User, Owner, Organization
 from mist.api.clouds.models import Cloud
+from mist.api.tag.methods import get_tags_for_resource
+from mist.api.auth.methods import auth_context_from_request
+
+from mist.api.exceptions import PolicyUnauthorizedError
 
 from mist.api import config
 
@@ -23,19 +27,27 @@ def list_zones(owner, cloud):
         zones = cloud.ctl.dns.list_zones()
 
         for zone in zones:
+            recs = []
             zone_dict = zone.as_dict()
-            zone_dict['records'] = [record.as_dict() for
-                                    record in zone.ctl.list_records()]
+            for record in zone.ctl.list_records():
+                rec = record.as_dict()
+                rec["tags"] = get_tags_for_resource(owner, record)
+                recs.append(rec)
+            zone_dict['records'] = recs
+            zone_dict["tags"] = get_tags_for_resource(owner, zone)
             zones_ret.append(zone_dict)
         ret = {'cloud_id': cloud.id, 'zones': zones_ret}
     log.warn('Returning list zones for user %s, cloud %s', owner.id, cloud.id)
     return ret
 
-
 def filter_list_zones(auth_context, cloud, perm='read'):
     """List zone entries based on the permissions granted to the user."""
     zones = list_zones(auth_context.owner, cloud)
     if not auth_context.is_owner():
+        try:
+            auth_context.check_perm('zone', 'read', None)
+        except PolicyUnauthorizedError:
+            return []
         zones = [zone for zone in zones if zone['id']
                  in auth_context.get_allowed_resources(rtype='zones')]
     return zones

@@ -2,7 +2,7 @@ import mongoengine as me
 from pyramid.response import Response
 
 from mist.api.clouds.models import Cloud
-from mist.api.dns.models import Zone, Record
+from mist.api.dns.models import Zone, Record, RECORDS
 
 from mist.api.auth.methods import auth_context_from_request
 
@@ -103,8 +103,9 @@ def create_dns_record(request):
 
     # Get the params and create the new record
     params = params_from_request(request)
+    dns_cls = RECORDS[params['type']]
 
-    rec = Record.add(owner=auth_context.owner, zone=zone, **params).as_dict()
+    rec = dns_cls.add(owner=auth_context.owner, zone=zone, **params).as_dict()
 
     # Schedule a UI update
     trigger_session_update(auth_context.owner, ['zones'])
