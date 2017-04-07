@@ -271,6 +271,9 @@ class BaseController(object):
                     raise BadRequestError()
             cond = cond_cls[condition.pop('type')]()
             cond.update(**condition)
+
+
+
             self.schedule.conditions.append(cond)
 
         # TODO: Remove machine uuids and machine tags

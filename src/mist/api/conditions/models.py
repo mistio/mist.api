@@ -52,7 +52,7 @@ class FieldCondition(BaseCondition):
     ctype = 'field'
 
     field = me.StringField(required=True)
-    value = me.GenericReferenceField(required=True)
+    value = me.DynamicField(required=True)
     operator = me.StringField(required=True, default='eq',
                               choices=('eq', 'ne', 'gt', 'lt'))
 
@@ -138,3 +138,6 @@ class MachinesAgeCondition(BaseCondition):
     def q(self):
         d = datetime.datetime.now() - datetime.timedelta(minutes=self.minutes)
         return me.Q(created__lt=d)
+
+    def as_dict(self):
+        return {'type': self.ctype, 'minutes': self.minutes}
