@@ -1,0 +1,107 @@
+#!/usr/bin/env python
+
+import os
+from time import time
+import getpass
+
+from mist.api.clouds.models import DockerCloud, OtherCloud
+from mist.api.keys.models import SSHKey
+from mist.api.users.models import User, Organization
+
+from mist.api import config
+
+
+def dbinit():
+    """Set up a dev account in local fullstack container."""
+
+    # Add user
+    email = raw_input("email: ")
+    if not email:
+        return
+    password = getpass.getpass("password:")
+    try:
+        user = User.objects.get(email=email)
+    except:
+        user = User(email=email)
+    user.set_password(password)
+    user.role = 'Admin'
+    user.status = 'confirmed'
+    user.save()
+
+    # Add org
+    org = Organization.objects(members=user).first()
+    if org is None:
+        org = Organization(name=user.email)
+        org.add_member_to_team('Owners', user)
+        org.save()
+    org.insights_enabled = True
+    org.save()
+
+    # Add local docker host
+    cloud = None
+    try:
+        cloud = DockerCloud.objects.get(owner=org, title='Mist Docker')
+        try:
+            if cloud.host != 'socat' or cloud.port !=2375:
+                cloud.ctl.update(host='socat', port=2375)
+        except Exception as exc:
+            print "Error updating docker cloud: %r" % exc
+    except DockerCloud.DoesNotExist:
+        try:
+            cloud = DockerCloud.add(owner=org, title='Mist Docker',
+                                    host='socat', port=2375)
+        except Exception as exc:
+            print "Error adding docker cloud: %r" % exc
+    if cloud is not None:
+        try:
+            cloud.ctl.set_polling_interval(600)
+        except Exception as exc:
+            print "Error setting polling interval on docker cloud: %r" % exc
+
+    # Add ssh key
+    with open('/keys/id_rsa', 'r') as fobj:
+        priv = fobj.read()
+    try:
+        key = SSHKey.objects.get(owner=org, name='mist key')
+        if key.private != priv:
+            try:
+                key.private = priv
+                key.save()
+            except Exception as exc:
+                print "Error updating key: %r" % exc
+    except SSHKey.DoesNotExist:
+        key = SSHKey.add(org, 'mist key', private=priv)
+
+    # Add container as baremetal/other server
+    try:
+        cid = OtherCloud.objects.get(owner=org, title='Mist Debugger').id
+    except OtherCloud.DoesNotExist:
+        cid = ''
+
+    try:
+        cloud = OtherCloud.add(owner=org, title='Mist Debugger', id=cid,
+                               host='debugger', ssh_user='root',
+                               ssh_port=22, ssh_key=key.id)
+        cloud.ctl.set_polling_interval(600)
+    except Exception as exc:
+        print "Error adding Other cloud: %r" % exc
+
+    cloud = None
+    try:
+        cloud = OtherCloud.objects.get(owner=org, title='Mist Debugger')
+    except OtherCloud.DoesNotExist:
+        try:
+            cloud = OtherCloud.add(owner=org, title='Mist Debugger', id=cid,
+                                   host='debugger', ssh_user='root',
+                                   ssh_port=22, ssh_key=key.id)
+        except Exception as exc:
+            print "Error adding other cloud: %r" % exc
+    if cloud is not None:
+        try:
+            cloud.ctl.set_polling_interval(600)
+        except Exception as exc:
+            print "Error setting polling interval on other cloud: %r" % exc
+
+
+if __name__ == '__main__':
+    dbinit()
