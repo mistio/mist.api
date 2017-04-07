@@ -98,6 +98,13 @@ MIXPANEL_ID = ""
 FB_ID = ""
 OLARK_ID = ""
 
+FAILED_LOGIN_RATE_LIMIT = {
+    'max_logins': 5,            # allow that many failed login attempts
+    'max_logins_period': 60,    # in that many seconds
+    'block_period': 60          # after that block for that many seconds
+}
+
+
 ###############################################################################
 #  Different set in io and core
 ###############################################################################
@@ -699,6 +706,25 @@ GCE_IMAGES = [
     'ubuntu-os-cloud',
     'windows-cloud',
 ]
+
+
+## Email templates
+
+FAILED_LOGIN_ATTEMPTS_EMAIL_SUBJECT = "[mist.io] Failed login attempts warning"
+
+FAILED_LOGIN_ATTEMPTS_EMAIL_BODY = """
+================= Failed login attempts warning =================
+
+Too many failed login attempts for the same account and from the same IP
+address occurred. Future login attempts for this user/ip will be
+temporarily blocked to thwart a brute-force attack.
+
+User: %s
+IP address: %s
+Number of failed attempts: %s
+Time period of failed login attempts: %s
+Blocking period: %s
+"""
 
 
 ## DO NOT PUT ANYTHING BELOW HERE UNLESS YOU KNOW WHAT YOU ARE DOING
