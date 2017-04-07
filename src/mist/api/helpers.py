@@ -1,4 +1,15 @@
-"""Helper functions used in views and WSGI initialization"""
+"""Helper functions used in views and WSGI initialization
+
+This file is imported in many places. Importing other mist modules into this
+file causes circular import errors.
+
+Try to not put anything in here that depends on other mist code, with the
+exception of mist.api.config.
+
+In general, this file should only contain generic helper functions that one
+could easily use in some other unrelated project.
+
+"""
 
 import os
 import re
@@ -8,6 +19,7 @@ import json
 import string
 import random
 import socket
+import shutil
 import smtplib
 import datetime
 import tempfile
@@ -29,6 +41,7 @@ from pyramid.httpexceptions import HTTPError
 
 import iso8601
 import netaddr
+import requests
 
 from Crypto.Cipher import AES
 from Crypto.Hash import SHA256
@@ -60,7 +73,7 @@ log = logging.getLogger(__name__)
 
 
 @contextmanager
-def get_temp_file(content):
+def get_temp_file(content, dir=None):
     """Creates a temporary file on disk and saves 'content' in it.
 
     It is meant to be used like this:
@@ -71,7 +84,7 @@ def get_temp_file(content):
     exception has been raised.
 
     """
-    (tmp_fd, tmp_path) = tempfile.mkstemp()
+    (tmp_fd, tmp_path) = tempfile.mkstemp(dir=dir)
     f = os.fdopen(tmp_fd, 'w+b')
     f.write(content)
     f.close()
@@ -82,6 +95,16 @@ def get_temp_file(content):
             os.remove(tmp_path)
         except:
             pass
+
+
+def atomic_write_file(path, content):
+    # Store first into a tmp file, and then move it (atomically) to target
+    # position, to avoid target file getting corrupted in case of concurrent
+    # writers. Tmp file is stored in target dir, to make sure it's in same
+    # mount as target file, cause otherwise move won't work, a copy would be
+    # required instead (which would beat the purpose of all this).
+    with get_temp_file(content, dir=os.path.dirname(path)) as tmp_path:
+        os.rename(tmp_path, path)
 
 
 def params_from_request(request):
@@ -1487,3 +1510,43 @@ def get_log_events(owner_id='', user_id='', event_type='', action='',
             continue
         yield event
     connection.close()
+
+
+def get_file(url, filename, update=True):
+    """Get file from url and store it to directory relative to src/mist/api
+
+    If update is True, then a download will be attempted even if the file
+    already exists.
+
+    This function only raises an exception if the file doesn't exist and cannot
+    be fetched.
+    """
+
+    path = os.path.join(config.MIST_API_DIR, 'src', 'mist', 'api',
+                        filename)
+    exists = os.path.exists(path)
+    if not exists or update:
+        try:
+            resp = requests.get(url)
+        except Exception as exc:
+            err = "Error fetching file '%s' from '%s': %r" % (
+                filename, url, exc
+            )
+            if not exists:
+                log.critical(err)
+                raise
+            log.error(err)
+        else:
+            data = resp.text
+            if resp.status_code != 200:
+                err = "Bad response fetching file '%s' from '%s': %r" % (
+                    filename, url, data
+                )
+                if not exists:
+                    log.critical(err)
+                    raise Exception(err)
+                log.error(err)
+            else:
+                atomic_write_file(path, data)
+    print 'path'
+    return path

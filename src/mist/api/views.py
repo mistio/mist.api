@@ -57,6 +57,7 @@ from mist.api.helpers import get_auth_header, params_from_request
 from mist.api.helpers import trigger_session_update, amqp_publish_user
 from mist.api.helpers import view_config, log_event, ip_from_request
 from mist.api.helpers import send_email
+from mist.api.helpers import get_file
 
 from mist.api.auth.methods import auth_context_from_request
 from mist.api.auth.methods import user_from_request, session_from_request
@@ -80,6 +81,14 @@ logging.basicConfig(level=config.PY_LOG_LEVEL,
 log = logging.getLogger(__name__)
 
 OK = Response("OK", 200)
+
+
+def get_ui_template():
+    get_file(config.UI_TEMPLATE_URL, 'templates/ui.pt')
+
+
+def get_landing_template():
+    get_file(config.LANDING_TEMPLATE_URL, 'templates/landing.pt')
 
 
 @view_config(context=Exception)
@@ -147,6 +156,7 @@ def home(request):
                                     backend=external_auth)
             raise RedirectError(url)
 
+        get_landing_template()
         return render_to_response('templates/landing.pt', template_inputs)
 
     if not user.last_active or datetime.now() - user.last_active > timedelta(0, 300):
@@ -159,6 +169,7 @@ def home(request):
         auth_context.owner.last_active = datetime.now()
         auth_context.owner.save()
 
+    get_ui_template()
     return render_to_response('templates/ui.pt', template_inputs)
 
 
@@ -184,9 +195,11 @@ def not_found(request):
                                     backend=external_auth)
             raise RedirectError(url)
 
+        get_landing_template()
         return render_to_response('templates/landing.pt', template_inputs,
                                   request=request)
 
+    get_ui_template()
     return render_to_response('templates/ui.pt', template_inputs,
                               request=request)
 
@@ -658,6 +671,7 @@ def reset_password(request):
         template_inputs['build_path'] = build_path
         template_inputs['csrf_token'] = json.dumps(get_csrf_token(request))
 
+        get_landing_template()
         return render_to_response('templates/landing.pt', template_inputs)
     elif request.method == 'POST':
 
@@ -722,6 +736,7 @@ def set_password(request):
         template_inputs['build_path'] = build_path
         template_inputs['csrf_token'] = json.dumps(get_csrf_token(request))
 
+        get_landing_template()
         return render_to_response('templates/landing.pt', template_inputs)
     elif request.method == 'POST':
         password = params.get('password', '')

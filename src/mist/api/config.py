@@ -15,6 +15,18 @@ from libcloud.compute.types import NodeState
 libcloud.security.SSL_VERSION = ssl.PROTOCOL_TLSv1_2
 
 
+def dirname(path, num=1):
+    """Get absolute path of `num` directories above path"""
+    path = os.path.abspath(path)
+    for i in xrange(num):
+        path = os.path.dirname(path)
+    return path
+
+
+MIST_API_DIR = dirname(__file__, 4)
+print >> sys.stderr, "MIST_API_DIR is %s" % MIST_API_DIR
+
+
 ###############################################################################
 # The following variables are common for both open.source and mist.core
 ###############################################################################
@@ -37,6 +49,8 @@ ELASTICSEARCH = {
 LOGS_FROM_ELASTIC = True
 
 BUILD_TAG = ""
+UI_TEMPLATE_URL = "http://ui"
+LANDING_TEMPLATE_URL = "http://landing"
 
 PY_LOG_LEVEL = logging.INFO
 PY_LOG_FORMAT = '%(asctime)s %(levelname)s %(threadName)s %(module)s - %(funcName)s: %(message)s'
@@ -690,13 +704,7 @@ GCE_IMAGES = [
 ## DO NOT PUT ANYTHING BELOW HERE UNLESS YOU KNOW WHAT YOU ARE DOING
 
 # Get settings from mist.core.
-def dirname(path, num=1):
-    for i in xrange(num):
-        path = os.path.dirname(path)
-    return path
-
-
-CORE_CONFIG_PATH = os.path.join(dirname(__file__, 6),
+CORE_CONFIG_PATH = os.path.join(dirname(MIST_API_DIR, 2),
                                 'mist', 'core', 'config.py')
 if os.path.exists(CORE_CONFIG_PATH):
     print >> sys.stderr, "Will load core config from %s" % CORE_CONFIG_PATH
@@ -709,7 +717,7 @@ else:
 FROM_ENV_STRINGS = [
     'AMQP_URI', 'BROKER_URL', 'CORE_URI', 'MONGO_URI', 'MONGO_DB', 'DOCKER_IP',
     'DOCKER_PORT', 'DOCKER_TLS_KEY', 'DOCKER_TLS_CERT', 'DOCKER_TLS_CA',
-    'BUILD_TAG',
+    'BUILD_TAG', 'UI_TEMPLATE_URL', 'LANDING_TEMPLATE_URL',
 ]
 FROM_ENV_INTS = [
 ]
