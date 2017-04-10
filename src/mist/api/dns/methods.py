@@ -21,7 +21,7 @@ def list_zones(owner, cloud):
     log.warn('Running list zones for user %s, cloud %s', owner.id, cloud.id)
     ret = {}
     if not hasattr(cloud.ctl, 'dns'):
-        ret = {'cloud_id': cloud.id, 'zones': []}
+        ret = []
     else:
         zones_ret = []
         zones = cloud.ctl.dns.list_zones()
@@ -36,7 +36,7 @@ def list_zones(owner, cloud):
             zone_dict['records'] = recs
             zone_dict["tags"] = get_tags_for_resource(owner, zone)
             zones_ret.append(zone_dict)
-        ret = {'cloud_id': cloud.id, 'zones': zones_ret}
+        ret = zones_ret
     log.warn('Returning list zones for user %s, cloud %s', owner.id, cloud.id)
     return ret
 
@@ -45,9 +45,10 @@ def filter_list_zones(auth_context, cloud, perm='read'):
     zones = list_zones(auth_context.owner, cloud)
     if not auth_context.is_owner():
         try:
-            auth_context.check_perm('zone', 'read', None)
+            auth_context.check_perm('cloud', 'read', cloud.id)
         except PolicyUnauthorizedError:
             return []
-        zones = [zone for zone in zones if zone['id']
-                 in auth_context.get_allowed_resources(rtype='zones')]
-    return zones
+        allowed_zones = set(auth_context.get_allowed_resources(rtype='zones'))
+        zones = [zone for zone in zones if zone['id'] in allowed_zones]
+        print "zones: %s " % zones
+    return {'cloud_id': cloud.id, 'zones': zones}

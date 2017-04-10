@@ -7,6 +7,7 @@ with libcloud's DNS API.
 """
 import ssl
 import logging
+import datetime
 
 import mongoengine as me
 
@@ -86,7 +87,7 @@ class BaseDNSController(BaseController):
         for pr_zone in pr_zones:
             try:
                 zone = Zone.objects.get(owner=self.cloud.owner,
-                                        zone_id=pr_zone.id)
+                                        zone_id=pr_zone.id, deleted=None)
             except Zone.DoesNotExist:
                 log.info("Zone: %s/domain: %s not in the database, creating.",
                          pr_zone.id, pr_zone.domain)
@@ -111,7 +112,9 @@ class BaseDNSController(BaseController):
 
         # Delete any zones in the DB that were not returned by the provider
         # meaning they were deleted otherwise.
-        Zone.objects(cloud=self.cloud, id__nin=[z.id for z in zones]).delete()
+        Zone.objects(cloud=self.cloud, id__nin=[z.id for z in zones],
+                     deleted=None).update(
+                         set__deleted=datetime.datetime.utcnow())
 
         # Format zone information.
         return zones
@@ -197,7 +200,9 @@ class BaseDNSController(BaseController):
         # Then delete any records that are in the DB for this zone but were not
         # returned by the list_records() method meaning the were deleted in the
         # DNS provider.
-        Record.objects(zone=zone, id__nin=[r.id for r in records]).delete()
+        Record.objects(zone=zone, id__nin=[r.id for r in records],
+                       deleted=None).update(
+                         set__deleted=datetime.datetime.utcnow())
 
         # Format zone information.
         return records
@@ -239,7 +244,7 @@ class BaseDNSController(BaseController):
         specific record under the specified zone.
         """
         self._delete_record__from_id(record.zone.zone_id, record.record_id)
-        record.delete()
+        record.delete().update(set__deleted=datetime.datetime.utcnow())
 
     def _delete_record__from_id(self, zone_id, record_id):
         """
@@ -265,7 +270,7 @@ class BaseDNSController(BaseController):
         Public method called to delete the specific zone for the provided id.
         """
         self._delete_zone__for_cloud(zone.zone_id)
-        zone.delete()
+        zone.delete().update(set__deleted=datetime.datetime.utcnow())
 
     def _delete_zone__for_cloud(self, zone_id):
         """
