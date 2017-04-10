@@ -1,0 +1,17 @@
+#!/bin/sh
+
+set -e
+
+USAGE="Usage: $0
+
+Start hub-shell
+"
+
+if [ "$1" = "-h" ]; then
+    echo "$USAGE"
+    exit
+fi
+
+set -x
+
+exec python src/mist/api/hub/shell.py server

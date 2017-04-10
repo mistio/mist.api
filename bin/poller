@@ -1,0 +1,21 @@
+#!/bin/sh
+
+set -e
+
+USAGE="Usage: $0
+
+Start poller
+"
+
+if [ "$1" = "-h" ]; then
+    echo "$USAGE"
+    exit
+fi
+
+set -x
+
+exec celery beat \
+    -A mist.api.tasks \
+    -S mist.api.poller.schedulers.PollingScheduler \
+    -l INFO \
+    --pidfile=/var/run/poller.pid
