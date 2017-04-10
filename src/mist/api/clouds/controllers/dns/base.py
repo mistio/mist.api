@@ -200,9 +200,10 @@ class BaseDNSController(BaseController):
         # Then delete any records that are in the DB for this zone but were not
         # returned by the list_records() method meaning the were deleted in the
         # DNS provider.
-        Record.objects(zone=zone, id__nin=[r.id for r in records],
+        Record.objects(zone=zone,
+                       id__nin=[r.id for r in records],
                        deleted=None).update(
-                         set__deleted=datetime.datetime.utcnow())
+                           set__deleted=datetime.datetime.utcnow())
 
         # Format zone information.
         return records
