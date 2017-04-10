@@ -239,13 +239,16 @@ class BaseDNSController(BaseController):
         """Postparse the records returned from the provider"""
         return
 
-    def delete_record(self, record):
+    def delete_record(self, record, expire=False):
         """
         Public method to be called with a zone and record ids to delete the
         specific record under the specified zone.
         """
         self._delete_record__from_id(record.zone.zone_id, record.record_id)
-        record.delete().update(set__deleted=datetime.datetime.utcnow())
+        if expire:
+            record.delete()
+        else:
+            record.update(set__deleted=datetime.datetime.utcnow())
 
     def _delete_record__from_id(self, zone_id, record_id):
         """
@@ -266,12 +269,15 @@ class BaseDNSController(BaseController):
                           self.cloud)
             raise CloudUnavailableError(exc=exc)
 
-    def delete_zone(self, zone):
+    def delete_zone(self, zone, expire=False):
         """
         Public method called to delete the specific zone for the provided id.
         """
         self._delete_zone__for_cloud(zone.zone_id)
-        zone.delete().update(set__deleted=datetime.datetime.utcnow())
+        if expire:
+            zone.delete()
+        else:
+            zone.update(set__deleted=datetime.datetime.utcnow())
 
     def _delete_zone__for_cloud(self, zone_id):
         """

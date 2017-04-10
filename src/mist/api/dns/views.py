@@ -127,6 +127,7 @@ def delete_dns_zone(request):
     auth_context = auth_context_from_request(request)
     cloud_id = request.matchdict['cloud']
     zone_id = request.matchdict['zone']
+    expire = request.matchdict['expire']
     # Do we need the cloud here, now that the models have been created?
     try:
         cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id)
@@ -139,7 +140,7 @@ def delete_dns_zone(request):
 
     auth_context.check_perm("zone", "remove", zone_id)
 
-    zone.ctl.delete_zone()
+    zone.ctl.delete_zone(expire)
 
     # Schedule a UI update
     trigger_session_update(auth_context.owner, ['zones'])
@@ -155,6 +156,7 @@ def delete_dns_record(request):
     cloud_id = request.matchdict['cloud']
     zone_id = request.matchdict['zone']
     record_id = request.matchdict['record']
+    expire = request.matchdict['expire']
     try:
         cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id)
     except me.DoesNotExist:
@@ -170,7 +172,7 @@ def delete_dns_record(request):
 
     auth_context.check_perm("record", "remove", record_id)
 
-    record.ctl.delete_record()
+    record.ctl.delete_record(expire)
 
     # Schedule a UI update
     trigger_session_update(auth_context.owner, ['zones'])
