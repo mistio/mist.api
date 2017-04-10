@@ -158,8 +158,7 @@ class BaseController(object):
             raise BadRequestError('Date of future task is in the past. '
                                   'Please contact Marty McFly')
         # Schedule conditions pre-parsing.
-        if 'machines_uuids' or 'machines_tags' or 'conditions' in kwargs:
-
+        if ('machines_uuids' or 'machines_tags' or 'conditions') in kwargs:
             try:
                 self._update__preparse_machines(auth_context, kwargs)
             except MistError as exc:
