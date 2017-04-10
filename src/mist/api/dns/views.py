@@ -2,9 +2,10 @@ import mongoengine as me
 from pyramid.response import Response
 
 from mist.api.clouds.models import Cloud
-from mist.api.dns.models import Zone, Record
+from mist.api.dns.models import Zone, Record, RECORDS
 
 from mist.api.auth.methods import auth_context_from_request
+import mist.api.dns.methods as methods
 
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import CloudNotFoundError
@@ -31,7 +32,8 @@ def list_dns_zones(request):
     except me.DoesNotExist:
         raise CloudNotFoundError
 
-    return [zone.as_dict() for zone in cloud.ctl.dns.list_zones()]
+    zones = filter_list_zones(auth_context, cloud)
+    return zones
 
 
 @view_config(route_name='api_v1_records', request_method='GET', renderer='json')
@@ -63,9 +65,11 @@ def create_dns_zone(request):
     """
     auth_context = auth_context_from_request(request)
 
-    auth_context.check_perm("zone", "add", None)
 
     cloud_id = request.matchdict['cloud']
+    auth_context.check_perm("cloud", "read", cloud_id)
+    auth_context.check_perm("cloud", "create_resources", cloud_id)
+    auth_context.check_perm("zone", "add", None)
     # Try to get the specific cloud for which we will create the zone.
     try:
         cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id)
@@ -86,7 +90,6 @@ def create_dns_record(request):
     """
     auth_context = auth_context_from_request(request)
 
-    auth_context.check_perm("record", "add", None)
 
     cloud_id = request.matchdict['cloud']
     # Try to get the specific cloud for which we will create the zone.
@@ -101,10 +104,15 @@ def create_dns_record(request):
     except Zone.DoesNotExist:
         raise NotFoundError('Zone does not exist')
 
+    auth_context.check_perm("cloud", "read", cloud_id)
+    auth_context.check_perm("cloud", "create_resources", cloud_id)
+    auth_context.check_perm("zone", "read", zone_id)
+    auth_context.check_perm("record", "add", None)
     # Get the params and create the new record
     params = params_from_request(request)
+    dns_cls = RECORDS[params['type']]
 
-    rec = Record.add(owner=auth_context.owner, zone=zone, **params).as_dict()
+    rec = dns_cls.add(owner=auth_context.owner, zone=zone, **params).as_dict()
 
     # Schedule a UI update
     trigger_session_update(auth_context.owner, ['zones'])
