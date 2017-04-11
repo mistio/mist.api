@@ -1183,20 +1183,10 @@ def filter_list_machines(auth_context, cloud_id, machines=None, perm='read'):
     return machines
 
 
-def check_ip(owner, machine, dst_port=''):  # maybe also pass dst_ip
-    """Attempt to port knock and ping the machine. The hierarchy is
-       firstly trying the hostname, after the public and private ips.
-       """
-
-    # machine.hostname, public_ips, private_ips, ssh_port, rdp_port,
-
-    # machine.hostname is dns_name from the provider or the
-    # first ip from public+private ips list
-    # line 208, clouds/controllers/compute/base.py
-    import socket
-    from mist.core.vpn.methods import destination_nat as dnat
-    from mist.core.vpn.methods import super_ping
-
+def check_ip(owner, machine, dst_port=''):
+    """Attempt to port knock the machine.
+       Firstly trying the hostname, after the public and private ips.
+    """
     hostname = machine.hostname
     public_ips = [ip for ip in machine.public_ips if ':' not in ip]
     private_ips = [ip for ip in machine.private_ips if ':' not in ip]
@@ -1206,42 +1196,14 @@ def check_ip(owner, machine, dst_port=''):  # maybe also pass dst_ip
         list_ips.insert(0, hostname)
 
     if not list_ips:
-        return False
+        return None
 
     if dst_port:
         ports_list = [dst_port]
     else:
-        ports_list = [22, 80, 443, 3389]  # is this necessary?
+        ports_list = [22, 80, 443, 3389]
         for port in (machine.ssh_port, machine.rdp_port):
             if port and port not in ports_list:
                 ports_list.insert(0, port)
 
-    socket_timeout = 3
-    for ip in list_ips:
-        for port in ports_list:
-            log.info("Attempting to connect to %s:%d", ip, port)
-            try:  # maybe to use celery chain and group
-                s = socket.create_connection(
-                    dnat(owner, ip, port),
-                    socket_timeout
-                )
-                s.shutdown(2)
-            except:  # better handle of exceptions
-                log.info("Failed to connect to %s:%d", ip, port)
-                try:
-                    log.info("Pinging %s", ip)
-                    ping = super_ping(owner=owner,
-                                      host=ip, pkts=1)
-                    if int(ping.get('packets_rx', 0)) > 0:
-                        log.info("Successfully pinged %s", ip)
-                        machine.hostname = ip
-                        machine.save()
-                        return ip
-                except:
-                    log.info("Failed to ping %s", ip)
-                    continue
-                return None
-            log.info("Connected to %s:%d", ip, port)
-            machine.hostname = ip
-            machine.save()
-            return ip
+    mist.api.tasks.chain_ips_ports.delay(owner.id, list_ips, ports_list)

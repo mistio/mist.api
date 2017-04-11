@@ -13,7 +13,7 @@ from base64 import b64encode
 
 from memcache import Client as MemcacheClient
 
-from celery import group
+from celery import group, chain
 from celery import Celery, Task
 from celery.exceptions import SoftTimeLimitExceeded
 
@@ -1407,4 +1407,53 @@ def revoke_token(token):
     auth_token.save()
 
 
+@app.task
+def chain_ips_ports(owner_id, list_ips, ports_list):
+    # use chain to attempt to connect sequential in different ips
+    clist = []
+    for ip in list_ips:
+        # si means: the signature to be immutable
+        clist.append(group_ip_ports.si(owner_id, ip, ports_list))
+    chain(clist)()
 
+
+@app.task
+def group_ip_ports(owner_id, ip, ports_list):
+    # use group to attempt to connect parallel in different ports
+    glist = []
+    for port in ports_list:
+        glist.append(check_ip_port.s(owner_id, ip, port))
+    group(glist)()
+    # group(check_ip_port.s(owner_id, ip, port) for port in ports)()
+
+
+@app.task(soft_time_limit=3600, time_limit=3630)
+def check_ip_port(self, owner_id, ip, port):
+    # a simple task which try to connect in specific ip, port
+    import socket
+    try:
+        from mist.core.vpn.methods import destination_nat as dnat
+    except ImportError:
+        from mist.api.dummy.methods import dnat
+    
+    owner = Owner.objects.get(id=owner_id)
+    socket_timeout = 3
+    log.info("Attempting to connect to %s:%d", ip, port)
+    try:
+        s = socket.create_connection(
+            dnat(owner, ip, port),
+            socket_timeout
+        )
+        s.shutdown(2)
+        log.info("Connected to ip: %s and port: %s" % (ip, port))
+        # machine.hostname = ip
+        # machine.save()
+
+        # bind=True, self.request.callbacks = None
+        # self.request.callbacks[:] = []
+        # return
+    except socket.error as exc:
+        log.info("Caught exception socket.error : %s" % exc)
+        log.info("Failed to connect to %s: %s", ip, port)
+    except Exception as exc:
+        log.info("Error: %s" % exc)
