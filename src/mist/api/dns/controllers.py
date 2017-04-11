@@ -15,10 +15,10 @@ class ZoneController(object):
         """
         return self.zone.cloud.ctl.dns.list_records(self.zone)
 
-    def delete_zone(self, expire=False):
+    def delete_zone(self):
         """Wrapper for the DNS cloud controller delete_zone() functionality
         """
-        return self.zone.cloud.ctl.dns.delete_zone(self.zone, expire)
+        return self.zone.cloud.ctl.dns.delete_zone(self.zone)
 
 
 class RecordController(object):
@@ -33,7 +33,6 @@ class RecordController(object):
         return self.record.zone.cloud.ctl.dns.create_record(self.record,
                                                             **kwargs)
 
-    def delete_record(self, expire=False):
+    def delete_record(self):
         """Wrapper for the delete_record DNSController functionality."""
-        return self.record.zone.cloud.ctl.dns.delete_record(self.record,
-                                                            expire)
+        return self.record.zone.cloud.ctl.dns.delete_record(self.record)

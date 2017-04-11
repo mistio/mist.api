@@ -90,7 +90,6 @@ def create_dns_record(request):
     """
     auth_context = auth_context_from_request(request)
 
-
     cloud_id = request.matchdict['cloud']
     # Try to get the specific cloud for which we will create the zone.
     try:
@@ -105,8 +104,8 @@ def create_dns_record(request):
         raise NotFoundError('Zone does not exist')
 
     auth_context.check_perm("cloud", "read", cloud_id)
-    auth_context.check_perm("cloud", "create_resources", cloud_id)
     auth_context.check_perm("zone", "read", zone_id)
+    auth_context.check_perm("zone", "create_records", zone_id)
     auth_context.check_perm("record", "add", None)
     # Get the params and create the new record
     params = params_from_request(request)
@@ -127,7 +126,6 @@ def delete_dns_zone(request):
     auth_context = auth_context_from_request(request)
     cloud_id = request.matchdict['cloud']
     zone_id = request.matchdict['zone']
-    expire = request.matchdict['expire']
     # Do we need the cloud here, now that the models have been created?
     try:
         cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id)
@@ -140,7 +138,7 @@ def delete_dns_zone(request):
 
     auth_context.check_perm("zone", "remove", zone_id)
 
-    zone.ctl.delete_zone(expire)
+    zone.ctl.delete_zone()
 
     # Schedule a UI update
     trigger_session_update(auth_context.owner, ['zones'])
@@ -156,7 +154,6 @@ def delete_dns_record(request):
     cloud_id = request.matchdict['cloud']
     zone_id = request.matchdict['zone']
     record_id = request.matchdict['record']
-    expire = request.matchdict['expire']
     try:
         cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id)
     except me.DoesNotExist:
@@ -172,7 +169,7 @@ def delete_dns_record(request):
 
     auth_context.check_perm("record", "remove", record_id)
 
-    record.ctl.delete_record(expire)
+    record.ctl.delete_record()
 
     # Schedule a UI update
     trigger_session_update(auth_context.owner, ['zones'])
