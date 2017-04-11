@@ -65,7 +65,6 @@ def create_dns_zone(request):
     """
     auth_context = auth_context_from_request(request)
 
-
     cloud_id = request.matchdict['cloud']
     auth_context.check_perm("cloud", "read", cloud_id)
     auth_context.check_perm("cloud", "create_resources", cloud_id)
