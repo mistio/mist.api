@@ -89,7 +89,6 @@ def create_dns_record(request):
     """
     auth_context = auth_context_from_request(request)
 
-
     cloud_id = request.matchdict['cloud']
     # Try to get the specific cloud for which we will create the zone.
     try:
@@ -104,8 +103,8 @@ def create_dns_record(request):
         raise NotFoundError('Zone does not exist')
 
     auth_context.check_perm("cloud", "read", cloud_id)
-    auth_context.check_perm("cloud", "create_resources", cloud_id)
     auth_context.check_perm("zone", "read", zone_id)
+    auth_context.check_perm("zone", "create_records", zone_id)
     auth_context.check_perm("record", "add", None)
     # Get the params and create the new record
     params = params_from_request(request)
