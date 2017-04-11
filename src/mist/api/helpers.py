@@ -305,9 +305,7 @@ def amqp_subscribe(exchange, callback, queue='',
 def _amqp_owner_exchange(owner):
     # The exchange/queue name consists of a non-empty sequence of these
     # characters: letters, digits, hyphen, underscore, period, or colon.
-    if isinstance(owner, basestring) and '@' in owner:
-        owner = mist.api.users.models.User.objects.get(email=owner)
-    elif not isinstance(owner, mist.api.users.models.Owner):
+    if not isinstance(owner, mist.api.users.models.Owner):
         try:
             owner = mist.api.users.models.Owner.objects.get(id=owner)
         except Exception as exc:
