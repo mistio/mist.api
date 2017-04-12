@@ -383,14 +383,14 @@ def process_filters(query, filters, close=None, error=None):
                        pending stories or stories that ended with an error.
 
     """
-    for filter in ("close", "error"):
+    for name, filter in (("close", close), ("error", error)):
         stories = []
-        if locals()[filter] is not None:
-            if filter == "close":
+        if filter is not None:
+            if name == "close":
                 append_to = "must_not" if close else "must"
-            if filter == "error":
+            if name == "error":
                 append_to = "must_not" if not error else "must"
-            for story in filters[filter]["stories"]["buckets"]:
+            for story in filters[name]["stories"]["buckets"]:
                 if story["key"] in EXCLUDED_BUCKETS:
                     continue
                 stories.append(story["key"])
@@ -416,7 +416,7 @@ def associate_stories(event):
     elif event['action'] in JOBS.itervalues():
         if job in JOBS:
             action = 'closes'
-    elif event['action'] in CLOSES_STORY + CLOSES_INCIDENT:
+    elif event['action'] in CLOSES_STORY:
         action = 'closes'
     elif event['action'] in STARTS_STORY:
         action = 'opens'
@@ -458,50 +458,6 @@ def get_story(owner_id, story_id, story_type=None, expand=True):
     if len(story) > 1:
         log.error('Found multiple stories with story_id %s', story_id)
     return story[0]
-
-
-def close_story(owner_id, story_id):
-    """Close an open story."""
-    index = 'app-logs-*'
-    query = {
-        'query': {
-            'bool': {
-                'filter': {
-                    'bool': {
-                        'must': [
-                            {'term': {'owner_id': owner_id}},
-                            {'term': {'story_id': story_id}},
-                        ]
-                    }
-                }
-            }
-        },
-        'sort': [{
-            '@timestamp': {
-                'order': 'desc'
-            }
-        }],
-        'size': 1
-    }
-
-    result = es().search(index=index, body=query)
-    if not result['hits']['hits']:
-        raise NotFoundError('story_id %s' % story_id)
-
-    # Get the latest log entry.
-    doc = result['hits']['hits'][0]
-    body = doc['_source']
-    # Get proper story_type.
-    story_type = doc['_type'] if doc['_type'] != 'request' else 'job'
-    # Mark the latest log entry as the one closing the story.
-    for story in body['stories']:
-        if tuple(story) == ('closes', story_type, story_id):
-            log.error('Story %s already closed', story_id)
-            break
-    else:
-        body['stories'].append(('closes', story_type, story_id))
-        es().index(index=doc['_index'], doc_type=doc['_type'], id=doc['_id'],
-                   body=body)
 
 
 def delete_story(owner_id, story_id):

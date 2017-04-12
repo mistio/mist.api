@@ -793,7 +793,6 @@ def log_event(owner_id, event_type, action, error=None, story_id='',
     """Log dict of the keyword arguments passed"""
     conn = _mongo_conn if _mongo_conn else MongoClient(config.MONGO_URI)
     coll = conn['mist'].logging
-
     try:
         def _default(obj):
             return {'_python_object': str(obj)}
@@ -806,6 +805,8 @@ def log_event(owner_id, event_type, action, error=None, story_id='',
             'error': error if error is not None else False,
             'extra': json.dumps(kwargs, default=_default),
         }
+        if story_id:
+            event['story_id'] = story_id
         if user_id:
             event['user_id'] = user_id
             event['email'] = mist.api.users.models.User.objects.get(
@@ -832,14 +833,21 @@ def log_event(owner_id, event_type, action, error=None, story_id='',
                     from mist.api.logs.methods import associate_stories
                     from mist.api.logs.methods import close_open_incidents
                     from mist.api.logs.constants import STARTS_STORY, CLOSES_STORY
-                    from mist.api.logs.constants import CLOSES_INCIDENT
+                    from mist.api.logs.constants import CLOSES_INCIDENT, TYPES
                     event.update({'log_id': uuid.uuid4().hex})
                     for key in ('job_id', 'shell_id', 'session_id', 'incident_id'):
+                        # HACK:FIXME: AB Testing.
+                        if key == 'session_id' and event_type != 'session':
+                            continue
                         if key in event:
                             event.update({'story_id': event[key], 'stories': []})
                             associate_stories(event)
                             break
                     else:
+                        # HACK:FIXME: Special case for closing stories of any
+                        # type by simply specifying the story_id.
+                        if event['action'] in ('close_story', ):
+                            event['stories'] = [('closes', TYPES.keys(), event['story_id'])]
                         if event['action'] in CLOSES_INCIDENT:
                             close_open_incidents(event)
             except Exception as exc:
@@ -1250,7 +1258,8 @@ def logging_view_decorator(func):
 
         # log matchdict and params
         params = dict(params_from_request(request))
-        for key in ['email', 'cloud', 'machine', 'rule', 'script_id', 'tunnel_id']:
+        for key in ['email', 'cloud', 'machine', 'rule', 'script_id',
+                    'tunnel_id', 'story_id']:
             if key != 'email' and key in request.matchdict:
                 if not key.endswith('_id'):
                     log_dict[key + '_id'] = request.matchdict[key]

@@ -73,8 +73,8 @@ CLOSES_INCIDENT = (
 # type "job" and "request".
 TYPES = {
     'job': 'job,request',
-    'shell': 'shell',
-    'session': 'session',
+    'shell': 'shell,request',
+    'session': 'session,request',
     'incident': 'incident,request'
 }
 
