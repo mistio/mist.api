@@ -112,6 +112,7 @@ class RackSpaceMainController(BaseMainController):
 
     provider = 'rackspace'
     ComputeController = compute_ctls.RackSpaceComputeController
+    DnsController = dns_ctls.RackSpaceDNSController
 
     def _add__preparse_kwargs(self, kwargs):
         username = kwargs.get('username')

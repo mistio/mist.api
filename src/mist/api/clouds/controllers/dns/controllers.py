@@ -157,6 +157,37 @@ class LinodeDNSController(BaseDNSController):
         if kwargs['type'] == "slave":
             kwargs['extra'] = {'master_ips': kwargs.pop('master_ips', "")}
 
+    def _create_record__prepare_args(self, zone, kwargs):
+        """
+        This is a private method to transform the arguments to the provider
+        specific form.
+        ---
+        """
+        if kwargs['type'] == 'CNAME' and not kwargs['data'].endswith('.'):
+            kwargs['data'] += '.'
+        # DO requires TXT rdata to be whitin quotes
+        if kwargs['type'] == 'TXT':
+            if not kwargs['data'].endswith('"'):
+                kwargs['data'] += '"'
+            if not kwargs['data'].startswith('"'):
+                kwargs['data'] = '"' + kwargs['data']
+        # Linode does not accept a ttl, if there is then remove it
+        kwargs.pop('ttl', 0)
+
+
+class RackSpaceDNSController(BaseDNSController):
+    """
+    RackSpace specific overrides.
+    """
+
+    def _connect(self):
+        if self.cloud.region in ('us', 'uk'):
+            driver = get_driver(Provider.RACKSPACE_FIRST_GEN)
+        else:
+            driver = get_driver(Provider.RACKSPACE)
+        return driver(self.cloud.username, self.cloud.apikey,
+                      region=self.cloud.region)
+
 
 class SoftLayerDNSController(BaseDNSController):
     """
