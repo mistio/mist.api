@@ -147,7 +147,7 @@ class BaseController(object):
 
         # set schedule attributes
         for key, value in kwargs.iteritems():
-            if key in self.schedule._parsed_fields:
+            if key in self.schedule._fields.keys():
                 setattr(self.schedule, key, value)
 
         now = datetime.datetime.now()
@@ -158,18 +158,18 @@ class BaseController(object):
             raise BadRequestError('Date of future task is in the past. '
                                   'Please contact Marty McFly')
         # Schedule conditions pre-parsing.
-        for key in ['machines_uuids', 'machines_tags', 'conditions']:
-            if kwargs.get(key):
-                try:
-                    self._update__preparse_machines(auth_context, kwargs)
-                except MistError as exc:
-                    log.error("Error while updating schedule %s: %r",
-                              self.schedule.id, exc)
-                    raise
-                except Exception as exc:
-                    log.exception("Error while preparsing kwargs on update %s",
-                                  self.schedule.id)
-                    raise InternalServerError(exc=exc)
+        if kwargs.get('machines_uuids') or kwargs.get('machines_tags') or \
+                kwargs.get('conditions'):
+            try:
+                self._update__preparse_machines(auth_context, kwargs)
+            except MistError as exc:
+                log.error("Error while updating schedule %s: %r",
+                          self.schedule.id, exc)
+                raise
+            except Exception as exc:
+                log.exception("Error while preparsing kwargs on update %s",
+                              self.schedule.id)
+                raise InternalServerError(exc=exc)
 
         if action:
             self.schedule.task_type = schedules.ActionTask(action=action)
