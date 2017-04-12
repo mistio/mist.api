@@ -47,7 +47,7 @@ def filter_list_zones(auth_context, cloud, perm='read'):
         try:
             auth_context.check_perm('cloud', 'read', cloud.id)
         except PolicyUnauthorizedError:
-            return []
+            return {'cloud_id': cloud.id, 'zones': []}
         allowed_zones = set(auth_context.get_allowed_resources(rtype='zones'))
         zones = [zone for zone in zones if zone['id'] in allowed_zones]
         print "zones: %s " % zones
