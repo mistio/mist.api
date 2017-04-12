@@ -379,6 +379,11 @@ def run_script(request):
     su = params.get('su', False)
     env = params.get('env')
     job_id = params.get('job_id')
+    if not job_id:
+        job = 'run_script'
+        job_id = uuid.uuid4().hex
+    else:
+        job = None
     if isinstance(env, dict):
         env = json.dumps(env)
     for key in ('cloud_id', 'machine_id'):
@@ -403,5 +408,5 @@ def run_script(request):
     job_id = job_id or uuid.uuid4().hex
     tasks.run_script.delay(auth_context.owner.id, script.id,
                            machine.id, params=script_params,
-                           env=env, su=su, job_id=job_id)
-    return {'job_id': job_id}
+                           env=env, su=su, job_id=job_id, job=job)
+    return {'job_id': job_id, 'job': job}

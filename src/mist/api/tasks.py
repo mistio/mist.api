@@ -72,7 +72,7 @@ def ssh_command(owner_id, cloud_id, machine_id, host, command,
 @app.task(bind=True, default_retry_delay=3*60)
 def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                       key_id=None, username=None, password=None, port=22,
-                      script_id='', script_params='', job_id=None,
+                      script_id='', script_params='', job_id=None, job=None,
                       hostname='', plugins=None, script='',
                       post_script_id='', post_script_params='', schedule={}):
 
@@ -127,6 +127,7 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                 'cloud_id': cloud_id,
                 'machine_id': machine_id,
                 'job_id': job_id,
+                'job': job,
                 'host': host,
                 'key_id': key_id,
             }
@@ -176,6 +177,7 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                     'cloud_id': cloud_id,
                     'machine_id': machine_id,
                     'job_id': job_id,
+                    'job': job,
                     'host': host,
                     'key_id': key_id,
                     'ssh_user': ssh_user,
@@ -244,7 +246,7 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                         owner, cloud_id, node.id,
                         name=node.name, dns_name=node.extra.get('dns_name',''),
                         public_ips=ips, no_ssh=False, dry=False, job_id=job_id,
-                        plugins=plugins, deploy_async=False,
+                        job=job, plugins=plugins, deploy_async=False,
                     )
                 except Exception as e:
                     print repr(e)
@@ -288,7 +290,8 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
             enable_monitoring=bool(monitoring),
             command=script,
             error="Couldn't connect to run post deploy steps.",
-            job_id=job_id
+            job_id=job_id,
+            job=job
         )
 
 
@@ -297,7 +300,7 @@ def openstack_post_create_steps(self, owner_id, cloud_id, machine_id,
                                 monitoring, key_id, username, password,
                                 public_key, script='',
                                 script_id='', script_params='', job_id=None,
-                                hostname='', plugins=None,
+                                job=None, hostname='', plugins=None,
                                 post_script_id='', post_script_params='',
                                 networks=[], schedule={}):
 
@@ -323,7 +326,7 @@ def openstack_post_create_steps(self, owner_id, cloud_id, machine_id,
             post_deploy_steps.delay(
                 owner.id, cloud_id, machine_id, monitoring, key_id,
                 script=script, script_id=script_id, script_params=script_params,
-                job_id=job_id, hostname=hostname, plugins=plugins,
+                job_id=job_id, job=job, hostname=hostname, plugins=plugins,
                 post_script_id=post_script_id,
                 post_script_params=post_script_params, schedule=schedule
             )
@@ -369,7 +372,7 @@ def openstack_post_create_steps(self, owner_id, cloud_id, machine_id,
                     owner.id, cloud_id, machine_id, monitoring, key_id,
                     script=script,
                     script_id=script_id, script_params=script_params,
-                    job_id=job_id, hostname=hostname, plugins=plugins,
+                    job_id=job_id, job=job, hostname=hostname, plugins=plugins,
                     post_script_id=post_script_id,
                     post_script_params=post_script_params,
                 )
@@ -385,8 +388,9 @@ def openstack_post_create_steps(self, owner_id, cloud_id, machine_id,
 def azure_post_create_steps(self, owner_id, cloud_id, machine_id, monitoring,
                             key_id, username, password, public_key, script='',
                             script_id='', script_params='', job_id=None,
-                            hostname='', plugins=None, post_script_id='',
-                            post_script_params='', schedule={}):
+                            job=None, hostname='', plugins=None,
+                            post_script_id='', post_script_params='',
+                            schedule={}):
     from mist.api.methods import connect_provider
 
     owner = Owner.objects.get(id=owner_id)
@@ -445,7 +449,7 @@ def azure_post_create_steps(self, owner_id, cloud_id, machine_id, monitoring,
                 owner.id, cloud_id, machine_id, monitoring, key_id,
                 script=script,
                 script_id=script_id, script_params=script_params,
-                job_id=job_id, hostname=hostname, plugins=plugins,
+                job_id=job_id, job=job, hostname=hostname, plugins=plugins,
                 post_script_id=post_script_id,
                 post_script_params=post_script_params, schedule=schedule,
             )
@@ -461,7 +465,7 @@ def azure_post_create_steps(self, owner_id, cloud_id, machine_id, monitoring,
 def rackspace_first_gen_post_create_steps(
     self, owner_id, cloud_id, machine_id, monitoring, key_id, password,
     public_key, username='root', script='', script_id='', script_params='',
-    job_id=None, hostname='', plugins=None, post_script_id='',
+    job_id=None, job=None, hostname='', plugins=None, post_script_id='',
     post_script_params='', schedule={}):
     from mist.api.methods import connect_provider
 
@@ -506,7 +510,7 @@ def rackspace_first_gen_post_create_steps(
                 owner.id, cloud_id, machine_id, monitoring, key_id,
                 script=script,
                 script_id=script_id, script_params=script_params,
-                job_id=job_id, hostname=hostname, plugins=plugins,
+                job_id=job_id, job=job, hostname=hostname, plugins=plugins,
                 post_script_id=post_script_id,
                 post_script_params=post_script_params, schedule=schedule
             )
@@ -883,7 +887,7 @@ class Ping(UserTask):
 
 @app.task
 def deploy_collectd(owner_id, cloud_id, machine_id, extra_vars, job_id='',
-                    plugins=None):
+                    job=None, plugins=None):
     # FIXME
     from mist.api.methods import deploy_collectd
 
@@ -901,6 +905,7 @@ def deploy_collectd(owner_id, cloud_id, machine_id, extra_vars, job_id='',
         'cloud_id': cloud_id,
         'machine_id': machine_id,
         'job_id': job_id or uuid.uuid4().hex,
+        'job': job,
     }
     log_event(action='deploy_collectd_started', **log_dict)
     ret_dict = deploy_collectd(owner, cloud_id, machine_id, extra_vars)
@@ -954,7 +959,7 @@ def create_machine_async(owner_id, cloud_id, key_id, machine_name, location_id,
                          networks, docker_env, docker_command, script='',
                          script_id='', script_params='',
                          post_script_id='', post_script_params='',
-                         quantity=1, persist=False, job_id=None,
+                         quantity=1, persist=False, job_id=None, job=None,
                          docker_port_bindings={}, docker_exposed_ports={},
                          azure_port_bindings='', hostname='', plugins=None,
                          disk_size=None, disk_path=None,
@@ -981,7 +986,8 @@ def create_machine_async(owner_id, cloud_id, key_id, machine_name, location_id,
         for i in range(1, quantity + 1):
             names.append('%s-%d' % (machine_name, i))
 
-    log_event(owner.id, 'job', 'async_machine_creation_started', job_id=job_id,
+    log_event(owner.id, 'job', 'async_machine_creation_started',
+              job_id=job_id, job=job,
               cloud_id=cloud_id, script=script, script_id=script_id,
               script_params=script_params, monitoring=monitoring,
               persist=persist, quantity=quantity, key_id=key_id,
@@ -995,7 +1001,8 @@ def create_machine_async(owner_id, cloud_id, key_id, machine_name, location_id,
             (owner, cloud_id, key_id, name, location_id, image_id,
              size_id, image_extra, disk, image_name, size_name,
              location_name, ips, monitoring, networks, docker_env,
-             docker_command, 22, script, script_id, script_params, job_id),
+             docker_command, 22, script, script_id, script_params,
+             job_id, job),
             {'hostname': hostname, 'plugins': plugins,
              'post_script_id': post_script_id,
              'post_script_params': post_script_params,
@@ -1033,7 +1040,7 @@ def create_machine_async(owner_id, cloud_id, key_id, machine_name, location_id,
             error = repr(exc)
         finally:
             name = args[3]
-            log_event(owner.id, 'job', 'machine_creation_finished',
+            log_event(owner.id, 'job', 'machine_creation_finished', job=job,
                       job_id=job_id, cloud_id=cloud_id, machine_name=name,
                       error=error, machine_id=node.get('id', ''))
 
@@ -1265,7 +1272,7 @@ def group_run_script(owner_id, script_id, name, machines_uuids):
 
 @app.task(soft_time_limit=3600, time_limit=3630)
 def run_script(owner, script_id, machine_uuid, params='', host='',
-               key_id='', username='', password='', port=22, job_id='',
+               key_id='', username='', password='', port=22, job_id='', job='',
                action_prefix='', su=False, env=""):
     import mist.api.shell
     from mist.api.methods import notify_admin, notify_user
@@ -1277,6 +1284,7 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
     ret = {
         'owner_id': owner.id,
         'job_id': job_id or uuid.uuid4().hex,
+        'job': job,
         'script_id': script_id,
         # 'cloud_id': cloud_id,
         # 'machine_id': machine.id,
