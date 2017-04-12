@@ -10,7 +10,7 @@ from mist.api.logs.helpers import _on_response_callback
 
 from mist.api.logs.constants import FIELDS, JOBS
 from mist.api.logs.constants import EXCLUDED_BUCKETS, TYPES
-from mist.api.logs.constants import STARTS_STORY, CLOSES_STORY, CLOSES_INCIDENT
+from mist.api.logs.constants import STARTS_STORY, CLOSES_STORY
 
 try:
     from mist.core.rbac.methods import filter_logs
