@@ -158,8 +158,7 @@ class BaseController(object):
             raise BadRequestError('Date of future task is in the past. '
                                   'Please contact Marty McFly')
         # Schedule conditions pre-parsing.
-        if kwargs.get('machines_uuids') or kwargs.get('machines_tags') or \
-                kwargs.get('conditions'):
+        if kwargs.get('conditions'):
             try:
                 self._update__preparse_machines(auth_context, kwargs)
             except MistError as exc:
@@ -274,20 +273,6 @@ class BaseController(object):
             cond.update(**condition)
             self.schedule.conditions.append(cond)
 
-        # TODO: Remove machine uuids and machine tags
-        if kwargs.get('machines_uuids'):
-            cond = MachinesCondition(ids=kwargs['machines_uuids'])
-            self.schedule.conditions.append(cond)
-        if kwargs.get('machines_tags'):
-            tags = kwargs['machines_tags']
-            if not isinstance(tags, dict):
-                try:
-                    tags = json.loads(tags)
-                except:
-                    raise BadRequestError("Tags are not in an acceptable form")
-            cond = TaggingCondition(tags=tags)
-            self.schedule.conditions.append(cond)
-
         action = kwargs.get('action', '')
 
         # check permissions
@@ -296,7 +281,8 @@ class BaseController(object):
             if condition.ctype == 'machines':
                 for mid in condition.ids:
                     try:
-                        machine = Machine.objects.get(id=mid)
+                        machine = Machine.objects.get(id=mid,
+                                                      state__ne='terminated')
                     except Machine.DoesNotExist:
                         raise NotFoundError('Machine state is terminated')
 
