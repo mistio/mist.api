@@ -96,11 +96,8 @@ def list_schedules_entries(request):
     """
 
     auth_context = auth_context_from_request(request)
-
-    # SEC
     schedules_list = filter_list_schedules(auth_context)
-
-    return [schedule for schedule in schedules_list]
+    return schedules_list
 
 
 # SEC

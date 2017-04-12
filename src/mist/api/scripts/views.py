@@ -407,6 +407,6 @@ def run_script(request):
         raise NotFoundError('Script id not found')
     job_id = job_id or uuid.uuid4().hex
     tasks.run_script.delay(auth_context.owner.id, script.id,
-                           cloud_id, machine_id, params=script_params,
+                           machine.id, params=script_params,
                            env=env, su=su, job_id=job_id, job=job)
     return {'job_id': job_id, 'job': job}

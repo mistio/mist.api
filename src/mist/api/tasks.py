@@ -117,6 +117,8 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
             tmp_log('not running state')
             raise self.retry(exc=Exception(), countdown=120, max_retries=30)
 
+        machine = Machine.objects.get(cloud=cloud, machine_id=machine_id,
+                                      state__ne='terminated')
         # TODO add schedule_id for adding a machine to an already exist
         if schedule:
             log_dict = {
@@ -140,8 +142,7 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                 auth_context = AuthContext.deserialize(
                     schedule.pop('auth_context'))
                 # TODO add machines
-                m = Machine.objects.get(cloud=cloud, machine_id=machine_id)
-                machines_uuids = [m.id]
+                machines_uuids = [machine.id]
                 schedule['machines_uuids'] = machines_uuids
                 tmp_log('Add scheduler entry %s', name)
                 schedule_info = Schedule.add(auth_context, name, **schedule)
@@ -204,7 +205,7 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
             if script_id:
                 tmp_log('will run script_id %s', script_id)
                 ret = run_script.run(
-                    owner, script_id, cloud_id, machine_id,
+                    owner, script_id, machine.id,
                     params=script_params, host=host, job_id=job_id
                 )
                 error = ret['error']
@@ -261,7 +262,7 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
             if post_script_id:
                 tmp_log('will run post_script_id %s', post_script_id)
                 ret = run_script.run(
-                    owner, post_script_id, cloud_id, machine_id,
+                    owner, post_script_id, machine.id,
                     params=post_script_params, host=host, job_id=job_id,
                     action_prefix='post_',
                 )
@@ -1057,7 +1058,7 @@ def send_email(self, subject, body, recipients, sender=None, bcc=None):
 
 
 @app.task
-def group_machines_actions(owner_id, action, name, cloud_machines_pairs):
+def group_machines_actions(owner_id, action, name, machines_uuids):
     """
     Accepts a list of lists in form  cloud_id,machine_id and pass them
     to run_machine_action like a group
@@ -1065,14 +1066,14 @@ def group_machines_actions(owner_id, action, name, cloud_machines_pairs):
     :param owner_id:
     :param action:
     :param name:
-    :param cloud_machines_pairs:
+    :param machines_uuids:
     :return: glist
     """
     glist = []
 
-    for cloud_id, machine_id in cloud_machines_pairs:
+    for machine_uuid in machines_uuids:
         glist.append(run_machine_action.s(owner_id, action, name,
-                                          cloud_id, machine_id))
+                                          machine_uuid))
 
     schedule = Schedule.objects.get(owner=owner_id, name=name, deleted=None)
 
@@ -1082,7 +1083,7 @@ def group_machines_actions(owner_id, action, name, cloud_machines_pairs):
         'description': schedule.description or '',
         'schedule_type': unicode(schedule.schedule_type or ''),
         'owner_id': owner_id,
-        'machines_match': schedule.machines_condition.sched_machines,
+        'machines_match': schedule.get_ids(),
         'machine_action': action,
         'expires': str(schedule.expires or ''),
         'task_enabled': schedule.task_enabled,
@@ -1113,7 +1114,7 @@ def group_machines_actions(owner_id, action, name, cloud_machines_pairs):
 
 
 @app.task(soft_time_limit=3600, time_limit=3630)
-def run_machine_action(owner_id, action, name, cloud_id, machine_id):
+def run_machine_action(owner_id, action, name, machine_uuid):
     """
     Calls specific action for a machine and log the info
     :param owner_id:
@@ -1129,17 +1130,20 @@ def run_machine_action(owner_id, action, name, cloud_id, machine_id):
     log_dict = {
         'owner_id': owner_id,
         'event_type': 'job',
-        'cloud_id': cloud_id,
-        'machine_id': machine_id,
+        'machine_uuid': machine_uuid,
         'schedule_id': schedule_id,
     }
 
+    machine_id = ''
+    cloud_id = ''
     owner = Owner.objects.get(id=owner_id)
     started_at = time()
     try:
-        cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
-        machine = Machine.objects.get(cloud=cloud, machine_id=machine_id,
-                                      state__ne='terminated')
+        machine = Machine.objects.get(id=machine_uuid, state__ne='terminated')
+        cloud_id = machine.cloud.id
+        machine_id = machine.machine_id
+        log_dict.update({'cloud_id': cloud_id,
+                         'machine_id': machine_id})
     except NotFoundError:
         log_dict['error'] = "Resource with that id does not exist."
         msg = action + ' failed'
@@ -1155,7 +1159,8 @@ def run_machine_action(owner_id, action, name, cloud_id, machine_id):
             # to update machine state if user isn't logged in
             from mist.api.machines.methods import list_machines, destroy_machine
             from mist.api.methods import notify_admin, notify_user
-            list_machines(owner, cloud_id)
+            list_machines(owner, cloud_id) # TODO change this to
+            # compute.ctl.list_machines
 
             if action == 'start':
                 log_event(action='Start', **log_dict)
@@ -1212,7 +1217,7 @@ def run_machine_action(owner_id, action, name, cloud_id, machine_id):
 
 
 @app.task
-def group_run_script(owner_id, script_id, name, cloud_machines_pairs):
+def group_run_script(owner_id, script_id, name, machines_uuids):
     """
     Accepts a list of lists in form  cloud_id,machine_id and pass them
     to run_machine_action like a group
@@ -1224,9 +1229,8 @@ def group_run_script(owner_id, script_id, name, cloud_machines_pairs):
     :return:
     """
     glist = []
-    for cloud_id, machine_id in cloud_machines_pairs:
-            glist.append(run_script.s(owner_id, script_id,
-                                      cloud_id, machine_id))
+    for machine_uuid in machines_uuids:
+            glist.append(run_script.s(owner_id, script_id, machine_uuid))
 
     schedule = Schedule.objects.get(owner=owner_id, name=name, deleted=None)
 
@@ -1236,7 +1240,7 @@ def group_run_script(owner_id, script_id, name, cloud_machines_pairs):
         'description': schedule.description or '',
         'schedule_type': unicode(schedule.schedule_type or ''),
         'owner_id': owner_id,
-        'machines_match': schedule.machines_condition.sched_machines,
+        'machines_match': schedule.get_ids(),
         'script_id': script_id,
         'expires': str(schedule.expires or ''),
         'task_enabled': schedule.task_enabled,
@@ -1267,7 +1271,7 @@ def group_run_script(owner_id, script_id, name, cloud_machines_pairs):
 
 
 @app.task(soft_time_limit=3600, time_limit=3630)
-def run_script(owner, script_id, cloud_id, machine_id, params='', host='',
+def run_script(owner, script_id, machine_uuid, params='', host='',
                key_id='', username='', password='', port=22, job_id='', job='',
                action_prefix='', su=False, env=""):
     import mist.api.shell
@@ -1276,13 +1280,15 @@ def run_script(owner, script_id, cloud_id, machine_id, params='', host='',
 
     if not isinstance(owner, Owner):
         owner = Owner.objects.get(id=owner)
+
     ret = {
         'owner_id': owner.id,
         'job_id': job_id or uuid.uuid4().hex,
         'job': job,
         'script_id': script_id,
-        'cloud_id': cloud_id,
-        'machine_id': machine_id,
+        # 'cloud_id': cloud_id,
+        # 'machine_id': machine.id,
+        'machine_uuid': machine_uuid,
         'params': params,
         'env': env,
         'su': su,
@@ -1299,12 +1305,19 @@ def run_script(owner, script_id, cloud_id, machine_id, params='', host='',
     }
     started_at = time()
     machine_name = ''
+    cloud_id = ''
+    machine_id=''
 
     try:
-        cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
+        machine = Machine.objects.get(id=machine_uuid, state__ne='terminated')
+        cloud_id = machine.cloud.id
+        machine_id = machine.machine_id
+        ret.update({'cloud_id': cloud_id, 'machine_id': machine_id})
+        # cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
         script = Script.objects.get(owner=owner, id=script_id, deleted=None)
 
         if not host:
+            # FIXME machine.cloud.ctl.compute.list_machines()
             for machine in list_machines(owner, cloud_id):
                 if machine['id'] == machine_id:
                     ips = [ip for ip in machine['public_ips'] if ':' not in ip]
@@ -1413,6 +1426,3 @@ def revoke_token(token):
     auth_token = AuthToken.objects.get(token=token)
     auth_token.invalidate()
     auth_token.save()
-
-
-
