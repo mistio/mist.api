@@ -362,13 +362,6 @@ class Schedule(me.Document, ConditionalClassMixin):
 
         for condition in self.conditions:
             sdict['conditions'].append(condition.as_dict())
-
-            # TODO: Remove following block
-            if condition.ctype == 'tags':
-                sdict.update({'machines_tags': condition.tags})
-            elif condition.ctype == 'machines':
-                sdict.update({'machines_uuids': condition.ids})
-
         return sdict
 
 
