@@ -794,7 +794,6 @@ def log_event(owner_id, event_type, action, error=None, story_id='',
     """Log dict of the keyword arguments passed"""
     conn = _mongo_conn if _mongo_conn else MongoClient(config.MONGO_URI)
     coll = conn['mist'].logging
-
     try:
         def _default(obj):
             return {'_python_object': str(obj)}
@@ -807,6 +806,8 @@ def log_event(owner_id, event_type, action, error=None, story_id='',
             'error': error if error is not None else False,
             'extra': json.dumps(kwargs, default=_default),
         }
+        if story_id:
+            event['story_id'] = story_id
         if user_id:
             event['user_id'] = user_id
             event['email'] = mist.api.users.models.User.objects.get(
@@ -829,9 +830,27 @@ def log_event(owner_id, event_type, action, error=None, story_id='',
             try:
                 stories = log_story(event, _mongo_conn=conn)
                 if config.LOGS_FROM_ELASTIC:
-                    from mist.api.logs.methods import log_story as log_story_to_elastic
+                    # FIXME: These are here due to circular dependencies.
+                    from mist.api.logs.methods import associate_stories
+                    from mist.api.logs.methods import close_open_incidents
+                    from mist.api.logs.constants import STARTS_STORY, CLOSES_STORY
+                    from mist.api.logs.constants import CLOSES_INCIDENT, TYPES
                     event.update({'log_id': uuid.uuid4().hex})
-                    log_story_to_elastic(event, tornado_async=tornado_async)
+                    for key in ('job_id', 'shell_id', 'session_id', 'incident_id'):
+                        # HACK:FIXME: AB Testing.
+                        if key == 'session_id' and event_type != 'session':
+                            continue
+                        if key in event:
+                            event.update({'story_id': event[key], 'stories': []})
+                            associate_stories(event)
+                            break
+                    else:
+                        # HACK:FIXME: Special case for closing stories of any
+                        # type by simply specifying the story_id.
+                        if event['action'] in ('close_story', ):
+                            event['stories'] = [('closes', TYPES.keys(), event['story_id'])]
+                        if event['action'] in CLOSES_INCIDENT:
+                            close_open_incidents(event)
             except Exception as exc:
                 log.error("failed to log story: %s %s %s %s %s Error %r",
                         owner_id, event_type, error, action, kwargs, exc)
@@ -851,7 +870,7 @@ def log_event(owner_id, event_type, action, error=None, story_id='',
     routing_key = '.'.join(keys)
     _event = event.copy()
 
-    if not config.LOGS_FROM_ELASTIC:  # Taken care of in `log_story` otherwise.
+    if not config.LOGS_FROM_ELASTIC:
         _event['_stories'] = stories
 
     amqp_publish('events', routing_key, _event,
@@ -1240,7 +1259,8 @@ def logging_view_decorator(func):
 
         # log matchdict and params
         params = dict(params_from_request(request))
-        for key in ['email', 'cloud', 'machine', 'rule', 'script_id', 'tunnel_id']:
+        for key in ['email', 'cloud', 'machine', 'rule', 'script_id',
+                    'tunnel_id', 'story_id']:
             if key != 'email' and key in request.matchdict:
                 if not key.endswith('_id'):
                     log_dict[key + '_id'] = request.matchdict[key]
@@ -1281,7 +1301,7 @@ def logging_view_decorator(func):
         # log response body
         try:
             bdict = json.loads(response.body)
-            for key in ('job_id', ):
+            for key in ('job_id', 'job',):
                 if key in bdict and key not in log_dict:
                     log_dict[key] = bdict[key]
             if 'cloud' in bdict and 'cloud_id' not in log_dict:
