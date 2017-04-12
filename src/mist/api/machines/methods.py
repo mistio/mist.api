@@ -335,7 +335,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
             script=script,
             script_id=script_id, script_params=script_params, job_id=job_id,
             hostname=hostname, plugins=plugins, post_script_id=post_script_id,
-            post_script_params=post_script_params, schedule=schedule, job=None,
+            post_script_params=post_script_params, schedule=schedule, job=job,
         )
     elif conn.type == Provider.OPENSTACK:
         if associate_floating_ip:
@@ -345,7 +345,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                 node.extra.get('username'), node.extra.get('password'),
                 public_key, script=script, script_id=script_id,
                 script_params=script_params,
-                job_id=job_id, job=None, hostname=hostname, plugins=plugins,
+                job_id=job_id, job=job, hostname=hostname, plugins=plugins,
                 post_script_params=post_script_params,
                 networks=networks, schedule=schedule,
             )
@@ -357,7 +357,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
             owner.id, cloud_id, node.id, monitoring, key_id,
             node.extra.get('password'), public_key, script=script,
             script_id=script_id, script_params=script_params,
-            job_id=job_id, job=None, hostname=hostname, plugins=plugins,
+            job_id=job_id, job=job, hostname=hostname, plugins=plugins,
             post_script_id=post_script_id,
             post_script_params=post_script_params, schedule=schedule
         )
@@ -366,7 +366,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
         mist.api.tasks.post_deploy_steps.delay(
             owner.id, cloud_id, node.id, monitoring, script=script,
             key_id=key_id, script_id=script_id, script_params=script_params,
-            job_id=job_id, job=None, hostname=hostname, plugins=plugins,
+            job_id=job_id, job=job, hostname=hostname, plugins=plugins,
             post_script_id=post_script_id,
             post_script_params=post_script_params, schedule=schedule,
         )
