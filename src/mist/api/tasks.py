@@ -246,7 +246,7 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                         owner, cloud_id, node.id,
                         name=node.name, dns_name=node.extra.get('dns_name',''),
                         public_ips=ips, no_ssh=False, dry=False, job_id=job_id,
-                        job=job, plugins=plugins, deploy_async=False,
+                        plugins=plugins, deploy_async=False,
                     )
                 except Exception as e:
                     print repr(e)
