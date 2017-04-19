@@ -58,7 +58,7 @@ def _filtered_query(owner_id, close=None, error=None, range=None, type=None,
                     "stories": {
                         "terms": {
                             "field": "stories",
-                            "size": 1000
+                            "size": 10000
                         }
                     }
                 }
