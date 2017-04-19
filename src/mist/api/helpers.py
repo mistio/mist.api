@@ -1342,7 +1342,8 @@ def logging_view_decorator(func):
                 log_dict['action'] = 'disable_monitoring'
 
         # we save log_dict in mongo logging collection
-        mist.api.helpers.log_event(**log_dict)
+        from mist.api.logs.methods import log_event as log_event_to_es
+        log_event_to_es(**log_dict)
 
         # if a bad exception didn't occur then return, else log it to file
         if not exc_flag:

@@ -35,12 +35,13 @@ from mist.api.dns.models import Zone, Record
 
 celery_cfg = 'mist.core.celery_config'
 
-from mist.api.helpers import log_event
 from mist.api.helpers import send_email as helper_send_email
 from mist.api.helpers import amqp_publish_user
 from mist.api.helpers import amqp_owner_listening
 from mist.api.helpers import amqp_log
 from mist.api.helpers import trigger_session_update
+
+from mist.api.logs.methods import log_event
 
 from mist.api import config
 
