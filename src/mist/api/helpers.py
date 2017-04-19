@@ -1416,8 +1416,12 @@ class AsyncElasticsearch(EsClient):
             'auth_username': config.ELASTICSEARCH['elastic_username'],
             'auth_password': config.ELASTICSEARCH['elastic_password'],
             'validate_cert': config.ELASTICSEARCH['elastic_verify_certs'],
-            'ca_certs': None
+            'ca_certs': None,
+
         })
+        for param in ('connect_timeout', 'request_timeout'):
+            if param not in kwargs:
+                kwargs[param] = 30.0  # Increase default timeout by 10 sec.
         return super(AsyncElasticsearch, self).mk_req(url, **kwargs)
 
 
