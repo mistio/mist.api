@@ -207,7 +207,7 @@ def get_stories(story_type='', owner_id='', user_id='',
         "stories": {
             "terms": {
                 "field": "stories",
-                "size": limit or 1000
+                "size": limit or 10000
             },
             "aggs": {
                 "top_logs": {
