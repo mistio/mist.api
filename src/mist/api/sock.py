@@ -47,11 +47,12 @@ try:
     from mist.core.orchestration.methods import filter_list_stacks
 except ImportError:
     from mist.api.dummy.methods import get_stats, get_load, check_monitoring
-    from mist.api.dummy.methods import get_user_data, filter_list_tags
+    from mist.api.dummy.methods import filter_list_tags
     from mist.api.dummy.methods import filter_list_vpn_tunnels
     from mist.api.dummy.rbac import filter_org
     from mist.api.dummy.methods import filter_list_templates
     from mist.api.dummy.methods import filter_list_stacks
+    from mist.api.users.methods import get_user_data
 
 from mist.api import config
 
