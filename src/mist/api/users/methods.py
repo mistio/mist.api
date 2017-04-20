@@ -8,11 +8,12 @@ from mongoengine import ValidationError
 from mongoengine import OperationError
 
 from mist.api.auth.models import get_secure_rand_token
-from mist.api.helpers import log_event
 
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import MethodNotAllowedError
 from mist.api.exceptions import OrganizationOperationError
+
+from mist.api.logs.methods import log_event
 
 from mist.api import config
 

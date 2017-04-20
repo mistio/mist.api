@@ -1,30 +1,129 @@
+import uuid
 import json
+import time
 import logging
 
+from pymongo import MongoClient
+
+from mist.api import config
+
 from mist.api.helpers import es_client as es
+from mist.api.helpers import amqp_publish
 
 from mist.api.exceptions import NotFoundError
+
+from mist.api.users.models import User
 
 from mist.api.logs.helpers import _filtered_query
 from mist.api.logs.helpers import _on_response_callback
 
 from mist.api.logs.constants import FIELDS, JOBS
 from mist.api.logs.constants import EXCLUDED_BUCKETS, TYPES
-from mist.api.logs.constants import STARTS_STORY, CLOSES_STORY
+from mist.api.logs.constants import STARTS_STORY, CLOSES_STORY, CLOSES_INCIDENT
 
 try:
     from mist.core.rbac.methods import filter_logs
+    from mist.core.experiments.helpers import cross_populate_session_data
 except ImportError:
     from mist.api.dummy.rbac import filter_logs
+    from mist.api.dummy.methods import cross_populate_session_data
 
 
 logging.getLogger('elasticsearch').setLevel(logging.ERROR)
 log = logging.getLogger(__name__)
 
 
-# TODO
-# def log_event(owner_id, event_type, action, error=None,
-#               user_id=None, **kwargs):
+def log_event(owner_id, event_type, action, error=None, **kwargs):
+    """Log a new event.
+
+    Log a new event comprised of the arguments provided.
+
+    Once the new event has been prepared, additional processing is applied
+    in order to associate any relevant stories, and, finally, it is pushed
+    to RabbitMQ.
+
+    Arguments:
+        - owner_id: the current Owner's ID.
+        - event_type: the event type - job, shell, session, request, incident.
+        - action: the action described by the event, such as create_machine.
+        - error: indicates the error included in the event, if one exists.
+        - kwargs: extra parameters to be logged.
+
+    """
+
+    def _default(obj):
+        return {'_python_object': str(obj)}
+
+    try:
+        # Prepare the base event to be logged.
+        event = {
+            'owner_id': owner_id or None,
+            'log_id': uuid.uuid4().hex,
+            'action': action,
+            'type': event_type,
+            'time': time.time(),
+            'error': error if error else False,
+            'extra': json.dumps(kwargs, default=_default)
+        }
+        # Bring more key-value pairs to the top level.
+        for key in FIELDS:
+            if key in kwargs:
+                event[key] = kwargs.pop(key)
+        if 'story_id' in kwargs:
+            event['story_id'] = kwargs.pop('story_id')
+        if 'user_id' in event:
+            try:
+                event['email'] = User.objects.get(id=event['user_id']).email
+            except User.DoesNotExist:
+                log.error('User %s does not exist', event['user_id'])
+
+        # Associate event with relevant stories.
+        for key in ('job_id', 'shell_id', 'session_id', 'incident_id'):
+            if key == 'session_id' and event_type != 'session':  # AB Testing.
+                continue
+            if event.get(key):
+                event.update({'story_id': event[key], 'stories': []})
+                associate_stories(event)
+                break
+        else:
+            # Special case for closing stories unless an error has been raised,
+            # such as PolicyUnauthorizedError.
+            # TODO: Can be used to close any type of story, not only incidents.
+            if action in ('close_story', ) and not error:
+                event['stories'] = [('closes', 'incident', event['story_id'])]
+            # Attempt to close open incidents.
+            if action in CLOSES_INCIDENT:
+                try:
+                    close_open_incidents(event)
+                except Exception as exc:
+                    log.error('Event %s failed to close open incidents: %s',
+                              event['log_id'], exc)
+        # Cross populate session-log data.
+        try:
+            cross_populate_session_data(event, kwargs)
+        except Exception as exc:
+            log.error('Failed to cross-populate log/session data: %s', exc)
+    except Exception as exc:
+        log.error('Failed to log event %s: %s', event, exc)
+    else:
+        # FIXME: Deprecate
+        conn = MongoClient(config.MONGO_URI)
+        coll = conn['mist'].logging
+        coll.save(event.copy())
+        conn.close()
+
+        # Construct RabbitMQ routing key.
+        keys = [str(owner_id), str(event_type), str(action)]
+        keys.append('true' if error else 'false')
+        routing_key = '.'.join(map(str.lower, keys))
+
+        # Broadcast event to RabbitMQ's "events" exchange.
+        amqp_publish('events', routing_key, event,
+                     ex_type='topic', ex_declare=True, auto_delete=False)
+
+        event.pop('extra')
+        event.update(kwargs)
+        return event
 
 
 # TODO: Make auth_context a required param?
