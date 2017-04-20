@@ -49,6 +49,7 @@ log = logging.getLogger(__name__)
 
 app = Celery('tasks')
 app.conf.update(**config.CELERY_SETTINGS)
+app.autodiscover_tasks(['mist.api.poller'])
 
 
 @app.task
