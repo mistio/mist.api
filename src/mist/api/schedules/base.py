@@ -4,7 +4,6 @@ This currently contains only BaseController. It includes basic functionality
 for a given schedule.
 Cloud specific controllers are in `mist.api.schedules.controllers`.
 """
-import json
 import logging
 import datetime
 import mongoengine as me
@@ -72,7 +71,6 @@ class BaseController(object):
             raise BadRequestError("You must provide script_id "
                                   "or machine's action")
 
-        # TODO: Remove machine_uuids and machine_tags
         if not kwargs.get('conditions'):
             raise BadRequestError("You must provide a list of conditions, "
                                   "at least machine ids or tags")
@@ -107,8 +105,10 @@ class BaseController(object):
 
         owner = auth_context.owner
 
-        if kwargs.get('action') not in ['reboot', 'destroy', 'start', 'stop']:
-            raise BadRequestError("Action is not correct")
+        if kwargs.get('action'):
+            if kwargs.get('action') not in ['reboot', 'destroy',
+                                            'start', 'stop']:
+                raise BadRequestError("Action is not correct")
 
         script_id = kwargs.pop('script_id', '')
         if script_id:
@@ -167,7 +167,7 @@ class BaseController(object):
         elif script_id:
             self.schedule.task_type = schedules.ScriptTask(script_id=script_id)
 
-        schedule_type = kwargs.pop('schedule_type')
+        schedule_type = kwargs.pop('schedule_type', '')
 
         if (schedule_type == 'crontab' or
                 isinstance(self.schedule.schedule_type, schedules.Crontab)):
@@ -258,7 +258,8 @@ class BaseController(object):
                     'field': FieldCondition,
                     'age': MachinesAgeCondition}
 
-        self.schedule.conditions = []
+        if kwargs.get('conditions'):
+            self.schedule.conditions = []
         for condition in kwargs.pop('conditions', []):
             if condition.get('type') not in cond_cls:
                 raise BadRequestError()

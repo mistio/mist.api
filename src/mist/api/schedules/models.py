@@ -257,7 +257,8 @@ class Schedule(me.Document, ConditionalClassMixin):
 
     @property
     def args(self):
-        mids = [machine.id for machine in self.get_resources().only('id')]
+        mids = [machine.id for machine in self.get_resources() if
+                machine.state != 'terminated']
         fire_up = self.task_type.args
         return [self.owner.id, fire_up, self.name, mids]
 

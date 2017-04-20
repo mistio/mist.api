@@ -11,8 +11,7 @@ class BaseCondition(me.EmbeddedDocument):
     """Abstract Base class used as a common interface
     for condition types. There are four different types
     for now: FieldCondition, TaggingCondition, MachinesCondition
-    and MachinesAgeCondition
-    """
+    and MachinesAgeCondition. """
 
     meta = {
         'allow_inheritance': True,
@@ -34,8 +33,8 @@ class BaseCondition(me.EmbeddedDocument):
 
 class ConditionalClassMixin(object):
     """Generic condition mixin class used as a handler for different
-    query sets. It queries our db for a specific collection , and
-    a list of query sets which chains together with logical &"""
+    query sets for a specific collection. It constructs a query from
+    a list of query sets which chains together with logical & operator."""
 
     condition_resource_cls = None  # Instance of mongoengine model class
 
@@ -56,7 +55,8 @@ class ConditionalClassMixin(object):
 
 
 class FieldCondition(BaseCondition):
-    """Generic condition for any field."""
+    """Generic condition for any field which is supported by specific
+    collection."""
 
     ctype = 'field'
 
@@ -139,8 +139,7 @@ class MachinesCondition(BaseCondition):
 
 class MachinesAgeCondition(BaseCondition):
     """Condition which computes machine's age and queries
-    for machines which are older than this.
-    """
+    for machines which are older than this age. """
 
     ctype = 'age'
 
