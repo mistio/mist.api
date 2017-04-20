@@ -1353,8 +1353,7 @@ def logging_view_decorator(func):
         log.info("Bad exception occured, logging to rabbitmq")
         es_dict = log_dict.copy()
         es_dict.pop('_exc_type')
-        # es_dict['timestamp'] = str(datetime.datetime.now())
-        es_dict['timestamp'] = time()
+        es_dict['time'] = time()
         es_dict['traceback'] = es_dict.pop('_traceback')
         es_dict['exception'] = es_dict.pop('_exc')
         es_dict['type'] = 'exception'
