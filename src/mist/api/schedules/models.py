@@ -342,6 +342,8 @@ class Schedule(me.Document, ConditionalClassMixin):
 
         last_run = '' if self.total_run_count == 0 else str(self.last_run_at)
 
+        conditions = [condition.as_dict() for condition in self.conditions]
+
         sdict = {
             'id': self.id,
             'name': self.name,
@@ -358,11 +360,9 @@ class Schedule(me.Document, ConditionalClassMixin):
             'last_run_at': last_run,
             'total_run_count': self.total_run_count,
             'max_run_count': self.max_run_count,
-            'conditions': [],
+            'conditions': conditions,
         }
 
-        for condition in self.conditions:
-            sdict['conditions'].append(condition.as_dict())
         return sdict
 
 
