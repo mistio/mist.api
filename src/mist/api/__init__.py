@@ -1,5 +1,6 @@
 """Routes and wsgi app creation"""
 
+import os
 import time
 import logging
 
@@ -23,7 +24,7 @@ class Root(object):
         self.request = request
 
 
-def mongo_connect():
+def mongo_connect(*args, **kwargs):
     """Connect mongoengine to mongo db. This connection is reused everywhere"""
     for _ in xrange(30):
         try:
@@ -46,8 +47,13 @@ def mongo_connect():
 try:
     import uwsgi  # noqa
 except ImportError:
-    log.debug('Not in uwsgi context')
-    mongo_connect()
+    if os.getenv('CELERY_CONTEXT'):
+        log.info('Celery context')
+        from celery.signals import worker_process_init
+        worker_process_init.connect(mongo_connect)
+    else:
+        log.debug('Not in uwsgi/celery context')
+        mongo_connect()
 else:
     log.info('Uwsgi context')
     from uwsgidecorators import postfork
