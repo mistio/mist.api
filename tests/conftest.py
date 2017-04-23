@@ -254,3 +254,10 @@ def load_staging_l_records():
     with open(path) as fobj:
         return json.load(fobj)
 
+
+@pytest.fixture
+def load_logs():
+    path = os.path.join(TEST_DIR, 'logs.json')
+    print "Reading logs from path '%s'." % path
+    with open(path) as fobj:
+        return json.load(fobj)
