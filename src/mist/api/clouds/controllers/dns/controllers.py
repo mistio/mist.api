@@ -92,6 +92,10 @@ class DigitalOceanDNSController(BaseDNSController):
                 kwargs['data'] += '"'
             if not kwargs['data'].startswith('"'):
                 kwargs['data'] = '"' + kwargs['data']
+        if kwargs['type'] == 'MX':
+            parts = kwargs['data'].split(' ')
+            kwargs['extra'] = {'priority': parts[0]}
+            kwargs['data'] = parts[1]
         # DO does not accept a ttl, if there is then remove it
         kwargs.pop('ttl', 0)
 
@@ -157,15 +161,28 @@ class LinodeDNSController(BaseDNSController):
         if kwargs['type'] == "slave":
             kwargs['extra'] = {'master_ips': kwargs.pop('master_ips', "")}
 
+    def _list_records__postparse_data(self, pr_record, record):
+        """Get the provider specific information into the Mongo model"""
+        if pr_record.type in ["CNAME", "MX"] and not pr_record.data.endswith('.'):
+            pr_record.data += '.'
+        if pr_record.data not in record.rdata:
+            record.rdata.append(pr_record.data)
+
     def _create_record__prepare_args(self, zone, kwargs):
         """
         This is a private method to transform the arguments to the provider
         specific form.
         ---
         """
-        if kwargs['type'] == 'CNAME' and not kwargs['data'].endswith('.'):
-            kwargs['data'] += '.'
-        # DO requires TXT rdata to be whitin quotes
+        # Linode requires just the subdomain for A, AAAA, CNAME, MX records.
+        if kwargs['name'].endswith(zone.domain) and kwargs['type']:
+            kwargs['name'] = kwargs['name'][:-(len(zone.domain) + 1)]
+        # if kwargs['type'] == 'CNAME' and not kwargs['data'].endswith('.'):
+        #     kwargs['data'] += '.'
+        if kwargs['type'] == 'CNAME' and kwargs['data'].endswith('.'):
+            kwargs['data'] = kwargs['data'][:-1]
+        print "kwargs: %s" % kwargs
+        # Linode requires TXT rdata to be whitin quotes
         if kwargs['type'] == 'TXT':
             if not kwargs['data'].endswith('"'):
                 kwargs['data'] += '"'
