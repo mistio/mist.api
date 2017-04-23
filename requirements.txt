@@ -22,7 +22,6 @@ python-memcached
 python-openid
 requests
 sockjs-tornado
-stripe
 tornado
 tornado_profile
 uwsgidecorators
