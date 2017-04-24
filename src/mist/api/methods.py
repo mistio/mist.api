@@ -109,7 +109,7 @@ def star_image(owner, cloud_id, image_id):
         if image_id in cloud.unstarred:
             cloud.unstarred.remove(image_id)
     cloud.save()
-    task = mist.api.tasks.list_images
+    task = mist.api.tasks.ListImages()
     task.clear_cache(owner.id, cloud_id)
     task.delay(owner.id, cloud_id)
     return not star
