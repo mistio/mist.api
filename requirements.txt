@@ -1,4 +1,6 @@
-amqp
+# amqp v2 requires explicit call to connect, and use of drain_events
+# see https://github.com/celery/py-amqp/issues/105
+amqp==1.4.9
 # ansible v2 has a incompatible api
 # see https://serversforhackers.com/running-ansible-2-programmatically
 ansible==1.9.3

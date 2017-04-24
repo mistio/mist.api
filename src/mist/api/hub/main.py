@@ -59,7 +59,8 @@ class AmqpGeventBase(object):
         if gid not in self.conns:
             log.debug("%s: Opening new AMQP connection.", self.lbl)
             conn = amqp.Connection(config.AMQP_URI)
-            conn.connect()
+            # TODO: The following line is needed for later versions of amqp lib
+            # conn.connect()
             self.conns[gid] = conn
         return self.conns[gid]
 
@@ -117,11 +118,10 @@ class AmqpGeventBase(object):
         log.info("%s: Starting AMQP consumer.", self.lbl)
         try:
             while True:
-                self.conn.drain_events()
+                self.chan.wait()
         except BaseException as exc:
             log.error("%s: AMQP consumer exception %r, stopping.",
                       self.lbl, exc)
-            raise
             self.close_chan()
             self.close_conn()
 
@@ -417,7 +417,7 @@ class HubClient(AmqpGeventBase):
         try:
             while not self.worker_id:
                 log.debug("%s: Waiting for RPC response.", self.lbl)
-                self.conn.drain_events()
+                self.chan.wait()
         except BaseException as exc:
             log.error("%s: Amqp consumer received %r while waiting for RPC "
                       "response. Stopping.", self.lbl, exc)
@@ -514,7 +514,6 @@ class Manager():
         self.correlation_id = ''
 
         self.conn = amqp.Connection()
-        self.conn.connect()
         self.chan = self.conn.channel()
 
         # define callback queue
@@ -545,7 +544,7 @@ class Manager():
         try:
             while self.correlation_id:
                 log.debug("Waiting for RPC response.")
-                self.conn.drain_events()
+                self.chan.wait()
         except BaseException as exc:
             log.error("Amqp consumer received %r while waiting for RPC "
                       "response. Stopping.", exc)
