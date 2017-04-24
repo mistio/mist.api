@@ -522,12 +522,16 @@ def rackspace_first_gen_post_create_steps(
 
 
 class UserTask(Task):
-    abstract = True
     task_key = ''
     result_expires = 0
     result_fresh = 0
     polling = False
     _ut_cache = None
+
+    def __init__(self, *args, **kwargs):
+        if self.task_key:
+            self.name = 'mist.api.tasks.%s' % self.task_key
+        super(UserTask, self).__init__(*args, **kwargs)
 
     @property
     def memcache(self):
@@ -662,7 +666,6 @@ class UserTask(Task):
 
 
 class ListSizes(UserTask):
-    abstract = False
     task_key = 'list_sizes'
     result_expires = 60 * 60 * 24 * 7
     result_fresh = 60 * 60
@@ -676,8 +679,10 @@ class ListSizes(UserTask):
         return {'cloud_id': cloud_id, 'sizes': sizes}
 
 
+list_sizes = app.register_task(ListSizes())
+
+
 class ListLocations(UserTask):
-    abstract = False
     task_key = 'list_locations'
     result_expires = 60 * 60 * 24 * 7
     result_fresh = 60 * 60
@@ -691,8 +696,10 @@ class ListLocations(UserTask):
         return {'cloud_id': cloud_id, 'locations': locations}
 
 
+list_locations = app.register_task(ListLocations())
+
+
 class ListNetworks(UserTask):
-    abstract = False
     task_key = 'list_networks'
     result_expires = 60 * 60 * 24
     result_fresh = 0
@@ -710,8 +717,10 @@ class ListNetworks(UserTask):
         return {'cloud_id': cloud_id, 'networks': networks}
 
 
+list_networks = app.register_task(ListNetworks())
+
+
 class ListZones(UserTask):
-    abstract = False
     task_key = 'list_zones'
     result_expires = 60 * 60 * 24
     result_fresh = 0
@@ -742,8 +751,10 @@ class ListZones(UserTask):
         return {'cloud_id': cloud_id, 'zones': ret}
 
 
+list_zones = app.register_task(ListZones())
+
+
 class ListImages(UserTask):
-    abstract = False
     task_key = 'list_images'
     result_expires = 60 * 60 * 24 * 7
     result_fresh = 60 * 60
@@ -761,8 +772,10 @@ class ListImages(UserTask):
         return {'cloud_id': cloud_id, 'images': images}
 
 
+list_images = app.register_task(ListImages())
+
+
 class ListProjects(UserTask):
-    abstract = False
     task_key = 'list_projects'
     result_expires = 60 * 60 * 24 * 7
     result_fresh = 60 * 60
@@ -780,8 +793,10 @@ class ListProjects(UserTask):
         return {'cloud_id': cloud_id, 'projects': projects}
 
 
+list_projects = app.register_task(ListProjects())
+
+
 class ListMachines(UserTask):
-    abstract = False
     task_key = 'list_machines'
     result_expires = 60 * 60 * 24
     result_fresh = 10
@@ -841,9 +856,11 @@ class ListMachines(UserTask):
             return 20*60
 
 
+list_machines = app.register_task(ListMachines())
+
+
 class ProbeSSH(UserTask):
-    abstract = False
-    task_key = 'probe'
+    task_key = 'probe_ssh'
     result_expires = 60 * 60 * 2
     result_fresh = 60 * 2
     polling = True
@@ -864,8 +881,10 @@ class ProbeSSH(UserTask):
         return t if t < 60 * 32 else 60 * 32
 
 
+probe_ssh = app.register_task(ProbeSSH())
+
+
 class Ping(UserTask):
-    abstract = False
     task_key = 'ping'
     result_expires = 60 * 60 * 2
     result_fresh = 60 * 15
@@ -882,6 +901,9 @@ class Ping(UserTask):
 
     def error_rerun_handler(self, exc, errors, *args, **kwargs):
         return self.result_fresh
+
+
+ping = app.register_task(Ping())
 
 
 @app.task

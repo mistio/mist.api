@@ -304,7 +304,7 @@ class MainConnection(MistConnection):
         log.info(clouds)
         periodic_tasks = []
         if not config.ACTIVATE_POLLER:
-            periodic_tasks.append(('list_machines', tasks.ListMachines()))
+            periodic_tasks.append(('list_machines', tasks.list_machines))
         else:
             for cloud in clouds:
                 after = datetime.datetime.utcnow() - datetime.timedelta(days=1)
@@ -319,12 +319,12 @@ class MainConnection(MistConnection):
                     self.send('list_machines',
                               {'cloud_id': cloud.id, 'machines': machines})
 
-        periodic_tasks.extend([('list_images', tasks.ListImages()),
-                               ('list_sizes', tasks.ListSizes()),
-                               ('list_networks', tasks.ListNetworks()),
-                               ('list_zones', tasks.ListZones()),
-                               ('list_locations', tasks.ListLocations()),
-                               ('list_projects', tasks.ListProjects())])
+        periodic_tasks.extend([('list_images', tasks.list_images),
+                               ('list_sizes', tasks.list_sizes),
+                               ('list_networks', tasks.list_networks),
+                               ('list_zones', tasks.list_zones),
+                               ('list_locations', tasks.list_locations),
+                               ('list_projects', tasks.list_projects)])
         for key, task in periodic_tasks:
             for cloud in clouds:
                 cached = task.smart_delay(self.owner.id, cloud.id)
@@ -432,13 +432,13 @@ class MainConnection(MistConnection):
                                                   key_associations__not__size=0
                                                   ).first()
                     if machine_obj:
-                        cached = tasks.ProbeSSH().smart_delay(
+                        cached = tasks.probe_ssh.smart_delay(
                             self.owner.id, cloud_id, machine['id'], ips[0]
                         )
                         if cached is not None:
                             self.send('probe', cached)
 
-                    cached = tasks.Ping().smart_delay(
+                    cached = tasks.ping.smart_delay(
                         self.owner.id, cloud_id, machine['id'], ips[0]
                     )
                     if cached is not None:
