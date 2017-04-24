@@ -1342,7 +1342,8 @@ def logging_view_decorator(func):
                 log_dict['action'] = 'disable_monitoring'
 
         # we save log_dict in mongo logging collection
-        mist.api.helpers.log_event(**log_dict)
+        from mist.api.logs.methods import log_event as log_event_to_es
+        log_event_to_es(**log_dict)
 
         # if a bad exception didn't occur then return, else log it to file
         if not exc_flag:
@@ -1352,8 +1353,7 @@ def logging_view_decorator(func):
         log.info("Bad exception occured, logging to rabbitmq")
         es_dict = log_dict.copy()
         es_dict.pop('_exc_type')
-        # es_dict['timestamp'] = str(datetime.datetime.now())
-        es_dict['timestamp'] = time()
+        es_dict['time'] = time()
         es_dict['traceback'] = es_dict.pop('_traceback')
         es_dict['exception'] = es_dict.pop('_exc')
         es_dict['type'] = 'exception'
@@ -1416,8 +1416,12 @@ class AsyncElasticsearch(EsClient):
             'auth_username': config.ELASTICSEARCH['elastic_username'],
             'auth_password': config.ELASTICSEARCH['elastic_password'],
             'validate_cert': config.ELASTICSEARCH['elastic_verify_certs'],
-            'ca_certs': None
+            'ca_certs': None,
+
         })
+        for param in ('connect_timeout', 'request_timeout'):
+            if param not in kwargs:
+                kwargs[param] = 30.0  # Increase default timeout by 10 sec.
         return super(AsyncElasticsearch, self).mk_req(url, **kwargs)
 
 

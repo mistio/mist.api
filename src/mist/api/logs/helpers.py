@@ -33,17 +33,13 @@ def _filtered_query(owner_id, close=None, error=None, range=None, type=None,
     This method is invoked by mist.api.logs.methods.get_stories.
 
     """
-    assert owner_id
-
     index = "app-logs-*"
     query = {
         "query": {
             "bool": {
                 "filter": {
                     "bool": {
-                        "must": [
-                            {"term": {"owner_id": owner_id}}
-                        ]
+                        "must": []
                     }
                 }
             }
@@ -58,7 +54,7 @@ def _filtered_query(owner_id, close=None, error=None, range=None, type=None,
                     "stories": {
                         "terms": {
                             "field": "stories",
-                            "size": 1000
+                            "size": 10000
                         }
                     }
                 }
@@ -84,6 +80,11 @@ def _filtered_query(owner_id, close=None, error=None, range=None, type=None,
     if type:
         query["query"]["bool"]["filter"]["bool"]["must"].append(
             {"term": {"stories": type}}
+        )
+    # Fetch logs corresponding to the specified Owner.
+    if owner_id:
+        query["query"]["bool"]["filter"]["bool"]["must"].append(
+            {"term": {"owner_id": owner_id}}
         )
     # Extend query based on additional terms.
     for key, value in kwargs.iteritems():
