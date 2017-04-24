@@ -35,12 +35,13 @@ from mist.api.dns.models import Zone, Record, RECORDS
 
 celery_cfg = 'mist.core.celery_config'
 
-from mist.api.helpers import log_event
 from mist.api.helpers import send_email as helper_send_email
 from mist.api.helpers import amqp_publish_user
 from mist.api.helpers import amqp_owner_listening
 from mist.api.helpers import amqp_log
 from mist.api.helpers import trigger_session_update
+
+from mist.api.logs.methods import log_event
 
 from mist.api import config
 
@@ -1160,7 +1161,6 @@ def run_machine_action(owner_id, action, name, machine_uuid):
             # call list machines here cause we don't have another way
             # to update machine state if user isn't logged in
             from mist.api.machines.methods import list_machines, destroy_machine
-            from mist.api.methods import notify_admin, notify_user
             list_machines(owner, cloud_id) # TODO change this to
             # compute.ctl.list_machines
 
@@ -1209,6 +1209,7 @@ def run_machine_action(owner_id, action, name, machine_uuid):
     log_dict['finished_at'] = time()
     title = "Execution of '%s' action " % action
     title += "failed" if log_dict.get('error') else "succeeded"
+    from mist.api.methods import notify_user
     notify_user(
         owner, title,
         cloud_id=cloud_id,

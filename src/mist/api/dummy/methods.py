@@ -74,4 +74,4 @@ def disable_monitoring_cloud(owner, cloud_id, no_ssh=False):
 
 
 def cross_populate_session_data(event, kwargs):
-    return event
+    return

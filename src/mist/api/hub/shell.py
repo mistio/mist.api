@@ -9,7 +9,7 @@ import mist.api.exceptions
 import mist.api.shell
 import mist.api.hub.main
 import mist.api.users.models
-import mist.api.helpers
+import mist.api.logs.methods
 from mist.api.misc.shell import ShellCapture
 
 
@@ -135,8 +135,8 @@ class LoggingShellHubWorker(ShellHubWorker):
         super(LoggingShellHubWorker, self).on_ready(msg)
         # Don't log cfy container log views
         if self.params.get('provider') != 'docker' or not self.params.get('job_id'):
-            mist.api.helpers.log_event(action='open', event_type='shell',
-                                      shell_id=self.uuid, **self.params)
+            mist.api.logs.methods.log_event(action='open', event_type='shell',
+                                            shell_id=self.uuid, **self.params)
 
     def emit_shell_data(self, data):
         self.capture.append((time.time(), 'data', data))
@@ -172,8 +172,10 @@ class LoggingShellHubWorker(ShellHubWorker):
                 capture.save()
             # Don't log cfy container log views
             if self.params.get('provider') != 'docker' or not self.params.get('job_id'):
-                mist.api.helpers.log_event(action='close', event_type='shell',
-                                          shell_id=self.uuid, **self.params)
+                mist.api.logs.methods.log_event(action='close',
+                                                event_type='shell',
+                                                shell_id=self.uuid,
+                                                **self.params)
         super(LoggingShellHubWorker, self).stop()
 
 

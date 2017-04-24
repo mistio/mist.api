@@ -55,7 +55,7 @@ from mist.api.exceptions import MethodNotAllowedError
 from mist.api.helpers import encrypt, decrypt
 from mist.api.helpers import get_auth_header, params_from_request
 from mist.api.helpers import trigger_session_update, amqp_publish_user
-from mist.api.helpers import view_config, log_event, ip_from_request
+from mist.api.helpers import view_config, ip_from_request
 from mist.api.helpers import send_email
 
 from mist.api.auth.methods import auth_context_from_request
@@ -63,6 +63,8 @@ from mist.api.auth.methods import user_from_request, session_from_request
 from mist.api.auth.methods import get_csrf_token
 from mist.api.auth.methods import reissue_cookie_session
 from mist.api.auth.models import get_secure_rand_token
+
+from mist.api.logs.methods import log_event
 
 from mist.api import config
 
