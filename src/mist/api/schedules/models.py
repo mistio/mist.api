@@ -257,7 +257,8 @@ class Schedule(me.Document, ConditionalClassMixin):
 
     @property
     def args(self):
-        mids = [machine.id for machine in self.get_resources().only('id')]
+        mids = [machine.id for machine in self.get_resources() if
+                machine.state != 'terminated']
         fire_up = self.task_type.args
         return [self.owner.id, fire_up, self.name, mids]
 
@@ -341,6 +342,8 @@ class Schedule(me.Document, ConditionalClassMixin):
 
         last_run = '' if self.total_run_count == 0 else str(self.last_run_at)
 
+        conditions = [condition.as_dict() for condition in self.conditions]
+
         sdict = {
             'id': self.id,
             'name': self.name,
@@ -357,17 +360,8 @@ class Schedule(me.Document, ConditionalClassMixin):
             'last_run_at': last_run,
             'total_run_count': self.total_run_count,
             'max_run_count': self.max_run_count,
-            'conditions': [],
+            'conditions': conditions,
         }
-
-        for condition in self.conditions:
-            sdict['conditions'].append(condition.as_dict())
-
-            # TODO: Remove following block
-            if condition.ctype == 'tags':
-                sdict.update({'machines_tags': condition.tags})
-            elif condition.ctype == 'machines':
-                sdict.update({'machines_uuids': condition.ids})
 
         return sdict
 
