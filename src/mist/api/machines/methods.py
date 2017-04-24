@@ -107,7 +107,7 @@ def list_machines(owner, cloud_id):
     """List all machines in this cloud via API call to the provider."""
     machines = Cloud.objects.get(owner=owner, id=cloud_id,
                                  deleted=None).ctl.compute.list_machines()
-    return [machine.as_dict_old() for machine in machines]
+    return [machine.as_dict() for machine in machines]
 
 
 def create_machine(owner, cloud_id, key_id, machine_name, location_id,

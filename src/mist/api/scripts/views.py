@@ -115,7 +115,7 @@ def add_script(request):
     if script_tags:
         add_tags_to_resource(auth_context.owner, script, script_tags.items())
 
-    script = script.as_dict_old()
+    script = script.as_dict()
 
     if 'job_id' in params:
         script['job_id'] = params['job_id']
@@ -165,7 +165,7 @@ def show_script(request):
     # SEC require READ permission on SCRIPT
     auth_context.check_perm('script', 'read', script_id)
 
-    ret_dict = script.as_dict_old()
+    ret_dict = script.as_dict()
     jobs = get_stories('job', auth_context.owner.id, script_id=script_id)
     ret_dict['jobs'] = [job['job_id'] for job in jobs]
     return ret_dict

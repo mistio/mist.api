@@ -311,7 +311,7 @@ class MainConnection(MistConnection):
                                            last_seen__gt=after)
                 machines = filter_list_machines(
                     self.auth_context, cloud_id=cloud.id,
-                    machines=[machine.as_dict_old() for machine in machines]
+                    machines=[machine.as_dict() for machine in machines]
                 )
                 if machines:
                     log.info("Emitting list_machines from poller's cache.")
