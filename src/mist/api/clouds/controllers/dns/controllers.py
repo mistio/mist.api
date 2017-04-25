@@ -163,8 +163,9 @@ class LinodeDNSController(BaseDNSController):
 
     def _list_records__postparse_data(self, pr_record, record):
         """Get the provider specific information into the Mongo model"""
-        if pr_record.type in ["CNAME", "MX"] and not pr_record.data.endswith('.'):
-            pr_record.data += '.'
+        if pr_record.type in ["CNAME", "MX"]:
+            if not pr_record.data.endswith('.'):
+                pr_record.data += '.'
         if pr_record.data not in record.rdata:
             record.rdata.append(pr_record.data)
 
