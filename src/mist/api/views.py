@@ -1085,10 +1085,6 @@ def probe(request):
     READ permission required on cloud.
     READ permission required on machine.
     ---
-    cloud:
-      in: path
-      required: true
-      type: string
     machine:
       in: path
       required: true
@@ -1104,8 +1100,7 @@ def probe(request):
       required: false
       type: string
     """
-    machine_id = request.matchdict['machine']
-    cloud_id = request.matchdict['cloud']
+    machine_uuid = request.matchdict['machine']
     params = params_from_request(request)
     key_id = params.get('key', None)
     ssh_user = params.get('ssh_user', '')
@@ -1113,23 +1108,23 @@ def probe(request):
     if key_id == 'undefined':
         key_id = ''
     auth_context = auth_context_from_request(request)
-    auth_context.check_perm("cloud", "read", cloud_id)
+
 
     try:
-        machine = Machine.objects.get(cloud=cloud_id, machine_id=machine_id)
-        machine_uuid = machine.id
+        machine = Machine.objects.get(id=machine_uuid, state__ne='terminated')
         host = machine.hostname
     except me.DoesNotExist:
-        machine_uuid = ""
-        host = None
+        raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
+    cloud_id = machine.cloud.id
+    auth_context.check_perm("cloud", "read", cloud_id)
     auth_context.check_perm("machine", "read", machine_uuid)
 
-    ret = methods.probe(auth_context.owner, cloud_id, machine_id, host, key_id,
-                        ssh_user)
+    ret = methods.probe(auth_context.owner, cloud_id,
+                        machine.machine_id, host, key_id, ssh_user)
     amqp_publish_user(auth_context.owner, "probe",
                  {
                     'cloud_id': cloud_id,
-                    'machine_id': machine_id,
+                    'machine_id': machine.machine_id,
                     'result': ret
                  })
     return ret

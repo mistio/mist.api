@@ -323,10 +323,6 @@ def associate_key(request):
     READ_PRIVATE permission required on key.
     ASSOCIATE_KEY permission required on machine.
     ---
-    cloud:
-      in: path
-      required: true
-      type: string
     machine:
       in: path
       required: true
@@ -343,8 +339,7 @@ def associate_key(request):
       type: string
     """
     key_id = request.matchdict['key']
-    cloud_id = request.matchdict['cloud']
-    machine_id = request.matchdict['machine']
+    machine_uuid = request.matchdict['machine']
     params = params_from_request(request)
     ssh_user = params.get('user', None)
     try:
@@ -354,20 +349,15 @@ def associate_key(request):
 
     auth_context = auth_context_from_request(request)
 
-    try:
-        Cloud.objects.get(owner=auth_context.owner,
-                          id=cloud_id, deleted=None)
-    except Cloud.DoesNotExist:
-        raise NotFoundError('Cloud does not exist')
-
-    auth_context.check_perm("cloud", "read", cloud_id)
     key = Key.objects.get(owner=auth_context.owner, id=key_id, deleted=None)
     auth_context.check_perm('key', 'read_private', key.id)
     try:
-        machine = Machine.objects.get(cloud=cloud_id, machine_id=machine_id)
+        machine = Machine.objects.get(id=machine_uuid, state__ne='terminated')
     except me.DoesNotExist:
-        raise NotFoundError("Machine %s doesn't exist" % machine_id)
+        raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
 
+    cloud_id = machine.cloud.id
+    auth_context.check_perm("cloud", "read", cloud_id)
     auth_context.check_perm("machine", "associate_key", machine.id)
 
     key.ctl.associate(machine, username=ssh_user, port=ssh_port)
@@ -393,25 +383,21 @@ def disassociate_key(request):
       in: path
       required: true
       type: string
-    cloud:
-      in: path
-      required: true
-      type: string
     machine:
       in: path
       required: true
       type: string
     """
     key_id = request.matchdict['key']
-    cloud_id = request.matchdict['cloud']
-    machine_id = request.matchdict['machine']
+    machine_uuid = request.matchdict['machine']
 
     auth_context = auth_context_from_request(request)
-    auth_context.check_perm("cloud", "read", cloud_id)
     try:
-        machine = Machine.objects.get(cloud=cloud_id, machine_id=machine_id)
+        machine = Machine.objects.get(id=machine_uuid, state__ne='terminated')
     except me.DoesNotExist:
-        raise NotFoundError("Machine %s doesn't exist" % machine_id)
+        raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
+    cloud_id = machine.cloud.id
+    auth_context.check_perm("cloud", "read", cloud_id)
     auth_context.check_perm("machine", "disassociate_key", machine.id)
 
     key = Key.objects.get(owner=auth_context.owner, id=key_id, deleted=None)

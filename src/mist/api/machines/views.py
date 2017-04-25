@@ -359,10 +359,6 @@ def machine_actions(request):
     ACTION permission required on machine(ACTION can be START,
     STOP, DESTROY, REBOOT).
     ---
-    cloud:
-      in: path
-      required: true
-      type: string
     machine:
       in: path
       required: true
@@ -384,22 +380,24 @@ def machine_actions(request):
       description: The size id of the plan to resize
       type: string
     """
-    cloud_id = request.matchdict['cloud']
-    machine_id = request.matchdict['machine']
+    machine_uuid = request.matchdict['machine']
     params = params_from_request(request)
     action = params.get('action', '')
     plan_id = params.get('plan_id', '')
     name = params.get('name', '')
     auth_context = auth_context_from_request(request)
-    auth_context.check_perm("cloud", "read", cloud_id)
 
     try:
-        machine = Machine.objects.get(cloud=cloud_id, machine_id=machine_id)
+        machine = Machine.objects.get(id=machine_uuid,
+                                      state__ne='terminated')
     except Machine.DoesNotExist:
-        raise NotFoundError("Machine %s doesn't exist" % machine_id)
+        raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
+
+    cloud_id = machine.cloud.id
+    auth_context.check_perm("cloud", "read", cloud_id)
 
     if machine.cloud.owner != auth_context.owner:
-        raise NotFoundError("Machine %s doesn't exist" % machine_id)
+        raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
 
     auth_context.check_perm("machine", action, machine.id)
 
@@ -411,7 +409,8 @@ def machine_actions(request):
                               "one of %s" % (action, actions)
                               )
     if action == 'destroy':
-        methods.destroy_machine(auth_context.owner, cloud_id, machine_id)
+        methods.destroy_machine(auth_context.owner, cloud_id,
+                                machine.machine_id)
     elif action in ('start', 'stop', 'reboot',
                     'undefine', 'suspend', 'resume'):
         getattr(machine.ctl, action)()
@@ -453,6 +452,7 @@ def machine_rdp(request):
       required: true
       type: string
     """
+    # TODO change as above, remove cloud id
     cloud_id = request.matchdict['cloud']
     machine_id = request.matchdict['machine']
     auth_context = auth_context_from_request(request)
