@@ -4,7 +4,6 @@ This currently contains only BaseController. It includes basic functionality
 for a given schedule.
 Cloud specific controllers are in `mist.api.schedules.controllers`.
 """
-import json
 import logging
 import datetime
 import mongoengine as me
@@ -26,6 +25,8 @@ try:
     from mist.core.rbac.methods import AuthContext
 except ImportError:
     from mist.api.dummy.rbac import AuthContext
+
+import mist.api.schedules.models as schedules
 
 log = logging.getLogger(__name__)
 
@@ -65,17 +66,14 @@ class BaseController(object):
 
         """
 
-        # check if one of these pairs exist
-        # script_id/action and machines_uuids/ machines_tags
+        # check if required variables exist.
         if not (kwargs.get('script_id', '') or kwargs.get('action', '')):
             raise BadRequestError("You must provide script_id "
                                   "or machine's action")
 
-        # TODO: Remove machine_uuids and machine_tags
-        if not (kwargs.get('conditions') or kwargs.get('machines_uuids') or
-                kwargs.get('machines_tags')):
+        if not kwargs.get('conditions'):
             raise BadRequestError("You must provide a list of conditions, "
-                                  "machine ids or tags")
+                                  "at least machine ids or tags")
 
         if kwargs.get('schedule_type') not in ['crontab',
                                                'interval', 'one_off']:
@@ -99,7 +97,6 @@ class BaseController(object):
 
     def update(self, **kwargs):
         """Edit an existing Schedule"""
-        import mist.api.schedules.models as schedules
 
         if self.auth_context is not None:
             auth_context = self.auth_context
@@ -108,12 +105,12 @@ class BaseController(object):
 
         owner = auth_context.owner
 
-        script_id = kwargs.get('script_id', '')
-        action = kwargs.get('action', '')
+        if kwargs.get('action'):
+            if kwargs.get('action') not in ['reboot', 'destroy',
+                                            'start', 'stop']:
+                raise BadRequestError("Action is not correct")
 
-        if action not in ['', 'reboot', 'destroy', 'start', 'stop']:
-            raise BadRequestError("Action is not correct")
-
+        script_id = kwargs.pop('script_id', '')
         if script_id:
             try:
                 Script.objects.get(owner=owner, id=script_id, deleted=None)
@@ -145,11 +142,6 @@ class BaseController(object):
             except ValueError:
                 raise BadRequestError('Start-after date value was not valid')
 
-        # set schedule attributes
-        for key, value in kwargs.iteritems():
-            if key in self.schedule._fields.keys():
-                setattr(self.schedule, key, value)
-
         now = datetime.datetime.now()
         if self.schedule.expires and self.schedule.expires < now:
             raise BadRequestError('Date of future task is in the past. '
@@ -158,29 +150,28 @@ class BaseController(object):
             raise BadRequestError('Date of future task is in the past. '
                                   'Please contact Marty McFly')
         # Schedule conditions pre-parsing.
-        if kwargs.get('machines_uuids') or kwargs.get('machines_tags') or \
-                kwargs.get('conditions'):
-            try:
-                self._update__preparse_machines(auth_context, kwargs)
-            except MistError as exc:
-                log.error("Error while updating schedule %s: %r",
-                          self.schedule.id, exc)
-                raise
-            except Exception as exc:
-                log.exception("Error while preparsing kwargs on update %s",
-                              self.schedule.id)
-                raise InternalServerError(exc=exc)
+        try:
+            self._update__preparse_machines(auth_context, kwargs)
+        except MistError as exc:
+            log.error("Error while updating schedule %s: %r",
+                      self.schedule.id, exc)
+            raise
+        except Exception as exc:
+            log.exception("Error while preparsing kwargs on update %s",
+                          self.schedule.id)
+            raise InternalServerError(exc=exc)
 
+        action = kwargs.pop('action', '')
         if action:
             self.schedule.task_type = schedules.ActionTask(action=action)
         elif script_id:
             self.schedule.task_type = schedules.ScriptTask(script_id=script_id)
 
-        schedule_type = kwargs.get('schedule_type')
+        schedule_type = kwargs.pop('schedule_type', '')
 
         if (schedule_type == 'crontab' or
                 isinstance(self.schedule.schedule_type, schedules.Crontab)):
-            schedule_entry = kwargs.get('schedule_entry', {})
+            schedule_entry = kwargs.pop('schedule_entry', {})
 
             if schedule_entry:
                 for k in schedule_entry:
@@ -193,7 +184,7 @@ class BaseController(object):
 
         elif (schedule_type == 'interval' or
                 type(self.schedule.schedule_type) == schedules.Interval):
-            schedule_entry = kwargs.get('schedule_entry', {})
+            schedule_entry = kwargs.pop('schedule_entry', {})
 
             if schedule_entry:
                 for k in schedule_entry:
@@ -206,7 +197,7 @@ class BaseController(object):
         elif (schedule_type == 'one_off' or
                 type(self.schedule.schedule_type) == schedules.OneOff):
             # implements Interval under the hood
-            future_date = kwargs.get('schedule_entry', '')
+            future_date = kwargs.pop('schedule_entry', '')
 
             if future_date:
                 try:
@@ -227,6 +218,11 @@ class BaseController(object):
                                            entry=future_date)
                 self.schedule.schedule_type = one_off
                 self.schedule.max_run_count = 1
+
+        # set schedule attributes
+        for key, value in kwargs.iteritems():
+            if key in self.schedule._fields:
+                setattr(self.schedule, key, value)
 
         try:
             self.schedule.save()
@@ -262,8 +258,9 @@ class BaseController(object):
                     'field': FieldCondition,
                     'age': MachinesAgeCondition}
 
-        self.schedule.conditions = []
-        for condition in kwargs.get('conditions', []):
+        if kwargs.get('conditions'):
+            self.schedule.conditions = []
+        for condition in kwargs.pop('conditions', []):
             if condition.get('type') not in cond_cls:
                 raise BadRequestError()
             if condition['type'] == 'field':
@@ -274,21 +271,7 @@ class BaseController(object):
             cond.update(**condition)
             self.schedule.conditions.append(cond)
 
-        # TODO: Remove machine uuids and machine tags
-        if kwargs.get('machines_uuids'):
-            cond = MachinesCondition(ids=kwargs['machines_uuids'])
-            self.schedule.conditions.append(cond)
-        if kwargs.get('machines_tags'):
-            tags = kwargs['machines_tags']
-            if not isinstance(tags, dict):
-                try:
-                    tags = json.loads(tags)
-                except:
-                    raise BadRequestError("Tags are not in an acceptable form")
-            cond = TaggingCondition(tags=tags)
-            self.schedule.conditions.append(cond)
-
-        action = kwargs.get('action', '')
+        action = kwargs.get('action')
 
         # check permissions
         check = False
@@ -296,7 +279,8 @@ class BaseController(object):
             if condition.ctype == 'machines':
                 for mid in condition.ids:
                     try:
-                        machine = Machine.objects.get(id=mid)
+                        machine = Machine.objects.get(id=mid,
+                                                      state__ne='terminated')
                     except Machine.DoesNotExist:
                         raise NotFoundError('Machine state is terminated')
 

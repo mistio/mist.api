@@ -10,6 +10,8 @@ import mist.api.dns.methods as methods
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import CloudNotFoundError
 
+from mist.api.tag.methods import resolve_id_and_set_tags
+
 from mist.api.helpers import trigger_session_update
 from mist.api.helpers import params_from_request, view_config
 
@@ -68,7 +70,7 @@ def create_dns_zone(request):
     cloud_id = request.matchdict['cloud']
     auth_context.check_perm("cloud", "read", cloud_id)
     auth_context.check_perm("cloud", "create_resources", cloud_id)
-    auth_context.check_perm("zone", "add", None)
+    tags = auth_context.check_perm("zone", "add", None)
     # Try to get the specific cloud for which we will create the zone.
     try:
         cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id)
@@ -77,6 +79,11 @@ def create_dns_zone(request):
 
     params = params_from_request(request)
     new_zone = Zone.add(owner=cloud.owner, cloud=cloud, **params).as_dict()
+
+    if tags:
+        resolve_id_and_set_tags(auth_context.owner, 'zone', new_zone['id'],
+                                tags, cloud_id=cloud_id)
+
     # Schedule a UI update
     trigger_session_update(auth_context.owner, ['clouds'])
     return new_zone
@@ -105,12 +112,16 @@ def create_dns_record(request):
     auth_context.check_perm("cloud", "read", cloud_id)
     auth_context.check_perm("zone", "read", zone_id)
     auth_context.check_perm("zone", "create_records", zone_id)
-    auth_context.check_perm("record", "add", None)
+    tags = auth_context.check_perm("record", "add", None)
     # Get the params and create the new record
     params = params_from_request(request)
     dns_cls = RECORDS[params['type']]
 
     rec = dns_cls.add(owner=auth_context.owner, zone=zone, **params).as_dict()
+
+    if tags:
+        resolve_id_and_set_tags(auth_context.owner, 'record', rec['id'], tags,
+                                cloud_id=cloud_id, zone_id=zone_id)
 
     # Schedule a UI update
     trigger_session_update(auth_context.owner, ['zones'])
