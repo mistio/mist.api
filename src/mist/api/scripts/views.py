@@ -382,9 +382,8 @@ def run_script(request):
         job = None
     if isinstance(env, dict):
         env = json.dumps(env)
-    for key in ('cloud_id', 'machine_id'):
-        if key not in params:
-            raise RequiredParameterMissingError(key)
+    if not machine_uuid:
+        raise RequiredParameterMissingError('machine_uuid')
 
     auth_context = auth_context_from_request(request)
     try:
