@@ -356,7 +356,10 @@ def run_script(request):
       in: path
       required: true
       type: string
-    machine_uuid:
+    cloud_id:
+      required: true
+      type: string
+    machine_id:
       required: true
       type: string
     params:
@@ -370,7 +373,6 @@ def run_script(request):
     """
     script_id = request.matchdict['script_id']
     params = params_from_request(request)
-    machine_uuid = params.get('machine_uuid', '')
     script_params = params.get('params', '')
     su = params.get('su', False)
     env = params.get('env')
@@ -382,16 +384,34 @@ def run_script(request):
         job = None
     if isinstance(env, dict):
         env = json.dumps(env)
-    if not machine_uuid:
-        raise RequiredParameterMissingError('machine_uuid')
 
     auth_context = auth_context_from_request(request)
-    try:
-        machine = Machine.objects.get(id=machine_uuid, state__ne='terminated')
-    except me.DoesNotExist:
-        raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
+    if params.has_key('machine_uuid'):
+        machine_uuid = params.get('machine_uuid')
+        if not machine_uuid:
+            raise RequiredParameterMissingError('machine_uuid')
 
-    cloud_id = machine.cloud.id
+        try:
+            machine = Machine.objects.get(id=machine_uuid,
+                                          state__ne='terminated')
+        except me.DoesNotExist:
+            raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
+        cloud_id = machine.cloud.id
+    else:
+        # this will be depracated, keep it for backwards compatibility
+        cloud_id = params.get('cloud_id')
+        machine_id = params.get('machine_id')
+
+        for key in ('cloud_id', 'machine_id'):
+            if key not in params:
+                raise RequiredParameterMissingError(key)
+        try:
+            machine = Machine.objects.get(cloud=cloud_id,
+                                          machine_id=machine_id,
+                                          state__ne='terminated')
+        except me.DoesNotExist:
+            raise NotFoundError("Machine %s doesn't exist" % machine_id)
+
     # SEC require permission READ on cloud
     auth_context.check_perm("cloud", "read", cloud_id)
     # SEC require permission RUN_SCRIPT on machine
