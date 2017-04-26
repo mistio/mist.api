@@ -7,6 +7,7 @@ with libcloud's DNS API.
 """
 import ssl
 import logging
+import datetime
 
 import mongoengine as me
 
@@ -82,14 +83,17 @@ class BaseDNSController(BaseController):
         pr_zones = self._list_zones__fetch_zones()
 
         zones = []
+        new_zones = []
         for pr_zone in pr_zones:
             try:
-                zone = Zone.objects.get(cloud=self.cloud, zone_id=pr_zone.id)
+                zone = Zone.objects.get(owner=self.cloud.owner,
+                                        zone_id=pr_zone.id, deleted=None)
             except Zone.DoesNotExist:
                 log.info("Zone: %s/domain: %s not in the database, creating.",
                          pr_zone.id, pr_zone.domain)
                 zone = Zone(cloud=self.cloud, owner=self.cloud.owner,
                             zone_id=pr_zone.id)
+                new_zones.append(zone)
             zone.domain = pr_zone.domain
             zone.type = pr_zone.type
             zone.ttl = pr_zone.ttl
@@ -104,10 +108,13 @@ class BaseDNSController(BaseController):
                 log.error("Zone %s not unique error: %s", zone, exc)
                 raise ZoneExistsError()
             zones.append(zone)
+        self.cloud.owner.mapper.update(new_zones)
 
         # Delete any zones in the DB that were not returned by the provider
         # meaning they were deleted otherwise.
-        Zone.objects(cloud=self.cloud, id__nin=[z.id for z in zones]).delete()
+        Zone.objects(cloud=self.cloud, id__nin=[z.id for z in zones],
+                     deleted=None).update(
+                         set__deleted=datetime.datetime.utcnow())
 
         # Format zone information.
         return zones
@@ -145,16 +152,24 @@ class BaseDNSController(BaseController):
         pr_records = self._list_records__fetch_records(zone.zone_id)
 
         # TODO: Adding here for circular dependency issue. Need to fix this.
-        from mist.api.dns.models import Record
+        from mist.api.dns.models import Record, RECORDS
 
         records = []
+        new_records = []
         for pr_record in pr_records:
+            dns_cls = RECORDS[pr_record.type]
             try:
-                record = Record.objects.get(zone=zone, record_id=pr_record.id)
+                record = Record.objects.get(zone=zone, record_id=pr_record.id,
+                                            deleted=None)
             except Record.DoesNotExist:
                 log.info("Record: %s not in the database, creating.",
                          pr_record.id)
-                record = Record(record_id=pr_record.id, zone=zone)
+                if pr_record.type not in RECORDS:
+                    log.error("Unsupported record type '%s'", pr_record.type)
+                    continue
+
+                record = dns_cls(record_id=pr_record.id, zone=zone)
+                new_records.append(record)
             # We need to check if any of the information returned by the
             # provider is different than what we have in the DB
             record.name = pr_record.name
@@ -165,9 +180,10 @@ class BaseDNSController(BaseController):
             self._list_records__postparse_data(pr_record, record)
             try:
                 record.save()
-            except me.NotUniqueError as exc:
-                log.error("Record %s not unique error: %s", record, exc)
-                raise RecordExistsError()
+            except me.ValidationError as exc:
+                log.error("Error updating %s: %s", record, exc.to_dict())
+                raise BadRequestError({'msg': exc.message,
+                                       'errors': exc.to_dict()})
             except me.NotUniqueError as exc:
                 log.error("Record %s not unique error: %s", record, exc)
                 raise RecordExistsError()
@@ -179,11 +195,15 @@ class BaseDNSController(BaseController):
                     records.remove(rec)
                     break
             records.append(record)
+        self.cloud.owner.mapper.update(new_records)
 
         # Then delete any records that are in the DB for this zone but were not
         # returned by the list_records() method meaning the were deleted in the
         # DNS provider.
-        Record.objects(zone=zone, id__nin=[r.id for r in records]).delete()
+        Record.objects(zone=zone,
+                       id__nin=[r.id for r in records],
+                       deleted=None).update(
+                           set__deleted=datetime.datetime.utcnow())
 
         # Format zone information.
         return records
@@ -219,13 +239,16 @@ class BaseDNSController(BaseController):
         """Postparse the records returned from the provider"""
         return
 
-    def delete_record(self, record):
+    def delete_record(self, record, expire=False):
         """
         Public method to be called with a zone and record ids to delete the
         specific record under the specified zone.
         """
         self._delete_record__from_id(record.zone.zone_id, record.record_id)
-        record.delete()
+        if expire:
+            record.delete()
+        else:
+            record.update(set__deleted=datetime.datetime.utcnow())
 
     def _delete_record__from_id(self, zone_id, record_id):
         """
@@ -237,7 +260,7 @@ class BaseDNSController(BaseController):
         except ZoneDoesNotExistError as exc:
             log.warning("No zone found for %s in: %s ", zone_id, self.cloud)
             raise ZoneNotFoundError(exc=exc)
-        except RecordDoesNotExistError:
+        except RecordDoesNotExistError as exc:
             log.warning("No record found for id: %s under zone %s",
                         record_id, zone_id)
             raise RecordNotFoundError(exc=exc)
@@ -246,12 +269,15 @@ class BaseDNSController(BaseController):
                           self.cloud)
             raise CloudUnavailableError(exc=exc)
 
-    def delete_zone(self, zone):
+    def delete_zone(self, zone, expire=False):
         """
         Public method called to delete the specific zone for the provided id.
         """
         self._delete_zone__for_cloud(zone.zone_id)
-        zone.delete()
+        if expire:
+            zone.delete()
+        else:
+            zone.update(set__deleted=datetime.datetime.utcnow())
 
     def _delete_zone__for_cloud(self, zone_id):
         """

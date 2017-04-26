@@ -31,7 +31,7 @@ from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 from mist.api.scripts.models import Script
 from mist.api.schedules.models import Schedule
-from mist.api.dns.models import Zone, Record
+from mist.api.dns.models import Zone, Record, RECORDS
 
 celery_cfg = 'mist.core.celery_config'
 
@@ -195,7 +195,9 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                     kwargs['type'] = 'A'
                     kwargs['data'] = host
                     kwargs['ttl'] = 3600
-                    record = Record.add(owner=owner, **kwargs)
+                    
+                    dns_cls = RECORDS[kwargs['type']]
+                    record = dns_cls.add(owner=owner, **kwargs)
                     log_event(action='Create_A_record', hostname=hostname,
                               **log_dict)
                 except Exception as exc:
