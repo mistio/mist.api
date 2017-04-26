@@ -386,7 +386,7 @@ def run_script(request):
         env = json.dumps(env)
 
     auth_context = auth_context_from_request(request)
-    if params.has_key('machine_uuid'):
+    if 'machine_uuid' in params:
         machine_uuid = params.get('machine_uuid')
         if not machine_uuid:
             raise RequiredParameterMissingError('machine_uuid')
