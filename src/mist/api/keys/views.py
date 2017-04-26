@@ -355,8 +355,10 @@ def associate_key(request):
         ssh_port = 22
 
     auth_context = auth_context_from_request(request)
-
-    key = Key.objects.get(owner=auth_context.owner, id=key_id, deleted=None)
+    try:
+        key = Key.objects.get(owner=auth_context.owner, id=key_id, deleted=None)
+    except Key.DoesNotExist:
+        raise NotFoundError('Key id does not exist')
     auth_context.check_perm('key', 'read_private', key.id)
 
     if cloud_id:
