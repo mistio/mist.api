@@ -344,7 +344,8 @@ def amqp_owner_listening(owner):
 
 def trigger_session_update(owner, sections=['clouds', 'keys', 'monitoring',
                                             'scripts', 'templates', 'stacks',
-                                            'schedules', 'user', 'org']):
+                                            'schedules', 'user', 'org',
+                                            'zones']):
     amqp_publish_user(owner, routing_key='update', data=sections)
 
 
@@ -672,6 +673,8 @@ rtype_to_classpath = {
     'clouds': 'mist.api.clouds.models.Cloud',
     'machine': 'mist.api.machines.models.Machine',
     'machines': 'mist.api.machines.models.Machine',
+    'zone': 'mist.api.dns.models.Zone',
+    'record': 'mist.api.dns.models.Record',
     'script': 'mist.api.scripts.models.Script',
     'key': 'mist.api.keys.models.Key',
     'template': 'mist.core.orchestration.models.Template',
