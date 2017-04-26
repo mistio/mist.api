@@ -1077,6 +1077,8 @@ def delete_subnet(request):
     return OK
 
 
+@view_config(route_name='api_v1_cloud_probe',
+             request_method='POST', renderer='json')
 @view_config(route_name='api_v1_probe', request_method='POST', renderer='json')
 def probe(request):
     """

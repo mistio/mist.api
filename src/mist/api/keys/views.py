@@ -311,6 +311,8 @@ def generate_key(request):
     return {'priv': key.private, 'public': key.public}
 
 
+@view_config(route_name='api_v1_cloud_key_association', request_method='PUT',
+             renderer='json')
 @view_config(route_name='api_v1_key_association', request_method='PUT',
              renderer='json')
 def associate_key(request):
@@ -389,8 +391,10 @@ def associate_key(request):
     return assoc_machines
 
 
-@view_config(route_name='api_v1_key_association', request_method='DELETE',
-             renderer='json')
+@view_config(route_name='api_v1_cloud_key_association',
+             request_method='DELETE', renderer='json')
+@view_config(route_name='api_v1_key_association',
+             request_method='DELETE', renderer='json')
 def disassociate_key(request):
     """
     Disassociate a key from a machine

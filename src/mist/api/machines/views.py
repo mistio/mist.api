@@ -349,6 +349,8 @@ def create_machine(request):
     return ret
 
 
+@view_config(route_name='api_v1_cloud_machine',
+             request_method='POST', renderer='json')
 @view_config(route_name='api_v1_machine',
              request_method='POST', renderer='json')
 def machine_actions(request):
@@ -441,6 +443,8 @@ def machine_actions(request):
     return methods.filter_list_machines(auth_context, cloud_id)
 
 
+@view_config(route_name='api_v1_cloud_machine_rdp',
+             request_method='GET', renderer='json')
 @view_config(route_name='api_v1_machine_rdp',
              request_method='GET', renderer='json')
 def machine_rdp(request):
