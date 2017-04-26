@@ -202,9 +202,12 @@ class RackSpaceDNSController(BaseDNSController):
         if self.cloud.region in ('us', 'uk'):
             driver = get_driver(Provider.RACKSPACE_FIRST_GEN)
         else:
+            if self.cloud.region in ('dfw', 'ord', 'iad'):
+                region = 'us'
+            elif self.cloud.region == 'lon':
+                region = 'uk'
             driver = get_driver(Provider.RACKSPACE)
-        return driver(self.cloud.username, self.cloud.apikey,
-                      region=self.cloud.region)
+        return driver(self.cloud.username, self.cloud.apikey, region=region)
 
 
 class SoftLayerDNSController(BaseDNSController):
