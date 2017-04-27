@@ -2,12 +2,15 @@ import mongoengine as me
 from pyramid.response import Response
 
 from mist.api.clouds.models import Cloud
-from mist.api.dns.models import Zone, Record
+from mist.api.dns.models import Zone, Record, RECORDS
 
 from mist.api.auth.methods import auth_context_from_request
+from mist.api.dns.methods import filter_list_zones
 
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import CloudNotFoundError
+
+from mist.api.tag.methods import resolve_id_and_set_tags
 
 from mist.api.helpers import trigger_session_update
 from mist.api.helpers import params_from_request, view_config
@@ -31,7 +34,8 @@ def list_dns_zones(request):
     except me.DoesNotExist:
         raise CloudNotFoundError
 
-    return [zone.as_dict() for zone in cloud.ctl.dns.list_zones()]
+    zones = filter_list_zones(auth_context, cloud)
+    return zones
 
 
 @view_config(route_name='api_v1_records', request_method='GET', renderer='json')
@@ -62,7 +66,12 @@ def create_dns_zone(request):
     ---
     """
     auth_context = auth_context_from_request(request)
+
+
     cloud_id = request.matchdict['cloud']
+    auth_context.check_perm("cloud", "read", cloud_id)
+    auth_context.check_perm("cloud", "create_resources", cloud_id)
+    tags = auth_context.check_perm("zone", "add", None)
     # Try to get the specific cloud for which we will create the zone.
     try:
         cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id)
@@ -71,6 +80,11 @@ def create_dns_zone(request):
 
     params = params_from_request(request)
     new_zone = Zone.add(owner=cloud.owner, cloud=cloud, **params).as_dict()
+
+    if tags:
+        resolve_id_and_set_tags(auth_context.owner, 'zone', new_zone['id'],
+                                tags, cloud_id=cloud_id)
+
     # Schedule a UI update
     trigger_session_update(auth_context.owner, ['clouds'])
     return new_zone
@@ -82,6 +96,7 @@ def create_dns_record(request):
     ---
     """
     auth_context = auth_context_from_request(request)
+
     cloud_id = request.matchdict['cloud']
     # Try to get the specific cloud for which we will create the zone.
     try:
@@ -95,13 +110,22 @@ def create_dns_record(request):
     except Zone.DoesNotExist:
         raise NotFoundError('Zone does not exist')
 
+    auth_context.check_perm("cloud", "read", cloud_id)
+    auth_context.check_perm("zone", "read", zone_id)
+    auth_context.check_perm("zone", "create_records", zone_id)
+    tags = auth_context.check_perm("record", "add", None)
     # Get the params and create the new record
     params = params_from_request(request)
+    dns_cls = RECORDS[params['type']]
 
-    rec = Record.add(owner=auth_context.owner, zone=zone, **params).as_dict()
+    rec = dns_cls.add(owner=auth_context.owner, zone=zone, **params).as_dict()
+
+    if tags:
+        resolve_id_and_set_tags(auth_context.owner, 'record', rec['id'], tags,
+                                cloud_id=cloud_id, zone_id=zone_id)
 
     # Schedule a UI update
-    trigger_session_update(auth_context.owner, ['clouds'])
+    trigger_session_update(auth_context.owner, ['zones'])
     return rec
 
 @view_config(route_name='api_v1_zone', request_method='DELETE', renderer='json')
@@ -123,10 +147,12 @@ def delete_dns_zone(request):
     except Zone.DoesNotExist:
         raise NotFoundError('Zone does not exist')
 
+    auth_context.check_perm("zone", "remove", zone_id)
+
     zone.ctl.delete_zone()
 
     # Schedule a UI update
-    trigger_session_update(auth_context.owner, ['clouds'])
+    trigger_session_update(auth_context.owner, ['zones'])
     return OK
 
 @view_config(route_name='api_v1_record', request_method='DELETE', renderer='json')
@@ -152,8 +178,10 @@ def delete_dns_record(request):
     except Record.DoesNotExist:
         raise NotFoundError('Record does not exist')
 
+    auth_context.check_perm("record", "remove", record_id)
+
     record.ctl.delete_record()
 
     # Schedule a UI update
-    trigger_session_update(auth_context.owner, ['clouds'])
+    trigger_session_update(auth_context.owner, ['zones'])
     return OK

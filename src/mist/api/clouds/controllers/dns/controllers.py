@@ -47,10 +47,17 @@ class AmazonDNSController(BaseDNSController):
         specific form.
         ---
         """
-        # Route53 requires just the subdomain for A, AAAA, and CNAME records.
-        if (kwargs['type'] in ['A', 'AAAA', 'CNAME'] and
-                kwargs['name'].endswith(zone.domain)):
-            kwargs['name'] = kwargs['name'][:-len(zone.domain)]
+        # Route53 requires just the subdomain for A, AAAA, CNAME, MX records.
+        if kwargs['name'].endswith(zone.domain):
+            kwargs['name'] = kwargs['name'][:-(len(zone.domain) + 1)]
+        if kwargs['type'] == 'CNAME' and not kwargs['data'].endswith('.'):
+            kwargs['data'] += '.'
+        # Route 53 requires TXT rdata to be whitin quotes
+        if kwargs['type'] == 'TXT':
+            if not kwargs['data'].endswith('"'):
+                kwargs['data'] += '"'
+            if not kwargs['data'].startswith('"'):
+                kwargs['data'] = '"' + kwargs['data']
         kwargs['extra'] = {'ttl': kwargs.pop('ttl', 0)}
 
     def _list_records__postparse_data(self, pr_record, record):
@@ -79,6 +86,8 @@ class GoogleDNSController(BaseDNSController):
         if (kwargs['type'] in ['A', 'AAAA', 'CNAME'] and
                 not kwargs['name'].endswith('.')):
             kwargs['name'] += "."
+        if kwargs['type'] == 'CNAME' and not kwargs['data'].endswith('.'):
+            kwargs['data'] += '.'
 
         data = kwargs.pop('data', '')
         kwargs['data'] = {'ttl': kwargs.pop('ttl', 0), 'rrdatas': []}
