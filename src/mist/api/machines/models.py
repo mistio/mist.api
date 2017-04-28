@@ -20,6 +20,7 @@ class KeyAssociation(me.EmbeddedDocument):
     def as_dict(self):
         return json.loads(self.to_json())
 
+
 class InstallationStatus(me.EmbeddedDocument):
     # automatic: refers to automatic installations from mist.core
     # manual: refers to manual deployments and everything from

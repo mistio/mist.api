@@ -148,7 +148,8 @@ def add_routes(configurator):
     configurator.add_route('api_v1_clouds', '/api/v1/clouds')
     configurator.add_route('api_v1_cloud_action', '/api/v1/clouds/{cloud}')
 
-    configurator.add_route('api_v1_machines', '/api/v1/clouds/{cloud}/machines')
+    configurator.add_route('api_v1_machines',
+                           '/api/v1/clouds/{cloud}/machines')
     configurator.add_route('api_v1_cloud_machine',
                            '/api/v1/clouds/{cloud}/machines/{machine}')
     configurator.add_route('api_v1_machine',
@@ -229,8 +230,10 @@ def add_routes(configurator):
     configurator.add_route('api_v1_key_action', '/api/v1/keys/{key}')
     configurator.add_route('api_v1_key_public', '/api/v1/keys/{key}/public')
     configurator.add_route('api_v1_key_private', '/api/v1/keys/{key}/private')
-    configurator.add_route('api_v1_cloud_key_association',
-                           '/api/v1/clouds/{cloud}/machines/{machine}/keys/{key}')
+    configurator.add_route(
+        'api_v1_cloud_key_association',
+        '/api/v1/clouds/{cloud}/machines/{machine}/keys/{key}'
+    )
     configurator.add_route('api_v1_key_association',
                            '/api/v1/machines/{machine}/keys/{key}')
 
