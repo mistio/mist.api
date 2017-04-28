@@ -1,3 +1,11 @@
+## This are mist.io dependencies with loose version restrictions.
+## Keeping this file helps discover what the actual dependencies are and
+## assists in the process of upgrading them. Occasionally we build using this
+## requirements file, test everything exhaustively, and then store the output
+## of `pip freeze` to requirements-frozen.txt. Using frozen/pinned requirements
+## ensures that the build won't break because of a new release of some
+## dependency.
+
 # amqp v2 requires explicit call to connect, and use of drain_events
 # see https://github.com/celery/py-amqp/issues/105
 amqp==1.4.9

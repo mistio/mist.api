@@ -2,7 +2,8 @@ FROM mist/alpine:3.4
 
 RUN pip install --no-cache-dir ipython pdb ipdb flake8 pytest pytest-cov
 
-COPY requirements.txt /mist.api/requirements.txt
+# Remove `-frozen` to build without strictly pinned dependencies.
+COPY requirements-frozen.txt /mist.api/requirements.txt
 
 WORKDIR /mist.api/
 
