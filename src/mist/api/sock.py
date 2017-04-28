@@ -347,9 +347,6 @@ class MainConnection(MistConnection):
                     self.send(key, cached)
 
     def check_monitoring(self):
-        # FIXME
-        self.send('monitoring', {})
-        return
         func = check_monitoring
         try:
             self.send('monitoring', func(self.owner))
