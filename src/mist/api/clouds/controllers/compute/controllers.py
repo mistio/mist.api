@@ -747,7 +747,11 @@ class DockerComputeController(BaseComputeController):
             try:
                 # Find dockerhost with previous format from database.
                 machine = Machine.objects.get(
-                    cloud=self.cloud, **{'extra__tags.type': 'docker_host'}
+                    cloud=self.cloud,
+                    # Nested query. Trailing underscores to avoid conflict
+                    # with mongo's $type operator. See:
+                    # https://github.com/MongoEngine/mongoengine/issues/1410
+                    **{'extra__tags__type__': 'docker_host'}
                 )
             except Machine.DoesNotExist:
                 # Create dockerrhost machine.
