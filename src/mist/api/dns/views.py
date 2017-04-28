@@ -5,7 +5,7 @@ from mist.api.clouds.models import Cloud
 from mist.api.dns.models import Zone, Record, RECORDS
 
 from mist.api.auth.methods import auth_context_from_request
-import mist.api.dns.methods as methods
+from mist.api.dns.methods import filter_list_zones
 
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import CloudNotFoundError
