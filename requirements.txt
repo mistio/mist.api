@@ -4,22 +4,29 @@ amqp==1.4.9
 # ansible v2 has a incompatible api
 # see https://serversforhackers.com/running-ansible-2-programmatically
 ansible==1.9.3
+# celerybeat-mongo doesn't work with celery4 yet
 celery<4.0.0
 dnspython
 elasticsearch
 elasticsearch_tornado
+flake8
 gevent
 greenlet
+ipython
 iso8601
 jsonpickle
 mongoengine
+mongomock
 names
 netaddr
 parse
 passlib
 pika
+pretty
 pymongo
+# only tested with pyramid 1.4, possible incompatibilities with later versions
 pyramid==1.4
+pytest
 python-memcached
 python-openid
 requests
