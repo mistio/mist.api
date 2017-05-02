@@ -1320,7 +1320,7 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
         if not host:
             # FIXME machine.cloud.ctl.compute.list_machines()
             for machine in list_machines(owner, cloud_id):
-                if machine['id'] == machine_id:
+                if machine['machine_id'] == machine_id:
                     ips = [ip for ip in machine['public_ips'] if ':' not in ip]
                     # get private IPs if no public IP is available
                     if not ips:
