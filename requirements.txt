@@ -1,26 +1,45 @@
-amqp
+## This are mist.io dependencies with loose version restrictions.
+## Keeping this file helps discover what the actual dependencies are and
+## assists in the process of upgrading them. Occasionally we build using this
+## requirements file, test everything exhaustively, and then store the output
+## of `pip freeze` to requirements-frozen.txt. Using frozen/pinned requirements
+## ensures that the build won't break because of a new release of some
+## dependency.
+
+# amqp v2 requires explicit call to connect, and use of drain_events
+# see https://github.com/celery/py-amqp/issues/105
+amqp==1.4.9
+# ansible v2 has a incompatible api
+# see https://serversforhackers.com/running-ansible-2-programmatically
 ansible==1.9.3
-celery
+# celerybeat-mongo doesn't work with celery4 yet
+celery<4.0.0
 dnspython
 elasticsearch
 elasticsearch_tornado
+flake8
 gevent
 greenlet
+ipython
 iso8601
 jsonpickle
 mongoengine
+mongomock
 names
 netaddr
 parse
 passlib
 pika
+pretty
 pymongo
-pyramid
+# only tested with pyramid 1.4, possible incompatibilities with later versions
+pyramid==1.4
+pytest
 python-memcached
 python-openid
 requests
 sockjs-tornado
-stripe
 tornado
 tornado_profile
+uwsgidecorators
 websocket
