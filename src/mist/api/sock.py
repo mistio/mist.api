@@ -409,7 +409,7 @@ class MainConnection(MistConnection):
                 cloud = Cloud.objects.get(owner=self.owner, id=cloud_id,
                                           deleted=None)
                 for machine in machines:
-                    bmid = (cloud_id, machine['id'])
+                    bmid = (cloud_id, machine['machine_id'])
                     if bmid in self.running_machines:
                         # machine was running
                         if machine['state'] != 'running':
@@ -433,18 +433,20 @@ class MainConnection(MistConnection):
                             continue
 
                     machine_obj = Machine.objects(cloud=cloud,
-                                                  machine_id=machine["id"],
+                                                  machine_id=
+                                                  machine['machine_id'],
                                                   key_associations__not__size=0
                                                   ).first()
                     if machine_obj:
                         cached = tasks.ProbeSSH().smart_delay(
-                            self.owner.id, cloud_id, machine['id'], ips[0]
+                            self.owner.id, cloud_id, machine['machine_id'],
+                            ips[0]
                         )
                         if cached is not None:
                             self.send('probe', cached)
 
                     cached = tasks.Ping().smart_delay(
-                        self.owner.id, cloud_id, machine['id'], ips[0]
+                        self.owner.id, cloud_id, machine['machine_id'], ips[0]
                     )
                     if cached is not None:
                         self.send('ping', cached)
