@@ -182,7 +182,6 @@ class LinodeDNSController(BaseDNSController):
         #     kwargs['data'] += '.'
         if kwargs['type'] == 'CNAME' and kwargs['data'].endswith('.'):
             kwargs['data'] = kwargs['data'][:-1]
-        print "kwargs: %s" % kwargs
         # Linode requires TXT rdata to be whitin quotes
         if kwargs['type'] == 'TXT':
             if not kwargs['data'].endswith('"'):
@@ -234,7 +233,6 @@ class RackSpaceDNSController(BaseDNSController):
         #     kwargs['data'] += '.'
         if kwargs['type'] == 'CNAME' and kwargs['data'].endswith('.'):
             kwargs['data'] = kwargs['data'][:-1]
-        print "kwargs: %s" % kwargs
         if kwargs['type'] == 'MX':
             parts = kwargs['data'].split(' ')
             kwargs['extra'] = {'priority': parts[0]}
@@ -281,7 +279,6 @@ class SoftLayerDNSController(BaseDNSController):
         #     kwargs['data'] += '.'
         if kwargs['type'] == 'CNAME' and kwargs['data'].endswith('.'):
             kwargs['data'] = kwargs['data'][:-1]
-        print "kwargs: %s" % kwargs
         # SL requires TXT rdata to be whitin quotes
         if kwargs['type'] == 'TXT':
             if not kwargs['data'].endswith('"'):
@@ -328,7 +325,6 @@ class VultrDNSController(BaseDNSController):
             parts = kwargs['data'].split(' ')
             kwargs['extra'] = {'priority': parts[0]}
             kwargs['data'] = parts[1]
-        print "kwargs: %s" % kwargs
         # Vultr requires TXT rdata to be whitin quotes
         if kwargs['type'] == 'TXT':
             if not kwargs['data'].endswith('"'):

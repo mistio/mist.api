@@ -93,7 +93,6 @@ class BaseDNSController(BaseController):
                     if z.cloud.ctl.provider == self.cloud.ctl.provider:
                         zone = z
                         zone_match = True
-                        print "Zone exists! Found!"
                         break
                 if not zone_match:
                     raise Zone.DoesNotExist
