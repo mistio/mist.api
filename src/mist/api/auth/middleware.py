@@ -18,6 +18,7 @@ log = logging.getLogger(__name__)
 class AuthMiddleware(object):
     def __init__(self, app):
         self.app = app
+        self.routes_mapper = app.routes_mapper
 
     def __call__(self, environ, start_response):
         request = Request(environ)
@@ -53,6 +54,7 @@ class CsrfMiddleware(object):
 
     def __init__(self, app):
         self.app = app
+        self.routes_mapper = app.routes_mapper
 
     def __call__(self, environ, start_response):
         request = Request(environ)

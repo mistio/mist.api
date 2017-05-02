@@ -98,3 +98,29 @@ def create_org_for_user(user, org_name='', promo_code=None, token=None,
     if promo_code or token:
         assign_promo(org, promo_code, token)
     return org
+
+
+def get_user_data(auth_context):
+    """
+    This function sends user's data to socket
+    :param auth_context:
+    :return: dict
+    """
+    user = auth_context.user
+    orgs = [{
+        'id': org.id,
+        'name': org.name,
+        'members': len(org.members),
+        'isOwner': user in org.get_team('Owners').members,
+    } for org in Organization.objects(members=user)]
+    ret = {
+        'id': user.id,
+        'email': user.email,
+        'first_name': user.first_name,
+        'last_name': user.last_name,
+        'username': user.username,
+        'has_pass': user.password is not None and user.password != '',
+        'orgs': orgs,
+        'csrf_token': auth_context.token.csrf_token,
+    }
+    return ret
