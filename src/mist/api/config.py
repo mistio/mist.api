@@ -15,6 +15,18 @@ from libcloud.compute.types import NodeState
 libcloud.security.SSL_VERSION = ssl.PROTOCOL_TLSv1_2
 
 
+def dirname(path, num=1):
+    """Get absolute path of `num` directories above path"""
+    path = os.path.abspath(path)
+    for i in xrange(num):
+        path = os.path.dirname(path)
+    return path
+
+
+MIST_API_DIR = dirname(__file__, 4)
+print >> sys.stderr, "MIST_API_DIR is %s" % MIST_API_DIR
+
+
 ###############################################################################
 # The following variables are common for both open.source and mist.core
 ###############################################################################
@@ -24,6 +36,21 @@ AMQP_URI = "rabbitmq:5672"
 MEMCACHED_HOST = ["memcached:11211"]
 BROKER_URL = "amqp://guest:guest@rabbitmq/"
 SSL_VERIFY = True
+
+ELASTICSEARCH = {
+    'elastic_host': 'elasticsearch',
+    'elastic_port': '9200',
+    'elastic_username': '',
+    'elastic_password': '',
+    'elastic_use_ssl': False,
+    'elastic_verify_certs': False
+}
+
+LOGS_FROM_ELASTIC = True
+
+BUILD_TAG = ""
+UI_TEMPLATE_URL = "http://ui"
+LANDING_TEMPLATE_URL = "http://landing"
 
 PY_LOG_LEVEL = logging.INFO
 PY_LOG_FORMAT = '%(asctime)s %(levelname)s %(threadName)s %(module)s - %(funcName)s: %(message)s'
@@ -71,6 +98,13 @@ MIXPANEL_ID = ""
 FB_ID = ""
 OLARK_ID = ""
 
+FAILED_LOGIN_RATE_LIMIT = {
+    'max_logins': 5,            # allow that many failed login attempts
+    'max_logins_period': 60,    # in that many seconds
+    'block_period': 60          # after that block for that many seconds
+}
+
+
 ###############################################################################
 #  Different set in io and core
 ###############################################################################
@@ -94,6 +128,8 @@ COLLECTD_HOST = ""
 COLLECTD_PORT = ""
 
 GOOGLE_ANALYTICS_ID = ""
+
+USE_EXTERNAL_AUTHENTICATION = False
 
 # celery settings
 CELERY_SETTINGS = {
@@ -672,26 +708,42 @@ GCE_IMAGES = [
 ]
 
 
+## Email templates
+
+FAILED_LOGIN_ATTEMPTS_EMAIL_SUBJECT = "[mist.io] Failed login attempts warning"
+
+FAILED_LOGIN_ATTEMPTS_EMAIL_BODY = """
+================= Failed login attempts warning =================
+
+Too many failed login attempts for the same account and from the same IP
+address occurred. Future login attempts for this user/ip will be
+temporarily blocked to thwart a brute-force attack.
+
+User: %s
+IP address: %s
+Number of failed attempts: %s
+Time period of failed login attempts: %s
+Blocking period: %s
+"""
+
+
+## DO NOT PUT ANYTHING BELOW HERE UNLESS YOU KNOW WHAT YOU ARE DOING
+
 # Get settings from mist.core.
-def dirname(path, num=1):
-    for i in xrange(num):
-        path = os.path.dirname(path)
-    return path
-
-
-CORE_CONFIG_PATH = os.path.join(dirname(__file__, 6),
+CORE_CONFIG_PATH = os.path.join(dirname(MIST_API_DIR, 2),
                                 'mist', 'core', 'config.py')
 if os.path.exists(CORE_CONFIG_PATH):
     print >> sys.stderr, "Will load core config from %s" % CORE_CONFIG_PATH
     execfile(CORE_CONFIG_PATH)
 else:
-    print >> sys.stderr, "Couldn't find core config in %S" % CORE_CONFIG_PATH
+    print >> sys.stderr, "Couldn't find core config in %s" % CORE_CONFIG_PATH
 
 
 # Get settings from environmental variables.
 FROM_ENV_STRINGS = [
     'AMQP_URI', 'BROKER_URL', 'CORE_URI', 'MONGO_URI', 'MONGO_DB', 'DOCKER_IP',
     'DOCKER_PORT', 'DOCKER_TLS_KEY', 'DOCKER_TLS_CERT', 'DOCKER_TLS_CA',
+    'BUILD_TAG', 'UI_TEMPLATE_URL', 'LANDING_TEMPLATE_URL',
 ]
 FROM_ENV_INTS = [
 ]
@@ -759,3 +811,4 @@ HOMEPAGE_INPUTS = {
     'olark_id': OLARK_ID,
     'categories': LANDING_CATEGORIES
 }
+## DO NOT PUT REGULAR SETTINGS BELOW, PUT THEM ABOVE THIS SECTION

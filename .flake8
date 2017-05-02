@@ -18,7 +18,6 @@ exclude =
     src/mist/api/dns/,
     src/mist/api/hub/,
     src/mist/api/tag/,
-    src/mist/api/__init__.py,
     src/mist/api/helpers.py,
     src/mist/api/config.py,
     src/mist/api/views.py,

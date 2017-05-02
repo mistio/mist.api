@@ -17,9 +17,6 @@ from celery import group
 from celery import Celery, Task
 from celery.exceptions import SoftTimeLimitExceeded
 
-from amqp import Message
-from amqp.connection import Connection
-
 from paramiko.ssh_exception import SSHException
 
 from mist.api.exceptions import MistError, NotFoundError
@@ -52,6 +49,7 @@ log = logging.getLogger(__name__)
 
 app = Celery('tasks')
 app.conf.update(**config.CELERY_SETTINGS)
+app.autodiscover_tasks(['mist.api.poller'])
 
 
 @app.task
