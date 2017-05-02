@@ -85,9 +85,18 @@ class BaseDNSController(BaseController):
         zones = []
         new_zones = []
         for pr_zone in pr_zones:
+            zone_match = False
             try:
-                zone = Zone.objects.get(owner=self.cloud.owner,
-                                        zone_id=pr_zone.id, deleted=None)
+                zones_q = Zone.objects(owner=self.cloud.owner,
+                                       zone_id=pr_zone.id, deleted=None)
+                for z in zones_q:
+                    if z.cloud.ctl.provider == self.cloud.ctl.provider:
+                        zone = z
+                        zone_match = True
+                        print "Zone exists! Found!"
+                        break
+                if not zone_match:
+                    raise Zone.DoesNotExist
             except Zone.DoesNotExist:
                 log.info("Zone: %s/domain: %s not in the database, creating.",
                          pr_zone.id, pr_zone.domain)
