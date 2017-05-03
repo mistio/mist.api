@@ -851,12 +851,13 @@ class ProbeSSH(UserTask):
     polling = True
     soft_time_limit = 60
 
-    def execute(self, owner_id, cloud_id, machine_id, host):
+    def execute(self, owner_id, cloud_id, machine_id, host, machine_uuid):
         owner = Owner.objects.get(id=owner_id)
         from mist.api.methods import probe_ssh_only
         res = probe_ssh_only(owner, cloud_id, machine_id, host)
         return {'cloud_id': cloud_id,
                 'machine_id': machine_id,
+                'machine_uuid': machine_uuid,
                 'host': host,
                 'result': res}
 

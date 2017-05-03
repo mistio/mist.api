@@ -440,7 +440,7 @@ class MainConnection(MistConnection):
                     if machine_obj:
                         cached = tasks.ProbeSSH().smart_delay(
                             self.owner.id, cloud_id, machine['machine_id'],
-                            ips[0]
+                            ips[0], machine['id']
                         )
                         if cached is not None:
                             self.send('probe', cached)
