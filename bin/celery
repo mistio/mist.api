@@ -36,6 +36,7 @@ while getopts ":hq:l:" opt; do
 done
 
 set -x
+export C_FORCE_ROOT=1
 export CELERY_CONTEXT=1
 exec celery worker \
     -A mist.api.tasks \
