@@ -46,7 +46,9 @@ netaddr==0.7.19
 packaging==16.8
 parse==1.8.0
 passlib==1.7.1
+Paste==2.0.3
 PasteDeploy==1.5.2
+PasteScript==2.0.2
 pathlib2==2.2.1
 pbr==3.0.0
 pdb==0.1
