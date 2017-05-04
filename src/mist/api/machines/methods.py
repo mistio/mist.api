@@ -1178,6 +1178,6 @@ def filter_list_machines(auth_context, cloud_id, machines=None, perm='read'):
             return []
         allowed_ids = set(auth_context.get_allowed_resources(rtype='machines'))
         machines = [machine for machine in machines
-                    if machine['uuid'] in allowed_ids]
+                    if machine['id'] in allowed_ids]
 
     return machines
