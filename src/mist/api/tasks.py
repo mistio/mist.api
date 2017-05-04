@@ -806,8 +806,8 @@ class ListMachines(UserTask):
             try:
                 from mist.api.tag.methods import resolve_id_and_get_tags
                 mistio_tags = resolve_id_and_get_tags(owner, 'machine',
-                                                      machine.get("id"),
-                                                      cloud_id=cloud_id)
+                                                    machine.get("machine_id"),
+                                                    cloud_id=cloud_id)
             except:
                 log.info("Machine has not tags in mist db")
                 mistio_tags = {}
