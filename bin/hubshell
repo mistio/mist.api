@@ -2,16 +2,33 @@
 
 set -e
 
-USAGE="Usage: $0
+SHELL_PATH=src/mist/api/hub/shell.py
+
+USAGE="Usage: $0 [-h] [-s <SHELL_PATH>]
 
 Start hub-shell
+
+Options:
+    -h              Show this help message and exit.
+    -s <SHELL_PATH> Hubshell file path. Defaults to $SHELL_PATH.
 "
 
-if [ "$1" = "-h" ]; then
-    echo "$USAGE"
-    exit
-fi
+while getopts "hs:" opt; do
+    case "$opt" in
+        h)
+            echo "$USAGE"
+            exit
+            ;;
+        s)
+            SHELL_PATH=$OPTARG
+            ;;
+        \?)
+            echo "Invalid option: -$OPTARG" >&2
+            echo "$USAGE" >&2
+            exit 1
+    esac
+done
 
 set -x
 
-exec python src/mist/api/hub/shell.py server
+exec python $SHELL_PATH server

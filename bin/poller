@@ -2,20 +2,42 @@
 
 set -e
 
-USAGE="Usage: $0
+LOGLEVEL="INFO"
+TASKS="mist.api.tasks"
+
+USAGE="Usage: $0 [-h] [-l <LOGLEVEL>] [-t <TASKS_PATH>]
 
 Start poller
+
+Options:
+    -h              Show this help message and exit.
+    -l <LOGLEVEL>   Log level. Defaults to $LOGLEVEL.
+    -t <TASKS_PATH> Tasks file to import. Defaults to $TASKS.
 "
 
-if [ "$1" = "-h" ]; then
-    echo "$USAGE"
-    exit
-fi
+while getopts "hl:t:" opt; do
+    case "$opt" in
+        h)
+            echo "$USAGE"
+            exit
+            ;;
+        l)
+            LOGLEVEL=$OPTARG
+            ;;
+        t)
+            TASKS=$OPTARG
+            ;;
+        \?)
+            echo "Invalid option: -$OPTARG" >&2
+            echo "$USAGE" >&2
+            exit 1
+    esac
+done
 
 set -x
 
 exec celery beat \
-    -A mist.api.tasks \
+    -A $TASKS \
     -S mist.api.poller.schedulers.PollingScheduler \
-    -l INFO \
+    -l $LOGLEVEL \
     --pidfile=/var/run/poller.pid
