@@ -61,6 +61,8 @@ JS_BUILD = False
 CSS_BUILD = False
 JS_LOG_LEVEL = 3
 
+ENABLE_DEV_USERS = False
+
 MONGO_URI = "mongodb:27017"
 MONGO_DB = "mist2"
 

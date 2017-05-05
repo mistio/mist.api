@@ -2614,3 +2614,84 @@ def delete_member_from_team(request):
     trigger_session_update(auth_context.owner, ['org'])
 
     return OK
+
+
+@view_config(route_name='api_v1_dev_register', request_method='POST',
+             renderer='json')
+def register_dev_user(request):
+    """
+    Automatically register users to be used by integration tests.
+
+    It actually does what dbinit does but through the API.
+
+    It is enabled only if config.ENABLE_DEV_USERS is set to True (False by
+    default).
+    ---
+    email:
+      in: path
+      required: true
+      type: string
+    name:
+      in: path
+      required: true
+      type: string
+    """
+    if not config.ENABLE_DEV_USERS:
+        raise NotFoundError()
+
+    params = params_from_request(request)
+    email = params.get('email', '').strip().lower()
+    password = params.get('password')
+    name = params.get('name', '').strip()
+    org_name = params.get('org_name')
+    if not org_name:
+        org_name = email
+    name_parts = name.split(' ', 1)
+    first_name = name_parts[0]
+    last_name = name_parts[1] if len(name_parts) > 1 else ''
+
+    User.objects(email=email).delete()
+    Organization.objects(name=org_name).delete()
+
+    log.warning("[DEV ENDPOINT]: creating User %s " % email)
+    user = User(email=email)
+    user.set_password(password)
+    user.status = 'confirmed'
+    user.registration_method = 'dev'
+    user.first_name = first_name
+    user.last_name = last_name
+    user.can_create_org = True
+    user.activation_date = time()
+    user.save()
+
+    log.warning("[DEV ENDPOINT]: creating Org %s " % org_name)
+    org = Organization(name=org_name)
+    org.add_member_to_team('Owners', user)
+    org.save()
+
+    return {
+        'org_id': org.id,
+        'org_name': org.name
+    }
+
+
+@view_config(route_name='api_v1_dev_users', request_method='DELETE',
+             renderer='json')
+def delete_dev_user(request):
+    if not config.ENABLE_DEV_USERS:
+        raise NotFoundError()
+
+    params = params_from_request(request)
+    email = params.get('email', '')
+
+    if not email:
+        raise RequiredParameterMissingError('email')
+    try:
+        user = User.objects.get(email=email)
+        user.delete()
+        log.warning("[DEV ENDPOINT]: Delete user with email: %s", email)
+    except User.DoesNotExist:
+        # If user does not exist we are okay
+        log.warning("[DEV ENDPOINT]: User with email: %s is already absent",
+                    email)
+    return OK
