@@ -276,6 +276,8 @@ def get_stories(story_type='', owner_id='', user_id='',
     if not expand:
         includes = list(FIELDS)
         includes += ["log_id", "stories", "action", "error", "time"]
+        if story_type == "incident":
+            includes.append("extra")
     else:
         includes = []
         assert not tornado_async
