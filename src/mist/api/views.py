@@ -1092,6 +1092,8 @@ def delete_subnet(request):
     return OK
 
 
+@view_config(route_name='api_v1_cloud_probe',
+             request_method='POST', renderer='json')
 @view_config(route_name='api_v1_probe', request_method='POST', renderer='json')
 def probe(request):
     """
@@ -1119,8 +1121,7 @@ def probe(request):
       required: false
       type: string
     """
-    machine_id = request.matchdict['machine']
-    cloud_id = request.matchdict['cloud']
+    cloud_id = request.matchdict.get('cloud')
     params = params_from_request(request)
     key_id = params.get('key', None)
     ssh_user = params.get('ssh_user', '')
@@ -1128,23 +1129,37 @@ def probe(request):
     if key_id == 'undefined':
         key_id = ''
     auth_context = auth_context_from_request(request)
-    auth_context.check_perm("cloud", "read", cloud_id)
 
-    try:
-        machine = Machine.objects.get(cloud=cloud_id, machine_id=machine_id)
-        machine_uuid = machine.id
-        host = machine.hostname
-    except me.DoesNotExist:
-        machine_uuid = ""
-        host = None
-    auth_context.check_perm("machine", "read", machine_uuid)
+    if cloud_id:
+        # this is depracated, keep it for backwards compatibility
+        machine_id = request.matchdict['machine']
+        auth_context.check_perm("cloud", "read", cloud_id)
+        try:
+            machine = Machine.objects.get(cloud=cloud_id,
+                                          machine_id=machine_id,
+                                          state__ne='terminated')
+        except Machine.DoesNotExist:
+            raise NotFoundError("Machine %s doesn't exist" % machine_id)
+    else:
+        machine_uuid = request.matchdict['machine']
+        try:
+            machine = Machine.objects.get(id=machine_uuid,
+                                          state__ne='terminated')
+        except Machine.DoesNotExist:
+            raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
 
-    ret = methods.probe(auth_context.owner, cloud_id, machine_id, host, key_id,
-                        ssh_user)
+        cloud_id = machine.cloud.id
+        auth_context.check_perm("cloud", "read", cloud_id)
+
+    host = machine.hostname
+    auth_context.check_perm("machine", "read", machine.id)
+
+    ret = methods.probe(auth_context.owner, cloud_id,
+                        machine.machine_id, host, key_id, ssh_user)
     amqp_publish_user(auth_context.owner, "probe",
                  {
                     'cloud_id': cloud_id,
-                    'machine_id': machine_id,
+                    'machine_id': machine.machine_id,
                     'result': ret
                  })
     return ret
