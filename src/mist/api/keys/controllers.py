@@ -67,6 +67,7 @@ class SSHKeyController(BaseKeyController):
                         username=username, port=port)
         except MachineUnauthorizedError:
             if deploy_error:
+                super(SSHKeyController, self).disassociate(machine)
                 raise MachineUnauthorizedError("Couldn't connect to "
                                                "deploy new SSH key.")
             raise

@@ -115,7 +115,7 @@ def add_script(request):
     if script_tags:
         add_tags_to_resource(auth_context.owner, script, script_tags.items())
 
-    script = script.as_dict_old()
+    script = script.as_dict()
 
     if 'job_id' in params:
         script['job_id'] = params['job_id']
@@ -165,7 +165,7 @@ def show_script(request):
     # SEC require READ permission on SCRIPT
     auth_context.check_perm('script', 'read', script_id)
 
-    ret_dict = script.as_dict_old()
+    ret_dict = script.as_dict()
     jobs = get_stories('job', auth_context.owner.id, script_id=script_id)
     ret_dict['jobs'] = [job['job_id'] for job in jobs]
     return ret_dict
@@ -356,10 +356,7 @@ def run_script(request):
       in: path
       required: true
       type: string
-    cloud_id:
-      required: true
-      type: string
-    machine_id:
+    machine_uuid:
       required: true
       type: string
     params:
@@ -373,8 +370,6 @@ def run_script(request):
     """
     script_id = request.matchdict['script_id']
     params = params_from_request(request)
-    cloud_id = params['cloud_id']
-    machine_id = params['machine_id']
     script_params = params.get('params', '')
     su = params.get('su', False)
     env = params.get('env')
@@ -386,16 +381,36 @@ def run_script(request):
         job = None
     if isinstance(env, dict):
         env = json.dumps(env)
-    for key in ('cloud_id', 'machine_id'):
-        if key not in params:
-            raise RequiredParameterMissingError(key)
-    auth_context = auth_context_from_request(request)
-    auth_context.check_perm("cloud", "read", cloud_id)
-    try:
-        machine = Machine.objects.get(cloud=cloud_id, machine_id=machine_id)
-    except me.DoesNotExist:
-        raise NotFoundError("Machine %s doesn't exist" % machine_id)
 
+    auth_context = auth_context_from_request(request)
+    if 'machine_uuid' in params:
+        machine_uuid = params.get('machine_uuid')
+        if not machine_uuid:
+            raise RequiredParameterMissingError('machine_uuid')
+
+        try:
+            machine = Machine.objects.get(id=machine_uuid,
+                                          state__ne='terminated')
+        except me.DoesNotExist:
+            raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
+        cloud_id = machine.cloud.id
+    else:
+        # this will be depracated, keep it for backwards compatibility
+        cloud_id = params.get('cloud_id')
+        machine_id = params.get('machine_id')
+
+        for key in ('cloud_id', 'machine_id'):
+            if key not in params:
+                raise RequiredParameterMissingError(key)
+        try:
+            machine = Machine.objects.get(cloud=cloud_id,
+                                          machine_id=machine_id,
+                                          state__ne='terminated')
+        except me.DoesNotExist:
+            raise NotFoundError("Machine %s doesn't exist" % machine_id)
+
+    # SEC require permission READ on cloud
+    auth_context.check_perm("cloud", "read", cloud_id)
     # SEC require permission RUN_SCRIPT on machine
     auth_context.check_perm("machine", "run_script", machine.id)
     # SEC require permission RUN on script
