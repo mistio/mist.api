@@ -150,11 +150,15 @@ def add_routes(configurator):
 
     configurator.add_route('api_v1_machines',
                            '/api/v1/clouds/{cloud}/machines')
-    configurator.add_route('api_v1_machine',
+    configurator.add_route('api_v1_cloud_machine',
                            '/api/v1/clouds/{cloud}/machines/{machine}')
+    configurator.add_route('api_v1_machine',
+                           '/api/v1/machines/{machine}')
 
-    configurator.add_route('api_v1_machine_rdp',
+    configurator.add_route('api_v1_cloud_machine_rdp',
                            '/api/v1/clouds/{cloud}/machines/{machine}/rdp')
+    configurator.add_route('api_v1_machine_rdp',
+                           '/api/v1/machines/{machine}/rdp')
 
     configurator.add_route('api_v1_machine_tags',
                            '/api/v1/clouds/{cloud}/machines/{machine}/tags')
@@ -183,8 +187,10 @@ def add_routes(configurator):
     configurator.add_route('machine_tag',
                            '/clouds/{cloud_id}/machines/{machine_id}/tag')
 
-    configurator.add_route('api_v1_probe',
+    configurator.add_route('api_v1_cloud_probe',
                            '/api/v1/clouds/{cloud}/machines/{machine}/probe')
+    configurator.add_route('api_v1_probe', '/api/v1/machines/{machine}/probe')
+
     configurator.add_route('api_v1_ping', '/api/v1/ping')
 
     configurator.add_route('api_v1_monitoring', '/api/v1/monitoring')
@@ -225,9 +231,11 @@ def add_routes(configurator):
     configurator.add_route('api_v1_key_public', '/api/v1/keys/{key}/public')
     configurator.add_route('api_v1_key_private', '/api/v1/keys/{key}/private')
     configurator.add_route(
-        'api_v1_key_association',
+        'api_v1_cloud_key_association',
         '/api/v1/clouds/{cloud}/machines/{machine}/keys/{key}'
     )
+    configurator.add_route('api_v1_key_association',
+                           '/api/v1/machines/{machine}/keys/{key}')
 
     configurator.add_route('api_v1_rules', '/api/v1/rules')
     configurator.add_route('api_v1_rule', '/api/v1/rules/{rule}')

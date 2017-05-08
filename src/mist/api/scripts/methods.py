@@ -6,7 +6,7 @@ def list_scripts(owner):
     scripts = Script.objects(owner=owner, deleted=None)
     script_objects = []
     for script in scripts:
-        script_object = script.as_dict_old()
+        script_object = script.as_dict()
         script_object["tags"] = get_tags_for_resource(owner, script)
         script_objects.append(script_object)
     return script_objects
