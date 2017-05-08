@@ -356,10 +356,7 @@ def run_script(request):
       in: path
       required: true
       type: string
-    cloud_id:
-      required: true
-      type: string
-    machine_id:
+    machine_uuid:
       required: true
       type: string
     params:

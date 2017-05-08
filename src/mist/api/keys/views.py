@@ -325,10 +325,6 @@ def associate_key(request):
     READ_PRIVATE permission required on key.
     ASSOCIATE_KEY permission required on machine.
     ---
-    cloud:
-      in: path
-      required: true
-      type: string
     machine:
       in: path
       required: true
@@ -365,6 +361,12 @@ def associate_key(request):
     if cloud_id:
         # this is depracated, keep it for backwards compatibility
         machine_id = request.matchdict['machine']
+        try:
+            Cloud.objects.get(owner=auth_context.owner,
+                              id=cloud_id, deleted=None)
+        except Cloud.DoesNotExist:
+            raise NotFoundError('Cloud does not exist')
+
         auth_context.check_perm("cloud", "read", cloud_id)
         try:
             machine = Machine.objects.get(cloud=cloud_id,
@@ -406,10 +408,6 @@ def disassociate_key(request):
     READ permission required on cloud.
     DISASSOCIATE_KEY permission required on machine.
     ---
-    cloud:
-      in: path
-      required: true
-      type: string
     key:
       in: path
       required: true
@@ -426,6 +424,12 @@ def disassociate_key(request):
     if cloud_id:
         # this is depracated, keep it for backwards compatibility
         machine_id = request.matchdict['machine']
+        try:
+            Cloud.objects.get(owner=auth_context.owner,
+                              id=cloud_id, deleted=None)
+        except Cloud.DoesNotExist:
+            raise NotFoundError('Cloud does not exist')
+
         auth_context.check_perm("cloud", "read", cloud_id)
         try:
             machine = Machine.objects.get(cloud=cloud_id,
