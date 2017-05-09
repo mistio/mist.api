@@ -1,5 +1,7 @@
 import mongoengine as me
+
 from pyramid.response import Response
+from pyramid.httpexceptions import HTTPFound
 
 from mist.api.users.models import User, Organization
 from mist.api.auth.models import ApiToken
@@ -7,13 +9,17 @@ from mist.api.auth.models import AuthToken, SessionToken
 from mist.api.auth.methods import get_random_name_for_token
 from mist.api.auth.methods import auth_context_from_request
 from mist.api.auth.methods import token_with_name_not_exists
+from mist.api.auth.methods import reissue_cookie_session
+from mist.api.auth.methods import user_from_request
 
-from mist.api.helpers import ip_from_request
+
+from mist.api.helpers import ip_from_request, send_email
 from mist.api.helpers import view_config, params_from_request
 
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import BadRequestError, UserUnauthorizedError
 from mist.api.exceptions import RequiredParameterMissingError, ForbiddenError
+from mist.api.exceptions import UserNotFoundError
 
 from mist.api import config
 
@@ -267,4 +273,39 @@ def revoke_session(request):
     return OK
 
 
+# SEC
+@view_config(route_name='su', request_method='GET')
+def su(request):
+    """
+    Impersonate another user.
 
+    This allows an admin to take the identity of any other user. It is meant to
+    be used strictly for debugging. You can return to your regular user simply
+    by logging out. This won't affect the last login time of the actual user.
+    An email should be immediately sent out to the team, notifying of the 'su'
+    action for security reasons.
+
+    """
+    # SEC raise exception if user not admin
+    user = user_from_request(request, admin=True)
+
+    session = request.environ['session']
+    if isinstance(session, ApiToken):
+        raise ForbiddenError('Cannot do su when authenticated with api token')
+    real_email = user.email
+    params = params_from_request(request)
+    email = params.get('email')
+    if not email:
+        raise RequiredParameterMissingError('email')
+    try:
+        user = User.objects.get(email=email)
+    except (UserNotFoundError, User.DoesNotExist):
+        raise UserUnauthorizedError()
+    reissue_cookie_session(request, real_email, su=user.id)
+
+    # alert admins
+    subject = "Some admin used su"
+    body = "Admin: %s\nUser: %s\nServer: %s" % (real_email, user.email,
+                                                config.CORE_URI)
+    send_email(subject, body, config.NOTIFICATION_EMAIL['ops'])
+    return HTTPFound('/')

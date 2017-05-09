@@ -274,6 +274,8 @@ def add_routes(configurator):
 
     configurator.add_route('user_invitations', '/user_invitations')
 
+    configurator.add_route('su', '/su')
+
     # DEV ENDPOINT
     configurator.add_route('api_v1_dev_register', '/api/v1/dev/register')
     configurator.add_route('api_v1_dev_users', '/api/v1/dev/users')
