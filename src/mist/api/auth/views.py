@@ -267,4 +267,39 @@ def revoke_session(request):
     return OK
 
 
+# SEC
+@view_config(route_name='su', request_method='GET')
+def su(request):
+    """
+    Impersonate another user.
 
+    This allows an admin to take the identity of any other user. It is meant to
+    be used strictly for debugging. You can return to your regular user simply
+    by logging out. This won't affect the last login time of the actual user.
+    An email should be immediately sent out to the team, notifying of the 'su'
+    action for security reasons.
+
+    """
+    # SEC raise exception if user not admin
+    user = user_from_request(request, admin=True)
+
+    session = request.environ['session']
+    if isinstance(session, ApiToken):
+        raise ForbiddenError('Cannot do su when authenticated with api token')
+    real_email = user.email
+    params = params_from_request(request)
+    email = params.get('email')
+    if not email:
+        raise RequiredParameterMissingError('email')
+    try:
+        user = User.objects.get(email=email)
+    except (UserNotFoundError, DoesNotExist):
+        raise UserUnauthorizedError()
+    reissue_cookie_session(request, real_email, su=user.id)
+
+    # alert admins
+    subject = "Some admin used su"
+    body = "Admin: %s\nUser: %s\nServer: %s" % (real_email, user.email,
+                                                config.CORE_URI)
+    send_email(subject, body, config.NOTIFICATION_EMAIL['ops'])
+    return HTTPFound('/')
