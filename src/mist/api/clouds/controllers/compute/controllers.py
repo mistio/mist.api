@@ -960,7 +960,8 @@ class OnAppComputeController(BaseComputeController):
     def _connect(self):
         return get_driver(Provider.ONAPP)(key=self.cloud.username,
                                           secret=self.cloud.apikey,
-                                          host=self.cloud.host)
+                                          host=self.cloud.host,
+                                          verify=self.cloud.verify)
 
     def _list_machines__machine_actions(self, machine, machine_libcloud):
         super(OnAppComputeController, self)._list_machines__machine_actions(

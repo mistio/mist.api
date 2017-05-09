@@ -366,6 +366,7 @@ class OnAppCloud(Cloud):
     username = me.StringField(required=True)
     apikey = me.StringField(required=True)
     host = me.StringField(required=True)
+    verify = me.BooleanField(default=True)
 
     _private_fields = ('apikey', )
     _controller_cls = controllers.OnAppMainController
