@@ -34,7 +34,6 @@ from mist.api.keys.methods import filter_list_keys
 from mist.api.machines.methods import filter_list_machines
 from mist.api.scripts.methods import filter_list_scripts
 from mist.api.schedules.methods import filter_list_schedules
-from mist.api.dns.methods import filter_list_zones
 
 from mist.api import tasks
 from mist.api.hub.tornado_shell_client import ShellHubClient
