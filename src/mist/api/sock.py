@@ -458,7 +458,9 @@ class MainConnection(MistConnection):
                 self.list_schedules()
             if 'zones' in sections:
                 task = tasks.ListZones()
-                clouds = Cloud.objects(owner=self.owner, enabled=True, deleted=None)
+                clouds = Cloud.objects(owner=self.owner,
+                                       enabled=True,
+                                       deleted=None)
                 for cloud in clouds:
                     task.delay(self.owner.id, cloud.id)
             if 'templates' in sections:
