@@ -461,7 +461,8 @@ class MainConnection(MistConnection):
                 clouds = Cloud.objects(owner=self.owner, enabled=True,
                                        deleted=None)
                 for cloud in clouds:
-                    task.delay(self.owner.id, cloud.id)
+                    if cloud.dns_enabled:
+                        task.delay(self.owner.id, cloud.id)
             if 'templates' in sections:
                 self.list_templates()
             if 'stacks' in sections:
