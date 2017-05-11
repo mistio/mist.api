@@ -17,9 +17,13 @@ from mist.api.exceptions import InternalServerError
 from mist.api.tasks import revoke_token
 
 try:
+    from mist.core.rbac.models import SuperToken
     from mist.core.rbac.methods import AuthContext
 except:
     from mist.api.dummy.rbac import AuthContext
+    SUPER_EXISTS = False
+else:
+    SUPER_EXISTS = True
 
 from mist.api.auth.models import ApiToken
 from mist.api.auth.models import SessionToken
@@ -95,6 +99,12 @@ def session_from_request(request):
                 )
             except DoesNotExist:
                 api_token = None
+            try:
+                if not api_token and SUPER_EXISTS:
+                    api_token = SuperToken.objects.get(
+                                token=token_from_request)
+            except DoesNotExist:
+                pass
             if api_token and api_token.is_valid():
                 session = api_token
             else:
