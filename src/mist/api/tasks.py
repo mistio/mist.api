@@ -731,16 +731,17 @@ class ListZones(UserTask):
         if not hasattr(cloud.ctl, 'dns'):
             return {'cloud_id': cloud_id, 'zones': []}
         ret = []
-        zones = cloud.ctl.dns.list_zones()
+        if cloud.dns_enabled:
+            zones = cloud.ctl.dns.list_zones()
 
-        for zone in zones:
-            zone_dict = zone.as_dict()
-            zone_dict['records'] = [record.as_dict() for
-                                    record in zone.ctl.list_records()]
-            ret.append(zone_dict)
+            for zone in zones:
+                zone_dict = zone.as_dict()
+                zone_dict['records'] = [record.as_dict() for
+                                        record in zone.ctl.list_records()]
+                ret.append(zone_dict)
 
-        log.warn('Returning list zones for user %s cloud %s'
-                 % (owner.id, cloud_id))
+            log.warn('Returning list zones for user %s cloud %s'
+                     % (owner.id, cloud_id))
         return {'cloud_id': cloud_id, 'zones': ret}
 
 
@@ -806,8 +807,8 @@ class ListMachines(UserTask):
             try:
                 from mist.api.tag.methods import resolve_id_and_get_tags
                 mistio_tags = resolve_id_and_get_tags(owner, 'machine',
-                                                      machine.get("id"),
-                                                      cloud_id=cloud_id)
+                                                    machine.get("machine_id"),
+                                                    cloud_id=cloud_id)
             except:
                 log.info("Machine has not tags in mist db")
                 mistio_tags = {}
@@ -851,12 +852,13 @@ class ProbeSSH(UserTask):
     polling = True
     soft_time_limit = 60
 
-    def execute(self, owner_id, cloud_id, machine_id, host):
+    def execute(self, owner_id, cloud_id, machine_id, host, machine_uuid):
         owner = Owner.objects.get(id=owner_id)
         from mist.api.methods import probe_ssh_only
         res = probe_ssh_only(owner, cloud_id, machine_id, host)
         return {'cloud_id': cloud_id,
                 'machine_id': machine_id,
+                'machine_uuid': machine_uuid,
                 'host': host,
                 'result': res}
 
@@ -1320,7 +1322,7 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
         if not host:
             # FIXME machine.cloud.ctl.compute.list_machines()
             for machine in list_machines(owner, cloud_id):
-                if machine['id'] == machine_id:
+                if machine['machine_id'] == machine_id:
                     ips = [ip for ip in machine['public_ips'] if ':' not in ip]
                     # get private IPs if no public IP is available
                     if not ips:
