@@ -417,6 +417,7 @@ class Team(me.EmbeddedDocument):
         }
         if HAS_POLICY:
             ret['policy'] = self.policy
+        return ret
 
     def __str__(self):
         return '%s (%d members)' % (self.name, len(self.members))
