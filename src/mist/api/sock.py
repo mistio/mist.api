@@ -458,7 +458,8 @@ class MainConnection(MistConnection):
                 self.list_schedules()
             if 'zones' in sections:
                 task = tasks.ListZones()
-                clouds = Cloud.objects(owner=self.owner, enabled=True,
+                clouds = Cloud.objects(owner=self.owner, 
+                                       enabled=True,
                                        deleted=None)
                 for cloud in clouds:
                     if cloud.dns_enabled:
