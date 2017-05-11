@@ -107,6 +107,74 @@ FAILED_LOGIN_RATE_LIMIT = {
 }
 
 
+BANNED_EMAIL_PROVIDERS = [
+    'mailinator.com',
+    'bob.info',
+    'veryreallemail.com',
+    'spamherelots.com',
+    'putthisinyourspamdatabase.com',
+    'thisisnotmyrealemail.com',
+    'binkmail.com',
+    'spamhereplease.com',
+    'sendspamhere.com',
+    'chogmail.com',
+    'spamthisplease.com',
+    'frapmail.com',
+    'obobbo.com',
+    'devnullmail.com',
+    'dispostable.com',
+    'yopmail.com',
+    'soodonims.com',
+    'spambog.com',
+    'spambog.de',
+    'discardmail.com',
+    'discardmail.de',
+    'spambog.ru',
+    'cust.in',
+    '0815.ru',
+    's0ny.net',
+    'hochsitze.com',
+    'hulapla.de',
+    'misterpinball.de',
+    'nomail2me.com',
+    'dbunker.com',
+    'bund.us',
+    'teewars.org',
+    'superstachel.de',
+    'brennendesreich.de',
+    'ano-mail.net',
+    '10minutemail.com',
+    'rppkn.com',
+    'trashmail.net',
+    'dacoolest.com',
+    'junk1e.com',
+    'throwawayemailaddress.com',
+    'imgv.de',
+    'spambastion.com',
+    'dreameheap.com',
+    'trollbot.org',
+    'getairmail.com',
+    'anonymizer.com',
+    'dudmail.com',
+    'scatmail.com',
+    'trayna.com',
+    'spamgourmet.com',
+    'incognitomail.org',
+    'mailexpire.com',
+    'mailforspam.com',
+    'sharklasers.com',
+    'guerillamail.com',
+    'guerrillamailblock.com',
+    'guerrillamail.net',
+    'guerrillamail.org',
+    'guerrillamail.biz',
+    'spam4.me',
+    'grr.la',
+    'guerrillamail.de',
+    'trbvm.com',
+    'byom.de'
+]
+
 ###############################################################################
 #  Different set in io and core
 ###############################################################################
@@ -726,6 +794,108 @@ IP address: %s
 Number of failed attempts: %s
 Time period of failed login attempts: %s
 Blocking period: %s
+"""
+
+ORG_TEAM_STATUS_CHANGE_EMAIL_SUBJECT = "Your status in an organization has" \
+                                       " changed"
+
+ORG_NOTIFICATION_EMAIL_SUBJECT = "[mist.io] Subscribed to team"
+
+USER_NOTIFY_ORG_TEAM_ADDITION = \
+"""Hi
+
+You have been added to the team "%s" of organization %s.
+
+Best regards,
+The mist.io team
+
+--
+%s
+"""
+
+USER_CONFIRM_ORG_INVITATION_EMAIL_BODY = \
+"""Hi
+
+You have been invited by %s to join the %s organization
+as a member of the %s.
+
+To confirm your invitation, please click on the following link:
+
+%s/confirm-invitation?invitoken=%s
+
+Once you are done with the confirmation process,
+you will be able to login to your Mist.io user account
+as a member of the team%s.
+
+Best regards,
+The mist.io team
+
+--
+%s
+"""
+
+ORG_INVITATION_EMAIL_SUBJECT = "[mist.io] Confirm your invitation"
+
+REGISTRATION_AND_ORG_INVITATION_EMAIL_BODY = \
+"""Hi
+
+You have been invited by %s to join the %s organization
+as a member of the %s.
+
+Before joining the team you must also activate your account in  mist.io and set
+a password. To activate your account and join the team, please click on the
+following link:
+
+%s/confirm?key=%s&invitoken=%s
+
+Once you are done with the registration process,
+you will be able to login to your Mist.io user account
+as a member of the team%s.
+
+Best regards,
+The mist.io team
+
+--
+%s
+"""
+
+NOTIFY_REMOVED_FROM_TEAM = \
+"""Hi
+
+You have been removed from team %s of organization %s by the
+administrator %s.
+
+Best regards,
+The mist.io team
+
+--
+%s
+"""
+
+NOTIFY_REMOVED_FROM_ORG = \
+"""Hi
+
+You are no longer a member of the organization %s.
+
+Best regards,
+The mist.io team
+
+--
+%s
+"""
+
+NOTIFY_INVITATION_REVOKED_SUBJECT = "Invitation for organization revoked"
+
+NOTIFY_INVITATION_REVOKED = \
+"""Hi
+
+Your invitation to the organization %s has been revoked.
+
+Best regards,
+The mist.io team
+
+--
+%s
 """
 
 SHOW_FOOTER = False
