@@ -20,10 +20,9 @@ class NotificationOperator(me.EmbeddedDocument):
     essentially corresponds to an allow/block action
     """
     channel = me.EmbeddedDocumentField(NotificationChannel)
-    #rule = me.EmbeddedDocumentField(NotificationRule)
     cid = me.StringField(max_length=64, default="")
     value = me.StringField(max_length=5, required=True,
-                           choices=('ALLOW', 'BLOCK'))
+                           choices=('ALLOW', 'INHERIT', 'BLOCK'))
 
 
 class NotificationRule(me.EmbeddedDocument):
@@ -32,19 +31,37 @@ class NotificationRule(me.EmbeddedDocument):
     a filter expression and a list of rules of length equal
     to the number of channels defined in the parent policy
     """
-    condition = me.StringField(max_length=200, required=True, default="")
+    type = me.StringField(max_length=200, required=True, default="")
+    action = me.StringField(max_length=200, required=True, default="")
+    tags = me.StringField(max_length=200, required=True, default="")
     operators = me.EmbeddedDocumentListField(NotificationOperator)
 
-    def channels_for_notification(self, notification):
+    def channels_for_notification(self, notification, inherited_channels=[]):
         """
         Accepts a notification and checks its validity against
         the rule, returning the list of channels which are allowed.
+        
+        The method also accepts an optional list of channels inherited (e.g.
+        from another, higher-level policy). In this case, it performs a difference
+        with those inherited channels with the blocked channels of the current
+        policy, and performs a union with the result with the allowed channels
+        of the current policy.
         """
-        if self.notification_passes_rule(notification, self.condition):
-            return [op.channel for op in self.operators if op.value == 'ALLOW']
+        if self.notification_matches_rule(notification):
+            allowed_ch = Set([op.channel for op in self.operators if op.value == 'ALLOW'])
+            blocked_ch = Set([op.channel for op in self.operators if op.value == 'BLOCK'])
+            inherited_ch = Set(inherited_channels)
+            return list(allowed_ch + (inherited_ch - blocked_ch))
 
-    def notification_passes_rule(notification, condition):
-        pass
+    def notification_matches_rule(notification):
+        """
+        Accepts a notification and returns whether
+        the notification type, action and tags match the corresponding
+        rule entries
+        """
+        return (notification.type == self.type 
+                and notification.action == self.action 
+                and notification.tags == self.tags)
 
 
 class NotificationPolicy(me.EmbeddedDocument):
@@ -56,7 +73,7 @@ class NotificationPolicy(me.EmbeddedDocument):
     rules = me.EmbeddedDocumentListField(NotificationRule)
     channels = me.EmbeddedDocumentListField(NotificationChannel)
 
-    def channels_for_notification(self, notification):
+    def channels_for_notification(self, notification, inherited_channels=None):
         """
         Accepts a notification instance and returns a list of channel
         instances through which the notification should be pushed, 
@@ -64,14 +81,14 @@ class NotificationPolicy(me.EmbeddedDocument):
         """
         channels = Set()
         for rule in self.rules:
-            new_channels = Set(rule.channels_for_notification(notification))
+            new_channels = Set(rule.channels_for_notification(notification, inherited_channels))
             channels = channels.union(new_channels)
         return channels
 
     def get_channels(self, rtype = None):
         """
         Returns policy channels that any of the policy's, rules
-        refer to, optionally filtering by one or more rule ids.
+        refer to, optionally filtering by one or more rule types.
         """
         pass
 
@@ -84,7 +101,7 @@ class NotificationPolicy(me.EmbeddedDocument):
 
 
 class Notification():
-
+    # todo: allow custom fields
     def __init__(self, message, type, action=None):
         self.message = message
         self.type = type
