@@ -17,6 +17,9 @@ class KeyAssociation(me.EmbeddedDocument):
     sudo = me.BooleanField()
     port = me.IntField(default=22)
 
+    def as_dict(self):
+        return json.loads(self.to_json())
+
 
 class InstallationStatus(me.EmbeddedDocument):
     # automatic: refers to automatic installations from mist.core
@@ -203,7 +206,7 @@ class Machine(me.Document):
             'os_type': self.os_type,
             'rdp_port': self.rdp_port,
             'machine_id': self.machine_id,
-            'actions': {'%s:%s' % (action, self.actions[action])
+            'actions': {action: self.actions[action]
                         for action in self.actions},
             'extra': self.extra,
             'cost': self.cost.as_dict(),
@@ -212,7 +215,7 @@ class Machine(me.Document):
             'state': self.state,
             'tags': tags,
             'monitoring': self.monitoring.as_dict() if self.monitoring else '',
-            'key_associations': self.key_associations,
+            'key_associations': [ka.as_dict() for ka in self.key_associations],
             'cloud': self.cloud.id,
             'last_seen': str(self.last_seen or ''),
             'missing_since': str(self.missing_since or ''),
