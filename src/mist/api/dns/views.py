@@ -86,7 +86,7 @@ def create_dns_zone(request):
                                 tags, cloud_id=cloud_id)
 
     # Schedule a UI update
-    trigger_session_update(auth_context.owner, ['clouds'])
+    trigger_session_update(auth_context.owner, ['zones'])
     return new_zone
 
 @view_config(route_name='api_v1_records', request_method='POST', renderer='json')

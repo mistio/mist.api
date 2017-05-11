@@ -303,6 +303,14 @@ class BaseMainController(object):
         self.cloud.enabled = False
         self.cloud.save()
 
+    def dns_enable(self):
+        self.cloud.dns_enabled = True
+        self.cloud.save()
+
+    def dns_disable(self):
+        self.cloud.dns_enabled = False
+        self.cloud.save()
+
     def set_polling_interval(self, interval):
         if not isinstance(interval, int):
             raise BadRequestError("Invalid interval type: %r" % interval)
