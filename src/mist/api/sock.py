@@ -34,7 +34,6 @@ from mist.api.keys.methods import filter_list_keys
 from mist.api.machines.methods import filter_list_machines
 from mist.api.scripts.methods import filter_list_scripts
 from mist.api.schedules.methods import filter_list_schedules
-from mist.api.dns.methods import filter_list_zones
 
 from mist.api import tasks
 from mist.api.hub.tornado_shell_client import ShellHubClient
@@ -246,7 +245,6 @@ class MainConnection(MistConnection):
         self.list_stacks()
         self.list_tunnels()
         self.list_clouds()
-        self.list_zones()
         self.check_monitoring()
         if config.ACTIVATE_POLLER:
             self.periodic_update_poller()
@@ -294,12 +292,6 @@ class MainConnection(MistConnection):
 
     def list_stacks(self):
         self.send('list_stacks', filter_list_stacks(self.auth_context))
-
-    def list_zones(self):
-        clouds = Cloud.objects(owner=self.owner, enabled=True, deleted=None)
-        for cloud in clouds:
-            zones = filter_list_zones(self.auth_context, cloud)
-            self.send('list_zones', zones)
 
     def list_tunnels(self):
         self.send('list_tunnels', filter_list_vpn_tunnels(self.auth_context))
@@ -465,7 +457,12 @@ class MainConnection(MistConnection):
             if 'schedules' in sections:
                 self.list_schedules()
             if 'zones' in sections:
-                self.list_zones()
+                task = tasks.ListZones()
+                clouds = Cloud.objects(owner=self.owner,
+                                       enabled=True,
+                                       deleted=None)
+                for cloud in clouds:
+                    task.delay(self.owner.id, cloud.id)
             if 'templates' in sections:
                 self.list_templates()
             if 'stacks' in sections:
