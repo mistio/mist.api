@@ -29,6 +29,8 @@ from libcloud.dns.providers import get_driver
 
 from mist.api.clouds.controllers.dns.base import BaseDNSController
 
+from mist.api.exceptions import BadRequestError
+
 log = logging.getLogger(__name__)
 
 
@@ -169,7 +171,7 @@ class LinodeDNSController(BaseDNSController):
 
     def _list_records__postparse_data(self, pr_record, record):
         """Get the provider specific information into the Mongo model"""
-        if pr_record.type in ["CNAME", "MX"]:
+        if pr_record.type in ["CNAME"]:
             if not pr_record.data.endswith('.'):
                 pr_record.data += '.'
         if pr_record.data not in record.rdata:
@@ -186,6 +188,15 @@ class LinodeDNSController(BaseDNSController):
             kwargs['name'] = kwargs['name'][:-(len(zone.domain) + 1)]
         if kwargs['type'] == 'CNAME' and kwargs['data'].endswith('.'):
             kwargs['data'] = kwargs['data'][:-1]
+        if kwargs['type'] == 'MX':
+            parts = kwargs['data'].split(' ')
+            if len(parts) == 2:
+                kwargs['data'] = parts[1]
+            elif len(parts) == 1:
+                kwargs['data'] = parts[0]
+            else:
+                raise BadRequestError('Please provide only the'\
+                                      'mailserver hostname')
         # Linode requires TXT rdata to be whitin quotes
         if kwargs['type'] == 'TXT':
             if not kwargs['data'].endswith('"'):
@@ -193,7 +204,7 @@ class LinodeDNSController(BaseDNSController):
             if not kwargs['data'].startswith('"'):
                 kwargs['data'] = '"' + kwargs['data']
         # Linode does not accept a ttl, if there is then remove it
-        kwargs.pop('ttl', 0)
+        kwargs.pop('ttl')
 
 
 class RackSpaceDNSController(BaseDNSController):
