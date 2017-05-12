@@ -66,7 +66,7 @@ class AmazonDNSController(BaseDNSController):
 
     def _list_records__postparse_data(self, pr_record, record):
         """Get the provider specific information into the Mongo model"""
-        if pr_record.data not in record.rdata:
+        if pr_record.data not in record.rdata and pr_record.type == "NS":
             record.rdata.append(pr_record.data)
 
 
@@ -133,6 +133,12 @@ class GoogleDNSController(BaseDNSController):
             kwargs['name'] += "."
         if kwargs['type'] == 'CNAME' and not kwargs['data'].endswith('.'):
             kwargs['data'] += '.'
+        # For MX records Google requires the data in the form:
+        # XX DOMAIN.COM. where XX is the record priority (an integer)
+        # and the domain needs to end with a dot, so if it's not there
+        # we need to append it.
+        if kwargs['type'] == 'MX' and not kwargs['data'].endswith('.'):
+            kwargs['data'] += '.'
 
         data = kwargs.pop('data', '')
         kwargs['data'] = {'ttl': kwargs.pop('ttl', 0), 'rrdatas': []}
@@ -178,8 +184,6 @@ class LinodeDNSController(BaseDNSController):
         # Linode requires just the subdomain for A, AAAA, CNAME, MX records.
         if kwargs['name'].endswith(zone.domain) and kwargs['type']:
             kwargs['name'] = kwargs['name'][:-(len(zone.domain) + 1)]
-        # if kwargs['type'] == 'CNAME' and not kwargs['data'].endswith('.'):
-        #     kwargs['data'] += '.'
         if kwargs['type'] == 'CNAME' and kwargs['data'].endswith('.'):
             kwargs['data'] = kwargs['data'][:-1]
         # Linode requires TXT rdata to be whitin quotes
@@ -200,6 +204,7 @@ class RackSpaceDNSController(BaseDNSController):
     def _connect(self):
         if self.cloud.region in ('us', 'uk'):
             driver = get_driver(Provider.RACKSPACE_FIRST_GEN)
+            region = self.cloud.region
         else:
             if self.cloud.region in ('dfw', 'ord', 'iad'):
                 region = 'us'

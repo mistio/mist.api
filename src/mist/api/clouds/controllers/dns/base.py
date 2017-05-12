@@ -85,16 +85,13 @@ class BaseDNSController(BaseController):
         zones = []
         new_zones = []
         for pr_zone in pr_zones:
-            zone_match = False
             try:
                 zones_q = Zone.objects(owner=self.cloud.owner,
                                        zone_id=pr_zone.id, deleted=None)
-                for z in zones_q:
-                    if z.cloud.ctl.provider == self.cloud.ctl.provider:
-                        zone = z
-                        zone_match = True
+                for zone in zones_q:
+                    if zone.cloud.ctl.provider == self.cloud.ctl.provider:
                         break
-                if not zone_match:
+                else:
                     raise Zone.DoesNotExist
             except Zone.DoesNotExist:
                 log.info("Zone: %s/domain: %s not in the database, creating.",
@@ -243,7 +240,7 @@ class BaseDNSController(BaseController):
             log.exception("Error while running list_records on %s", self.cloud)
             raise CloudUnavailableError(exc=exc)
 
-    def _list_records__postparse_data(self, record, model):
+    def _list_records__postparse_data(self, pr_record, record):
         """Postparse the records returned from the provider"""
         return
 
