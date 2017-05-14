@@ -1,15 +1,24 @@
 
 import logging
+
+from mist.api.users.models import User, Organization
+
 import models
 
 log = logging.getLogger(__name__)
 
 def handle_log_event(msg):
-	log.info("Received log event: %s", msg)
 
-	# here find out which org the log belongs to
+	user_id = msg.body["user_id"] # TODO: replace with actual message content
+	user = User.objects.get(id=user_id)
 
-	# for policy in NotificationPolicy.objects(org=org):
-	# 	channels = policy.get_channels(msg.channels)
-	# 	for channel in channels:
-	# 		channel.send(msg.content)
+	import ipdb; ipdb.set_trace()
+
+	if user is not None:
+	#	organization = Organization.objects.get(members=user)
+
+	# 	default_policy = NotificationPolicy()
+	# 	user_policy = NotificationPolicy.objects(owner=user)
+	# 	org_policy = NotificationPolicy.objects(owner=organization)
+
+	# 	event_type = msg.body["type"]
