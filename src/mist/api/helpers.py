@@ -292,7 +292,7 @@ def amqp_publish(exchange, routing_key, data,
 
 
 def amqp_subscribe(exchange, callback, queue='',
-                   ex_type='fanout', routing_keys=None):
+                   ex_type='fanout', routing_keys=None, auto_delete=True):
     def json_parse_dec(func):
         @functools.wraps(func)
         def wrapped(msg):
@@ -305,7 +305,7 @@ def amqp_subscribe(exchange, callback, queue='',
 
     connection = Connection(config.AMQP_URI)
     channel = connection.channel()
-    channel.exchange_declare(exchange=exchange, type=ex_type, auto_delete=True)
+    channel.exchange_declare(exchange=exchange, type=ex_type, auto_delete=auto_delete)
     resp = channel.queue_declare(queue, exclusive=True)
     if not routing_keys:
         channel.queue_bind(resp.queue, exchange)
