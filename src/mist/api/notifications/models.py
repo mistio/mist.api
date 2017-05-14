@@ -41,7 +41,7 @@ class NotificationRule(me.EmbeddedDocument):
         Accepts a notification and checks its validity against
         the rule, returning the list of channels which are allowed.
         
-        The method also accepts an optional list of channels inherited (e.g.
+        The method also accepts an optional list of inherited channels (e.g.
         from another, higher-level policy). In this case, it performs a difference
         with those inherited channels with the blocked channels of the current
         policy, and performs a union with the result with the allowed channels
