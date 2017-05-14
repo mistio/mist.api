@@ -1,17 +1,10 @@
 #!/usr/bin/env python
 
 import logging
-from time import sleep
 
-from mist.core.sock import LogsConsumer
+from mist.api.helpers import amqp_subscribe
 from mist.api.notifications import methods
 
 if __name__ == '__main__':
-    consumer = LogsConsumer('*', methods.handle_log_event)
-    methods.handle_log_event({"mes":"test"})
-    try:
-        consumer.run()
-        while True:
-        	sleep(1)
-    except KeyboardInterrupt:
-        consumer.stop()
+    callback = methods.handle_log_event
+    amqp_subscribe('events', callback, ex_type='topic', auto_delete=False, routing_keys=('#'))
