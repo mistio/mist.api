@@ -544,6 +544,8 @@ class GoogleComputeController(BaseComputeController):
         elif 'asia-east' in location:
             # eg asia-east1-a
             location = 'asia_east'
+        elif 'asia' in location:
+            location = 'asia'
         else:
             # eg europe-west1-d
             location = location.split('-')[0]
@@ -685,8 +687,8 @@ class VCloudComputeController(BaseComputeController):
         host = dnat(self.cloud.owner, self.cloud.host)
         return get_driver(self.provider)(self.cloud.username,
                                          self.cloud.password, host=host,
-                                         port=int(self.cloud.port),
-                                         verify_match_hostname=False)
+                                         port=int(self.cloud.port)
+                                        )
 
     def _list_machines__machine_actions(self, machine, machine_libcloud):
         super(VCloudComputeController, self)._list_machines__machine_actions(
@@ -748,8 +750,8 @@ class DockerComputeController(BaseComputeController):
                                                port=port,
                                                key_file=key_temp_file.name,
                                                cert_file=cert_temp_file.name,
-                                               ca_cert=ca_cert,
-                                               verify_match_hostname=False)
+                                               ca_cert=ca_cert
+                                               )
 
         # Username/Password authentication.
         return get_driver(Container_Provider.DOCKER)(self.cloud.username,
