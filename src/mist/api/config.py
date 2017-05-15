@@ -18,7 +18,7 @@ libcloud.security.SSL_VERSION = ssl.PROTOCOL_TLSv1_2
 def dirname(path, num=1):
     """Get absolute path of `num` directories above path"""
     path = os.path.abspath(path)
-    for i in xrange(num):
+    for _ in xrange(num):
         path = os.path.dirname(path)
     return path
 
@@ -266,10 +266,10 @@ SUPPORTED_PROVIDERS_V_2 = [
                 'location': 'Oregon',
                 'id': Provider.EC2_US_WEST_OREGON
             },
-#            {
-#                'location': 'Mumbai',
-#                'id': Provider.EC2_AP_SOUTH1
-#            },
+            # {
+            #     'location': 'Mumbai',
+            #     'id': Provider.EC2_AP_SOUTH1
+            # },
         ]
     },
     # GCE
@@ -384,7 +384,7 @@ SUPPORTED_PROVIDERS_V_2 = [
         'provider' : Provider.VULTR,
         'regions': []
     },
-     # vSphere
+    # vSphere
     {
         'title': 'VMWare vSphere',
         'provider' : Provider.VSPHERE,
@@ -423,10 +423,10 @@ SUPPORTED_PROVIDERS = [
         'title': 'EC2 AP Seoul',
         'provider': Provider.EC2_AP_NORTHEAST2
     },
-#    {
-#        'title': 'EC2 AP Mumbai',
-#        'provider': Provider.EC2_AP_SOUTH1
-#    },
+    # {
+    #     'title': 'EC2 AP Mumbai',
+    #     'provider': Provider.EC2_AP_SOUTH1
+    # },
     {
         'title': 'EC2 AP SOUTHEAST',
         'provider': Provider.EC2_AP_SOUTHEAST
@@ -726,6 +726,13 @@ Time period of failed login attempts: %s
 Blocking period: %s
 """
 
+SHOW_FOOTER = False
+ALLOW_SIGNUP_EMAIL = True
+ALLOW_SIGNUP_GOOGLE = False
+ALLOW_SIGNUP_GITHUB = False
+ALLOW_SIGNIN_EMAIL = True
+ALLOW_SIGNIN_GOOGLE = False
+ALLOW_SIGNIN_GITHUB = False
 
 ## DO NOT PUT ANYTHING BELOW HERE UNLESS YOU KNOW WHAT YOU ARE DOING
 
@@ -774,18 +781,18 @@ for key in FROM_ENV_ARRAYS:
 
 
 # Get settings from settings file.
-settings_file = os.path.abspath(os.getenv('SETTINGS_FILE') or 'settings.py')
-if os.path.exists(settings_file):
-    print >> sys.stderr, "Reading local settings from %s" % settings_file
-    conf = {}
-    execfile(settings_file, conf)
-    for key in conf:
-        if isinstance(locals().get(key), dict) and isinstance(conf[key], dict):
-            locals()[key].update(conf[key])
+SETTINGS_FILE = os.path.abspath(os.getenv('SETTINGS_FILE') or 'settings.py')
+if os.path.exists(SETTINGS_FILE):
+    print >> sys.stderr, "Reading local settings from %s" % SETTINGS_FILE
+    CONF = {}
+    execfile(SETTINGS_FILE, CONF)
+    for key in CONF:
+        if isinstance(locals().get(key), dict) and isinstance(CONF[key], dict):
+            locals()[key].update(CONF[key])
         else:
-            locals()[key] = conf[key]
+            locals()[key] = CONF[key]
 else:
-    print >> sys.stderr, "Couldn't find settings file in %s" % settings_file
+    print >> sys.stderr, "Couldn't find settings file in %s" % SETTINGS_FILE
 
 
 # Update celery settings.
@@ -809,6 +816,13 @@ HOMEPAGE_INPUTS = {
     'mixpanel_id': MIXPANEL_ID,
     'fb_id': FB_ID,
     'olark_id': OLARK_ID,
-    'categories': LANDING_CATEGORIES
+    'categories': LANDING_CATEGORIES,
+    'footer': SHOW_FOOTER,
+    'allow_signup_email': ALLOW_SIGNUP_EMAIL,
+    'allow_signup_google': ALLOW_SIGNUP_GOOGLE,
+    'allow_signup_github': ALLOW_SIGNUP_GITHUB,
+    'allow_signin_email': ALLOW_SIGNIN_EMAIL,
+    'allow_signin_google': ALLOW_SIGNIN_GOOGLE,
+    'allow_signin_github': ALLOW_SIGNIN_GITHUB
 }
 ## DO NOT PUT REGULAR SETTINGS BELOW, PUT THEM ABOVE THIS SECTION
