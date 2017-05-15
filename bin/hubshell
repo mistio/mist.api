@@ -2,7 +2,7 @@
 
 set -e
 
-SHELL_PATH=src/mist/api/hub/shell.py
+SHELL_PATH="${SHELL_PATH:-src/mist/api/hub/shell.py}"
 
 USAGE="Usage: $0 [-h] [-s <SHELL_PATH>]
 

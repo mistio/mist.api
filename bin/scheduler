@@ -3,7 +3,7 @@
 set -e
 
 LOGLEVEL="INFO"
-TASKS="mist.api.tasks"
+TASKS="${TASKS:-mist.api.tasks}"
 
 USAGE="Usage: $0 [-h] [-l <LOGLEVEL>] [-t <TASKS_PATH>]
 
