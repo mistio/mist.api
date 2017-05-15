@@ -132,9 +132,9 @@ def filter_org(auth_context):
 
     # SEC return my teams + visible teams or all teams if owner
     teams = [team for team in org['teams']
-             if team['visible']
-             or auth_context.user.id in team['members']
-             or auth_context.is_owner()]
+             if team['visible'] or
+             auth_context.user.id in team['members'] or
+             auth_context.is_owner()]
 
     # Get info about members in my teams or of all org if owner
     team_mates = set()
