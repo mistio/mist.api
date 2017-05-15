@@ -50,10 +50,12 @@ mist_regions[Provider.EC2_AP_SOUTHEAST] = regions['ap-southeast-1']
 mist_regions[Provider.EC2_US_WEST] = regions['us-west-1']
 mist_regions[Provider.EC2_US_WEST_OREGON] = regions['us-west-2']
 mist_regions[Provider.EC2_US_EAST] = regions['us-east-1']
-mist_regions[Provider.EC2_EU_CENTRAL] = regions['eu-central-1']
+mist_regions['ec2_eu_central'] = regions['eu-central-1']
 mist_regions[Provider.EC2_AP_NORTHEAST2] = regions['ap-northeast-2']
 mist_regions[Provider.EC2_AP_NORTHEAST1] = regions['ap-northeast-1']
-mist_regions[Provider.EC2_AP_SOUTH1] = regions['ap-south-1']
+mist_regions['ec2_ap_south_1'] = regions['ap-south-1']
+mist_regions[Provider.EC2_CA_CENTRAL1] = regions['ca-central-1']
+mist_regions[Provider.EC2_EU_WEST2] = regions['eu-west-2']
 
 # formatting for easy copy/paste to mist.io/config.py
 for provider in mist_regions:
