@@ -1855,7 +1855,6 @@ def create_organization(request):
       type: string
       required: true
     """
-
     auth_context = auth_context_from_request(request)
 
     user = auth_context.user
@@ -1866,7 +1865,7 @@ def create_organization(request):
     params = params_from_request(request)
 
     name = params.get('name')
-    # description = params.get('description')
+    super_org = params.get('super_org')
 
     if not name:
         raise RequiredParameterMissingError()
@@ -1876,6 +1875,11 @@ def create_organization(request):
     org = Organization()
     org.add_member_to_team('Owners', user)
     org.name = name
+
+    # mechanism for sub-org creation
+    # the owner of super-org has the ability to create a sub-org
+    if super_org:
+        org.parent = auth_context.org
 
     try:
         org.save()
@@ -2135,7 +2139,6 @@ def list_teams(request):
       type: string
       required: true
     """
-
     auth_context = auth_context_from_request(request)
     org_id = request.matchdict['org_id']
 
@@ -2143,6 +2146,19 @@ def list_teams(request):
     if not (auth_context.org and auth_context.is_owner()
             and auth_context.org.id == org_id):
         raise OrganizationAuthorizationFailure()
+
+    if auth_context.org.parent:
+        parent_teams = auth_context.org.parent.teams
+
+        teams = [team.as_dict() for team in auth_context.org.teams]
+        for team in teams:
+            team['parent'] = False
+        p_teams = [team.as_dict() for team in parent_teams]
+        for p_team in p_teams:
+            p_team['parent'] = True
+            p_team['parent_org_name'] = auth_context.org.parent.name
+
+        return teams + p_teams  # add also super_org name
 
     return [team.as_dict() for team in auth_context.org.teams]
 
