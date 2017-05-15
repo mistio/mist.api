@@ -33,7 +33,10 @@ def main(argv):
         'eu': 'europe',  # alias for 'europe'
         'europe': 'europe',
         'apac': 'asia',  # alias for 'asia'
-        'asia': 'asia'
+        'asia': 'asia',
+        'asia-northeast': 'asia_northeast',
+        'asia-east': 'asia_east',
+        'asia-southeast': 'asia_southeast'
     }
 
     # Initialize Google Cloud Platform regions.
@@ -43,11 +46,16 @@ def main(argv):
     # Update Google Compute Engine pricing.
     gcp_price_list = google_ext_prices['gcp_price_list']
     gce_vm_prefix = 'CP-COMPUTEENGINE-VMIMAGE-'
+    gce_custom_vm_prefix = 'CP-COMPUTEENGINE-CUSTOM-V'
     for name, prices in gcp_price_list.iteritems():
-        if not name.startswith(gce_vm_prefix):
-            continue
-        short_name = name[len(gce_vm_prefix):]
-        machine_type = short_name.lower()
+        if name.startswith(gce_custom_vm_prefix):
+            short_name = name[len('CP-COMPUTEENGINE-'):]
+            machine_type = short_name.lower()
+        else:
+            if not name.startswith(gce_vm_prefix):
+                continue
+            short_name = name[len(gce_vm_prefix):]
+            machine_type = short_name.lower()
         for key, price in prices.iteritems():
             if key in pricing_to_region:
                 region = pricing_to_region[key]
@@ -56,7 +64,7 @@ def main(argv):
     # Update last-modified timestamp.
 
     # Write updated price list.
-    json_str = json.dumps(libcloud_data, indent=4)
+    json_str = json.dumps(libcloud_data, indent=6)
     print json_str
 
 
