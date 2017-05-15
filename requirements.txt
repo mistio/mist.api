@@ -39,6 +39,7 @@ pyramid==1.4
 pytest
 python-memcached
 python-openid
+pyvmomi==6.5
 requests
 sockjs-tornado
 tornado
