@@ -555,11 +555,11 @@ class GoogleComputeController(BaseComputeController):
 
         if not price:
             if size.startswith('custom'):
-                cpu_price = 'custom_vcpu'
-                ram_price = 'custom_ram'
+                cpu_price = 'custom-vm-core'
+                ram_price = 'custom-vm-ram'
                 if 'preemptible' in size:
-                    cpu_price = 'custom_vcpu_preemptible'
-                    ram_price = 'custom_ram_preemptible'
+                    cpu_price = 'custom-vm-core-preemptible'
+                    ram_price = 'custom-vm-ram-preemptible'
 
                 cpu_price = get_size_price(driver_type='compute',
                                            driver_name=driver_name,
