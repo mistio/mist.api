@@ -305,7 +305,7 @@ def create_machine(request):
 
     # Parse tags.
     try:
-        mtags = params.get('tags', {}) or {}
+        mtags = params.get('tags') or {}
         if not isinstance(mtags, dict):
             if not isinstance(mtags, list):
                 raise ValueError()

@@ -17,7 +17,7 @@ from mist.api.exceptions import InternalServerError
 from mist.api.tasks import revoke_token
 
 try:
-    from mist.core.rbac.models import SuperToken
+    from mist.core.rbac.tokens import SuperToken
     from mist.core.rbac.methods import AuthContext
 except:
     from mist.api.dummy.rbac import AuthContext
