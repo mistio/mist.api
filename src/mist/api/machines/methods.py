@@ -82,7 +82,7 @@ def machine_name_validator(provider, name):
                 "or numbers, dashes and periods")
     elif provider == Provider.AZURE:
         pass
-    elif provider in [Provider.VCLOUD, Provider.INDONESIAN_VCLOUD]:
+    elif provider in [Provider.VCLOUD]:
         pass
     elif provider is Provider.LINODE:
         if len(name) < 3:
@@ -269,7 +269,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
             cloud_service_name=None,
             azure_port_bindings=azure_port_bindings
         )
-    elif conn.type in [Provider.VCLOUD, Provider.INDONESIAN_VCLOUD]:
+    elif conn.type in [Provider.VCLOUD]:
         node = _create_machine_vcloud(conn, machine_name, image,
                                       size, public_key, networks)
     elif conn.type is Provider.LINODE and private_key:
