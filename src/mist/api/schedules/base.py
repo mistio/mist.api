@@ -4,7 +4,6 @@ This currently contains only BaseController. It includes basic functionality
 for a given schedule.
 Cloud specific controllers are in `mist.api.schedules.controllers`.
 """
-import json
 import logging
 import datetime
 import mongoengine as me
@@ -19,10 +18,15 @@ from mist.api.exceptions import ScheduleNameExistsError
 from mist.api.machines.models import Machine
 from mist.api.exceptions import NotFoundError
 
+from mist.api.conditions.models import FieldCondition, MachinesCondition
+from mist.api.conditions.models import TaggingCondition, MachinesAgeCondition
+
 try:
     from mist.core.rbac.methods import AuthContext
 except ImportError:
     from mist.api.dummy.rbac import AuthContext
+
+import mist.api.schedules.models as schedules
 
 log = logging.getLogger(__name__)
 
@@ -62,15 +66,14 @@ class BaseController(object):
 
         """
 
-        # check if one of these pairs exist
-        # script_id/action and machines_uuids/ machines_tags
+        # check if required variables exist.
         if not (kwargs.get('script_id', '') or kwargs.get('action', '')):
             raise BadRequestError("You must provide script_id "
                                   "or machine's action")
 
-        if not (kwargs.get('machines_uuids') or kwargs.get('machines_tags')):
-            raise BadRequestError(
-                "You must provide a list of machine ids or tags")
+        if not kwargs.get('conditions'):
+            raise BadRequestError("You must provide a list of conditions, "
+                                  "at least machine ids or tags")
 
         if kwargs.get('schedule_type') not in ['crontab',
                                                'interval', 'one_off']:
@@ -94,7 +97,6 @@ class BaseController(object):
 
     def update(self, **kwargs):
         """Edit an existing Schedule"""
-        import mist.api.schedules.models as schedules
 
         if self.auth_context is not None:
             auth_context = self.auth_context
@@ -103,12 +105,12 @@ class BaseController(object):
 
         owner = auth_context.owner
 
-        script_id = kwargs.get('script_id', '')
-        action = kwargs.get('action', '')
+        if kwargs.get('action'):
+            if kwargs.get('action') not in ['reboot', 'destroy',
+                                            'start', 'stop']:
+                raise BadRequestError("Action is not correct")
 
-        if action not in ['', 'reboot', 'destroy', 'start', 'stop']:
-            raise BadRequestError("Action is not correct")
-
+        script_id = kwargs.pop('script_id', '')
         if script_id:
             try:
                 Script.objects.get(owner=owner, id=script_id, deleted=None)
@@ -140,11 +142,6 @@ class BaseController(object):
             except ValueError:
                 raise BadRequestError('Start-after date value was not valid')
 
-        # set schedule attributes
-        for key, value in kwargs.iteritems():
-            if key in self.schedule._fields.keys():
-                setattr(self.schedule, key, value)
-
         now = datetime.datetime.now()
         if self.schedule.expires and self.schedule.expires < now:
             raise BadRequestError('Date of future task is in the past. '
@@ -152,8 +149,7 @@ class BaseController(object):
         if self.schedule.start_after and self.schedule.start_after < now:
             raise BadRequestError('Date of future task is in the past. '
                                   'Please contact Marty McFly')
-
-        # Schedule specific kwargs preparsing.
+        # Schedule conditions pre-parsing.
         try:
             self._update__preparse_machines(auth_context, kwargs)
         except MistError as exc:
@@ -165,16 +161,17 @@ class BaseController(object):
                           self.schedule.id)
             raise InternalServerError(exc=exc)
 
+        action = kwargs.pop('action', '')
         if action:
             self.schedule.task_type = schedules.ActionTask(action=action)
         elif script_id:
             self.schedule.task_type = schedules.ScriptTask(script_id=script_id)
 
-        schedule_type = kwargs.get('schedule_type')
+        schedule_type = kwargs.pop('schedule_type', '')
 
         if (schedule_type == 'crontab' or
                 isinstance(self.schedule.schedule_type, schedules.Crontab)):
-            schedule_entry = kwargs.get('schedule_entry', {})
+            schedule_entry = kwargs.pop('schedule_entry', {})
 
             if schedule_entry:
                 for k in schedule_entry:
@@ -187,7 +184,7 @@ class BaseController(object):
 
         elif (schedule_type == 'interval' or
                 type(self.schedule.schedule_type) == schedules.Interval):
-            schedule_entry = kwargs.get('schedule_entry', {})
+            schedule_entry = kwargs.pop('schedule_entry', {})
 
             if schedule_entry:
                 for k in schedule_entry:
@@ -200,7 +197,7 @@ class BaseController(object):
         elif (schedule_type == 'one_off' or
                 type(self.schedule.schedule_type) == schedules.OneOff):
             # implements Interval under the hood
-            future_date = kwargs.get('schedule_entry', '')
+            future_date = kwargs.pop('schedule_entry', '')
 
             if future_date:
                 try:
@@ -221,6 +218,11 @@ class BaseController(object):
                                            entry=future_date)
                 self.schedule.schedule_type = one_off
                 self.schedule.max_run_count = 1
+
+        # set schedule attributes
+        for key, value in kwargs.iteritems():
+            if key in self.schedule._fields:
+                setattr(self.schedule, key, value)
 
         try:
             self.schedule.save()
@@ -251,57 +253,56 @@ class BaseController(object):
         Subclasses MAY override this method.
 
         """
-        import mist.api.schedules.models as schedules
+        cond_cls = {'tags': TaggingCondition,
+                    'machines': MachinesCondition,
+                    'field': FieldCondition,
+                    'age': MachinesAgeCondition}
 
-        machines_uuids = kwargs.get('machines_uuids', '')
-        machines_tags = kwargs.get('machines_tags', '')
-        action = kwargs.get('action', '')
+        if kwargs.get('conditions'):
+            self.schedule.conditions = []
+        for condition in kwargs.pop('conditions', []):
+            if condition.get('type') not in cond_cls:
+                raise BadRequestError()
+            if condition['type'] == 'field':
+                if condition['field'] not in ('created', 'state',
+                                              'cost__monthly'):
+                    raise BadRequestError()
+            cond = cond_cls[condition.pop('type')]()
+            cond.update(**condition)
+            self.schedule.conditions.append(cond)
 
-        # convert machines' uuids to machine objects
-        # and check permissions
-        if machines_uuids:
-            machines_obj = []
-            for machine_uuid in machines_uuids:
-                try:
-                    machine = Machine.objects.get(id=machine_uuid,
-                                                  state__ne='terminated')
-                except me.DoesNotExist:
-                    raise NotFoundError('Machine state is terminated')
+        action = kwargs.get('action')
 
-                cloud_id = machine.cloud.id
-                # SEC require permission READ on cloud
-                auth_context.check_perm("cloud", "read", cloud_id)
+        # check permissions
+        check = False
+        for condition in self.schedule.conditions:
+            if condition.ctype == 'machines':
+                for mid in condition.ids:
+                    try:
+                        machine = Machine.objects.get(id=mid,
+                                                      state__ne='terminated')
+                    except Machine.DoesNotExist:
+                        raise NotFoundError('Machine state is terminated')
 
+                    # SEC require permission READ on cloud
+                    auth_context.check_perm("cloud", "read", machine.cloud.id)
+
+                    if action:
+                        # SEC require permission ACTION on machine
+                        auth_context.check_perm("machine", action, mid)
+                    else:
+                        # SEC require permission RUN_SCRIPT on machine
+                        auth_context.check_perm("machine", "run_script", mid)
+                check = True
+            elif condition.ctype == 'tags':
                 if action:
                     # SEC require permission ACTION on machine
-                    auth_context.check_perm("machine", action, machine_uuid)
+                    auth_context.check_perm("machine", action, None)
                 else:
                     # SEC require permission RUN_SCRIPT on machine
-                    auth_context.check_perm("machine", "run_script",
-                                            machine_uuid)
-
-                machines_obj.append(machine)
-
-            self.schedule.machines_condition = \
-                schedules.ListOfMachinesSchedule(machines=machines_obj)
-
-        # check permissions for machines' tags
-        if machines_tags and (not isinstance(machines_tags, dict) and
-                              machines_tags != ''):
-            try:
-                machines_tags = json.loads(machines_tags)
-            except:
-                raise BadRequestError("Tags are not in an acceptable form")
-
-        if machines_tags:
-            if action:
-                # SEC require permission ACTION on machine
-                auth_context.check_perm("machine", action, None)
-            else:
-                # SEC require permission RUN_SCRIPT on machine
-                auth_context.check_perm("machine", "run_script", None)
-
-            self.schedule.machines_condition = \
-                schedules.TaggedMachinesSchedule(tags=machines_tags)
+                    auth_context.check_perm("machine", "run_script", None)
+                check = True
+        if not check:
+            raise BadRequestError("Specify at least machine ids or tags")
 
         return

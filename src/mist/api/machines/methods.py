@@ -107,14 +107,14 @@ def list_machines(owner, cloud_id):
     """List all machines in this cloud via API call to the provider."""
     machines = Cloud.objects.get(owner=owner, id=cloud_id,
                                  deleted=None).ctl.compute.list_machines()
-    return [machine.as_dict_old() for machine in machines]
+    return [machine.as_dict() for machine in machines]
 
 
 def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                    image_id, size_id, image_extra, disk, image_name,
                    size_name, location_name, ips, monitoring, networks=[],
                    docker_env=[], docker_command=None, ssh_port=22, script='',
-                   script_id='', script_params='', job_id=None,
+                   script_id='', script_params='', job_id=None, job=None,
                    docker_port_bindings={}, docker_exposed_ports={},
                    azure_port_bindings='', hostname='', plugins=None,
                    disk_size=None, disk_path=None,
@@ -335,7 +335,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
             script=script,
             script_id=script_id, script_params=script_params, job_id=job_id,
             hostname=hostname, plugins=plugins, post_script_id=post_script_id,
-            post_script_params=post_script_params, schedule=schedule,
+            post_script_params=post_script_params, schedule=schedule, job=job,
         )
     elif conn.type == Provider.OPENSTACK:
         if associate_floating_ip:
@@ -345,7 +345,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                 node.extra.get('username'), node.extra.get('password'),
                 public_key, script=script, script_id=script_id,
                 script_params=script_params,
-                job_id=job_id, hostname=hostname, plugins=plugins,
+                job_id=job_id, job=job, hostname=hostname, plugins=plugins,
                 post_script_params=post_script_params,
                 networks=networks, schedule=schedule,
             )
@@ -357,7 +357,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
             owner.id, cloud_id, node.id, monitoring, key_id,
             node.extra.get('password'), public_key, script=script,
             script_id=script_id, script_params=script_params,
-            job_id=job_id, hostname=hostname, plugins=plugins,
+            job_id=job_id, job=job, hostname=hostname, plugins=plugins,
             post_script_id=post_script_id,
             post_script_params=post_script_params, schedule=schedule
         )
@@ -366,7 +366,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
         mist.api.tasks.post_deploy_steps.delay(
             owner.id, cloud_id, node.id, monitoring, script=script,
             key_id=key_id, script_id=script_id, script_params=script_params,
-            job_id=job_id, hostname=hostname, plugins=plugins,
+            job_id=job_id, job=job, hostname=hostname, plugins=plugins,
             post_script_id=post_script_id,
             post_script_params=post_script_params, schedule=schedule,
         )
@@ -1178,6 +1178,6 @@ def filter_list_machines(auth_context, cloud_id, machines=None, perm='read'):
             return []
         allowed_ids = set(auth_context.get_allowed_resources(rtype='machines'))
         machines = [machine for machine in machines
-                    if machine['uuid'] in allowed_ids]
+                    if machine['id'] in allowed_ids]
 
     return machines

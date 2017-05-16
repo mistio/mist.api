@@ -235,7 +235,18 @@ def create_machine(request):
     # servers, while False means the server has montly pricing
     softlayer_backend_vlan_id = params.get('softlayer_backend_vlan_id', None)
     hourly = params.get('billing', True)
-    job_id = params.get('job_id', uuid.uuid4().hex)
+    job_id = params.get('job_id')
+    job_id = params.get('job_id')
+    # The `job` variable points to the event that started the job. If a job_id
+    # is not provided, then it means that this is the beginning of a new story
+    # that starts with a `create_machine` event. If a job_id is provided that
+    # means that the current event will be part of already existing, unknown
+    # story. TODO: Provide the `job` in the request's params or query it.
+    if not job_id:
+        job = 'create_machine'
+        job_id = uuid.uuid4().hex
+    else:
+        job = None
 
     # these are needed for OnApp
     size_ram = params.get('size_ram', 256)
@@ -298,7 +309,7 @@ def create_machine(request):
             location_name, ips, monitoring, networks,
             docker_env, docker_command)
     kwargs = {'script_id': script_id,
-              'script_params': script_params, 'script': script,
+              'script_params': script_params, 'script': script, 'job': job,
               'job_id': job_id, 'docker_port_bindings': docker_port_bindings,
               'docker_exposed_ports': docker_exposed_ports,
               'azure_port_bindings': azure_port_bindings,
@@ -334,9 +345,12 @@ def create_machine(request):
         kwargs.update({'quantity': quantity, 'persist': persist})
         tasks.create_machine_async.apply_async(args, kwargs, countdown=2)
         ret = {'job_id': job_id}
+    ret.update({'job': job})
     return ret
 
 
+@view_config(route_name='api_v1_cloud_machine',
+             request_method='POST', renderer='json')
 @view_config(route_name='api_v1_machine',
              request_method='POST', renderer='json')
 def machine_actions(request):
@@ -347,10 +361,6 @@ def machine_actions(request):
     ACTION permission required on machine(ACTION can be START,
     STOP, DESTROY, REBOOT).
     ---
-    cloud:
-      in: path
-      required: true
-      type: string
     machine:
       in: path
       required: true
@@ -372,22 +382,36 @@ def machine_actions(request):
       description: The size id of the plan to resize
       type: string
     """
-    cloud_id = request.matchdict['cloud']
-    machine_id = request.matchdict['machine']
+    cloud_id = request.matchdict.get('cloud')
     params = params_from_request(request)
     action = params.get('action', '')
     plan_id = params.get('plan_id', '')
     name = params.get('name', '')
     auth_context = auth_context_from_request(request)
-    auth_context.check_perm("cloud", "read", cloud_id)
 
-    try:
-        machine = Machine.objects.get(cloud=cloud_id, machine_id=machine_id)
-    except Machine.DoesNotExist:
-        raise NotFoundError("Machine %s doesn't exist" % machine_id)
+    if cloud_id:
+        # this is depracated, keep it for backwards compatibility
+        machine_id = request.matchdict['machine']
+        auth_context.check_perm("cloud", "read", cloud_id)
+        try:
+            machine = Machine.objects.get(cloud=cloud_id,
+                                          machine_id=machine_id,
+                                          state__ne='terminated')
+        except Machine.DoesNotExist:
+            raise NotFoundError("Machine %s doesn't exist" % machine_id)
+    else:
+        machine_uuid = request.matchdict['machine']
+        try:
+            machine = Machine.objects.get(id=machine_uuid,
+                                          state__ne='terminated')
+        except Machine.DoesNotExist:
+            raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
+
+        cloud_id = machine.cloud.id
+        auth_context.check_perm("cloud", "read", cloud_id)
 
     if machine.cloud.owner != auth_context.owner:
-        raise NotFoundError("Machine %s doesn't exist" % machine_id)
+        raise NotFoundError("Machine %s doesn't exist" % machine.id)
 
     auth_context.check_perm("machine", action, machine.id)
 
@@ -399,7 +423,8 @@ def machine_actions(request):
                               "one of %s" % (action, actions)
                               )
     if action == 'destroy':
-        methods.destroy_machine(auth_context.owner, cloud_id, machine_id)
+        methods.destroy_machine(auth_context.owner, cloud_id,
+                                machine.machine_id)
     elif action in ('start', 'stop', 'reboot',
                     'undefine', 'suspend', 'resume'):
         getattr(machine.ctl, action)()
@@ -414,6 +439,8 @@ def machine_actions(request):
     return methods.filter_list_machines(auth_context, cloud_id)
 
 
+@view_config(route_name='api_v1_cloud_machine_rdp',
+             request_method='GET', renderer='json')
 @view_config(route_name='api_v1_machine_rdp',
              request_method='GET', renderer='json')
 def machine_rdp(request):
@@ -441,21 +468,37 @@ def machine_rdp(request):
       required: true
       type: string
     """
-    cloud_id = request.matchdict['cloud']
-    machine_id = request.matchdict['machine']
+    cloud_id = request.matchdict.get('cloud')
+
     auth_context = auth_context_from_request(request)
-    auth_context.check_perm("cloud", "read", cloud_id)
-    try:
-        machine = Machine.objects.get(cloud=cloud_id, machine_id=machine_id)
-        machine_uuid = machine.id
-    except Machine.DoesNotExist:
-        machine_uuid = ""
-    auth_context.check_perm("machine", "read", machine_uuid)
+
+    if cloud_id:
+        # this is depracated, keep it for backwards compatibility
+        machine_id = request.matchdict['machine']
+        auth_context.check_perm("cloud", "read", cloud_id)
+        try:
+            machine = Machine.objects.get(cloud=cloud_id,
+                                          machine_id=machine_id,
+                                          state__ne='terminated')
+        except Machine.DoesNotExist:
+            raise NotFoundError("Machine %s doesn't exist" % machine_id)
+    else:
+        machine_uuid = request.matchdict['machine']
+        try:
+            machine = Machine.objects.get(id=machine_uuid,
+                                          state__ne='terminated')
+        except Machine.DoesNotExist:
+            raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
+
+        cloud_id = machine.cloud.id
+        auth_context.check_perm("cloud", "read", cloud_id)
+
+    auth_context.check_perm("machine", "read", machine.id)
     rdp_port = request.params.get('rdp_port', 3389)
     host = request.params.get('host')
 
     if not host:
-        raise BadRequestError('no hostname specified')
+        raise BadRequestError('No hostname specified')
     try:
         1 < int(rdp_port) < 65535
     except:

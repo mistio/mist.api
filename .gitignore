@@ -100,3 +100,8 @@ ENV/
 
 # Local settings files
 /settings.py
+
+# Template tmp files
+/src/mist/api/templates/tmp*
+/src/mist/api/templates/ui.pt
+/src/mist/api/templates/landing.pt

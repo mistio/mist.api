@@ -55,14 +55,17 @@ from mist.api.exceptions import MethodNotAllowedError
 from mist.api.helpers import encrypt, decrypt
 from mist.api.helpers import get_auth_header, params_from_request
 from mist.api.helpers import trigger_session_update, amqp_publish_user
-from mist.api.helpers import view_config, log_event, ip_from_request
+from mist.api.helpers import view_config, ip_from_request
 from mist.api.helpers import send_email
+from mist.api.helpers import get_file
 
 from mist.api.auth.methods import auth_context_from_request
 from mist.api.auth.methods import user_from_request, session_from_request
 from mist.api.auth.methods import get_csrf_token
 from mist.api.auth.methods import reissue_cookie_session
 from mist.api.auth.models import get_secure_rand_token
+
+from mist.api.logs.methods import log_event
 
 from mist.api import config
 
@@ -80,6 +83,14 @@ logging.basicConfig(level=config.PY_LOG_LEVEL,
 log = logging.getLogger(__name__)
 
 OK = Response("OK", 200)
+
+
+def get_ui_template():
+    get_file(config.UI_TEMPLATE_URL, 'templates/ui.pt')
+
+
+def get_landing_template():
+    get_file(config.LANDING_TEMPLATE_URL, 'templates/landing.pt')
 
 
 @view_config(context=Exception)
@@ -147,6 +158,7 @@ def home(request):
                                     backend=external_auth)
             raise RedirectError(url)
 
+        get_landing_template()
         return render_to_response('templates/landing.pt', template_inputs)
 
     if not user.last_active or datetime.now() - user.last_active > timedelta(0, 300):
@@ -159,6 +171,7 @@ def home(request):
         auth_context.owner.last_active = datetime.now()
         auth_context.owner.save()
 
+    get_ui_template()
     return render_to_response('templates/ui.pt', template_inputs)
 
 
@@ -184,9 +197,11 @@ def not_found(request):
                                     backend=external_auth)
             raise RedirectError(url)
 
+        get_landing_template()
         return render_to_response('templates/landing.pt', template_inputs,
                                   request=request)
 
+    get_ui_template()
     return render_to_response('templates/ui.pt', template_inputs,
                               request=request)
 
@@ -658,6 +673,7 @@ def reset_password(request):
         template_inputs['build_path'] = build_path
         template_inputs['csrf_token'] = json.dumps(get_csrf_token(request))
 
+        get_landing_template()
         return render_to_response('templates/landing.pt', template_inputs)
     elif request.method == 'POST':
 
@@ -722,6 +738,7 @@ def set_password(request):
         template_inputs['build_path'] = build_path
         template_inputs['csrf_token'] = json.dumps(get_csrf_token(request))
 
+        get_landing_template()
         return render_to_response('templates/landing.pt', template_inputs)
     elif request.method == 'POST':
         password = params.get('password', '')
@@ -1075,6 +1092,8 @@ def delete_subnet(request):
     return OK
 
 
+@view_config(route_name='api_v1_cloud_probe',
+             request_method='POST', renderer='json')
 @view_config(route_name='api_v1_probe', request_method='POST', renderer='json')
 def probe(request):
     """
@@ -1102,8 +1121,7 @@ def probe(request):
       required: false
       type: string
     """
-    machine_id = request.matchdict['machine']
-    cloud_id = request.matchdict['cloud']
+    cloud_id = request.matchdict.get('cloud')
     params = params_from_request(request)
     key_id = params.get('key', None)
     ssh_user = params.get('ssh_user', '')
@@ -1111,23 +1129,37 @@ def probe(request):
     if key_id == 'undefined':
         key_id = ''
     auth_context = auth_context_from_request(request)
-    auth_context.check_perm("cloud", "read", cloud_id)
 
-    try:
-        machine = Machine.objects.get(cloud=cloud_id, machine_id=machine_id)
-        machine_uuid = machine.id
-        host = machine.hostname
-    except me.DoesNotExist:
-        machine_uuid = ""
-        host = None
-    auth_context.check_perm("machine", "read", machine_uuid)
+    if cloud_id:
+        # this is depracated, keep it for backwards compatibility
+        machine_id = request.matchdict['machine']
+        auth_context.check_perm("cloud", "read", cloud_id)
+        try:
+            machine = Machine.objects.get(cloud=cloud_id,
+                                          machine_id=machine_id,
+                                          state__ne='terminated')
+        except Machine.DoesNotExist:
+            raise NotFoundError("Machine %s doesn't exist" % machine_id)
+    else:
+        machine_uuid = request.matchdict['machine']
+        try:
+            machine = Machine.objects.get(id=machine_uuid,
+                                          state__ne='terminated')
+        except Machine.DoesNotExist:
+            raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
 
-    ret = methods.probe(auth_context.owner, cloud_id, machine_id, host, key_id,
-                        ssh_user)
+        cloud_id = machine.cloud.id
+        auth_context.check_perm("cloud", "read", cloud_id)
+
+    host = machine.hostname
+    auth_context.check_perm("machine", "read", machine.id)
+
+    ret = methods.probe(auth_context.owner, cloud_id,
+                        machine.machine_id, host, key_id, ssh_user)
     amqp_publish_user(auth_context.owner, "probe",
                  {
                     'cloud_id': cloud_id,
-                    'machine_id': machine_id,
+                    'machine_id': machine.machine_id,
                     'result': ret
                  })
     return ret

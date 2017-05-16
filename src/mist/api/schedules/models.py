@@ -1,16 +1,17 @@
 """Schedule entity model."""
-import re
 import datetime
 from uuid import uuid4
 import celery.schedules
 import mongoengine as me
 from mist.api.tag.models import Tag
+from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 from mist.api.exceptions import BadRequestError
-from mist.api.users.models import Owner, Organization
+from mist.api.users.models import Organization
 from celerybeatmongo.schedulers import MongoScheduler
 from mist.api.exceptions import ScheduleNameExistsError
 from mist.api.exceptions import RequiredParameterMissingError
+from mist.api.conditions.models import ConditionalClassMixin
 
 
 #: Authorized values for Interval.period
@@ -153,84 +154,7 @@ class ScriptTask(BaseTaskType):
         return 'Run script: %s' % self.script_id
 
 
-class BaseMachinesCondition(me.EmbeddedDocument):
-    """Abstract Base class used as a common interface
-        for scheduler's resource types. List of
-        machines_uuids or machines_tags"""
-
-    meta = {'allow_inheritance': True}
-
-    @property
-    def sched_machines(self):
-        raise NotImplementedError()
-
-
-class ListOfMachinesSchedule(BaseMachinesCondition):
-    machines = me.ListField(me.ReferenceField(Machine, required=True,),
-                            required=True)
-
-    @property
-    def sched_machines(self):
-        cloud_machines_pairs = []
-        for machine in self.machines:
-            if machine.state != 'terminated':
-                machine_id = machine.machine_id
-                cloud_id = machine.cloud.id
-                cloud_machines_pairs.append((cloud_id, machine_id))
-
-        return cloud_machines_pairs
-
-    # def __str__(self):
-    #     return 'Machines: %s' % self.machines
-
-
-class TaggedMachinesSchedule(BaseMachinesCondition):
-    tags = me.DictField(required=True, default={})
-
-    @property
-    def sched_machines(self):
-        # all machines currently matching the tags
-        cloud_machines_pairs = []
-        for k, v in self.tags.iteritems():
-            machines_from_tags = Tag.objects(owner=self._instance.owner,
-                                             resource_type='machines',
-                                             key=k)  # value=v
-            for m in machines_from_tags:
-                #  FIXME this is ugly, but we must refactor tags
-                if m.value == v or (v is None and m.value == ''):
-                    if m.resource.state != 'terminated':
-                        machine_id = m.resource.machine_id
-                        cloud_id = m.resource.cloud.id
-                        #  this
-                        cloud_machines_pairs.append((cloud_id, machine_id))
-
-        return cloud_machines_pairs
-
-    def validate(self, clean=True):
-        if self.tags:
-            regex = re.compile(r'^[a-z0-9_-]+$')
-            for key, value in self.tags.iteritems():
-                if not key:
-                    raise me.ValidationError('You cannot add a tag '
-                                             'without a key')
-                elif not regex.match(key) or (value and
-                                              not regex.match(value)):
-                    raise me.ValidationError('Tags must be in key=value '
-                                             'format and only contain the '
-                                             'characters a-z, 0-9, _, -')
-        super(TaggedMachinesSchedule, self).validate(clean=True)
-
-    def clean(self):
-        if not self.tags:
-            self.tags = {}
-        elif not isinstance(self.tags, dict):
-            raise me.ValidationError('Tags must be a dictionary')
-
-    def __str__(self):
-        return 'Tags: %s' % self.tags
-
-
-class Schedule(me.Document):
+class Schedule(me.Document, ConditionalClassMixin):
     """Abstract base class for every schedule attr mongoengine model.
     This model is based on celery periodic task and creates defines the fields
     common to all schedules of all types. For each different schedule type, a
@@ -245,6 +169,8 @@ class Schedule(me.Document):
         Schedule.objects(owner=owner).count()
 
     """
+
+    condition_resource_cls = Machine
 
     meta = {
         'collection': 'schedules',
@@ -263,7 +189,6 @@ class Schedule(me.Document):
     name = me.StringField(required=True)
     description = me.StringField()
     deleted = me.DateTimeField()
-    owner = me.ReferenceField(Owner, required=True)
 
     # celery periodic task specific fields
     queue = me.StringField()
@@ -274,8 +199,6 @@ class Schedule(me.Document):
     # mist specific fields
     schedule_type = me.EmbeddedDocumentField(BaseScheduleType, required=True)
     task_type = me.EmbeddedDocumentField(BaseTaskType, required=True)
-    machines_condition = me.EmbeddedDocumentField(BaseMachinesCondition,
-                                                  required=True)
 
     # celerybeat-mongo specific fields
     expires = me.DateTimeField()
@@ -295,6 +218,9 @@ class Schedule(me.Document):
         import mist.api.schedules.base
         super(Schedule, self).__init__(*args, **kwargs)
         self.ctl = mist.api.schedules.base.BaseController(self)
+
+    def owner_query(self):
+        return me.Q(cloud__in=Cloud.objects(owner=self.owner).only('id'))
 
     @classmethod
     def add(cls, auth_context, name, **kwargs):
@@ -331,10 +257,10 @@ class Schedule(me.Document):
 
     @property
     def args(self):
-        m = self.machines_condition.sched_machines
+        mids = [machine.id for machine in self.get_resources() if
+                machine.state != 'terminated']
         fire_up = self.task_type.args
-
-        return [self.owner.id, fire_up, self.name, m]
+        return [self.owner.id, fire_up, self.name, mids]
 
     @property
     def kwargs(self):
@@ -348,7 +274,7 @@ class Schedule(me.Document):
     def enabled(self):
         if self.deleted:
             return False
-        if not self.machines_condition.sched_machines:
+        if not self.get_resources().count():
             return False
         if self.expires and self.expires < datetime.datetime.now():
             return False
@@ -416,6 +342,8 @@ class Schedule(me.Document):
 
         last_run = '' if self.total_run_count == 0 else str(self.last_run_at)
 
+        conditions = [condition.as_dict() for condition in self.conditions]
+
         sdict = {
             'id': self.id,
             'name': self.name,
@@ -432,14 +360,8 @@ class Schedule(me.Document):
             'last_run_at': last_run,
             'total_run_count': self.total_run_count,
             'max_run_count': self.max_run_count,
+            'conditions': conditions,
         }
-
-        if isinstance(self.machines_condition, ListOfMachinesSchedule):
-            machines_uuids = [machine.id for machine in
-                              self.machines_condition.machines]
-            sdict.update({'machines_uuids': machines_uuids})
-        else:
-            sdict.update({'machines_tags': self.machines_condition.tags})
 
         return sdict
 

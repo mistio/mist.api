@@ -1,6 +1,7 @@
 import logging
 
-from mist.api.helpers import log_event, ip_from_request
+from mist.api.logs.methods import log_event
+from mist.api.helpers import ip_from_request
 from mist.api.helpers import params_from_request
 
 from mist.api.auth.models import ApiToken
@@ -17,6 +18,7 @@ log = logging.getLogger(__name__)
 class AuthMiddleware(object):
     def __init__(self, app):
         self.app = app
+        self.routes_mapper = app.routes_mapper
 
     def __call__(self, environ, start_response):
         request = Request(environ)
@@ -52,6 +54,7 @@ class CsrfMiddleware(object):
 
     def __init__(self, app):
         self.app = app
+        self.routes_mapper = app.routes_mapper
 
     def __call__(self, environ, start_response):
         request = Request(environ)

@@ -17,6 +17,18 @@ from libcloud.compute.types import NodeState
 libcloud.security.SSL_VERSION = ssl.PROTOCOL_TLSv1_2
 
 
+def dirname(path, num=1):
+    """Get absolute path of `num` directories above path"""
+    path = os.path.abspath(path)
+    for _ in xrange(num):
+        path = os.path.dirname(path)
+    return path
+
+
+MIST_API_DIR = dirname(__file__, 4)
+print >> sys.stderr, "MIST_API_DIR is %s" % MIST_API_DIR
+
+
 ###############################################################################
 # The following variables are common for both open.source and mist.core
 ###############################################################################
@@ -26,6 +38,21 @@ AMQP_URI = "rabbitmq:5672"
 MEMCACHED_HOST = ["memcached:11211"]
 BROKER_URL = "amqp://guest:guest@rabbitmq/"
 SSL_VERIFY = True
+
+ELASTICSEARCH = {
+    'elastic_host': 'elasticsearch',
+    'elastic_port': '9200',
+    'elastic_username': '',
+    'elastic_password': '',
+    'elastic_use_ssl': False,
+    'elastic_verify_certs': False
+}
+
+LOGS_FROM_ELASTIC = True
+
+BUILD_TAG = ""
+UI_TEMPLATE_URL = "http://ui"
+LANDING_TEMPLATE_URL = "http://landing"
 
 PY_LOG_LEVEL = logging.INFO
 PY_LOG_FORMAT = '%(asctime)s %(levelname)s %(threadName)s %(module)s - %(funcName)s: %(message)s'
@@ -73,6 +100,13 @@ MIXPANEL_ID = ""
 FB_ID = ""
 OLARK_ID = ""
 
+FAILED_LOGIN_RATE_LIMIT = {
+    'max_logins': 5,            # allow that many failed login attempts
+    'max_logins_period': 60,    # in that many seconds
+    'block_period': 60          # after that block for that many seconds
+}
+
+
 ###############################################################################
 #  Different set in io and core
 ###############################################################################
@@ -96,6 +130,8 @@ COLLECTD_HOST = ""
 COLLECTD_PORT = ""
 
 GOOGLE_ANALYTICS_ID = ""
+
+USE_EXTERNAL_AUTHENTICATION = False
 
 # celery settings
 CELERY_SETTINGS = {
@@ -340,7 +376,7 @@ SUPPORTED_PROVIDERS_V_2 = [
         'provider' : Provider.VULTR,
         'regions': []
     },
-     # vSphere
+    # vSphere
     {
         'title': 'VMWare vSphere',
         'provider' : Provider.VSPHERE,
@@ -517,26 +553,49 @@ GCE_IMAGES = ['debian-cloud',
               'windows-cloud']
 
 
+## Email templates
+
+FAILED_LOGIN_ATTEMPTS_EMAIL_SUBJECT = "[mist.io] Failed login attempts warning"
+
+FAILED_LOGIN_ATTEMPTS_EMAIL_BODY = """
+================= Failed login attempts warning =================
+
+Too many failed login attempts for the same account and from the same IP
+address occurred. Future login attempts for this user/ip will be
+temporarily blocked to thwart a brute-force attack.
+
+User: %s
+IP address: %s
+Number of failed attempts: %s
+Time period of failed login attempts: %s
+Blocking period: %s
+"""
+
+SHOW_FOOTER = False
+ALLOW_SIGNUP_EMAIL = True
+ALLOW_SIGNUP_GOOGLE = False
+ALLOW_SIGNUP_GITHUB = False
+ALLOW_SIGNIN_EMAIL = True
+ALLOW_SIGNIN_GOOGLE = False
+ALLOW_SIGNIN_GITHUB = False
+
+## DO NOT PUT ANYTHING BELOW HERE UNLESS YOU KNOW WHAT YOU ARE DOING
+
 # Get settings from mist.core.
-def dirname(path, num=1):
-    for i in xrange(num):
-        path = os.path.dirname(path)
-    return path
-
-
-CORE_CONFIG_PATH = os.path.join(dirname(__file__, 6),
+CORE_CONFIG_PATH = os.path.join(dirname(MIST_API_DIR, 2),
                                 'mist', 'core', 'config.py')
 if os.path.exists(CORE_CONFIG_PATH):
     print >> sys.stderr, "Will load core config from %s" % CORE_CONFIG_PATH
     execfile(CORE_CONFIG_PATH)
 else:
-    print >> sys.stderr, "Couldn't find core config in %S" % CORE_CONFIG_PATH
+    print >> sys.stderr, "Couldn't find core config in %s" % CORE_CONFIG_PATH
 
 
 # Get settings from environmental variables.
 FROM_ENV_STRINGS = [
     'AMQP_URI', 'BROKER_URL', 'CORE_URI', 'MONGO_URI', 'MONGO_DB', 'DOCKER_IP',
     'DOCKER_PORT', 'DOCKER_TLS_KEY', 'DOCKER_TLS_CERT', 'DOCKER_TLS_CA',
+    'BUILD_TAG', 'UI_TEMPLATE_URL', 'LANDING_TEMPLATE_URL',
 ]
 FROM_ENV_INTS = [
 ]
@@ -567,18 +626,18 @@ for key in FROM_ENV_ARRAYS:
 
 
 # Get settings from settings file.
-settings_file = os.path.abspath(os.getenv('SETTINGS_FILE') or 'settings.py')
-if os.path.exists(settings_file):
-    print >> sys.stderr, "Reading local settings from %s" % settings_file
-    conf = {}
-    execfile(settings_file, conf)
-    for key in conf:
-        if isinstance(locals().get(key), dict) and isinstance(conf[key], dict):
-            locals()[key].update(conf[key])
+SETTINGS_FILE = os.path.abspath(os.getenv('SETTINGS_FILE') or 'settings.py')
+if os.path.exists(SETTINGS_FILE):
+    print >> sys.stderr, "Reading local settings from %s" % SETTINGS_FILE
+    CONF = {}
+    execfile(SETTINGS_FILE, CONF)
+    for key in CONF:
+        if isinstance(locals().get(key), dict) and isinstance(CONF[key], dict):
+            locals()[key].update(CONF[key])
         else:
-            locals()[key] = conf[key]
+            locals()[key] = CONF[key]
 else:
-    print >> sys.stderr, "Couldn't find settings file in %s" % settings_file
+    print >> sys.stderr, "Couldn't find settings file in %s" % SETTINGS_FILE
 
 
 # Update celery settings.
@@ -602,5 +661,13 @@ HOMEPAGE_INPUTS = {
     'mixpanel_id': MIXPANEL_ID,
     'fb_id': FB_ID,
     'olark_id': OLARK_ID,
-    'categories': LANDING_CATEGORIES
+    'categories': LANDING_CATEGORIES,
+    'footer': SHOW_FOOTER,
+    'allow_signup_email': ALLOW_SIGNUP_EMAIL,
+    'allow_signup_google': ALLOW_SIGNUP_GOOGLE,
+    'allow_signup_github': ALLOW_SIGNUP_GITHUB,
+    'allow_signin_email': ALLOW_SIGNIN_EMAIL,
+    'allow_signin_google': ALLOW_SIGNIN_GOOGLE,
+    'allow_signin_github': ALLOW_SIGNIN_GITHUB
 }
+## DO NOT PUT REGULAR SETTINGS BELOW, PUT THEM ABOVE THIS SECTION

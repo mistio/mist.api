@@ -17,9 +17,6 @@ from celery import group
 from celery import Celery, Task
 from celery.exceptions import SoftTimeLimitExceeded
 
-from amqp import Message
-from amqp.connection import Connection
-
 from paramiko.ssh_exception import SSHException
 
 from mist.api.exceptions import MistError, NotFoundError
@@ -31,16 +28,17 @@ from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 from mist.api.scripts.models import Script
 from mist.api.schedules.models import Schedule
-from mist.api.dns.models import Zone, Record
+from mist.api.dns.models import Zone, Record, RECORDS
 
 celery_cfg = 'mist.core.celery_config'
 
-from mist.api.helpers import log_event
 from mist.api.helpers import send_email as helper_send_email
 from mist.api.helpers import amqp_publish_user
 from mist.api.helpers import amqp_owner_listening
 from mist.api.helpers import amqp_log
 from mist.api.helpers import trigger_session_update
+
+from mist.api.logs.methods import log_event
 
 from mist.api import config
 
@@ -51,15 +49,14 @@ log = logging.getLogger(__name__)
 
 app = Celery('tasks')
 app.conf.update(**config.CELERY_SETTINGS)
+app.autodiscover_tasks(['mist.api.poller'])
 
 
 @app.task
-def ssh_command(owner, cloud_id, machine_id, host, command,
+def ssh_command(owner_id, cloud_id, machine_id, host, command,
                       key_id=None, username=None, password=None, port=22):
-    if owner.find("@")!=-1:
-        owner = User.objects.get(email=owner)
-    else:
-        owner = Owner.objects.get(id=owner)
+
+    owner = Owner.objects.get(id=owner_id)
     shell = Shell(host)
     key_id, ssh_user = shell.autoconfigure(owner, cloud_id, machine_id,
                                            key_id, username, password, port)
@@ -72,9 +69,9 @@ def ssh_command(owner, cloud_id, machine_id, host, command,
 
 
 @app.task(bind=True, default_retry_delay=3*60)
-def post_deploy_steps(self, owner, cloud_id, machine_id, monitoring,
+def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                       key_id=None, username=None, password=None, port=22,
-                      script_id='', script_params='', job_id=None,
+                      script_id='', script_params='', job_id=None, job=None,
                       hostname='', plugins=None, script='',
                       post_script_id='', post_script_params='', schedule={}):
 
@@ -87,10 +84,7 @@ def post_deploy_steps(self, owner, cloud_id, machine_id, monitoring,
         from mist.api.dummy.methods import enable_monitoring
 
     job_id = job_id or uuid.uuid4().hex
-    if owner.find("@") != -1:
-        owner = User.objects.get(email=owner)
-    else:
-        owner = Owner.objects.get(id=owner)
+    owner = Owner.objects.get(id=owner_id)
     tmp_log = lambda msg, *args: log.error('Post deploy: %s' % msg, *args)
     tmp_log('Entering post deploy steps for %s %s %s',
             owner.id, cloud_id, machine_id)
@@ -122,6 +116,8 @@ def post_deploy_steps(self, owner, cloud_id, machine_id, monitoring,
             tmp_log('not running state')
             raise self.retry(exc=Exception(), countdown=120, max_retries=30)
 
+        machine = Machine.objects.get(cloud=cloud, machine_id=machine_id,
+                                      state__ne='terminated')
         # TODO add schedule_id for adding a machine to an already exist
         if schedule:
             log_dict = {
@@ -130,6 +126,7 @@ def post_deploy_steps(self, owner, cloud_id, machine_id, monitoring,
                 'cloud_id': cloud_id,
                 'machine_id': machine_id,
                 'job_id': job_id,
+                'job': job,
                 'host': host,
                 'key_id': key_id,
             }
@@ -144,8 +141,7 @@ def post_deploy_steps(self, owner, cloud_id, machine_id, monitoring,
                 auth_context = AuthContext.deserialize(
                     schedule.pop('auth_context'))
                 # TODO add machines
-                m = Machine.objects.get(cloud=cloud, machine_id=machine_id)
-                machines_uuids = [m.id]
+                machines_uuids = [machine.id]
                 schedule['machines_uuids'] = machines_uuids
                 tmp_log('Add scheduler entry %s', name)
                 schedule_info = Schedule.add(auth_context, name, **schedule)
@@ -180,6 +176,7 @@ def post_deploy_steps(self, owner, cloud_id, machine_id, monitoring,
                     'cloud_id': cloud_id,
                     'machine_id': machine_id,
                     'job_id': job_id,
+                    'job': job,
                     'host': host,
                     'key_id': key_id,
                     'ssh_user': ssh_user,
@@ -196,7 +193,9 @@ def post_deploy_steps(self, owner, cloud_id, machine_id, monitoring,
                     kwargs['type'] = 'A'
                     kwargs['data'] = host
                     kwargs['ttl'] = 3600
-                    record = Record.add(owner=owner, **kwargs)
+                    
+                    dns_cls = RECORDS[kwargs['type']]
+                    record = dns_cls.add(owner=owner, **kwargs)
                     log_event(action='Create_A_record', hostname=hostname,
                               **log_dict)
                 except Exception as exc:
@@ -207,7 +206,7 @@ def post_deploy_steps(self, owner, cloud_id, machine_id, monitoring,
             if script_id:
                 tmp_log('will run script_id %s', script_id)
                 ret = run_script.run(
-                    owner, script_id, cloud_id, machine_id,
+                    owner, script_id, machine.id,
                     params=script_params, host=host, job_id=job_id
                 )
                 error = ret['error']
@@ -264,7 +263,7 @@ def post_deploy_steps(self, owner, cloud_id, machine_id, monitoring,
             if post_script_id:
                 tmp_log('will run post_script_id %s', post_script_id)
                 ret = run_script.run(
-                    owner, post_script_id, cloud_id, machine_id,
+                    owner, post_script_id, machine.id,
                     params=post_script_params, host=host, job_id=job_id,
                     action_prefix='post_',
                 )
@@ -292,23 +291,22 @@ def post_deploy_steps(self, owner, cloud_id, machine_id, monitoring,
             enable_monitoring=bool(monitoring),
             command=script,
             error="Couldn't connect to run post deploy steps.",
-            job_id=job_id
+            job_id=job_id,
+            job=job
         )
 
 
 @app.task(bind=True, default_retry_delay=2*60)
-def openstack_post_create_steps(self, owner, cloud_id, machine_id, monitoring,
-                                key_id, username, password, public_key, script='',
+def openstack_post_create_steps(self, owner_id, cloud_id, machine_id,
+                                monitoring, key_id, username, password,
+                                public_key, script='',
                                 script_id='', script_params='', job_id=None,
-                                hostname='', plugins=None,
+                                job=None, hostname='', plugins=None,
                                 post_script_id='', post_script_params='',
                                 networks=[], schedule={}):
 
     from mist.api.methods import connect_provider
-    if owner.find("@")!=-1:
-        owner = Owner.objects.get(email=owner)
-    else:
-        owner = Owner.objects.get(id=owner)
+    owner = Owner.objects.get(id=owner_id)
 
     try:
         cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
@@ -329,7 +327,7 @@ def openstack_post_create_steps(self, owner, cloud_id, machine_id, monitoring,
             post_deploy_steps.delay(
                 owner.id, cloud_id, machine_id, monitoring, key_id,
                 script=script, script_id=script_id, script_params=script_params,
-                job_id=job_id, hostname=hostname, plugins=plugins,
+                job_id=job_id, job=job, hostname=hostname, plugins=plugins,
                 post_script_id=post_script_id,
                 post_script_params=post_script_params, schedule=schedule
             )
@@ -375,7 +373,7 @@ def openstack_post_create_steps(self, owner, cloud_id, machine_id, monitoring,
                     owner.id, cloud_id, machine_id, monitoring, key_id,
                     script=script,
                     script_id=script_id, script_params=script_params,
-                    job_id=job_id, hostname=hostname, plugins=plugins,
+                    job_id=job_id, job=job, hostname=hostname, plugins=plugins,
                     post_script_id=post_script_id,
                     post_script_params=post_script_params,
                 )
@@ -388,20 +386,18 @@ def openstack_post_create_steps(self, owner, cloud_id, machine_id, monitoring,
 
 
 @app.task(bind=True, default_retry_delay=2*60)
-def azure_post_create_steps(self, owner, cloud_id, machine_id, monitoring,
+def azure_post_create_steps(self, owner_id, cloud_id, machine_id, monitoring,
                             key_id, username, password, public_key, script='',
                             script_id='', script_params='', job_id=None,
-                            hostname='', plugins=None, post_script_id='',
-                            post_script_params='', schedule={}):
+                            job=None, hostname='', plugins=None,
+                            post_script_id='', post_script_params='',
+                            schedule={}):
     from mist.api.methods import connect_provider
-    if owner.find("@")!=-1:
-        owner = User.objects.get(email=owner)
-    else:
-        owner = Owner.objects.get(id=owner)
 
+    owner = Owner.objects.get(id=owner_id)
     try:
         # find the node we're looking for and get its hostname
-        cloud = Cloud.objects.get(id=cloud_id, deleted=None)
+        cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
         conn = connect_provider(cloud)
         nodes = conn.list_nodes()
         node = None
@@ -454,7 +450,7 @@ def azure_post_create_steps(self, owner, cloud_id, machine_id, monitoring,
                 owner.id, cloud_id, machine_id, monitoring, key_id,
                 script=script,
                 script_id=script_id, script_params=script_params,
-                job_id=job_id, hostname=hostname, plugins=plugins,
+                job_id=job_id, job=job, hostname=hostname, plugins=plugins,
                 post_script_id=post_script_id,
                 post_script_params=post_script_params, schedule=schedule,
             )
@@ -468,18 +464,16 @@ def azure_post_create_steps(self, owner, cloud_id, machine_id, monitoring,
 
 @app.task(bind=True, default_retry_delay=2*60)
 def rackspace_first_gen_post_create_steps(
-    self, owner, cloud_id, machine_id, monitoring, key_id, password,
+    self, owner_id, cloud_id, machine_id, monitoring, key_id, password,
     public_key, username='root', script='', script_id='', script_params='',
-    job_id=None, hostname='', plugins=None, post_script_id='',
+    job_id=None, job=None, hostname='', plugins=None, post_script_id='',
     post_script_params='', schedule={}):
     from mist.api.methods import connect_provider
-    if owner.find("@")!=-1:
-        owner = User.objects.get(email=owner)
-    else:
-        owner = Owner.objects.get(id=owner)
+
+    owner = Owner.objects.get(id=owner_id)
     try:
         # find the node we're looking for and get its hostname
-        cloud = Cloud.objects.get(id=cloud_id, deleted=None)
+        cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
         conn = connect_provider(cloud)
         nodes = conn.list_nodes()
         node = None
@@ -517,7 +511,7 @@ def rackspace_first_gen_post_create_steps(
                 owner.id, cloud_id, machine_id, monitoring, key_id,
                 script=script,
                 script_id=script_id, script_params=script_params,
-                job_id=job_id, hostname=hostname, plugins=plugins,
+                job_id=job_id, job=job, hostname=hostname, plugins=plugins,
                 post_script_id=post_script_id,
                 post_script_params=post_script_params, schedule=schedule
             )
@@ -737,16 +731,17 @@ class ListZones(UserTask):
         if not hasattr(cloud.ctl, 'dns'):
             return {'cloud_id': cloud_id, 'zones': []}
         ret = []
-        zones = cloud.ctl.dns.list_zones()
+        if cloud.dns_enabled:
+            zones = cloud.ctl.dns.list_zones()
 
-        for zone in zones:
-            zone_dict = zone.as_dict()
-            zone_dict['records'] = [record.as_dict() for
-                                    record in zone.ctl.list_records()]
-            ret.append(zone_dict)
+            for zone in zones:
+                zone_dict = zone.as_dict()
+                zone_dict['records'] = [record.as_dict() for
+                                        record in zone.ctl.list_records()]
+                ret.append(zone_dict)
 
-        log.warn('Returning list zones for user %s cloud %s'
-                 % (owner.id, cloud_id))
+            log.warn('Returning list zones for user %s cloud %s'
+                     % (owner.id, cloud_id))
         return {'cloud_id': cloud_id, 'zones': ret}
 
 
@@ -812,8 +807,8 @@ class ListMachines(UserTask):
             try:
                 from mist.api.tag.methods import resolve_id_and_get_tags
                 mistio_tags = resolve_id_and_get_tags(owner, 'machine',
-                                                      machine.get("id"),
-                                                      cloud_id=cloud_id)
+                                                    machine.get("machine_id"),
+                                                    cloud_id=cloud_id)
             except:
                 log.info("Machine has not tags in mist db")
                 mistio_tags = {}
@@ -857,12 +852,13 @@ class ProbeSSH(UserTask):
     polling = True
     soft_time_limit = 60
 
-    def execute(self, owner_id, cloud_id, machine_id, host):
+    def execute(self, owner_id, cloud_id, machine_id, host, machine_uuid):
         owner = Owner.objects.get(id=owner_id)
         from mist.api.methods import probe_ssh_only
         res = probe_ssh_only(owner, cloud_id, machine_id, host)
         return {'cloud_id': cloud_id,
                 'machine_id': machine_id,
+                'machine_uuid': machine_uuid,
                 'host': host,
                 'result': res}
 
@@ -893,16 +889,13 @@ class Ping(UserTask):
 
 
 @app.task
-def deploy_collectd(owner, cloud_id, machine_id, extra_vars, job_id='',
-                    plugins=None):
+def deploy_collectd(owner_id, cloud_id, machine_id, extra_vars, job_id='',
+                    job=None, plugins=None):
     # FIXME
     from mist.api.methods import deploy_collectd
 
-    if isinstance(owner, basestring) and '@' in owner:
-        owner = User.objects.get(email=owner)
-    else:
-        owner = Owner.objects.get(id=owner)
-    cloud = Cloud.objects.get(owner=owner, id=cloud_id)
+    owner = Owner.objects.get(id=owner_id)
+    cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
     machine = Machine.objects.get(cloud=cloud, machine_id=machine_id)
     machine.monitoring.installation_status.state = 'installing'
     machine.save()
@@ -915,6 +908,7 @@ def deploy_collectd(owner, cloud_id, machine_id, extra_vars, job_id='',
         'cloud_id': cloud_id,
         'machine_id': machine_id,
         'job_id': job_id or uuid.uuid4().hex,
+        'job': job,
     }
     log_event(action='deploy_collectd_started', **log_dict)
     ret_dict = deploy_collectd(owner, cloud_id, machine_id, extra_vars)
@@ -955,23 +949,20 @@ def deploy_collectd(owner, cloud_id, machine_id, extra_vars, job_id='',
 
 
 @app.task
-def undeploy_collectd(owner, cloud_id, machine_id):
-    if owner.find("@") != -1:
-        owner = User.objects.get(email=owner)
-    else:
-        owner = Owner.objects.get(id=owner)
+def undeploy_collectd(owner_id, cloud_id, machine_id):
     import mist.api.methods
+    owner = Owner.objects.get(id=owner_id)
     mist.api.methods.undeploy_collectd(owner, cloud_id, machine_id)
 
 
 @app.task
-def create_machine_async(owner, cloud_id, key_id, machine_name, location_id,
+def create_machine_async(owner_id, cloud_id, key_id, machine_name, location_id,
                          image_id, size_id, image_extra, disk,
                          image_name, size_name, location_name, ips, monitoring,
                          networks, docker_env, docker_command, script='',
                          script_id='', script_params='',
                          post_script_id='', post_script_params='',
-                         quantity=1, persist=False, job_id=None,
+                         quantity=1, persist=False, job_id=None, job=None,
                          docker_port_bindings={}, docker_exposed_ports={},
                          azure_port_bindings='', hostname='', plugins=None,
                          disk_size=None, disk_path=None,
@@ -988,11 +979,7 @@ def create_machine_async(owner, cloud_id, key_id, machine_name, location_id,
     log.warn('MULTICREATE ASYNC %d' % quantity)
 
     job_id = job_id or uuid.uuid4().hex
-
-    if owner.find("@") != -1:
-        owner = Owner.objects.get(email=owner)
-    else:
-        owner = Owner.objects.get(id=owner)
+    owner = Owner.objects.get(id=owner_id)
 
     names = []
     if quantity == 1:
@@ -1002,7 +989,8 @@ def create_machine_async(owner, cloud_id, key_id, machine_name, location_id,
         for i in range(1, quantity + 1):
             names.append('%s-%d' % (machine_name, i))
 
-    log_event(owner.id, 'job', 'async_machine_creation_started', job_id=job_id,
+    log_event(owner.id, 'job', 'async_machine_creation_started',
+              job_id=job_id, job=job,
               cloud_id=cloud_id, script=script, script_id=script_id,
               script_params=script_params, monitoring=monitoring,
               persist=persist, quantity=quantity, key_id=key_id,
@@ -1016,7 +1004,8 @@ def create_machine_async(owner, cloud_id, key_id, machine_name, location_id,
             (owner, cloud_id, key_id, name, location_id, image_id,
              size_id, image_extra, disk, image_name, size_name,
              location_name, ips, monitoring, networks, docker_env,
-             docker_command, 22, script, script_id, script_params, job_id),
+             docker_command, 22, script, script_id, script_params,
+             job_id, job),
             {'hostname': hostname, 'plugins': plugins,
              'post_script_id': post_script_id,
              'post_script_params': post_script_params,
@@ -1054,7 +1043,7 @@ def create_machine_async(owner, cloud_id, key_id, machine_name, location_id,
             error = repr(exc)
         finally:
             name = args[3]
-            log_event(owner.id, 'job', 'machine_creation_finished',
+            log_event(owner.id, 'job', 'machine_creation_finished', job=job,
                       job_id=job_id, cloud_id=cloud_id, machine_name=name,
                       error=error, machine_id=node.get('id', ''))
 
@@ -1072,7 +1061,7 @@ def send_email(self, subject, body, recipients, sender=None, bcc=None):
 
 
 @app.task
-def group_machines_actions(owner_id, action, name, cloud_machines_pairs):
+def group_machines_actions(owner_id, action, name, machines_uuids):
     """
     Accepts a list of lists in form  cloud_id,machine_id and pass them
     to run_machine_action like a group
@@ -1080,14 +1069,14 @@ def group_machines_actions(owner_id, action, name, cloud_machines_pairs):
     :param owner_id:
     :param action:
     :param name:
-    :param cloud_machines_pairs:
+    :param machines_uuids:
     :return: glist
     """
     glist = []
 
-    for cloud_id, machine_id in cloud_machines_pairs:
+    for machine_uuid in machines_uuids:
         glist.append(run_machine_action.s(owner_id, action, name,
-                                          cloud_id, machine_id))
+                                          machine_uuid))
 
     schedule = Schedule.objects.get(owner=owner_id, name=name, deleted=None)
 
@@ -1097,7 +1086,7 @@ def group_machines_actions(owner_id, action, name, cloud_machines_pairs):
         'description': schedule.description or '',
         'schedule_type': unicode(schedule.schedule_type or ''),
         'owner_id': owner_id,
-        'machines_match': schedule.machines_condition.sched_machines,
+        'machines_match': schedule.get_ids(),
         'machine_action': action,
         'expires': str(schedule.expires or ''),
         'task_enabled': schedule.task_enabled,
@@ -1128,7 +1117,7 @@ def group_machines_actions(owner_id, action, name, cloud_machines_pairs):
 
 
 @app.task(soft_time_limit=3600, time_limit=3630)
-def run_machine_action(owner_id, action, name, cloud_id, machine_id):
+def run_machine_action(owner_id, action, name, machine_uuid):
     """
     Calls specific action for a machine and log the info
     :param owner_id:
@@ -1144,17 +1133,20 @@ def run_machine_action(owner_id, action, name, cloud_id, machine_id):
     log_dict = {
         'owner_id': owner_id,
         'event_type': 'job',
-        'cloud_id': cloud_id,
-        'machine_id': machine_id,
+        'machine_uuid': machine_uuid,
         'schedule_id': schedule_id,
     }
 
+    machine_id = ''
+    cloud_id = ''
     owner = Owner.objects.get(id=owner_id)
     started_at = time()
     try:
-        cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
-        machine = Machine.objects.get(cloud=cloud, machine_id=machine_id,
-                                      state__ne='terminated')
+        machine = Machine.objects.get(id=machine_uuid, state__ne='terminated')
+        cloud_id = machine.cloud.id
+        machine_id = machine.machine_id
+        log_dict.update({'cloud_id': cloud_id,
+                         'machine_id': machine_id})
     except NotFoundError:
         log_dict['error'] = "Resource with that id does not exist."
         msg = action + ' failed'
@@ -1169,8 +1161,8 @@ def run_machine_action(owner_id, action, name, cloud_id, machine_id):
             # call list machines here cause we don't have another way
             # to update machine state if user isn't logged in
             from mist.api.machines.methods import list_machines, destroy_machine
-            from mist.api.methods import notify_admin, notify_user
-            list_machines(owner, cloud_id)
+            list_machines(owner, cloud_id) # TODO change this to
+            # compute.ctl.list_machines
 
             if action == 'start':
                 log_event(action='Start', **log_dict)
@@ -1217,6 +1209,7 @@ def run_machine_action(owner_id, action, name, cloud_id, machine_id):
     log_dict['finished_at'] = time()
     title = "Execution of '%s' action " % action
     title += "failed" if log_dict.get('error') else "succeeded"
+    from mist.api.methods import notify_user
     notify_user(
         owner, title,
         cloud_id=cloud_id,
@@ -1227,7 +1220,7 @@ def run_machine_action(owner_id, action, name, cloud_id, machine_id):
 
 
 @app.task
-def group_run_script(owner_id, script_id, name, cloud_machines_pairs):
+def group_run_script(owner_id, script_id, name, machines_uuids):
     """
     Accepts a list of lists in form  cloud_id,machine_id and pass them
     to run_machine_action like a group
@@ -1239,9 +1232,8 @@ def group_run_script(owner_id, script_id, name, cloud_machines_pairs):
     :return:
     """
     glist = []
-    for cloud_id, machine_id in cloud_machines_pairs:
-            glist.append(run_script.s(owner_id, script_id,
-                                      cloud_id, machine_id))
+    for machine_uuid in machines_uuids:
+            glist.append(run_script.s(owner_id, script_id, machine_uuid))
 
     schedule = Schedule.objects.get(owner=owner_id, name=name, deleted=None)
 
@@ -1251,7 +1243,7 @@ def group_run_script(owner_id, script_id, name, cloud_machines_pairs):
         'description': schedule.description or '',
         'schedule_type': unicode(schedule.schedule_type or ''),
         'owner_id': owner_id,
-        'machines_match': schedule.machines_condition.sched_machines,
+        'machines_match': schedule.get_ids(),
         'script_id': script_id,
         'expires': str(schedule.expires or ''),
         'task_enabled': schedule.task_enabled,
@@ -1282,25 +1274,24 @@ def group_run_script(owner_id, script_id, name, cloud_machines_pairs):
 
 
 @app.task(soft_time_limit=3600, time_limit=3630)
-def run_script(owner, script_id, cloud_id, machine_id, params='', host='',
-               key_id='', username='', password='', port=22, job_id='',
+def run_script(owner, script_id, machine_uuid, params='', host='',
+               key_id='', username='', password='', port=22, job_id='', job='',
                action_prefix='', su=False, env=""):
     import mist.api.shell
     from mist.api.methods import notify_admin, notify_user
     from mist.api.machines.methods import list_machines
 
     if not isinstance(owner, Owner):
-        if isinstance(owner, basestring):
-            if '@' in owner:
-                owner = User.objects.get(email=owner)
-            else:
-                owner = Owner.objects.get(id=owner)
+        owner = Owner.objects.get(id=owner)
+
     ret = {
         'owner_id': owner.id,
         'job_id': job_id or uuid.uuid4().hex,
+        'job': job,
         'script_id': script_id,
-        'cloud_id': cloud_id,
-        'machine_id': machine_id,
+        # 'cloud_id': cloud_id,
+        # 'machine_id': machine.id,
+        'machine_uuid': machine_uuid,
         'params': params,
         'env': env,
         'su': su,
@@ -1317,14 +1308,21 @@ def run_script(owner, script_id, cloud_id, machine_id, params='', host='',
     }
     started_at = time()
     machine_name = ''
+    cloud_id = ''
+    machine_id=''
 
     try:
-        cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
+        machine = Machine.objects.get(id=machine_uuid, state__ne='terminated')
+        cloud_id = machine.cloud.id
+        machine_id = machine.machine_id
+        ret.update({'cloud_id': cloud_id, 'machine_id': machine_id})
+        # cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
         script = Script.objects.get(owner=owner, id=script_id, deleted=None)
 
         if not host:
+            # FIXME machine.cloud.ctl.compute.list_machines()
             for machine in list_machines(owner, cloud_id):
-                if machine['id'] == machine_id:
+                if machine['machine_id'] == machine_id:
                     ips = [ip for ip in machine['public_ips'] if ':' not in ip]
                     # get private IPs if no public IP is available
                     if not ips:
@@ -1431,6 +1429,3 @@ def revoke_token(token):
     auth_token = AuthToken.objects.get(token=token)
     auth_token.invalidate()
     auth_token.save()
-
-
-

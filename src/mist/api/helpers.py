@@ -1,4 +1,15 @@
-"""Helper functions used in views and WSGI initialization"""
+"""Helper functions used in views and WSGI initialization
+
+This file is imported in many places. Importing other mist modules into this
+file causes circular import errors.
+
+Try to not put anything in here that depends on other mist code, with the
+exception of mist.api.config.
+
+In general, this file should only contain generic helper functions that one
+could easily use in some other unrelated project.
+
+"""
 
 import os
 import re
@@ -8,6 +19,7 @@ import json
 import string
 import random
 import socket
+import shutil
 import smtplib
 import datetime
 import tempfile
@@ -29,6 +41,7 @@ from pyramid.httpexceptions import HTTPError
 
 import iso8601
 import netaddr
+import requests
 
 from Crypto.Cipher import AES
 from Crypto.Hash import SHA256
@@ -60,7 +73,7 @@ log = logging.getLogger(__name__)
 
 
 @contextmanager
-def get_temp_file(content):
+def get_temp_file(content, dir=None):
     """Creates a temporary file on disk and saves 'content' in it.
 
     It is meant to be used like this:
@@ -71,7 +84,7 @@ def get_temp_file(content):
     exception has been raised.
 
     """
-    (tmp_fd, tmp_path) = tempfile.mkstemp()
+    (tmp_fd, tmp_path) = tempfile.mkstemp(dir=dir)
     f = os.fdopen(tmp_fd, 'w+b')
     f.write(content)
     f.close()
@@ -82,6 +95,16 @@ def get_temp_file(content):
             os.remove(tmp_path)
         except:
             pass
+
+
+def atomic_write_file(path, content):
+    # Store first into a tmp file, and then move it (atomically) to target
+    # position, to avoid target file getting corrupted in case of concurrent
+    # writers. Tmp file is stored in target dir, to make sure it's in same
+    # mount as target file, cause otherwise move won't work, a copy would be
+    # required instead (which would beat the purpose of all this).
+    with get_temp_file(content, dir=os.path.dirname(path)) as tmp_path:
+        os.rename(tmp_path, path)
 
 
 def params_from_request(request):
@@ -305,9 +328,7 @@ def amqp_subscribe(exchange, callback, queue='',
 def _amqp_owner_exchange(owner):
     # The exchange/queue name consists of a non-empty sequence of these
     # characters: letters, digits, hyphen, underscore, period, or colon.
-    if isinstance(owner, basestring) and '@' in owner:
-        owner = mist.api.users.models.User.objects.get(email=owner)
-    elif not isinstance(owner, mist.api.users.models.Owner):
+    if not isinstance(owner, mist.api.users.models.Owner):
         try:
             owner = mist.api.users.models.Owner.objects.get(id=owner)
         except Exception as exc:
@@ -346,7 +367,8 @@ def amqp_owner_listening(owner):
 
 def trigger_session_update(owner, sections=['clouds', 'keys', 'monitoring',
                                             'scripts', 'templates', 'stacks',
-                                            'schedules', 'user', 'org']):
+                                            'schedules', 'user', 'org',
+                                            'zones']):
     amqp_publish_user(owner, routing_key='update', data=sections)
 
 
@@ -674,6 +696,8 @@ rtype_to_classpath = {
     'clouds': 'mist.api.clouds.models.Cloud',
     'machine': 'mist.api.machines.models.Machine',
     'machines': 'mist.api.machines.models.Machine',
+    'zone': 'mist.api.dns.models.Zone',
+    'record': 'mist.api.dns.models.Record',
     'script': 'mist.api.scripts.models.Script',
     'key': 'mist.api.keys.models.Key',
     'template': 'mist.core.orchestration.models.Template',
@@ -793,7 +817,6 @@ def log_event(owner_id, event_type, action, error=None, story_id='',
     """Log dict of the keyword arguments passed"""
     conn = _mongo_conn if _mongo_conn else MongoClient(config.MONGO_URI)
     coll = conn['mist'].logging
-
     try:
         def _default(obj):
             return {'_python_object': str(obj)}
@@ -806,6 +829,8 @@ def log_event(owner_id, event_type, action, error=None, story_id='',
             'error': error if error is not None else False,
             'extra': json.dumps(kwargs, default=_default),
         }
+        if story_id:
+            event['story_id'] = story_id
         if user_id:
             event['user_id'] = user_id
             event['email'] = mist.api.users.models.User.objects.get(
@@ -828,9 +853,27 @@ def log_event(owner_id, event_type, action, error=None, story_id='',
             try:
                 stories = log_story(event, _mongo_conn=conn)
                 if config.LOGS_FROM_ELASTIC:
-                    from mist.api.logs.methods import log_story as log_story_to_elastic
+                    # FIXME: These are here due to circular dependencies.
+                    from mist.api.logs.methods import associate_stories
+                    from mist.api.logs.methods import close_open_incidents
+                    from mist.api.logs.constants import STARTS_STORY, CLOSES_STORY
+                    from mist.api.logs.constants import CLOSES_INCIDENT, TYPES
                     event.update({'log_id': uuid.uuid4().hex})
-                    log_story_to_elastic(event, tornado_async=tornado_async)
+                    for key in ('job_id', 'shell_id', 'session_id', 'incident_id'):
+                        # HACK:FIXME: AB Testing.
+                        if key == 'session_id' and event_type != 'session':
+                            continue
+                        if key in event:
+                            event.update({'story_id': event[key], 'stories': []})
+                            associate_stories(event)
+                            break
+                    else:
+                        # HACK:FIXME: Special case for closing stories of any
+                        # type by simply specifying the story_id.
+                        if event['action'] in ('close_story', ):
+                            event['stories'] = [('closes', TYPES.keys(), event['story_id'])]
+                        if event['action'] in CLOSES_INCIDENT:
+                            close_open_incidents(event)
             except Exception as exc:
                 log.error("failed to log story: %s %s %s %s %s Error %r",
                         owner_id, event_type, error, action, kwargs, exc)
@@ -850,7 +893,7 @@ def log_event(owner_id, event_type, action, error=None, story_id='',
     routing_key = '.'.join(keys)
     _event = event.copy()
 
-    if not config.LOGS_FROM_ELASTIC:  # Taken care of in `log_story` otherwise.
+    if not config.LOGS_FROM_ELASTIC:
         _event['_stories'] = stories
 
     amqp_publish('events', routing_key, _event,
@@ -1239,7 +1282,8 @@ def logging_view_decorator(func):
 
         # log matchdict and params
         params = dict(params_from_request(request))
-        for key in ['email', 'cloud', 'machine', 'rule', 'script_id', 'tunnel_id']:
+        for key in ['email', 'cloud', 'machine', 'rule', 'script_id',
+                    'tunnel_id', 'story_id']:
             if key != 'email' and key in request.matchdict:
                 if not key.endswith('_id'):
                     log_dict[key + '_id'] = request.matchdict[key]
@@ -1279,7 +1323,7 @@ def logging_view_decorator(func):
         # log response body
         try:
             bdict = json.loads(response.body)
-            for key in ('job_id', ):
+            for key in ('job_id', 'job',):
                 if key in bdict and key not in log_dict:
                     log_dict[key] = bdict[key]
             if 'cloud' in bdict and 'cloud_id' not in log_dict:
@@ -1323,7 +1367,8 @@ def logging_view_decorator(func):
                 log_dict['action'] = 'disable_monitoring'
 
         # we save log_dict in mongo logging collection
-        mist.api.helpers.log_event(**log_dict)
+        from mist.api.logs.methods import log_event as log_event_to_es
+        log_event_to_es(**log_dict)
 
         # if a bad exception didn't occur then return, else log it to file
         if not exc_flag:
@@ -1333,8 +1378,7 @@ def logging_view_decorator(func):
         log.info("Bad exception occured, logging to rabbitmq")
         es_dict = log_dict.copy()
         es_dict.pop('_exc_type')
-        # es_dict['timestamp'] = str(datetime.datetime.now())
-        es_dict['timestamp'] = time()
+        es_dict['time'] = time()
         es_dict['traceback'] = es_dict.pop('_traceback')
         es_dict['exception'] = es_dict.pop('_exc')
         es_dict['type'] = 'exception'
@@ -1397,8 +1441,12 @@ class AsyncElasticsearch(EsClient):
             'auth_username': config.ELASTICSEARCH['elastic_username'],
             'auth_password': config.ELASTICSEARCH['elastic_password'],
             'validate_cert': config.ELASTICSEARCH['elastic_verify_certs'],
-            'ca_certs': None
+            'ca_certs': None,
+
         })
+        for param in ('connect_timeout', 'request_timeout'):
+            if param not in kwargs:
+                kwargs[param] = 30.0  # Increase default timeout by 10 sec.
         return super(AsyncElasticsearch, self).mk_req(url, **kwargs)
 
 
@@ -1485,3 +1533,43 @@ def get_log_events(owner_id='', user_id='', event_type='', action='',
             continue
         yield event
     connection.close()
+
+
+def get_file(url, filename, update=True):
+    """Get file from url and store it to directory relative to src/mist/api
+
+    If update is True, then a download will be attempted even if the file
+    already exists.
+
+    This function only raises an exception if the file doesn't exist and cannot
+    be fetched.
+    """
+
+    path = os.path.join(config.MIST_API_DIR, 'src', 'mist', 'api',
+                        filename)
+    exists = os.path.exists(path)
+    if not exists or update:
+        try:
+            resp = requests.get(url)
+        except Exception as exc:
+            err = "Error fetching file '%s' from '%s': %r" % (
+                filename, url, exc
+            )
+            if not exists:
+                log.critical(err)
+                raise
+            log.error(err)
+        else:
+            data = resp.text
+            if resp.status_code != 200:
+                err = "Bad response fetching file '%s' from '%s': %r" % (
+                    filename, url, data
+                )
+                if not exists:
+                    log.critical(err)
+                    raise Exception(err)
+                log.error(err)
+            else:
+                atomic_write_file(path, data)
+    print 'path'
+    return path
