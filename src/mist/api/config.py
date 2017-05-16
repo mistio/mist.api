@@ -215,9 +215,22 @@ CELERY_SETTINGS = {
     'CELERY_MONGODB_SCHEDULER_URL': MONGO_URI,
 }
 
-LANDING_CATEGORIES = [
-    {'href': '/', 'name': 'home', 'template': 'home', 'title': 'Home'}
-]
+LANDING_CATEGORIES = [{
+    'href': '/',
+    'name': 'home',
+    'template': 'home',
+    'title': 'Home',
+    'items': {
+        "fold": {
+            "copy" : "",
+            "subcopy" :
+                "Mist.io is a single dashboard to manage multi-cloud infrastructure",
+            "image" : "images/mockup-imac-n4.png",
+            "alt" : "Mist.io cloud management dashboard",
+            "cta" : "Get Started"
+        }
+    }
+}]
 
 ###############################################################################
 # App constants
@@ -905,6 +918,12 @@ ALLOW_SIGNUP_GITHUB = False
 ALLOW_SIGNIN_EMAIL = True
 ALLOW_SIGNIN_GOOGLE = False
 ALLOW_SIGNIN_GITHUB = False
+ENABLE_TUNNELS = False
+ENABLE_ORCHESTRATION = False
+ENABLE_INSIGHTS = False
+ENABLE_BILLING = False
+ENABLE_RBAC = False
+ENABLE_AB = False
 
 ## DO NOT PUT ANYTHING BELOW HERE UNLESS YOU KNOW WHAT YOU ARE DOING
 
@@ -995,6 +1014,12 @@ HOMEPAGE_INPUTS = {
     'allow_signup_github': ALLOW_SIGNUP_GITHUB,
     'allow_signin_email': ALLOW_SIGNIN_EMAIL,
     'allow_signin_google': ALLOW_SIGNIN_GOOGLE,
-    'allow_signin_github': ALLOW_SIGNIN_GITHUB
+    'allow_signin_github': ALLOW_SIGNIN_GITHUB,
+    'enable_rbac': ENABLE_RBAC,
+    'enable_tunnels': ENABLE_TUNNELS,
+    'enable_orchestration': ENABLE_ORCHESTRATION,
+    'enable_insights': ENABLE_INSIGHTS,
+    'enable_billing': ENABLE_BILLING,
+    'enable_ab': ENABLE_AB
 }
 ## DO NOT PUT REGULAR SETTINGS BELOW, PUT THEM ABOVE THIS SECTION
