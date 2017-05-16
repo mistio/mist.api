@@ -34,8 +34,9 @@ from xml.sax.saxutils import escape
 from libcloud.pricing import get_size_price
 from libcloud.compute.base import Node, NodeImage
 from libcloud.compute.providers import get_driver
+from libcloud.container.providers import get_driver as get_container_driver
 from libcloud.compute.types import Provider, NodeState
-
+from libcloud.container.types import Provider as Container_Provider
 from mist.api.exceptions import MistError
 from mist.api.exceptions import InternalServerError
 from mist.api.exceptions import MachineNotFoundError
@@ -79,7 +80,8 @@ class AmazonComputeController(BaseComputeController):
         try:
             # return list of ids for network interfaces as str
             network_interfaces = machine.extra['network_interfaces']
-            network_interfaces = [network_interface.id for network_interface in network_interfaces]
+            network_interfaces = [network_interface.id for network_interface
+                                  in network_interfaces]
             network_interfaces = ','.join(network_interfaces)
             machine.extra['network_interfaces'] = network_interfaces
         except:
@@ -164,6 +166,12 @@ class AmazonComputeController(BaseComputeController):
             except:
                 pass
         return locations
+
+    def _list_sizes__fetch_sizes(self):
+        sizes = self.connection.list_sizes()
+        for size in sizes:
+            size.name = '%s - %s' % (size.id, size.name)
+        return sizes
 
 
 class DigitalOceanComputeController(BaseComputeController):
@@ -688,7 +696,7 @@ class VCloudComputeController(BaseComputeController):
         return get_driver(self.provider)(self.cloud.username,
                                          self.cloud.password, host=host,
                                          port=int(self.cloud.port)
-                                        )
+                                         )
 
     def _list_machines__machine_actions(self, machine, machine_libcloud):
         super(VCloudComputeController, self)._list_machines__machine_actions(
@@ -746,17 +754,19 @@ class DockerComputeController(BaseComputeController):
                 ca_cert_temp_file.close()
                 ca_cert = ca_cert_temp_file.name
 
-            return get_driver(Container_Provider.DOCKER)(host=host,
-                                               port=port,
-                                               key_file=key_temp_file.name,
-                                               cert_file=cert_temp_file.name,
-                                               ca_cert=ca_cert
-                                               )
+            return get_container_driver(Container_Provider.DOCKER)(
+                host=host,
+                port=port,
+                key_file=key_temp_file.name,
+                cert_file=cert_temp_file.name,
+                ca_cert=ca_cert
+                )
 
         # Username/Password authentication.
-        return get_driver(Container_Provider.DOCKER)(self.cloud.username,
-                                           self.cloud.password,
-                                           host, port)
+        return get_driver(Container_Provider.DOCKER)(
+            self.cloud.username,
+            self.cloud.password,
+            host, port)
 
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
         return machine_libcloud.created_at  # unix timestamp

@@ -5,6 +5,7 @@ import mongoengine as me
 
 from libcloud.compute.base import NodeSize, NodeImage, NodeLocation
 from libcloud.compute.types import Provider
+from libcloud.container.types import Provider as Container_Provider
 from libcloud.compute.base import NodeAuthSSHKey
 from tempfile import NamedTemporaryFile
 
@@ -45,15 +46,15 @@ def machine_name_validator(provider, name):
     Validates machine names before creating a machine
     Provider specific
     """
-    if not name and provider not in config.EC2_PROVIDERS:
+    if not name and provider != Provider.EC2:
         raise MachineNameValidationError("machine name cannot be empty")
-    if provider is Provider.DOCKER:
+    if provider is Container_Provider.DOCKER:
         pass
     elif provider in [Provider.RACKSPACE_FIRST_GEN, Provider.RACKSPACE]:
         pass
     elif provider in [Provider.OPENSTACK]:
         pass
-    elif provider in config.EC2_PROVIDERS:
+    elif provider is Provider.EC2:
         if len(name) > 255:
             raise MachineNameValidationError("machine name max "
                                              "chars allowed is 255")
@@ -166,7 +167,8 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
         key = Key.objects.get(owner=owner, id=key_id, deleted=None)
 
     # if key_id not provided, search for default key
-    if conn.type not in [Provider.LIBVIRT, Provider.DOCKER, Provider.ONAPP]:
+    if conn.type not in [Provider.LIBVIRT,
+                         Container_Provider.DOCKER, Provider.ONAPP]:
         if not key_id:
             key = Key.objects.get(owner=owner, default=True, deleted=None)
             key_id = key.name
@@ -183,7 +185,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
     location = NodeLocation(location_id, name=location_name, country='',
                             driver=conn)
 
-    if conn.type is Provider.DOCKER:
+    if conn.type is Container_Provider.DOCKER:
         if public_key:
             node = _create_machine_docker(
                 conn, machine_name, image_id, '',
@@ -215,7 +217,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
         node = _create_machine_openstack(conn, private_key, public_key,
                                          machine_name, image, size, location,
                                          networks, cloud_init)
-    elif conn.type in config.EC2_PROVIDERS and private_key:
+    elif conn.type is Provider.EC2 and private_key:
         locations = conn.list_locations()
         for loc in locations:
             if loc.id == location_id:
