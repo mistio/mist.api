@@ -790,8 +790,106 @@ GCE_IMAGES = [
     'windows-cloud',
 ]
 
+RESET_PASSWORD_EXPIRATION_TIME = 60*60*24
+
 
 ## Email templates
+
+CONFIRMATION_EMAIL_SUBJECT = "[mist.io] Confirm your registration"
+
+CONFIRMATION_EMAIL_BODY = \
+"""Hi %s,
+
+we received a registration request to mist.io from this email address.
+
+To activate your account, please click on the following link:
+
+%s/confirm?key=%s
+
+In the meantime, stay up-to-date by following us on https://twitter.com/mist_io
+
+This request originated from the IP address %s. If it wasn't you, simply ignore
+this message.
+
+Best regards,
+The mist.io team
+
+--
+%s
+Govern the clouds
+"""
+
+PROMO_CONFIRMATION_EMAIL_BODY = \
+"""Hi %s,
+
+We are excited to invite you to the mist.io private beta!
+
+Please click on the following link to set your password and start using the service:
+
+    %s/confirm?key=%s
+
+We're looking forward to your feedback. Please send us an email at feedback@mist.io
+
+To see an overview of what you can do with mist.io, check out the screencast at:
+https://www.youtube.com/watch?v=NZbpz1_sNQ8
+
+Stay up to date by following us on https://twitter.com/mist_io
+
+Best regards,
+The mist.io team
+
+--
+%s
+Govern the clouds
+"""
+
+INVITATION_EMAIL_SUBJECT = u"[mist.io] you are invited to join the private beta"
+
+INVITATION_EMAIL_BODY = \
+"""Hi %s,
+
+We are excited to invite you to the mist.io private beta!
+
+Please click on the following link to set your password and start using the service:
+
+    %s/confirm?key=%s
+
+We're looking forward to your feedback. Please send us an email at feedback@mist.io
+
+To see an overview of what you can do with mist.io, check out the screencast at:
+https://www.youtube.com/watch?v=NZbpz1_sNQ8
+
+Stay up to date by following us on https://twitter.com/mist_io
+
+Best regards,
+The mist.io team
+--
+%s
+Govern the clouds
+"""
+
+RESET_PASSWORD_EMAIL_SUBJECT = "[mist.io] Password reset request"
+
+RESET_PASSWORD_EMAIL_BODY = \
+"""Hi %s,
+
+We have received a request to change your password.
+Please click on the following link:
+
+%s/reset-password?key=%s
+
+This request originated from the IP address %s. If it wasn't you, simply ignore
+this message. Your password has not been changed.
+
+
+Best regards,
+The mist.io team
+
+--
+%s
+Govern the clouds
+"""
+
 
 FAILED_LOGIN_ATTEMPTS_EMAIL_SUBJECT = "[mist.io] Failed login attempts warning"
 
