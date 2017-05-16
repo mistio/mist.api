@@ -731,16 +731,17 @@ class ListZones(UserTask):
         if not hasattr(cloud.ctl, 'dns'):
             return {'cloud_id': cloud_id, 'zones': []}
         ret = []
-        zones = cloud.ctl.dns.list_zones()
+        if cloud.dns_enabled:
+            zones = cloud.ctl.dns.list_zones()
 
-        for zone in zones:
-            zone_dict = zone.as_dict()
-            zone_dict['records'] = [record.as_dict() for
-                                    record in zone.ctl.list_records()]
-            ret.append(zone_dict)
+            for zone in zones:
+                zone_dict = zone.as_dict()
+                zone_dict['records'] = [record.as_dict() for
+                                        record in zone.ctl.list_records()]
+                ret.append(zone_dict)
 
-        log.warn('Returning list zones for user %s cloud %s'
-                 % (owner.id, cloud_id))
+            log.warn('Returning list zones for user %s cloud %s'
+                     % (owner.id, cloud_id))
         return {'cloud_id': cloud_id, 'zones': ret}
 
 

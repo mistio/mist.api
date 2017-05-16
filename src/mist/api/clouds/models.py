@@ -83,6 +83,8 @@ class Cloud(me.Document):
     unstarred = me.ListField()
     polling_interval = me.IntField(default=0)  # in seconds
 
+    dns_enabled = me.BooleanField(default=False)
+
     deleted = me.DateTimeField()
 
     meta = {
@@ -171,6 +173,7 @@ class Cloud(me.Document):
             'title': self.title,
             'provider': self.ctl.provider,
             'enabled': self.enabled,
+            'dns_enabled': self.dns_enabled,
             'state': 'online' if self.enabled else 'offline',
             'polling_interval': self.polling_interval,
         }

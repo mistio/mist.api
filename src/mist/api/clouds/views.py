@@ -268,14 +268,25 @@ def toggle_cloud(request):
 
     auth_context.check_perm('cloud', 'edit', cloud_id)
 
-    new_state = params_from_request(request).get('new_state')
+    new_state = params_from_request(request).get('new_state', None)
+    dns_enabled = params_from_request(request).get('dns_enabled', None)
+
     if new_state == '1':
         cloud.ctl.enable()
     elif new_state == '0':
         cloud.ctl.disable()
     elif new_state:
         raise BadRequestError('Invalid cloud state')
-    else:
-        raise RequiredParameterMissingError('new_state')
+
+    if dns_enabled == 1:
+        cloud.ctl.dns_enable()
+    elif dns_enabled == 0:
+        cloud.ctl.dns_disable()
+    elif dns_enabled:
+        raise BadRequestError('Invalid DNS state')
+
+    if new_state is None and dns_enabled is None:
+        raise RequiredParameterMissingError('new_state or dns_enabled')
+
     trigger_session_update(auth_context.owner, ['clouds'])
     return OK
