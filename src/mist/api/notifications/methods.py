@@ -10,12 +10,12 @@ log = logging.getLogger(__name__)
 def handle_log_event(msg):
 
 	user_id = msg.body["user_id"] # TODO: replace with actual message content
-	user = User.objects.get(id=user_id)
+	user = User.objects(id=user_id)
 
 	import ipdb; ipdb.set_trace()
 
 	if user is not None:
-	#	organization = Organization.objects.get(members=user)
+		orgs = Organization.objects(members=user)
 
 	# 	default_policy = NotificationPolicy()
 	# 	user_policy = NotificationPolicy.objects(owner=user)
