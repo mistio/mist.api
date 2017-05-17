@@ -24,6 +24,7 @@ from pyramid.httpexceptions import HTTPFound, HTTPNotFound
 
 import mist.api.tasks as tasks
 from mist.api.scripts.models import CollectdScript
+from mist.api.scripts.views import fetch_script
 from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 from mist.api.networks.models import Network, Subnet
@@ -58,6 +59,7 @@ from mist.api.helpers import trigger_session_update, amqp_publish_user
 from mist.api.helpers import view_config, ip_from_request
 from mist.api.helpers import send_email
 from mist.api.helpers import get_file
+from mist.api.helpers import mac_verify
 
 from mist.api.auth.methods import auth_context_from_request
 from mist.api.auth.methods import user_from_request, session_from_request
@@ -2710,3 +2712,38 @@ def delete_dev_user(request):
         log.warning("[DEV ENDPOINT]: User with email: %s is already absent",
                     email)
     return OK
+
+
+@view_config(route_name='api_v1_fetch', request_method='GET', renderer='json')
+def fetch(request):
+    """
+    A generic API endpoint to perform actions in the absence of AuthContext.
+    The request's params are HMAC-verified and the action performed is based
+    on the context of the params provided
+    ---
+    action:
+      in: path
+      required: true
+      type: string
+    """
+    params = params_from_request(request)
+
+    if not isinstance(params, dict):
+        params = dict(params)
+
+    mac_verify(params)
+
+    action = params.get('action', '')
+    if not action:
+        raise RequiredParameterMissingError('No action specified')
+
+    if action == 'vpn_script':
+        try:
+            from mist.core.vpn.views import fetch_vpn_script
+        except ImportError:
+            raise NotImplementedError()
+        return fetch_vpn_script(params.get('object_id'))
+    elif action == 'fetch_script':
+        return fetch_script(params.get('object_id'))
+    else:
+        raise NotImplementedError()

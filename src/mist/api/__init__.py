@@ -256,6 +256,9 @@ def add_routes(configurator):
     configurator.add_route('api_v1_script', '/api/v1/scripts/{script_id}')
     configurator.add_route('api_v1_script_file',
                            '/api/v1/scripts/{script_id}/file')
+    configurator.add_route('api_v1_script_url',
+                           '/api/v1/scripts/{script_id}/url')
+    configurator.add_route('api_v1_fetch', '/api/v1/fetch')
 
     configurator.add_route('api_v1_schedules', '/api/v1/schedules')
     configurator.add_route('api_v1_schedule',
