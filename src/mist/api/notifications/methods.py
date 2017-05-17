@@ -17,8 +17,17 @@ def handle_log_event(msg):
 	if user is not None:
 		orgs = Organization.objects(members=user)
 
-	# 	default_policy = NotificationPolicy()
-	# 	user_policy = NotificationPolicy.objects(owner=user)
-	# 	org_policy = NotificationPolicy.objects(owner=organization)
+	 	default_policy = NotificationPolicy(default=True)
+	 	user_policy = NotificationPolicy.objects(owner=user)
+	 	org_policy = NotificationPolicy.objects(owner=organization)
 
-	# 	event_type = msg.body["type"]
+	 	notification = models.Notification("test", 
+	 		msg.body["type"], msg.body["tag"], msg.body["action"])
+
+	 	channels = default_policy.channels_for_notification(notification)
+	 	channels = org_policy.channels_for_notification(notification, inherited_channels=channels)
+	 	channels = user_policy.channels_for_notification(notification, inherited_channels=channels)
+
+	 	for channel in channels:
+	 		# push notification
+	 		pass
