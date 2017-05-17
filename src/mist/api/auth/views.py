@@ -124,16 +124,18 @@ def create_token(request):
         #     raise RequiredParameterMissingError("No org_id provided")
         if not email:
             raise RequiredParameterMissingError("No email provided")
-        try:
-            org = Organization.objects.get(id=org_id)
-        except Organization.DoesNotExist:
+        org = None
+        if org_id:
             try:
-                org = Organization.objects.get(name=org_id)
+                org = Organization.objects.get(id=org_id)
             except Organization.DoesNotExist:
-                # The following should apply, but currently it can't due to
-                # tests.
-                # raise UserUnauthorizedError()
-                org = None
+                try:
+                    org = Organization.objects.get(name=org_id)
+                except Organization.DoesNotExist:
+                    # The following should apply, but currently it can't due to
+                    # tests.
+                    # raise UserUnauthorizedError()
+                    pass
         try:
             user = User.objects.get(email=email)
         except User.DoesNotExist:
