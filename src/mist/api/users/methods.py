@@ -107,12 +107,29 @@ def get_user_data(auth_context):
     :return: dict
     """
     user = auth_context.user
-    orgs = [{
-        'id': org.id,
-        'name': org.name,
-        'members': len(org.members),
-        'isOwner': user in org.get_team('Owners').members,
-    } for org in Organization.objects(members=user)]
+
+    orgs = []
+    for org in Organization.objects(members=user):
+        o_dict = {
+            'id': org.id,
+            'name': org.name,
+            'members': len(org.members),
+            'isOwner': user in org.get_team('Owners').members,
+            'super_org': org.super_org
+        }
+
+        if org.super_org and Organization.objects(parent=org.id):
+            sub_orgs = Organization.objects(parent=org.id)
+            subs = []
+            for sub_org in sub_orgs:
+                subs.append({
+                'sub_org': sub_org.parent.id,
+                'sub_org_name': sub_org.parent.name
+                })
+            o_dict.update({'sub_orgs': subs})
+
+        orgs.append(o_dict)
+
     ret = {
         'id': user.id,
         'email': user.email,
