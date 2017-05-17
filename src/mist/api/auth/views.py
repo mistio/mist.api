@@ -1,5 +1,7 @@
 import mongoengine as me
+
 from pyramid.response import Response
+from pyramid.httpexceptions import HTTPFound
 
 from mist.api.users.models import User, Organization
 from mist.api.auth.models import ApiToken
@@ -7,13 +9,17 @@ from mist.api.auth.models import AuthToken, SessionToken
 from mist.api.auth.methods import get_random_name_for_token
 from mist.api.auth.methods import auth_context_from_request
 from mist.api.auth.methods import token_with_name_not_exists
+from mist.api.auth.methods import reissue_cookie_session
+from mist.api.auth.methods import user_from_request
 
-from mist.api.helpers import ip_from_request
+
+from mist.api.helpers import ip_from_request, send_email
 from mist.api.helpers import view_config, params_from_request
 
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import BadRequestError, UserUnauthorizedError
 from mist.api.exceptions import RequiredParameterMissingError, ForbiddenError
+from mist.api.exceptions import UserNotFoundError
 
 from mist.api import config
 
@@ -79,7 +85,6 @@ def create_token(request):
     ---
     email:
       description: User's email
-      required: true
       type: string
     password:
       description: User's password
@@ -96,82 +101,72 @@ def create_token(request):
       type: string
     """
 
-    # requesting user is the user that POSTed the function and he is the one
-    # that must provide his credentials. If the user has used
-    # su then requesting_user is the effective user.
-    session = request.environ['session']
-    requesting_user = session.get_user(effective=True)
-
     params = params_from_request(request)
     email = params.get('email', '').lower()
     password = params.get('password', '')
     api_token_name = params.get('name', '')
     org_id = params.get('org_id', '')
     ttl = params.get('ttl', 60 * 60)
-    if not email:
-        raise RequiredParameterMissingError("No email provided")
     if (isinstance(ttl, str) or isinstance(ttl, unicode)) and not ttl.isdigit():
         raise BadRequestError('Ttl must be a number greater than 0')
-    if int(ttl) < 0:
+    ttl = int(ttl)
+    if ttl < 0:
         raise BadRequestError('Ttl must be greater or equal to zero')
+    if not password:
+        raise RequiredParameterMissingError('password')
 
-    # concerned user is the user by whom the api token will be used.
-    if requesting_user is not None:
-        concerned_user = session.get_user(effective=False)
-    else:
+    try:
+        auth_context = auth_context_from_request(request)
+        user, org = auth_context.user, auth_context.org
+    except UserUnauthorizedError:
+        # The following should apply, but currently it can't due to tests.
+        # if not org_id:
+        #     raise RequiredParameterMissingError("No org_id provided")
+        if not email:
+            raise RequiredParameterMissingError("No email provided")
+        org = None
+        if org_id:
+            try:
+                org = Organization.objects.get(id=org_id)
+            except Organization.DoesNotExist:
+                try:
+                    org = Organization.objects.get(name=org_id)
+                except Organization.DoesNotExist:
+                    # The following should apply, but currently it can't due to
+                    # tests.
+                    # raise UserUnauthorizedError()
+                    pass
         try:
-            requesting_user = concerned_user = User.objects.get(email=email)
-        except me.DoesNotExist:
-            raise UserUnauthorizedError(email)
-
-    if requesting_user.status != 'confirmed' \
-            or concerned_user.status != 'confirmed':
-        raise UserUnauthorizedError()
-
-    if requesting_user.password is None or requesting_user.password == '':
-        if password:
-            raise BadRequestError('Wrong password')
-        else:
-            raise BadRequestError('Please use the GUI to set a password and '
-                                  'then retry')
-    else:
-        if not password:
-            raise BadRequestError('No password provided')
-        if not requesting_user.check_password(password):
-            raise BadRequestError('Wrong password')
-
-    org = None
-    if org_id:
-        try:
-            org = Organization.objects.get(me.Q(id=org_id) | me.Q(name=org_id))
-        except me.DoesNotExist:
-            raise BadRequestError("Invalid org id '%s'" % org_id)
-        if concerned_user not in org.members:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            raise UserUnauthorizedError()
+        # Remove org is not None when we enforce org context on tokens.
+        if org is not None and user not in org.members:
             raise ForbiddenError()
+
+    if user.status != 'confirmed':
+        raise UserUnauthorizedError()
+    if not user.password:
+        raise BadRequestError('Please use the GUI to set a password and retry')
+    if not user.check_password(password):
+        raise UserUnauthorizedError('Wrong password')
 
     # first check if the api token name is unique if it has been provided
     # otherwise produce a new one.
     if api_token_name:
-        token_with_name_not_exists(concerned_user, api_token_name)
-        session.name = api_token_name
+        # will raise exception if there exists valid token with given name
+        token_with_name_not_exists(user, api_token_name)
     else:
-        api_token_name = get_random_name_for_token(concerned_user)
-    api_tokens = ApiToken.objects(user_id=concerned_user.id, revoked=False)
-    tokens_list = []
-    for token in api_tokens:
-        if token.is_valid():
-            token_view = token.get_public_view()
-            if token_view['last_accessed_at'] == 'None':
-                token_view['last_accessed_at'] = 'Never'
-            tokens_list.append(token_view)
-
-    # FIXME: should call an optimized methods.list_tokens(active=True)
-    if len(tokens_list) < config.ACTIVE_APITOKEN_NUM:
+        api_token_name = get_random_name_for_token(user)
+    tokens_num = len([token for token in ApiToken.objects(user_id=user.id,
+                                                          revoked=False)
+                      if token.is_valid()])
+    if tokens_num < config.ACTIVE_APITOKEN_NUM:
         new_api_token = ApiToken()
         new_api_token.name = api_token_name
         new_api_token.org = org
         new_api_token.ttl = ttl
-        new_api_token.set_user(concerned_user)
+        new_api_token.set_user(user)
         new_api_token.ip_address = ip_from_request(request)
         new_api_token.user_agent = request.user_agent
         new_api_token.save()
@@ -267,4 +262,39 @@ def revoke_session(request):
     return OK
 
 
+# SEC
+@view_config(route_name='su', request_method='GET')
+def su(request):
+    """
+    Impersonate another user.
 
+    This allows an admin to take the identity of any other user. It is meant to
+    be used strictly for debugging. You can return to your regular user simply
+    by logging out. This won't affect the last login time of the actual user.
+    An email should be immediately sent out to the team, notifying of the 'su'
+    action for security reasons.
+
+    """
+    # SEC raise exception if user not admin
+    user = user_from_request(request, admin=True)
+
+    session = request.environ['session']
+    if isinstance(session, ApiToken):
+        raise ForbiddenError('Cannot do su when authenticated with api token')
+    real_email = user.email
+    params = params_from_request(request)
+    email = params.get('email')
+    if not email:
+        raise RequiredParameterMissingError('email')
+    try:
+        user = User.objects.get(email=email)
+    except (UserNotFoundError, User.DoesNotExist):
+        raise UserUnauthorizedError()
+    reissue_cookie_session(request, real_email, su=user.id)
+
+    # alert admins
+    subject = "Some admin used su"
+    body = "Admin: %s\nUser: %s\nServer: %s" % (real_email, user.email,
+                                                config.CORE_URI)
+    send_email(subject, body, config.NOTIFICATION_EMAIL['ops'])
+    return HTTPFound('/')
