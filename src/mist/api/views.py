@@ -349,7 +349,11 @@ def switch_org(request):
             org = Organization.objects.get(id=org_id)
         except me.DoesNotExist:
             raise ForbiddenError()
-        if user not in org.members:
+        if org.parent:
+            parent_owners = org.parent.teams.get(name='Owners').members
+            if user not in org.members + parent_owners:
+                raise ForbiddenError()
+        elif user not in org.members:
             raise ForbiddenError()
     reissue_cookie_session(request, user, org=org, after=1)
     raise RedirectError(urllib.unquote(return_to) or '/')
