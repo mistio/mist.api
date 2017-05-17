@@ -72,6 +72,7 @@ class NotificationPolicy(me.EmbeddedDocument):
     """
     rules = me.EmbeddedDocumentListField(NotificationRule)
     channels = me.EmbeddedDocumentListField(NotificationChannel)
+    default = me.BooleanField(default=False)
 
     def channels_for_notification(self, notification, inherited_channels=None):
         """
