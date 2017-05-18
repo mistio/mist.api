@@ -417,6 +417,7 @@ class Team(me.EmbeddedDocument):
         }
         if HAS_POLICY:
             ret['policy'] = self.policy
+        return ret
 
         return ret
 

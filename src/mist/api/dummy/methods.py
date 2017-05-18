@@ -6,8 +6,10 @@ def assign_promo(org, promo_code='', promo_token='', force=False):
     return None
 
 
-def dnat(owner, ip_addr, port):
-    return ip_addr, port
+def dnat(owner, ip_addr, port=''):
+    if port:
+        return ip_addr, port
+    return ip_addr
 
 
 def to_tunnel(owner, host):

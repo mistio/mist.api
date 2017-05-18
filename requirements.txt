@@ -29,6 +29,8 @@ names
 netaddr
 parse
 passlib
+pastedeploy  # Required for uwsgi paste logging, can probably be removed.
+pastescript  # Required for uwsgi paste logging, can probably be removed.
 pika
 pretty
 pymongo
@@ -37,6 +39,7 @@ pyramid==1.4
 pytest
 python-memcached
 python-openid
+pyvmomi==6.5
 requests
 sockjs-tornado
 tornado

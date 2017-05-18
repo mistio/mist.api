@@ -1,5 +1,7 @@
 import uuid
 import json
+import urllib
+
 import mongoengine as me
 from pyramid.response import Response
 
@@ -17,10 +19,13 @@ from mist.api.exceptions import PolicyUnauthorizedError, UnauthorizedError
 
 from mist.api.helpers import get_stories
 from mist.api.helpers import view_config, params_from_request
+from mist.api.helpers import mac_sign
 
 from mist.api.scripts.methods import filter_list_scripts
 
 from mist.api.tag.methods import add_tags_to_resource
+
+from mist.api import config
 
 OK = Response("OK", 200)
 
@@ -425,3 +430,49 @@ def run_script(request):
                            machine.id, params=script_params,
                            env=env, su=su, job_id=job_id, job=job)
     return {'job_id': job_id, 'job': job}
+
+
+@view_config(route_name='api_v1_script_url', request_method='GET',
+             renderer='json')
+def url_script(request):
+    """
+    Returns to a mist authenticated user,
+    a self-auth/signed url for fetching a script's file.
+    READ permission required on script.
+    ---
+    script_id:
+      in: path
+      required: true
+      type: string
+    """
+    auth_context = auth_context_from_request(request)
+    script_id = request.matchdict['script_id']
+
+    try:
+        Script.objects.get(owner=auth_context.owner,
+                           id=script_id, deleted=None)
+    except Script.DoesNotExist:
+        raise NotFoundError('Script does not exist.')
+
+    # SEC require READ permission on script
+    auth_context.check_perm('script', 'read', script_id)
+
+    # build HMAC and inject into the `curl` command
+    hmac_params = {'action': 'fetch_script', 'object_id': script_id}
+    expires_in = 60 * 15
+    mac_sign(hmac_params, expires_in)
+
+    url = "%s/api/v1/fetch" % config.CORE_URI
+    encode_params = urllib.urlencode(hmac_params)
+    r_url = url + '?' + encode_params
+
+    return r_url
+
+
+def fetch_script(script_id):
+    """Used by mist.api.views.fetch"""
+    try:
+        script = Script.objects.get(id=script_id, deleted=None)
+    except Script.DoesNotExist:
+        raise NotFoundError('Script does not exist')
+    return script.ctl.get_file()
