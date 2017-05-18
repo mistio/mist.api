@@ -297,11 +297,26 @@ def create_machine(request):
 
     auth_context.check_perm("cloud", "read", cloud_id)
     auth_context.check_perm("cloud", "create_resources", cloud_id)
-    tags = auth_context.check_perm("machine", "create", None)
+    tags = auth_context.check_perm("machine", "create", None) or {}
     if script_id:
         auth_context.check_perm("script", "run", script_id)
     if key_id:
         auth_context.check_perm("key", "read", key_id)
+
+    # Parse tags.
+    try:
+        mtags = params.get('tags') or {}
+        if not isinstance(mtags, dict):
+            if not isinstance(mtags, list):
+                raise ValueError()
+            if not all((isinstance(t, dict) and len(t) is 1 for t in mtags)):
+                raise ValueError()
+            mtags = {key: val for item in mtags for key, val in item.items()}
+        tags.update(mtags)
+    except ValueError:
+        raise BadRequestError('Invalid tags format. Expecting either a '
+                              'dictionary of tags or a list of single-item '
+                              'dictionaries')
 
     args = (cloud_id, key_id, machine_name,
             location_id, image_id, size_id,
