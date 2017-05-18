@@ -2,16 +2,9 @@ import re
 
 import mongoengine as me
 
-# NotificationPolicy -> NotificationRule(List)   -> NotificationOperator(List)
-#                    -> NotificationChannel(List) <-'
+from mist.api.users.models import Owner
 
-class NotificationChannel(me.EmbeddedDocument):
-    """
-    Represents a single Notifications channel, such as
-    email, desktop, in-app etc.
-    """
-    ctype = me.StringField(max_length=20, default="")
-    cid = me.StringField(max_length=64, default="")
+# NotificationPolicy -> NotificationRule(List)   -> NotificationOperator(List)
 
 
 class NotificationOperator(me.EmbeddedDocument):
@@ -19,7 +12,7 @@ class NotificationOperator(me.EmbeddedDocument):
     Represents a single Notifications operator, which
     essentially corresponds to an allow/block action
     """
-    channel = me.EmbeddedDocumentField(NotificationChannel)
+    channel = me.StringField(max_length=64, required=True, default="")
     cid = me.StringField(max_length=64, default="")
     value = me.StringField(max_length=5, required=True,
                            choices=('ALLOW', 'INHERIT', 'BLOCK'))
@@ -70,9 +63,18 @@ class NotificationPolicy(me.EmbeddedDocument):
     through different channels, according to one or more
     rules.
     """
+    owner = me.EmbeddedDocumentField(Owner)
     rules = me.EmbeddedDocumentListField(NotificationRule)
-    channels = me.EmbeddedDocumentListField(NotificationChannel)
+    channels = me.StringListField()
     default = me.BooleanField(default=False)
+
+    def add_channel(channel):
+        """
+        Accepts a channel name and adds it to the channel list
+        and to each of the rules' channel list
+        """
+        if channel not in self.channels:
+            channels.add(channel)
 
     def channels_for_notification(self, notification, inherited_channels=None):
         """
@@ -80,11 +82,11 @@ class NotificationPolicy(me.EmbeddedDocument):
         instances through which the notification should be pushed, 
         by checking against the policy's rules.
         """
-        channels = Set()
+        matching_channels = Set()
         for rule in self.rules:
             new_channels = Set(rule.channels_for_notification(notification, inherited_channels))
-            channels = channels.union(new_channels)
-        return channels
+            matching_channels = channels.union(new_channels)
+        return matching_channels
 
     def get_channels(self, rtype = None):
         """
@@ -103,7 +105,8 @@ class NotificationPolicy(me.EmbeddedDocument):
 
 class Notification():
     # todo: allow custom fields
-    def __init__(self, message, type, action=None):
+    def __init__(self, message, subject, type, action=None):
         self.message = message
+        self.subject = subject
         self.type = type
         self.action = action
