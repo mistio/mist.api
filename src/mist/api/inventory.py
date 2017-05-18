@@ -81,7 +81,7 @@ class MistInventory(object):
     def find_machine_details(self, cloud_id, machine_id):
         machines = self._list_machines(cloud_id)
         for machine in machines:
-            if machine['id'] == machine_id:
+            if machine['machine_id'] == machine_id:
                 name = machine['name'].replace(' ', '_')
                 ips = [ip for ip in machine['public_ips'] if ':' not in ip]
                 # in case ips is empty search for private IPs

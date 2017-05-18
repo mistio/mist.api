@@ -213,7 +213,7 @@ class BaseComputeController(BaseController):
                 if not ips:
                     ips = []
                 for ip in ips:
-                    if ':' not in ip:
+                    if ip and ':' not in ip:
                         machine.hostname = ip
                         break
 
