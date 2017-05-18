@@ -441,7 +441,13 @@ class Organization(Owner):
     selected_plan = me.StringField()
     enterprise_plan = me.DictField()
 
-    insights_enabled = me.BooleanField(default=False)
+    try:
+        import mist.core
+    except:
+        _insights_default = False
+    else:
+        _insights_default = True
+    insights_enabled = me.BooleanField(default=_insights_default)
 
     created = me.DateTimeField(default=datetime.datetime.now)
     registered_by = me.StringField()
