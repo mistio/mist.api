@@ -124,3 +124,27 @@ def get_user_data(auth_context):
         'csrf_token': auth_context.token.csrf_token,
     }
     return ret
+
+
+def filter_org(auth_context):
+    org = auth_context.org.as_dict()
+    org['is_owner'] = auth_context.is_owner()
+
+    # SEC return my teams + visible teams or all teams if owner
+    teams = [team for team in org['teams']
+             if team['visible'] or
+             auth_context.user.id in team['members'] or
+             auth_context.is_owner()]
+
+    # Get info about members in my teams or of all org if owner
+    team_mates = set()
+    for t in teams:
+        for m in t['members']:
+            team_mates.add(m)
+
+    members = [m for m in org['members']
+               if auth_context.is_owner() or m['id'] in team_mates]
+    org['teams'] = teams
+    org['members'] = members
+
+    return org

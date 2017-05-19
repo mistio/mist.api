@@ -21,6 +21,7 @@ import random
 import socket
 import shutil
 import smtplib
+import logging
 import datetime
 import tempfile
 import traceback
@@ -28,6 +29,8 @@ import functools
 import jsonpickle
 
 from time import time, strftime, sleep
+
+from base64 import urlsafe_b64encode
 
 from pymongo import MongoClient
 from bson.objectid import ObjectId
@@ -45,6 +48,8 @@ import requests
 
 from Crypto.Cipher import AES
 from Crypto.Hash import SHA256
+from Crypto.Hash.SHA256 import SHA256Hash
+from Crypto.Hash.HMAC import HMAC
 from Crypto.Random import get_random_bytes
 
 from amqp import Message
@@ -64,8 +69,14 @@ from mist.api.exceptions import RequiredParameterMissingError
 
 from mist.api import config
 
+try:
+    from mist.core.rbac.tokens import SuperToken
+except ImportError:
+    SUPER_EXISTS = False
+else:
+    SUPER_EXISTS = True
 
-import logging
+
 logging.basicConfig(level=config.PY_LOG_LEVEL,
                     format=config.PY_LOG_FORMAT,
                     datefmt=config.PY_LOG_FORMAT_DATE)
@@ -1280,6 +1291,12 @@ def logging_view_decorator(func):
                 log_dict['api_token'] = session.token[:4] + '***CENSORED***'
                 log_dict['token_expires'] = datetime_to_str(session.expires())
 
+        # Log special Token.
+        if SUPER_EXISTS and isinstance(session, SuperToken):
+            log_dict['setuid'] = True
+            log_dict['api_token_id'] = str(session.id)
+            log_dict['api_token_name'] = session.name
+
         # log matchdict and params
         params = dict(params_from_request(request))
         for key in ['email', 'cloud', 'machine', 'rule', 'script_id',
@@ -1574,3 +1591,44 @@ def get_file(url, filename, update=True):
                 atomic_write_file(path, data)
     print 'path'
     return path
+
+
+def mac_sign(kwargs=None, expires=None, key='', mac_len=0, mac_format='hex'):
+    key = key or config.SIGN_KEY
+    if not key:
+        raise Exception('No key configured for signing the HMAC')
+    if not kwargs:
+        raise Exception('No message provided to be signed')
+    if expires:
+        kwargs['_expires'] = int(time() + expires)
+    parts = ["%s=%s" % (key, kwargs[key]) for key in sorted(kwargs.keys())]
+    msg = "&".join(parts)
+    hmac = HMAC(str(key), msg=str(msg), digestmod=SHA256Hash())
+    if mac_format == 'b64':
+        tag = urlsafe_b64encode(hmac.digest()).rstrip('=')
+    elif mac_format == 'bin':
+        tag = hmac.digest()
+    else:
+        tag = hmac.hexdigest()
+    if mac_len:
+        tag = tag[:mac_len]
+    kwargs['_mac'] = tag
+
+
+def mac_verify(kwargs=None, key='', mac_len=0, mac_format='hex'):
+    key = key or config.SIGN_KEY
+    if not key:
+        raise Exception('No key configured for HMAC verification')
+    if not kwargs:
+        raise Exception('No message provided to be verified')
+    expiration = kwargs.get('_expires', 0)
+    mac = kwargs.pop('_mac', '')
+    mac_sign(kwargs=kwargs, key=key, mac_len=mac_len, mac_format=mac_format)
+    fresh_mac = kwargs.get('_mac', '')
+    if not fresh_mac or fresh_mac != mac:
+        raise Exception('Bad HMAC')
+    if expiration and expiration < time():
+        raise Exception('HMAC expired')
+    for kw in ('_expires', '_mac'):
+        if kw in kwargs:
+            del kwargs[kw]
