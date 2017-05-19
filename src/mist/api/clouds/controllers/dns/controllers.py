@@ -195,7 +195,7 @@ class LinodeDNSController(BaseDNSController):
             elif len(parts) == 1:
                 kwargs['data'] = parts[0]
             else:
-                raise BadRequestError('Please provide only the'\
+                raise BadRequestError('Please provide only the'
                                       'mailserver hostname')
         # Linode requires TXT rdata to be whitin quotes
         if kwargs['type'] == 'TXT':
@@ -245,8 +245,6 @@ class RackSpaceDNSController(BaseDNSController):
         # RS requires just the subdomain for A, AAAA, CNAME, MX records.
         if kwargs['name'].endswith(zone.domain) and kwargs['type']:
             kwargs['name'] = kwargs['name'][:-(len(zone.domain) + 1)]
-        # if kwargs['type'] == 'CNAME' and not kwargs['data'].endswith('.'):
-        #     kwargs['data'] += '.'
         if kwargs['type'] == 'CNAME' and kwargs['data'].endswith('.'):
             kwargs['data'] = kwargs['data'][:-1]
         if kwargs['type'] == 'MX':
@@ -291,8 +289,6 @@ class SoftLayerDNSController(BaseDNSController):
         # SL requires just the subdomain for A, AAAA, CNAME, MX records.
         if kwargs['name'].endswith(zone.domain) and kwargs['type']:
             kwargs['name'] = kwargs['name'][:-(len(zone.domain) + 1)]
-        # if kwargs['type'] == 'CNAME' and not kwargs['data'].endswith('.'):
-        #     kwargs['data'] += '.'
         if kwargs['type'] == 'CNAME' and kwargs['data'].endswith('.'):
             kwargs['data'] = kwargs['data'][:-1]
         # SL requires TXT rdata to be whitin quotes
@@ -333,8 +329,6 @@ class VultrDNSController(BaseDNSController):
         # Vultr requires just the subdomain for A, AAAA, CNAME, MX records.
         if kwargs['name'].endswith(zone.domain) and kwargs['type']:
             kwargs['name'] = kwargs['name'][:-(len(zone.domain) + 1)]
-        # if kwargs['type'] == 'CNAME' and not kwargs['data'].endswith('.'):
-        #     kwargs['data'] += '.'
         if kwargs['type'] == 'CNAME' and kwargs['data'].endswith('.'):
             kwargs['data'] = kwargs['data'][:-1]
         if kwargs['type'] == 'MX':
