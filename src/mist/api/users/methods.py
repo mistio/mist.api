@@ -13,8 +13,6 @@ from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import MethodNotAllowedError
 from mist.api.exceptions import OrganizationOperationError
 
-from mist.api.logs.methods import log_event
-
 from mist.api import config
 
 try:
@@ -77,6 +75,7 @@ def register_user(email, first_name, last_name, registration_method,
 
     # Create log for the registration of a user and if an org has been created
     # add the id and name of the org
+    from mist.api.logs.methods import log_event
     log_event(**log_event_args)
 
     return user, org
