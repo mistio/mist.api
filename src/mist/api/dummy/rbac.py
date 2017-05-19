@@ -44,10 +44,6 @@ def validate_rule_rid(rule, owner):
     return
 
 
-def filter_org(auth_context):
-    return
-
-
 def rbac_filter(auth_context, query):
     return
 
