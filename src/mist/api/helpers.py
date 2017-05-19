@@ -21,6 +21,7 @@ import random
 import socket
 import shutil
 import smtplib
+import logging
 import datetime
 import tempfile
 import traceback
@@ -68,8 +69,14 @@ from mist.api.exceptions import RequiredParameterMissingError
 
 from mist.api import config
 
+try:
+    from mist.core.rbac.tokens import SuperToken
+except ImportError:
+    SUPER_EXISTS = False
+else:
+    SUPER_EXISTS = True
 
-import logging
+
 logging.basicConfig(level=config.PY_LOG_LEVEL,
                     format=config.PY_LOG_FORMAT,
                     datefmt=config.PY_LOG_FORMAT_DATE)
@@ -1283,6 +1290,12 @@ def logging_view_decorator(func):
                 log_dict['api_token_name'] = session.name
                 log_dict['api_token'] = session.token[:4] + '***CENSORED***'
                 log_dict['token_expires'] = datetime_to_str(session.expires())
+
+        # Log special Token.
+        if SUPER_EXISTS and isinstance(session, SuperToken):
+            log_dict['setuid'] = True
+            log_dict['api_token_id'] = str(session.id)
+            log_dict['api_token_name'] = session.name
 
         # log matchdict and params
         params = dict(params_from_request(request))
