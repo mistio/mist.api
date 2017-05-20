@@ -208,7 +208,7 @@ class LinodeComputeController(BaseComputeController):
         super(LinodeComputeController, self)._list_machines__machine_actions(
             machine, machine_libcloud)
         machine.actions.rename = True
-        machine.actions.stop = False
+        # machine.actions.stop = False
         # After resize, node gets to pending mode, needs to be started.
         if machine_libcloud.state is NodeState.PENDING:
             machine.actions.start = True
