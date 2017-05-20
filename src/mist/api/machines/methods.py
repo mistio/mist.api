@@ -922,15 +922,15 @@ def _create_machine_vultr(conn, public_key, machine_name, image,
 
     try:
         server_key = ''
-        keys = conn.ex_list_ssh_keys()
+        keys = conn.list_key_pairs()
         for k in keys:
             if key == k.ssh_key.replace('\n', ''):
                 server_key = k
                 break
         if not server_key:
-            server_key = conn.ex_create_ssh_key(machine_name, key)
+            server_key = conn.create_key_pair(machine_name, key)
     except:
-        server_key = conn.ex_create_ssh_key('mistio' + str(
+        server_key = conn.create_key_pair('mistio' + str(
             random.randint(1, 100000)), key)
 
     try:
@@ -938,14 +938,18 @@ def _create_machine_vultr(conn, public_key, machine_name, image,
     except:
         pass
 
+    ex_create_attr={}
+    if cloud_init:
+        ex_create_attr['userdata'] = cloud_init
+
     try:
         node = conn.create_node(
             name=machine_name,
             size=size,
             image=image,
             location=location,
-            ssh_key=[server_key],
-            userdata=cloud_init
+            ex_ssh_key_ids=[server_key],
+            ex_create_attr=ex_create_attr
         )
     except Exception as e:
         raise MachineCreationError("Vultr, got exception %s" % e, e)
