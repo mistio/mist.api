@@ -542,7 +542,7 @@ class GoogleComputeController(BaseComputeController):
             return 0, 0
         # https://cloud.google.com/compute/pricing
         size = machine_libcloud.extra.get('machineType').split('/')[-1]
-        location = machine_libcloud.extra.get('zone')
+        location = machine_libcloud.extra.get('zone').name
         # Get the location, locations currently are
         # europe us asia-east asia-northeast
         # all with different pricing
