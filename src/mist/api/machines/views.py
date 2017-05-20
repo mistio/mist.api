@@ -5,6 +5,7 @@ from pyramid.response import Response
 import mist.api.machines.methods as methods
 
 from mist.api.clouds.models import Cloud
+from mist.api.clouds.models import LibvirtCloud
 from mist.api.machines.models import Machine
 
 from mist.api import tasks
@@ -417,8 +418,11 @@ def machine_actions(request):
     else:
         machine_uuid = request.matchdict['machine']
         try:
-            machine = Machine.objects.get(id=machine_uuid,
-                                          state__ne='terminated')
+            machine = Machine.objects.get(id=machine_uuid)
+            # VMs in libvirt can be started no matter if they are terminated
+            if machine.state == 'terminated' and not isinstance(machine.cloud,
+                                                                LibvirtCloud):
+                raise
         except Machine.DoesNotExist:
             raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
 
