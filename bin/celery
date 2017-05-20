@@ -2,10 +2,11 @@
 
 set -e
 
-QUEUES="celery,machines,scripts,command,ping,probe"
-LOGLEVEL="WARNING"
+QUEUES="${QUEUES:-celery,machines,scripts,command,ping,probe}"
+LOGLEVEL="INFO"
+TASKS="mist.api.tasks"
 
-USAGE="Usage: $0 [-h] [-q <QUEUES>] [-l <LOGLEVEL>]
+USAGE="Usage: $0 [-h] [-q <QUEUES>] [-l <LOGLEVEL>] [-t <TASK_PATH>]
 
 Start uwsgi
 
@@ -14,9 +15,10 @@ Options:
     -q <QUEUES>     Comma separated list of queues to subscribe to. Defaults to
                     $QUEUES.
     -l <LOGLEVEL>   Log level. Defaults to $LOGLEVEL.
+    -t <TASKS_PATH> Tasks file to import. Defaults to $TASKS.
 "
 
-while getopts ":hq:l:" opt; do
+while getopts "hq:l:t:" opt; do
     case "$opt" in
         h)
             echo "$USAGE"
@@ -28,6 +30,9 @@ while getopts ":hq:l:" opt; do
         l)
             LOGLEVEL=$OPTARG
             ;;
+        t)
+            TASKS=$OPTARG
+            ;;
         \?)
             echo "Invalid option: -$OPTARG" >&2
             echo "$USAGE" >&2
@@ -36,9 +41,10 @@ while getopts ":hq:l:" opt; do
 done
 
 set -x
+export C_FORCE_ROOT=1
 export CELERY_CONTEXT=1
 exec celery worker \
-    -A mist.api.tasks \
+    -A $TASKS \
     -Q $QUEUES \
     -l $LOGLEVEL \
     -Ofair

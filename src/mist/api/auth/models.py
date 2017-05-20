@@ -163,8 +163,11 @@ class ApiToken(AuthToken):
             'name': self.name,
             'ttl': self.ttl,
             'token': self.token[:4] + "...",
-            'policy': str(self.policy),
         })
+        if HAS_POLICY:
+            view.update({
+                'policy': str(self.policy),
+            })
         return view
 
 

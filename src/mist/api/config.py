@@ -63,6 +63,8 @@ JS_BUILD = False
 CSS_BUILD = False
 JS_LOG_LEVEL = 3
 
+ENABLE_DEV_USERS = False
+
 MONGO_URI = "mongodb:27017"
 MONGO_DB = "mist2"
 
@@ -107,6 +109,74 @@ FAILED_LOGIN_RATE_LIMIT = {
 }
 
 
+BANNED_EMAIL_PROVIDERS = [
+    'mailinator.com',
+    'bob.info',
+    'veryreallemail.com',
+    'spamherelots.com',
+    'putthisinyourspamdatabase.com',
+    'thisisnotmyrealemail.com',
+    'binkmail.com',
+    'spamhereplease.com',
+    'sendspamhere.com',
+    'chogmail.com',
+    'spamthisplease.com',
+    'frapmail.com',
+    'obobbo.com',
+    'devnullmail.com',
+    'dispostable.com',
+    'yopmail.com',
+    'soodonims.com',
+    'spambog.com',
+    'spambog.de',
+    'discardmail.com',
+    'discardmail.de',
+    'spambog.ru',
+    'cust.in',
+    '0815.ru',
+    's0ny.net',
+    'hochsitze.com',
+    'hulapla.de',
+    'misterpinball.de',
+    'nomail2me.com',
+    'dbunker.com',
+    'bund.us',
+    'teewars.org',
+    'superstachel.de',
+    'brennendesreich.de',
+    'ano-mail.net',
+    '10minutemail.com',
+    'rppkn.com',
+    'trashmail.net',
+    'dacoolest.com',
+    'junk1e.com',
+    'throwawayemailaddress.com',
+    'imgv.de',
+    'spambastion.com',
+    'dreameheap.com',
+    'trollbot.org',
+    'getairmail.com',
+    'anonymizer.com',
+    'dudmail.com',
+    'scatmail.com',
+    'trayna.com',
+    'spamgourmet.com',
+    'incognitomail.org',
+    'mailexpire.com',
+    'mailforspam.com',
+    'sharklasers.com',
+    'guerillamail.com',
+    'guerrillamailblock.com',
+    'guerrillamail.net',
+    'guerrillamail.org',
+    'guerrillamail.biz',
+    'spam4.me',
+    'grr.la',
+    'guerrillamail.de',
+    'trbvm.com',
+    'byom.de'
+]
+
 ###############################################################################
 #  Different set in io and core
 ###############################################################################
@@ -147,9 +217,22 @@ CELERY_SETTINGS = {
     'CELERY_MONGODB_SCHEDULER_URL': MONGO_URI,
 }
 
-LANDING_CATEGORIES = [
-    {'href': '/', 'name': 'home', 'template': 'home', 'title': 'Home'}
-]
+LANDING_CATEGORIES = [{
+    'href': '/',
+    'name': 'home',
+    'template': 'home',
+    'title': 'Home',
+    'items': {
+        "fold": {
+            "copy" : "",
+            "subcopy" :
+                "Mist.io is a single dashboard to manage multi-cloud infrastructure",
+            "image" : "images/mockup-imac-n4.png",
+            "alt" : "Mist.io cloud management dashboard",
+            "cta" : "Get Started"
+        }
+    }
+}]
 
 ###############################################################################
 # App constants
@@ -552,8 +635,106 @@ GCE_IMAGES = ['debian-cloud',
               'ubuntu-os-cloud',
               'windows-cloud']
 
+RESET_PASSWORD_EXPIRATION_TIME = 60*60*24
+
 
 ## Email templates
+
+CONFIRMATION_EMAIL_SUBJECT = "[mist.io] Confirm your registration"
+
+CONFIRMATION_EMAIL_BODY = \
+"""Hi %s,
+
+we received a registration request to mist.io from this email address.
+
+To activate your account, please click on the following link:
+
+%s/confirm?key=%s
+
+In the meantime, stay up-to-date by following us on https://twitter.com/mist_io
+
+This request originated from the IP address %s. If it wasn't you, simply ignore
+this message.
+
+Best regards,
+The mist.io team
+
+--
+%s
+Govern the clouds
+"""
+
+PROMO_CONFIRMATION_EMAIL_BODY = \
+"""Hi %s,
+
+We are excited to invite you to the mist.io private beta!
+
+Please click on the following link to set your password and start using the service:
+
+    %s/confirm?key=%s
+
+We're looking forward to your feedback. Please send us an email at feedback@mist.io
+
+To see an overview of what you can do with mist.io, check out the screencast at:
+https://www.youtube.com/watch?v=NZbpz1_sNQ8
+
+Stay up to date by following us on https://twitter.com/mist_io
+
+Best regards,
+The mist.io team
+
+--
+%s
+Govern the clouds
+"""
+
+INVITATION_EMAIL_SUBJECT = u"[mist.io] you are invited to join the private beta"
+
+INVITATION_EMAIL_BODY = \
+"""Hi %s,
+
+We are excited to invite you to the mist.io private beta!
+
+Please click on the following link to set your password and start using the service:
+
+    %s/confirm?key=%s
+
+We're looking forward to your feedback. Please send us an email at feedback@mist.io
+
+To see an overview of what you can do with mist.io, check out the screencast at:
+https://www.youtube.com/watch?v=NZbpz1_sNQ8
+
+Stay up to date by following us on https://twitter.com/mist_io
+
+Best regards,
+The mist.io team
+--
+%s
+Govern the clouds
+"""
+
+RESET_PASSWORD_EMAIL_SUBJECT = "[mist.io] Password reset request"
+
+RESET_PASSWORD_EMAIL_BODY = \
+"""Hi %s,
+
+We have received a request to change your password.
+Please click on the following link:
+
+%s/reset-password?key=%s
+
+This request originated from the IP address %s. If it wasn't you, simply ignore
+this message. Your password has not been changed.
+
+
+Best regards,
+The mist.io team
+
+--
+%s
+Govern the clouds
+"""
+
 
 FAILED_LOGIN_ATTEMPTS_EMAIL_SUBJECT = "[mist.io] Failed login attempts warning"
 
@@ -571,6 +752,108 @@ Time period of failed login attempts: %s
 Blocking period: %s
 """
 
+ORG_TEAM_STATUS_CHANGE_EMAIL_SUBJECT = "Your status in an organization has" \
+                                       " changed"
+
+ORG_NOTIFICATION_EMAIL_SUBJECT = "[mist.io] Subscribed to team"
+
+USER_NOTIFY_ORG_TEAM_ADDITION = \
+"""Hi
+
+You have been added to the team "%s" of organization %s.
+
+Best regards,
+The mist.io team
+
+--
+%s
+"""
+
+USER_CONFIRM_ORG_INVITATION_EMAIL_BODY = \
+"""Hi
+
+You have been invited by %s to join the %s organization
+as a member of the %s.
+
+To confirm your invitation, please click on the following link:
+
+%s/confirm-invitation?invitoken=%s
+
+Once you are done with the confirmation process,
+you will be able to login to your Mist.io user account
+as a member of the team%s.
+
+Best regards,
+The mist.io team
+
+--
+%s
+"""
+
+ORG_INVITATION_EMAIL_SUBJECT = "[mist.io] Confirm your invitation"
+
+REGISTRATION_AND_ORG_INVITATION_EMAIL_BODY = \
+"""Hi
+
+You have been invited by %s to join the %s organization
+as a member of the %s.
+
+Before joining the team you must also activate your account in  mist.io and set
+a password. To activate your account and join the team, please click on the
+following link:
+
+%s/confirm?key=%s&invitoken=%s
+
+Once you are done with the registration process,
+you will be able to login to your Mist.io user account
+as a member of the team%s.
+
+Best regards,
+The mist.io team
+
+--
+%s
+"""
+
+NOTIFY_REMOVED_FROM_TEAM = \
+"""Hi
+
+You have been removed from team %s of organization %s by the
+administrator %s.
+
+Best regards,
+The mist.io team
+
+--
+%s
+"""
+
+NOTIFY_REMOVED_FROM_ORG = \
+"""Hi
+
+You are no longer a member of the organization %s.
+
+Best regards,
+The mist.io team
+
+--
+%s
+"""
+
+NOTIFY_INVITATION_REVOKED_SUBJECT = "Invitation for organization revoked"
+
+NOTIFY_INVITATION_REVOKED = \
+"""Hi
+
+Your invitation to the organization %s has been revoked.
+
+Best regards,
+The mist.io team
+
+--
+%s
+"""
+
 SHOW_FOOTER = False
 ALLOW_SIGNUP_EMAIL = True
 ALLOW_SIGNUP_GOOGLE = False
@@ -578,6 +861,12 @@ ALLOW_SIGNUP_GITHUB = False
 ALLOW_SIGNIN_EMAIL = True
 ALLOW_SIGNIN_GOOGLE = False
 ALLOW_SIGNIN_GITHUB = False
+ENABLE_TUNNELS = False
+ENABLE_ORCHESTRATION = False
+ENABLE_INSIGHTS = False
+ENABLE_BILLING = False
+ENABLE_RBAC = False
+ENABLE_AB = False
 
 ## DO NOT PUT ANYTHING BELOW HERE UNLESS YOU KNOW WHAT YOU ARE DOING
 
@@ -668,6 +957,12 @@ HOMEPAGE_INPUTS = {
     'allow_signup_github': ALLOW_SIGNUP_GITHUB,
     'allow_signin_email': ALLOW_SIGNIN_EMAIL,
     'allow_signin_google': ALLOW_SIGNIN_GOOGLE,
-    'allow_signin_github': ALLOW_SIGNIN_GITHUB
+    'allow_signin_github': ALLOW_SIGNIN_GITHUB,
+    'enable_rbac': ENABLE_RBAC,
+    'enable_tunnels': ENABLE_TUNNELS,
+    'enable_orchestration': ENABLE_ORCHESTRATION,
+    'enable_insights': ENABLE_INSIGHTS,
+    'enable_billing': ENABLE_BILLING,
+    'enable_ab': ENABLE_AB
 }
 ## DO NOT PUT REGULAR SETTINGS BELOW, PUT THEM ABOVE THIS SECTION
