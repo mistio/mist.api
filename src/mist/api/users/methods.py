@@ -122,8 +122,8 @@ def get_user_data(auth_context):
             subs = []
             for sub_org in sub_orgs:
                 subs.append({
-                'sub_org': sub_org.parent.id,
-                'sub_org_name': sub_org.parent.name
+                    'sub_org': sub_org.parent.id,
+                    'sub_org_name': sub_org.parent.name
                 })
             o_dict.update({'sub_orgs': subs})
 
