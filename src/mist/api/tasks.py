@@ -193,7 +193,7 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                     kwargs['type'] = 'A'
                     kwargs['data'] = host
                     kwargs['ttl'] = 3600
-                    
+
                     dns_cls = RECORDS[kwargs['type']]
                     record = dns_cls.add(owner=owner, **kwargs)
                     log_event(action='Create_A_record', hostname=hostname,
@@ -1024,6 +1024,8 @@ def create_machine_async(owner_id, cloud_id, key_id, machine_name, location_id,
              'size_disk_swap': size_disk_swap,
              'boot': boot,
              'build': build,
+             'bare_metal': bare_metal,
+             'hourly': hourly,
              'cpu_priority': cpu_priority,
              'cpu_sockets': cpu_sockets,
              'cpu_threads': cpu_threads,

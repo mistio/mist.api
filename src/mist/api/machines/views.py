@@ -235,7 +235,8 @@ def create_machine(request):
     # hourly True is the default setting for SoftLayer hardware
     # servers, while False means the server has montly pricing
     softlayer_backend_vlan_id = params.get('softlayer_backend_vlan_id', None)
-    hourly = params.get('billing', True)
+    hourly = params.get('hourly', True)
+
     job_id = params.get('job_id')
     job_id = params.get('job_id')
     # The `job` variable points to the event that started the job. If a job_id

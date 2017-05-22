@@ -624,17 +624,17 @@ def _create_machine_softlayer(conn, key_name, private_key, public_key,
         server_key = ''
         keys = conn.list_key_pairs()
         for k in keys:
-            if key == k.key:
-                server_key = k.id
+            if key == k.public_key:
+                server_key = k.extra.get('id')
                 break
         if not server_key:
-            server_key = conn.create_key_pair(machine_name, key)
-            server_key = server_key.id
+            server_key = conn.import_key_pair_from_string(machine_name, key)
+            server_key = server_key.extra.get('id')
     except:
-        server_key = conn.create_key_pair(
+        server_key = conn.import_key_pair_from_string(
             'mistio' + str(random.randint(1, 100000)), key
         )
-        server_key = server_key.id
+        server_key = server_key.extra.get('id')
 
     if '.' in machine_name:
         domain = '.'.join(machine_name.split('.')[1:])
