@@ -2154,20 +2154,19 @@ def list_teams(request):
             and auth_context.org.id == org_id):
         raise OrganizationAuthorizationFailure()
 
+    teams = [team.as_dict() for team in auth_context.org.teams]
     if auth_context.org.parent:
         parent_teams = auth_context.org.parent.teams
 
-        teams = [team.as_dict() for team in auth_context.org.teams]
         for team in teams:
             team['parent'] = False
         p_teams = [team.as_dict() for team in parent_teams]
         for p_team in p_teams:
             p_team['parent'] = True
-            p_team['parent_org_name'] = auth_context.org.parent.name
 
-        return teams + p_teams  # add also super_org name
+        return teams + p_teams
 
-    return [team.as_dict() for team in auth_context.org.teams]
+    return teams
 
 
 # SEC
