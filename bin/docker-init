@@ -11,4 +11,6 @@ if [ ! -e clean ]; then
     set +x
 fi
 
+/mist.api/bin/elasticsearch
+
 exec "$@"
