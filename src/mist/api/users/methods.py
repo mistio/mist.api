@@ -119,13 +119,15 @@ def get_user_data(auth_context):
 
         if org.super_org and Organization.objects(parent=org.id):
             sub_orgs = Organization.objects(parent=org.id)
-            subs = []
             for sub_org in sub_orgs:
-                subs.append({
-                    'sub_org': sub_org.parent.id,
-                    'sub_org_name': sub_org.parent.name
-                })
-            o_dict.update({'sub_orgs': subs})
+                sub = {
+                    'id': sub_org.id,
+                    'parent_id': sub_org.parent.id,
+                    'name': sub_org.name,
+                    'members': len(sub_org.members),
+                    'isOwner': user in org.get_team('Owners').members,
+                }
+                orgs.append(sub)
 
         orgs.append(o_dict)
 
