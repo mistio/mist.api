@@ -10,6 +10,7 @@ greenlet.
 
 import uuid
 import json
+import time
 import random
 import traceback
 import datetime
@@ -18,6 +19,10 @@ import tornado.gen
 
 from sockjs.tornado import SockJSConnection, SockJSRouter
 from mist.api.sockjs_mux import MultiplexConnection
+
+from mist.api.logs.methods import log_event
+from mist.api.logs.methods import get_events
+from mist.api.logs.methods import get_stories
 
 from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
@@ -218,6 +223,27 @@ class OwnerUpdatesConsumer(Consumer):
         self.sockjs_conn.start()
 
 
+class LogsConsumer(Consumer):
+
+    def __init__(self, owner_id, callback, amqp_url=config.BROKER_URL):
+        super(LogsConsumer, self).__init__(
+            amqp_url=amqp_url,
+            exchange='events',
+            queue='mist-logs-%d' % random.randrange(2 ** 20),
+            exchange_type='topic',
+            routing_key='%s.*.*.*' % owner_id,
+            exchange_kwargs={'auto_delete': False},
+            queue_kwargs={'auto_delete': True, 'exclusive': True},
+        )
+        self.callback = callback
+
+    def on_message(self, unused_channel, basic_deliver, properties, body):
+        super(LogsConsumer, self).on_message(
+            unused_channel, basic_deliver, properties, body
+        )
+        self.callback(json.loads(body))
+
+
 class MainConnection(MistConnection):
 
     def on_open(self, conn_info):
@@ -225,6 +251,17 @@ class MainConnection(MistConnection):
         super(MainConnection, self).on_open(conn_info)
         self.running_machines = set()
         self.consumer = None
+        self.log_kwargs = {
+            'ip': self.ip,
+            'user_agent': self.user_agent,
+            'session_id': self.session_id,
+            'user_id': self.auth_context.user.id,
+            'owner_id': self.auth_context.owner.id,
+            'event_type': 'session'
+        }
+        if self.auth_context.token.su:
+            self.log_kwargs['su'] = self.auth_context.token.su
+        log_event(action='connect', **self.log_kwargs)
 
     def on_ready(self):
         log.info("************** Ready to go!")
@@ -482,6 +519,12 @@ class MainConnection(MistConnection):
                 self.update_org()
 
     def on_close(self, stale=False):
+        if not self.closed:
+            kwargs = {}
+            if stale:
+                kwargs['stale'] = True
+            kwargs.update(self.log_kwargs)
+            log_event(action='disconnect', **kwargs)
         if self.consumer is not None:
             try:
                 self.consumer.stop()
@@ -490,10 +533,117 @@ class MainConnection(MistConnection):
         super(MainConnection, self).on_close(stale=stale)
 
 
+class LogsConnection(MistConnection):
+
+    def on_open(self, conn_info):
+        """Open a new connection bound to the current Organization."""
+        super(LogsConnection, self).on_open(conn_info)
+        self.enabled = True
+        self.consumer = None
+        self.enforce_logs_for = self.auth_context.org.id
+
+    def on_ready(self):
+        """Initiate the RabbitMQ Consumer."""
+        if not self.enabled:
+            for stype in ('incident', 'job', 'shell', 'session'):
+                self.send('open_' + stype + 's', [])
+            return
+        if self.consumer is None:
+            self.consumer = LogsConsumer(self.enforce_logs_for or '*',
+                                         self.emit_event)
+            self.consumer.run()
+        else:
+            log.error("It seems we have received 'on_ready' more than once.")
+        for stype in ('incident', 'job', 'shell', 'session'):
+            self.send_stories(stype)
+
+    def emit_event(self, event):
+        """Emit a new event consumed from RabbitMQ."""
+        log.info('Received event from amqp')
+        event.pop('_id', None)
+        try:
+            for key, value in json.loads(event.pop('extra')).iteritems():
+                event[key] = value
+        except:
+            pass
+        for stype in set([stype for _, stype, _ in event.get('stories', [])]):
+            self.send_stories(stype)
+        if self.filter_log(event):
+            self.send('event', self.parse_log(event))
+
+    def send_stories(self, stype):
+        """Send open stories of the specified type."""
+
+        def callback(stories, pending=False):
+            email = self.auth_context.user.email
+            ename = '%s_%ss' % ('open' if pending else 'closed', stype)
+            log.info('Will emit %d %s for %s', len(stories), ename, email)
+            self.send(ename, stories)
+
+        # Only send incidents for non-Owners.
+        if not self.auth_context.is_owner() and stype != 'incident':
+            self.send('open_%ss' % stype, [])
+            return
+
+        # Fetch the latest open stories.
+        kwargs = {
+            'story_type': stype,
+            'pending': True,
+            'range': {
+                '@timestamp': {
+                    'gte': int((time.time() - 7 * 24 * 60 * 60) * 1000)
+                }
+            }
+        }
+
+        if self.enforce_logs_for is not None:
+            kwargs['owner_id'] = self.enforce_logs_for
+
+        get_stories(tornado_async=True, tornado_callback=callback, **kwargs)
+
+        # Fetch also the latest, closed incidents.
+        if stype == 'incident':
+            kwargs.update({'limit': 10, 'pending': False})
+            get_stories(tornado_async=True,
+                        tornado_callback=callback, **kwargs)
+
+    def parse_log(self, event):
+        """Parse a single log.
+
+        This method may be used to perform custom parsing/editting of logs.
+
+        Override this method in order to add/remove fields to/from a log entry.
+
+        """
+        for param in ('@version', 'stories', 'tags', '_traceback', '_exc', ):
+            event.pop(param, None)
+        return event
+
+    def filter_log(self, event):
+        """Filter logs on the fly.
+
+        This method may be used to perform custom filtering of logs on the fly.
+        Override this method in order to filter single logs, if necessary. By
+        default, the log entry is returned as is.
+
+        """
+        return event
+
+    def on_close(self, stale=False):
+        """Stop the Consumer and close the WebSocket."""
+        if self.consumer is not None:
+            try:
+                self.consumer.stop()
+            except Exception as exc:
+                log.error("Error closing pika consumer: %r", exc)
+        super(LogsConnection, self).on_close(stale=stale)
+
+
 def make_router():
     return SockJSRouter(
         MultiplexConnection.get(
             main=MainConnection,
+            logs=LogsConnection,
             shell=ShellConnection,
         ),
         '/socket'
