@@ -1,6 +1,11 @@
+import logging
+
 import mist.api.users.models
 import mist.api.auth.models
 import mist.api.tag.models
+
+
+log = logging.getLogger(__name__)
 
 
 class AuthContext(object):
@@ -22,7 +27,7 @@ class AuthContext(object):
         self.owner = self.org
 
     def is_owner(self):
-        return self.user in self.org.teams.get(name='Owners').members
+        return True
 
     def _raise(self, rtype, action, rid='', rtags=''):
         pass
@@ -44,9 +49,6 @@ def validate_rule_rid(rule, owner):
     return
 
 
-def rbac_filter(auth_context, query):
-    return
-
-
 def filter_logs(auth_context, kwargs):
+    log.warning('Call to dummy.filter_logs')
     return

@@ -69,15 +69,9 @@ from mist.api.auth.methods import reissue_cookie_session
 from mist.api.auth.models import get_secure_rand_token
 
 from mist.api.logs.methods import log_event
+from mist.api.logs.methods import get_events
 
 from mist.api import config
-
-# FIXME
-if config.LOGS_FROM_ELASTIC:
-    from mist.api.logs.methods import get_events
-    get_log_events = get_events
-else:
-    from mist.api.helpers import get_log_events
 
 import logging
 logging.basicConfig(level=config.PY_LOG_LEVEL,
@@ -262,9 +256,10 @@ def login(request):
         block_period = config.FAILED_LOGIN_RATE_LIMIT['block_period']
 
         # check if rate limiting in place
-        incidents = get_log_events(user_id=user.id, event_type='incident',
-                                   action='login_rate_limiting',
-                                   start=time() - max_logins_period)
+        incidents = get_events(auth_context=None, user_id=user.id,
+                               event_type='incident',
+                               action='login_rate_limiting',
+                               start=time() - max_logins_period)
         incidents = [inc for inc in incidents
                      if inc.get('ip') == ip_from_request(request)]
         if len(incidents):
@@ -273,9 +268,9 @@ def login(request):
 
         if not user.check_password(password):
             # check if rate limiting condition just got triggered
-            logins = list(get_log_events(
-                user_id=user.id, event_type='request', action='login',
-                error=True, start=time() - max_logins_period))
+            logins = list(get_events(
+                auth_context=None, user_id=user.id, event_type='request',
+                action='login', error=True, start=time() - max_logins_period))
             logins = [login for login in logins
                       if login.get('request_ip') == ip_from_request(request)]
             if len(logins) > max_logins:
