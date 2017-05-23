@@ -270,9 +270,9 @@ class CNAMERecord(Record):
         super(CNAMERecord, self).clean()
         if not self.rdata[0].endswith('.'):
             self.rdata[0] += '.'
-        if not len(self.rdata) == 1:
-            raise me.ValidationError('We cannot have more than one rdata'
-                                     'values for this type of record.')
+        # if not len(self.rdata) == 1:
+        #     raise me.ValidationError('We cannot have more than one rdata'
+        #                              'values for this type of record.')
 
 
 class MXRecord(Record):
