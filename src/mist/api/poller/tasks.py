@@ -1,6 +1,8 @@
 import logging
 import datetime
 
+from amqp.connection import Connection
+
 import jsonpatch
 
 from mist.api.helpers import amqp_publish
@@ -9,6 +11,8 @@ from mist.api.helpers import amqp_owner_listening
 
 from mist.api.methods import notify_user
 from mist.api.tasks import app
+
+from mist.api import config
 
 
 log = logging.getLogger(__name__)
@@ -101,10 +105,14 @@ def list_machines(schedule_id):
         sched.last_attempt_started = None
         cloud.save()
 
+    # Initialize AMQP connection to reuse for multiple messages.
+    amqp_conn = Connection(config.AMQP_URI)
+
     # Publish results to rabbitmq (for backwards compatibility).
     if amqp_owner_listening(cloud.owner.id):
         amqp_publish_user(cloud.owner.id,
                           routing_key='list_machines',
+                          connection=amqp_conn,
                           data={'cloud_id': cloud.id,
                                 'machines': [machine.as_dict()
                                              for machine in machines]})
@@ -114,6 +122,7 @@ def list_machines(schedule_id):
                                               new_machines).patch
         amqp_publish_user(cloud.owner.id,
                           routing_key='patch_machines',
+                          connection=amqp_conn,
                           data={'cloud_id': cloud.id,
                                 'patch': patch})
 
@@ -124,4 +133,4 @@ def list_machines(schedule_id):
                 'cost_per_month': machine.cost.monthly}
         log.info("Will push to elastic: %s", data)
         amqp_publish(exchange='machines_inventory', routing_key='',
-                     auto_delete=False, data=data)
+                     auto_delete=False, data=data, connection=amqp_conn)

@@ -291,15 +291,20 @@ def dirty_cow(os, os_version, kernel_version):
 
 
 def amqp_publish(exchange, routing_key, data,
-                 ex_type='fanout', ex_declare=False, auto_delete=True):
-    connection = Connection(config.AMQP_URI)
+                 ex_type='fanout', ex_declare=False, auto_delete=True,
+                 connection=None):
+    close = False
+    if connection is None:
+        connection = Connection(config.AMQP_URI)
+        close = True
     channel = connection.channel()
     if ex_declare:
         channel.exchange_declare(exchange=exchange, type=ex_type, auto_delete=auto_delete)
     msg = Message(json.dumps(data))
     channel.basic_publish(msg, exchange=exchange, routing_key=routing_key)
     channel.close()
-    connection.close()
+    if close:
+        connection.close()
 
 
 def amqp_subscribe(exchange, callback, queue='',
@@ -347,9 +352,10 @@ def _amqp_owner_exchange(owner):
     return "owner_%s" % owner.id
 
 
-def amqp_publish_user(owner, routing_key, data):
+def amqp_publish_user(owner, routing_key, data, connection=None):
     try:
-        amqp_publish(_amqp_owner_exchange(owner), routing_key, data)
+        amqp_publish(_amqp_owner_exchange(owner), routing_key, data,
+                     connection=connection)
     except AmqpNotFound:
         return False
     except Exception:
