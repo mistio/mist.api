@@ -2183,11 +2183,10 @@ def edit_team(request):
     visibility = params.get('new_visible')
 
     if not name:
-        raise RequiredParameterMissingError()
+        raise RequiredParameterMissingError('name')
 
     # SEC check if owner
-    if not (auth_context.org and auth_context.is_owner() and
-            auth_context.org.id == org_id):
+    if not (auth_context.is_owner() and auth_context.org.id == org_id):
         raise OrganizationAuthorizationFailure()
 
     # Check if team entry exists
@@ -2195,6 +2194,9 @@ def edit_team(request):
         team = auth_context.org.get_team_by_id(team_id)
     except me.DoesNotExist:
         raise TeamNotFound()
+
+    if team.name == 'Owners' and name != 'Owners':
+        raise BadRequestError('The name of the Owners Teams may not be edited')
 
     team.name = name
     team.description = description if description else ''
