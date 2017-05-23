@@ -1154,6 +1154,28 @@ def destroy_machine(user, cloud_id, machine_id):
 
 
 # SEC
+def filter_machine_ids(auth_context, cloud_id, machine_ids):
+
+    if not isinstance(machine_ids, set):
+        machine_ids = set(machine_ids)
+
+    if auth_context.is_owner():
+        return machine_ids
+
+    # NOTE: We can trust the RBAC Mappings in order to fetch the latest list of
+    # machines for the current user, since mongo has been updated by either the
+    # Poller or the above `list_machines`.
+
+    try:
+        auth_context.check_perm('cloud', 'read', cloud_id)
+    except PolicyUnauthorizedError:
+        return set()
+
+    allowed_ids = set(auth_context.get_allowed_resources(rtype='machines'))
+    return machine_ids & allowed_ids
+
+
+# SEC
 def filter_list_machines(auth_context, cloud_id, machines=None, perm='read'):
     """Returns a list of machines.
 
@@ -1166,18 +1188,11 @@ def filter_list_machines(auth_context, cloud_id, machines=None, perm='read'):
         machines = list_machines(auth_context.owner, cloud_id)
     if not machines:  # Exit early in case the cloud provider returned 0 nodes.
         return []
+    if auth_context.is_owner():
+        return machines
 
-    # NOTE: We can trust the RBAC Mappings in order to fetch the latest list of
-    # machines for the current user, since mongo has been updated by either the
-    # Poller or the above `list_machines`.
-
-    if not auth_context.is_owner():
-        try:
-            auth_context.check_perm('cloud', 'read', cloud_id)
-        except PolicyUnauthorizedError:
-            return []
-        allowed_ids = set(auth_context.get_allowed_resources(rtype='machines'))
-        machines = [machine for machine in machines
-                    if machine['id'] in allowed_ids]
-
-    return machines
+    machine_ids = set(machine['id'] for machine in machines)
+    allowed_machine_ids = filter_machine_ids(auth_context, cloud_id,
+                                             machine_ids)
+    return [machine for machine in machines
+            if machine['id'] in allowed_machine_ids]
