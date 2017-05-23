@@ -31,7 +31,7 @@ from mist.api.amqp_tornado import Consumer
 
 from mist.api.clouds.methods import filter_list_clouds
 from mist.api.keys.methods import filter_list_keys
-from mist.api.machines.methods import filter_list_machines
+from mist.api.machines.methods import filter_list_machines, filter_machine_ids
 from mist.api.scripts.methods import filter_list_scripts
 from mist.api.schedules.methods import filter_list_schedules
 
@@ -482,6 +482,13 @@ class MainConnection(MistConnection):
         elif routing_key == 'patch_machines':
             cloud_id = result['cloud_id']
             patch = result['patch']
+            if not self.auth_context.is_owner():
+                machine_ids = [line['path'].lstrip('/').split('/', 1)[0]
+                               for line in patch]
+                allowed_machine_ids = filter_machine_ids(self.auth_context,
+                                                         cloud_id, machine_ids)
+                patch = [line for line, machine_id in zip(patch, machine_ids)
+                         if machine_id in allowed_machine_ids]
             if patch:
                 self.send('patch_machines',
                           {'cloud_id': cloud_id, 'patch': patch})
