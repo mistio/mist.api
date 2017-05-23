@@ -13,7 +13,6 @@ from mist.api.logs.methods import get_events
 from mist.api.auth.methods import auth_context_from_request
 
 
-
 FIELDS = list(_FIELDS) + ['action', 'filter']
 FIELDS.remove('owner_id')  # SEC
 
@@ -118,7 +117,6 @@ def close_story(request):
 
     """
     auth_context = auth_context_from_request(request)
-    story_id = request.matchdict['story_id']
 
     # Only available to Owners for now.
     if not auth_context.is_owner():
@@ -126,6 +124,9 @@ def close_story(request):
 
     # NOTE: The story is closed by the view's decorator logging the close_story
     # action with the given story_id. No additional method needs to be invoked.
+    # The story's ID exists in path, but it is not used here. It is captured by
+    # our decorator, when logging the API response.
+    # story_id = request.matchdict['story_id']
     return Response('OK', 200)
 
 

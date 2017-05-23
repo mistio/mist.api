@@ -21,7 +21,6 @@ from sockjs.tornado import SockJSConnection, SockJSRouter
 from mist.api.sockjs_mux import MultiplexConnection
 
 from mist.api.logs.methods import log_event
-from mist.api.logs.methods import get_events
 from mist.api.logs.methods import get_stories
 
 from mist.api.clouds.models import Cloud
