@@ -265,6 +265,14 @@ class RackSpaceComputeController(BaseComputeController):
             # https://www.rackspace.com/cloud/public-pricing
             # there's a minimum service charge of $50/mo across all servers.
 
+    def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        # do not include ipv6 on public ips
+        public_ips = []
+        for ip in machine.public_ips:
+            if ip and ':' not in ip:
+                public_ips.append(ip)
+        machine.public_ips = public_ips
+
 
 class SoftLayerComputeController(BaseComputeController):
 
@@ -728,6 +736,14 @@ class OpenStackComputeController(BaseComputeController):
             OpenStackComputeController, self
         )._list_machines__machine_actions(machine, machine_libcloud)
         machine.actions.rename = True
+
+    def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        # do not include ipv6 on public ips
+        public_ips = []
+        for ip in machine.public_ips:
+            if ip and ':' not in ip:
+                public_ips.append(ip)
+        machine.public_ips = public_ips
 
 
 class DockerComputeController(BaseComputeController):
