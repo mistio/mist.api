@@ -307,9 +307,7 @@ class MainConnection(MistConnection):
             periodic_tasks.append(('list_machines', tasks.ListMachines()))
         else:
             for cloud in clouds:
-                after = datetime.datetime.utcnow() - datetime.timedelta(days=1)
-                machines = Machine.objects(cloud=cloud, missing_since=None,
-                                           last_seen__gt=after)
+                machines = cloud.ctl.compute.list_cached_machines()
                 machines = filter_list_machines(
                     self.auth_context, cloud_id=cloud.id,
                     machines=[machine.as_dict() for machine in machines]
