@@ -13,8 +13,6 @@ from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import MethodNotAllowedError
 from mist.api.exceptions import OrganizationOperationError
 
-from mist.api.logs.methods import log_event
-
 from mist.api import config
 
 try:
@@ -77,6 +75,7 @@ def register_user(email, first_name, last_name, registration_method,
 
     # Create log for the registration of a user and if an org has been created
     # add the id and name of the org
+    from mist.api.logs.methods import log_event
     log_event(**log_event_args)
 
     return user, org
@@ -107,12 +106,31 @@ def get_user_data(auth_context):
     :return: dict
     """
     user = auth_context.user
-    orgs = [{
-        'id': org.id,
-        'name': org.name,
-        'members': len(org.members),
-        'isOwner': user in org.get_team('Owners').members,
-    } for org in Organization.objects(members=user)]
+
+    orgs = []
+    for org in Organization.objects(members=user):
+        o_dict = {
+            'id': org.id,
+            'name': org.name,
+            'members': len(org.members),
+            'isOwner': user in org.get_team('Owners').members,
+            'super_org': org.super_org
+        }
+
+        if org.super_org and Organization.objects(parent=org.id):
+            sub_orgs = Organization.objects(parent=org.id)
+            for sub_org in sub_orgs:
+                sub = {
+                    'id': sub_org.id,
+                    'parent_id': sub_org.parent.id,
+                    'name': sub_org.name,
+                    'members': len(sub_org.members),
+                    'isOwner': user in org.get_team('Owners').members,
+                }
+                orgs.append(sub)
+
+        orgs.append(o_dict)
+
     ret = {
         'id': user.id,
         'email': user.email,
