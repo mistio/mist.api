@@ -30,6 +30,8 @@ from libcloud.dns.providers import get_driver
 from mist.api.clouds.controllers.dns.base import BaseDNSController
 
 from mist.api.exceptions import BadRequestError
+from mist.api.exceptions import RequiredParameterMissingError
+
 
 log = logging.getLogger(__name__)
 
@@ -49,27 +51,10 @@ class AmazonDNSController(BaseDNSController):
         specific form.
         ---
         """
-        # Route53 requires just the subdomain for A, AAAA, CNAME, MX records.
-        if kwargs['name'].endswith(zone.domain):
-            kwargs['name'] = kwargs['name'][:-(len(zone.domain) + 1)]
-        if kwargs['type'] == 'CNAME' and not kwargs['data'].endswith('.'):
+        if kwargs['type'] == 'CNAME':
             kwargs['data'] += '.'
-        # Route 53 requires TXT rdata to be whitin quotes
-        if kwargs['type'] == 'TXT':
-            if not kwargs['data'].endswith('"'):
-                kwargs['data'] += '"'
-            if not kwargs['data'].startswith('"'):
-                kwargs['data'] = '"' + kwargs['data']
-        kwargs['extra'] = {'ttl': kwargs.pop('ttl', 0)}
-
-    def _create_zone__prepare_args(self, kwargs):
-        if not kwargs['domain'].endswith('.'):
-            kwargs['domain'] += '.'
-
-    def _list_records__postparse_data(self, pr_record, record):
-        """Get the provider specific information into the Mongo model"""
-        if pr_record.data not in record.rdata and pr_record.type == "NS":
-            record.rdata.append(pr_record.data)
+        kwargs['extra'] = {'ttl': kwargs.get('ttl', 0)}
+        super(AmazonDNSController, self)._create_record__prepare_args(zone, kwargs)
 
 
 class DigitalOceanDNSController(BaseDNSController):
@@ -86,31 +71,16 @@ class DigitalOceanDNSController(BaseDNSController):
         specific form.
         ---
         """
-        if kwargs['type'] == 'CNAME' and not kwargs['data'].endswith('.'):
+        super(DigitalOceanDNSController, self)._create_record__prepare_args(zone, kwargs)
+        if kwargs['type'] == 'CNAME':
             kwargs['data'] += '.'
-        # DO requires TXT rdata to be whitin quotes
-        if kwargs['type'] == 'TXT':
-            if not kwargs['data'].endswith('"'):
-                kwargs['data'] += '"'
-            if not kwargs['data'].startswith('"'):
-                kwargs['data'] = '"' + kwargs['data']
         if kwargs['type'] == 'MX':
             parts = kwargs['data'].split(' ')
             kwargs['extra'] = {'priority': parts[0]}
-            kwargs['data'] = parts[1]
-        # DO does not accept a ttl, if there is then remove it
-        kwargs.pop('ttl', 0)
+            kwargs['data'] = parts[1] + '.'
 
     def _create_zone__prepare_args(self, kwargs):
-        if kwargs['domain'].endswith('.'):
-            kwargs['domain'] = kwargs['domain'][:-1]
-
-    def _list_records__postparse_data(self, pr_record, record):
-        """Get the provider specific information into the Mongo model"""
-        if pr_record.type == "CNAME" and not pr_record.data.endswith('.'):
-            pr_record.data += '.'
-        if pr_record.data not in record.rdata:
-            record.rdata.append(pr_record.data)
+        kwargs['domain'] = kwargs['domain'].rstrip('.')
 
 
 class GoogleDNSController(BaseDNSController):
@@ -128,12 +98,7 @@ class GoogleDNSController(BaseDNSController):
         specific form.
         ---
         """
-        # Google requires the full subdomain+domain for A, AAAA, and CNAME
-        # records with a trailing dot.
-        if (kwargs['type'] in ['A', 'AAAA', 'CNAME'] and
-                not kwargs['name'].endswith('.')):
-            kwargs['name'] += "."
-        if kwargs['type'] == 'CNAME' and not kwargs['data'].endswith('.'):
+        if kwargs['type'] == 'CNAME':
             kwargs['data'] += '.'
         # For MX records Google requires the data in the form:
         # XX DOMAIN.COM. where XX is the record priority (an integer)
@@ -141,14 +106,9 @@ class GoogleDNSController(BaseDNSController):
         # we need to append it.
         if kwargs['type'] == 'MX' and not kwargs['data'].endswith('.'):
             kwargs['data'] += '.'
-
         data = kwargs.pop('data', '')
         kwargs['data'] = {'ttl': kwargs.pop('ttl', 0), 'rrdatas': []}
         kwargs['data']['rrdatas'].append(data)
-
-    def _create_zone__prepare_args(self, kwargs):
-        if not kwargs['domain'].endswith('.'):
-            kwargs['domain'] += '.'
 
     def _list_records__postparse_data(self, pr_record, record):
         """Get the provider specific information into the Mongo model"""
@@ -167,15 +127,8 @@ class LinodeDNSController(BaseDNSController):
         if kwargs['type'] == "master":
             kwargs['extra'] = {'SOA_Email': kwargs.pop('SOA_Email', "")}
         if kwargs['type'] == "slave":
-            kwargs['extra'] = {'master_ips': kwargs.pop('master_ips', "")}
-
-    def _list_records__postparse_data(self, pr_record, record):
-        """Get the provider specific information into the Mongo model"""
-        if pr_record.type in ["CNAME"]:
-            if not pr_record.data.endswith('.'):
-                pr_record.data += '.'
-        if pr_record.data not in record.rdata:
-            record.rdata.append(pr_record.data)
+            ips = kwargs.pop('master_ips', "").split()
+            kwargs['extra'] = {'master_ips': ips}
 
     def _create_record__prepare_args(self, zone, kwargs):
         """
@@ -183,11 +136,8 @@ class LinodeDNSController(BaseDNSController):
         specific form.
         ---
         """
-        # Linode requires just the subdomain for A, AAAA, CNAME, MX records.
-        if kwargs['name'].endswith(zone.domain) and kwargs['type']:
-            kwargs['name'] = kwargs['name'][:-(len(zone.domain) + 1)]
-        if kwargs['type'] == 'CNAME' and kwargs['data'].endswith('.'):
-            kwargs['data'] = kwargs['data'][:-1]
+        super(LinodeDNSController, self)._create_record__prepare_args(zone, kwargs)
+        kwargs['name'] += zone.domain
         if kwargs['type'] == 'MX':
             parts = kwargs['data'].split(' ')
             if len(parts) == 2:
@@ -195,16 +145,8 @@ class LinodeDNSController(BaseDNSController):
             elif len(parts) == 1:
                 kwargs['data'] = parts[0]
             else:
-                raise BadRequestError('Please provide only the'
+                raise BadRequestError('Please provide only the '
                                       'mailserver hostname')
-        # Linode requires TXT rdata to be whitin quotes
-        if kwargs['type'] == 'TXT':
-            if not kwargs['data'].endswith('"'):
-                kwargs['data'] += '"'
-            if not kwargs['data'].startswith('"'):
-                kwargs['data'] = '"' + kwargs['data']
-        # Linode does not accept a ttl, if there is then remove it
-        kwargs.pop('ttl')
 
 
 class RackSpaceDNSController(BaseDNSController):
@@ -227,37 +169,17 @@ class RackSpaceDNSController(BaseDNSController):
     def _create_zone__prepare_args(self, kwargs):
         kwargs['extra'] = {'email': kwargs.pop('email', "")}
 
-    def _list_records__postparse_data(self, pr_record, record):
-        """Get the provider specific information into the Mongo model"""
-        if pr_record.name is None:
-            record.name = ""
-        if pr_record.type == "CNAME" and not pr_record.data.endswith('.'):
-            pr_record.data += '.'
-        if pr_record.data not in record.rdata:
-            record.rdata.append(pr_record.data)
-
     def _create_record__prepare_args(self, zone, kwargs):
         """
         This is a private method to transform the arguments to the provider
         specific form.
         ---
         """
-        # RS requires just the subdomain for A, AAAA, CNAME, MX records.
-        if kwargs['name'].endswith(zone.domain) and kwargs['type']:
-            kwargs['name'] = kwargs['name'][:-(len(zone.domain) + 1)]
-        if kwargs['type'] == 'CNAME' and kwargs['data'].endswith('.'):
-            kwargs['data'] = kwargs['data'][:-1]
+        super(RackSpaceDNSController, self)._create_record__prepare_args(zone, kwargs)
         if kwargs['type'] == 'MX':
             parts = kwargs['data'].split(' ')
             kwargs['extra'] = {'priority': parts[0]}
             kwargs['data'] = parts[1]
-        # RS requires TXT rdata to be whitin quotes
-        if kwargs['type'] == 'TXT':
-            if not kwargs['data'].endswith('"'):
-                kwargs['data'] += '"'
-            if not kwargs['data'].startswith('"'):
-                kwargs['data'] = '"' + kwargs['data']
-        kwargs.pop('ttl', 0)
 
 
 class SoftLayerDNSController(BaseDNSController):
@@ -270,35 +192,7 @@ class SoftLayerDNSController(BaseDNSController):
                                               self.cloud.apikey)
 
     def _create_zone__prepare_args(self, kwargs):
-        if kwargs['type']:
-            kwargs.pop('type', None)
-
-    def _list_records__postparse_data(self, pr_record, record):
-        """Get the provider specific information into the Mongo model"""
-        if pr_record.type == "CNAME" and not pr_record.data.endswith('.'):
-            pr_record.data += '.'
-        if pr_record.data not in record.rdata:
-            record.rdata.append(pr_record.data)
-
-    def _create_record__prepare_args(self, zone, kwargs):
-        """
-        This is a private method to transform the arguments to the provider
-        specific form.
-        ---
-        """
-        # SL requires just the subdomain for A, AAAA, CNAME, MX records.
-        if kwargs['name'].endswith(zone.domain) and kwargs['type']:
-            kwargs['name'] = kwargs['name'][:-(len(zone.domain) + 1)]
-        if kwargs['type'] == 'CNAME' and kwargs['data'].endswith('.'):
-            kwargs['data'] = kwargs['data'][:-1]
-        # SL requires TXT rdata to be whitin quotes
-        if kwargs['type'] == 'TXT':
-            if not kwargs['data'].endswith('"'):
-                kwargs['data'] += '"'
-            if not kwargs['data'].startswith('"'):
-                kwargs['data'] = '"' + kwargs['data']
-        # SL does not accept a ttl, if there is then remove it
-        kwargs.pop('ttl', 0)
+        kwargs.pop('type')
 
 
 class VultrDNSController(BaseDNSController):
@@ -310,15 +204,9 @@ class VultrDNSController(BaseDNSController):
         return get_driver(Provider.VULTR)(self.cloud.apikey)
 
     def _create_zone__prepare_args(self, kwargs):
-        if 'ip' in kwargs:
-            kwargs['extra'] = {'serverip': kwargs.pop('ip', None)}
-
-    def _list_records__postparse_data(self, pr_record, record):
-        """Get the provider specific information into the Mongo model"""
-        if pr_record.type == "CNAME" and not pr_record.data.endswith('.'):
-            pr_record.data += '.'
-        if pr_record.data not in record.rdata:
-            record.rdata.append(pr_record.data)
+        if not kwargs.get('ip'):
+            raise RequiredParameterMissingError('ip')
+        kwargs['extra'] = {'serverip': kwargs.pop('ip')}
 
     def _create_record__prepare_args(self, zone, kwargs):
         """
@@ -326,20 +214,8 @@ class VultrDNSController(BaseDNSController):
         specific form.
         ---
         """
-        # Vultr requires just the subdomain for A, AAAA, CNAME, MX records.
-        if kwargs['name'].endswith(zone.domain) and kwargs['type']:
-            kwargs['name'] = kwargs['name'][:-(len(zone.domain) + 1)]
-        if kwargs['type'] == 'CNAME' and kwargs['data'].endswith('.'):
-            kwargs['data'] = kwargs['data'][:-1]
+        super(VultrDNSController, self)._create_record__prepare_args(zone, kwargs)
         if kwargs['type'] == 'MX':
             parts = kwargs['data'].split(' ')
             kwargs['extra'] = {'priority': parts[0]}
             kwargs['data'] = parts[1]
-        # Vultr requires TXT rdata to be whitin quotes
-        if kwargs['type'] == 'TXT':
-            if not kwargs['data'].endswith('"'):
-                kwargs['data'] += '"'
-            if not kwargs['data'].startswith('"'):
-                kwargs['data'] = '"' + kwargs['data']
-        # Vultr does not accept a ttl, if there is then remove it
-        kwargs.pop('ttl', 0)

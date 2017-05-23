@@ -242,7 +242,14 @@ class BaseDNSController(BaseController):
 
     def _list_records__postparse_data(self, pr_record, record):
         """Postparse the records returned from the provider"""
-        return
+        record.name = pr_record.name or ""
+        if pr_record.type in ["CNAME"]:
+            if not pr_record.data.endswith('.'):
+                pr_record.rdata = pr_record.data + '.'
+        print "record %s " % record.rdata
+        if pr_record.data not in record.rdata:
+            record.rdata.append(pr_record.data)
+
 
     def delete_record(self, record, expire=False):
         """
@@ -322,7 +329,8 @@ class BaseDNSController(BaseController):
 
     def _create_zone__prepare_args(self, kwargs):
         """ This private method to prepare the args for the zone creation."""
-        return
+        if not kwargs['domain'].endswith('.'):
+            kwargs['domain'] += '.'
 
     def _create_zone__for_cloud(self, **kwargs):
         """
@@ -423,7 +431,16 @@ class BaseDNSController(BaseController):
         provider depending on how they expect the record data.
         ---
         """
-        return
+        if kwargs['type'] == 'CNAME':
+            kwargs['data'] = kwargs['data'].rstrip('.')
+        if kwargs['type'] == 'TXT':
+            if not kwargs['data'].endswith('"'):
+                kwargs['data'] += '"'
+            if not kwargs['data'].startswith('"'):
+                kwargs['data'] = '"' + kwargs['data']
+        kwargs['name'] = kwargs['name'].rstrip(zone.domain)
+        kwargs.pop('ttl')
+
 
     @staticmethod
     def find_best_matching_zone(owner, name):
