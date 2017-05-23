@@ -489,9 +489,11 @@ class MainConnection(MistConnection):
                                                          cloud_id, machine_ids)
                 patch = [line for line, machine_id in zip(patch, machine_ids)
                          if machine_id in allowed_machine_ids]
+            for line in patch:
+                line['path'] = '/clouds/%s/machines%s' % (cloud_id,
+                                                          line['path'])
             if patch:
-                self.send('patch_machines',
-                          {'cloud_id': cloud_id, 'patch': patch})
+                self.send('patch_model', patch)
 
     def on_close(self, stale=False):
         if self.consumer is not None:
