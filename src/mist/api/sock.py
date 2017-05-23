@@ -479,6 +479,13 @@ class MainConnection(MistConnection):
                 self.auth_context.org.reload()
                 self.update_org()
 
+        elif routing_key == 'patch_machines':
+            cloud_id = result['cloud_id']
+            patch = result['patch']
+            if patch:
+                self.send('patch_machines',
+                          {'cloud_id': cloud_id, 'patch': patch})
+
     def on_close(self, stale=False):
         if self.consumer is not None:
             try:

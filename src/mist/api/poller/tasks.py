@@ -1,6 +1,8 @@
 import logging
 import datetime
 
+import jsonpatch
+
 from mist.api.helpers import amqp_publish
 from mist.api.helpers import amqp_publish_user
 from mist.api.helpers import amqp_owner_listening
@@ -76,6 +78,10 @@ def list_machines(schedule_id):
     sched.last_attempt_started = now
     cloud.save()
 
+    # Store a dict by machine id of all cached machines.
+    old_machines = {m.id: m.as_dict()
+                    for m in cloud.ctl.compute.list_cached_machines()}
+
     try:
         # Run list_machines.
         machines = cloud.ctl.compute.list_machines()
@@ -97,10 +103,19 @@ def list_machines(schedule_id):
 
     # Publish results to rabbitmq (for backwards compatibility).
     if amqp_owner_listening(cloud.owner.id):
-        amqp_publish_user(cloud.owner.id, routing_key='list_machines',
+        amqp_publish_user(cloud.owner.id,
+                          routing_key='list_machines',
                           data={'cloud_id': cloud.id,
                                 'machines': [machine.as_dict()
                                              for machine in machines]})
+        # Publish patches to rabbitmq.
+        new_machines = {m.id: m.as_dict() for m in machines}
+        patch = jsonpatch.JsonPatch.from_diff(old_machines,
+                                              new_machines).patch
+        amqp_publish_user(cloud.owner.id,
+                          routing_key='patch_machines',
+                          data={'cloud_id': cloud.id,
+                                'patch': patch})
 
     # Push historic information for inventory and cost reporting.
     for machine in machines:
