@@ -13,21 +13,32 @@ class NotificationOperator(me.EmbeddedDocument):
     essentially corresponds to an allow/block action
     """
     channel = me.StringField(max_length=64, required=True, default="")
-    cid = me.StringField(max_length=64, default="")
-    value = me.StringField(max_length=5, required=True,
+    value = me.StringField(max_length=7, required=True,
                            choices=('ALLOW', 'INHERIT', 'BLOCK'))
 
 
 class NotificationRule(me.EmbeddedDocument):
     """
     Represents a single Notifications rule, which includes
-    a filter expression and a list of rules of length equal
+    a filter expression and a list of operators of length equal
     to the number of channels defined in the parent policy
     """
     type = me.StringField(max_length=200, required=True, default="")
     action = me.StringField(max_length=200, required=True, default="")
     tags = me.StringField(max_length=200, required=True, default="")
     operators = me.EmbeddedDocumentListField(NotificationOperator)
+
+    def set_channel(self, channel, value='ALLOW'):
+        existing_operator = self.operators(channel=channel)
+        if not existing_operator:
+            new_operator = NotificationOperator()
+            new_operator.channel = channel
+            new_operator.value = value
+            new_operator.save() #todo: is this needed?
+            self.operators.add(new_operator)
+        else:
+            existing_operator.value = value
+            existing_operator.save()
 
     def channels_for_notification(self, notification, inherited_channels=[]):
         """
@@ -41,12 +52,12 @@ class NotificationRule(me.EmbeddedDocument):
         of the current policy.
         """
         if self.notification_matches_rule(notification):
-            allowed_ch = Set([op.channel for op in self.operators if op.value == 'ALLOW'])
-            blocked_ch = Set([op.channel for op in self.operators if op.value == 'BLOCK'])
-            inherited_ch = Set(inherited_channels)
+            allowed_ch = set([op.channel for op in self.operators if op.value == 'ALLOW'])
+            blocked_ch = set([op.channel for op in self.operators if op.value == 'BLOCK'])
+            inherited_ch = set(inherited_channels)
             return list(allowed_ch + (inherited_ch - blocked_ch))
 
-    def notification_matches_rule(notification):
+    def notification_matches_rule(self, notification):
         """
         Accepts a notification and returns whether
         the notification type, action and tags match the corresponding
@@ -66,15 +77,16 @@ class NotificationPolicy(me.EmbeddedDocument):
     owner = me.EmbeddedDocumentField(Owner)
     rules = me.EmbeddedDocumentListField(NotificationRule)
     channels = me.StringListField()
-    default = me.BooleanField(default=False)
 
-    def add_channel(channel):
+    def add_channel(self, channel):
         """
         Accepts a channel name and adds it to the channel list
         and to each of the rules' channel list
         """
         if channel not in self.channels:
             channels.add(channel)
+        for rule in self.rules:
+            rule.add_channel(channel)
 
     def channels_for_notification(self, notification, inherited_channels=None):
         """
