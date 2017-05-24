@@ -51,36 +51,10 @@ class AmazonDNSController(BaseDNSController):
         specific form.
         ---
         """
-        if kwargs['type'] == 'CNAME':
-            kwargs['data'] += '.'
         kwargs['extra'] = {'ttl': kwargs.get('ttl', 0)}
         super(AmazonDNSController, self)._create_record__prepare_args(zone, kwargs)
-
-
-class DigitalOceanDNSController(BaseDNSController):
-    """
-    DigitalOcean specific overrides.
-    """
-
-    def _connect(self):
-        return get_driver(Provider.DIGITAL_OCEAN)(self.cloud.token)
-
-    def _create_record__prepare_args(self, zone, kwargs):
-        """
-        This is a private method to transform the arguments to the provider
-        specific form.
-        ---
-        """
-        super(DigitalOceanDNSController, self)._create_record__prepare_args(zone, kwargs)
         if kwargs['type'] == 'CNAME':
             kwargs['data'] += '.'
-        if kwargs['type'] == 'MX':
-            parts = kwargs['data'].split(' ')
-            kwargs['extra'] = {'priority': parts[0]}
-            kwargs['data'] = parts[1] + '.'
-
-    def _create_zone__prepare_args(self, kwargs):
-        kwargs['domain'] = kwargs['domain'].rstrip('.')
 
 
 class GoogleDNSController(BaseDNSController):
@@ -106,7 +80,7 @@ class GoogleDNSController(BaseDNSController):
         # we need to append it.
         if kwargs['type'] == 'MX' and not kwargs['data'].endswith('.'):
             kwargs['data'] += '.'
-        data = kwargs.pop('data', '')
+        data = kwargs.pop('data')
         kwargs['data'] = {'ttl': kwargs.pop('ttl', 0), 'rrdatas': []}
         kwargs['data']['rrdatas'].append(data)
 
@@ -137,7 +111,6 @@ class LinodeDNSController(BaseDNSController):
         ---
         """
         super(LinodeDNSController, self)._create_record__prepare_args(zone, kwargs)
-        kwargs['name'] += zone.domain
         if kwargs['type'] == 'MX':
             parts = kwargs['data'].split(' ')
             if len(parts) == 2:
@@ -182,6 +155,28 @@ class RackSpaceDNSController(BaseDNSController):
             kwargs['data'] = parts[1]
 
 
+class DigitalOceanDNSController(RackSpaceDNSController):
+    """
+    DigitalOcean specific overrides.
+    """
+
+    def _connect(self):
+        return get_driver(Provider.DIGITAL_OCEAN)(self.cloud.token)
+
+    def _create_record__prepare_args(self, zone, kwargs):
+        """
+        This is a private method to transform the arguments to the provider
+        specific form.
+        ---
+        """
+        super(DigitalOceanDNSController, self)._create_record__prepare_args(zone, kwargs)
+        if kwargs['type'] in ['CNAME','MX']:
+            kwargs['data'] += '.'
+
+    def _create_zone__prepare_args(self, kwargs):
+        kwargs['domain'] = kwargs['domain'].rstrip('.')
+
+
 class SoftLayerDNSController(BaseDNSController):
     """
     SoftLayer specific overrides.
@@ -195,7 +190,7 @@ class SoftLayerDNSController(BaseDNSController):
         kwargs.pop('type')
 
 
-class VultrDNSController(BaseDNSController):
+class VultrDNSController(RackSpaceDNSController):
     """
     Vultr specific overrides.
     """
@@ -207,15 +202,3 @@ class VultrDNSController(BaseDNSController):
         if not kwargs.get('ip'):
             raise RequiredParameterMissingError('ip')
         kwargs['extra'] = {'serverip': kwargs.pop('ip')}
-
-    def _create_record__prepare_args(self, zone, kwargs):
-        """
-        This is a private method to transform the arguments to the provider
-        specific form.
-        ---
-        """
-        super(VultrDNSController, self)._create_record__prepare_args(zone, kwargs)
-        if kwargs['type'] == 'MX':
-            parts = kwargs['data'].split(' ')
-            kwargs['extra'] = {'priority': parts[0]}
-            kwargs['data'] = parts[1]

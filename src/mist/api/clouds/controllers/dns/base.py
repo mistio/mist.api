@@ -23,6 +23,8 @@ from mist.api.exceptions import RecordNotFoundError
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import RecordExistsError
 from mist.api.exceptions import ZoneExistsError
+from mist.api.exceptions import ZoneCreationError
+from mist.api.exceptions import RecordCreationError
 
 
 log = logging.getLogger(__name__)
@@ -177,7 +179,7 @@ class BaseDNSController(BaseController):
                 new_records.append(record)
             # We need to check if any of the information returned by the
             # provider is different than what we have in the DB
-            record.name = pr_record.name
+            record.name = pr_record.name or ""
             record.type = pr_record.type
             record.ttl = pr_record.ttl
             record.extra = pr_record.extra
@@ -242,14 +244,15 @@ class BaseDNSController(BaseController):
 
     def _list_records__postparse_data(self, pr_record, record):
         """Postparse the records returned from the provider"""
-        record.name = pr_record.name or ""
-        if pr_record.type in ["CNAME"]:
+        # FIXME: We need to change the value on the provider
+        # object because we are using this value to check if
+        # this record exists.
+        if pr_record.type == "CNAME":
             if not pr_record.data.endswith('.'):
-                pr_record.rdata = pr_record.data + '.'
-        print "record %s " % record.rdata
+                pr_record.data += '.'
         if pr_record.data not in record.rdata:
             record.rdata.append(pr_record.data)
-
+        print "data: %s" % record.rdata[0]
 
     def delete_record(self, record, expire=False):
         """
@@ -302,7 +305,7 @@ class BaseDNSController(BaseController):
             raise ZoneNotFoundError(exc=exc)
         except Exception as exc:
             log.exception("Error while running delete_zone on %s", self.cloud)
-            raise CloudUnavailableError(exc=exc)
+            raise CloudUnavailableError("Failed to delete zone: %s " % exc)
 
     def create_zone(self, zone, **kwargs):
         """
@@ -355,7 +358,8 @@ class BaseDNSController(BaseController):
             raise CloudUnavailableError(exc=exc)
         except Exception as exc:
             log.exception("Error while running create_zone on %s", self.cloud)
-            raise CloudUnavailableError(exc=exc)
+            raise ZoneCreationError("Failed to create zone, "
+                                    "got error: %s" % exc, exc)
 
     def create_record(self, record, **kwargs):
         """
@@ -423,7 +427,8 @@ class BaseDNSController(BaseController):
         except Exception as exc:
             log.exception("Error while running create_record on %s",
                           self.cloud)
-            raise CloudUnavailableError(exc=exc)
+            raise RecordCreationError("Failed to create record, "
+                                      "got error: %s" % exc, exc)
 
     def _create_record__prepare_args(self, zone, kwargs):
         """
@@ -438,7 +443,9 @@ class BaseDNSController(BaseController):
                 kwargs['data'] += '"'
             if not kwargs['data'].startswith('"'):
                 kwargs['data'] = '"' + kwargs['data']
-        kwargs['name'] = kwargs['name'].rstrip(zone.domain)
+        if kwargs['name'].endswith(zone.domain):
+            kwargs['name'] = kwargs['name'][:-(len(zone.domain)+1)]
+        print "name: %s" % kwargs['name']
         kwargs.pop('ttl')
 
 
