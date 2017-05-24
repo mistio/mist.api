@@ -52,7 +52,8 @@ class AmazonDNSController(BaseDNSController):
         ---
         """
         kwargs['extra'] = {'ttl': kwargs.get('ttl', 0)}
-        super(AmazonDNSController, self)._create_record__prepare_args(zone, kwargs)
+        super(AmazonDNSController, self)._create_record__prepare_args(
+            zone, kwargs)
         if kwargs['type'] == 'CNAME':
             kwargs['data'] += '.'
 
@@ -110,7 +111,8 @@ class LinodeDNSController(BaseDNSController):
         specific form.
         ---
         """
-        super(LinodeDNSController, self)._create_record__prepare_args(zone, kwargs)
+        super(LinodeDNSController, self)._create_record__prepare_args(
+            zone, kwargs)
         if kwargs['type'] == 'MX':
             parts = kwargs['data'].split(' ')
             if len(parts) == 2:
@@ -148,7 +150,8 @@ class RackSpaceDNSController(BaseDNSController):
         specific form.
         ---
         """
-        super(RackSpaceDNSController, self)._create_record__prepare_args(zone, kwargs)
+        super(RackSpaceDNSController, self)._create_record__prepare_args(
+            zone, kwargs)
         if kwargs['type'] == 'MX':
             parts = kwargs['data'].split(' ')
             kwargs['extra'] = {'priority': parts[0]}
@@ -169,8 +172,9 @@ class DigitalOceanDNSController(RackSpaceDNSController):
         specific form.
         ---
         """
-        super(DigitalOceanDNSController, self)._create_record__prepare_args(zone, kwargs)
-        if kwargs['type'] in ['CNAME','MX']:
+        super(DigitalOceanDNSController, self)._create_record__prepare_args(
+            zone, kwargs)
+        if kwargs['type'] in ['CNAME', 'MX']:
             kwargs['data'] += '.'
 
     def _create_zone__prepare_args(self, kwargs):

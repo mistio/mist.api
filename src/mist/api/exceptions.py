@@ -392,6 +392,7 @@ class UserNotFoundError(NotFoundError):
 class AdminUnauthorizedError(UserUnauthorizedError):
     msg = "User is not authorized as an administrator"
 
+
 # DNS specific errors
 class ZoneCreationError(InternalServerError):
     msg = "Zone creation failed"

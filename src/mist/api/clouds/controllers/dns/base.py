@@ -444,10 +444,9 @@ class BaseDNSController(BaseController):
             if not kwargs['data'].startswith('"'):
                 kwargs['data'] = '"' + kwargs['data']
         if kwargs['name'].endswith(zone.domain):
-            kwargs['name'] = kwargs['name'][:-(len(zone.domain)+1)]
+            kwargs['name'] = kwargs['name'][:-(len(zone.domain) + 1)]
         print "name: %s" % kwargs['name']
         kwargs.pop('ttl')
-
 
     @staticmethod
     def find_best_matching_zone(owner, name):
