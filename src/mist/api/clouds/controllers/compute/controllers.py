@@ -346,6 +346,12 @@ class NephoScaleComputeController(BaseComputeController):
         sizes.extend(self.connection.list_sizes(baremetal=True))
         return sizes
 
+    def _list_machines__cost_machine(self, machine, machine_libcloud):
+        size = str(machine_libcloud.extra.get('size_id', ''))
+        price = get_size_price(driver_type='compute', driver_name='nephoscale',
+                               size_id=size)
+        return price, 0
+
 
 class AzureComputeController(BaseComputeController):
 
