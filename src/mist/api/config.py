@@ -46,8 +46,6 @@ ELASTICSEARCH = {
     'elastic_verify_certs': False
 }
 
-LOGS_FROM_ELASTIC = True
-
 BUILD_TAG = ""
 UI_TEMPLATE_URL = "http://ui"
 LANDING_TEMPLATE_URL = "http://landing"
