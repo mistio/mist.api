@@ -45,4 +45,4 @@ sockjs-tornado
 tornado
 tornado_profile
 uwsgidecorators
-websocket
+websocket-client
