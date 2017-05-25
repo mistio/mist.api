@@ -1,6 +1,10 @@
+import logging
+
 import sendgrid
 
-import logging
+from mist.api.users.models import User, Organization, Owner
+import models
+
 
 class BaseChannel():
 	'''
@@ -13,6 +17,7 @@ class BaseChannel():
 		'''
 		pass
 
+
 class SendgridChannel(BaseChannel):
     '''
     Sendgrid (email) channel
@@ -22,6 +27,7 @@ class SendgridChannel(BaseChannel):
 
     def send(self, notification):
         mail = Mail()
+        user = User.objects(id=notification.user_id)
         mail.from_email = Email(config.EMAIL_REPORT_SENDER, "Mist.io Reports")
         personalization = Personalization()
         personalization.add_to(Email(user.email))
@@ -29,8 +35,10 @@ class SendgridChannel(BaseChannel):
         personalization.add_substitution(Substitution("%name%", owner["name"]))
         mail.add_personalization(personalization)
 
-        mail.add_content(Content("text/plain", report_dict["text_template"]))
-        mail.add_content(Content("text/html", report_dict["html_template"]))
+        mail.add_content(Content("text/plain", notification.summary))
+        mail.add_content(Content("text/plain", notification.body))
+        # TODO: add HTML formatting to notifications? Implement HTML sending somehow..
+        #mail.add_content(Content("text/html", report_dict["html_template"]))
 
         mdict = mail.get()
         try:
@@ -38,7 +46,17 @@ class SendgridChannel(BaseChannel):
         except Exception as exc:
             print str(exc)
             print exc.read()
-            sys.exit(1)
+
+
+class StdoutChannel(BaseChannel):
+	'''
+	Stdout channel, mainly for testing/debugging
+	'''
+	def send(self, notification):
+		print notification.subject
+		if notification.summary:
+			print notification.summary
+		print notification.body
 
 
 def channel_instance_with_name(name):
@@ -46,6 +64,8 @@ def channel_instance_with_name(name):
 	Accepts a string and returns a channel instance with
 	matching name or None
 	'''
-	if name == 'email':
+	if name == 'stdout':
+		return StdoutChannel()
+	elif name == 'email':
 		return SendgridChannel()
 	return None
