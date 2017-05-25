@@ -739,7 +739,6 @@ class ListZones(UserTask):
                 zone_dict['records'] = [record.as_dict() for
                                         record in zone.ctl.list_records()]
                 ret.append(zone_dict)
-
             log.warn('Returning list zones for user %s cloud %s'
                      % (owner.id, cloud_id))
         return {'cloud_id': cloud_id, 'zones': ret}

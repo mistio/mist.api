@@ -93,12 +93,14 @@ class DigitalOceanMainController(BaseMainController):
 
     provider = 'digitalocean'
     ComputeController = compute_ctls.DigitalOceanComputeController
+    DnsController = dns_ctls.DigitalOceanDNSController
 
 
 class LinodeMainController(BaseMainController):
 
     provider = 'linode'
     ComputeController = compute_ctls.LinodeComputeController
+    DnsController = dns_ctls.LinodeDNSController
 
 
 class OnAppMainController(BaseMainController):
@@ -110,6 +112,7 @@ class RackSpaceMainController(BaseMainController):
 
     provider = 'rackspace'
     ComputeController = compute_ctls.RackSpaceComputeController
+    DnsController = dns_ctls.RackSpaceDNSController
 
     def _add__preparse_kwargs(self, kwargs):
         username = kwargs.get('username')
@@ -126,6 +129,7 @@ class SoftLayerMainController(BaseMainController):
 
     provider = 'softlayer'
     ComputeController = compute_ctls.SoftLayerComputeController
+    DnsController = dns_ctls.SoftLayerDNSController
 
 
 class NephoScaleMainController(BaseMainController):
@@ -186,6 +190,7 @@ class VultrMainController(BaseMainController):
 
     provider = 'vultr'
     ComputeController = compute_ctls.VultrComputeController
+    DnsController = dns_ctls.VultrDNSController
 
 
 class VSphereMainController(BaseMainController):
