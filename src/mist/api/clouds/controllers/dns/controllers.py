@@ -102,7 +102,9 @@ class LinodeDNSController(BaseDNSController):
         if kwargs['type'] == "master":
             kwargs['extra'] = {'SOA_Email': kwargs.pop('SOA_Email', "")}
         if kwargs['type'] == "slave":
-            ips = kwargs.pop('master_ips', "").split()
+            ips = kwargs.pop('master_ips', "")
+            if not isinstance(ips, list):
+                ips = ips.split()
             kwargs['extra'] = {'master_ips': ips}
 
     def _create_record__prepare_args(self, zone, kwargs):

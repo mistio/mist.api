@@ -87,6 +87,11 @@ class BaseDNSController(BaseController):
         zones = []
         new_zones = []
         for pr_zone in pr_zones:
+            # FIXME: We are using the zone_id and owner instead of the
+            # cloud_id to search for existing zones because providers
+            # allow access to the same zone from multiple clouds so
+            # we can end up adding the same zone many times under
+            # different clouds.
             try:
                 zones_q = Zone.objects(owner=self.cloud.owner,
                                        zone_id=pr_zone.id, deleted=None)
@@ -244,15 +249,12 @@ class BaseDNSController(BaseController):
 
     def _list_records__postparse_data(self, pr_record, record):
         """Postparse the records returned from the provider"""
-        # FIXME: We need to change the value on the provider
-        # object because we are using this value to check if
-        # this record exists.
+        data = pr_record.data
         if pr_record.type == "CNAME":
-            if not pr_record.data.endswith('.'):
-                pr_record.data += '.'
-        if pr_record.data not in record.rdata:
-            record.rdata.append(pr_record.data)
-        print "data: %s" % record.rdata[0]
+            if not data.endswith('.'):
+                data += '.'
+        if data not in record.rdata:
+            record.rdata.append(data)
 
     def delete_record(self, record, expire=False):
         """
@@ -445,7 +447,6 @@ class BaseDNSController(BaseController):
                 kwargs['data'] = '"' + kwargs['data']
         if kwargs['name'].endswith(zone.domain):
             kwargs['name'] = kwargs['name'][:-(len(zone.domain) + 1)]
-        print "name: %s" % kwargs['name']
         kwargs.pop('ttl')
 
     @staticmethod
