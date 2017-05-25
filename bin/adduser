@@ -1,0 +1,114 @@
+#!/usr/bin/env python
+
+import getpass
+import argparse
+
+from mist.api.clouds.models import DockerCloud
+from mist.api.users.models import User, Organization
+
+
+def main():
+    """Create a new user account or update an existing one"""
+
+    argparser = argparse.ArgumentParser(
+        description="Create and update a mist.io user account"
+    )
+
+    argparser.add_argument('email', help="Email of the user to create/update.")
+
+    argparser.add_argument('--admin', action='store_true', dest='admin',
+                           default=None, help="Make user admin.")
+    argparser.add_argument('--no-admin', action='store_false', dest='admin',
+                           default=None, help="Make user non-admin.")
+    argparser.add_argument('-o', '--org',
+                           help="Add user as owner to the given organization. "
+                                "Organization may be specified by either id "
+                                "or name. If not specified and user isn't "
+                                "member of any org, a new org will be created "
+                                "with the user as owner.")
+    argparser.add_argument('-d', '--docker-cloud', action='store_true',
+                           help="Add docker host running mist as docker cloud "
+                                "on the specified organization.")
+    argparser.add_argument('-p', '--password', nargs='?', default=False,
+                           help="If password argument is specified, then the "
+                                "user's password will be set to this. If no "
+                                "argument is provided, password will be asked "
+                                "interactively. Without the `p` parameter, "
+                                "the password will be asked interactively "
+                                "only if not already set.")
+    args = argparser.parse_args()
+    print 'Arguments:', args
+
+    # Find/Update/Create user
+    try:
+        user = User.objects.get(email=args.email)
+        print "Found user:", user
+    except:
+        print "Will create user"
+        user = User(email=args.email)
+
+    if args.password is not False or not user.password:
+        password = args.password or getpass.getpass('Password: ')
+        if not password:
+            raise Exception("Password can't be empty")
+        print "Setting user password."
+        user.set_password(password)
+
+    if args.admin:
+        print "Setting user to admin."
+        user.role = 'Admin'
+    elif args.admin is False:
+        print "Setting user to non-admin."
+        user.role = ''
+
+    user.status = 'confirmed'
+    user.save()
+
+    # Find/Update/Create org
+    org = None
+    if args.org:
+        try:
+            org = Organization.objects.get(id=args.org)
+            print "Found org by id:", org
+        except Organization.DoesNotExist:
+            try:
+                org = Organization.objects.get(name=args.org)
+                print "Found org by name:", org
+            except Organization.DoesNotExist:
+                raise Exception("No org with id or name: %s" % args.org)
+    else:
+        org = Organization.objects(members=user).first()
+        if org is None:
+            print "Will create new org"
+            org = Organization(name=user.email)
+        else:
+            print "Found org:", org
+    org.add_member_to_team('Owners', user)
+    org.save()
+
+    # Add local docker host
+    if args.docker_cloud:
+        cloud = None
+        print "Adding/Updating docker host cloud"
+        try:
+            cloud = DockerCloud.objects.get(owner=org, title='Mist Docker')
+            try:
+                if cloud.host != 'socat' or cloud.port != 2375:
+                    cloud.ctl.update(host='socat', port=2375)
+            except Exception as exc:
+                print "Error updating docker cloud: %r" % exc
+        except DockerCloud.DoesNotExist:
+            try:
+                cloud = DockerCloud.add(owner=org, title='Mist Docker',
+                                        host='socat', port=2375)
+            except Exception as exc:
+                print "Error adding docker cloud: %r" % exc
+        if cloud is not None:
+            try:
+                cloud.ctl.set_polling_interval(600)
+            except Exception as exc:
+                print "Error setting polling interval on cloud: %r" % exc
+
+
+if __name__ == '__main__':
+    main()
