@@ -7,15 +7,16 @@ import models
 
 
 class BaseChannel():
-	'''
-	Represents a notification channel
-	'''
-	def send(self, notification):
-		'''
-		Accepts a notification and sends it using the
-		current channel instance.
-		'''
-		pass
+    '''
+    Represents a notification channel
+    '''
+
+    def send(self, notification):
+        '''
+        Accepts a notification and sends it using the
+        current channel instance.
+        '''
+        pass
 
 
 class SendgridChannel(BaseChannel):
@@ -23,7 +24,7 @@ class SendgridChannel(BaseChannel):
     Sendgrid (email) channel
     '''
     sg_instance = sendgrid.SendGridAPIClient(
-            apikey=config.SENDGRID_REPORTING_KEY)
+        apikey=config.SENDGRID_REPORTING_KEY)
 
     def send(self, notification):
         mail = Mail()
@@ -49,23 +50,24 @@ class SendgridChannel(BaseChannel):
 
 
 class StdoutChannel(BaseChannel):
-	'''
-	Stdout channel, mainly for testing/debugging
-	'''
-	def send(self, notification):
-		print notification.subject
-		if notification.summary:
-			print notification.summary
-		print notification.body
+    '''
+    Stdout channel, mainly for testing/debugging
+    '''
+
+    def send(self, notification):
+        print notification.subject
+        if notification.summary:
+            print notification.summary
+        print notification.body
 
 
 def channel_instance_with_name(name):
-	'''
-	Accepts a string and returns a channel instance with
-	matching name or None
-	'''
-	if name == 'stdout':
-		return StdoutChannel()
-	elif name == 'email':
-		return SendgridChannel()
-	return None
+    '''
+    Accepts a string and returns a channel instance with
+    matching name or None
+    '''
+    if name == 'stdout':
+        return StdoutChannel()
+    elif name == 'email':
+        return SendgridChannel()
+    return None
