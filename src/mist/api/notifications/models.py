@@ -36,7 +36,6 @@ class Notification():
     '''
     Represents a notification instance
     '''
-
     def __init__(self, subject, summary=None, body, source, channel, user_id, org_id):
         self.subject = subject
         self.summary = summary
