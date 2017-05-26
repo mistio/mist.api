@@ -1,0 +1,54 @@
+#!/bin/sh
+
+# Exit with error if any command fails.
+set -e
+
+TIMEOUT=30
+QUIET=
+
+USAGE="Usage: $0 [-h] [-q] [-t TIMEOUT] [COMMAND]
+
+Wait for all required mist services to become available by scanning host/ports.
+
+Positional arguments:
+    COMMAND                 Command to run after all services are ready.
+
+Options:
+    -h                      Show this help message and exit.
+    -q                      Do not output any status messages.
+    -t TIMEOUT              Timeout in seconds, 0 tries forever,
+                            defaults to $TIMEOUT.
+    COMMAND                 Run given command with arguments after host:port is
+                            available.
+"
+
+while getopts "hqt:" opt; do
+    case "$opt" in
+        h)
+            echo "$USAGE"
+            exit
+            ;;
+        q)
+            QUIET=1
+            ;;
+        t)
+            TIMEOUT=$OPTARG
+            ;;
+        \?)
+            echo "$USAGE" >&2
+            echo "ERROR: Invalid option: -$OPTARG" >&2
+            exit 2
+            ;;
+    esac
+done
+shift $(expr $OPTIND - 1)
+CMD="$@"
+
+exec bin/wait-for \
+    -t $TIMEOUT \
+    $(if [ -n "$QUIET" ]; then echo "-q"; fi) \
+    $(if [ -n "$CMD" ]; then echo -c "$CMD"; fi) \
+    elasticsearch:9200 \
+    mongodb:27017 \
+    rabbitmq:5672 \
+    memcached:11211
