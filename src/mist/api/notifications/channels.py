@@ -3,6 +3,8 @@ import logging
 import sendgrid
 
 from mist.api.users.models import User, Organization, Owner
+from mist.api import config
+
 import models
 
 
