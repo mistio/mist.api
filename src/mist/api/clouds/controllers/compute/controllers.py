@@ -32,11 +32,13 @@ import mongoengine as me
 from xml.sax.saxutils import escape
 
 from libcloud.pricing import get_size_price
-from libcloud.compute.base import Node, NodeImage
+from libcloud.compute.base import Node, NodeImage, NodeSize
 from libcloud.compute.providers import get_driver
 from libcloud.container.providers import get_driver as get_container_driver
 from libcloud.compute.types import Provider, NodeState
 from libcloud.container.types import Provider as Container_Provider
+from libcloud.container.types import ContainerState
+from libcloud.utils.networking import is_private_subnet
 from mist.api.exceptions import MistError
 from mist.api.exceptions import InternalServerError
 from mist.api.exceptions import MachineNotFoundError
@@ -738,9 +740,8 @@ class OpenStackComputeController(BaseComputeController):
         return machine_libcloud.extra.get('created')  # iso8601 string
 
     def _list_machines__machine_actions(self, machine, machine_libcloud):
-        super(
-            OpenStackComputeController, self
-        )._list_machines__machine_actions(machine, machine_libcloud)
+        super(OpenStackComputeController,
+              self)._list_machines__machine_actions(machine, machine_libcloud)
         machine.actions.rename = True
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
@@ -776,26 +777,78 @@ class DockerComputeController(BaseComputeController):
                 ca_cert_temp_file.close()
                 ca_cert = ca_cert_temp_file.name
 
+            try:
+                socket.setdefaulttimeout(15)
+                so = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                so.connect((host, int(port)))
+                so.close()
+            except:
+                raise Exception("Make sure host is accessible "
+                                "and docker port is specified")
+            # tls auth
             return get_container_driver(Container_Provider.DOCKER)(
                 host=host,
                 port=port,
+                secure=True, # TODO maybe secure=true if https or tls...
                 key_file=key_temp_file.name,
                 cert_file=cert_temp_file.name,
                 ca_cert=ca_cert
                 )
 
         # Username/Password authentication.
-        return get_driver(Container_Provider.DOCKER)(
-            self.cloud.username,
-            self.cloud.password,
-            host, port)
+        return get_container_driver(Container_Provider.DOCKER)(
+            key=self.cloud.username,
+            secret=self.cloud.password,
+            host=host, port=port)
+
+    def _list_machines__fetch_machines(self):
+        """Perform the actual libcloud call to get list of containers"""
+        containers = self.connection.list_containers()
+        # add public/private ips for mist
+        for container in containers:
+            public_ips = []
+            private_ips = []
+            for ip in container.ip_addresses:
+                if is_private_subnet(ip):
+                    private_ips.append(ip)
+                else:
+                    public_ips.append(ip)
+            container.public_ips = public_ips
+            container.private_ips = private_ips
+            container.size = None
+        return containers
 
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
-        return machine_libcloud.created_at  # unix timestamp
+        return machine_libcloud.extra.get('created') # unix timestamp
+
+    def _list_machines__machine_actions(self, machine, machine_libcloud): #
+        # todo this is not necessary
+        super(DockerComputeController, self)._list_machines__machine_actions(
+            machine, machine_libcloud)
+        if machine_libcloud.state in (ContainerState.REBOOTING,
+                                      ContainerState.PENDING):
+            machine.actions.start = False
+            machine.actions.stop = False
+            machine.actions.reboot = False
+        elif machine_libcloud.state in (ContainerState.STOPPED,
+                                        ContainerState.UNKNOWN):
+            # We assume unknown state means stopped.
+            machine.actions.start = True
+            machine.actions.stop = False
+            machine.actions.reboot = False
+        elif machine_libcloud.state in (ContainerState.TERMINATED, ):
+            machine.actions.start = False
+            machine.actions.stop = False
+            machine.actions.reboot = False
+            machine.actions.destroy = False
+            machine.actions.rename = False
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         machine.machine_type = 'container'
         machine.parent = self.dockerhost
+
+    def _list_sizes__fetch_sizes(self):
+        return []
 
     @property
     def dockerhost(self):
@@ -853,6 +906,7 @@ class DockerComputeController(BaseComputeController):
         return [self.dockerhost]
 
     def _list_images__fetch_images(self, search=None):
+        # TODO maybe containerImage
         # Fetch mist's recommended images
         images = [NodeImage(id=image, name=name,
                             driver=self.connection, extra={})
@@ -864,10 +918,12 @@ class DockerComputeController(BaseComputeController):
                    if image not in config.DOCKER_IMAGES]
         # Fetch images from libcloud (supports search).
         if search:
-            images += self.connection.search_images(term=search)[:100]
+            images += self.connection.ex_search_images(term=search)[:100]
         else:
             images += self.connection.list_images()
-        return images
+        return images  # FIXME we must change config.DOCKER_IMAGES
+        # NodeImage  --> ContainerImage ?
+        # path, version
 
     def image_is_default(self, image_id):
         return image_id in config.DOCKER_IMAGES
@@ -880,10 +936,12 @@ class DockerComputeController(BaseComputeController):
         # this exist here cause of docker host implementation
         if machine.machine_type == 'container-host':
             return
+        # TODO change this, maybe simpler
+        container_info = self.connection.inspect_node(machine_libcloud)
 
-        node_info = self.connection.inspect_node(machine_libcloud)
         try:
-            port = node_info.extra[
+            # TODO check if it is right ?
+            port = container_info.extra[
                 'network_settings']['Ports']['22/tcp'][0]['HostPort']
         except KeyError:
             port = 22
@@ -892,8 +950,26 @@ class DockerComputeController(BaseComputeController):
             key_assoc.port = port
         machine.save()
 
+    def _get_machine_libcloud(self, machine, no_fail=False):
+        """Return an instance of a libcloud node
+
+        This is a private method, used mainly by machine action methods.
+        """
+        # assert isinstance(machine.cloud, Machine)
+        assert self.cloud == machine.cloud
+        for node in self.connection.list_containers():
+            if node.id == machine.machine_id:
+                return node
+        if no_fail:
+            return Node(machine.machine_id, name=machine.machine_id,
+                        state=0, public_ips=[], private_ips=[],
+                        driver=self.connection)
+        raise MachineNotFoundError(
+            "Machine with machine_id '%s'." % machine.machine_id
+        )
+
     def _start_machine(self, machine, machine_libcloud):
-        self.connection.ex_start_node(machine_libcloud)
+        self.connection.start_container(machine_libcloud)
         self._action_change_port(machine, machine_libcloud)
 
     def reboot_machine(self, machine):
@@ -902,13 +978,17 @@ class DockerComputeController(BaseComputeController):
         return super(DockerComputeController, self).reboot_machine(machine)
 
     def _reboot_machine(self, machine, machine_libcloud):
-        machine_libcloud.reboot()
+        self.connection.restart_container(machine_libcloud)
         self._action_change_port(machine, machine_libcloud)
 
+    def _stop_machine(self, machine, machine_libcloud):
+        self.connection.stop_container(machine_libcloud)
+        return True
+
     def _destroy_machine(self, machine, machine_libcloud):
-        if machine_libcloud.state == NodeState.RUNNING:
-            self.connection.ex_stop_node(machine_libcloud)
-        machine_libcloud.destroy()
+        if machine_libcloud.state == ContainerState.RUNNING:
+            self.connection.stop_container(machine_libcloud)
+        self.connection.destroy_container(machine_libcloud)
 
 
 class LibvirtComputeController(BaseComputeController):
