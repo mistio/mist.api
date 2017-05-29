@@ -38,6 +38,7 @@ from libcloud.container.providers import get_driver as get_container_driver
 from libcloud.compute.types import Provider, NodeState
 from libcloud.container.types import Provider as Container_Provider
 from libcloud.container.types import ContainerState
+from libcloud.container.base import ContainerImage
 from libcloud.utils.networking import is_private_subnet
 from mist.api.exceptions import MistError
 from mist.api.exceptions import InternalServerError
@@ -762,6 +763,15 @@ class DockerComputeController(BaseComputeController):
     def _connect(self):
         host, port = dnat(self.cloud.owner, self.cloud.host, self.cloud.port)
 
+        try:
+            socket.setdefaulttimeout(15)
+            so = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            so.connect((host, int(port)))
+            so.close()
+        except:
+            raise Exception("Make sure host is accessible "
+                            "and docker port is specified")
+
         # TLS authentication.
         if self.cloud.key_file and self.cloud.cert_file:
             key_temp_file = tempfile.NamedTemporaryFile(delete=False)
@@ -777,14 +787,6 @@ class DockerComputeController(BaseComputeController):
                 ca_cert_temp_file.close()
                 ca_cert = ca_cert_temp_file.name
 
-            try:
-                socket.setdefaulttimeout(15)
-                so = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                so.connect((host, int(port)))
-                so.close()
-            except:
-                raise Exception("Make sure host is accessible "
-                                "and docker port is specified")
             # tls auth
             return get_container_driver(Container_Provider.DOCKER)(
                 host=host,
@@ -821,7 +823,7 @@ class DockerComputeController(BaseComputeController):
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
         return machine_libcloud.extra.get('created') # unix timestamp
 
-    def _list_machines__machine_actions(self, machine, machine_libcloud): #
+    def _list_machines__machine_actions(self, machine, machine_libcloud):
         # todo this is not necessary
         super(DockerComputeController, self)._list_machines__machine_actions(
             machine, machine_libcloud)
@@ -906,14 +908,14 @@ class DockerComputeController(BaseComputeController):
         return [self.dockerhost]
 
     def _list_images__fetch_images(self, search=None):
-        # TODO maybe containerImage
         # Fetch mist's recommended images
-        images = [NodeImage(id=image, name=name,
+        images = [ContainerImage(id=image, name=name, path=None, version=None,
                             driver=self.connection, extra={})
                   for image, name in config.DOCKER_IMAGES.items()]
         # Add starred images
-        images += [NodeImage(id=image, name=image,
-                             driver=self.connection, extra={})
+        images += [ContainerImage(id=image, name=image, path=None,
+                                  version=None, driver=self.connection,
+                                  extra={})
                    for image in self.cloud.starred
                    if image not in config.DOCKER_IMAGES]
         # Fetch images from libcloud (supports search).
@@ -921,9 +923,7 @@ class DockerComputeController(BaseComputeController):
             images += self.connection.ex_search_images(term=search)[:100]
         else:
             images += self.connection.list_images()
-        return images  # FIXME we must change config.DOCKER_IMAGES
-        # NodeImage  --> ContainerImage ?
-        # path, version
+        return images
 
     def image_is_default(self, image_id):
         return image_id in config.DOCKER_IMAGES
