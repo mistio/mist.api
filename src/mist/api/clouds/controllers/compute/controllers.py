@@ -817,6 +817,7 @@ class DockerComputeController(BaseComputeController):
             container.public_ips = public_ips
             container.private_ips = private_ips
             container.size = None
+            container.image = container.image.name
         return containers
 
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
