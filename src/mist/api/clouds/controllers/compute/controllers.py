@@ -762,6 +762,15 @@ class DockerComputeController(BaseComputeController):
     def _connect(self):
         host, port = dnat(self.cloud.owner, self.cloud.host, self.cloud.port)
 
+        try:
+            socket.setdefaulttimeout(15)
+            so = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            so.connect((host, int(port)))
+            so.close()
+        except:
+            raise Exception("Make sure host is accessible "
+                            "and docker port is specified")
+
         # TLS authentication.
         if self.cloud.key_file and self.cloud.cert_file:
             key_temp_file = tempfile.NamedTemporaryFile(delete=False)
@@ -777,14 +786,6 @@ class DockerComputeController(BaseComputeController):
                 ca_cert_temp_file.close()
                 ca_cert = ca_cert_temp_file.name
 
-            try:
-                socket.setdefaulttimeout(15)
-                so = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                so.connect((host, int(port)))
-                so.close()
-            except:
-                raise Exception("Make sure host is accessible "
-                                "and docker port is specified")
             # tls auth
             return get_container_driver(Container_Provider.DOCKER)(
                 host=host,
@@ -803,7 +804,7 @@ class DockerComputeController(BaseComputeController):
 
     def _list_machines__fetch_machines(self):
         """Perform the actual libcloud call to get list of containers"""
-        containers = self.connection.list_containers()
+        containers = self.connection.list_containers(all=self.cloud.show_all)
         # add public/private ips for mist
         for container in containers:
             public_ips = []

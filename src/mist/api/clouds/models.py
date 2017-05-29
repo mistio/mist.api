@@ -343,6 +343,8 @@ class DockerCloud(Cloud):
     key_file = me.StringField(required=False)
     cert_file = me.StringField(required=False)
     ca_cert_file = me.StringField(required=False)
+    # Show running and stopped containers
+    show_all = me.BooleanField(default=False)
 
     _private_fields = ('password', 'key_file')
     _controller_cls = controllers.DockerMainController
