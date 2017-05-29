@@ -12,7 +12,8 @@ def send_notification(notification):
     '''
     user = User.objects.get(id=notification.user_id)
     org = Organization.objects.get(id=notification.org_id)
-    policies = models.UserNotificationPolicy.objects(user=user, organization=org)
+    policies = models.UserNotificationPolicy.objects(
+        user=user, organization=org)
     if policies:
         policy = policies[0]
         if policy.notification_allowed(notification):
@@ -53,7 +54,8 @@ def get_policy(user, org, create=True):
     Accepts a user-org pair and returns the corresponding notification
     policy, with the option to create one if not exist.
     '''
-    policies = models.UserNotificationPolicy.objects(user=user, organization=org)
+    policies = models.UserNotificationPolicy.objects(
+        user=user, organization=org)
     if not policies:
         if create:
             policy = models.UserNotificationPolicy()
@@ -78,7 +80,7 @@ def test():
     ntf = models.Notification(subject="some spam", body="more spam",
                               source="alerts", channel="stdout",
                               user_id=user_id, org_id=org_id)
-    
+
     # first send with no rules - it should pass
     remove_block_rule(user, org, "alerts")
     print "Sending with no rules - message should appear below:"
@@ -88,6 +90,7 @@ def test():
     add_block_rule(user, org, "alerts")
     print "Sending with block rule - nothing should appear below:"
     send_notification(ntf)
+
 
 if __name__ == "__main__":
     test()
