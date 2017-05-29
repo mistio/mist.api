@@ -3,24 +3,6 @@ import mongoengine as me
 from mist.api.users.models import User, Organization, Owner
 
 
-class UserNotificationPolicy(me.Document):
-    '''
-    Represents a notification policy associated with a
-    user-organization pair, and containing a list of rules.
-    '''
-    rules = me.EmbeddedDocumentListField(NotificationRule)
-    user = me.EmbeddedDocumentField(User)
-    organization = me.EmbeddedDocumentField(Organization)
-
-    def notification_allowed(self, notification):
-        for rule in self.rules:
-            # TODO: here eventually check for source as well
-            if (rule.source == notification.source and
-                    notification.value == 'BLOCK'):
-                return False
-        return True
-
-
 class NotificationRule(me.EmbeddedDocument):
     '''
     Represents a single notification rule, with a notification source
@@ -32,11 +14,29 @@ class NotificationRule(me.EmbeddedDocument):
                            choices=('ALLOW', 'BLOCK'), default='BLOCK')
 
 
+class UserNotificationPolicy(me.Document):
+    '''
+    Represents a notification policy associated with a
+    user-organization pair, and containing a list of rules.
+    '''
+    rules = me.EmbeddedDocumentListField(NotificationRule)
+    user = me.ReferenceField(User, required=True)
+    organization = me.ReferenceField(Organization, required=True)
+
+    def notification_allowed(self, notification):
+        for rule in self.rules:
+            # TODO: here eventually check for source as well
+            if (rule.source == notification.source and
+                    rule.value == 'BLOCK'):
+                return False
+        return True
+
+
 class Notification():
     '''
     Represents a notification instance
     '''
-    def __init__(self, subject, summary=None, body, source, channel, user_id, org_id):
+    def __init__(self, subject, body, source, channel, user_id, org_id, summary=None):
         self.subject = subject
         self.summary = summary
         self.body = body
