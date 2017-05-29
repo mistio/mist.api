@@ -6,6 +6,7 @@ import mongoengine as me
 from libcloud.compute.base import NodeSize, NodeImage, NodeLocation, Node
 from libcloud.compute.types import Provider
 from libcloud.container.types import Provider as Container_Provider
+from libcloud.container.base import ContainerImage
 from libcloud.utils.networking import is_private_subnet
 from libcloud.compute.base import NodeAuthSSHKey
 from tempfile import NamedTemporaryFile
@@ -735,9 +736,9 @@ def _create_machine_docker(conn, machine_name, image_id, image_name,
     """Create a machine in docker.
 
     """
-    from libcloud.container.base import ContainerImage
     image = ContainerImage(id=image_id, name=image_name,
-                           extra=image_extra, driver=conn)
+                           extra=image_extra, driver=conn, path=None,
+                           version=None)
     try:
         if public_key:
             environment = ['PUBLIC_KEY=%s' % public_key.strip()]
