@@ -419,6 +419,8 @@ class Team(me.EmbeddedDocument):
             ret['policy'] = self.policy
         return ret
 
+        return ret
+
     def __str__(self):
         return '%s (%d members)' % (self.name, len(self.members))
 
@@ -441,10 +443,20 @@ class Organization(Owner):
     selected_plan = me.StringField()
     enterprise_plan = me.DictField()
 
-    insights_enabled = me.BooleanField(default=False)
+    try:
+        import mist.core
+    except:
+        _insights_default = False
+    else:
+        _insights_default = True
+    insights_enabled = me.BooleanField(default=_insights_default)
 
     created = me.DateTimeField(default=datetime.datetime.now)
     registered_by = me.StringField()
+
+    # used to allow creation of sub-org
+    super_org = me.BooleanField(default=False)
+    parent = me.ReferenceField('Organization', required=False)
 
     @property
     def mapper(self):
@@ -519,7 +531,8 @@ class Organization(Owner):
                 "id": member.id,
                 "name": name,
                 "email": member.email,
-                "pending": False
+                "pending": False,
+                "parent": False
             })
         team_pending_members = {}
         invitations = MemberInvitation.objects(org=self)
@@ -532,15 +545,32 @@ class Organization(Owner):
                 "id": member.id,
                 "name": name,
                 "email": member.email,
-                "pending": True
+                "pending": True,
+                "parent": False,
             })
             for team_id in invitation.teams:
                 if team_id not in team_pending_members:
                     team_pending_members[team_id] = []
                 team_pending_members[team_id].append(member.id)
         for team in view['teams']:
+            team["parent"] = False
             if team['id'] in team_pending_members:
                 team['members'].extend(team_pending_members[team['id']])
+
+        # handle here the info from parent org
+        if self.parent:
+            view["parent_org_name"] = self.parent.name
+            parent_org = self.parent.as_dict()
+            parent_members = parent_org['members']
+            parent_teams = parent_org['teams']
+
+            for p_member in parent_members:
+                p_member['parent'] = True
+                view['members'].append(p_member)
+
+            for p_team in parent_teams:
+                p_team['parent'] = True
+                view["teams"].append(p_team)
 
         return view
 

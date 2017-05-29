@@ -17,11 +17,12 @@ from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import BadRequestError, NotFoundError
 from mist.api.exceptions import PolicyUnauthorizedError, UnauthorizedError
 
-from mist.api.helpers import get_stories
 from mist.api.helpers import view_config, params_from_request
 from mist.api.helpers import mac_sign
 
 from mist.api.scripts.methods import filter_list_scripts
+
+from mist.api.logs.methods import get_stories
 
 from mist.api.tag.methods import add_tags_to_resource
 

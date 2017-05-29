@@ -69,15 +69,9 @@ from mist.api.auth.methods import reissue_cookie_session
 from mist.api.auth.models import get_secure_rand_token
 
 from mist.api.logs.methods import log_event
+from mist.api.logs.methods import get_events
 
 from mist.api import config
-
-# FIXME
-if config.LOGS_FROM_ELASTIC:
-    from mist.api.logs.methods import get_events
-    get_log_events = get_events
-else:
-    from mist.api.helpers import get_log_events
 
 import logging
 logging.basicConfig(level=config.PY_LOG_LEVEL,
@@ -262,9 +256,10 @@ def login(request):
         block_period = config.FAILED_LOGIN_RATE_LIMIT['block_period']
 
         # check if rate limiting in place
-        incidents = get_log_events(user_id=user.id, event_type='incident',
-                                   action='login_rate_limiting',
-                                   start=time() - max_logins_period)
+        incidents = get_events(auth_context=None, user_id=user.id,
+                               event_type='incident',
+                               action='login_rate_limiting',
+                               start=time() - max_logins_period)
         incidents = [inc for inc in incidents
                      if inc.get('ip') == ip_from_request(request)]
         if len(incidents):
@@ -273,9 +268,9 @@ def login(request):
 
         if not user.check_password(password):
             # check if rate limiting condition just got triggered
-            logins = list(get_log_events(
-                user_id=user.id, event_type='request', action='login',
-                error=True, start=time() - max_logins_period))
+            logins = list(get_events(
+                auth_context=None, user_id=user.id, event_type='request',
+                action='login', error=True, start=time() - max_logins_period))
             logins = [login for login in logins
                       if login.get('request_ip') == ip_from_request(request)]
             if len(logins) > max_logins:
@@ -352,7 +347,11 @@ def switch_org(request):
             org = Organization.objects.get(id=org_id)
         except me.DoesNotExist:
             raise ForbiddenError()
-        if user not in org.members:
+        if org.parent:
+            parent_owners = org.parent.teams.get(name='Owners').members
+            if user not in org.members + parent_owners:
+                raise ForbiddenError()
+        elif user not in org.members:
             raise ForbiddenError()
     reissue_cookie_session(request, user, org=org, after=1)
     raise RedirectError(urllib.unquote(return_to) or '/')
@@ -1858,7 +1857,6 @@ def create_organization(request):
       type: string
       required: true
     """
-
     auth_context = auth_context_from_request(request)
 
     user = auth_context.user
@@ -1869,7 +1867,7 @@ def create_organization(request):
     params = params_from_request(request)
 
     name = params.get('name')
-    # description = params.get('description')
+    super_org = params.get('super_org')
 
     if not name:
         raise RequiredParameterMissingError()
@@ -1879,6 +1877,11 @@ def create_organization(request):
     org = Organization()
     org.add_member_to_team('Owners', user)
     org.name = name
+
+    # mechanism for sub-org creation
+    # the owner of super-org has the ability to create a sub-org
+    if super_org:
+        org.parent = auth_context.org
 
     try:
         org.save()
@@ -2138,7 +2141,6 @@ def list_teams(request):
       type: string
       required: true
     """
-
     auth_context = auth_context_from_request(request)
     org_id = request.matchdict['org_id']
 
@@ -2147,7 +2149,19 @@ def list_teams(request):
             and auth_context.org.id == org_id):
         raise OrganizationAuthorizationFailure()
 
-    return [team.as_dict() for team in auth_context.org.teams]
+    teams = [team.as_dict() for team in auth_context.org.teams]
+    if auth_context.org.parent:
+        parent_teams = auth_context.org.parent.teams
+
+        for team in teams:
+            team['parent'] = False
+        p_teams = [team.as_dict() for team in parent_teams]
+        for p_team in p_teams:
+            p_team['parent'] = True
+
+        return teams + p_teams
+
+    return teams
 
 
 # SEC
@@ -2183,11 +2197,10 @@ def edit_team(request):
     visibility = params.get('new_visible')
 
     if not name:
-        raise RequiredParameterMissingError()
+        raise RequiredParameterMissingError('name')
 
     # SEC check if owner
-    if not (auth_context.org and auth_context.is_owner() and
-            auth_context.org.id == org_id):
+    if not (auth_context.is_owner() and auth_context.org.id == org_id):
         raise OrganizationAuthorizationFailure()
 
     # Check if team entry exists
@@ -2195,6 +2208,9 @@ def edit_team(request):
         team = auth_context.org.get_team_by_id(team_id)
     except me.DoesNotExist:
         raise TeamNotFound()
+
+    if team.name == 'Owners' and name != 'Owners':
+        raise BadRequestError('The name of the Owners Teams may not be edited')
 
     team.name = name
     team.description = description if description else ''
