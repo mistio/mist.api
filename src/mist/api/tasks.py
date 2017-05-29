@@ -193,7 +193,7 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                     kwargs['type'] = 'A'
                     kwargs['data'] = host
                     kwargs['ttl'] = 3600
-                    
+
                     dns_cls = RECORDS[kwargs['type']]
                     record = dns_cls.add(owner=owner, **kwargs)
                     log_event(action='Create_A_record', hostname=hostname,
@@ -1090,7 +1090,7 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
         'expires': str(schedule.expires or ''),
         'task_enabled': schedule.task_enabled,
         'run_immediately': schedule.run_immediately,
-        'event_type': 'schedule',
+        'event_type': 'job',
         'error': False,
     }
 
@@ -1231,8 +1231,10 @@ def group_run_script(owner_id, script_id, name, machines_uuids):
     :return:
     """
     glist = []
+    job_id = uuid.uuid4().hex
     for machine_uuid in machines_uuids:
-            glist.append(run_script.s(owner_id, script_id, machine_uuid))
+            glist.append(run_script.s(owner_id, script_id, machine_uuid,
+                                      job_id=job_id, job='schedule'))
 
     schedule = Schedule.objects.get(owner=owner_id, name=name, deleted=None)
 
@@ -1247,8 +1249,10 @@ def group_run_script(owner_id, script_id, name, machines_uuids):
         'expires': str(schedule.expires or ''),
         'task_enabled': schedule.task_enabled,
         'run_immediately': schedule.run_immediately,
-        'event_type': 'schedule',
+        'event_type': 'job',
         'error': False,
+        'job': 'schedule',
+        'job_id': job_id,
     }
 
     log_event(action='Schedule started', **log_dict)
