@@ -805,7 +805,7 @@ class DockerComputeController(BaseComputeController):
 
     def _list_machines__fetch_machines(self):
         """Perform the actual libcloud call to get list of containers"""
-        containers = self.connection.list_containers()
+        containers = self.connection.list_containers(all=self.cloud.show_all)
         # add public/private ips for mist
         for container in containers:
             public_ips = []
@@ -818,6 +818,7 @@ class DockerComputeController(BaseComputeController):
             container.public_ips = public_ips
             container.private_ips = private_ips
             container.size = None
+            container.image = container.image.name
         return containers
 
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
