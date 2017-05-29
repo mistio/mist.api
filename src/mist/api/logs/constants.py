@@ -45,14 +45,16 @@ STARTS_STORY = (
     'open',
     'connect',
     'rule_triggered',
-    'workflow_started', ) + tuple(JOBS.keys())
+    'workflow_started',
+    'Schedule started', ) + tuple(JOBS.keys())
 
 # Actions that may close existing stories.
 CLOSES_STORY = (
     'close',
     'disconnect',
     'rule_untriggered',
-    'workflow_finished', ) + tuple(JOBS.values()) + ('end_job', )
+    'workflow_finished',
+    'Schedule finished', ) + tuple(JOBS.values()) + ('end_job', )
 
 # Actions that can close an open incident.
 CLOSES_INCIDENT = (
@@ -75,7 +77,7 @@ TYPES = {
     'job': 'job,request',
     'shell': 'shell,request',
     'session': 'session,request',
-    'incident': 'incident,request'
+    'incident': 'incident,request',
 }
 
 # Buckets to be excluded when processing stories. The list of excluded buckets
