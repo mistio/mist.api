@@ -81,7 +81,7 @@ def test():
     
     # first send with no rules - it should pass
     remove_block_rule(user, org, "alerts")
-    print "Sending with no rules - should appear below:"
+    print "Sending with no rules - message should appear below:"
     send_notification(ntf)
 
     # now create a rule - it should fail
