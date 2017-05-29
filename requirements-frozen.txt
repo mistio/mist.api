@@ -94,7 +94,7 @@ uwsgidecorators==1.1.0
 venusian==1.1.0
 wcwidth==0.1.7
 WebOb==1.7.2
-websocket==0.2.1
+websocket-client==0.40.0
 yappi==0.98
 zope.deprecation==4.2.0
 zope.interface==4.4.0

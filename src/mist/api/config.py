@@ -48,8 +48,6 @@ ELASTICSEARCH = {
     'elastic_verify_certs': False
 }
 
-LOGS_FROM_ELASTIC = True
-
 BUILD_TAG = ""
 UI_TEMPLATE_URL = "http://ui"
 LANDING_TEMPLATE_URL = "http://landing"
@@ -867,6 +865,7 @@ ENABLE_INSIGHTS = False
 ENABLE_BILLING = False
 ENABLE_RBAC = False
 ENABLE_AB = False
+ENABLE_MONITORING = False
 
 ## DO NOT PUT ANYTHING BELOW HERE UNLESS YOU KNOW WHAT YOU ARE DOING
 
@@ -963,6 +962,7 @@ HOMEPAGE_INPUTS = {
     'enable_orchestration': ENABLE_ORCHESTRATION,
     'enable_insights': ENABLE_INSIGHTS,
     'enable_billing': ENABLE_BILLING,
-    'enable_ab': ENABLE_AB
+    'enable_ab': ENABLE_AB,
+    'enable_monitoring': ENABLE_MONITORING
 }
 ## DO NOT PUT REGULAR SETTINGS BELOW, PUT THEM ABOVE THIS SECTION

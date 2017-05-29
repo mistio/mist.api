@@ -200,6 +200,12 @@ class CloudPollingSchedule(PollingSchedule):
             schedule = cls.objects.get(cloud=cloud)
         except cls.DoesNotExist:
             schedule = cls(cloud=cloud)
+            try:
+                schedule.save()
+            except me.NotUniqueError:
+                # Work around race condition where schedule was created since
+                # last time we checked.
+                schedule = cls.objects.get(cloud=cloud)
         schedule.set_default_interval(cloud.polling_interval)
         if interval is not None:
             schedule.add_interval(interval, ttl)

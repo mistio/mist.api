@@ -140,6 +140,9 @@ class BaseMainController(object):
         rename_kwargs(kwargs, 'api_key', 'apikey')
         rename_kwargs(kwargs, 'api_secret', 'apisecret')
 
+        # Cloud specific argument preparsing cloud-wide argument
+        self.cloud.dns_enabled = kwargs.pop('dns_enabled', False)
+
         # Cloud specific kwargs preparsing.
         try:
             self._add__preparse_kwargs(kwargs)

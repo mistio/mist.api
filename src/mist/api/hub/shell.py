@@ -23,6 +23,11 @@ class ShellHubWorker(mist.api.hub.main.HubWorker):
         self.channel = None
         for key in ('owner_id', 'cloud_id', 'machine_id', 'host',
                     'columns', 'rows'):
+            # HACK:FIXME: Temporary fix for Orchestration shell.
+            # Add a new, dedicated ShellHubWorker for Orchestration logs.
+            if key in ('host', 'cloud_id', 'machine_id', ):
+                if self.params.get('job_id'):
+                    continue
             if not self.params.get(key):
                 err = "%s: Param '%s' missing from worker kwargs." % (self.lbl,
                                                                       key)

@@ -8,6 +8,8 @@ from mist.api.helpers import trigger_session_update
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import BadRequestError, NotFoundError
 
+from mist.api.poller.models import ListMachinesPollingSchedule
+
 from mist.api.tag.methods import get_tags_for_resource
 
 try:
@@ -68,6 +70,11 @@ def add_cloud_v_2(owner, title, provider, params):
     if owner.clouds_count != c_count:
         owner.clouds_count = c_count
         owner.save()
+
+    cloud.polling_interval = 1800  # 30 min * 60 sec/min
+    cloud.save()
+    ListMachinesPollingSchedule.add(cloud=cloud)
+
     return ret
 
 

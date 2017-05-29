@@ -126,10 +126,8 @@ def log_event(owner_id, event_type, action, error=None, **kwargs):
         return event
 
 
-# TODO: Make auth_context a required param?
-def get_events(auth_context=None, owner_id='', user_id='',
-               event_type='', action='', limit=0, start=0,
-               stop=0, newest=True, error=None, **kwargs):
+def get_events(auth_context, owner_id='', user_id='', event_type='', action='',
+               limit=0, start=0, stop=0, newest=True, error=None, **kwargs):
     """Fetch logged events.
 
     This generator yields a series of logs after querying Elasticsearch.
@@ -208,7 +206,8 @@ def get_events(auth_context=None, owner_id='', user_id='',
         query_string = {
             'query': f,
             'analyze_wildcard': True,
-            'default_operator': 'and'
+            'default_operator': 'and',
+            'allow_leading_wildcard': False
         }
         query["query"]["bool"]["filter"]["bool"]["must"].append({
             'query_string': query_string
@@ -243,8 +242,7 @@ def get_events(auth_context=None, owner_id='', user_id='',
         yield event
 
 
-def get_stories(story_type='', owner_id='', user_id='',
-                sort='started_at', sort_order=-1, limit=0,
+def get_stories(story_type='', owner_id='', user_id='', sort_order=-1, limit=0,
                 error=None, range=None, pending=None, expand=False,
                 tornado_callback=None, tornado_async=False, **kwargs):
     """Fetch stories.
@@ -321,6 +319,9 @@ def get_stories(story_type='', owner_id='', user_id='',
                         }],
                         "_source": {
                             "includes": includes,
+                            "excludes": [
+                                "@version", "tags", "_traceback", "_exc"
+                            ]
                         },
                         "size": 50
                     }
