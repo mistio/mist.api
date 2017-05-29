@@ -3,9 +3,10 @@ import random
 import base64
 import mongoengine as me
 
-from libcloud.compute.base import NodeSize, NodeImage, NodeLocation
+from libcloud.compute.base import NodeSize, NodeImage, NodeLocation, Node
 from libcloud.compute.types import Provider
 from libcloud.container.types import Provider as Container_Provider
+from libcloud.utils.networking import is_private_subnet
 from libcloud.compute.base import NodeAuthSSHKey
 from tempfile import NamedTemporaryFile
 
@@ -186,9 +187,10 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                             driver=conn)
 
     if conn.type is Container_Provider.DOCKER:
+
         if public_key:
             node = _create_machine_docker(
-                conn, machine_name, image_id, '',
+                conn, machine_name, image_id, image_name, image_extra, '',
                 public_key=public_key,
                 docker_env=docker_env,
                 docker_command=docker_command,
@@ -204,7 +206,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                 pass
         else:
             node = _create_machine_docker(
-                conn, machine_name, image_id, script,
+                conn, machine_name, image_id, image_name, image_extra, script,
                 docker_env=docker_env,
                 docker_command=docker_command,
                 docker_port_bindings=docker_port_bindings,
@@ -380,11 +382,23 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
     ret = {'id': node.id,
            'name': node.name,
            'extra': node.extra,
-           'public_ips': node.public_ips,
-           'private_ips': node.private_ips,
            'job_id': job_id,
            }
+    if isinstance(node, Node):
+        ret.update({'public_ips': node.public_ips,
+                    'private_ips': node.private_ips,})
+    else:
+        # add public and private ips for mist
+        public_ips = []
+        private_ips = []
+        for ip in node.ip_addresses:
+            if is_private_subnet(ip):
+                private_ips.append(ip)
+            else:
+                public_ips.append(ip)
 
+        ret.update({'public_ips': public_ips,
+                    'private_ips': private_ips,})
     return ret
 
 
@@ -713,14 +727,17 @@ def _create_machine_onapp(conn, public_key,
     return node
 
 
-def _create_machine_docker(conn, machine_name, image, script=None,
-                           public_key=None, docker_env={}, docker_command=None,
+def _create_machine_docker(conn, machine_name, image_id, image_name,
+                           image_extra, script=None, public_key=None,
+                           docker_env={}, docker_command=None,
                            tty_attach=True, docker_port_bindings={},
                            docker_exposed_ports={}):
     """Create a machine in docker.
 
     """
-
+    from libcloud.container.base import ContainerImage
+    image = ContainerImage(id=image_id, name=image_name,
+                           extra=image_extra, driver=conn)
     try:
         if public_key:
             environment = ['PUBLIC_KEY=%s' % public_key.strip()]
@@ -734,19 +751,19 @@ def _create_machine_docker(conn, machine_name, image, script=None,
                                   docker_env.iteritems()]
             environment += docker_environment
 
-        node = conn.create_node(
-            name=machine_name,
-            image=image,
-            command=docker_command,
-            environment=environment,
-            tty=tty_attach,
-            ports=docker_exposed_ports,
-            port_bindings=docker_port_bindings,
+        container = conn.deploy_container(
+                                          machine_name, image,
+                                          command=docker_command,
+                                          environment=environment,
+                                          tty=tty_attach,
+                                          ports=docker_exposed_ports,
+                                          port_bindings=docker_port_bindings
         )
+
     except Exception as e:
         raise MachineCreationError("Docker, got exception %s" % e, e)
 
-    return node
+    return container
 
 
 def _create_machine_digital_ocean(conn, key_name, private_key, public_key,
