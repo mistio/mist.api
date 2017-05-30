@@ -615,10 +615,10 @@ EC2_IMAGES = {
 }
 
 DOCKER_IMAGES = {
-    'mist/ubuntu-14.04': 'Ubuntu 14.04',
-    'mist/debian-wheezy': 'Debian Wheezy',
-    'mist/opensuse-13.1': 'OpenSUSE 13.1',
-    'mist/fedora-20': 'Fedora 20',
+    'mist/ubuntu-14.04': 'Mist.io Ubuntu 14.04 ssh enabled image',
+    'mist/debian-wheezy': 'Mist.io Debian Wheezy ssh enabled image',
+    'mist/opensuse-13.1': 'Mist.io OpenSUSE 13.1 ssh enabled image',
+    'mist/fedora-20': 'Mist.io Fedora 20 ssh enabled image',
 }
 
 GCE_IMAGES = ['debian-cloud',
