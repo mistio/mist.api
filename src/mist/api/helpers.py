@@ -758,6 +758,11 @@ def ts_to_str(timestamp):
         return None
 
 
+def iso_to_seconds(iso):
+    """Attempt to transform a time representation into seconds."""
+    return get_datetime(iso).strftime('%s')
+
+
 def encrypt(plaintext, key=config.SECRET, key_salt='', no_iv=False):
     """Encrypt shit the right way"""
 
