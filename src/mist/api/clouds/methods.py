@@ -16,8 +16,8 @@ try:
     from mist.core.methods import enable_monitoring
     from mist.core.methods import disable_monitoring_cloud
 except ImportError:
-    from mist.api.dummy.methods import enable_monitoring
-    from mist.api.dummy.methods import disable_monitoring_cloud
+    from mist.api.monitoring.methods import enable_monitoring
+    from mist.api.monitoring.methods import disable_monitoring_cloud
 
 from mist.api import config
 

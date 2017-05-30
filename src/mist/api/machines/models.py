@@ -77,16 +77,27 @@ class Monitoring(me.EmbeddedDocument):
 
     def get_commands(self):
         # FIXME: This is a hack.
-        from mist.api.methods import get_deploy_collectd_command_unix
-        from mist.api.methods import get_deploy_collectd_command_windows
-        from mist.api.methods import get_deploy_collectd_command_coreos
-        args = (self._instance.id, self.collectd_password,
-                config.COLLECTD_HOST, config.COLLECTD_PORT)
-        return {
-            'unix': get_deploy_collectd_command_unix(*args),
-            'coreos': get_deploy_collectd_command_coreos(*args),
-            'windows': get_deploy_collectd_command_windows(*args),
-        }
+        try:
+            import mist.core
+        except ImportError:
+            from mist.api.monitoring.commands import unix_install
+            from mist.api.monitoring.commands import coreos_install
+            cmds = {
+                'unix': unix_install(self._instance.id),
+                'coreos': coreos_install(self._instance.id),
+            }
+        else:
+            from mist.api.methods import get_deploy_collectd_command_unix
+            from mist.api.methods import get_deploy_collectd_command_windows
+            from mist.api.methods import get_deploy_collectd_command_coreos
+            args = (self._instance.id, self.collectd_password,
+                    config.COLLECTD_HOST, config.COLLECTD_PORT)
+            cmds = {
+                'unix': get_deploy_collectd_command_unix(*args),
+                'coreos': get_deploy_collectd_command_coreos(*args),
+                'windows': get_deploy_collectd_command_windows(*args),
+            }
+        return cmds
 
     def as_dict(self):
         status = self.installation_status
