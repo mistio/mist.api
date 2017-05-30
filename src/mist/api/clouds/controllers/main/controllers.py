@@ -240,14 +240,15 @@ class DockerMainController(BaseMainController):
     ComputeController = compute_ctls.DockerComputeController
 
     def _update__preparse_kwargs(self, kwargs):
+        kwargs.pop('authentication', None)
         rename_kwargs(kwargs, 'docker_port', 'port')
         rename_kwargs(kwargs, 'docker_host', 'host')
         rename_kwargs(kwargs, 'auth_user', 'username')
         rename_kwargs(kwargs, 'auth_password', 'password')
         host = kwargs.get('host', self.cloud.host)
         if host:
-            kwargs['host'] = sanitize_host(host)
-            check_host(kwargs['host'])
+            host = sanitize_host(host)
+            check_host(host)
 
 
 class LibvirtMainController(BaseMainController):

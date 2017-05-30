@@ -791,7 +791,6 @@ class DockerComputeController(BaseComputeController):
             return get_container_driver(Container_Provider.DOCKER)(
                 host=host,
                 port=port,
-                secure=True, # TODO maybe secure=true if https or tls...
                 key_file=key_temp_file.name,
                 cert_file=cert_temp_file.name,
                 ca_cert=ca_cert
