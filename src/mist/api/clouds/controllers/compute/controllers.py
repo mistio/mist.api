@@ -43,6 +43,7 @@ from libcloud.utils.networking import is_private_subnet
 from mist.api.exceptions import MistError
 from mist.api.exceptions import InternalServerError
 from mist.api.exceptions import MachineNotFoundError
+from mist.api.helpers import sanitize_host
 
 from mist.api.machines.models import Machine
 
@@ -762,11 +763,10 @@ class DockerComputeController(BaseComputeController):
 
     def _connect(self):
         host, port = dnat(self.cloud.owner, self.cloud.host, self.cloud.port)
-
         try:
             socket.setdefaulttimeout(15)
             so = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            so.connect((host, int(port)))
+            so.connect((sanitize_host(host), int(port)))
             so.close()
         except:
             raise Exception("Make sure host is accessible "
