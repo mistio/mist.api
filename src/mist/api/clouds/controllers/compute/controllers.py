@@ -763,15 +763,6 @@ class DockerComputeController(BaseComputeController):
     def _connect(self):
         host, port = dnat(self.cloud.owner, self.cloud.host, self.cloud.port)
 
-        try:
-            socket.setdefaulttimeout(15)
-            so = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            so.connect((host, int(port)))
-            so.close()
-        except:
-            raise Exception("Make sure host is accessible "
-                            "and docker port is specified")
-
         # TLS authentication.
         if self.cloud.key_file and self.cloud.cert_file:
             key_temp_file = tempfile.NamedTemporaryFile(delete=False)
