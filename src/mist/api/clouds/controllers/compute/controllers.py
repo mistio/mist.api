@@ -763,6 +763,7 @@ class DockerComputeController(BaseComputeController):
 
     def _connect(self):
         host, port = dnat(self.cloud.owner, self.cloud.host, self.cloud.port)
+
         try:
             socket.setdefaulttimeout(15)
             so = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
