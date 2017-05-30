@@ -10,14 +10,12 @@ def send_notification(notification):
     notification policy and sends the notification
     through specified channels.
     '''
-    user = User.objects.get(id=notification.user_id)
-    org = Organization.objects.get(id=notification.org_id)
     policies = models.UserNotificationPolicy.objects(
-        user=user, organization=org)
+        user=notification["user"], organization=notification["org"])
     if policies:
         policy = policies[0]
         if policy.notification_allowed(notification):
-            chan = channels.channel_instance_with_name(notification.channel)
+            chan = channels.channel_instance_with_name(notification["channel"])
             if chan:
                 chan.send(notification)
 
@@ -68,28 +66,60 @@ def get_policy(user, org, create=True):
     return policies[0]
 
 
+def make_notification(
+        subject,
+        body,
+        source,
+        channel,
+        user,
+        org,
+        summary=None,
+        html_body=None):
+    '''
+    Generates a notification dictionary
+    '''
+    # notification fields (in par. are optional):
+    # subject
+    # (summary)
+    # body
+    # (html_body)
+    # source
+    # channel
+    # user
+    # org
+    notification = {
+        "subject": subject,
+        "body": body,
+        "source": source,
+        "channel": channel,
+        "user": user,
+        "org": org
+    }
+    if summary:
+        notification["summary"] = summary
+    if html_body:
+        notification["html_body"] = html_body
+
+
 def test():
     '''
     Test this
     '''
     user = User.objects.get(email="yconst@mist.io")
-    user_id = user.id
     org = Organization.objects.get(members=user)
-    org_id = org.id
 
-    ntf = models.Notification(subject="some spam", body="more spam",
-                              source="alerts", channel="stdout",
-                              user_id=user_id, org_id=org_id)
+    notification = make_notification("some spam", "more spam",
+                                     "alerts", "stdout", user, org)
 
     # first send with no rules - it should pass
     remove_block_rule(user, org, "alerts")
     print "Sending with no rules - message should appear below:"
-    send_notification(ntf)
+    send_notification(notification)
 
     # now create a rule - it should fail
     add_block_rule(user, org, "alerts")
     print "Sending with block rule - nothing should appear below:"
-    send_notification(ntf)
+    send_notification(notification)
 
 
 if __name__ == "__main__":

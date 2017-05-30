@@ -26,30 +26,7 @@ class UserNotificationPolicy(me.Document):
     def notification_allowed(self, notification):
         for rule in self.rules:
             # TODO: here eventually check for source as well
-            if (rule.source == notification.source and
+            if (rule.source == notification["source"] and
                     rule.value == 'BLOCK'):
                 return False
         return True
-
-
-class Notification():
-    '''
-    Represents a notification instance
-    '''
-
-    def __init__(
-            self,
-            subject,
-            body,
-            source,
-            channel,
-            user_id,
-            org_id,
-            summary=None):
-        self.subject = subject
-        self.summary = summary
-        self.body = body
-        self.source = source
-        self.channel = channel
-        self.user_id = user_id
-        self.org_id = org_id
