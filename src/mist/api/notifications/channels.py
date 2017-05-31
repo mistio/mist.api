@@ -1,5 +1,4 @@
 
-from chameleon import PageTemplateFile
 from sendgrid.helpers.mail import (Email,
                                    Mail,
                                    Personalization,
@@ -7,7 +6,6 @@ from sendgrid.helpers.mail import (Email,
                                    Substitution)
 import sendgrid
 
-from mist.api.users.models import User
 from mist.api import config
 
 
@@ -34,7 +32,6 @@ class WeeklyReportsChannel(BaseChannel):
 
     def send(self, notification):
         user = notification["user"]
-        org = notification["org"]
 
         mail = Mail()
         mail.from_email = Email(config.EMAIL_REPORT_SENDER, "Mist.io Reports")

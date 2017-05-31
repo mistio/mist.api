@@ -1,6 +1,6 @@
 import mongoengine as me
 
-from mist.api.users.models import User, Organization, Owner
+from mist.api.users.models import User, Organization
 
 
 class NotificationRule(me.EmbeddedDocument):
