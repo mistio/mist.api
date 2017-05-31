@@ -565,10 +565,9 @@ class LogsConnection(MistConnection):
                 event[key] = value
         except:
             pass
-        for stype in set([stype for _, stype, _ in event.get('stories', [])]):
-            self.send_stories(stype)
         if self.filter_log(event):
             self.send('event', self.parse_log(event))
+        self.patch_stories(event)
 
     def send_stories(self, stype):
         """Send open stories of the specified type."""
@@ -581,8 +580,7 @@ class LogsConnection(MistConnection):
 
         # Only send incidents for non-Owners.
         if not self.auth_context.is_owner() and stype != 'incident':
-            self.send('open_%ss' % stype, [])
-            return
+            return callback([], pending=True)
 
         # Fetch the latest open stories.
         kwargs = {
@@ -606,6 +604,58 @@ class LogsConnection(MistConnection):
             get_stories(tornado_async=True,
                         tornado_callback=callback, **kwargs)
 
+    def patch_stories(self, event):
+        """Send a stories patch.
+
+        Push an update of stories by creating a patch based on the `stories`
+        included in `event`, which describes the diff that should be applied
+        on existing stories.
+
+        Each patch is meant to either push newly created stories or update
+        existing ones simply based on a log entry's metadata.
+
+        The patch's schema conforms with `jsonpatch` (http://jsonpatch.com/).
+
+        """
+        patch = []
+        for action, stype, sid in event.get('stories', []):
+            if not self.auth_context.is_owner() and stype != 'incident':
+                continue
+            if action in ('opens', ):
+                story = {'error': event['error'],
+                         'story_id': sid, 'type': stype,
+                         'started_at': event['time'], 'finished_at': 0}
+                # Include the entire log entry only in case of incidents.
+                if stype == 'incident':
+                    story['logs'] = [event]
+                else:
+                    story['logs'] = [{'log_id': event['log_id']}]
+                # Push an entirely new story as part of the patch.
+                patch.append({'op': 'add',
+                              'path': '/%ss/%s' % (stype, sid),
+                              'value': story})
+            else:
+                # NOTE: The - character is used instead of an index to insert
+                # an item at the end of an array.
+                patch.append({'op': 'add',
+                              'path': '/%ss/%s/logs/-' % (stype, sid),
+                              'value': event['log_id']})
+                if event['error']:
+                    patch.append({'op': 'replace',
+                                  'path': '/%ss/%s/error' % (stype, sid),
+                                  'value': event['error']})
+                # If the latest log closes the story, instead of just updating
+                # it, notify the client-side to atomically update the story's
+                # finished_at timestamp, too.
+                if action == 'closes':
+                    patch.append({'op': 'replace',
+                                  'path': '/%ss/%s/finished_at' % (stype, sid),
+                                  'value': event['time']})
+
+        cls, email = self.__class__.__name__, self.auth_context.user.email
+        log.info('%s emitting %d patch(es) for %s', cls, len(patch), email)
+        self.send('patch_stories', patch)
+
     def parse_log(self, event):
         """Parse a single log.
 
@@ -614,7 +664,7 @@ class LogsConnection(MistConnection):
         Override this method in order to add/remove fields to/from a log entry.
 
         """
-        for param in ('@version', 'stories', 'tags', '_traceback', '_exc', ):
+        for param in ('@version', 'tags', '_traceback', '_exc', ):
             event.pop(param, None)
         return event
 
