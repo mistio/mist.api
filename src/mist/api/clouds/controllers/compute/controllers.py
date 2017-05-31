@@ -798,10 +798,16 @@ class DockerComputeController(BaseComputeController):
                 )
 
         # Username/Password authentication.
-        return get_container_driver(Container_Provider.DOCKER)(
-            key=self.cloud.username,
-            secret=self.cloud.password,
-            host=host, port=port)
+        if self.cloud.username and self.cloud.password:
+
+            return get_container_driver(Container_Provider.DOCKER)(
+                key=self.cloud.username,
+                secret=self.cloud.password,
+                host=host, port=port)
+        # open authentication.
+        else:
+            return get_container_driver(Container_Provider.DOCKER)(
+                host=host, port=port)
 
     def _list_machines__fetch_machines(self):
         """Perform the actual libcloud call to get list of containers"""
