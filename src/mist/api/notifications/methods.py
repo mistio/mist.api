@@ -99,6 +99,7 @@ def make_notification(
         notification["summary"] = summary
     if html_body:
         notification["html_body"] = html_body
+    return notification
 
 
 def test():
