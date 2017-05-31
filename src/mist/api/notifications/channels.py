@@ -24,26 +24,36 @@ class BaseChannel():
         pass
 
 
-class SendgridChannel(BaseChannel):
+class WeeklyReportsChannel(BaseChannel):
     '''
-    Sendgrid (email) channel
+    Sendgrid (email) channel for weekly reports
     '''
+
     sg_instance = sendgrid.SendGridAPIClient(
         apikey=config.SENDGRID_REPORTING_KEY)
 
     def send(self, notification):
+        user = notification["user"]
+        org = notification["org"]
+
         mail = Mail()
         mail.from_email = Email(config.EMAIL_REPORT_SENDER, "Mist.io Reports")
         personalization = Personalization()
-        personalization.add_to(Email(notification["email"]))
+        email = Email(notification.get("email", user.email),
+                      notification.get("full_name", user.get_nice_name()))
+        personalization.add_to(email)
         personalization.subject = notification["subject"]
-        personalization.add_substitution(
-            Substitution("%name%", notification["name"]))
+        sub1 = Substitution("%name%", notification.get(
+            "name", user.first_name or user.get_nice_name()))
+        personalization.add_substitution(sub1)
+        if "unsub_link" in notification:
+            sub2 = Substitution("%nsub%", notification["unsub_link"])
+            personalization.add_substitution(sub2)
         mail.add_personalization(personalization)
 
+        mail.add_content(Content("text/plain", notification["body"]))
         if "html_body" in notification:
             mail.add_content(Content("text/html", notification["html_body"]))
-        mail.add_content(Content("text/plain", notification["body"]))
 
         mdict = mail.get()
         try:
@@ -72,6 +82,6 @@ def channel_instance_with_name(name):
     '''
     if name == 'stdout':
         return StdoutChannel()
-    elif name == 'email':
-        return SendgridChannel()
+    elif name == 'weekly_reports':
+        return WeeklyReportsChannel()
     return None
