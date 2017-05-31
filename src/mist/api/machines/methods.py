@@ -384,21 +384,14 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
            'extra': node.extra,
            'job_id': job_id,
            }
+
     if isinstance(node, Node):
         ret.update({'public_ips': node.public_ips,
                     'private_ips': node.private_ips,})
     else:
-        # add public and private ips for mist
-        public_ips = []
-        private_ips = []
-        for ip in node.ip_addresses:
-            if is_private_subnet(ip):
-                private_ips.append(ip)
-            else:
-                public_ips.append(ip)
-
-        ret.update({'public_ips': public_ips,
-                    'private_ips': private_ips,})
+        # add public and private ips for docker container
+        ret.update({'public_ips': [],
+                    'private_ips': [] })
     return ret
 
 
@@ -732,9 +725,7 @@ def _create_machine_docker(conn, machine_name, image_id,
                            docker_env={}, docker_command=None,
                            tty_attach=True, docker_port_bindings={},
                            docker_exposed_ports={}):
-    """Create a machine in docker.
-
-    """
+    """Create a machine in docker."""
     image = ContainerImage(id=image_id, name=image_id,
                            extra={}, driver=conn, path=None,
                            version=None)
@@ -751,14 +742,32 @@ def _create_machine_docker(conn, machine_name, image_id,
                                   docker_env.iteritems()]
             environment += docker_environment
 
-        container = conn.deploy_container(
-                                          machine_name, image,
-                                          command=docker_command,
-                                          environment=environment,
-                                          tty=tty_attach,
-                                          ports=docker_exposed_ports,
-                                          port_bindings=docker_port_bindings
-        )
+        try:
+            container = conn.deploy_container(
+                machine_name, image,
+                command=docker_command,
+                environment=environment,
+                tty=tty_attach,
+                ports=docker_exposed_ports,
+                port_bindings=docker_port_bindings
+            )
+        except Exception as e:
+            # if image not found, try to pull it
+            if 'No such image' in str(e):
+                try:
+                    conn.install_image(image.name)
+                    container = conn.deploy_container(
+                        machine_name, image,
+                        command=docker_command,
+                        environment=environment,
+                        tty=tty_attach,
+                        ports=docker_exposed_ports,
+                        port_bindings=docker_port_bindings
+                    )
+                except Exception as e:
+                    raise Exception(e)
+            else:
+                raise Exception(e)
 
     except Exception as e:
         raise MachineCreationError("Docker, got exception %s" % e, e)
