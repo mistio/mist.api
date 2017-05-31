@@ -183,7 +183,6 @@ def create_machine(request):
 
     params = params_from_request(request)
     cloud_id = request.matchdict['cloud']
-
     for key in ('name', 'size'):
         if key not in params:
             raise RequiredParameterMissingError(key)

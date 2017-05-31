@@ -158,7 +158,6 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
     # post_script_id: id of a script that exists - for mist.core. If script_id
     # or monitoring are supplied, this will run after both finish
     # post_script_params: extra params, for post_script_id
-
     log.info('Creating machine %s on cloud %s' % (machine_name, cloud_id))
     cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
     conn = connect_provider(cloud)
@@ -736,8 +735,8 @@ def _create_machine_docker(conn, machine_name, image_id,
     """Create a machine in docker.
 
     """
-    image = ContainerImage(id=image_id, name=image_name,
-                           extra=image_extra, driver=conn, path=None,
+    image = ContainerImage(id=image_id, name=image_id,
+                           extra={}, driver=conn, path=None,
                            version=None)
     try:
         if public_key:
@@ -745,7 +744,7 @@ def _create_machine_docker(conn, machine_name, image_id,
         else:
             environment = []
 
-        if docker_env:
+        if isinstance(docker_env, dict):
             # docker_env is a dict, and we must convert it ot be in the form:
             # [ "key=value", "key=value"...]
             docker_environment = ["%s=%s" % (key, value) for key, value in
