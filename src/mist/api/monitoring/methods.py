@@ -58,7 +58,7 @@ def get_stats(owner, cloud_id, machine_id, start='', stop='', step='',
     """
     try:
         cloud = Cloud.objects.get(id=cloud_id, owner=owner, deleted=None)
-        machine = Machine.objects.get(id=machine_id, cloud=cloud)  # FIXME: UUID or machine_id???
+        machine = Machine.objects.get(id=machine_id, cloud=cloud)
     except me.DoesNotExist:
         raise NotFoundError('Machine does not exist')
     if not machine.monitoring.hasmonitoring:
@@ -128,9 +128,8 @@ def check_monitoring(owner):
         }
 
     custom_metrics = _get_metrics_as_dict(owner)
-    # TODO: Used?
-    # for metric in custom_metrics.values():
-    #     metric['machines'] = []
+    for metric in custom_metrics.values():
+        metric['machines'] = []
 
     monitored_machines = []
     monitored_machines_2 = {}
@@ -148,11 +147,10 @@ def check_monitoring(owner):
                 machine.monitoring.installation_status.as_dict(),
             'commands': machine.monitoring.get_commands(),
         }
-        # TODO: Used?
-        # for metric_id in machine.monitoring.metrics:
-        #     if metric_id in custom_metrics:
-        #         machines = custom_metrics[metric_id]['machines']
-        #         machines.append((machine.cloud.id, machine.machine_id))
+        for metric_id in machine.monitoring.metrics:
+            if metric_id in custom_metrics:
+                machines = custom_metrics[metric_id]['machines']
+                machines.append((machine.cloud.id, machine.machine_id))
 
     ret = {
         'current_plan': {},

@@ -78,7 +78,7 @@ class Monitoring(me.EmbeddedDocument):
     def get_commands(self):
         # FIXME: This is a hack.
         try:
-            import mist.core
+            import mist.core  # NOQA
         except ImportError:
             from mist.api.monitoring.commands import unix_install
             from mist.api.monitoring.commands import coreos_install

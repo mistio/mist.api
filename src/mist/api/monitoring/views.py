@@ -272,7 +272,7 @@ def get_stats(request):
 
     data = mist.api.monitoring.methods.get_stats(owner=auth_context.owner,
                                                  cloud_id=machine.cloud.id,
-                                                 machine_id=machine.id,  # FIXME
+                                                 machine_id=machine.id,
                                                  start=start, stop=stop,
                                                  step=step, metrics=metrics)
     data['request_id'] = params.get('request_id')
