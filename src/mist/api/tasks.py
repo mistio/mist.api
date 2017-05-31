@@ -8,7 +8,7 @@ from time import time
 import paramiko
 
 from libcloud.compute.types import NodeState
-from libcloud.utils.networking import is_private_subnet
+from libcloud.container.base import Container
 
 from base64 import b64encode
 
@@ -99,17 +99,6 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
 
             if isinstance(cloud, DockerCloud):
                 nodes = conn.list_containers()
-                for node in nodes:
-                    public_ips = []
-                    private_ips = []
-                    for ip in node.ip_addresses:
-                        if is_private_subnet(ip):
-                            private_ips.append(ip)
-                        else:
-                            public_ips.append(ip)
-                    node.public_ips = public_ips
-                    node.private_ips = private_ips
-                    node.size = None
             else:
                 nodes = conn.list_nodes()  # TODO: use cache
             for n in nodes:
@@ -119,6 +108,9 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
             tmp_log('run list_machines')
         except:
             raise self.retry(exc=Exception(), countdown=10, max_retries=10)
+
+        if node and isinstance(node, Container):
+            node = conn.inspect_node(node)
 
         if node and len(node.public_ips):
             # filter out IPv6 addresses
