@@ -929,7 +929,6 @@ def logging_view_decorator(func):
         params = dict(params_from_request(request))
         for key in ['email', 'cloud', 'machine', 'rule', 'script_id',
                     'tunnel_id', 'story_id', 'stack_id', 'template_id']:
-            print "Request matchdict: %s " % request.matchdict
             if key != 'email' and key in request.matchdict:
                 if not key.endswith('_id'):
                     log_dict[key + '_id'] = request.matchdict[key]
