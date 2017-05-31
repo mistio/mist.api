@@ -1,6 +1,6 @@
 import re
 import json
-import pretty
+import time
 import logging
 import requests
 
@@ -9,9 +9,12 @@ from tornado.httpclient import AsyncHTTPClient
 
 from mist.api.config import INFLUX
 from mist.api.helpers import iso_to_seconds
+from mist.api.helpers import trigger_session_update
 
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import ServiceUnavailableError
+
+from mist.api.machines.models import Machine
 
 
 log = logging.getLogger(__name__)
@@ -123,10 +126,11 @@ class BaseStatsHandler(object):
 
     def parse_path(self, metric):
         """Parse metric to extract the measurement, column, and tags."""
-        # Filter by machine_id tag.
-        tags = {'machine_id': self.machine}
+        if isinstance(self.machine, Machine):
+            tags = {'machine_id': self.machine.id}
+        else:
+            tags = {'machine_id': self.machine}
 
-        # Process metric path.
         measurement, fields = metric.split('.', 1)
         fields = fields.split('.')
         column = fields[-1]
@@ -179,26 +183,58 @@ class BaseStatsHandler(object):
                                 'unit': '',
                             }
                         results[id]['datapoints'].append(((point, timestamp)))
-        pretty.pprint(results)
         return results
 
 
-class CPUHandler(BaseStatsHandler):
+class MainStatsHandler(BaseStatsHandler):
+
+    def __init__(self, machine):
+        super(MainStatsHandler, self).__init__(machine)
+        assert isinstance(self.machine, Machine)
+
+    def _on_stats_callback(self, data):
+        results = super(MainStatsHandler, self)._on_stats_callback(data)
+        self._update_status(results)
+        return results
+
+    def _update_status(self, results):
+        """Update the InstallationStatus of self.machine.
+
+        Update `self.machine.monitoring.installation_status` and set proper
+        activation timestamps, once monitoring data is available.
+
+        """
+        owner = self.machine.owner
+        istatus = self.machine.monitoring.installation_status
+        if not istatus.activated_at:
+            for value in results.itervalues():
+                for point in value['datapoints']:
+                    if point[0] is not None and point[1] >= istatus.started_at:
+                        if not istatus.finished_at:
+                            istatus.finished_at = time.time()
+                        istatus.activated_at = time.time()
+                        istatus.state = 'succeeded'
+                        self.machine.save()
+                        trigger_session_update(owner, ['monitoring'])
+                        return
+
+
+class CPUHandler(MainStatsHandler):
 
     group = 'cpu'
 
 
-class DiskHandler(BaseStatsHandler):
+class DiskHandler(MainStatsHandler):
 
     group = 'device'
 
 
-class DiskIOHandler(BaseStatsHandler):
+class DiskIOHandler(MainStatsHandler):
 
     group = 'name'
 
 
-class NetworkHandler(BaseStatsHandler):
+class NetworkHandler(MainStatsHandler):
 
     group = 'interface'
 
@@ -244,7 +280,6 @@ class MultiLoadHandler(BaseStatsHandler):
                             }
                         results[machine_id]['datapoints'].append(((point,
                                                                    timestamp)))
-        pretty.pprint(results)
         return results
 
 

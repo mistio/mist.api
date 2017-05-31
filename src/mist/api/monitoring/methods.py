@@ -22,7 +22,7 @@ from mist.api.monitoring.helpers import show_fields
 from mist.api.monitoring.helpers import show_measurements
 
 from mist.api.monitoring.handlers import HANDLERS
-from mist.api.monitoring.handlers import BaseStatsHandler
+from mist.api.monitoring.handlers import MainStatsHandler
 from mist.api.monitoring.handlers import MultiLoadHandler
 
 
@@ -84,7 +84,7 @@ def get_stats(owner, cloud_id, machine_id, start='', stop='', step='',
             metric += '.*'
         if not measurement or measurement == '*':
             raise BadRequestError('No measurement specified')
-        handler = HANDLERS.get(measurement, BaseStatsHandler)(machine.id)
+        handler = HANDLERS.get(measurement, MainStatsHandler)(machine)
         data = handler.get_stats(metric=metric, start=start, stop=stop,
                                  step=step, callback=callback,
                                  tornado_async=tornado_async)
