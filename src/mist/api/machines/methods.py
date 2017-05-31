@@ -191,7 +191,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
 
         if public_key:
             node = _create_machine_docker(
-                conn, machine_name, image_id, image_name, image_extra, '',
+                conn, machine_name, image_id, '',
                 public_key=public_key,
                 docker_env=docker_env,
                 docker_command=docker_command,
@@ -207,7 +207,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                 pass
         else:
             node = _create_machine_docker(
-                conn, machine_name, image_id, image_name, image_extra, script,
+                conn, machine_name, image_id, script,
                 docker_env=docker_env,
                 docker_command=docker_command,
                 docker_port_bindings=docker_port_bindings,
@@ -728,8 +728,8 @@ def _create_machine_onapp(conn, public_key,
     return node
 
 
-def _create_machine_docker(conn, machine_name, image_id, image_name,
-                           image_extra, script=None, public_key=None,
+def _create_machine_docker(conn, machine_name, image_id,
+                           script=None, public_key=None,
                            docker_env={}, docker_command=None,
                            tty_attach=True, docker_port_bindings={},
                            docker_exposed_ports={}):
