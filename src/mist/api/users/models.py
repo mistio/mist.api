@@ -295,6 +295,16 @@ class User(Owner):
     can_create_org = me.BooleanField(default=True)
     beta_access = me.BooleanField(default=True)
 
+    meta = {
+        'indexes': [
+            {
+                'fields': ['$email', '$first_name', '$last_name', '$username', '$github_url', '$g_plus_url'],
+                'default_language': 'english',
+                'weights': {'last_name': 10, 'first_name': 10}
+            },
+        ]
+    }
+
     def __str__(self):
         return 'User %s' % self.email
 
