@@ -256,7 +256,7 @@ def get_stats(request):
     auth_context = auth_context_from_request(request)
     machine_uuid = request.matchdict['machine']
 
-    params = params_from_request
+    params = params_from_request(request)
     start = params.get('start', '')
     stop = params.get('stop', '')
     step = params.get('step', '')
