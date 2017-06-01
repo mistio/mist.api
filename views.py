@@ -120,24 +120,23 @@ def home(request):
         template = 'home.pt'
     else:
         template = 'poly.pt'
-    return render_to_response('templates/%s' % template,
-        {
-            'project': 'mist.io',
-            'email': json.dumps(user.email),
-            'first_name': json.dumps(""),
-            'last_name': json.dumps(""),
-            'supported_providers': json.dumps(config.SUPPORTED_PROVIDERS_V_2),
-            'core_uri': json.dumps(config.CORE_URI),
-            'auth': json.dumps(bool(user.mist_api_token)),
-            'js_build': json.dumps(config.JS_BUILD),
-            'css_build': config.CSS_BUILD,
-            'js_log_level': json.dumps(config.JS_LOG_LEVEL),
-            'google_analytics_id': config.GOOGLE_ANALYTICS_ID,
-            'is_core': json.dumps(False),
-            'csrf_token': json.dumps(""),
-            'beta_features': json.dumps(False),
-            'last_build': config.LAST_BUILD
-        }, request=request)
+    return render_to_response('templates/%s' % template, {
+        'project': 'mist.io',
+        'email': json.dumps(user.email),
+        'first_name': json.dumps(""),
+        'last_name': json.dumps(""),
+        'supported_providers': json.dumps(config.SUPPORTED_PROVIDERS_V_2),
+        'core_uri': json.dumps(config.CORE_URI),
+        'auth': json.dumps(bool(user.mist_api_token)),
+        'js_build': json.dumps(config.JS_BUILD),
+        'css_build': config.CSS_BUILD,
+        'js_log_level': json.dumps(config.JS_LOG_LEVEL),
+        'google_analytics_id': config.GOOGLE_ANALYTICS_ID,
+        'is_core': json.dumps(False),
+        'csrf_token': json.dumps(""),
+        'beta_features': json.dumps(False),
+        'last_build': config.LAST_BUILD
+    }, request=request)
 
 
 @view_config(route_name='api_v1_clouds', request_method='GET', renderer='json')
@@ -296,8 +295,7 @@ def rename_cloud(request):
     auth_context = auth_context_from_request(request)
     cloud_id = request.matchdict['cloud']
     try:
-        cloud = Cloud.objects.get(owner=auth_context.owner,
-                                  id=cloud_id, deleted=None)
+        Cloud.objects.get(owner=auth_context.owner, id=cloud_id, deleted=None)
     except Cloud.DoesNotExist:
         raise NotFoundError('Cloud does not exist')
 
@@ -1888,11 +1886,11 @@ def probe(request):
     ret = methods.probe(auth_context.owner, cloud_id, machine_id, host, key_id,
                         ssh_user)
     amqp_publish_user(auth_context.owner, "probe",
-                 {
-                     'cloud_id': cloud_id,
-                     'machine_id': machine_id,
-                     'result': ret
-                 })
+                      {
+                          'cloud_id': cloud_id,
+                          'machine_id': machine_id,
+                          'result': ret
+                      })
     return ret
 
 
@@ -2230,7 +2228,8 @@ def update_metric(request):
     return {}
 
 
-@view_config(route_name='api_v1_deploy_plugin', request_method='POST', renderer='json')
+@view_config(route_name='api_v1_deploy_plugin',
+             request_method='POST', renderer='json')
 def deploy_plugin(request):
     """
     Deploy a plugin on a machine.
@@ -2443,7 +2442,8 @@ def delete_rule(request):
     return OK
 
 
-@view_config(route_name='api_v1_providers', request_method='GET', renderer='json')
+@view_config(route_name='api_v1_providers',
+             request_method='GET', renderer='json')
 def list_supported_providers(request):
     """
     List supported providers
