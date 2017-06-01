@@ -272,10 +272,9 @@ def get_stories(story_type='', owner_id='', user_id='', sort_order=-1, limit=0,
     # in Tornado context. If the short version is requested, return only the
     # absolute necessary fields needed to create the story.
     if not expand:
-        includes = list(FIELDS)
-        includes += ["log_id", "stories", "action", "error", "time"]
+        includes = ["log_id", "stories", "error", "time"]
         if story_type == "incident":
-            includes.append("extra")
+            includes += list(FIELDS) + ["action", "extra"]
     else:
         includes = []
         assert not tornado_async
