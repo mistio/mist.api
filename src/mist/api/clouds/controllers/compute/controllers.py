@@ -38,7 +38,7 @@ from libcloud.container.providers import get_driver as get_container_driver
 from libcloud.compute.types import Provider, NodeState
 from libcloud.container.types import Provider as Container_Provider
 from libcloud.container.types import ContainerState
-from libcloud.container.base import ContainerImage
+from libcloud.container.base import ContainerImage, Container
 from libcloud.utils.networking import is_private_subnet
 from mist.api.exceptions import MistError
 from mist.api.exceptions import InternalServerError
@@ -187,8 +187,7 @@ class DigitalOceanComputeController(BaseComputeController):
         return machine_libcloud.extra.get('created_at')  # iso8601 string
 
     def _list_machines__machine_actions(self, machine, machine_libcloud):
-        super(
-            DigitalOceanComputeController, self
+        super(DigitalOceanComputeController, self
         )._list_machines__machine_actions(machine, machine_libcloud)
         machine.actions.rename = True
 
@@ -238,8 +237,7 @@ class RackSpaceComputeController(BaseComputeController):
         return machine_libcloud.extra.get('created')  # iso8601 string
 
     def _list_machines__machine_actions(self, machine, machine_libcloud):
-        super(
-            RackSpaceComputeController, self
+        super(RackSpaceComputeController, self
         )._list_machines__machine_actions(machine, machine_libcloud)
         machine.actions.rename = True
 
@@ -814,13 +812,13 @@ class DockerComputeController(BaseComputeController):
         containers = self.connection.list_containers(all=self.cloud.show_all)
         # add public/private ips for mist
         for container in containers:
-            public_ips = []
-            private_ips = []
-            for ip in container.ip_addresses:
-                if is_private_subnet(ip):
-                    private_ips.append(ip)
-                else:
-                    public_ips.append(ip)
+            public_ips, private_ips = [], []
+            host = sanitize_host(self.cloud.host)
+            if is_private_subnet(host):
+                private_ips.append(host)
+            else:
+                public_ips.append(host)
+
             container.public_ips = public_ips
             container.private_ips = private_ips
             container.size = None
@@ -911,6 +909,66 @@ class DockerComputeController(BaseComputeController):
         self._dockerhost = machine
         return machine
 
+    def inspect_node(self, machine_libcloud):
+        """
+        Inspect a container
+        """
+        result = self.connection.connection.request(
+            "/v%s/containers/%s/json" % (self.connection.version,
+                                         machine_libcloud.id)).object
+
+        name = result.get('Name').strip('/')
+        if result['State']['Running']:
+            state = ContainerState.RUNNING
+        else:
+            state = ContainerState.STOPPED
+
+        extra = {
+            'image': result.get('Image'),
+            'volumes': result.get('Volumes'),
+            'env': result.get('Config', {}).get('Env'),
+            'ports': result.get('ExposedPorts'),
+            'network_settings': result.get('NetworkSettings', {}),
+            'exit_code': result['State'].get("ExitCode")
+        }
+
+        node_id = result.get('Id')
+        if not node_id:
+            node_id = result.get('ID', '')
+
+        host = sanitize_host(self.cloud.host)
+        public_ips, private_ips = [], []
+        if is_private_subnet(host):
+            private_ips.append(host)
+        else:
+            public_ips.append(host)
+
+        networks = result['NetworkSettings'].get('Networks', {})
+        for network in networks:
+            network_ip = networks[network].get('IPAddress')
+            if is_private_subnet(network_ip):
+                private_ips.append(network_ip)
+            else:
+                public_ips.append(network_ip)
+
+        ips = []  # TODO maybe the api changed
+        ports = result.get('Ports', [])
+        for port in ports:
+            if port.get('IP') is not None:
+                ips.append(port.get('IP'))
+
+        contnr = (Container(id=node_id,
+                            name=name,
+                            image=result.get('Image'),
+                            state=state,
+                            ip_addresses=ips,
+                            driver=self.connection,
+                            extra=extra))
+        contnr.public_ips = public_ips
+        contnr.private_ips = private_ips
+        contnr.size = None
+        return contnr
+
     def _list_machines__fetch_generic_machines(self):
         return [self.dockerhost]
 
@@ -943,14 +1001,13 @@ class DockerComputeController(BaseComputeController):
         # this exist here cause of docker host implementation
         if machine.machine_type == 'container-host':
             return
-        # TODO change this, maybe simpler
-        container_info = self.connection.inspect_node(machine_libcloud)
+        container_info = self.inspect_node(machine_libcloud)
 
         try:
-            # TODO check if it is right ?
             port = container_info.extra[
                 'network_settings']['Ports']['22/tcp'][0]['HostPort']
-        except KeyError:
+        except (KeyError, TypeError):
+            # add TypeError in case of 'Ports': {u'22/tcp': None}
             port = 22
 
         for key_assoc in machine.key_associations:
@@ -962,15 +1019,22 @@ class DockerComputeController(BaseComputeController):
 
         This is a private method, used mainly by machine action methods.
         """
-        # assert isinstance(machine.cloud, Machine)
         assert self.cloud == machine.cloud
         for node in self.connection.list_containers():
             if node.id == machine.machine_id:
                 return node
         if no_fail:
-            return Node(machine.machine_id, name=machine.machine_id,
-                        state=0, public_ips=[], private_ips=[],
-                        driver=self.connection)
+            container = Container(id=machine.machine_id,
+                                  name=machine.machine_id,
+                                  image=machine.image_id,
+                                  state=0,
+                                  ip_addresses=[],
+                                  driver=self.connection,
+                                  extra={})
+            container.public_ips = []
+            container.private_ips = []
+            container.size = None
+            return container
         raise MachineNotFoundError(
             "Machine with machine_id '%s'." % machine.machine_id
         )
