@@ -45,7 +45,7 @@ from mist.io.exceptions import PolicyUnauthorizedError, UnauthorizedError
 from mist.io.exceptions import CloudNotFoundError
 from mist.io.exceptions import NetworkNotFoundError, SubnetNotFoundError
 
-import pyramid.httpexceptions
+# import pyramid.httpexceptions
 
 from mist.io.helpers import get_auth_header, params_from_request
 from mist.io.helpers import trigger_session_update, amqp_publish_user
@@ -93,16 +93,13 @@ def exception_handler_mist(exc, request):
     # mist exceptions are ok.
     log.info("MistError: %r", exc)
 
-
     # translate it to HTTP response based on http_code attribute
     return Response(str(exc), exc.http_code)
 
-
-#@view_config(context='pyramid.httpexceptions.HTTPNotFound',
+# @view_config(context='pyramid.httpexceptions.HTTPNotFound',
 #             renderer='templates/404.pt')
-#def not_found(self, request):
-#    return pyramid.httpexceptions.HTTPFound(request.host_url+"/#"+request.path)
-
+# def not_found(self, request):
+# return pyramid.httpexceptions.HTTPFound(request.host_url+"/#"+request.path)
 
 @view_config(route_name='home', request_method='GET')
 @view_config(route_name='clouds', request_method='GET')
@@ -125,21 +122,21 @@ def home(request):
         template = 'poly.pt'
     return render_to_response('templates/%s' % template,
         {
-        'project': 'mist.io',
-        'email': json.dumps(user.email),
-        'first_name': json.dumps(""),
-        'last_name': json.dumps(""),
-        'supported_providers': json.dumps(config.SUPPORTED_PROVIDERS_V_2),
-        'core_uri': json.dumps(config.CORE_URI),
-        'auth': json.dumps(bool(user.mist_api_token)),
-        'js_build': json.dumps(config.JS_BUILD),
-        'css_build': config.CSS_BUILD,
-        'js_log_level': json.dumps(config.JS_LOG_LEVEL),
-        'google_analytics_id': config.GOOGLE_ANALYTICS_ID,
-        'is_core': json.dumps(False),
-        'csrf_token': json.dumps(""),
-        'beta_features': json.dumps(False),
-        'last_build': config.LAST_BUILD
+            'project': 'mist.io',
+            'email': json.dumps(user.email),
+            'first_name': json.dumps(""),
+            'last_name': json.dumps(""),
+            'supported_providers': json.dumps(config.SUPPORTED_PROVIDERS_V_2),
+            'core_uri': json.dumps(config.CORE_URI),
+            'auth': json.dumps(bool(user.mist_api_token)),
+            'js_build': json.dumps(config.JS_BUILD),
+            'css_build': config.CSS_BUILD,
+            'js_log_level': json.dumps(config.JS_LOG_LEVEL),
+            'google_analytics_id': config.GOOGLE_ANALYTICS_ID,
+            'is_core': json.dumps(False),
+            'csrf_token': json.dumps(""),
+            'beta_features': json.dumps(False),
+            'last_build': config.LAST_BUILD
         }, request=request)
 
 
@@ -156,7 +153,8 @@ def list_clouds(request):
     return mist.core.methods.filter_list_clouds(auth_context)
 
 
-@view_config(route_name='api_v1_clouds', request_method='POST', renderer='json')
+@view_config(route_name='api_v1_clouds',
+             request_method='POST', renderer='json')
 def add_cloud(request):
     """
     Add a new cloud
@@ -271,8 +269,8 @@ def delete_cloud(request):
     auth_context = auth_context_from_request(request)
     cloud_id = request.matchdict['cloud']
     try:
-        cloud = Cloud.objects.get(owner=auth_context.owner,
-                                  id=cloud_id, deleted=None)
+        Cloud.objects.get(owner=auth_context.owner,
+                          id=cloud_id, deleted=None)
     except Cloud.DoesNotExist:
         raise NotFoundError('Cloud does not exist')
     auth_context.check_perm('cloud', 'remove', cloud_id)
@@ -423,15 +421,15 @@ def add_key(request):
     ADD permission required on key.
     ---
     id:
-      description: The key name
+      description: 'The key name'
       required: true
       type: string
     priv:
-      description: The private key
+      description: 'The private key'
       required: true
       type: string
     certificate:
-      description: The signed public key, when using signed ssh keys
+      description: 'The signed public key, when using signed ssh keys'
       required: false
       type: string
 
@@ -475,8 +473,8 @@ def add_key(request):
 def delete_key(request):
     """
     Delete key
-    Delete key. When a key gets deleted, it takes its associations with it
-    so just need to remove from the server too. If the default key gets deleted,
+    When a key gets deleted, it takes its associations with it so just need
+    to remove from the server too. If the default key gets deleted,
     it sets the next one as default, provided that at least another key exists.
     It returns the list of all keys after the deletion, excluding the private
     keys (check also list_keys).
@@ -503,7 +501,8 @@ def delete_key(request):
     return list_keys(request)
 
 
-@view_config(route_name='api_v1_keys', request_method='DELETE', renderer='json')
+@view_config(route_name='api_v1_keys',
+             request_method='DELETE', renderer='json')
 @view_config(route_name='keys', request_method='DELETE', renderer='json')
 def delete_keys(request):
     """
@@ -558,7 +557,8 @@ def delete_keys(request):
     return report
 
 
-@view_config(route_name='api_v1_key_action', request_method='PUT', renderer='json')
+@view_config(route_name='api_v1_key_action',
+             request_method='PUT', renderer='json')
 def edit_key(request):
     """
     Edit a key
@@ -566,10 +566,10 @@ def edit_key(request):
     EDIT permission required on key.
     ---
     new_name:
-      description: The new key name
+      description: 'The new key name'
       type: string
     key_id:
-      description: The key id
+      description: 'The key id'
       in: path
       required: true
       type: string
@@ -600,7 +600,7 @@ def set_default_key(request):
     EDIT permission required on key.
     ---
     key:
-      description: The key id
+      description: 'The key id'
       in: path
       required: true
       type: string
@@ -630,7 +630,7 @@ def get_private_key(request):
     READ_PRIVATE permission required on key.
     ---
     key:
-      description: The key id
+      description: 'The key id'
       in: path
       required: true
       type: string
@@ -660,7 +660,7 @@ def get_public_key(request):
     READ permission required on key.
     ---
     key:
-      description: The key id
+      description: 'The key id'
       in: path
       required: true
       type: string
@@ -798,6 +798,7 @@ def disassociate_key(request):
     assoc_machines = transform_key_machine_associations(machines, key)
     return assoc_machines
 
+
 @view_config(route_name='api_v1_zones', request_method='GET', renderer='json')
 def list_dns_zones(request):
     """
@@ -817,7 +818,8 @@ def list_dns_zones(request):
     return cloud.ctl.dns.list_zones()
 
 
-@view_config(route_name='api_v1_records', request_method='GET', renderer='json')
+@view_config(route_name='api_v1_records',
+             request_method='GET', renderer='json')
 def list_dns_records(request):
     """
     List all DNS zone records for a particular zone.
@@ -831,6 +833,7 @@ def list_dns_records(request):
     except Cloud.DoesNotExist:
         raise NotFoundError('Cloud does not exist')
     return cloud.ctl.dns.list_records(zone_id)
+
 
 @view_config(route_name='api_v1_zones', request_method='POST', renderer='json')
 def create_dns_zone(request):
@@ -861,7 +864,9 @@ def create_dns_zone(request):
 
     return cloud.ctl.dns.create_zone(domain, type, ttl, extra)
 
-@view_config(route_name='api_v1_records', request_method='POST', renderer='json')
+
+@view_config(route_name='api_v1_records',
+             request_method='POST', renderer='json')
 def create_dns_record(request):
     """
     Create a new record under a specific zone
@@ -896,7 +901,9 @@ def create_dns_record(request):
 
     return cloud.ctl.dns.create_record(zone_id, name, type, data, ttl)
 
-@view_config(route_name='api_v1_zone', request_method='DELETE', renderer='json')
+
+@view_config(route_name='api_v1_zone',
+             request_method='DELETE', renderer='json')
 def delete_dns_zone(request):
     """
     Delete a specific DNS zone under a cloud.
@@ -912,7 +919,9 @@ def delete_dns_zone(request):
 
     return cloud.ctl.dns.delete_zone(zone_id)
 
-@view_config(route_name='api_v1_record', request_method='DELETE', renderer='json')
+
+@view_config(route_name='api_v1_record',
+             request_method='DELETE', renderer='json')
 def delete_dns_record(request):
     """
     Delete a specific DNS record under a zone.
@@ -929,7 +938,9 @@ def delete_dns_record(request):
 
     return cloud.ctl.dns.delete_record(zone_id, record_id)
 
-@view_config(route_name='api_v1_machines', request_method='GET', renderer='json')
+
+@view_config(route_name='api_v1_machines',
+             request_method='GET', renderer='json')
 def list_machines(request):
     """
     List machines on cloud
@@ -1050,16 +1061,18 @@ def create_machine(request):
       description: 'Specify id of a backend(private) vlan'
       type: integer
     project_id:
-      description: ' Needed only by Packet.net cloud'
+      description: 'Needed only by Packet.net cloud'
       type: string
     billing:
-      description: ' Needed only by SoftLayer cloud'
+      description: 'Needed only by SoftLayer cloud'
       type: string
     bare_metal:
-      description: ' Needed only by SoftLayer cloud'
+      description: 'Needed only by SoftLayer cloud'
       type: string
+    schedule:
+      description: 'Pre Schedule the created machine'
+      type: dict
     """
-    # TODO add schedule in docstring
 
     params = params_from_request(request)
     cloud_id = request.matchdict['cloud']
@@ -1106,7 +1119,8 @@ def create_machine(request):
     plugins = params.get('plugins')
     cloud_init = params.get('cloud_init', '')
     associate_floating_ip = params.get('associate_floating_ip', False)
-    associate_floating_ip_subnet = params.get('attach_floating_ip_subnet', None)
+    associate_floating_ip_subnet = params.get('attach_floating_ip_subnet',
+                                              None)
     project_id = params.get('project', None)
     bare_metal = params.get('bare_metal', False)
     # bare_metal True creates a hardware server in SoftLayer,
@@ -1159,7 +1173,8 @@ def create_machine(request):
             image_extra, disk, image_name, size_name,
             location_name, ips, monitoring, networks,
             docker_env, docker_command)
-    kwargs = {'script_id': script_id, 'script_params': script_params, 'script': script,
+    kwargs = {'script_id': script_id,
+              'script_params': script_params, 'script': script,
               'job_id': job_id, 'docker_port_bindings': docker_port_bindings,
               'docker_exposed_ports': docker_exposed_ports,
               'azure_port_bindings': azure_port_bindings,
@@ -1187,7 +1202,8 @@ def create_machine(request):
     return ret
 
 
-@view_config(route_name='api_v1_machine', request_method='POST', renderer='json')
+@view_config(route_name='api_v1_machine',
+             request_method='POST', renderer='json')
 def machine_actions(request):
     """
     Call an action on machine
@@ -1215,10 +1231,10 @@ def machine_actions(request):
       required: true
       type: string
     name:
-      description: The new name of the renamed machine
+      description: 'The new name of the renamed machine'
       type: string
     size:
-      description: The size id of the plan to resize
+      description: 'The size id of the plan to resize'
       type: string
     """
     cloud_id = request.matchdict['cloud']
@@ -1326,7 +1342,8 @@ def machine_rdp(request):
 #
 # @view_config(route_name='api_v1_machine_tags', request_method='POST',
 #              renderer='json')
-# @view_config(route_name='machine_tags', request_method='POST', renderer='json')
+# @view_config(route_name='machine_tags',
+# request_method='POST', renderer='json')
 # def set_machine_tags(request):
 #     """
 #     Set tags on a machine
@@ -1355,7 +1372,8 @@ def machine_rdp(request):
 #         raise exceptions.BadRequestError('tags should be list of tags')
 #
 #     auth_context = auth_context_from_request(request)
-#     cloud_tags = mist.core.methods.get_cloud_tags(auth_context.owner, cloud_id)
+#     cloud_tags = mist.core.methods.get_cloud_tags(auth_context.owner,
+# cloud_id)
 #     if not auth_context.has_perm("cloud", "read", cloud_id, cloud_tags):
 #         raise UnauthorizedError()
 #     machine_tags = mist.core.methods.get_machine_tags(auth_context.owner,
@@ -1400,7 +1418,8 @@ def machine_rdp(request):
 #     machine_id = request.matchdict['machine']
 #     tag = request.matchdict['tag']
 #     auth_context = auth_context_from_request(request)
-#     cloud_tags = mist.core.methods.get_cloud_tags(auth_context.owner, cloud_id)
+#     cloud_tags = mist.core.methods.get_cloud_tags(auth_context.owner,
+# cloud_id)
 #     if not auth_context.has_perm("cloud", "read", cloud_id, cloud_tags):
 #         raise UnauthorizedError()
 #     machine_tags = mist.core.methods.get_machine_tags(auth_context.owner,
@@ -1417,7 +1436,8 @@ def machine_rdp(request):
 #     return OK
 
 
-@view_config(route_name='api_v1_images', request_method='POST', renderer='json')
+@view_config(route_name='api_v1_images',
+             request_method='POST', renderer='json')
 def list_specific_images(request):
     # FIXME: 1) i shouldn't exist, 2) i shouldn't be a post
     return list_images(request)
@@ -1450,7 +1470,8 @@ def list_images(request):
     return methods.list_images(auth_context.owner, cloud_id, term)
 
 
-@view_config(route_name='api_v1_image', request_method='POST', renderer='json')
+@view_config(route_name='api_v1_image',
+             request_method='POST', renderer='json')
 def star_image(request):
     """
     Star/unstar an image
@@ -1462,7 +1483,7 @@ def star_image(request):
       required: true
       type: string
     image:
-      description: Id of image to be used with the creation
+      description: 'Id of image to be used with the creation'
       in: path
       required: true
       type: string
@@ -1492,7 +1513,8 @@ def list_sizes(request):
     return methods.list_sizes(auth_context.owner, cloud_id)
 
 
-@view_config(route_name='api_v1_locations', request_method='GET', renderer='json')
+@view_config(route_name='api_v1_locations',
+             request_method='GET', renderer='json')
 def list_locations(request):
     """
     List locations of cloud
@@ -1515,7 +1537,8 @@ def list_locations(request):
     return methods.list_locations(auth_context.owner, cloud_id)
 
 
-@view_config(route_name='api_v1_networks', request_method='GET', renderer='json')
+@view_config(route_name='api_v1_networks',
+             request_method='GET', renderer='json')
 def list_networks(request):
     """
     List networks of a cloud.
@@ -1536,7 +1559,8 @@ def list_networks(request):
     return networks
 
 
-@view_config(route_name='api_v1_subnets', request_method='GET', renderer='json')
+@view_config(route_name='api_v1_subnets',
+             request_method='GET', renderer='json')
 def list_subnets(request):
     """
     List subnets of a cloud
@@ -1551,7 +1575,7 @@ def list_subnets(request):
     network_id:
       in: path
       required: true
-      description: The DB ID of the network whose subnets will be returned
+      description: 'The DB ID of the network whose subnets will be returned'
       type: string
     """
 
@@ -1575,7 +1599,8 @@ def list_subnets(request):
     return subnets
 
 
-@view_config(route_name='api_v1_networks', request_method='POST', renderer='json')
+@view_config(route_name='api_v1_networks',
+             request_method='POST', renderer='json')
 def create_network(request):
     """
     Create network on a cloud
@@ -1586,7 +1611,7 @@ def create_network(request):
     cloud_id:
       in: path
       required: true
-      description: The Cloud ID
+      description: 'The Cloud ID'
       type: string
     network:
       required: true
@@ -1621,7 +1646,8 @@ def create_network(request):
     #  for backwards compatibility with the current UI
     if subnet_params:
         try:
-            subnet = methods.create_subnet(auth_context.owner, cloud, network, subnet_params)
+            subnet = methods.create_subnet(auth_context.owner,
+                                           cloud, network, subnet_params)
         except Exception as exc:
             # Cleaning up the network object in case subnet creation
             #  fails for any reason
@@ -1632,7 +1658,8 @@ def create_network(request):
     return network.as_dict()
 
 
-@view_config(route_name='api_v1_subnets', request_method='POST', renderer='json')
+@view_config(route_name='api_v1_subnets',
+             request_method='POST', renderer='json')
 def create_subnet(request):
     """
     Create subnet on a given network on a cloud.
@@ -1641,12 +1668,12 @@ def create_subnet(request):
     cloud_id:
       in: path
       required: true
-      description: The Cloud ID
+      description: 'The Cloud ID'
       type: string
     network_id:
       in: path
       required: true
-      description: The ID of the Network that will contain the new subnet
+      description: 'The ID of the Network that will contain the new subnet'
       type: string
     subnet:
       required: true
@@ -1862,14 +1889,15 @@ def probe(request):
                         ssh_user)
     amqp_publish_user(auth_context.owner, "probe",
                  {
-                    'cloud_id': cloud_id,
-                    'machine_id': machine_id,
-                    'result': ret
+                     'cloud_id': cloud_id,
+                     'machine_id': machine_id,
+                     'result': ret
                  })
     return ret
 
 
-@view_config(route_name='api_v1_monitoring', request_method='GET', renderer='json')
+@view_config(route_name='api_v1_monitoring',
+             request_method='GET', renderer='json')
 def check_monitoring(request):
     """
     Check monitoring
@@ -1881,7 +1909,8 @@ def check_monitoring(request):
     return ret
 
 
-@view_config(route_name='api_v1_update_monitoring', request_method='POST', renderer='json')
+@view_config(route_name='api_v1_update_monitoring',
+             request_method='POST', renderer='json')
 def update_monitoring(request):
     """
     Enable monitoring
@@ -1985,13 +2014,13 @@ def get_stats(request):
       required: true
       type: string
     start:
-      description: ' Time formatted as integer, from when to fetch stats (default now)'
+      description: 'Time as integer, from when to fetch stats (default now)'
       in: query
       required: false
       type: string
     stop:
       default: ''
-      description: Time formatted as integer, until when to fetch stats (default +10 seconds)
+      description: 'Time as integer,until when to fetch stats(default+10 secs)'
       in: query
       required: false
       type: string
@@ -2037,7 +2066,8 @@ def get_stats(request):
     return data
 
 
-@view_config(route_name='api_v1_metrics', request_method='GET', renderer='json')
+@view_config(route_name='api_v1_metrics',
+             request_method='GET', renderer='json')
 def find_metrics(request):
     """
     Get metrics of a machine
@@ -2067,7 +2097,8 @@ def find_metrics(request):
     return methods.find_metrics(auth_context.owner, cloud_id, machine_id)
 
 
-@view_config(route_name='api_v1_metrics', request_method='PUT', renderer='json')
+@view_config(route_name='api_v1_metrics',
+             request_method='PUT', renderer='json')
 def assoc_metric(request):
     """
     Associate metric with machine
@@ -2105,7 +2136,8 @@ def assoc_metric(request):
     return {}
 
 
-@view_config(route_name='api_v1_metrics', request_method='DELETE', renderer='json')
+@view_config(route_name='api_v1_metrics',
+             request_method='DELETE', renderer='json')
 def disassoc_metric(request):
     """
     Disassociate metric from machine
@@ -2171,7 +2203,7 @@ def update_metric(request):
     plugin_type:
       type: string
     unit:
-      description: ' Optional. If given the new plugin will be measured according to this
+      description: 'Opt. If given the new plugin will be measured accordingly'
         unit'
       type: string
     """
