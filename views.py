@@ -101,6 +101,7 @@ def exception_handler_mist(exc, request):
 # def not_found(self, request):
 # return pyramid.httpexceptions.HTTPFound(request.host_url+"/#"+request.path)
 
+
 @view_config(route_name='home', request_method='GET')
 @view_config(route_name='clouds', request_method='GET')
 @view_config(route_name='cloud', request_method='GET')
