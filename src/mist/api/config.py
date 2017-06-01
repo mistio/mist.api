@@ -66,7 +66,9 @@ MONGO_DB = "mist2"
 
 # InfluxDB
 INFLUX = {
-    "host": "http://influxdb:8086", "db": "telegraf"
+    "host": "http://influxdb:8086",
+    "db": "telegraf",
+    "relay": "http://influxdb-relay:9096",
 }
 
 # Default, built-in metrics.
