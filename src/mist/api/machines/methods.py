@@ -197,7 +197,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                 docker_port_bindings=docker_port_bindings,
                 docker_exposed_ports=docker_exposed_ports
             )
-            node_info = conn.inspect_node(node)
+            node_info = cloud.ctl.compute.inspect_node(node)
             try:
                 ssh_port = int(
                     node_info.extra[

@@ -110,7 +110,7 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
             raise self.retry(exc=Exception(), countdown=10, max_retries=10)
 
         if node and isinstance(node, Container):
-            node = conn.inspect_node(node)
+            node = cloud.ctl.compute.inspect_node(node)
 
         if node and len(node.public_ips):
             # filter out IPv6 addresses
