@@ -32,7 +32,7 @@ import mongoengine as me
 from xml.sax.saxutils import escape
 
 from libcloud.pricing import get_size_price
-from libcloud.compute.base import Node, NodeImage, NodeSize
+from libcloud.compute.base import Node, NodeImage
 from libcloud.compute.providers import get_driver
 from libcloud.container.providers import get_driver as get_container_driver
 from libcloud.compute.types import Provider, NodeState
@@ -187,8 +187,8 @@ class DigitalOceanComputeController(BaseComputeController):
         return machine_libcloud.extra.get('created_at')  # iso8601 string
 
     def _list_machines__machine_actions(self, machine, machine_libcloud):
-        super(DigitalOceanComputeController, self
-        )._list_machines__machine_actions(machine, machine_libcloud)
+        super(DigitalOceanComputeController,
+              self)._list_machines__machine_actions(machine, machine_libcloud)
         machine.actions.rename = True
 
     def _list_machines__cost_machine(self, machine, machine_libcloud):
@@ -237,8 +237,8 @@ class RackSpaceComputeController(BaseComputeController):
         return machine_libcloud.extra.get('created')  # iso8601 string
 
     def _list_machines__machine_actions(self, machine, machine_libcloud):
-        super(RackSpaceComputeController, self
-        )._list_machines__machine_actions(machine, machine_libcloud)
+        super(RackSpaceComputeController,
+              self)._list_machines__machine_actions(machine, machine_libcloud)
         machine.actions.rename = True
 
     def _list_machines__cost_machine(self, machine, machine_libcloud):
@@ -788,12 +788,10 @@ class DockerComputeController(BaseComputeController):
 
             # tls auth
             return get_container_driver(Container_Provider.DOCKER)(
-                host=host,
-                port=port,
+                host=host, port=port,
                 key_file=key_temp_file.name,
                 cert_file=cert_temp_file.name,
-                ca_cert=ca_cert
-                )
+                ca_cert=ca_cert)
 
         # Username/Password authentication.
         if self.cloud.username and self.cloud.password:
@@ -826,7 +824,7 @@ class DockerComputeController(BaseComputeController):
         return containers
 
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
-        return machine_libcloud.extra.get('created') # unix timestamp
+        return machine_libcloud.extra.get('created')  # unix timestamp
 
     def _list_machines__machine_actions(self, machine, machine_libcloud):
         # todo this is not necessary
@@ -974,8 +972,9 @@ class DockerComputeController(BaseComputeController):
 
     def _list_images__fetch_images(self, search=None):
         # Fetch mist's recommended images
-        images = [ContainerImage(id=image, name=name, path=None, version=None,
-                            driver=self.connection, extra={})
+        images = [ContainerImage(id=image, name=name, path=None,
+                                 version=None, driver=self.connection,
+                                 extra={})
                   for image, name in config.DOCKER_IMAGES.items()]
         # Add starred images
         images += [ContainerImage(id=image, name=image, path=None,

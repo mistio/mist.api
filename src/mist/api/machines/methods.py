@@ -7,7 +7,6 @@ from libcloud.compute.base import NodeSize, NodeImage, NodeLocation, Node
 from libcloud.compute.types import Provider
 from libcloud.container.types import Provider as Container_Provider
 from libcloud.container.base import ContainerImage
-from libcloud.utils.networking import is_private_subnet
 from libcloud.compute.base import NodeAuthSSHKey
 from tempfile import NamedTemporaryFile
 
@@ -387,11 +386,11 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
 
     if isinstance(node, Node):
         ret.update({'public_ips': node.public_ips,
-                    'private_ips': node.private_ips,})
+                    'private_ips': node.private_ips})
     else:
         # add public and private ips for docker container
         ret.update({'public_ips': [],
-                    'private_ips': [] })
+                    'private_ips': []})
     return ret
 
 
@@ -814,7 +813,7 @@ def _create_machine_digital_ocean(conn, key_name, private_key, public_key,
     except:
         # do not break if this fails for some reason
         pass
-    size.name = size.id # conn.create_node will use size.name
+    size.name = size.id  # conn.create_node will use size.name
     try:
         node = conn.create_node(
             name=machine_name,
@@ -964,7 +963,7 @@ def _create_machine_vultr(conn, public_key, machine_name, image,
     except:
         pass
 
-    ex_create_attr={}
+    ex_create_attr = {}
     if cloud_init:
         ex_create_attr['userdata'] = cloud_init
 
