@@ -10,14 +10,11 @@ def send_notification(notification):
     notification policy and sends the notification
     through specified channels.
     '''
-    policies = models.UserNotificationPolicy.objects(
-        user=notification["user"], organization=notification["org"])
-    if policies:
-        policy = policies[0]
-        if policy.notification_allowed(notification):
-            chan = channels.channel_instance_with_name(notification["channel"])
-            if chan:
-                chan.send(notification)
+    policy = get_policy(notification["user"], notification["org"])
+    if policy.notification_allowed(notification):
+        chan = channels.channel_instance_with_name(notification["channel"])
+        if chan:
+            chan.send(notification)
 
 
 def add_block_rule(user, org, source):
