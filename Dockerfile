@@ -29,6 +29,15 @@ COPY . /mist.api/
 
 RUN pip install -e src/
 
+# This file gets overwritten when mounting code, which lets us know code has
+# been mounted.
 RUN touch clean
 
 ENTRYPOINT ["/mist.api/bin/docker-init"]
+
+ARG JS_BUILD=1
+ARG VERSION_REPO=mistio/mist.api
+ARG VERSION_SHA
+ARG VERSION_NAME
+
+RUN echo "{\"sha\":\"$VERSION_SHA\",\"name\":\"$VERSION_NAME\",\"repo\":\"$VERSION_REPO\",\"modified\":false}" > /mist-version.json
