@@ -139,8 +139,8 @@ def home(request):
     params = params_from_request(request)
 
     build_path = ''
-    if config.BUILD_TAG and not params.get('debug'):
-        build_path = 'build/%s/bundled/' % config.BUILD_TAG
+    if config.JS_BUILD and not params.get('debug'):
+        build_path = 'build/%s/bundled/' % config.VERSION.get('sha')
 
     template_inputs = config.HOMEPAGE_INPUTS
     template_inputs['build_path'] = build_path
@@ -178,8 +178,8 @@ def not_found(request):
     params = params_from_request(request)
 
     build_path = ''
-    if config.BUILD_TAG and not params.get('debug'):
-        build_path = '/build/%s/bundled/' % config.BUILD_TAG
+    if config.JS_BUILD and not params.get('debug'):
+        build_path = '/build/%s/bundled/' % config.VERSION.get('sha')
 
     template_inputs = config.HOMEPAGE_INPUTS
     template_inputs['build_path'] = build_path
@@ -669,8 +669,8 @@ def reset_password(request):
 
     if request.method == 'GET':
         build_path = ''
-        if config.BUILD_TAG and not params.get('debug'):
-            build_path = '/build/%s/bundled/' % config.BUILD_TAG
+        if config.JS_BUILD and not params.get('debug'):
+            build_path = '/build/%s/bundled/' % config.VERSION.get('sha')
         template_inputs = config.HOMEPAGE_INPUTS
         template_inputs['build_path'] = build_path
         template_inputs['csrf_token'] = json.dumps(get_csrf_token(request))
@@ -734,8 +734,8 @@ def set_password(request):
 
     if request.method == 'GET':
         build_path = ''
-        if config.BUILD_TAG and not params.get('debug'):
-            build_path = '/build/%s/bundled/' % config.BUILD_TAG
+        if config.JS_BUILD and not params.get('debug'):
+            build_path = '/build/%s/bundled/' % config.VERSION.get('sha')
         template_inputs = config.HOMEPAGE_INPUTS
         template_inputs['build_path'] = build_path
         template_inputs['csrf_token'] = json.dumps(get_csrf_token(request))
