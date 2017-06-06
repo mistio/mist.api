@@ -2,8 +2,11 @@
 
 set -e
 
+# If running with mounted code...
 if [ ! -e clean ]; then
     set -x
+    unset JS_BUILD
+    echo "{\"sha\":\"$VERSION_SHA\",\"name\":\"$VERSION_NAME\",\"repo\":\"$VERSION_REPO\",\"modified\":true}" > /mist-version.json
     pip install -e paramiko/
     pip install -e libcloud/
     pip install -e celerybeat-mongo/

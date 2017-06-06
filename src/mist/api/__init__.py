@@ -126,6 +126,8 @@ def add_routes(configurator):
                 return True
         return False
 
+    configurator.add_route('version', '/version')
+
     configurator.add_route('ui_routes', '/{section}*fizzle',
                            custom_predicates=[valid_ui_section])
     configurator.add_route('home', '/')

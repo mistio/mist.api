@@ -5,6 +5,7 @@
 import os
 import sys
 import ssl
+import json
 import logging
 
 import libcloud.security
@@ -46,7 +47,6 @@ ELASTICSEARCH = {
     'elastic_verify_certs': False
 }
 
-BUILD_TAG = ""
 UI_TEMPLATE_URL = "http://ui"
 LANDING_TEMPLATE_URL = "http://landing"
 
@@ -1038,13 +1038,13 @@ else:
 FROM_ENV_STRINGS = [
     'AMQP_URI', 'BROKER_URL', 'CORE_URI', 'MONGO_URI', 'MONGO_DB', 'DOCKER_IP',
     'DOCKER_PORT', 'DOCKER_TLS_KEY', 'DOCKER_TLS_CERT', 'DOCKER_TLS_CA',
-    'BUILD_TAG', 'UI_TEMPLATE_URL', 'LANDING_TEMPLATE_URL',
+    'UI_TEMPLATE_URL', 'LANDING_TEMPLATE_URL',
 ]
 FROM_ENV_INTS = [
 ]
 FROM_ENV_BOOLS = [
     'SSL_VERIFY', 'ALLOW_CONNECT_LOCALHOST', 'ALLOW_CONNECT_PRIVATE',
-    'ALLOW_LIBVIRT_LOCALHOST',
+    'ALLOW_LIBVIRT_LOCALHOST', 'JS_BUILD',
 ]
 FROM_ENV_ARRAYS = [
     'MEMCACHED_HOST',
@@ -1121,3 +1121,12 @@ HOMEPAGE_INPUTS = {
     'enable_monitoring': ENABLE_MONITORING
 }
 ## DO NOT PUT REGULAR SETTINGS BELOW, PUT THEM ABOVE THIS SECTION
+
+
+# Read version info
+VERSION = {}
+try:
+    with open('/mist-version.json)', 'r') as fobj:
+        VERSION = json.load(fobj)
+except Exception as exc:
+    print >> sys.stderr, "Couldn't load version info."
