@@ -32,7 +32,7 @@ print >> sys.stderr, "MIST_API_DIR is %s" % MIST_API_DIR
 # The following variables are common for both open.source and mist.core
 ###############################################################################
 
-CORE_URI = "https://mist.io"
+CORE_URI = "http://localhost"
 AMQP_URI = "rabbitmq:5672"
 MEMCACHED_HOST = ["memcached:11211"]
 BROKER_URL = "amqp://guest:guest@rabbitmq/"
@@ -1126,7 +1126,7 @@ HOMEPAGE_INPUTS = {
 # Read version info
 VERSION = {}
 try:
-    with open('/mist-version.json)', 'r') as fobj:
+    with open('/mist-version.json', 'r') as fobj:
         VERSION = json.load(fobj)
 except Exception as exc:
     print >> sys.stderr, "Couldn't load version info."
