@@ -44,6 +44,19 @@ def remove_block_rule(user, org, source):
         policy.save()
 
 
+def has_block_rule(user, org, source):
+    '''
+    Accepts a user and org and queries whether
+    there is a block rule in place.
+    Creates the policy if it does not exist.
+    '''
+    policy = get_policy(user, org)
+    rules = [rule for rule in policy.rules if rule.source == source]
+    if rules:
+        return True
+    return False
+
+
 def get_policy(user, org, create=True):
     '''
     Accepts a user-org pair and returns the corresponding notification
