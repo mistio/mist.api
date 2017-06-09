@@ -39,4 +39,5 @@ set -x
 exec celery beat \
     -A $TASKS \
     -S mist.api.schedules.models.UserScheduler \
+    --pidfile= \
     -l $LOGLEVEL
