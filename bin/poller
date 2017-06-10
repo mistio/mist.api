@@ -39,4 +39,5 @@ set -x
 exec celery beat \
     -A $TASKS \
     -S mist.api.poller.schedulers.PollingScheduler \
+    --pidfile= \
     -l $LOGLEVEL
