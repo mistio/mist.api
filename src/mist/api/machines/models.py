@@ -176,9 +176,14 @@ class Machine(me.Document):
         return self.cloud.owner
 
     def clean(self):
-        for assoc in self.key_associations:
-            if assoc.keypair.deleted:
-                assoc.delete()
+        # Remove any KeyAssociation, whose `keypair` has been deleted. Do NOT
+        # perform an atomic update on self, but rather remove items from the
+        # self.key_associations list by iterating over it and popping matched
+        # embedded documents in order to ensure that the most recent list is
+        # always processed and saved.
+        for ka in reversed(range(len(self.key_associations))):
+            if self.key_associations[ka].keypair.deleted:
+                self.key_associations.pop(ka)
 
     def delete(self):
         super(Machine, self).delete()
