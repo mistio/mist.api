@@ -2748,7 +2748,10 @@ def fetch(request):
     if not isinstance(params, dict):
         params = dict(params)
 
-    mac_verify(params)
+    try:
+        mac_verify(params)
+    except Exception as exc:
+        raise ForbiddenError(exc.args)
 
     action = params.get('action', '')
     if not action:
