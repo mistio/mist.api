@@ -78,7 +78,7 @@ class EmailReportsChannel(BaseChannel):
                 print str(exc)
                 print exc.read()
         else:
-            send_email(subject, notification["body"],
+            send_email(notification["subject"], notification["body"],
                        [to], sender="config.EMAIL_REPORT_SENDER")
 
 
