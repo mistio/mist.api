@@ -2,6 +2,7 @@ import uuid
 import json
 import time
 import logging
+import elasticsearch.exceptions as eexc
 
 from pymongo import MongoClient
 
@@ -11,6 +12,8 @@ from mist.api.helpers import es_client as es
 from mist.api.helpers import amqp_publish
 
 from mist.api.exceptions import NotFoundError
+from mist.api.exceptions import BadRequestError
+from mist.api.exceptions import ServiceUnavailableError
 
 from mist.api.users.models import User
 
@@ -200,7 +203,7 @@ def get_events(auth_context, owner_id='', user_id='', event_type='', action='',
         query["query"]["bool"]["filter"]["bool"]["must"].append(
             {"term": {"error": False}}
         )
-
+    # Perform a complex "Query String" Query that may span fields.
     if 'filter' in kwargs:
         f = kwargs.pop('filter')
         query_string = {
@@ -224,7 +227,17 @@ def get_events(auth_context, owner_id='', user_id='', event_type='', action='',
         filter_logs(auth_context, query)
 
     # Query Elasticsearch.
-    result = es().search(index=index, doc_type=event_type, body=query)
+    try:
+        result = es().search(index=index, doc_type=event_type, body=query)
+    except eexc.NotFoundError as err:
+        log.error('Error %s during ES query: %s', err.status_code, err.info)
+        raise NotFoundError(err.error)
+    except (eexc.RequestError, eexc.TransportError) as err:
+        log.error('Error %s during ES query: %s', err.status_code, err.info)
+        raise BadRequestError(err.error)
+    except (eexc.ConnectionError, eexc.ConnectionTimeout) as err:
+        log.error('Error %s during ES query: %s', err.status_code, err.info)
+        raise ServiceUnavailableError(err.error)
 
     for hit in result['hits']['hits']:
         event = hit['_source']
@@ -529,28 +542,27 @@ def associate_stories(event):
 
 def close_open_incidents(event):
     """Close any open incidents based on the event provided."""
+    if event['error']:
+        return
     if 'stories' not in event:
         event['stories'] = []
-
     kwargs = {
-        'story_type': 'incident',
         'owner_id': event['owner_id'],
-        'pending': True,
+        'story_type': 'incident', 'pending': True,
     }
     for key in ('rule_id', 'cloud_id', 'machine_id'):
         if key in event:
             kwargs[key] = event[key]
-
     incidents = get_stories(**kwargs)
     for inc in incidents:
         event['stories'].append(('closes', 'incident', inc['story_id']))
-
     log.warn('%s incident(s) closed by %s', len(incidents), event['log_id'])
 
 
 def get_story(owner_id, story_id, story_type=None, expand=True):
     """Fetch a single story given its story_id."""
-    story = get_stories(owner_id=owner_id, story_id=story_id,
+    assert story_id
+    story = get_stories(owner_id=owner_id, stories=story_id,
                         story_type=story_type, expand=expand)
     if not story:
         msg = 'Story %s' % story_id
