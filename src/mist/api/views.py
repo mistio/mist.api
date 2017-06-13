@@ -2764,3 +2764,9 @@ def fetch(request):
         return fetch_script(params.get('object_id'))
     else:
         raise NotImplementedError()
+
+
+@view_config(route_name='version', request_method='GET', renderer='json')
+def version(request):
+    """Return running version"""
+    return {'version': config.VERSION}
