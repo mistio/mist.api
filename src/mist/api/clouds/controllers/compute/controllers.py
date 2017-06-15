@@ -43,7 +43,7 @@ from libcloud.utils.networking import is_private_subnet
 from mist.api.exceptions import MistError
 from mist.api.exceptions import InternalServerError
 from mist.api.exceptions import MachineNotFoundError
-from mist.api.helpers import sanitize_host, get_datetime
+from mist.api.helpers import sanitize_host
 
 from mist.api.machines.models import Machine
 
@@ -923,9 +923,9 @@ class DockerComputeController(BaseComputeController):
         swarm_nodes = self.connection.list_nodes()
         for node in swarm_nodes:
             # exclude docker swarm manager connected as dpcker-host
-            if node.extra.get('ManagerStatus') and node.extra[
-                'ManagerStatus'].get('Leader') == True:
-                continue
+            if node.extra.get('ManagerStatus'):
+                if node.extra['ManagerStatus'].get('Leader') is True:
+                    continue
             try:
                 # Find dockerhswarm machine from database.
                 machine = Machine.objects.get(cloud=self.cloud,
@@ -1026,7 +1026,7 @@ class DockerComputeController(BaseComputeController):
         except:
             return [self.dockerhost]
 
-        return [self.dockerhost]+ self.dockerswarm
+        return [self.dockerhost] + self.dockerswarm
 
     def _list_images__fetch_images(self, search=None):
         # Fetch mist's recommended images
