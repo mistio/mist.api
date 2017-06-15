@@ -43,7 +43,7 @@ from libcloud.utils.networking import is_private_subnet
 from mist.api.exceptions import MistError
 from mist.api.exceptions import InternalServerError
 from mist.api.exceptions import MachineNotFoundError
-from mist.api.helpers import sanitize_host
+from mist.api.helpers import sanitize_host, get_datetime
 
 from mist.api.machines.models import Machine
 
@@ -758,6 +758,7 @@ class DockerComputeController(BaseComputeController):
     def __init__(self, *args, **kwargs):
         super(DockerComputeController, self).__init__(*args, **kwargs)
         self._dockerhost = None
+        self._dockerswarm = None
 
     def _connect(self):
         host, port = dnat(self.cloud.owner, self.cloud.host, self.cloud.port)
@@ -821,6 +822,7 @@ class DockerComputeController(BaseComputeController):
             container.private_ips = private_ips
             container.size = None
             container.image = container.image.name
+
         return containers
 
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
@@ -849,6 +851,7 @@ class DockerComputeController(BaseComputeController):
             machine.actions.rename = False
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
+
         machine.machine_type = 'container'
         machine.parent = self.dockerhost
 
@@ -905,9 +908,58 @@ class DockerComputeController(BaseComputeController):
             machine.save()
 
         self._dockerhost = machine
+
         return machine
 
+    @property
+    def dockerswarm(self):
+        """This is a helper method to get the machines representing the swarm
+        nodes. We take for granted that docker-host is the swarm-manager or
+        one of the swarm-managers"""
+        if self._dockerswarm is not None:
+            return self._dockerswarm
+
+        machines = []
+        swarm_nodes = self.connection.list_nodes()
+        for node in swarm_nodes:
+            # exclude docker swarm manager connected as dpcker-host
+            if node.extra.get('ManagerStatus') and node.extra[
+                'ManagerStatus'].get('Leader') == True:
+                continue
+            try:
+                # Find dockerhswarm machine from database.
+                machine = Machine.objects.get(cloud=self.cloud,
+                                              machine_id=node.id,
+                                              machine_type='swarm-node')
+            except Machine.DoesNotExist:
+                # Create dockerswarm machine
+                machine = Machine(cloud=self.cloud,
+                                  machine_id=node.id,
+                                  machine_type='swarm-node')
+            # Update dockerswarm machine model fields.
+            changed = False
+            for attr, val in {'name': self.cloud.title + '-' + node.name,
+                              'public_ips': node.public_ips,
+                              'private_ips': node.private_ips,
+                              'parent': self.dockerhost,
+                              'machine_type': 'swarm-node',
+                              # 'created':get_datetime(node.created_at[:19])
+                              }.iteritems():
+                if getattr(machine, attr) != val:
+                    setattr(machine, attr, val)
+                    changed = True
+            if not machine.machine_id:
+                machine.machine_id = node.id
+                changed = True
+            if changed:
+                machine.save()
+            machines.append(machine)
+        self._dockerswarm = machines
+        # TODO role and state, this info exist in node.extra
+        return machines
+
     def inspect_node(self, machine_libcloud):
+        # TODO rename to inspect_container
         """
         Inspect a container
         """
@@ -968,7 +1020,13 @@ class DockerComputeController(BaseComputeController):
         return contnr
 
     def _list_machines__fetch_generic_machines(self):
-        return [self.dockerhost]
+        # check if this is a swarm
+        try:
+            self.connection.inspect_swarm()
+        except:
+            return [self.dockerhost]
+
+        return [self.dockerhost]+ self.dockerswarm
 
     def _list_images__fetch_images(self, search=None):
         # Fetch mist's recommended images
@@ -998,7 +1056,8 @@ class DockerComputeController(BaseComputeController):
         its port. Finally save the machine in db.
         """
         # this exist here cause of docker host implementation
-        if machine.machine_type == 'container-host':
+        if machine.machine_type in ['container-host', 'swarm-node']:
+            # TODO or manager/worker
             return
         container_info = self.inspect_node(machine_libcloud)
 
