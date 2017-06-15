@@ -2,15 +2,19 @@
 
 set -e
 
+# Get the directory of this executable in order to discover the
+# relative path to installable modules.
+DIR=$( dirname "$0" )
+
 # If running with mounted code...
 if [ ! -e clean ]; then
     set -x
     unset JS_BUILD
     echo "{\"sha\":\"$VERSION_SHA\",\"name\":\"$VERSION_NAME\",\"repo\":\"$VERSION_REPO\",\"modified\":true}" > /mist-version.json
-    pip install -e paramiko/
-    pip install -e libcloud/
-    pip install -e celerybeat-mongo/
-    pip install -e src/
+    pip install -e $DIR/../paramiko/
+    pip install -e $DIR/../libcloud/
+    pip install -e $DIR/../celerybeat-mongo/
+    pip install -e $DIR/../src/
     set +x
 fi
 
