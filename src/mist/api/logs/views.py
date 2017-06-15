@@ -6,6 +6,7 @@ from mist.api.helpers import params_from_request
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import PolicyUnauthorizedError
+from mist.api.exceptions import RequiredParameterMissingError
 
 from mist.api.logs.constants import FIELDS as _FIELDS
 from mist.api.logs.methods import get_story
@@ -146,6 +147,8 @@ def show_job(request):
     """
     auth_context = auth_context_from_request(request)
     job_id = request.matchdict['job_id']
+    if not job_id:
+        raise RequiredParameterMissingError('job_id')
     return get_story(auth_context.owner.id, job_id)
 
 
