@@ -48,4 +48,5 @@ ENV JS_BUILD=$JS_BUILD \
     VERSION_SHA=$VERSION_SHA \
     VERSION_NAME=VERSION_NAME
 
-RUN echo "{\"sha\":\"$VERSION_SHA\",\"name\":\"$VERSION_NAME\",\"repo\":\"$VERSION_REPO\",\"modified\":false}" > /mist-version.json
+RUN echo "{\"sha\":\"$VERSION_SHA\",\"name\":\"$VERSION_NAME\",\"repo\":\"$VERSION_REPO\",\"modified\":false}" \
+        > /mist-version.json

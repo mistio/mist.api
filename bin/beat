@@ -38,5 +38,6 @@ set -x
 
 exec celery beat \
     -A $TASKS \
+    -S mist.api.portal.schedulers.RunImmediatelyPersistentScheduler \
     --pidfile= \
     -l $LOGLEVEL
