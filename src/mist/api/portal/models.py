@@ -14,6 +14,12 @@ class AvailableUpgrade(me.EmbeddedDocument):
     name = me.StringField(required=True)
     sha = me.StringField(required=True)
 
+    def as_dict(self):
+        return {
+            'name': self.name,
+            'sha': self.sha,
+        }
+
 
 class Portal(me.Document):
     """Holds metadata about the mist.io installation itself
@@ -59,11 +65,13 @@ class Portal(me.Document):
             portal = cls.objects.first()
         return portal
 
+    def get_available_upgrades(self):
+        return [upgrade.as_dict() for upgrade in self.available_upgrades]
+
     def as_dict(self):
         return {
             'portal_id': self.id,
             'created_at': str(self.created_at),
             'version': config.VERSION,
-            'available_upgrades': [{'name': upgrade.name, 'sha': upgrade.sha}
-                                   for upgrade in self.available_upgrades]
+            'available_upgrades': self.get_available_upgrades(),
         }
