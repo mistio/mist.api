@@ -1,7 +1,10 @@
+from datetime import datetime
 
 from mist.api.users.models import User, Organization
 import models
+from models import Notification
 import channels
+
 
 
 def send_notification(notification):
@@ -10,9 +13,9 @@ def send_notification(notification):
     notification policy and sends the notification
     through specified channels.
     '''
-    policy = get_policy(notification["user"], notification["org"])
+    policy = get_policy(notification.user, notification.organization)
     if policy.notification_allowed(notification):
-        chan = channels.channel_instance_with_name(notification["channel"])
+        chan = channels.channel_instance_with_name(notification.channel)
         if chan:
             chan.send(notification)
 
@@ -75,6 +78,9 @@ def get_policy(user, org, create=True):
             return None
     return policies[0]
 
+def get_notifications(user, org, channel):
+    notifications = Notification.objects(user=user, org=org, channel=channel)
+    return notifications
 
 def make_notification(
         subject,
@@ -84,31 +90,29 @@ def make_notification(
         user,
         org,
         summary=None,
-        html_body=None):
+        html_body=None,
+        unsub_link=None,
+        save=False):
     '''
-    Generates a notification dictionary
+    Generates a notification. By default the notification is not
+    saved for efficiency.
     '''
-    # notification fields (in par. are optional):
-    # subject
-    # (summary)
-    # body
-    # (html_body)
-    # source
-    # channel
-    # user
-    # org
-    notification = {
-        "subject": subject,
-        "body": body,
-        "source": source,
-        "channel": channel,
-        "user": user,
-        "org": org
-    }
+    notification = Notification()
+    notification.created_date = datetime.now()
+    notification.subject = subject
+    notification.body = body
+    notification.source = source
+    notification.channel = channel
+    notification.user = user
+    notification.organization = org
     if summary:
-        notification["summary"] = summary
+        notification.summary = summary
     if html_body:
-        notification["html_body"] = html_body
+        notification.html_body = html_body
+    if unsub_link:
+        notification.unsub_link = unsub_link
+    if save:
+        notification.save()
     return notification
 
 
