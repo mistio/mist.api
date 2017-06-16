@@ -40,7 +40,7 @@ def check_new_versions(url="https://mist.io/check-version"):
             if key not in version:
                 log.warning("Missing required field '%s' from version.", key)
                 break
-            available_upgrade[key] = value
+            available_upgrade[key] = version[key]
         else:
             portal.available_upgrades.append(available_upgrade)
     portal.save()
