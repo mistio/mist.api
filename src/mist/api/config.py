@@ -40,7 +40,7 @@ BROKER_URL = "amqp://guest:guest@rabbitmq/"
 SSL_VERIFY = True
 
 VERSION_CHECK = True
-USAGE_SURVEY = True
+USAGE_SURVEY = False
 
 ELASTICSEARCH = {
     'elastic_host': 'elasticsearch',
@@ -1098,13 +1098,13 @@ _schedule = {}
 if VERSION_CHECK:
     _schedule['version-check'] = {
         'task': 'mist.api.portal.tasks.check_new_versions',
-        'schedule': datetime.timedelta(seconds=20),
+        'schedule': datetime.timedelta(hours=24),
         'args': ('https://mist.io/check-version', ),
     }
 if USAGE_SURVEY:
     _schedule['usage-survey'] = {
         'task': 'mist.api.portal.tasks.usage_survey',
-        'schedule': datetime.timedelta(hours=6),
+        'schedule': datetime.timedelta(hours=24),
         'args': ('https://mist.io/usage-survey', ),
     }
 if _schedule:
