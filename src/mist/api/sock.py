@@ -42,6 +42,8 @@ from mist.api.schedules.methods import filter_list_schedules
 from mist.api import tasks
 from mist.api.hub.tornado_shell_client import ShellHubClient
 
+from mist.api.notifications.methods import get_notifications
+
 try:
     from mist.core.methods import get_stats, get_load, check_monitoring
     from mist.core.methods import get_user_data, filter_list_tags
