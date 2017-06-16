@@ -8,6 +8,7 @@ class BaseChannel():
     '''
     Represents a notification channel
     '''
+
     def send(self, notification):
         '''
         Accepts a notification and sends it using the
@@ -22,6 +23,7 @@ class EmailReportsChannel(BaseChannel):
     Tries to send using Sendgrid, if credentials are available
     in config, otherwise sends email using SMTP.
     '''
+
     def send(self, notification):
         '''
         Accepts a notification and sends an email using included data.
@@ -34,7 +36,7 @@ class EmailReportsChannel(BaseChannel):
         to = getattr(notification, "email", user.email)
         full_name = getattr(notification, "full_name", user.get_nice_name())
         first_name = getattr(notification,
-            "name", user.first_name or user.get_nice_name())
+                             "name", user.first_name or user.get_nice_name())
 
         if (hasattr(config, "SENDGRID_REPORTING_KEY") and
                 hasattr(config, "EMAIL_REPORT_SENDER")):
@@ -86,6 +88,7 @@ class InAppChannel(BaseChannel):
     In-app Notifications channel
     Saves notification and triggers a session update
     '''
+
     def send(self, notification):
         notification.save()
         trigger_session_update('notifications', notification.user)
@@ -95,6 +98,7 @@ class StdoutChannel(BaseChannel):
     '''
     Stdout channel, mainly for testing/debugging
     '''
+
     def send(self, notification):
         print notification.subject
         if "summary" in notification:

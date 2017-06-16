@@ -273,6 +273,7 @@ class MainConnection(MistConnection):
     def start(self):
         self.update_user()
         self.update_org()
+        self.update_notifications()
         self.list_tags()
         self.list_keys()
         self.list_scripts()
@@ -310,6 +311,12 @@ class MainConnection(MistConnection):
 
         if org:
             self.send('org', org)
+
+    def update_notifications(self):
+        user = self.auth_context.user
+        org = self.auth_context.org
+        channel = 'in_app'
+        self.send('notifications', get_notifications(user, org, channel))
 
     def list_tags(self):
         self.send('list_tags', filter_list_tags(self.auth_context))

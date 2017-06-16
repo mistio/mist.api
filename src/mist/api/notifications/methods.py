@@ -6,7 +6,6 @@ from models import Notification
 import channels
 
 
-
 def send_notification(notification):
     '''
     Accepts a notification instance, checks against user
@@ -78,9 +77,11 @@ def get_policy(user, org, create=True):
             return None
     return policies[0]
 
+
 def get_notifications(user, org, channel):
     notifications = Notification.objects(user=user, org=org, channel=channel)
     return notifications
+
 
 def make_notification(
         subject,

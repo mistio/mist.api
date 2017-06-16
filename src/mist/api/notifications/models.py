@@ -38,7 +38,7 @@ class UserNotificationPolicy(me.Document):
 
 class Notification(me.Document):
     '''
-    Represents a notification associated with a 
+    Represents a notification associated with a
     user-organization pair
     '''
     created_date = me.DateTimeField()
@@ -57,5 +57,3 @@ class Notification(me.Document):
 
     email = me.EmailField(required=False)
     ubsub_link = me.URLField(required=False)
-
-
