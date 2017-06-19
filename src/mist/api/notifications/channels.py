@@ -91,7 +91,7 @@ class InAppChannel(BaseChannel):
 
     def send(self, notification):
         notification.save()
-        trigger_session_update('notifications', notification.user)
+        trigger_session_update(notification.user, sections=['notifications'])
 
 
 class StdoutChannel(BaseChannel):
