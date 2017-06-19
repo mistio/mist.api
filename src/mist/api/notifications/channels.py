@@ -115,4 +115,6 @@ def channel_instance_with_name(name):
         return StdoutChannel()
     elif name == 'email_reports':
         return EmailReportsChannel()
+    elif name == 'in_app':
+        return InAppChannel()
     return None
