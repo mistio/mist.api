@@ -1099,13 +1099,13 @@ if VERSION_CHECK:
     _schedule['version-check'] = {
         'task': 'mist.api.portal.tasks.check_new_versions',
         'schedule': datetime.timedelta(hours=24),
-        'args': ('https://mist.io/check-version', ),
+        # 'args': ('https://mist.io/api/v1/version-check', ),
     }
 if USAGE_SURVEY:
     _schedule['usage-survey'] = {
         'task': 'mist.api.portal.tasks.usage_survey',
         'schedule': datetime.timedelta(hours=24),
-        'args': ('https://mist.io/usage-survey', ),
+        # 'args': ('https://mist.io/api/v1/usage-survey', ),
     }
 if _schedule:
     CELERY_SETTINGS.update({'CELERYBEAT_SCHEDULE': _schedule})

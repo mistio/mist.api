@@ -23,7 +23,7 @@ def get_version_params(portal=None):
 
 
 @app.task
-def check_new_versions(url="https://mist.io/check-version"):
+def check_new_versions(url="https://mist.io/api/v1/version-check"):
     portal = Portal.get_singleton()
     params = get_version_params(portal)
 
@@ -55,7 +55,7 @@ def get_usage_params(portal=None):
 
 
 @app.task
-def usage_survey(url="https://mist.io/usage-survey"):
+def usage_survey(url="https://mist.io/api/v1/usage-survey"):
     portal = Portal.get_singleton()
     params = get_usage_params(portal)
 
