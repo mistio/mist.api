@@ -7,6 +7,7 @@ import sys
 import ssl
 import json
 import logging
+import datetime
 
 import libcloud.security
 from libcloud.compute.types import Provider
@@ -37,6 +38,9 @@ AMQP_URI = "rabbitmq:5672"
 MEMCACHED_HOST = ["memcached:11211"]
 BROKER_URL = "amqp://guest:guest@rabbitmq/"
 SSL_VERIFY = True
+
+VERSION_CHECK = True
+USAGE_SURVEY = False
 
 ELASTICSEARCH = {
     'elastic_host': 'elasticsearch',
@@ -1044,7 +1048,7 @@ FROM_ENV_INTS = [
 ]
 FROM_ENV_BOOLS = [
     'SSL_VERIFY', 'ALLOW_CONNECT_LOCALHOST', 'ALLOW_CONNECT_PRIVATE',
-    'ALLOW_LIBVIRT_LOCALHOST', 'JS_BUILD',
+    'ALLOW_LIBVIRT_LOCALHOST', 'JS_BUILD', 'VERSION_CHECK', 'USAGE_SURVEY',
 ]
 FROM_ENV_ARRAYS = [
     'MEMCACHED_HOST',
@@ -1090,6 +1094,21 @@ CELERY_SETTINGS.update({
     'CELERYD_LOG_FORMAT': PY_LOG_FORMAT,
     'CELERYD_TASK_LOG_FORMAT': PY_LOG_FORMAT,
 })
+_schedule = {}
+if VERSION_CHECK:
+    _schedule['version-check'] = {
+        'task': 'mist.api.portal.tasks.check_new_versions',
+        'schedule': datetime.timedelta(hours=24),
+        # 'args': ('https://mist.io/api/v1/version-check', ),
+    }
+if USAGE_SURVEY:
+    _schedule['usage-survey'] = {
+        'task': 'mist.api.portal.tasks.usage_survey',
+        'schedule': datetime.timedelta(hours=24),
+        # 'args': ('https://mist.io/api/v1/usage-survey', ),
+    }
+if _schedule:
+    CELERY_SETTINGS.update({'CELERYBEAT_SCHEDULE': _schedule})
 
 
 # Configure libcloud to not verify certain hosts.
