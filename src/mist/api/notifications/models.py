@@ -41,8 +41,8 @@ class Notification(me.Document):
     Represents a notification associated with a
     user-organization pair
     '''
-    created_date = me.DateTimeField()
-    expiry_date = me.DateTimeField()
+    created_date = me.DateTimeField(required=False)
+    expiry_date = me.DateTimeField(required=False)
 
     user = me.ReferenceField(User, required=True)
     organization = me.ReferenceField(Organization, required=True)

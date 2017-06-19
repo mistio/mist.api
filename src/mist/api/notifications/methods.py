@@ -79,7 +79,8 @@ def get_policy(user, org, create=True):
 
 
 def get_notifications(user, org, channel):
-    notifications = Notification.objects(user=user, org=org, channel=channel)
+    org = Organization.objects.get(id=org['id'])
+    notifications = Notification.objects(user=user, organization=org, channel=channel)
     return notifications
 
 
