@@ -275,7 +275,6 @@ class MainConnection(MistConnection):
     def start(self):
         self.update_user()
         self.update_org()
-        self.update_notifications()
         self.list_tags()
         self.list_keys()
         self.list_scripts()
@@ -284,6 +283,7 @@ class MainConnection(MistConnection):
         self.list_stacks()
         self.list_tunnels()
         self.list_clouds()
+        self.update_notifications()
         self.check_monitoring()
         if config.ACTIVATE_POLLER:
             self.periodic_update_poller()
@@ -313,12 +313,6 @@ class MainConnection(MistConnection):
 
         if org:
             self.send('org', org)
-
-    def update_notifications(self):
-        user = self.auth_context.user
-        org = self.auth_context.org
-        channel = 'in_app'
-        self.send('notifications', get_notifications(user, org, channel))
 
     def list_tags(self):
         self.send('list_tags', filter_list_tags(self.auth_context))
@@ -382,6 +376,14 @@ class MainConnection(MistConnection):
                         if cached['machines'] is None:
                             continue
                     self.send(key, cached)
+
+    def update_notifications(self):
+        user = self.auth_context.user
+        org = filter_org(self.auth_context)
+        channel = 'in_app'
+        notifications_json = get_notifications(user, org, channel).to_json()
+        log.info("Emitting notifications.")
+        self.send('notifications', notifications_json)
 
     def check_monitoring(self):
         func = check_monitoring
@@ -517,6 +519,8 @@ class MainConnection(MistConnection):
                 self.list_tags()
             if 'tunnels' in sections:
                 self.list_tunnels()
+            if 'notifications' in sections:
+                self.update_notifications()
             if 'monitoring' in sections:
                 self.check_monitoring()
             if 'user' in sections:
