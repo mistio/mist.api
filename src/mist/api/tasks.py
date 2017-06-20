@@ -413,8 +413,7 @@ def azure_post_create_steps(self, owner_id, cloud_id, machine_id, monitoring,
             if n.id == machine_id:
                 node = n
                 break
-
-        if node and node.state == 0 and len(node.public_ips):
+        if node and node.state == NodeState.RUNNING and len(node.public_ips):
             # filter out IPv6 addresses
             ips = filter(lambda ip: ':' not in ip, node.public_ips)
             host = ips[0]
