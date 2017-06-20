@@ -56,6 +56,28 @@ class Notification(me.Document):
     channel = me.StringField(max_length=64, required=True, default="")
 
     email = me.EmailField(required=False)
-    ubsub_link = me.URLField(required=False)
+    unsub_link = me.URLField(required=False)
 
-    suppressed = me.BooleanField(required=True, default=False)
+    # resource
+    action_link = me.URLField(required=False)
+
+    viewed = me.BooleanField(required=True, default=False)
+    hidden = me.BooleanField(required=True, default=False)
+
+    severity = me.StringField(
+        max_length=7,
+        required=True,
+        choices=(
+            'LOW',
+            'DEFAULT',
+            'HIGH'),
+        default='DEFAULT')
+
+    feedback = me.StringField(
+        max_length=8,
+        required=True,
+        choices=(
+            'NEGATIVE',
+            'NEUTRAL',
+            'POSITIVE'),
+        default='NEUTRAL')
