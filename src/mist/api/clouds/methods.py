@@ -45,11 +45,28 @@ def add_cloud_v_2(owner, title, provider, params):
     log.info("Adding new cloud in provider '%s'", provider)
     if provider not in cloud_models.CLOUDS:
         raise BadRequestError("Invalid provider '%s'." % provider)
+
+    # TODO change this at the ui part, it isn't needed here
+    if provider == 'docker':
+        provider = 'docker_swarm'
+
     cloud_cls = cloud_models.CLOUDS[provider]  # Class of Cloud model.
 
-    # Add the cloud.
-    cloud = cloud_cls.add(owner, title, fail_on_error=fail_on_error,
-                          fail_on_invalid_params=False, **params)
+    if provider == 'docker_swarm':  # ? maybe more clever implementation
+        try:
+            cloud = cloud_cls.add(owner, title, fail_on_error=fail_on_error,
+                                  fail_on_invalid_params=False, **params)
+        except:  # TODO be more specific
+            # fall back
+            provider = 'docker'
+            cloud_cls = cloud_models.CLOUDS[provider]
+
+            cloud = cloud_cls.add(owner, title, fail_on_error=fail_on_error,
+                                  fail_on_invalid_params=False, **params)
+    else:
+        # Add the cloud.
+        cloud = cloud_cls.add(owner, title, fail_on_error=fail_on_error,
+                              fail_on_invalid_params=False, **params)
     ret = {'cloud_id': cloud.id}
     if provider == 'bare_metal' and monitoring:
         # Let's overload this a bit more by also combining monitoring.
