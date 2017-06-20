@@ -13,6 +13,8 @@ from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import MethodNotAllowedError
 from mist.api.exceptions import OrganizationOperationError
 
+from mist.api.portal.models import Portal
+
 from mist.api import config
 
 try:
@@ -141,6 +143,9 @@ def get_user_data(auth_context):
         'orgs': orgs,
         'csrf_token': auth_context.token.csrf_token,
     }
+    if user.role == 'Admin':
+        upgrades = Portal.get_singleton().get_available_upgrades()
+        ret['available_upgrades'] = upgrades
     return ret
 
 
