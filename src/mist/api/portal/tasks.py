@@ -34,7 +34,7 @@ def check_new_versions(url="https://mist.io/api/v1/version-check"):
                   resp.status_code, resp.text)
         raise Exception("%s: %s" % (resp.status_code, resp.text))
     portal.available_upgrades = []
-    for version in resp.json()['available_upgrades']:
+    for version in resp.json():
         available_upgrade = AvailableUpgrade()
         for key in ('name', 'sha'):
             if key not in version:
