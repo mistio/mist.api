@@ -8,7 +8,7 @@ build_mist_image:
   variables:
     GIT_SUBMODULE_STRATEGY: recursive
   script:
-    - docker build --rm -t gcr.io/mist-ops/mist:$CI_COMMIT_SHA --build-arg VERSION_SHA=$CI_COMMIT_SHA --build-arg VERSION_NAME=$CI_COMMIT_REF_NAME .
+    - docker build --rm -t gcr.io/mist-ops/mist:$CI_COMMIT_SHA --build-arg API_VERSION_SHA=$CI_COMMIT_SHA --build-arg API_VERSION_NAME=$CI_COMMIT_REF_NAME .
     - docker tag gcr.io/mist-ops/mist:$CI_COMMIT_SHA gcr.io/mist-ops/mist:$CI_COMMIT_REF_SLUG
     - docker tag gcr.io/mist-ops/mist:$CI_COMMIT_SHA mist/mist:$CI_COMMIT_SHA
     - docker tag gcr.io/mist-ops/mist:$CI_COMMIT_REF_SLUG mist/mist:$CI_COMMIT_REF_SLUG
