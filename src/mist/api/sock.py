@@ -38,6 +38,7 @@ from mist.api.keys.methods import filter_list_keys
 from mist.api.machines.methods import filter_list_machines
 from mist.api.scripts.methods import filter_list_scripts
 from mist.api.schedules.methods import filter_list_schedules
+from mist.api.dns.methods import filter_list_zones
 
 from mist.api import tasks
 from mist.api.hub.tornado_shell_client import ShellHubClient
@@ -478,6 +479,16 @@ class MainConnection(MistConnection):
                     )
                     if cached is not None:
                         self.send('ping', cached)
+            elif routing_key == 'list_zones':
+                zones = result['zones']
+                cloud_id = result['cloud_id']
+                cloud = Cloud.objects.get(owner=self.owner, id=cloud_id,
+                                          deleted=None)
+                filtered_zones = filter_list_zones(
+                    self.auth_context, cloud, zones
+                )
+                if filtered_zones is not None:
+                    self.send(routing_key, filtered_zones)
             else:
                 self.send(routing_key, result)
 
@@ -499,7 +510,7 @@ class MainConnection(MistConnection):
                                        deleted=None)
                 for cloud in clouds:
                     if cloud.dns_enabled:
-                        task.delay(self.owner.id, cloud.id)
+                        task.smart_delay(self.owner.id, cloud.id)
             if 'templates' in sections:
                 self.list_templates()
             if 'stacks' in sections:

@@ -40,9 +40,13 @@ def list_zones(owner, cloud):
     log.warn('Returning list zones for user %s, cloud %s', owner.id, cloud.id)
     return ret
 
-def filter_list_zones(auth_context, cloud, perm='read'):
+def filter_list_zones(auth_context, cloud, zones=None, perm='read'):
     """List zone entries based on the permissions granted to the user."""
-    zones = list_zones(auth_context.owner, cloud)
+
+    if zones is None:
+        zones = list_zones(auth_context.owner, cloud)
+    if not zones:  # Exit early in case the cloud provider returned 0 nodes.
+        return {'cloud_id': cloud.id, 'zones': zones}
     if not auth_context.is_owner():
         try:
             auth_context.check_perm('cloud', 'read', cloud.id)
@@ -50,5 +54,4 @@ def filter_list_zones(auth_context, cloud, perm='read'):
             return {'cloud_id': cloud.id, 'zones': []}
         allowed_zones = set(auth_context.get_allowed_resources(rtype='zones'))
         zones = [zone for zone in zones if zone['id'] in allowed_zones]
-        print "zones: %s " % zones
     return {'cloud_id': cloud.id, 'zones': zones}
