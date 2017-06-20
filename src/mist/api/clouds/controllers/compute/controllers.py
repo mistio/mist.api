@@ -758,7 +758,6 @@ class DockerComputeController(BaseComputeController):
     def __init__(self, *args, **kwargs):
         super(DockerComputeController, self).__init__(*args, **kwargs)
         self._dockerhost = None
-        self._dockerswarm = None
 
     def _connect(self):
         host, port = dnat(self.cloud.owner, self.cloud.host, self.cloud.port)
@@ -911,53 +910,6 @@ class DockerComputeController(BaseComputeController):
 
         return machine
 
-    @property
-    def dockerswarm(self):
-        """This is a helper method to get the machines representing the swarm
-        nodes. We take for granted that docker-host is the swarm-manager or
-        one of the swarm-managers"""
-        if self._dockerswarm is not None:
-            return self._dockerswarm
-
-        machines = []
-        swarm_nodes = self.connection.list_nodes()
-        for node in swarm_nodes:
-            # exclude docker swarm manager connected as dpcker-host
-            if node.extra.get('ManagerStatus'):
-                if node.extra['ManagerStatus'].get('Leader') is True:
-                    continue
-            try:
-                # Find dockerhswarm machine from database.
-                machine = Machine.objects.get(cloud=self.cloud,
-                                              machine_id=node.id,
-                                              machine_type='swarm-node')
-            except Machine.DoesNotExist:
-                # Create dockerswarm machine
-                machine = Machine(cloud=self.cloud,
-                                  machine_id=node.id,
-                                  machine_type='swarm-node')
-            # Update dockerswarm machine model fields.
-            changed = False
-            for attr, val in {'name': self.cloud.title + '-' + node.name,
-                              'public_ips': node.public_ips,
-                              'private_ips': node.private_ips,
-                              'parent': self.dockerhost,
-                              'machine_type': 'swarm-node',
-                              # 'created':get_datetime(node.created_at[:19])
-                              }.iteritems():
-                if getattr(machine, attr) != val:
-                    setattr(machine, attr, val)
-                    changed = True
-            if not machine.machine_id:
-                machine.machine_id = node.id
-                changed = True
-            if changed:
-                machine.save()
-            machines.append(machine)
-        self._dockerswarm = machines
-        # TODO role and state, this info exist in node.extra
-        return machines
-
     def inspect_node(self, machine_libcloud):
         # TODO rename to inspect_container
         """
@@ -1020,13 +972,7 @@ class DockerComputeController(BaseComputeController):
         return contnr
 
     def _list_machines__fetch_generic_machines(self):
-        # check if this is a swarm
-        try:
-            self.connection.inspect_swarm()
-        except:
-            return [self.dockerhost]
-
-        return [self.dockerhost] + self.dockerswarm
+        return [self.dockerhost]
 
     def _list_images__fetch_images(self, search=None):
         # Fetch mist's recommended images
@@ -1056,9 +1002,11 @@ class DockerComputeController(BaseComputeController):
         its port. Finally save the machine in db.
         """
         # this exist here cause of docker host implementation
-        if machine.machine_type in ['container-host', 'swarm-node']:
-            # TODO or manager/worker
+        if machine.machine_type == 'container-host':
             return
+        # if machine.machine_type in ['container-host', 'swarm-node']:
+        #     # TODO or manager/worker
+        #     return
         container_info = self.inspect_node(machine_libcloud)
 
         try:
@@ -1118,6 +1066,127 @@ class DockerComputeController(BaseComputeController):
         if machine_libcloud.state == ContainerState.RUNNING:
             self.connection.stop_container(machine_libcloud)
         self.connection.destroy_container(machine_libcloud)
+
+
+class DockerSwarmComputeController(DockerComputeController):
+
+    def __init__(self, *args, **kwargs):
+        super(DockerSwarmComputeController, self).__init__(*args, **kwargs)
+        self._dockerhost = None  # rename manager
+        self._dockerswarm = None  # TODO rename dockernodes??
+
+    def check_connection(self):
+        # FIXME is it necessary
+        self.connect()
+        # check if this is a swarm
+        try:
+            self.connection.inspect_swarm()
+        except:
+            raise
+        self.list_machines()
+
+    def _list_machines__postparse_machine(self, machine, machine_libcloud):
+
+        machine.machine_type = 'container'
+        machine.parent = self.dockerhost   # dockermanager
+
+    @property
+    def dockerhost(self):  # TODO maybe manager
+
+        try:
+            # Find dockermanager from database.
+            machine = Machine.objects.get(cloud=self.cloud,
+                                          machine_type='container-orchestrator')
+        except Machine.DoesNotExist:
+            # Create dockerrhost machine.
+            machine = Machine(cloud=self.cloud,
+                              machine_type='container-orchestrator')
+
+        # Update dockermanager machine model fields.
+        changed = False
+        for attr, val in {'name': self.cloud.title,
+                          'hostname': self.cloud.host,
+                          'machine_type': 'container-orchestrator'
+                          }.iteritems():
+            if getattr(machine, attr) != val:
+                setattr(machine, attr, val)
+                changed = True
+        if not machine.machine_id:
+            machine.machine_id = machine.id
+            changed = True
+        try:
+            ip_addr = socket.gethostbyname(machine.hostname)
+        except socket.gaierror:
+            pass
+        else:
+            is_private = netaddr.IPAddress(ip_addr).is_private()
+            ips = machine.private_ips if is_private else machine.public_ips
+            if ip_addr not in ips:
+                ips.insert(0, ip_addr)
+                changed = True
+        if changed:
+            machine.save()
+
+        self._dockerhost = machine
+
+        return machine
+
+    @property
+    def dockerswarm(self):  # rename dockernodes
+        """This is a helper method to get the machines representing the swarm
+        nodes. We take for granted that docker-host is the swarm-manager or
+        one of the swarm-managers"""
+        if self._dockerswarm is not None:
+            return self._dockerswarm
+
+        machines = []
+        swarm_nodes = self.connection.list_nodes()
+        for node in swarm_nodes:
+            # exclude docker swarm manager connected as dpcker-host
+            if node.extra.get('ManagerStatus'):
+                if node.extra['ManagerStatus'].get('Leader') is True:
+                    continue
+            try:
+                # Find dockerhswarm machine from database.
+                machine = Machine.objects.get(cloud=self.cloud,
+                                              machine_id=node.id,
+                                              machine_type='container-host')
+            except Machine.DoesNotExist:
+                # Create dockerswarm machine
+                machine = Machine(cloud=self.cloud,
+                                  machine_id=node.id,
+                                  machine_type='container-host')
+            # Update dockerswarm machine model fields.
+            changed = False
+            for attr, val in {'name': self.cloud.title + '-' + node.name,
+                              'public_ips': node.public_ips,
+                              'private_ips': node.private_ips,
+                              'parent': self.dockerhost,
+                              'machine_type': 'container-host',
+                              # 'created':get_datetime(node.created_at[:19])
+                              }.iteritems():
+                if getattr(machine, attr) != val:
+                    setattr(machine, attr, val)
+                    changed = True
+            if not machine.machine_id:
+                machine.machine_id = node.id
+                changed = True
+            if changed:
+                machine.save()
+            machines.append(machine)
+        self._dockerswarm = machines
+        # TODO role and state, this info exist in node.extra
+        return machines
+
+    def _list_machines__fetch_generic_machines(self):
+
+        return [self.dockerhost] + self.dockerswarm
+
+    def _action_change_port(self, machine, machine_libcloud):
+        if machine.machine_type in ['container-host, container-orchestrator']:
+            return
+        super(self, DockerSwarmComputeController
+              )._action_change_port(machine, machine_libcloud)
 
 
 class LibvirtComputeController(BaseComputeController):

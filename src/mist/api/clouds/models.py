@@ -350,6 +350,11 @@ class DockerCloud(Cloud):
     _controller_cls = controllers.DockerMainController
 
 
+class DockerSwarmCloud(DockerCloud):
+    # TODO use show_all or a similar filter for list_nodes
+    _controller_cls = controllers.DockerSwarmMainController
+
+
 class LibvirtCloud(Cloud):
 
     host = me.StringField(required=True)

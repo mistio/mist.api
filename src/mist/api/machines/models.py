@@ -142,7 +142,8 @@ class Machine(me.Document):
     machine_type = me.StringField(default='machine',
                                   choices=('machine', 'vm', 'container',
                                            'hypervisor', 'container-host',
-                                           'swarm-node'))
+                                           'container-orchestrator'))
+
     parent = me.ReferenceField('Machine', required=False)
 
     # We should think this through a bit.

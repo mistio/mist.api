@@ -250,6 +250,11 @@ class DockerMainController(BaseMainController):
             host = sanitize_host(host)
             check_host(host)
 
+class DockerSwarmMainController(DockerMainController):
+
+    provider = 'docker_swarm'
+    ComputeController = compute_ctls.DockerSwarmComputeController
+
 
 class LibvirtMainController(BaseMainController):
 
