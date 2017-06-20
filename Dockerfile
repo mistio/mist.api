@@ -35,16 +35,16 @@ RUN touch clean
 
 ENTRYPOINT ["/mist.api/bin/docker-init"]
 
-ARG VERSION_SHA
-ARG VERSION_NAME
+ARG API_VERSION_SHA
+ARG API_VERSION_NAME
 
 # Variables defined solely by ARG are accessible as environmental variables
 # during build but not during runtime. To persist these in the image, they're
 # redefined as ENV in addition to ARG.
 ENV JS_BUILD=1 \
     VERSION_REPO=mistio/mist.api \
-    VERSION_SHA=$VERSION_SHA \
-    VERSION_NAME=$VERSION_NAME
+    VERSION_SHA=$API_VERSION_SHA \
+    VERSION_NAME=$API_VERSION_NAME
 
 RUN echo "{\"sha\":\"$VERSION_SHA\",\"name\":\"$VERSION_NAME\",\"repo\":\"$VERSION_REPO\",\"modified\":false}" \
         > /mist-version.json
