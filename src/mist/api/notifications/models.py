@@ -57,3 +57,5 @@ class Notification(me.Document):
 
     email = me.EmailField(required=False)
     ubsub_link = me.URLField(required=False)
+
+    suppressed = me.BooleanField(required=True, default=False)
