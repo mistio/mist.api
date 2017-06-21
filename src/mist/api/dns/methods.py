@@ -43,15 +43,24 @@ def list_zones(owner, cloud):
 def filter_list_zones(auth_context, cloud, zones=None, perm='read'):
     """List zone entries based on the permissions granted to the user."""
 
+    return_zones = []
     if zones is None:
         zones = list_zones(auth_context.owner, cloud)
-    if not zones:  # Exit early in case the cloud provider returned 0 nodes.
-        return {'cloud_id': cloud.id, 'zones': zones}
+    if not zones:  # Exit early in case the cloud provider returned 0 zones.
+        return {'cloud_id': cloud.id, 'zones': return_zones}
     if not auth_context.is_owner():
         try:
             auth_context.check_perm('cloud', 'read', cloud.id)
         except PolicyUnauthorizedError:
             return {'cloud_id': cloud.id, 'zones': []}
+        allowed_records = set(auth_context.get_allowed_resources(rtype='records'))
         allowed_zones = set(auth_context.get_allowed_resources(rtype='zones'))
-        zones = [zone for zone in zones if zone['id'] in allowed_zones]
-    return {'cloud_id': cloud.id, 'zones': zones}
+        for zone in zones:
+            if zone['id'] in allowed_zones:
+                recs = []
+                for record in zone['records']:
+                    if record['id'] in allowed_records:
+                        recs.append(record)
+                zone['records'] = recs
+                return_zones.append(zone)
+    return {'cloud_id': cloud.id, 'zones': return_zones}
