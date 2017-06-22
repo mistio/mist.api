@@ -529,6 +529,8 @@ class MainConnection(MistConnection):
             if 'org' in sections:
                 self.auth_context.org.reload()
                 self.update_org()
+        elif routing_key == 'notification':
+            self.send('notification', result)
 
     def on_close(self, stale=False):
         if not self.closed:

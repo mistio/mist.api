@@ -1,7 +1,6 @@
 
 from mist.api import config
-from mist.api.helpers import send_email
-from mist.api.helpers import trigger_session_update
+from mist.api.helpers import send_email, amqp_publish_user
 
 
 class BaseChannel():
@@ -91,9 +90,9 @@ class InAppChannel(BaseChannel):
 
     def send(self, notification):
         notification.save()
-        trigger_session_update(
-            notification.organization,
-            sections=['notifications'])
+        amqp_publish_user(notification.organization,
+            routing_key='notification',
+            data=notification.to_json())
 
 
 class StdoutChannel(BaseChannel):
