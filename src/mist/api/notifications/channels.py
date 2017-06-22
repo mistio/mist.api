@@ -91,8 +91,8 @@ class InAppChannel(BaseChannel):
     def send(self, notification):
         notification.save()
         amqp_publish_user(notification.organization,
-            routing_key='notification',
-            data=notification.to_json())
+                          routing_key='notification',
+                          data=notification.to_json())
 
 
 class StdoutChannel(BaseChannel):
