@@ -374,10 +374,10 @@ class MainConnection(MistConnection):
                         if cached['machines'] is None:
                             continue
                     elif key == 'list_zones':
-                        cached['zones'] = filter_list_zones(
+                        cached = filter_list_zones(
                             self.auth_context, cloud, cached['zones']
                         )
-                        if cached['zones'] is None:
+                        if cached is None:
                             continue
                     self.send(key, cached)
 
