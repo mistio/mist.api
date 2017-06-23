@@ -19,26 +19,18 @@ log = logging.getLogger(__name__)
 def list_zones(owner, cloud):
     """List zones returning all zones for an owner"""
     log.warn('Running list zones for user %s, cloud %s', owner.id, cloud.id)
-    ret = {}
     if not hasattr(cloud.ctl, 'dns'):
-        ret = []
+        return []
     else:
         zones_ret = []
         zones = cloud.ctl.dns.list_zones()
-
         for zone in zones:
-            recs = []
             zone_dict = zone.as_dict()
-            for record in zone.ctl.list_records():
-                rec = record.as_dict()
-                rec["tags"] = get_tags_for_resource(owner, record)
-                recs.append(rec)
-            zone_dict['records'] = recs
+            zone_dict['records'] = list_records(owner, zone)
             zone_dict["tags"] = get_tags_for_resource(owner, zone)
             zones_ret.append(zone_dict)
-        ret = zones_ret
     log.warn('Returning list zones for user %s, cloud %s', owner.id, cloud.id)
-    return ret
+    return zones_ret
 
 def filter_list_zones(auth_context, cloud, zones=None, perm='read'):
     """List zone entries based on the permissions granted to the user."""
@@ -53,15 +45,45 @@ def filter_list_zones(auth_context, cloud, zones=None, perm='read'):
             auth_context.check_perm('cloud', 'read', cloud.id)
         except PolicyUnauthorizedError:
             return {'cloud_id': cloud.id, 'zones': []}
-        allowed_records = set(auth_context.get_allowed_resources(rtype='records'))
         allowed_zones = set(auth_context.get_allowed_resources(rtype='zones'))
         for zone in zones:
             if zone['id'] in allowed_zones:
-                recs = []
-                for record in zone['records']:
-                    if record['id'] in allowed_records:
-                        recs.append(record)
-                zone['records'] = recs
+                zone_obj = Zone.objects.get(owner=auth_context.owner, cloud=cloud,
+                                            id=zone['id'])
+                zone['records'] = filter_list_records(auth_context, zone_obj)
                 return_zones.append(zone)
         zones = return_zones
     return {'cloud_id': cloud.id, 'zones': zones}
+
+def list_records(owner, zone):
+    """List records returning all records for an owner"""
+
+    if not isinstance(zone, Zone):
+        zone = Zone.objects.get(zone)
+    log.warn('Running list records for user %s, zone %s', owner.id, zone.id)
+    recs = []
+    records = zone.ctl.list_records()
+    for record in records:
+        record_dict = record.as_dict()
+        record_dict["tags"] = get_tags_for_resource(owner, record)
+        recs.append(record_dict)
+    log.warn('Returning list records for user %s, zone %s', owner.id, zone.id)
+    return recs
+
+def filter_list_records(auth_context, zone, perm='read'):
+    """List record entries based on the permissions granted to the user."""
+
+    records = list_records(auth_context.owner, zone)
+    if not records:  # Exit early in case the cloud provider returned 0 records.
+        return []
+    if not auth_context.is_owner():
+        recs = []
+        try:
+            auth_context.check_perm('zone', 'read', zone.id)
+        except PolicyUnauthorizedError:
+            return recs
+        allowed_records = set(auth_context.get_allowed_resources(rtype='records'))
+        for record in records:
+            if record['id'] in allowed_records:
+                recs.append(record)
+    return recs
