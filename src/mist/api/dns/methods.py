@@ -73,11 +73,11 @@ def list_records(owner, zone):
 def filter_list_records(auth_context, zone, perm='read'):
     """List record entries based on the permissions granted to the user."""
 
+    recs = []
     records = list_records(auth_context.owner, zone)
     if not records:  # Exit early in case the cloud provider returned 0 records.
-        return []
+        return recs
     if not auth_context.is_owner():
-        recs = []
         try:
             auth_context.check_perm('zone', 'read', zone.id)
         except PolicyUnauthorizedError:
