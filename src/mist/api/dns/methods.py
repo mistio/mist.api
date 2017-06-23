@@ -58,8 +58,6 @@ def filter_list_zones(auth_context, cloud, zones=None, perm='read'):
 def list_records(owner, zone):
     """List records returning all records for an owner"""
 
-    if not isinstance(zone, Zone):
-        zone = Zone.objects.get(zone)
     log.warn('Running list records for user %s, zone %s', owner.id, zone.id)
     recs = []
     records = zone.ctl.list_records()
@@ -72,7 +70,6 @@ def list_records(owner, zone):
 
 def filter_list_records(auth_context, zone, perm='read'):
     """List record entries based on the permissions granted to the user."""
-
     recs = []
     records = list_records(auth_context.owner, zone)
     if not records:  # Exit early in case the cloud provider returned 0 records.
@@ -86,4 +83,5 @@ def filter_list_records(auth_context, zone, perm='read'):
         for record in records:
             if record['id'] in allowed_records:
                 recs.append(record)
-    return recs
+        records = recs
+    return records
