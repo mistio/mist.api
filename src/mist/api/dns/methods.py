@@ -48,9 +48,11 @@ def filter_list_zones(auth_context, cloud, zones=None, perm='read'):
         allowed_zones = set(auth_context.get_allowed_resources(rtype='zones'))
         for zone in zones:
             if zone['id'] in allowed_zones:
-                zone_obj = Zone.objects.get(owner=auth_context.owner, cloud=cloud,
-                                            id=zone['id'])
-                zone['records'] = filter_list_records(auth_context, zone_obj)
+                zone_obj = Zone.objects.only('id').get(owner=auth_context.owner,
+                                                       cloud=cloud,
+                                                       id=zone['id'])
+                zone['records'] = filter_list_records(auth_context, zone_obj,
+                                                      zone['records'])
                 return_zones.append(zone)
         zones = return_zones
     return {'cloud_id': cloud.id, 'zones': zones}
@@ -68,10 +70,11 @@ def list_records(owner, zone):
     log.warn('Returning list records for user %s, zone %s', owner.id, zone.id)
     return recs
 
-def filter_list_records(auth_context, zone, perm='read'):
+def filter_list_records(auth_context, zone, records=None, perm='read'):
     """List record entries based on the permissions granted to the user."""
     recs = []
-    records = list_records(auth_context.owner, zone)
+    if records is None:
+        records = list_records(auth_context.owner, zone)
     if not records:  # Exit early in case the cloud provider returned 0 records.
         return recs
     if not auth_context.is_owner():

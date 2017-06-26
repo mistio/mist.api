@@ -493,8 +493,7 @@ class MainConnection(MistConnection):
                 filtered_zones = filter_list_zones(
                     self.auth_context, cloud, zones
                 )
-                if filtered_zones is not None:
-                    self.send(routing_key, filtered_zones)
+                self.send(routing_key, filtered_zones)
             else:
                 self.send(routing_key, result)
 
