@@ -5,7 +5,9 @@
 import os
 import sys
 import ssl
+import json
 import logging
+import datetime
 
 import libcloud.security
 from libcloud.compute.types import Provider
@@ -31,11 +33,14 @@ print >> sys.stderr, "MIST_API_DIR is %s" % MIST_API_DIR
 # The following variables are common for both open.source and mist.core
 ###############################################################################
 
-CORE_URI = "https://mist.io"
+CORE_URI = "http://localhost"
 AMQP_URI = "rabbitmq:5672"
 MEMCACHED_HOST = ["memcached:11211"]
 BROKER_URL = "amqp://guest:guest@rabbitmq/"
 SSL_VERIFY = True
+
+VERSION_CHECK = True
+USAGE_SURVEY = False
 
 ELASTICSEARCH = {
     'elastic_host': 'elasticsearch',
@@ -46,9 +51,6 @@ ELASTICSEARCH = {
     'elastic_verify_certs': False
 }
 
-LOGS_FROM_ELASTIC = True
-
-BUILD_TAG = ""
 UI_TEMPLATE_URL = "http://ui"
 LANDING_TEMPLATE_URL = "http://landing"
 
@@ -1022,6 +1024,7 @@ ENABLE_INSIGHTS = False
 ENABLE_BILLING = False
 ENABLE_RBAC = False
 ENABLE_AB = False
+ENABLE_MONITORING = False
 
 ## DO NOT PUT ANYTHING BELOW HERE UNLESS YOU KNOW WHAT YOU ARE DOING
 
@@ -1039,13 +1042,13 @@ else:
 FROM_ENV_STRINGS = [
     'AMQP_URI', 'BROKER_URL', 'CORE_URI', 'MONGO_URI', 'MONGO_DB', 'DOCKER_IP',
     'DOCKER_PORT', 'DOCKER_TLS_KEY', 'DOCKER_TLS_CERT', 'DOCKER_TLS_CA',
-    'BUILD_TAG', 'UI_TEMPLATE_URL', 'LANDING_TEMPLATE_URL',
+    'UI_TEMPLATE_URL', 'LANDING_TEMPLATE_URL',
 ]
 FROM_ENV_INTS = [
 ]
 FROM_ENV_BOOLS = [
     'SSL_VERIFY', 'ALLOW_CONNECT_LOCALHOST', 'ALLOW_CONNECT_PRIVATE',
-    'ALLOW_LIBVIRT_LOCALHOST',
+    'ALLOW_LIBVIRT_LOCALHOST', 'JS_BUILD', 'VERSION_CHECK', 'USAGE_SURVEY',
 ]
 FROM_ENV_ARRAYS = [
     'MEMCACHED_HOST',
@@ -1091,6 +1094,21 @@ CELERY_SETTINGS.update({
     'CELERYD_LOG_FORMAT': PY_LOG_FORMAT,
     'CELERYD_TASK_LOG_FORMAT': PY_LOG_FORMAT,
 })
+_schedule = {}
+if VERSION_CHECK:
+    _schedule['version-check'] = {
+        'task': 'mist.api.portal.tasks.check_new_versions',
+        'schedule': datetime.timedelta(hours=24),
+        # 'args': ('https://mist.io/api/v1/version-check', ),
+    }
+if USAGE_SURVEY:
+    _schedule['usage-survey'] = {
+        'task': 'mist.api.portal.tasks.usage_survey',
+        'schedule': datetime.timedelta(hours=24),
+        # 'args': ('https://mist.io/api/v1/usage-survey', ),
+    }
+if _schedule:
+    CELERY_SETTINGS.update({'CELERYBEAT_SCHEDULE': _schedule})
 
 
 # Configure libcloud to not verify certain hosts.
@@ -1118,6 +1136,16 @@ HOMEPAGE_INPUTS = {
     'enable_orchestration': ENABLE_ORCHESTRATION,
     'enable_insights': ENABLE_INSIGHTS,
     'enable_billing': ENABLE_BILLING,
-    'enable_ab': ENABLE_AB
+    'enable_ab': ENABLE_AB,
+    'enable_monitoring': ENABLE_MONITORING
 }
 ## DO NOT PUT REGULAR SETTINGS BELOW, PUT THEM ABOVE THIS SECTION
+
+
+# Read version info
+VERSION = {}
+try:
+    with open('/mist-version.json', 'r') as fobj:
+        VERSION = json.load(fobj)
+except Exception as exc:
+    print >> sys.stderr, "Couldn't load version info."

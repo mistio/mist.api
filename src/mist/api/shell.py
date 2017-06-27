@@ -24,7 +24,7 @@ from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import ServiceUnavailableError
 
 from mist.api.helpers import trigger_session_update
-from mist.api.helpers import get_story
+from mist.api.logs.methods import get_story
 
 from mist.api import config
 
@@ -451,7 +451,7 @@ class DockerShell(DockerWebSocket):
 
     def get_docker_endpoint(self, owner, cloud_id, job_id=None):
         if job_id:
-            event = get_story(job_id)
+            event = get_story(owner.id, job_id)
             assert owner.id == event['owner_id'], 'Owner ID mismatch!'
             self.host, docker_port = config.DOCKER_IP, config.DOCKER_PORT
             return docker_port, event['logs'][0]['container_id']

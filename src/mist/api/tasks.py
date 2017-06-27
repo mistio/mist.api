@@ -50,6 +50,7 @@ log = logging.getLogger(__name__)
 app = Celery('tasks')
 app.conf.update(**config.CELERY_SETTINGS)
 app.autodiscover_tasks(['mist.api.poller'])
+app.autodiscover_tasks(['mist.api.portal'])
 
 
 @app.task
@@ -193,7 +194,7 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                     kwargs['type'] = 'A'
                     kwargs['data'] = host
                     kwargs['ttl'] = 3600
-                    
+
                     dns_cls = RECORDS[kwargs['type']]
                     record = dns_cls.add(owner=owner, **kwargs)
                     log_event(action='Create_A_record', hostname=hostname,
@@ -724,6 +725,7 @@ class ListZones(UserTask):
         owner = Owner.objects.get(id=owner_id)
         log.warn('Running list zones for user %s cloud %s'
                  % (owner.id, cloud_id))
+        from mist.api.dns.methods import list_zones
         try:
             cloud = Cloud.objects.get(owner=owner, id=cloud_id)
         except Cloud.DoesNotExist:
@@ -732,14 +734,7 @@ class ListZones(UserTask):
             return {'cloud_id': cloud_id, 'zones': []}
         ret = []
         if cloud.dns_enabled:
-            zones = cloud.ctl.dns.list_zones()
-
-            for zone in zones:
-                zone_dict = zone.as_dict()
-                zone_dict['records'] = [record.as_dict() for
-                                        record in zone.ctl.list_records()]
-                ret.append(zone_dict)
-
+            ret = list_zones(owner, cloud)
             log.warn('Returning list zones for user %s cloud %s'
                      % (owner.id, cloud_id))
         return {'cloud_id': cloud_id, 'zones': ret}
@@ -1091,7 +1086,7 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
         'expires': str(schedule.expires or ''),
         'task_enabled': schedule.task_enabled,
         'run_immediately': schedule.run_immediately,
-        'event_type': 'schedule',
+        'event_type': 'job',
         'error': False,
     }
 
@@ -1232,8 +1227,10 @@ def group_run_script(owner_id, script_id, name, machines_uuids):
     :return:
     """
     glist = []
+    job_id = uuid.uuid4().hex
     for machine_uuid in machines_uuids:
-            glist.append(run_script.s(owner_id, script_id, machine_uuid))
+            glist.append(run_script.s(owner_id, script_id, machine_uuid,
+                                      job_id=job_id, job='schedule'))
 
     schedule = Schedule.objects.get(owner=owner_id, name=name, deleted=None)
 
@@ -1248,8 +1245,10 @@ def group_run_script(owner_id, script_id, name, machines_uuids):
         'expires': str(schedule.expires or ''),
         'task_enabled': schedule.task_enabled,
         'run_immediately': schedule.run_immediately,
-        'event_type': 'schedule',
+        'event_type': 'job',
         'error': False,
+        'job': 'schedule',
+        'job_id': job_id,
     }
 
     log_event(action='Schedule started', **log_dict)

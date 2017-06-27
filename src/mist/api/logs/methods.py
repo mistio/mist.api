@@ -2,6 +2,7 @@ import uuid
 import json
 import time
 import logging
+import elasticsearch.exceptions as eexc
 
 from pymongo import MongoClient
 
@@ -11,6 +12,8 @@ from mist.api.helpers import es_client as es
 from mist.api.helpers import amqp_publish
 
 from mist.api.exceptions import NotFoundError
+from mist.api.exceptions import BadRequestError
+from mist.api.exceptions import ServiceUnavailableError
 
 from mist.api.users.models import User
 
@@ -126,10 +129,8 @@ def log_event(owner_id, event_type, action, error=None, **kwargs):
         return event
 
 
-# TODO: Make auth_context a required param?
-def get_events(auth_context=None, owner_id='', user_id='',
-               event_type='', action='', limit=0, start=0,
-               stop=0, newest=True, error=None, **kwargs):
+def get_events(auth_context, owner_id='', user_id='', event_type='', action='',
+               limit=0, start=0, stop=0, newest=True, error=None, **kwargs):
     """Fetch logged events.
 
     This generator yields a series of logs after querying Elasticsearch.
@@ -202,13 +203,14 @@ def get_events(auth_context=None, owner_id='', user_id='',
         query["query"]["bool"]["filter"]["bool"]["must"].append(
             {"term": {"error": False}}
         )
-
+    # Perform a complex "Query String" Query that may span fields.
     if 'filter' in kwargs:
         f = kwargs.pop('filter')
         query_string = {
             'query': f,
             'analyze_wildcard': True,
-            'default_operator': 'and'
+            'default_operator': 'and',
+            'allow_leading_wildcard': False
         }
         query["query"]["bool"]["filter"]["bool"]["must"].append({
             'query_string': query_string
@@ -225,7 +227,17 @@ def get_events(auth_context=None, owner_id='', user_id='',
         filter_logs(auth_context, query)
 
     # Query Elasticsearch.
-    result = es().search(index=index, doc_type=event_type, body=query)
+    try:
+        result = es().search(index=index, doc_type=event_type, body=query)
+    except eexc.NotFoundError as err:
+        log.error('Error %s during ES query: %s', err.status_code, err.info)
+        raise NotFoundError(err.error)
+    except (eexc.RequestError, eexc.TransportError) as err:
+        log.error('Error %s during ES query: %s', err.status_code, err.info)
+        raise BadRequestError(err.error)
+    except (eexc.ConnectionError, eexc.ConnectionTimeout) as err:
+        log.error('Error %s during ES query: %s', err.status_code, err.info)
+        raise ServiceUnavailableError(err.error)
 
     for hit in result['hits']['hits']:
         event = hit['_source']
@@ -243,8 +255,7 @@ def get_events(auth_context=None, owner_id='', user_id='',
         yield event
 
 
-def get_stories(story_type='', owner_id='', user_id='',
-                sort='started_at', sort_order=-1, limit=0,
+def get_stories(story_type='', owner_id='', user_id='', sort_order=-1, limit=0,
                 error=None, range=None, pending=None, expand=False,
                 tornado_callback=None, tornado_async=False, **kwargs):
     """Fetch stories.
@@ -274,10 +285,9 @@ def get_stories(story_type='', owner_id='', user_id='',
     # in Tornado context. If the short version is requested, return only the
     # absolute necessary fields needed to create the story.
     if not expand:
-        includes = list(FIELDS)
-        includes += ["log_id", "stories", "action", "error", "time"]
+        includes = ["log_id", "stories", "error", "time"]
         if story_type == "incident":
-            includes.append("extra")
+            includes += list(FIELDS) + ["action", "extra"]
     else:
         includes = []
         assert not tornado_async
@@ -321,6 +331,9 @@ def get_stories(story_type='', owner_id='', user_id='',
                         }],
                         "_source": {
                             "includes": includes,
+                            "excludes": [
+                                "@version", "tags", "_traceback", "_exc"
+                            ]
                         },
                         "size": 50
                     }
@@ -529,28 +542,27 @@ def associate_stories(event):
 
 def close_open_incidents(event):
     """Close any open incidents based on the event provided."""
+    if event['error']:
+        return
     if 'stories' not in event:
         event['stories'] = []
-
     kwargs = {
-        'story_type': 'incident',
         'owner_id': event['owner_id'],
-        'pending': True,
+        'story_type': 'incident', 'pending': True,
     }
     for key in ('rule_id', 'cloud_id', 'machine_id'):
         if key in event:
             kwargs[key] = event[key]
-
     incidents = get_stories(**kwargs)
     for inc in incidents:
         event['stories'].append(('closes', 'incident', inc['story_id']))
-
     log.warn('%s incident(s) closed by %s', len(incidents), event['log_id'])
 
 
 def get_story(owner_id, story_id, story_type=None, expand=True):
     """Fetch a single story given its story_id."""
-    story = get_stories(owner_id=owner_id, story_id=story_id,
+    assert story_id
+    story = get_stories(owner_id=owner_id, stories=story_id,
                         story_type=story_type, expand=expand)
     if not story:
         msg = 'Story %s' % story_id

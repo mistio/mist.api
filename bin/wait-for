@@ -1,0 +1,82 @@
+#!/bin/sh
+
+# Exit with error if any command fails.
+set -e
+
+TIMEOUT=30
+QUIET=
+
+USAGE="Usage: $0 [-h] [-q] [-t TIMEOUT] [-c COMMAND] HOST:PORT [HOST:PORT ..]
+
+Wait for services to become available by scanning host/ports.
+
+Positional arguments:
+    HOST:PORT               Socket to wait for. Can be specified multiple
+                            times.
+
+Options:
+    -h                      Show this help message and exit.
+    -q                      Do not output any status messages.
+    -t TIMEOUT              Timeout in seconds, 0 tries forever,
+                            defaults to $TIMEOUT.
+    -c COMMAND              Run given command with arguments after host:port is
+                            available.
+"
+
+log() { if [ -z "$QUIET" ]; then echo "$@" >&2; fi; }
+
+usage_error() { echo "$USAGE" >&2 && echo "ERROR: $@" >&2 && exit 2; }
+
+wait_for() {
+    log "Waiting for $HOST:$PORT"
+    for i in `seq $TIMEOUT` ; do
+        if nc -z "$HOST" "$PORT" > /dev/null 2>&1; then
+            log "UP: $HOST:$PORT"
+            return
+        fi
+        log "DOWN: $HOST:$PORT"
+        sleep 1
+    done
+    echo "TIMEOUT: $HOST:$PORT" >&2
+    exit 1
+}
+
+while getopts "hqt:c:" opt; do
+    case "$opt" in
+        h)
+            echo "$USAGE"
+            exit
+            ;;
+        q)
+            QUIET=1
+            ;;
+        t)
+            TIMEOUT=$OPTARG
+            ;;
+        c)
+            CMD=$OPTARG
+            ;;
+        \?)
+            usage_error "Invalid option: -$OPTARG"
+            ;;
+    esac
+done
+
+shift $(expr $OPTIND - 1)
+if [ $# -eq 0 ]; then
+    usage_error "No HOST:PORT provided to wait for"
+fi
+
+while [ $# -gt 0 ]; do
+    HOST=$(printf "%s\n" "$1"| cut -d : -f 1)
+    PORT=$(printf "%s\n" "$1"| cut -d : -f 2)
+    if [ -z "$HOST" ] || [ -z "$PORT" ]; then
+        usage_error "Invalid HOST:PORT \"$HOST:$PORT\""
+    fi
+    wait_for
+    shift 1
+done
+if [ -n "$CMD" ]; then
+    log "Will execute command $CMD"
+    exec $CMD
+fi

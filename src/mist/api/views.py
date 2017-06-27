@@ -69,15 +69,9 @@ from mist.api.auth.methods import reissue_cookie_session
 from mist.api.auth.models import get_secure_rand_token
 
 from mist.api.logs.methods import log_event
+from mist.api.logs.methods import get_events
 
 from mist.api import config
-
-# FIXME
-if config.LOGS_FROM_ELASTIC:
-    from mist.api.logs.methods import get_events
-    get_log_events = get_events
-else:
-    from mist.api.helpers import get_log_events
 
 import logging
 logging.basicConfig(level=config.PY_LOG_LEVEL,
@@ -145,8 +139,8 @@ def home(request):
     params = params_from_request(request)
 
     build_path = ''
-    if config.BUILD_TAG and not params.get('debug'):
-        build_path = 'build/%s/bundled/' % config.BUILD_TAG
+    if config.JS_BUILD and not params.get('debug'):
+        build_path = 'build/%s/bundled/' % config.VERSION.get('sha')
 
     template_inputs = config.HOMEPAGE_INPUTS
     template_inputs['build_path'] = build_path
@@ -184,8 +178,8 @@ def not_found(request):
     params = params_from_request(request)
 
     build_path = ''
-    if config.BUILD_TAG and not params.get('debug'):
-        build_path = '/build/%s/bundled/' % config.BUILD_TAG
+    if config.JS_BUILD and not params.get('debug'):
+        build_path = '/build/%s/bundled/' % config.VERSION.get('sha')
 
     template_inputs = config.HOMEPAGE_INPUTS
     template_inputs['build_path'] = build_path
@@ -262,9 +256,10 @@ def login(request):
         block_period = config.FAILED_LOGIN_RATE_LIMIT['block_period']
 
         # check if rate limiting in place
-        incidents = get_log_events(user_id=user.id, event_type='incident',
-                                   action='login_rate_limiting',
-                                   start=time() - max_logins_period)
+        incidents = get_events(auth_context=None, user_id=user.id,
+                               event_type='incident',
+                               action='login_rate_limiting',
+                               start=time() - max_logins_period)
         incidents = [inc for inc in incidents
                      if inc.get('ip') == ip_from_request(request)]
         if len(incidents):
@@ -273,9 +268,9 @@ def login(request):
 
         if not user.check_password(password):
             # check if rate limiting condition just got triggered
-            logins = list(get_log_events(
-                user_id=user.id, event_type='request', action='login',
-                error=True, start=time() - max_logins_period))
+            logins = list(get_events(
+                auth_context=None, user_id=user.id, event_type='request',
+                action='login', error=True, start=time() - max_logins_period))
             logins = [login for login in logins
                       if login.get('request_ip') == ip_from_request(request)]
             if len(logins) > max_logins:
@@ -674,8 +669,8 @@ def reset_password(request):
 
     if request.method == 'GET':
         build_path = ''
-        if config.BUILD_TAG and not params.get('debug'):
-            build_path = '/build/%s/bundled/' % config.BUILD_TAG
+        if config.JS_BUILD and not params.get('debug'):
+            build_path = '/build/%s/bundled/' % config.VERSION.get('sha')
         template_inputs = config.HOMEPAGE_INPUTS
         template_inputs['build_path'] = build_path
         template_inputs['csrf_token'] = json.dumps(get_csrf_token(request))
@@ -739,8 +734,8 @@ def set_password(request):
 
     if request.method == 'GET':
         build_path = ''
-        if config.BUILD_TAG and not params.get('debug'):
-            build_path = '/build/%s/bundled/' % config.BUILD_TAG
+        if config.JS_BUILD and not params.get('debug'):
+            build_path = '/build/%s/bundled/' % config.VERSION.get('sha')
         template_inputs = config.HOMEPAGE_INPUTS
         template_inputs['build_path'] = build_path
         template_inputs['csrf_token'] = json.dumps(get_csrf_token(request))
@@ -2753,7 +2748,10 @@ def fetch(request):
     if not isinstance(params, dict):
         params = dict(params)
 
-    mac_verify(params)
+    try:
+        mac_verify(params)
+    except Exception as exc:
+        raise ForbiddenError(exc.args)
 
     action = params.get('action', '')
     if not action:
@@ -2769,3 +2767,9 @@ def fetch(request):
         return fetch_script(params.get('object_id'))
     else:
         raise NotImplementedError()
+
+
+@view_config(route_name='version', request_method='GET', renderer='json')
+def version(request):
+    """Return running version"""
+    return {'version': config.VERSION}

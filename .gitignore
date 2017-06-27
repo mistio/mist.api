@@ -105,3 +105,7 @@ ENV/
 /src/mist/api/templates/tmp*
 /src/mist/api/templates/ui.pt
 /src/mist/api/templates/landing.pt
+
+# Celerybeat files
+/celerybeat-schedule.dir
+/celerybeat-schedule.pag
