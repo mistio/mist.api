@@ -375,7 +375,7 @@ class MainConnection(MistConnection):
                             continue
                     elif key == 'list_zones':
                         cached = filter_list_zones(
-                            self.auth_context, cloud, cached['zones']
+                            self.auth_context, cloud.id, cached['zones']
                         )
                         if cached is None:
                             continue
@@ -488,10 +488,8 @@ class MainConnection(MistConnection):
             elif routing_key == 'list_zones':
                 zones = result['zones']
                 cloud_id = result['cloud_id']
-                cloud = Cloud.objects.get(owner=self.owner, id=cloud_id,
-                                          deleted=None)
                 filtered_zones = filter_list_zones(
-                    self.auth_context, cloud, zones
+                    self.auth_context, cloud_id, zones
                 )
                 self.send(routing_key, filtered_zones)
             else:

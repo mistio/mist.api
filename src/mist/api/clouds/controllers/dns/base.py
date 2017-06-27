@@ -331,6 +331,7 @@ class BaseDNSController(BaseController):
         except me.NotUniqueError as exc:
             log.error("Zone %s not unique error: %s", zone, exc)
             raise ZoneExistsError()
+        self.cloud.owner.mapper.update(zone)
 
     def _create_zone__prepare_args(self, kwargs):
         """ This private method to prepare the args for the zone creation."""
