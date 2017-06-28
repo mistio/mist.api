@@ -78,10 +78,14 @@ def get_policy(user, org, create=True):
     return policies[0]
 
 
-def get_notifications(user, org, channel):
+def get_notifications(user, org, channel, get_dismissed=False):
     org = Organization.objects.get(id=org['id'])
-    notifications = Notification.objects(
-        user=user, organization=org, channel=channel)
+    if get_dismissed:
+        notifications = Notification.objects(
+            user=user, organization=org, channel=channel)
+    else:
+        notifications = Notification.objects(
+            user=user, organization=org, channel=channel, dismissed=False)
     return notifications
 
 
