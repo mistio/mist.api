@@ -290,6 +290,9 @@ def add_routes(configurator):
     configurator.add_route('api_v1_job', '/api/v1/jobs/{job_id}')
     configurator.add_route('api_v1_story', '/api/v1/stories/{story_id}')
 
+    # Notifications
+    configurator.add_route('api_v1_dismiss_notification', '/api/v1/notifications/dismiss')
+
     configurator.add_route('user_invitations', '/user_invitations')
 
     configurator.add_route('su', '/su')
