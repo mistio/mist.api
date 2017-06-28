@@ -1,5 +1,5 @@
 
-from mist.api.helpers import params_from_request
+from mist.api.helpers import params_from_request, view_config
 from mist.api.auth.methods import user_from_request
 
 from models import Notification
