@@ -41,6 +41,9 @@ class Notification(me.Document):
     Represents a notification associated with a
     user-organization pair
     '''
+    id = me.StringField(primary_key=True,
+                        default=lambda: uuid4().hex)
+
     created_date = me.DateTimeField(required=False)
     expiry_date = me.DateTimeField(required=False)
 
@@ -62,7 +65,7 @@ class Notification(me.Document):
     action_link = me.URLField(required=False)
 
     viewed = me.BooleanField(required=True, default=False)
-    hidden = me.BooleanField(required=True, default=False)
+    dismissed = me.BooleanField(required=True, default=False)
 
     severity = me.StringField(
         max_length=7,
