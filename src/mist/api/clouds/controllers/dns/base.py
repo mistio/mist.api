@@ -400,6 +400,7 @@ class BaseDNSController(BaseController):
         except me.NotUniqueError as exc:
             log.error("Record %s not unique error: %s", record, exc)
             raise RecordExistsError()
+        self.cloud.owner.mapper.update(record)
 
     def _create_record__for_zone(self, zone, **kwargs):
         """
