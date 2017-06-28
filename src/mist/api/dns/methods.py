@@ -53,9 +53,9 @@ def filter_list_zones(auth_context, cloud_id, zones=None, perm='read'):
         allowed_records = set(auth_context.get_allowed_resources(rtype='records'))
         for zone in zones:
             if zone['id'] in allowed_zones:
-                for record in zone['records']:
-                    if record not in allowed_records:
-                        zone['records'].pop(record)
+                for idx in reversed(range(len(zone['records']))):
+                    if zone['records'][idx]['id'] not in allowed_records:
+                        zone['records'].pop(idx)
                 return_zones.append(zone)
         zones = return_zones
     return {'cloud_id': cloud_id, 'zones': zones}
