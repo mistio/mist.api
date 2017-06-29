@@ -947,15 +947,20 @@ def logging_view_decorator(func):
             if snake_to_camel(key) in params:
                 log_dict[key] = params.pop(snake_to_camel(key))
 
-        if not log_dict.get('cloud_id') and request.environ.get('cloud_id'):
-            log_dict['cloud_id'] = request.environ.get('cloud_id')
-        if not log_dict.get('machine_id') and request.environ.get('machine_id'):
+        cloud_id = request.environ.get('cloud_id')
+        if cloud_id and not log_dict.get('cloud_id'):
+            log_dict['cloud_id'] = cloud_id
+
+        machine_id = request.environ.get('machine_id')
+        if machine_id and not log_dict.get('machine_id'):
             log_dict['machine_id'] = request.environ.get('machine_id')
-        if not log_dict.get('machine_uuid') and request.matchdict.get('machine_uuid'):
-            log_dict['machine_uuid'] = request.matchdict.get('machine_uuid')
-        if not log_dict.get('machine_uuid') and \
-           request.environ.get('machine_uuid'):
-            log_dict['machine_uuid'] = request.environ.get('machine_uuid')
+
+        machine_uuid = request.matchdict.get('machine_uuid') or \
+                       params.get('machine_uuid') or \
+                       request.environ.get('machine_uuid')
+        if machine_uuid and not log_dict.get('machine_uuid'):
+            log_dict['machine_uuid'] = machine_uuid
+
         for key in ('priv', 'password', 'new_password', 'apikey', 'apisecret',
                     'cert_file', 'key_file'):
             if params.get(key):
