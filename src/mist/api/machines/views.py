@@ -27,6 +27,8 @@ logging.basicConfig(level=config.PY_LOG_LEVEL,
                     datefmt=config.PY_LOG_FORMAT_DATE)
 log = logging.getLogger(__name__)
 
+OK = Response("OK", 200)
+
 
 @view_config(route_name='api_v1_machines',
              request_method='GET', renderer='json')
@@ -376,7 +378,7 @@ def machine_actions(request):
     ACTION permission required on machine(ACTION can be START,
     STOP, DESTROY, REBOOT).
     ---
-    machine:
+    machine_uuid:
       in: path
       required: true
       type: string
@@ -412,13 +414,18 @@ def machine_actions(request):
             machine = Machine.objects.get(cloud=cloud_id,
                                           machine_id=machine_id,
                                           state__ne='terminated')
+            # used by logging_view_decorator
+            request.environ['machine_uuid'] = machine.id
         except Machine.DoesNotExist:
             raise NotFoundError("Machine %s doesn't exist" % machine_id)
     else:
-        machine_uuid = request.matchdict['machine']
+        machine_uuid = request.matchdict['machine_uuid']
         try:
             machine = Machine.objects.get(id=machine_uuid,
                                           state__ne='terminated')
+            # used by logging_view_decorator
+            request.environ['machine_id'] = machine.machine_id
+            request.environ['cloud_id'] = machine.cloud.id
         except Machine.DoesNotExist:
             raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
 
@@ -436,7 +443,7 @@ def machine_actions(request):
     if action not in actions:
         raise BadRequestError("Action '%s' should be "
                               "one of %s" % (action, actions)
-                              )
+                             )
     if action == 'destroy':
         methods.destroy_machine(auth_context.owner, cloud_id,
                                 machine.machine_id)
@@ -450,8 +457,8 @@ def machine_actions(request):
     elif action == 'resize':
         getattr(machine.ctl, action)(plan_id)
 
-    # TODO: We shouldn't return list_machines, just OK. Save the API!
-    return methods.filter_list_machines(auth_context, cloud_id)
+    return OK
+
 
 
 @view_config(route_name='api_v1_cloud_machine_rdp',
@@ -495,13 +502,18 @@ def machine_rdp(request):
             machine = Machine.objects.get(cloud=cloud_id,
                                           machine_id=machine_id,
                                           state__ne='terminated')
+            # used by logging_view_decorator
+            request.environ['machine_uuid'] = machine.id
         except Machine.DoesNotExist:
             raise NotFoundError("Machine %s doesn't exist" % machine_id)
     else:
-        machine_uuid = request.matchdict['machine']
+        machine_uuid = request.matchdict['machine_uuid']
         try:
             machine = Machine.objects.get(id=machine_uuid,
                                           state__ne='terminated')
+            # used by logging_view_decorator
+            request.environ['machine_id'] = machine.machine_id
+            request.environ['cloud_id'] = machine.cloud.id
         except Machine.DoesNotExist:
             raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
 
@@ -516,7 +528,7 @@ def machine_rdp(request):
         raise BadRequestError('No hostname specified')
     try:
         1 < int(rdp_port) < 65535
-    except:
+    except ValueError:
         rdp_port = 3389
 
     host, rdp_port = dnat(auth_context.owner, host, rdp_port)
