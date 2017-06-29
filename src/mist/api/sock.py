@@ -519,7 +519,9 @@ class MainConnection(MistConnection):
             cloud_id = result['cloud_id']
             patch = result['patch']
             for line in patch:
-                machine_id, line['path'] = line['path'].lstrip('/').split('/', 1)
+                machine_id, line['path'] = line['path'].lstrip(
+                    '/'
+                ).split('/', 1)
             if not self.auth_context.is_owner():
                 machine_ids = []
                 allowed_machine_ids = filter_machine_ids(self.auth_context,

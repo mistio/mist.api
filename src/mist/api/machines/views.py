@@ -459,7 +459,6 @@ def machine_actions(request):
     return OK
 
 
-
 @view_config(route_name='api_v1_cloud_machine_rdp',
              request_method='GET', renderer='json')
 @view_config(route_name='api_v1_machine_rdp',

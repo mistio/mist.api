@@ -191,7 +191,8 @@ def add_routes(configurator):
 
     configurator.add_route('api_v1_cloud_probe',
                            '/api/v1/clouds/{cloud}/machines/{machine}/probe')
-    configurator.add_route('api_v1_probe', '/api/v1/machines/{machine_uuid}/probe')
+    configurator.add_route('api_v1_probe',
+                           '/api/v1/machines/{machine_uuid}/probe')
 
     configurator.add_route('api_v1_ping', '/api/v1/ping')
 
