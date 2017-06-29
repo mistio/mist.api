@@ -518,16 +518,19 @@ class MainConnection(MistConnection):
         elif routing_key == 'patch_machines':
             cloud_id = result['cloud_id']
             patch = result['patch']
+            machine_ids = []
             for line in patch:
                 machine_id, line['path'] = line['path'].lstrip(
                     '/'
                 ).split('/', 1)
+                machine_ids.append(machine_id)
             if not self.auth_context.is_owner():
-                machine_ids = []
                 allowed_machine_ids = filter_machine_ids(self.auth_context,
                                                          cloud_id, machine_ids)
-                patch = [line for line, m_id in zip(patch, machine_ids)
-                         if m_id in allowed_machine_ids]
+            else:
+                allowed_machine_ids = machine_ids
+            patch = [line for line, m_id in zip(patch, machine_ids)
+                     if m_id in allowed_machine_ids]
             for line in patch:
                 line['path'] = '/clouds/%s/machines/%s' % (cloud_id,
                                                            line['path'])
