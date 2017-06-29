@@ -526,7 +526,7 @@ def machine_rdp(request):
         raise BadRequestError('No hostname specified')
     try:
         1 < int(rdp_port) < 65535
-    except ValueError:
+    except (ValueError, TypeError):
         rdp_port = 3389
 
     host, rdp_port = dnat(auth_context.owner, host, rdp_port)
