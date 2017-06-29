@@ -524,8 +524,8 @@ class MainConnection(MistConnection):
                 machine_ids = []
                 allowed_machine_ids = filter_machine_ids(self.auth_context,
                                                          cloud_id, machine_ids)
-                patch = [line for line, machine_id in zip(patch, machine_ids)
-                         if machine_id in allowed_machine_ids]
+                patch = [line for line, m_id in zip(patch, machine_ids)
+                         if m_id in allowed_machine_ids]
             for line in patch:
                 line['path'] = '/clouds/%s/machines/%s' % (cloud_id,
                                                            line['path'])
