@@ -83,11 +83,8 @@ def list_machines(schedule_id):
     cloud.save()
 
     # Store a dict by machine id of all cached machines.
-    old_machines = {
-        m.id: {
-            m.machine_id: m.as_dict()
-        } for m in cloud.ctl.compute.list_cached_machines()
-    }
+    old_machines = {'%s-%s' % (m.id, m.machine_id): m.as_dict()
+                    for m in cloud.ctl.compute.list_cached_machines()}
 
     try:
         # Run list_machines.
@@ -114,18 +111,16 @@ def list_machines(schedule_id):
     # Publish results to rabbitmq (for backwards compatibility).
     if amqp_owner_listening(cloud.owner.id):
         # Publish patches to rabbitmq.
-        new_machines = {
-            m.id: {
-                m.machine_id: m.as_dict()
-            } for m in machines
-        }
+        new_machines = {'%s-%s' % (m.id, m.machine_id): m.as_dict()
+                        for m in machines}
         # Exclude last seen fields from patch.
         for md in old_machines, new_machines:
             for m in md.values():
-                for v in m.values():
-                    v.pop('last_seen')
+                m.pop('last_seen')
         patch = jsonpatch.JsonPatch.from_diff(old_machines,
                                               new_machines).patch
+        if patch:
+            print 'patch "%r"' % patch
         amqp_publish_user(cloud.owner.id,
                           routing_key='patch_machines',
                           connection=amqp_conn,
