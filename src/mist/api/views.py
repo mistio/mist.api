@@ -1152,7 +1152,6 @@ def probe(request):
             # used by logging_view_decorator
             request.environ['machine_id'] = machine.machine_id
             request.environ['cloud_id'] = machine.cloud.id
-            request.environ['machine_uuid'] = machine.id
         except Machine.DoesNotExist:
             raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
 
