@@ -456,7 +456,8 @@ def machine_actions(request):
     elif action == 'resize':
         getattr(machine.ctl, action)(plan_id)
 
-    return OK
+    # TODO: We shouldn't return list_machines, just OK. Save the API!
+    return methods.filter_list_machines(auth_context, cloud_id)
 
 
 @view_config(route_name='api_v1_cloud_machine_rdp',
