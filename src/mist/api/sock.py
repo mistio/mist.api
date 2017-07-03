@@ -43,6 +43,8 @@ from mist.api.dns.methods import filter_list_zones
 from mist.api import tasks
 from mist.api.hub.tornado_shell_client import ShellHubClient
 
+from mist.api.notifications.methods import get_notifications
+
 try:
     from mist.core.methods import get_stats, get_load, check_monitoring
     from mist.core.methods import get_user_data, filter_list_tags
@@ -282,6 +284,7 @@ class MainConnection(MistConnection):
         self.list_stacks()
         self.list_tunnels()
         self.list_clouds()
+        self.update_notifications()
         self.check_monitoring()
         if config.ACTIVATE_POLLER:
             self.periodic_update_poller()
@@ -380,6 +383,14 @@ class MainConnection(MistConnection):
                         if cached is None:
                             continue
                     self.send(key, cached)
+
+    def update_notifications(self):
+        user = self.auth_context.user
+        org = filter_org(self.auth_context)
+        channel = 'in_app'
+        notifications_json = get_notifications(user, org, channel).to_json()
+        log.info("Emitting notifications.")
+        self.send('notifications', notifications_json)
 
     def check_monitoring(self):
         func = check_monitoring
@@ -522,6 +533,8 @@ class MainConnection(MistConnection):
                 self.list_tags()
             if 'tunnels' in sections:
                 self.list_tunnels()
+            if 'notifications' in sections:
+                self.update_notifications()
             if 'monitoring' in sections:
                 self.check_monitoring()
             if 'user' in sections:
@@ -530,6 +543,8 @@ class MainConnection(MistConnection):
             if 'org' in sections:
                 self.auth_context.org.reload()
                 self.update_org()
+        elif routing_key == 'notification':
+            self.send('notification', result)
 
     def on_close(self, stale=False):
         if not self.closed:
