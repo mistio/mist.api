@@ -126,6 +126,8 @@ def add_routes(configurator):
                 return True
         return False
 
+    configurator.add_route('version', '/version')
+
     configurator.add_route('ui_routes', '/{section}*fizzle',
                            custom_predicates=[valid_ui_section])
     configurator.add_route('home', '/')
@@ -287,6 +289,11 @@ def add_routes(configurator):
     configurator.add_route('api_v1_logs', '/api/v1/logs')
     configurator.add_route('api_v1_job', '/api/v1/jobs/{job_id}')
     configurator.add_route('api_v1_story', '/api/v1/stories/{story_id}')
+
+    # Notifications
+    configurator.add_route(
+        'api_v1_dismiss_notification',
+        '/api/v1/notifications/dismiss')
 
     configurator.add_route('user_invitations', '/user_invitations')
 

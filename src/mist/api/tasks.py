@@ -51,6 +51,7 @@ log = logging.getLogger(__name__)
 app = Celery('tasks')
 app.conf.update(**config.CELERY_SETTINGS)
 app.autodiscover_tasks(['mist.api.poller'])
+app.autodiscover_tasks(['mist.api.portal'])
 
 
 @app.task
@@ -731,6 +732,7 @@ class ListZones(UserTask):
         owner = Owner.objects.get(id=owner_id)
         log.warn('Running list zones for user %s cloud %s'
                  % (owner.id, cloud_id))
+        from mist.api.dns.methods import list_zones
         try:
             cloud = Cloud.objects.get(owner=owner, id=cloud_id)
         except Cloud.DoesNotExist:
@@ -739,13 +741,7 @@ class ListZones(UserTask):
             return {'cloud_id': cloud_id, 'zones': []}
         ret = []
         if cloud.dns_enabled:
-            zones = cloud.ctl.dns.list_zones()
-
-            for zone in zones:
-                zone_dict = zone.as_dict()
-                zone_dict['records'] = [record.as_dict() for
-                                        record in zone.ctl.list_records()]
-                ret.append(zone_dict)
+            ret = list_zones(owner, cloud.id)
             log.warn('Returning list zones for user %s cloud %s'
                      % (owner.id, cloud_id))
         return {'cloud_id': cloud_id, 'zones': ret}

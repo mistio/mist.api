@@ -27,7 +27,9 @@ class InlineLocation(Location):
     source_code = me.StringField(required=True)
 
     def as_dict(self):
-        return {'source_code': self.source_code}
+        return {'source_code': self.source_code,
+                'type': self.type
+                }
 
     def __unicode__(self):
         return 'Script is {0.source_code}'.format(self)
@@ -49,7 +51,8 @@ class GithubLocation(Location):
 
     def as_dict(self):
         return {'repo': self.repo,
-                'entrypoint': self.entrypoint or ''}
+                'entrypoint': self.entrypoint or '',
+                'type': self.type}
 
     def __unicode__(self):
         if self.entrypoint:
@@ -76,7 +79,8 @@ class UrlLocation(Location):
 
     def as_dict(self):
         return {'url': self.url,
-                'entrypoint': self.entrypoint or ''}
+                'entrypoint': self.entrypoint or '',
+                'type': self.type}
 
     def __unicode__(self):
         if self.entrypoint:

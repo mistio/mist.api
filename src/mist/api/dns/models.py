@@ -162,6 +162,10 @@ class Record(me.Document):
         super(Record, self).__init__(*args, **kwargs)
         self.ctl = RecordController(self)
 
+    @property
+    def owner(self):
+        return self.zone.owner
+
     @classmethod
     def add(cls, owner=None, zone=None, id='', **kwargs):
         """Add Record
