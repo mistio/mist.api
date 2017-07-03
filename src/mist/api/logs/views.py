@@ -194,4 +194,6 @@ def end_job(request):
                     params.get('cmdout'), params.get('error'),
                     params.get('node_instances'), params.get('outputs'))
 
-    return Response('OK', 200)
+    # FIXME:The MistClient expects a JSON-decodable response.
+    # return Response('OK', 200)
+    return {}
