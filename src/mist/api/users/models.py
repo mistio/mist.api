@@ -19,10 +19,8 @@ else:
 
 try:
     from mist.core.rbac.mappings import RBACMapping
-    from mist.core.rbac.mappings import PermissionMapper
 except ImportError:
     from mist.api.dummy.mappings import RBACMapping
-    from mist.api.dummy.mappings import PermissionMapper
 
 from mist.api import config
 
@@ -379,17 +377,19 @@ class Team(me.EmbeddedDocument):
 
     def clean(self):
         """Ensure RBAC Mappings are properly initialized."""
-        if RBACMapping:
-            mappings = RBACMapping.objects(org=self._instance.id,
-                                           team=self.id).only('id')
-            if not mappings:
-                self.init_mappings()
-            elif self.name == 'Owners':
-                raise me.ValidationError('RBAC Mappings are not intended for '
-                                         'Team Owners')
-            elif len(mappings) is not 2:
-                raise me.ValidationError('RBAC Mappings have not been properly'
-                                         ' initialized for Team %s' % self)
+        mappings = self.get_mappings()
+        if not mappings:
+            self.init_mappings()
+        elif self.name == 'Owners':
+            raise me.ValidationError('RBAC Mappings are not intended for '
+                                     'Team Owners')
+        elif len(mappings) is not 2:
+            raise me.ValidationError('RBAC Mappings have not been properly'
+                                     ' initialized for Team %s' % self)
+
+    def get_mappings(self, perm=None, fields='id'):
+        """Fetch the RBAC Mappings of self."""
+        return list(self._instance.mapper.get_mappings(self, perm, fields))
 
     def init_mappings(self):
         """Initialize RBAC Mappings.
@@ -405,7 +405,7 @@ class Team(me.EmbeddedDocument):
             return
         if self.name == 'Owners':
             return
-        if RBACMapping.objects(org=self._instance.id, team=self.id).only('id'):
+        if self.get_mappings():
             raise me.ValidationError(
                 'RBAC Mappings already initialized for Team %s' % self
             )
@@ -416,8 +416,8 @@ class Team(me.EmbeddedDocument):
 
     def drop_mappings(self):
         """Delete the Team's RBAC Mappings."""
-        if RBACMapping:
-            RBACMapping.objects(org=self._instance.id, team=self.id).delete()
+        for mapping in self.get_mappings():
+            mapping.delete()
 
     def as_dict(self):
         ret = {
@@ -429,8 +429,6 @@ class Team(me.EmbeddedDocument):
         }
         if HAS_POLICY:
             ret['policy'] = self.policy
-        return ret
-
         return ret
 
     def __str__(self):
@@ -472,8 +470,15 @@ class Organization(Owner):
 
     @property
     def mapper(self):
-        """Returns the `PermissionMapper` for the current Org context."""
-        return PermissionMapper(self)
+        """Return the `PermissionMapper` for the current Org context."""
+        # FIXME: Imported here due to circular import issues.
+        try:
+            from mist.core.rbac.tasks import AsyncPermissionMapper
+        except ImportError:
+            from mist.api.dummy.mappings import AsyncPermissionMapper
+        mapper = AsyncPermissionMapper()
+        mapper.org = self
+        return mapper
 
     def __str__(self):
         return 'Org %s (%d teams - %d members)' % (self.name, len(self.teams),
