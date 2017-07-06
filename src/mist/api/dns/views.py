@@ -6,6 +6,7 @@ from mist.api.dns.models import Zone, Record, RECORDS
 
 from mist.api.auth.methods import auth_context_from_request
 from mist.api.dns.methods import filter_list_zones
+from mist.api.dns.methods import filter_list_records
 
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import CloudNotFoundError
@@ -29,12 +30,7 @@ def list_dns_zones(request):
     auth_context = auth_context_from_request(request)
     cloud_id = request.matchdict['cloud']
 
-    try:
-        cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id)
-    except me.DoesNotExist:
-        raise CloudNotFoundError
-
-    zones = filter_list_zones(auth_context, cloud)
+    zones = filter_list_zones(auth_context, cloud_id)
     return zones
 
 
@@ -57,7 +53,7 @@ def list_dns_records(request):
     except Zone.DoesNotExist:
         raise NotFoundError('Zone does not exist')
 
-    return [record.as_dict() for record in zone.ctl.list_records()]
+    return filter_list_records(auth_context, zone)
 
 @view_config(route_name='api_v1_zones', request_method='POST', renderer='json')
 def create_dns_zone(request):
