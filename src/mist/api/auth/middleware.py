@@ -15,7 +15,10 @@ from pyramid.request import Request
 log = logging.getLogger(__name__)
 
 
+CORS_ENABLED_PATHS = ['/api/v1/clouds', '/api/v1/stacks', '/api/v1/report']
+
 class AuthMiddleware(object):
+    """ Authentication Middleware """
     def __init__(self, app):
         self.app = app
         self.routes_mapper = app.routes_mapper
@@ -40,9 +43,28 @@ class AuthMiddleware(object):
                     'dummy' in session.name):
                 session.touch()
                 session.save()
+            # CORS
+            if environ.get('HTTP_ORIGIN') and environ.get('PATH_INFO') in \
+                CORS_ENABLED_PATHS:
+                if 'OPTIONS' in environ['REQUEST_METHOD'] or \
+                    isinstance(session, ApiToken):
+                    for header in [
+                            ('Access-Control-Allow-Origin',
+                             environ['HTTP_ORIGIN']),
+                            ('Access-Control-Allow-Methods', 'GET,OPTIONS'),
+                            ('Access-Control-Allow-Headers',
+                             'Origin, Content-Type, Accept, Authorization'),
+                            ('Access-Control-Allow-Credentials', 'true'),
+                            ('Access-Control-Max-Age', '1728000'),
+                    ]:
+                        headers.append(header)
+                    if 'OPTIONS' in environ['REQUEST_METHOD']:
+                        return start_response('204 No Content', headers, exc_info)
+
             return start_response(status, headers, exc_info)
 
-        return self.app(environ, session_start_response)
+        response = self.app(environ, session_start_response)
+        return response
 
 
 class CsrfMiddleware(object):
