@@ -110,22 +110,29 @@ def list_machines(schedule_id):
 
     # Publish results to rabbitmq (for backwards compatibility).
     if amqp_owner_listening(cloud.owner.id):
-        # Publish patches to rabbitmq.
-        new_machines = {'%s-%s' % (m.id, m.machine_id): m.as_dict()
-                        for m in machines}
-        # Exclude last seen fields from patch.
-        for md in old_machines, new_machines:
-            for m in md.values():
-                m.pop('last_seen')
-        patch = jsonpatch.JsonPatch.from_diff(old_machines,
-                                              new_machines).patch
-        if patch:
-            print 'patch "%r"' % patch
-        amqp_publish_user(cloud.owner.id,
-                          routing_key='patch_machines',
-                          connection=amqp_conn,
-                          data={'cloud_id': cloud.id,
-                                'patch': patch})
+        if not config.MACHINE_PATCHES:
+            amqp_publish_user(cloud.owner.id, routing_key='list_machines',
+                              connection=amqp_conn,
+                              data={'cloud_id': cloud.id,
+                                    'machines': [machine.as_dict()
+                                                 for machine in machines]})
+        else:
+            # Publish patches to rabbitmq.
+            new_machines = {'%s-%s' % (m.id, m.machine_id): m.as_dict()
+                            for m in machines}
+            # Exclude last seen fields from patch.
+            for md in old_machines, new_machines:
+                for m in md.values():
+                    m.pop('last_seen')
+            patch = jsonpatch.JsonPatch.from_diff(old_machines,
+                                                new_machines).patch
+            if patch:
+                print 'patch "%r"' % patch
+            amqp_publish_user(cloud.owner.id,
+                            routing_key='patch_machines',
+                            connection=amqp_conn,
+                            data={'cloud_id': cloud.id,
+                                    'patch': patch})
 
     # Push historic information for inventory and cost reporting.
     for machine in machines:
