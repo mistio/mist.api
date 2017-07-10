@@ -92,7 +92,7 @@ class InAppChannel(BaseChannel):
 
     def send(self, notification):
         if not Notification.objects(
-                id=notification.id) and notification.dismissed == False:
+                id=notification.id) and not notification.dismissed:
             notification.save()
             amqp_publish_user(notification.organization,
                               routing_key='notification',
