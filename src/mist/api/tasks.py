@@ -734,7 +734,7 @@ class ListZones(UserTask):
             return {'cloud_id': cloud_id, 'zones': []}
         ret = []
         if cloud.dns_enabled:
-            ret = list_zones(owner, cloud)
+            ret = list_zones(owner, cloud.id)
             log.warn('Returning list zones for user %s cloud %s'
                      % (owner.id, cloud_id))
         return {'cloud_id': cloud_id, 'zones': ret}
