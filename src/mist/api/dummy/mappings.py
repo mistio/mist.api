@@ -6,10 +6,10 @@
 # be used as placeholders.
 
 
-class PermissionMapper(object):
+class AsyncPermissionMapper(object):
     """This class provides a dummy interface to handle RBAC operations."""
 
-    def __init__(self, org):
+    def __init__(self, org=None):
         self.org = org
 
     def update(self, *args, **kwargs):
@@ -17,6 +17,9 @@ class PermissionMapper(object):
 
     def remove(self, *args, **kwargs):
         pass
+
+    def get_mappings(self, *args, **kwargs):
+        return []
 
     def get_resources(self, *args, **kwargs):
         return {}
