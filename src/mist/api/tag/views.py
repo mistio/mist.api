@@ -349,9 +349,10 @@ def set_machine_tags(request):
     # to be re-set. However, `add_tags_to_resource` simply appends the new
     # tags without deleting any.
 
+    old_tags = get_tags_for_resource(auth_context.owner, machine)
+    add_tags_to_resource(auth_context.owner, machine, tags.items())
+
     if config.MACHINE_PATCHES:
-        old_tags = get_tags_for_resource(auth_context.owner, machine)
-        add_tags_to_resource(auth_context.owner, machine, tags.items())
         new_tags = get_tags_for_resource(auth_context.owner, machine)
 
         patch = jsonpatch.JsonPatch.from_diff(old_tags, new_tags).patch
