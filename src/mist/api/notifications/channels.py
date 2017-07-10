@@ -4,6 +4,7 @@ from mist.api.helpers import send_email, amqp_publish_user
 
 from models import Notification
 
+
 class BaseChannel():
     '''
     Represents a notification channel
@@ -90,7 +91,8 @@ class InAppChannel(BaseChannel):
     '''
 
     def send(self, notification):
-        if not Notification.objects(id=notification.id) and notification.dismissed == False:
+        if not Notification.objects(
+                id=notification.id) and notification.dismissed == False:
             notification.save()
             amqp_publish_user(notification.organization,
                               routing_key='notification',
