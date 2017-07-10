@@ -17,7 +17,6 @@ def dismiss_notification(request):
     if user:
         notification_id = request.matchdict.get("notification_id")
         if notification_id:
-            params = params_from_request(request)
             ntfs = Notification.objects(id=notification_id)
             if ntfs:
                 ntf = ntfs[0]
