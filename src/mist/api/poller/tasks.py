@@ -125,13 +125,13 @@ def list_machines(schedule_id):
                 for m in md.values():
                     m.pop('last_seen')
             patch = jsonpatch.JsonPatch.from_diff(old_machines,
-                                                new_machines).patch
+                                                  new_machines).patch
             if patch:
                 print 'patch "%r"' % patch
             amqp_publish_user(cloud.owner.id,
-                            routing_key='patch_machines',
-                            connection=amqp_conn,
-                            data={'cloud_id': cloud.id,
+                              routing_key='patch_machines',
+                              connection=amqp_conn,
+                              data={'cloud_id': cloud.id,
                                     'patch': patch})
 
     # Push historic information for inventory and cost reporting.
