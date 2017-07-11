@@ -1269,6 +1269,33 @@ class OnAppComputeController(BaseComputeController):
         return locations
 
 
+class SolusVMComputeController(BaseComputeController):
+
+    def _connect(self):
+        return get_driver(Provider.SOLUSVM)(key=self.cloud.username,
+                                            secret=self.cloud.apikey,
+                                            host=self.cloud.host,
+                                            port=int(self.cloud.port),
+                                            verify=self.cloud.verify)
+
+    def _list_machines__machine_creation_date(self, machine, machine_libcloud):
+        return machine_libcloud.extra.get('creationdate')
+
+    def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        machine.extra['disk'] = "%s MB" % \
+            str(int(machine.extra.get('disk')) / 1024 / 1024)
+        machine.extra['memory'] = "%s MB" % \
+            str(int(machine.extra.get('memory')) / 1024 / 1024)
+        machine.extra['bandwidth'] = "%s MB" % \
+            str(int(machine.extra.get('bandwidth')) / 1024 / 1024)
+
+    def _list_machines__cost_machine(self, machine, machine_libcloud):
+        return 0, 0
+
+    def _list_locations__fetch_locations(self):
+        return []
+
+
 class OtherComputeController(BaseComputeController):
 
     def _connect(self):
