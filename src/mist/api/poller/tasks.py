@@ -1,12 +1,18 @@
 import logging
 import datetime
 
+from amqp.connection import Connection
+
+import jsonpatch
+
 from mist.api.helpers import amqp_publish
 from mist.api.helpers import amqp_publish_user
 from mist.api.helpers import amqp_owner_listening
 
 from mist.api.methods import notify_user
 from mist.api.tasks import app
+
+from mist.api import config
 
 
 log = logging.getLogger(__name__)
@@ -76,6 +82,10 @@ def list_machines(schedule_id):
     sched.last_attempt_started = now
     cloud.save()
 
+    # Store a dict by machine id of all cached machines.
+    old_machines = {'%s-%s' % (m.id, m.machine_id): m.as_dict()
+                    for m in cloud.ctl.compute.list_cached_machines()}
+
     try:
         # Run list_machines.
         machines = cloud.ctl.compute.list_machines()
@@ -95,12 +105,34 @@ def list_machines(schedule_id):
         sched.last_attempt_started = None
         cloud.save()
 
+    # Initialize AMQP connection to reuse for multiple messages.
+    amqp_conn = Connection(config.AMQP_URI)
+
     # Publish results to rabbitmq (for backwards compatibility).
     if amqp_owner_listening(cloud.owner.id):
-        amqp_publish_user(cloud.owner.id, routing_key='list_machines',
-                          data={'cloud_id': cloud.id,
-                                'machines': [machine.as_dict()
-                                             for machine in machines]})
+        if not config.MACHINE_PATCHES:
+            amqp_publish_user(cloud.owner.id, routing_key='list_machines',
+                              connection=amqp_conn,
+                              data={'cloud_id': cloud.id,
+                                    'machines': [machine.as_dict()
+                                                 for machine in machines]})
+        else:
+            # Publish patches to rabbitmq.
+            new_machines = {'%s-%s' % (m.id, m.machine_id): m.as_dict()
+                            for m in machines}
+            # Exclude last seen fields from patch.
+            for md in old_machines, new_machines:
+                for m in md.values():
+                    m.pop('last_seen')
+            patch = jsonpatch.JsonPatch.from_diff(old_machines,
+                                                  new_machines).patch
+            if patch:
+                print 'patch "%r"' % patch
+            amqp_publish_user(cloud.owner.id,
+                              routing_key='patch_machines',
+                              connection=amqp_conn,
+                              data={'cloud_id': cloud.id,
+                                    'patch': patch})
 
     # Push historic information for inventory and cost reporting.
     for machine in machines:
@@ -109,4 +141,4 @@ def list_machines(schedule_id):
                 'cost_per_month': machine.cost.monthly}
         log.info("Will push to elastic: %s", data)
         amqp_publish(exchange='machines_inventory', routing_key='',
-                     auto_delete=False, data=data)
+                     auto_delete=False, data=data, connection=amqp_conn)

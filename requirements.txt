@@ -22,6 +22,7 @@ gevent
 greenlet
 ipython
 iso8601
+jsonpatch
 jsonpickle
 mongoengine
 mongomock
