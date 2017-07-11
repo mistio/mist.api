@@ -42,6 +42,7 @@ class PollingSchedule(me.Document):
 
     meta = {
         'allow_inheritance': True,
+        'strict': False,
     }
 
     # We use a unique name for easy identification and to avoid running the
@@ -73,12 +74,6 @@ class PollingSchedule(me.Document):
     last_run_at = me.DateTimeField()
     total_run_count = me.IntField(min_value=0)
     run_immediately = me.BooleanField()
-
-    # Extra fields used by poller.
-    last_success = me.DateTimeField()
-    last_failure = me.DateTimeField()
-    last_attempt_started = me.DateTimeField()
-    failure_count = me.IntField(default=0)
 
     def get_name(self):
         """Construct name based on self.task"""
