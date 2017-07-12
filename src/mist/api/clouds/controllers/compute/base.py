@@ -119,6 +119,19 @@ class BaseComputeController(BaseController):
         super(BaseComputeController, self).check_connection()
         self.list_machines()
 
+    def list_cached_machines(self, timedelta=datetime.timedelta(days=1)):
+        """Return list of machines from database
+
+        Only returns machines that existed last time we check and we've seen
+        during the last `timedelta`.
+
+        """
+        return Machine.objects(
+            cloud=self.cloud,
+            missing_since=None,
+            last_seen__gt=datetime.datetime.utcnow() - timedelta,
+        )
+
     def list_machines(self):
         """Return list of machines for cloud
 

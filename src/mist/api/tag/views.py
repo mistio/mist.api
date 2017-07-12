@@ -1,5 +1,8 @@
+import jsonpatch
 import mongoengine as me
 from pyramid.response import Response
+
+from mist.api import config
 
 from mist.api.keys.models import Key
 from mist.api.clouds.models import Cloud
@@ -14,11 +17,13 @@ from mist.api.tag.methods import add_tags_to_resource
 from mist.api.tag.methods import resolve_id_and_get_tags
 from mist.api.tag.methods import remove_tags_from_resource
 from mist.api.tag.methods import resolve_id_and_delete_tags
+from mist.api.tag.methods import get_tags_for_resource
 
 from mist.api.auth.methods import auth_context_from_request
 
 from mist.api.helpers import get_resource_model
 from mist.api.helpers import view_config, params_from_request
+from mist.api.helpers import amqp_publish_user
 
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import NotFoundError, BadRequestError
@@ -114,12 +119,25 @@ def tag_resources(request):
         if not modify_security_tags(auth_context, tags, resource_obj):
             auth_context._raise(rtype, 'edit_security_tags')
 
+        old_tags = get_tags_for_resource(auth_context.owner, resource_obj)
         if tags_to_add:
             add_tags_to_resource(auth_context.owner, resource_obj, tags_to_add)
         if tags_to_remove:
             remove_tags_from_resource(auth_context.owner, resource_obj,
                                       tags_to_remove)
 
+        if config.MACHINE_PATCHES:
+            new_tags = get_tags_for_resource(auth_context.owner, resource_obj)
+            if isinstance(resource_obj, Machine):
+                patch = jsonpatch.JsonPatch.from_diff(old_tags, new_tags).patch
+                for item in patch:
+                    item['path'] = '/%s-%s/tags%s' % (resource_obj.id,
+                                                      resource_obj.machine_id,
+                                                      item['path'])
+                amqp_publish_user(auth_context.owner.id,
+                                  routing_key='patch_machines',
+                                  data={'cloud_id': resource_obj.cloud.id,
+                                        'patch': patch})
     return OK
 
 
@@ -330,7 +348,22 @@ def set_machine_tags(request):
     # order to update a machine's tags by providing the entire list of tags
     # to be re-set. However, `add_tags_to_resource` simply appends the new
     # tags without deleting any.
-    return add_tags_to_resource(auth_context.owner, machine, tags.items())
+
+    old_tags = get_tags_for_resource(auth_context.owner, machine)
+    add_tags_to_resource(auth_context.owner, machine, tags.items())
+
+    if config.MACHINE_PATCHES:
+        new_tags = get_tags_for_resource(auth_context.owner, machine)
+
+        patch = jsonpatch.JsonPatch.from_diff(old_tags, new_tags).patch
+        for item in patch:
+            item['path'] = '/%s-%s/tags%s' % (machine.id, machine.machine_id,
+                                              item['path'])
+        amqp_publish_user(auth_context.owner.id,
+                          routing_key='patch_machines',
+                          data={'cloud_id': cloud_id,
+                                'patch': patch})
+    return {}
 
 
 @view_config(route_name='schedule_tags', request_method='POST',
@@ -650,7 +683,6 @@ def delete_network_tag(request):
       type: string
     """
     auth_context = auth_context_from_request(request)
-    params = params_from_request(request)
     cloud_id = request.matchdict["cloud_id"]
     network_id = request.matchdict["network_id"]
     tag_key = request.matchdict["tag_key"]
