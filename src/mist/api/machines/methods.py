@@ -504,7 +504,7 @@ def _create_machine_ec2(conn, key_name, private_key, public_key,
                 )
                 key_name = keypair['keyName']
             except Exception as exc:
-                raise CloudUnavailableError("Failed to import key")
+                raise CloudUnavailableError("Failed to import key: %s" % exc)
 
     # create security group
     name = config.EC2_SECURITYGROUP.get('name', '')
