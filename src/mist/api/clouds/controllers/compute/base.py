@@ -46,16 +46,14 @@ from mist.api.poller2.models import PeriodicTaskThresholdExceeded
 
 try:
     from mist.core.vpn.methods import destination_nat as dnat
-    from mist.core.vpn.methods import super_ping
 except ImportError:
-    from mist.api.dummy.methods import dnat, super_ping
+    from mist.api.dummy.methods import dnat
 
 from mist.api.clouds.controllers.base import BaseController
 
 from mist.api.tag.models import Tag
 
 from mist.api.machines.models import Machine
-
 
 log = logging.getLogger(__name__)
 
@@ -199,7 +197,6 @@ class BaseComputeController(BaseController):
             data = {'owner_id': self.cloud.owner.id,
                     'machine_id': machine.id,
                     'cost_per_month': machine.cost.monthly}
-            log.info("Will push to elastic: %s", data)
             amqp_publish(exchange='machines_inventory', routing_key='',
                          auto_delete=False, data=data, connection=amqp_conn)
 
@@ -553,9 +550,9 @@ class BaseComputeController(BaseController):
             return True
         try:
             log.info("Pinging %s", hostname)
-            ping = super_ping(owner=self.cloud.owner,
-                              host=hostname, pkts=1)
-            if int(ping.get('packets_rx', 0)) > 0:
+            from mist.api.methods import ping
+            ping_res = ping(owner=self.cloud.owner, host=hostname, pkts=1)
+            if int(ping_res.get('packets_rx', 0)) > 0:
                 log.info("Successfully pinged %s", hostname)
                 return True
         except:

@@ -10,7 +10,10 @@ with open(os.path.join(REPODIR, 'requirements.txt')) as fobj:
     REQUIRES = list()
     DEPENDENCIES = list()
     for line in fobj.readlines():
-        if line.startswith('#') or not line.strip():
+        line = line.strip()
+        if line.startswith('#') or not line:
+            continue
+        if line.startswith('http://') or line.startswith('https://'):
             continue
         if line.startswith('-e'):
             DEPENDENCIES.append(line[2:].strip())

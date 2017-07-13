@@ -47,3 +47,4 @@ tornado
 tornado_profile
 uwsgidecorators
 websocket-client
+https://github.com/ssteinerx/pingparser/archive/master.zip

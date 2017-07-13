@@ -1,18 +1,8 @@
 import logging
 import datetime
 
-from amqp.connection import Connection
-
-import jsonpatch
-
-from mist.api.helpers import amqp_publish
-from mist.api.helpers import amqp_publish_user
-from mist.api.helpers import amqp_owner_listening
-
 from mist.api.methods import notify_user
 from mist.api.tasks import app
-
-from mist.api import config
 
 
 log = logging.getLogger(__name__)
