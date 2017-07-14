@@ -168,7 +168,6 @@ class Cloud(me.Document):
         self.owner.mapper.remove(self)
 
     def clean(self):
-        super(Cloud, self).clean()
         if self.dns_enabled and not hasattr(self.ctl, 'dns'):
             self.dns_enabled = False
 
