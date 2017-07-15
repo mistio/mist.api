@@ -470,6 +470,12 @@ class AzureArmComputeController(BaseComputeController):
         if machine_libcloud.state is NodeState.PAUSED:
             machine.actions.start = True
 
+    def _list_sizes__fetch_sizes(self):
+        #grab one location
+        location = self.connection.list_locations()[0]
+        sizes = self.connection.list_sizes(location)
+        return sizes
+
 
 class GoogleComputeController(BaseComputeController):
 
