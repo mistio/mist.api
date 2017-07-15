@@ -449,7 +449,14 @@ class AzureArmComputeController(BaseComputeController):
         return machine_libcloud.created_at  # datetime
 
     def _list_images__fetch_images(self, search=None):
-        return []
+        #grab one location
+        location = self.connection.list_locations()[0]
+        #fetch images from some providers, otherwise Azure takes hour to bring everything
+        images = self.connection.list_images(location, ex_publisher="SUSE") + \
+                     self.connection.list_images(location, ex_publisher="Canonical") + \
+                     self.connection.list_images(location, ex_publisher="RedHat") + \
+                     self.connection.list_images(location, ex_publisher="MicrosoftWindowsServer")
+        return images
 
     def _reboot_machine(self, machine, machine_libcloud):
         self.connection.reboot_node(machine_libcloud)
