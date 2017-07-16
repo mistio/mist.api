@@ -180,10 +180,10 @@ class PeriodicTaskInfo(me.Document):
         except Exception as exc:
             log.exception(exc)
             self.last_failure = datetime.datetime.now()
-            self.failure_count += 1
+            self.failures_count += 1
         else:
             self.last_success = datetime.datetime.now()
-            self.failure_count = 0
+            self.failures_count = 0
         finally:
             self.last_attempt_started = None
             self.save()

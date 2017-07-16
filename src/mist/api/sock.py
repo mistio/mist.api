@@ -26,6 +26,8 @@ from mist.api.logs.methods import get_stories
 from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 from mist.api.poller.models import ListMachinesPollingSchedule
+from mist.api.poller.models import PingProbeMachinePollingSchedule
+from mist.api.poller.models import SSHProbeMachinePollingSchedule
 
 from mist.api.auth.methods import auth_context_from_session_id
 
@@ -302,6 +304,11 @@ class MainConnection(MistConnection):
         log.info("Updating poller for %s", self)
         for cloud in Cloud.objects(owner=self.owner, deleted=None):
             ListMachinesPollingSchedule.add(cloud=cloud, interval=10, ttl=120)
+            for machine in Machine.objects(cloud=cloud):
+                PingProbeMachinePollingSchedule.add(machine=machine,
+                                                    interval=90, ttl=120)
+                SSHProbeMachinePollingSchedule.add(machine=machine,
+                                                   interval=90, ttl=120)
 
     def update_user(self):
         self.send('user', get_user_data(self.auth_context))

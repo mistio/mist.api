@@ -74,7 +74,7 @@ class MachineController(object):
         from mist.api.methods import ping
         from mist.api.machines.models import PingProbe
 
-        def _get_probe_dict(self):
+        def _get_probe_dict():
             data = {}
             if self.machine.ping_probe is not None:
                 data = self.machine.ping_probe.as_dict()
@@ -106,7 +106,7 @@ class MachineController(object):
         from mist.api.methods import probe_ssh_only
         from mist.api.machines.models import SSHProbe
 
-        def _get_probe_dict(self):
+        def _get_probe_dict():
             data = {}
             if self.machine.ssh_probe is not None:
                 data = self.machine.ssh_probe.as_dict()

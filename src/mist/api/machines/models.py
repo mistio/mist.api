@@ -253,6 +253,9 @@ class Machine(me.Document):
     monitoring = me.EmbeddedDocumentField(Monitoring,
                                           default=lambda: Monitoring())
 
+    ssh_probe = me.EmbeddedDocumentField(SSHProbe, required=False)
+    ping_probe = me.EmbeddedDocumentField(PingProbe, required=False)
+
     meta = {
         'collection': 'machines',
         'indexes': [
