@@ -332,7 +332,7 @@ def probe_ssh_only(owner, cloud_id, machine_id, host, key_id='', ssh_user='',
         "echo -------- && "
         "uptime && "
         "echo -------- && "
-        "if [ -f /proc/uptime ]; then cat /proc/uptime; "
+        "if [ -f /proc/uptime ]; then cat /proc/uptime | cut -d' ' -f1; "
         "else expr `date '+%s'` - `sysctl kern.boottime | sed -En 's/[^0-9]*([0-9]+).*/\\1/p'`;"
         "fi; "
         "echo -------- && "
@@ -359,7 +359,8 @@ def probe_ssh_only(owner, cloud_id, machine_id, host, key_id='', ssh_user='',
                                  host, command, key_id=key_id)
     else:
         retval, cmd_output = shell.command(command)
-    cmd_output = cmd_output.replace('\r', '').split('--------')
+    cmd_output = [str(part).strip()
+                  for part in cmd_output.replace('\r', '').split('--------')]
     log.warn(cmd_output)
     uptime_output = cmd_output[1]
     loadavg = re.split('load averages?: ', uptime_output)[1].split(', ')
