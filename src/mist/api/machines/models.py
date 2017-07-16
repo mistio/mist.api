@@ -1,6 +1,8 @@
 """Machine entity model."""
 import json
 import uuid
+import logging
+import datetime
 import mongoengine as me
 
 import mist.api.tag.models
@@ -8,6 +10,9 @@ from mist.api.keys.models import Key
 from mist.api.machines.controllers import MachineController
 
 from mist.api import config
+
+
+log = logging.getLogger(__name__)
 
 
 class KeyAssociation(me.EmbeddedDocument):
@@ -107,6 +112,100 @@ class Cost(me.EmbeddedDocument):
 
     def as_dict(self):
         return json.loads(self.to_json())
+
+
+class PingProbe(me.EmbeddedDocument):
+    packets_tx = me.IntField()
+    packets_rx = me.IntField()
+    packets_loss = me.FloatField()
+    rtt_min = me.FloatField()
+    rtt_max = me.FloatField()
+    rtt_avg = me.FloatField()
+    rtt_std = me.FloatField()
+    updated_at = me.DateTimeField()
+
+    def update_from_dict(self, data):
+        for key in data:
+            setattr(self, key, data[key])
+        self.updated_at = datetime.datetime.now()
+
+    def as_dict(self):
+        data = {key: getattr(self, key) for key in (
+            'packets_tx', 'packets_rx', 'packets_loss',
+            'rtt_min', 'rtt_max', 'rtt_avg', 'rtt_std', 'updated_at',
+        )}
+        if data['updated_at']:
+            data['updated_at'] = str(data['updated_at'].replace(tzinfo=None))
+        return data
+
+
+class SSHProbe(me.EmbeddedDocument):
+    uptime = me.FloatField()  # seconds
+    loadavg = me.ListField(me.FloatField)
+    cores = me.IntField()
+    users = me.IntField()
+    pub_ips = me.ListField(me.StringField)
+    priv_ips = me.ListField(me.StringField)
+    macs = me.ListField(me.StringField)
+    df = me.StringField()
+    kernel = me.StringField()
+    os = me.StringField()
+    os_version = me.StringField()
+    dirty_cow = me.BooleanField()
+    updated_at = me.DateTimeField()
+
+    def update_from_dict(self, data):
+
+        uptime = data.get('uptime')
+        try:
+            self.uptime = float(uptime)
+        except (ValueError, TypeError):
+            log.error("Invalid uptime value: %s", uptime)
+            self.uptime = 0
+
+        loadavg = data.get('loadavg')
+        try:
+            assert isinstance(loadavg, list)
+            assert len(loadavg) == 3
+            for i in range(3):
+                loadavg[i] = float(loadavg[i])
+            self.loadavg = loadavg
+        except Exception as exc:
+            log.error("Invalid loadavg '%s': %r", loadavg, exc)
+            self.loadavg = []
+
+        for int_attr in ('cores', 'users'):
+            val = data.get(int_attr)
+            try:
+                setattr(self, int_attr, int(val))
+            except Exception as exc:
+                log.error("Invalid %s '%s': %r", int_attr, val, exc)
+                setattr(self, int_attr, 0)
+
+        for strarr_attr in ('pub_ips', 'priv_ips', 'macs'):
+            val = data.get(strarr_attr)
+            try:
+                assert isinstance(val, list)
+                assert all(isinstance(item, basestring) for item in val)
+                setattr(self, strarr_attr, val)
+            except Exception as exc:
+                log.error("Invalid %s '%s': %r", strarr_attr, val, exc)
+                setattr(self, strarr_attr, [])
+
+        for str_attr in ('df', 'kernel', 'os', 'os_version'):
+            setattr(self, str_attr, str(data.get(str_attr, '')))
+
+        self.dirty_cow = bool(data.get('dirty_cow'))
+        self.updated_at = datetime.datetime.now()
+
+    def as_dict(self):
+        data = {key: getattr(self, key) for key in (
+            'uptime', 'loadavg', 'cores', 'users', 'pub_ips', 'priv_ips', 'df',
+            'macs', 'kernel', 'os', 'os_version', 'dirty_cow', 'updated_at'
+        )}
+        if data['updated_at']:
+            data['updated_at'] = str(data['updated_at'].replace(tzinfo=None))
+        return data
 
 
 class Machine(me.Document):
@@ -230,6 +329,12 @@ class Machine(me.Document):
                            if self.created else ''),
             'machine_type': self.machine_type,
             'parent_id': self.parent.id if self.parent is not None else '',
+            'probe': {
+                'ping': (self.ping_probe.as_dict()
+                         if self.ping_probe is not None else {}),
+                'ssh': (self.ssh_probe.as_dict()
+                        if self.ssh_probe is not None else {}),
+            },
         }
 
     def as_dict_old(self):

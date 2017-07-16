@@ -179,10 +179,11 @@ class BaseComputeController(BaseController):
                 # Publish patches to rabbitmq.
                 new_machines = {'%s-%s' % (m.id, m.machine_id): m.as_dict()
                                 for m in machines}
-                # Exclude last seen fields from patch.
+                # Exclude last seen and probe fields from patch.
                 for md in old_machines, new_machines:
                     for m in md.values():
                         m.pop('last_seen')
+                        m.pop('probe')
                 patch = jsonpatch.JsonPatch.from_diff(old_machines,
                                                       new_machines).patch
                 if patch:

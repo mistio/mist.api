@@ -1,3 +1,8 @@
+import jsonpatch
+
+from mist.api.helpers import amqp_publish_user
+
+
 class MachineController(object):
     def __init__(self, machine):
         """Initialize machine controller given a machine
@@ -54,3 +59,78 @@ class MachineController(object):
         """Associate an sshkey with a machine"""
         return key.ctl.associate(self.machine, username=username,
                                  port=port, no_connect=no_connect)
+
+    def get_host(self):
+        if self.machine.hostname:
+            return self.machine.hostname
+        if self.public_ips:
+            return self.public_ips[0]
+        if self.private_ips:
+            return self.private_ips[0]
+        raise RuntimeError("Couldn't find machine host.")
+
+    def ping_probe(self):
+
+        from mist.api.methods import ping
+        from mist.api.machines.models import PingProbe
+
+        def _get_probe_dict(self):
+            data = {}
+            if self.machine.ping_probe is not None:
+                data = self.machine.ping_probe.as_dict()
+            return {
+                '%s-%s' % (self.machine.id, self.machine.machine_id): {
+                    'probe': {
+                        'ping': data
+                    }
+                }
+            }
+
+        old_probe_data = _get_probe_dict()
+        data = ping(self.machine.cloud.owner, self.get_host())
+        probe = PingProbe()
+        probe.update_from_dict(data)
+        self.machine.ping_probe = probe
+        self.machine.save()
+        new_probe_data = _get_probe_dict()
+        patch = jsonpatch.JsonPatch.from_diff(old_probe_data,
+                                              new_probe_data).patch
+        if patch:
+            amqp_publish_user(self.machine.cloud.owner.id,
+                              routing_key='patch_machines',
+                              data={'cloud_id': self.machine.cloud.id,
+                                    'patch': patch})
+        return self.machine.ping_probe.as_dict()
+
+    def ssh_probe(self):
+        from mist.api.methods import probe_ssh_only
+        from mist.api.machines.models import SSHProbe
+
+        def _get_probe_dict(self):
+            data = {}
+            if self.machine.ssh_probe is not None:
+                data = self.machine.ssh_probe.as_dict()
+            return {
+                '%s-%s' % (self.machine.id, self.machine.machine_id): {
+                    'probe': {
+                        'ssh': data
+                    }
+                }
+            }
+
+        old_probe_data = _get_probe_dict()
+        data = probe_ssh_only(self.machine.cloud.owner, self.machine.cloud.id,
+                              self.machine.machine_id, self.get_host())
+        probe = SSHProbe()
+        probe.update_from_dict(data)
+        self.machine.ssh_probe = probe
+        self.machine.save()
+        new_probe_data = _get_probe_dict()
+        patch = jsonpatch.JsonPatch.from_diff(old_probe_data,
+                                              new_probe_data).patch
+        if patch:
+            amqp_publish_user(self.machine.cloud.owner.id,
+                              routing_key='patch_machines',
+                              data={'cloud_id': self.machine.cloud.id,
+                                    'patch': patch})
+        return self.machine.ssh_probe.as_dict()
