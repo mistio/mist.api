@@ -391,6 +391,16 @@ class BaseComputeController(BaseController):
             machine.save()
             machines.append(machine)
 
+            # Set machine hostname
+            if not machine.hostname:
+                ips = machine.public_ips + machine.private_ips
+                if not ips:
+                    ips = []
+                for ip in ips:
+                    if ip and ':' not in ip:
+                        machine.hostname = ip
+                        break
+
         # Set last_seen on machine models we didn't see for the first time now.
         Machine.objects(cloud=self.cloud,
                         id__nin=[m.id for m in machines],
