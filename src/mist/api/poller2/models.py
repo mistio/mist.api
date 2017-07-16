@@ -72,10 +72,20 @@ class PeriodicTaskInfo(me.Document):
         log.debug("Loaded PeriodicTaskInfo for '%s'.", key)
         return task
 
+    def get_last_run(self):
+        if self.last_success and self.last_failure:
+            return max(self.last_success, self.last_failure)
+        return self.last_success or self.last_failure
+
     def check_failures_threshold_exceeded(self):
         """Raise PeriodicTaskThresholdExceeed if task should be autodisabled"""
 
         now = datetime.datetime.now()
+
+        # If it hasn't run recently, then allow it to run.
+        last_run = self.get_last_run()
+        if not last_run or now - last_run > datetime.timedelta(days=1):
+            return
 
         # Not exceeded if it hasn't failed enough times.
         if self.min_failures_count is not None:
@@ -105,10 +115,7 @@ class PeriodicTaskInfo(me.Document):
         now = datetime.datetime.now()
         # Find last run. If too recent, abort.
         if self.min_interval:
-            if self.last_success and self.last_failure:
-                last_run = max(self.last_success, self.last_failure)
-            else:
-                last_run = self.last_success or self.last_failure
+            last_run = self.get_last_run()
             if last_run:
                 if now - last_run < self.min_interval:
                     raise Exception()
