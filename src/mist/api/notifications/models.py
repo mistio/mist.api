@@ -102,7 +102,7 @@ class Notification(me.Document):
         kind properties
         '''
         if self.action_link:
-            return action_link
+            return self.action_link
         if self.resource is Machine:
             return "/machines/" + self.resource.id
         if self.resource is Cloud:
