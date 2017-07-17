@@ -2,6 +2,8 @@
 from mist.api import config
 from mist.api.helpers import send_email, amqp_publish_user
 
+import logging
+
 
 class BaseChannel():
     '''
@@ -75,8 +77,9 @@ class EmailReportsChannel(BaseChannel):
                 return self.sg_instance.client.mail.send.post(
                     request_body=mdict)
             except Exception as exc:
-                print str(exc)
-                print exc.read()
+                logging.error(str(exc.status_code) + ' - ' + exc.reason)
+                logging.error(exc.to_dict)
+                exit()
         else:
             send_email(notification.subject, notification.body,
                        [to], sender="config.EMAIL_REPORT_SENDER")
