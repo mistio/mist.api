@@ -34,11 +34,16 @@ from xml.sax.saxutils import escape
 from libcloud.pricing import get_size_price
 from libcloud.compute.base import Node, NodeImage
 from libcloud.compute.providers import get_driver
+from libcloud.container.providers import get_driver as get_container_driver
 from libcloud.compute.types import Provider, NodeState
-
+from libcloud.container.types import Provider as Container_Provider
+from libcloud.container.types import ContainerState
+from libcloud.container.base import ContainerImage, Container
+from libcloud.utils.networking import is_private_subnet
 from mist.api.exceptions import MistError
 from mist.api.exceptions import InternalServerError
 from mist.api.exceptions import MachineNotFoundError
+from mist.api.helpers import sanitize_host
 
 from mist.api.machines.models import Machine
 
@@ -75,6 +80,16 @@ class AmazonComputeController(BaseComputeController):
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         # This is windows for windows servers and None for Linux.
         machine.os_type = machine_libcloud.extra.get('platform', 'linux')
+
+        try:
+            # return list of ids for network interfaces as str
+            network_interfaces = machine.extra['network_interfaces']
+            network_interfaces = [network_interface.id for network_interface
+                                  in network_interfaces]
+            network_interfaces = ','.join(network_interfaces)
+            machine.extra['network_interfaces'] = network_interfaces
+        except:
+            machine.extra['network_interfaces'] = []
 
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         # TODO: stopped instances still charge for the EBS device
@@ -156,6 +171,12 @@ class AmazonComputeController(BaseComputeController):
                 pass
         return locations
 
+    def _list_sizes__fetch_sizes(self):
+        sizes = self.connection.list_sizes()
+        for size in sizes:
+            size.name = '%s - %s' % (size.id, size.name)
+        return sizes
+
 
 class DigitalOceanComputeController(BaseComputeController):
 
@@ -166,14 +187,16 @@ class DigitalOceanComputeController(BaseComputeController):
         return machine_libcloud.extra.get('created_at')  # iso8601 string
 
     def _list_machines__machine_actions(self, machine, machine_libcloud):
-        super(
-            DigitalOceanComputeController, self
-        )._list_machines__machine_actions(machine, machine_libcloud)
+        super(DigitalOceanComputeController,
+              self)._list_machines__machine_actions(machine, machine_libcloud)
         machine.actions.rename = True
 
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         size = machine_libcloud.extra.get('size', {})
         return size.get('price_hourly', 0), size.get('price_monthly', 0)
+
+    def _stop_machine(self, machine, machine_libcloud):
+        self.connection.ex_shutdown_node(machine_libcloud)
 
 
 class LinodeComputeController(BaseComputeController):
@@ -188,7 +211,7 @@ class LinodeComputeController(BaseComputeController):
         super(LinodeComputeController, self)._list_machines__machine_actions(
             machine, machine_libcloud)
         machine.actions.rename = True
-        machine.actions.stop = False
+        # machine.actions.stop = False
         # After resize, node gets to pending mode, needs to be started.
         if machine_libcloud.state is NodeState.PENDING:
             machine.actions.start = True
@@ -214,9 +237,8 @@ class RackSpaceComputeController(BaseComputeController):
         return machine_libcloud.extra.get('created')  # iso8601 string
 
     def _list_machines__machine_actions(self, machine, machine_libcloud):
-        super(
-            RackSpaceComputeController, self
-        )._list_machines__machine_actions(machine, machine_libcloud)
+        super(RackSpaceComputeController,
+              self)._list_machines__machine_actions(machine, machine_libcloud)
         machine.actions.rename = True
 
     def _list_machines__cost_machine(self, machine, machine_libcloud):
@@ -244,6 +266,14 @@ class RackSpaceComputeController(BaseComputeController):
             # TODO: RackSpace mentions on
             # https://www.rackspace.com/cloud/public-pricing
             # there's a minimum service charge of $50/mo across all servers.
+
+    def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        # do not include ipv6 on public ips
+        public_ips = []
+        for ip in machine.public_ips:
+            if ip and ':' not in ip:
+                public_ips.append(ip)
+        machine.public_ips = public_ips
 
 
 class SoftLayerComputeController(BaseComputeController):
@@ -317,6 +347,12 @@ class NephoScaleComputeController(BaseComputeController):
         sizes = self.connection.list_sizes(baremetal=False)
         sizes.extend(self.connection.list_sizes(baremetal=True))
         return sizes
+
+    def _list_machines__cost_machine(self, machine, machine_libcloud):
+        size = str(machine_libcloud.extra.get('size_id', ''))
+        price = get_size_price(driver_type='compute', driver_name='nephoscale',
+                               size_id=size)
+        return price, 0
 
 
 class AzureComputeController(BaseComputeController):
@@ -459,10 +495,24 @@ class GoogleComputeController(BaseComputeController):
 
         # Wrap in try/except to prevent from future GCE API changes.
         # Identify server OS.
-        machine.os_type = 'linux'
+        os_type = 'linux'
+        machine.os_type = machine.extra['os_type'] = os_type
+
         try:
+            license = extra.get('license')
+            if license:
+                if 'sles' in license:
+                    os_type = 'sles'
+                if 'rhel' in license:
+                    os_type = 'rhel'
+                if 'win' in license:
+                    os_type = 'win'
+                    machine.os_type = 'windows'
+                machine.extra['os_type'] = os_type
+
             if 'windows-cloud' in extra['disks'][0]['licenses'][0]:
                 machine.os_type = 'windows'
+                machine.extra['os_type'] = 'win'
         except:
             log.exception("Couldn't parse os_type for machine %s:%s for %s",
                           machine.id, machine.name, self.cloud)
@@ -508,7 +558,7 @@ class GoogleComputeController(BaseComputeController):
             return 0, 0
         # https://cloud.google.com/compute/pricing
         size = machine_libcloud.extra.get('machineType').split('/')[-1]
-        location = machine_libcloud.extra.get('location')
+        location = machine_libcloud.extra.get('zone').name
         # Get the location, locations currently are
         # europe us asia-east asia-northeast
         # all with different pricing
@@ -518,6 +568,8 @@ class GoogleComputeController(BaseComputeController):
         elif 'asia-east' in location:
             # eg asia-east1-a
             location = 'asia_east'
+        elif 'asia' in location:
+            location = 'asia'
         else:
             # eg europe-west1-d
             location = location.split('-')[0]
@@ -527,11 +579,11 @@ class GoogleComputeController(BaseComputeController):
 
         if not price:
             if size.startswith('custom'):
-                cpu_price = 'custom_vcpu'
-                ram_price = 'custom_ram'
+                cpu_price = 'custom-vm-core'
+                ram_price = 'custom-vm-ram'
                 if 'preemptible' in size:
-                    cpu_price = 'custom_vcpu_preemptible'
-                    ram_price = 'custom_ram_preemptible'
+                    cpu_price = 'custom-vm-core-preemptible'
+                    ram_price = 'custom-vm-ram-preemptible'
 
                 cpu_price = get_size_price(driver_type='compute',
                                            driver_name=driver_name,
@@ -628,7 +680,11 @@ class VultrComputeController(BaseComputeController):
         return machine_libcloud.extra.get('date_created')  # iso8601 string
 
     def _list_machines__cost_machine(self, machine, machine_libcloud):
-        return machine_libcloud.extra.get('cost_per_month', 0)
+        return 0, machine_libcloud.extra.get('cost_per_month', 0)
+
+    def _list_sizes__fetch_sizes(self):
+        sizes = self.connection.list_sizes()
+        return [size for size in sizes if not size.extra.get('deprecated')]
 
 
 class VSphereComputeController(BaseComputeController):
@@ -655,8 +711,8 @@ class VCloudComputeController(BaseComputeController):
         host = dnat(self.cloud.owner, self.cloud.host)
         return get_driver(self.provider)(self.cloud.username,
                                          self.cloud.password, host=host,
-                                         port=int(self.cloud.port),
-                                         verify_match_hostname=False)
+                                         port=int(self.cloud.port)
+                                         )
 
     def _list_machines__machine_actions(self, machine, machine_libcloud):
         super(VCloudComputeController, self)._list_machines__machine_actions(
@@ -684,10 +740,17 @@ class OpenStackComputeController(BaseComputeController):
         return machine_libcloud.extra.get('created')  # iso8601 string
 
     def _list_machines__machine_actions(self, machine, machine_libcloud):
-        super(
-            OpenStackComputeController, self
-        )._list_machines__machine_actions(machine, machine_libcloud)
+        super(OpenStackComputeController,
+              self)._list_machines__machine_actions(machine, machine_libcloud)
         machine.actions.rename = True
+
+    def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        # do not include ipv6 on public ips
+        public_ips = []
+        for ip in machine.public_ips:
+            if ip and ':' not in ip:
+                public_ips.append(ip)
+        machine.public_ips = public_ips
 
 
 class DockerComputeController(BaseComputeController):
@@ -698,6 +761,15 @@ class DockerComputeController(BaseComputeController):
 
     def _connect(self):
         host, port = dnat(self.cloud.owner, self.cloud.host, self.cloud.port)
+
+        try:
+            socket.setdefaulttimeout(15)
+            so = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            so.connect((sanitize_host(host), int(port)))
+            so.close()
+        except:
+            raise Exception("Make sure host is accessible "
+                            "and docker port is specified")
 
         # TLS authentication.
         if self.cloud.key_file and self.cloud.cert_file:
@@ -714,24 +786,74 @@ class DockerComputeController(BaseComputeController):
                 ca_cert_temp_file.close()
                 ca_cert = ca_cert_temp_file.name
 
-            return get_driver(Provider.DOCKER)(host=host,
-                                               port=port,
-                                               key_file=key_temp_file.name,
-                                               cert_file=cert_temp_file.name,
-                                               ca_cert=ca_cert,
-                                               verify_match_hostname=False)
+            # tls auth
+            return get_container_driver(Container_Provider.DOCKER)(
+                host=host, port=port,
+                key_file=key_temp_file.name,
+                cert_file=cert_temp_file.name,
+                ca_cert=ca_cert)
 
         # Username/Password authentication.
-        return get_driver(Provider.DOCKER)(self.cloud.username,
-                                           self.cloud.password,
-                                           host, port)
+        if self.cloud.username and self.cloud.password:
+
+            return get_container_driver(Container_Provider.DOCKER)(
+                key=self.cloud.username,
+                secret=self.cloud.password,
+                host=host, port=port)
+        # open authentication.
+        else:
+            return get_container_driver(Container_Provider.DOCKER)(
+                host=host, port=port)
+
+    def _list_machines__fetch_machines(self):
+        """Perform the actual libcloud call to get list of containers"""
+        containers = self.connection.list_containers(all=self.cloud.show_all)
+        # add public/private ips for mist
+        for container in containers:
+            public_ips, private_ips = [], []
+            host = sanitize_host(self.cloud.host)
+            if is_private_subnet(host):
+                private_ips.append(host)
+            else:
+                public_ips.append(host)
+
+            container.public_ips = public_ips
+            container.private_ips = private_ips
+            container.size = None
+            container.image = container.image.name
+        return containers
 
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
-        return machine_libcloud.created_at  # unix timestamp
+        return machine_libcloud.extra.get('created')  # unix timestamp
+
+    def _list_machines__machine_actions(self, machine, machine_libcloud):
+        # todo this is not necessary
+        super(DockerComputeController, self)._list_machines__machine_actions(
+            machine, machine_libcloud)
+        if machine_libcloud.state in (ContainerState.REBOOTING,
+                                      ContainerState.PENDING):
+            machine.actions.start = False
+            machine.actions.stop = False
+            machine.actions.reboot = False
+        elif machine_libcloud.state in (ContainerState.STOPPED,
+                                        ContainerState.UNKNOWN):
+            # We assume unknown state means stopped.
+            machine.actions.start = True
+            machine.actions.stop = False
+            machine.actions.reboot = False
+        elif machine_libcloud.state in (ContainerState.TERMINATED, ):
+            machine.actions.start = False
+            machine.actions.stop = False
+            machine.actions.reboot = False
+            machine.actions.destroy = False
+            machine.actions.rename = False
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         machine.machine_type = 'container'
         machine.parent = self.dockerhost
+
+    def _list_sizes__fetch_sizes(self):
+        return []
 
     @property
     def dockerhost(self):
@@ -785,22 +907,84 @@ class DockerComputeController(BaseComputeController):
         self._dockerhost = machine
         return machine
 
+    def inspect_node(self, machine_libcloud):
+        """
+        Inspect a container
+        """
+        result = self.connection.connection.request(
+            "/v%s/containers/%s/json" % (self.connection.version,
+                                         machine_libcloud.id)).object
+
+        name = result.get('Name').strip('/')
+        if result['State']['Running']:
+            state = ContainerState.RUNNING
+        else:
+            state = ContainerState.STOPPED
+
+        extra = {
+            'image': result.get('Image'),
+            'volumes': result.get('Volumes'),
+            'env': result.get('Config', {}).get('Env'),
+            'ports': result.get('ExposedPorts'),
+            'network_settings': result.get('NetworkSettings', {}),
+            'exit_code': result['State'].get("ExitCode")
+        }
+
+        node_id = result.get('Id')
+        if not node_id:
+            node_id = result.get('ID', '')
+
+        host = sanitize_host(self.cloud.host)
+        public_ips, private_ips = [], []
+        if is_private_subnet(host):
+            private_ips.append(host)
+        else:
+            public_ips.append(host)
+
+        networks = result['NetworkSettings'].get('Networks', {})
+        for network in networks:
+            network_ip = networks[network].get('IPAddress')
+            if is_private_subnet(network_ip):
+                private_ips.append(network_ip)
+            else:
+                public_ips.append(network_ip)
+
+        ips = []  # TODO maybe the api changed
+        ports = result.get('Ports', [])
+        for port in ports:
+            if port.get('IP') is not None:
+                ips.append(port.get('IP'))
+
+        contnr = (Container(id=node_id,
+                            name=name,
+                            image=result.get('Image'),
+                            state=state,
+                            ip_addresses=ips,
+                            driver=self.connection,
+                            extra=extra))
+        contnr.public_ips = public_ips
+        contnr.private_ips = private_ips
+        contnr.size = None
+        return contnr
+
     def _list_machines__fetch_generic_machines(self):
         return [self.dockerhost]
 
     def _list_images__fetch_images(self, search=None):
         # Fetch mist's recommended images
-        images = [NodeImage(id=image, name=name,
-                            driver=self.connection, extra={})
+        images = [ContainerImage(id=image, name=name, path=None,
+                                 version=None, driver=self.connection,
+                                 extra={})
                   for image, name in config.DOCKER_IMAGES.items()]
         # Add starred images
-        images += [NodeImage(id=image, name=image,
-                             driver=self.connection, extra={})
+        images += [ContainerImage(id=image, name=image, path=None,
+                                  version=None, driver=self.connection,
+                                  extra={})
                    for image in self.cloud.starred
                    if image not in config.DOCKER_IMAGES]
         # Fetch images from libcloud (supports search).
         if search:
-            images += self.connection.search_images(term=search)[:100]
+            images += self.connection.ex_search_images(term=search)[:100]
         else:
             images += self.connection.list_images()
         return images
@@ -816,20 +1000,46 @@ class DockerComputeController(BaseComputeController):
         # this exist here cause of docker host implementation
         if machine.machine_type == 'container-host':
             return
+        container_info = self.inspect_node(machine_libcloud)
 
-        node_info = self.connection.inspect_node(machine_libcloud)
         try:
-            port = node_info.extra[
+            port = container_info.extra[
                 'network_settings']['Ports']['22/tcp'][0]['HostPort']
-        except KeyError:
+        except (KeyError, TypeError):
+            # add TypeError in case of 'Ports': {u'22/tcp': None}
             port = 22
 
         for key_assoc in machine.key_associations:
             key_assoc.port = port
         machine.save()
 
+    def _get_machine_libcloud(self, machine, no_fail=False):
+        """Return an instance of a libcloud node
+
+        This is a private method, used mainly by machine action methods.
+        """
+        assert self.cloud == machine.cloud
+        for node in self.connection.list_containers():
+            if node.id == machine.machine_id:
+                return node
+        if no_fail:
+            container = Container(id=machine.machine_id,
+                                  name=machine.machine_id,
+                                  image=machine.image_id,
+                                  state=0,
+                                  ip_addresses=[],
+                                  driver=self.connection,
+                                  extra={})
+            container.public_ips = []
+            container.private_ips = []
+            container.size = None
+            return container
+        raise MachineNotFoundError(
+            "Machine with machine_id '%s'." % machine.machine_id
+        )
+
     def _start_machine(self, machine, machine_libcloud):
-        self.connection.ex_start_node(machine_libcloud)
+        self.connection.start_container(machine_libcloud)
         self._action_change_port(machine, machine_libcloud)
 
     def reboot_machine(self, machine):
@@ -838,13 +1048,17 @@ class DockerComputeController(BaseComputeController):
         return super(DockerComputeController, self).reboot_machine(machine)
 
     def _reboot_machine(self, machine, machine_libcloud):
-        machine_libcloud.reboot()
+        self.connection.restart_container(machine_libcloud)
         self._action_change_port(machine, machine_libcloud)
 
+    def _stop_machine(self, machine, machine_libcloud):
+        self.connection.stop_container(machine_libcloud)
+        return True
+
     def _destroy_machine(self, machine, machine_libcloud):
-        if machine_libcloud.state == NodeState.RUNNING:
-            self.connection.ex_stop_node(machine_libcloud)
-        machine_libcloud.destroy()
+        if machine_libcloud.state == ContainerState.RUNNING:
+            self.connection.stop_container(machine_libcloud)
+        self.connection.destroy_container(machine_libcloud)
 
 
 class LibvirtComputeController(BaseComputeController):
@@ -934,7 +1148,8 @@ class OnAppComputeController(BaseComputeController):
     def _connect(self):
         return get_driver(Provider.ONAPP)(key=self.cloud.username,
                                           secret=self.cloud.apikey,
-                                          host=self.cloud.host)
+                                          host=self.cloud.host,
+                                          verify=self.cloud.verify)
 
     def _list_machines__machine_actions(self, machine, machine_libcloud):
         super(OnAppComputeController, self)._list_machines__machine_actions(
