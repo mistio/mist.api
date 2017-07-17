@@ -34,10 +34,9 @@ class EmailReportsChannel(BaseChannel):
         '''
         user = notification.user
 
-        to = getattr(notification, "email", user.email)
-        full_name = getattr(notification, "full_name", user.get_nice_name())
-        first_name = getattr(notification,
-                             "name", user.first_name or user.get_nice_name())
+        to = notification.email or user.email
+        full_name = user.get_nice_name()
+        first_name = user.first_name or user.get_nice_name()
 
         if (hasattr(config, "SENDGRID_REPORTING_KEY") and
                 hasattr(config, "EMAIL_REPORT_SENDER")):
