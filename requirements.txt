@@ -47,3 +47,4 @@ tornado
 tornado_profile
 uwsgidecorators
 websocket-client
+ipaddress # requests needs this for dns matching

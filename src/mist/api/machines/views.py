@@ -5,6 +5,7 @@ from pyramid.response import Response
 import mist.api.machines.methods as methods
 
 from mist.api.clouds.models import Cloud
+from mist.api.clouds.models import LibvirtCloud
 from mist.api.machines.models import Machine
 
 from mist.api import tasks
@@ -184,7 +185,6 @@ def create_machine(request):
 
     params = params_from_request(request)
     cloud_id = request.matchdict['cloud']
-
     for key in ('name', 'size'):
         if key not in params:
             raise RequiredParameterMissingError(key)
@@ -236,7 +236,8 @@ def create_machine(request):
     # hourly True is the default setting for SoftLayer hardware
     # servers, while False means the server has montly pricing
     softlayer_backend_vlan_id = params.get('softlayer_backend_vlan_id', None)
-    hourly = params.get('billing', True)
+    hourly = params.get('hourly', True)
+
     job_id = params.get('job_id')
     job_id = params.get('job_id')
     # The `job` variable points to the event that started the job. If a job_id
@@ -421,8 +422,11 @@ def machine_actions(request):
     else:
         machine_uuid = request.matchdict['machine_uuid']
         try:
-            machine = Machine.objects.get(id=machine_uuid,
-                                          state__ne='terminated')
+            machine = Machine.objects.get(id=machine_uuid)
+            # VMs in libvirt can be started no matter if they are terminated
+            if machine.state == 'terminated' and not isinstance(machine.cloud,
+                                                                LibvirtCloud):
+                raise
             # used by logging_view_decorator
             request.environ['machine_id'] = machine.machine_id
             request.environ['cloud_id'] = machine.cloud.id
