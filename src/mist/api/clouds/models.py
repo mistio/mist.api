@@ -167,6 +167,10 @@ class Cloud(me.Document):
         Tag.objects(resource=self).delete()
         self.owner.mapper.remove(self)
 
+    def clean(self):
+        if self.dns_enabled and not hasattr(self.ctl, 'dns'):
+            self.dns_enabled = False
+
     def as_dict(self):
         cdict = {
             'id': self.id,
@@ -317,16 +321,6 @@ class VCloud(Cloud):
     _controller_cls = controllers.VCloudMainController
 
 
-class IndonesianVCloud(Cloud):
-
-    host = me.StringField(required=True)
-    username = me.StringField(required=True)
-    password = me.StringField(required=True)
-
-    _private_fields = ('password', )
-    _controller_cls = controllers.IndonesianVCloudMainController
-
-
 class OpenStackCloud(Cloud):
 
     username = me.StringField(required=True)
@@ -353,6 +347,8 @@ class DockerCloud(Cloud):
     key_file = me.StringField(required=False)
     cert_file = me.StringField(required=False)
     ca_cert_file = me.StringField(required=False)
+    # Show running and stopped containers
+    show_all = me.BooleanField(default=False)
 
     _private_fields = ('password', 'key_file')
     _controller_cls = controllers.DockerMainController
@@ -379,6 +375,7 @@ class OnAppCloud(Cloud):
     username = me.StringField(required=True)
     apikey = me.StringField(required=True)
     host = me.StringField(required=True)
+    verify = me.BooleanField(default=True)
 
     _private_fields = ('apikey', )
     _controller_cls = controllers.OnAppMainController

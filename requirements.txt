@@ -20,6 +20,7 @@ elasticsearch_tornado
 flake8
 gevent
 greenlet
+ipaddress # requests needs this for dns matching
 ipython
 iso8601
 jsonpatch
