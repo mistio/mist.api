@@ -32,7 +32,7 @@ import mongoengine as me
 from xml.sax.saxutils import escape
 
 from libcloud.pricing import get_size_price
-from libcloud.compute.base import Node, NodeImage
+from libcloud.compute.base import Node, NodeImage, NodeSize
 from libcloud.compute.providers import get_driver
 from libcloud.container.providers import get_driver as get_container_driver
 from libcloud.compute.types import Provider, NodeState
@@ -1298,8 +1298,13 @@ class SolusVMComputeController(BaseComputeController):
     def _list_sizes__fetch_sizes(self):
         sizes = []
         for vttype in ['openvz', 'kvm', 'xen', 'xenhvm']:
+            # we'll sent all parameters necessary to populate the
+            # create VM wizard as sizes
             try:
-                size = self.connection.ex_list_vs_parameters(vttype)
+                params = self.connection.ex_list_vs_parameters(vttype)
+                size = NodeSize(vttype, name=vttype, ram='', disk='',
+                    bandwidth='', price='', driver=self.connection,
+                    extra=params)
                 sizes.append({vttype:size})
             except:
                 # Virtualization Type not supported, nothing to worry
