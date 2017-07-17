@@ -35,7 +35,7 @@ from mist.api.amqp_tornado import Consumer
 
 from mist.api.clouds.methods import filter_list_clouds
 from mist.api.keys.methods import filter_list_keys
-from mist.api.machines.methods import filter_list_machines
+from mist.api.machines.methods import filter_list_machines, filter_machine_ids
 from mist.api.scripts.methods import filter_list_scripts
 from mist.api.schedules.methods import filter_list_schedules
 from mist.api.dns.methods import filter_list_zones
@@ -347,9 +347,7 @@ class MainConnection(MistConnection):
             periodic_tasks.append(('list_machines', tasks.ListMachines()))
         else:
             for cloud in clouds:
-                after = datetime.datetime.utcnow() - datetime.timedelta(days=1)
-                machines = Machine.objects(cloud=cloud, missing_since=None,
-                                           last_seen__gt=after)
+                machines = cloud.ctl.compute.list_cached_machines()
                 machines = filter_list_machines(
                     self.auth_context, cloud_id=cloud.id,
                     machines=[machine.as_dict() for machine in machines]
@@ -545,6 +543,26 @@ class MainConnection(MistConnection):
                 self.update_org()
         elif routing_key == 'notification':
             self.send('notification', result)
+
+        elif routing_key == 'patch_machines':
+            cloud_id = result['cloud_id']
+            patch = result['patch']
+            machine_ids = []
+            for line in patch:
+                machine_id, line['path'] = line['path'].split('-', 1)
+                machine_ids.append(machine_id)
+            if not self.auth_context.is_owner():
+                allowed_machine_ids = filter_machine_ids(self.auth_context,
+                                                         cloud_id, machine_ids)
+            else:
+                allowed_machine_ids = machine_ids
+            patch = [line for line, m_id in zip(patch, machine_ids)
+                     if m_id in allowed_machine_ids]
+            for line in patch:
+                line['path'] = '/clouds/%s/machines/%s' % (cloud_id,
+                                                           line['path'])
+            if patch:
+                self.send('patch_model', patch)
 
     def on_close(self, stale=False):
         if not self.closed:

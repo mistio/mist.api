@@ -167,6 +167,10 @@ class Cloud(me.Document):
         Tag.objects(resource=self).delete()
         self.owner.mapper.remove(self)
 
+    def clean(self):
+        if self.dns_enabled and not hasattr(self.ctl, 'dns'):
+            self.dns_enabled = False
+
     def as_dict(self):
         cdict = {
             'id': self.id,
