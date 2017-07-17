@@ -230,7 +230,7 @@ def create_machine(request):
     project_id = params.get('project', None)
     bare_metal = params.get('bare_metal', False)
     # bare_metal True creates a hardware server in SoftLayer,
-    # whule bare_metal False creates a virtual cloud server
+    # while bare_metal False creates a virtual cloud server
     # hourly True is the default setting for SoftLayer hardware
     # servers, while False means the server has montly pricing
     softlayer_backend_vlan_id = params.get('softlayer_backend_vlan_id', None)

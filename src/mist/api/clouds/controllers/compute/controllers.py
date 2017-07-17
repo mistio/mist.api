@@ -1289,11 +1289,22 @@ class SolusVMComputeController(BaseComputeController):
         machine.extra['bandwidth'] = "%s MB" % \
             str(int(machine.extra.get('bandwidth')) / 1024 / 1024)
 
-    def _list_machines__cost_machine(self, machine, machine_libcloud):
-        return 0, 0
-
     def _list_locations__fetch_locations(self):
         return []
+
+    def _list_images__fetch_images(self):
+        return []
+
+    def _list_sizes__fetch_sizes(self):
+        sizes = []
+        for vttype in ['openvz', 'kvm', 'xen', 'xenhvm']:
+            try:
+                size = self.connection.ex_list_vs_parameters(vttype)
+                sizes.append({vttype:size})
+            except:
+                # Virtualization Type not supported, nothing to worry
+                pass
+        return sizes
 
 
 class OtherComputeController(BaseComputeController):
