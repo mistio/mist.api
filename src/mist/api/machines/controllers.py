@@ -2,6 +2,8 @@ import jsonpatch
 
 from mist.api.helpers import amqp_publish_user
 
+from mist.api.poller2.models import PeriodicTaskInfo
+
 
 class MachineController(object):
     def __init__(self, machine):
@@ -69,7 +71,7 @@ class MachineController(object):
             return self.private_ips[0]
         raise RuntimeError("Couldn't find machine host.")
 
-    def ping_probe(self):
+    def ping_probe(self, persist=True):
 
         from mist.api.methods import ping
         from mist.api.machines.models import PingProbe
@@ -87,7 +89,12 @@ class MachineController(object):
             }
 
         old_probe_data = _get_probe_dict()
-        data = ping(self.machine.cloud.owner, self.get_host())
+
+        task_key = 'machine:ping_probe:%s' % self.machine.id
+        task = PeriodicTaskInfo.get_or_add(task_key)
+        with task.task_runner(persist=persist):
+            data = ping(self.machine.cloud.owner, self.get_host())
+
         probe = PingProbe()
         probe.update_from_dict(data)
         self.machine.ping_probe = probe
@@ -102,7 +109,7 @@ class MachineController(object):
                                     'patch': patch})
         return self.machine.ping_probe.as_dict()
 
-    def ssh_probe(self):
+    def ssh_probe(self, persist=True):
         from mist.api.methods import probe_ssh_only
         from mist.api.machines.models import SSHProbe
 
@@ -119,8 +126,15 @@ class MachineController(object):
             }
 
         old_probe_data = _get_probe_dict()
-        data = probe_ssh_only(self.machine.cloud.owner, self.machine.cloud.id,
-                              self.machine.machine_id, self.get_host())
+
+        task_key = 'machine:ssh_probe:%s' % self.machine.id
+        task = PeriodicTaskInfo.get_or_add(task_key)
+        with task.task_runner(persist=persist):
+            data = probe_ssh_only(
+                self.machine.cloud.owner, self.machine.cloud.id,
+                self.machine.machine_id, self.get_host(),
+            )
+
         probe = SSHProbe()
         probe.update_from_dict(data)
         self.machine.ssh_probe = probe
