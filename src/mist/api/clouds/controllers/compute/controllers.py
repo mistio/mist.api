@@ -1292,20 +1292,26 @@ class SolusVMComputeController(BaseComputeController):
     def _list_locations__fetch_locations(self):
         return []
 
-    def _list_images__fetch_images(self):
+    def _list_images__fetch_images(self, search=None):
         return []
 
     def _list_sizes__fetch_sizes(self):
         sizes = []
-        for vttype in ['openvz', 'kvm', 'xen', 'xenhvm']:
+        vttypes = {
+            'openvz': 'OpenVZ',
+            'kvm': 'KVM',
+            'xen': 'XEN',
+            'xenhvm': 'XENHVM',
+        }
+        for vttype in vttypes:
             # we'll sent all parameters necessary to populate the
             # create VM wizard as sizes
             try:
                 params = self.connection.ex_list_vs_parameters(vttype)
-                size = NodeSize(vttype, name=vttype, ram='', disk='',
+                size = NodeSize(vttype, name=vttypes[vttype], ram='', disk='',
                     bandwidth='', price='', driver=self.connection,
                     extra=params)
-                sizes.append({vttype:size})
+                sizes.append(size)
             except:
                 # Virtualization Type not supported, nothing to worry
                 pass
