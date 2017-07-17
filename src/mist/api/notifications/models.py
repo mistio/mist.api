@@ -3,6 +3,8 @@ from uuid import uuid4
 import mongoengine as me
 
 from mist.api.users.models import User, Organization
+from mist.api.machines.models import Machine
+from mist.api.clouds.models import Cloud
 
 
 class NotificationRule(me.EmbeddedDocument):
@@ -92,3 +94,17 @@ class Notification(me.Document):
             'NEUTRAL',
             'POSITIVE'),
         default='NEUTRAL')
+
+    def get_action_link(self):
+        '''
+        Either returns the action_link property if it exists,
+        or generates a link using the associated resource and
+        kind properties
+        '''
+        if self.action_link:
+            return action_link
+        if self.resource is Machine:
+            return "/machines/" + self.resource.id
+        if self.resource is Cloud:
+            return "/clouds/" + self.resource.id
+        return None
