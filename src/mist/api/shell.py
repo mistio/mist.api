@@ -10,6 +10,7 @@ import socket
 import thread
 import ssl
 import tempfile
+import docker  # TODO add in requests.txt
 import mongoengine as me
 
 from time import sleep
@@ -498,6 +499,97 @@ class DockerShell(DockerWebSocket):
             return tempkey.name, tempcert.name
 
 
+class DockerExec(object):
+    """Base class that handles the Docker exec command, throw the Docker
+       Remote Api, ....."""
+
+    def __init__(self, host):
+        self.host = host # this is not needed
+        self.socket = None   # TODO or Socket
+        self.exec_id = None
+        self.docker_client = None
+
+    def autoconfigure(self, owner, cloud_id, machine_id, **kwargs):
+        docker_port, cloud = self.get_docker_endpoint(owner, cloud_id=cloud_id)
+
+        if cloud.key_file:
+            base_url = 'https://%s:%s' % (self.host, docker_port)
+        else:
+            base_url = 'http://%s:%s' % (self.host, docker_port)
+
+        # base_url='unix://var/run/docker.sock'
+        tls_config = self.tls_config(cloud)
+
+        try:
+            self.docker_client = docker.APIClient(base_url=base_url,
+                                              tls=tls_config)
+            # TODO command='/bin/bash'or '/bin/sh'
+            # docker.errors.APIError
+            exec_id = self.docker_client.exec_create(machine_id, "sh",
+                                            tty=True, stdin=True)
+        except Exception as e:
+            print str(e)
+        # try-except
+        self.socket = self.docker_client.exec_start(exec_id, socket=True,
+                                                 tty=True)
+
+        # This is for compatibility purposes with the ParamikoShell
+        return None, None
+
+    def get_docker_endpoint(self, owner, cloud_id):
+        # here we could handle the creds of the cloud
+        # cloud.host, .port, .username, .password, cert_file, ca_cert_file
+        cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
+        self.host, docker_port = dnat(owner, self.host, cloud.port)
+
+        return docker_port, cloud
+
+    @staticmethod
+    def tls_config(cloud=None):
+        # TLS authentication.
+        tls_config = None
+        if cloud.key_file and cloud.cert_file:
+            key_temp_file = tempfile.NamedTemporaryFile(delete=False)
+            key_temp_file.write(cloud.key_file)
+            key_temp_file.close()
+            cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
+            cert_temp_file.write(cloud.cert_file)
+            cert_temp_file.close()
+            tls_config = docker.tls.TLSConfig(
+                client_cert=(key_temp_file.name, cert_temp_file.name),
+                verify=False)
+            if cloud.ca_cert_file:
+                ca_cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
+                ca_cert_temp_file.write(cloud.ca_cert_file)
+                ca_cert_temp_file.close()
+                tls_config = docker.tls.TLSConfig(
+                    client_cert=(key_temp_file.name, cert_temp_file.name),
+                    ca_cert=ca_cert_temp_file.name)
+
+        return tls_config
+
+    # def connect(self):
+
+    def disconnect(self):
+        try:
+            self.socket.shutdown(socket.SHUT_RDWR)  # i'm not sure about this
+            self.socket.close()
+        except:
+            pass
+
+    def invoke_shell(self):
+        return self.socket
+
+    def resize_pty(self, columns, rows):
+        self.docker_client.exec_resize(self.exec_id, height=columns,
+                                       width=rows)
+
+    # def command(self,command):
+
+    def __del__(self):
+        self.disconnect()
+
+
 class Shell(object):
     """
     Proxy Shell Class to distinguish whether we are talking about Docker or Paramiko Shell
@@ -520,6 +612,8 @@ class Shell(object):
 
         if provider == 'docker' and not enforce_paramiko:
             self._shell = DockerShell(host)
+        elif provider == 'dockerExec' and not enforce_paramiko:
+            self._shell = DockerExec(host)
         else:
             self._shell = ParamikoShell(host, username=username, key=key,
                                         password=password, cert_file=cert_file, port=port)
@@ -534,6 +628,8 @@ class Shell(object):
             )
         elif isinstance(self._shell, DockerShell):
             return self._shell.autoconfigure(owner, cloud_id, machine_id, **kwargs)
+        elif isinstance(self._shell, DockerExec):
+            return self._shell.autoconfigure(owner, cloud_id, machine_id)
 
     def connect(self, username, key=None, password=None, cert_file=None, port=22):
         if isinstance(self._shell, ParamikoShell):
@@ -547,15 +643,22 @@ class Shell(object):
             return self._shell.ssh.invoke_shell(term, cols, rows)
         elif isinstance(self._shell, DockerShell):
             return self._shell.ws
+        elif isinstance(self._shell, DockerExec):
+            return self._shell.invoke_shell()
 
     def recv(self, default=1024):
         if isinstance(self._shell, ParamikoShell):
             return self._shell.ssh.recv(default)
         elif isinstance(self._shell, DockerShell):
             return self._shell.ws.recv()
+        elif isinstance(self._shell, DockerExec):
+            return self._shell.socket.recv()
 
     def disconnect(self):
-        self._shell.disconnect()
+        if isinstance(self._shell, DockerExec):
+            self._shell.disconnect()
+        else:
+            self._shell.disconnect()
 
     def command(self, cmd, pty=True):
         if isinstance(self._shell, ParamikoShell):
