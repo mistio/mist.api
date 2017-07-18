@@ -2,6 +2,10 @@
 from mist.api import config
 from mist.api.helpers import send_email, amqp_publish_user
 
+from models import Notification
+
+import logging
+
 
 class BaseChannel():
     '''
@@ -32,10 +36,9 @@ class EmailReportsChannel(BaseChannel):
         '''
         user = notification.user
 
-        to = getattr(notification, "email", user.email)
-        full_name = getattr(notification, "full_name", user.get_nice_name())
-        first_name = getattr(notification,
-                             "name", user.first_name or user.get_nice_name())
+        to = notification.email or user.email
+        full_name = user.get_nice_name()
+        first_name = user.first_name or user.get_nice_name()
 
         if (hasattr(config, "SENDGRID_REPORTING_KEY") and
                 hasattr(config, "EMAIL_REPORT_SENDER")):
@@ -75,8 +78,9 @@ class EmailReportsChannel(BaseChannel):
                 return self.sg_instance.client.mail.send.post(
                     request_body=mdict)
             except Exception as exc:
-                print str(exc)
-                print exc.read()
+                logging.error(str(exc.status_code) + ' - ' + exc.reason)
+                logging.error(exc.to_dict)
+                exit()
         else:
             send_email(notification.subject, notification.body,
                        [to], sender="config.EMAIL_REPORT_SENDER")
@@ -89,10 +93,12 @@ class InAppChannel(BaseChannel):
     '''
 
     def send(self, notification):
-        notification.save()
-        amqp_publish_user(notification.organization,
-                          routing_key='notification',
-                          data=notification.to_json())
+        if not Notification.objects(
+                id=notification.id) and not notification.dismissed:
+            notification.save()
+            amqp_publish_user(notification.organization,
+                              routing_key='notification',
+                              data=notification.to_json())
 
 
 class StdoutChannel(BaseChannel):
