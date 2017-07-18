@@ -5,6 +5,9 @@ import logging
 import gevent
 import gevent.socket
 
+import gevent.monkey
+gevent.monkey.patch_all() # or only in HubWorker
+
 import mist.api.exceptions
 import mist.api.shell
 import mist.api.hub.main
@@ -48,19 +51,30 @@ class ShellHubWorker(mist.api.hub.main.HubWorker):
             return
         data = self.params
         self.provider = data.get('provider', '')
+        # FIXME
+        # This try-except is awkward, this situation should be
+        # handles into Shell and not here, but we don't pass the
+        # provider attr
         try:
             self.shell = mist.api.shell.Shell(data['host'])
             key_id, ssh_user = self.shell.autoconfigure(
                 self.owner, data['cloud_id'], data['machine_id']
             )
         except Exception as exc:
-            if self.provider == 'docker':
+            if self.provider == 'docker' and not data['job_id']:
+                # call DockerExec
                 self.shell = mist.api.shell.Shell(data['host'],
-                                                 provider='docker')
+                                                  provider='dockerExec')
                 key_id, ssh_user = self.shell.autoconfigure(
-                    self.owner, data['cloud_id'], data['machine_id'],
-                    job_id=data['job_id'],
+                    self.owner, data['cloud_id'], data['machine_id']
                 )
+            elif self.provider == 'docker':
+                self.shell = mist.api.shell.Shell(data['host'],
+                                                  provider='docker')
+                key_id, ssh_user = self.shell.autoconfigure(
+                self.owner, data['cloud_id'], data['machine_id'],
+                job_id=data['job_id'],
+            )
             else:
                 log.warning("%s: Couldn't connect with SSH, error %r.",
                             self.lbl, exc)
