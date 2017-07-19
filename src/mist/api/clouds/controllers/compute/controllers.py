@@ -1193,6 +1193,7 @@ class OnAppComputeController(BaseComputeController):
         self.connection.ex_suspend_node(machine_libcloud)
 
     def _resize_machine(self, machine, machine_libcloud, plan_id, kwargs):
+        # send only non empty valid args
         valid_kwargs = {}
         for param in kwargs:
             if param in ['memory', 'cpus', 'cpu_shares', 'cpu_units'] \
