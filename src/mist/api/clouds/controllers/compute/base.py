@@ -935,7 +935,7 @@ class BaseComputeController(BaseController):
         Differnent cloud controllers should override this private method, which
         is called by the public method `resize_machine`.
         """
-        self.connection.ex_resize_node(machine_libcloud, plan_id, kwargs)
+        self.connection.ex_resize_node(machine_libcloud, plan_id)
 
     def rename_machine(self, machine, name):
         """Rename machine
