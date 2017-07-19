@@ -65,10 +65,10 @@ class MachineController(object):
     def get_host(self):
         if self.machine.hostname:
             return self.machine.hostname
-        if self.public_ips:
-            return self.public_ips[0]
-        if self.private_ips:
-            return self.private_ips[0]
+        if self.machine.public_ips:
+            return self.machine.public_ips[0]
+        if self.machine.private_ips:
+            return self.machine.private_ips[0]
         raise RuntimeError("Couldn't find machine host.")
 
     def ping_probe(self, persist=True):

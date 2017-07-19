@@ -37,7 +37,10 @@ def list_machines(schedule_id):
     # FIXME: resolve circular deps error
     from mist.api.poller.models import ListMachinesPollingSchedule
     sched = ListMachinesPollingSchedule.objects.get(id=schedule_id)
-    sched.cloud.ctl.compute.list_machines(persist=False)
+    try:
+        sched.cloud.ctl.compute.list_machines(persist=False)
+    except Exception as exc:
+        log.error("Error while listing machines for %s: %r", sched.cloud, exc)
 
 
 @app.task(time_limit=45, soft_time_limit=40)
@@ -48,7 +51,10 @@ def ping_probe(schedule_id):
     # FIXME: resolve circular deps error
     from mist.api.poller.models import PingProbeMachinePollingSchedule
     sched = PingProbeMachinePollingSchedule.objects.get(id=schedule_id)
-    sched.machine.ctl.ping_probe(persist=False)
+    try:
+        sched.machine.ctl.ping_probe(persist=False)
+    except Exception as exc:
+        log.error("Error while ping-probing %s: %r", sched.machine, exc)
 
 
 @app.task(time_limit=45, soft_time_limit=40)
@@ -59,4 +65,7 @@ def ssh_probe(schedule_id):
     # FIXME: resolve circular deps error
     from mist.api.poller.models import SSHProbeMachinePollingSchedule
     sched = SSHProbeMachinePollingSchedule.objects.get(id=schedule_id)
-    sched.machine.ctl.ssh_probe(persist=False)
+    try:
+        sched.machine.ctl.ssh_probe(persist=False)
+    except Exception as exc:
+        log.error("Error while ssh-probing %s: %r", sched.machine, exc)
