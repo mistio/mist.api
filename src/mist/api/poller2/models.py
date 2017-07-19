@@ -52,7 +52,7 @@ class PeriodicTaskInfo(me.Document):
     break_lock_after = datetime.timedelta(seconds=60)
 
     # Abort task if previous attempt was in less than this time before.
-    min_interval = 10
+    min_interval = datetime.timedelta(seconds=10)
 
     @classmethod
     def get_or_add(cls, key):
@@ -178,9 +178,9 @@ class PeriodicTaskInfo(me.Document):
         try:
             yield
         except Exception as exc:
-            log.exception(exc)
             self.last_failure = datetime.datetime.now()
             self.failures_count += 1
+            raise
         else:
             self.last_success = datetime.datetime.now()
             self.failures_count = 0
