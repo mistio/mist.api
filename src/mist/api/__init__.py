@@ -294,7 +294,7 @@ def add_routes(configurator):
     # Notifications
     configurator.add_route(
         'api_v1_dismiss_notification',
-        '/api/v1/notifications/dismiss')
+        '/api/v1/notifications/{notification_id}')
 
     configurator.add_route('user_invitations', '/user_invitations')
 
