@@ -505,40 +505,42 @@ class DockerExec(object):
 
     def __init__(self, host):
         self.host = host # this is not needed
-        self.socket = None   # TODO or Socket
+        self.socket = None   # TODO maybe Socket object
         self.exec_id = None
         self.docker_client = None
 
     def autoconfigure(self, owner, cloud_id, machine_id, **kwargs):
         docker_port, cloud = self.get_docker_endpoint(owner, cloud_id=cloud_id)
 
+        log.info("Autoconfiguring DockerShell for machine %s:%s",
+                 cloud.id, machine_id)
+
         if cloud.key_file:
             base_url = 'https://%s:%s' % (self.host, docker_port)
         else:
             base_url = 'http://%s:%s' % (self.host, docker_port)
 
-        # base_url='unix://var/run/docker.sock'
         tls_config = self.tls_config(cloud)
 
-        try:
-            self.docker_client = docker.APIClient(base_url=base_url,
+        self.docker_client = docker.APIClient(base_url=base_url,
                                               tls=tls_config)
-            # TODO command='/bin/bash'or '/bin/sh'
-            # docker.errors.APIError
-            exec_id = self.docker_client.exec_create(machine_id, "sh",
-                                            tty=True, stdin=True)
-        except Exception as e:
-            print str(e)
-        # try-except
-        self.socket = self.docker_client.exec_start(exec_id, socket=True,
-                                                 tty=True)
+        self._exec_handler(machine_id, "bash")
+        if self.docker_client.exec_inspect(self.exec_id)['ExitCode'] != None:
+            # if bash doesn't exist try with sh
+            self._exec_handler(machine_id, "sh")
 
         # This is for compatibility purposes with the ParamikoShell
         return None, None
 
+    def _exec_handler(self, machine_id, cmd):
+        exec_id = self.docker_client.exec_create(machine_id, cmd,
+                                                 tty=True, stdin=True)
+        self.exec_id = exec_id['Id']
+
+        self.socket = self.docker_client.exec_start(self.exec_id, socket=True,
+                                                    tty=True)
+
     def get_docker_endpoint(self, owner, cloud_id):
-        # here we could handle the creds of the cloud
-        # cloud.host, .port, .username, .password, cert_file, ca_cert_file
         cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
         self.host, docker_port = dnat(owner, self.host, cloud.port)
 
@@ -556,15 +558,17 @@ class DockerExec(object):
             cert_temp_file.write(cloud.cert_file)
             cert_temp_file.close()
             tls_config = docker.tls.TLSConfig(
-                client_cert=(key_temp_file.name, cert_temp_file.name),
-                verify=False)
+                client_cert=(cert_temp_file.name, key_temp_file.name),
+                verify=False)  # we could add ssl_version
             if cloud.ca_cert_file:
                 ca_cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
                 ca_cert_temp_file.write(cloud.ca_cert_file)
                 ca_cert_temp_file.close()
                 tls_config = docker.tls.TLSConfig(
-                    client_cert=(key_temp_file.name, cert_temp_file.name),
-                    ca_cert=ca_cert_temp_file.name)
+                    client_cert=(cert_temp_file.name, key_temp_file.name),
+                    verify=ca_cert_temp_file.name,
+                    ca_cert=ca_cert_temp_file.name,
+                    assert_hostname=False)
 
         return tls_config
 
