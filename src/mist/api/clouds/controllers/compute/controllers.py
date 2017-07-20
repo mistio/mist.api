@@ -43,6 +43,7 @@ from libcloud.utils.networking import is_private_subnet
 from mist.api.exceptions import MistError
 from mist.api.exceptions import InternalServerError
 from mist.api.exceptions import MachineNotFoundError
+from mist.api.exceptions import BadRequestError
 from mist.api.helpers import sanitize_host
 
 from mist.api.machines.models import Machine
@@ -211,6 +212,7 @@ class LinodeComputeController(BaseComputeController):
         super(LinodeComputeController, self)._list_machines__machine_actions(
             machine, machine_libcloud)
         machine.actions.rename = True
+        machine.actions.resize = True
         # machine.actions.stop = False
         # After resize, node gets to pending mode, needs to be started.
         if machine_libcloud.state is NodeState.PENDING:
@@ -1154,6 +1156,7 @@ class OnAppComputeController(BaseComputeController):
     def _list_machines__machine_actions(self, machine, machine_libcloud):
         super(OnAppComputeController, self)._list_machines__machine_actions(
             machine, machine_libcloud)
+        machine.actions.resize = True
         if machine_libcloud.state is NodeState.RUNNING:
             machine.actions.suspend = True
         if machine_libcloud.state is NodeState.SUSPENDED:
@@ -1188,6 +1191,18 @@ class OnAppComputeController(BaseComputeController):
 
     def _suspend_machine(self, machine, machine_libcloud):
         self.connection.ex_suspend_node(machine_libcloud)
+
+    def _resize_machine(self, machine, machine_libcloud, plan_id, kwargs):
+        # send only non empty valid args
+        valid_kwargs = {}
+        for param in kwargs:
+            if param in ['memory', 'cpus', 'cpu_shares', 'cpu_units'] \
+                    and kwargs[param]:
+                    valid_kwargs[param] = kwargs[param]
+        try:
+            self.connection.ex_resize_node(machine_libcloud, **valid_kwargs)
+        except Exception as exc:
+            raise BadRequestError('Failed to resize node: %s' % exc)
 
     def _list_locations__fetch_locations(self):
         """Get locations
