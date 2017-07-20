@@ -31,6 +31,10 @@ from mist.api.scripts.models import Script
 from mist.api.schedules.models import Schedule
 from mist.api.dns.models import Zone, Record, RECORDS
 
+from mist.api.poller.models import ListMachinesPollingSchedule
+from mist.api.poller.models import PingProbeMachinePollingSchedule
+from mist.api.poller.models import SSHProbeMachinePollingSchedule
+
 celery_cfg = 'mist.core.celery_config'
 
 from mist.api.helpers import send_email as helper_send_email
@@ -1437,3 +1441,18 @@ def revoke_token(token):
     auth_token = AuthToken.objects.get(token=token)
     auth_token.invalidate()
     auth_token.save()
+
+
+@app.task
+def update_poller(org_id):
+    org = Organization.objects.get(id=org_id)
+    log.info("Updating poller for %s", org)
+    for cloud in Cloud.objects(owner=org, deleted=None):
+        log.info("Updating poller for cloud %s", cloud)
+        ListMachinesPollingSchedule.add(cloud=cloud, interval=10, ttl=120)
+        for machine in cloud.ctl.compute.list_cached_machines():
+            log.info("Updating poller for machine %s", machine)
+            PingProbeMachinePollingSchedule.add(machine=machine,
+                                                interval=90, ttl=120)
+            SSHProbeMachinePollingSchedule.add(machine=machine,
+                                               interval=90, ttl=120)
