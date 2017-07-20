@@ -464,13 +464,13 @@ def machine_actions(request):
     elif action == 'resize':
         kwargs = {}
         if memory:
-          kwargs['memory'] = memory
+            kwargs['memory'] = memory
         if cpus:
-          kwargs['cpus'] = cpus
+            kwargs['cpus'] = cpus
         if cpu_shares:
-          kwargs['cpu_shares'] = cpu_shares
+            kwargs['cpu_shares'] = cpu_shares
         if cpu_units:
-          kwargs['cpu_units'] = cpu_units
+            kwargs['cpu_units'] = cpu_units
         getattr(machine.ctl, action)(plan_id, kwargs)
 
     # TODO: We shouldn't return list_machines, just OK. Save the API!
