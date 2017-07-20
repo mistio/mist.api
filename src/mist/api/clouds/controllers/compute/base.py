@@ -971,7 +971,7 @@ class BaseComputeController(BaseController):
         machine_libcloud.destroy()
 
     # It isn't implemented in the ui
-    def resize_machine(self, machine, plan_id):
+    def resize_machine(self, machine, plan_id, kwargs):
         """Resize machine
 
         The param `machine` must be an instance of a machine model of this
@@ -996,7 +996,7 @@ class BaseComputeController(BaseController):
 
         machine_libcloud = self._get_machine_libcloud(machine)
         try:
-            self._resize_machine(machine, machine_libcloud, plan_id)
+            self._resize_machine(machine, machine_libcloud, plan_id, kwargs)
         except MistError as exc:
             log.error("Could not resize machine %s", machine)
             raise
@@ -1004,7 +1004,7 @@ class BaseComputeController(BaseController):
             log.exception(exc)
             raise InternalServerError(exc=exc)
 
-    def _resize_machine(self, machine, machine_libcloud, plan_id):
+    def _resize_machine(self, machine, machine_libcloud, plan_id, kwargs):
         """Private method to resize a given machine
 
         Params:

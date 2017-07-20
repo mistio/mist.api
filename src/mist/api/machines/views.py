@@ -404,6 +404,10 @@ def machine_actions(request):
     params = params_from_request(request)
     action = params.get('action', '')
     plan_id = params.get('plan_id', '')
+    memory = params.get('memory', '')
+    cpus = params.get('cpus', '')
+    cpu_shares = params.get('cpu_shares', '')
+    cpu_units = params.get('cpu_units', '')
     name = params.get('name', '')
     auth_context = auth_context_from_request(request)
 
@@ -458,7 +462,16 @@ def machine_actions(request):
             raise BadRequestError("You must give a name!")
         getattr(machine.ctl, action)(name)
     elif action == 'resize':
-        getattr(machine.ctl, action)(plan_id)
+        kwargs = {}
+        if memory:
+            kwargs['memory'] = memory
+        if cpus:
+            kwargs['cpus'] = cpus
+        if cpu_shares:
+            kwargs['cpu_shares'] = cpu_shares
+        if cpu_units:
+            kwargs['cpu_units'] = cpu_units
+        getattr(machine.ctl, action)(plan_id, kwargs)
 
     # TODO: We shouldn't return list_machines, just OK. Save the API!
     return methods.filter_list_machines(auth_context, cloud_id)

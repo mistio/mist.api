@@ -38,10 +38,10 @@ class MachineController(object):
     def destroy(self):
         return self.machine.cloud.ctl.compute.destroy_machine(self.machine)
 
-    def resize(self, plan_id):
+    def resize(self, plan_id, kwargs):
         """Resize a machine on an other plan."""
         return self.machine.cloud.ctl.compute.resize_machine(self.machine,
-                                                             plan_id)
+                                                             plan_id, kwargs)
 
     def rename(self, name):
         """Renames a machine on a certain cloud."""
