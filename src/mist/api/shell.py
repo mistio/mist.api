@@ -524,10 +524,7 @@ class DockerExec(object):
 
         self.docker_client = docker.APIClient(base_url=base_url,
                                               tls=tls_config)
-        self._exec_handler(machine_id, "bash")
-        if self.docker_client.exec_inspect(self.exec_id)['ExitCode'] != None:
-            # if bash doesn't exist try with sh
-            self._exec_handler(machine_id, "sh")
+        self._exec_handler(machine_id, "/bin/sh")
 
         # This is for compatibility purposes with the ParamikoShell
         return None, None

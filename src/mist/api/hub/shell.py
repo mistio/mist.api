@@ -4,6 +4,8 @@ import logging
 
 import gevent
 import gevent.socket
+import gevent.monkey
+gevent.monkey.patch_all() # it's needed exactly like this for dockerpy
 
 import mist.api.exceptions
 import mist.api.shell
