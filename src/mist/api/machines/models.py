@@ -141,12 +141,12 @@ class PingProbe(me.EmbeddedDocument):
 
 class SSHProbe(me.EmbeddedDocument):
     uptime = me.FloatField()  # seconds
-    loadavg = me.ListField(me.FloatField)
+    loadavg = me.ListField(me.FloatField())
     cores = me.IntField()
     users = me.IntField()
-    pub_ips = me.ListField(me.StringField)
-    priv_ips = me.ListField(me.StringField)
-    macs = me.ListField(me.StringField)
+    pub_ips = me.ListField(me.StringField())
+    priv_ips = me.ListField(me.StringField())
+    macs = me.ListField(me.StringField())
     df = me.StringField()
     kernel = me.StringField()
     os = me.StringField()
