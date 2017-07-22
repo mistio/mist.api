@@ -39,7 +39,6 @@ from libcloud.compute.types import Provider, NodeState
 from libcloud.container.types import Provider as Container_Provider
 from libcloud.container.types import ContainerState
 from libcloud.container.base import ContainerImage, Container
-from libcloud.utils.networking import is_private_subnet
 from mist.api.exceptions import MistError
 from mist.api.exceptions import InternalServerError
 from mist.api.exceptions import MachineNotFoundError
@@ -61,6 +60,17 @@ except ImportError:
 
 
 log = logging.getLogger(__name__)
+
+
+def is_private_subnet(host):
+    try:
+        ip_addr = netaddr.IPAddress(host)
+    except netaddr.AddrFormatError:
+        try:
+            ip_addr = netaddr.IPAddress(socket.gethostbyname(host))
+        except socket.gaierror:
+            return False
+    return ip_addr.is_private()
 
 
 class AmazonComputeController(BaseComputeController):
