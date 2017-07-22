@@ -115,6 +115,7 @@ def make_notification(
     notification.user = user
     notification.organization = org
     notification.resource = resource
+    notification.kind = kind
     if summary:
         notification.summary = summary
     if html_body:
