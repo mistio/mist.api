@@ -539,7 +539,8 @@ class MainConnection(MistConnection):
                 self.auth_context.org.reload()
                 self.update_org()
         elif routing_key == 'notification':
-            self.send('notification', result)
+            if json.loads(result).get('user') == self.user.id:
+                self.send('notification', result)
 
         elif routing_key == 'patch_machines':
             cloud_id = result['cloud_id']
