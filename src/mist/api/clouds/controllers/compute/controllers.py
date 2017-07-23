@@ -1324,8 +1324,8 @@ class SolusVMComputeController(BaseComputeController):
             try:
                 params = self.connection.ex_list_vs_parameters(vttype)
                 size = NodeSize(vttype, name=vttypes[vttype], ram='', disk='',
-                    bandwidth='', price='', driver=self.connection,
-                    extra=params)
+                                bandwidth='', price='', driver=self.connection,
+                                extra=params)
                 sizes.append(size)
             except:
                 # Virtualization Type not supported, nothing to worry

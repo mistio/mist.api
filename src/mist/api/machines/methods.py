@@ -131,8 +131,9 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                    boot=True, build=True,
                    cpu_priority=1, cpu_sockets=1, cpu_threads=1, port_speed=0,
                    hypervisor_group_id=None, solusvm_ipv4=1, solusvm_ipv6=0,
-                   size_swap=256, solusvm_vttype='openvz', solusvm_node_group=1,
-                   solusvm_user_id=31, solusvm_bandwidth=1):
+                   size_swap=256, solusvm_vttype='openvz',
+                   solusvm_node_group=1, solusvm_user_id=31,
+                   solusvm_bandwidth=1):
 
     """Creates a new virtual machine on the specified cloud.
 
@@ -730,9 +731,10 @@ def _create_machine_onapp(conn, public_key,
 
 
 def _create_machine_solusvm(conn, machine_name, solusvm_vttype,
-                          solusvm_node_group, solusvm_user_id,
-                          image, size_ram, size_swap, size_disk_primary,
-                          solusvm_ipv4, solusvm_ipv6, solusvm_bandwidth):
+                            solusvm_node_group, solusvm_user_id,
+                            image, size_ram, size_swap,
+                            size_disk_primary, solusvm_ipv4,
+                            solusvm_ipv6, solusvm_bandwidth):
 
     """Create a machine in SolusVM.
 
