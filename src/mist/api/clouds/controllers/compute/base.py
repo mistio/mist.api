@@ -997,12 +997,8 @@ class BaseComputeController(BaseController):
         machine_libcloud = self._get_machine_libcloud(machine)
         try:
             self._resize_machine(machine, machine_libcloud, plan_id, kwargs)
-        except MistError as exc:
-            log.error("Could not resize machine %s", machine)
-            raise
         except Exception as exc:
-            log.exception(exc)
-            raise InternalServerError(exc=exc)
+            raise BadRequestError('Failed to resize node: %s' % exc)
 
     def _resize_machine(self, machine, machine_libcloud, plan_id, kwargs):
         """Private method to resize a given machine
