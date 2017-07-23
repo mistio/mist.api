@@ -3,6 +3,8 @@ from uuid import uuid4
 import mongoengine as me
 
 from mist.api.users.models import User, Organization
+from mist.api.machines.models import Machine
+from mist.api.clouds.models import Cloud
 
 
 class NotificationRule(me.EmbeddedDocument):
@@ -52,20 +54,26 @@ class Notification(me.Document):
     user = me.ReferenceField(User, required=True)
     organization = me.ReferenceField(Organization, required=True)
 
+    # content fields
     summary = me.StringField(max_length=512, required=False, default="")
     subject = me.StringField(max_length=256, required=False, default="")
     body = me.StringField(required=True, default="")
     html_body = me.StringField(required=False, default="")
 
+    # source fields
     source = me.StringField(max_length=64, required=True, default="")
     channel = me.StringField(max_length=64, required=True, default="")
 
+    # resource and action fields
+    kind = me.StringField(required=True, default="")
+    resource = me.GenericReferenceField(required=False)
+    action_link = me.URLField(required=False)
+
+    # email-specific fields
     email = me.EmailField(required=False)
     unsub_link = me.URLField(required=False)
 
-    # resource
-    action_link = me.URLField(required=False)
-
+    # user action fields
     viewed = me.BooleanField(required=True, default=False)
     dismissed = me.BooleanField(required=True, default=False)
 
@@ -86,3 +94,17 @@ class Notification(me.Document):
             'NEUTRAL',
             'POSITIVE'),
         default='NEUTRAL')
+
+    def get_action_link(self):
+        '''
+        Either returns the action_link property if it exists,
+        or generates a link using the associated resource and
+        kind properties
+        '''
+        if self.action_link:
+            return self.action_link
+        if self.resource is Machine:
+            return "/machines/" + self.resource.id
+        if self.resource is Cloud:
+            return "/clouds/" + self.resource.id
+        return None

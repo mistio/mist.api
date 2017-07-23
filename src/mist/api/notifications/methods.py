@@ -99,6 +99,8 @@ def make_notification(
         summary=None,
         html_body=None,
         unsub_link=None,
+        resource=None,
+        kind="",
         save=False):
     '''
     Generates a notification. By default the notification is not
@@ -112,6 +114,8 @@ def make_notification(
     notification.channel = channel
     notification.user = user
     notification.organization = org
+    notification.resource = resource
+    notification.kind = kind
     if summary:
         notification.summary = summary
     if html_body:
