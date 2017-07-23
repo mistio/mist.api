@@ -1450,9 +1450,9 @@ def update_poller(org_id):
     for cloud in Cloud.objects(owner=org, deleted=None):
         log.info("Updating poller for cloud %s", cloud)
         ListMachinesPollingSchedule.add(cloud=cloud, interval=10, ttl=120)
-        for machine in cloud.ctl.compute.list_cached_machines():
-            log.info("Updating poller for machine %s", machine)
-            PingProbeMachinePollingSchedule.add(machine=machine,
-                                                interval=90, ttl=120)
-            SSHProbeMachinePollingSchedule.add(machine=machine,
-                                               interval=90, ttl=120)
+        # for machine in cloud.ctl.compute.list_cached_machines():
+        #     log.info("Updating poller for machine %s", machine)
+        #     PingProbeMachinePollingSchedule.add(machine=machine,
+        #                                         interval=90, ttl=120)
+        #     SSHProbeMachinePollingSchedule.add(machine=machine,
+        #                                        interval=90, ttl=120)
