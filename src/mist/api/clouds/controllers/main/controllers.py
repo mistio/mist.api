@@ -308,6 +308,11 @@ class LibvirtMainController(BaseMainController):
         )
 
 
+class SolusVMMainController(BaseMainController):
+    provider = 'solusvm'
+    ComputeController = compute_ctls.SolusVMComputeController
+
+
 class OtherMainController(BaseMainController):
 
     provider = 'bare_metal'

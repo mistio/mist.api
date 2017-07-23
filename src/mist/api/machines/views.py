@@ -232,7 +232,7 @@ def create_machine(request):
     project_id = params.get('project', None)
     bare_metal = params.get('bare_metal', False)
     # bare_metal True creates a hardware server in SoftLayer,
-    # whule bare_metal False creates a virtual cloud server
+    # while bare_metal False creates a virtual cloud server
     # hourly True is the default setting for SoftLayer hardware
     # servers, while False means the server has montly pricing
     softlayer_backend_vlan_id = params.get('softlayer_backend_vlan_id', None)
@@ -263,6 +263,15 @@ def create_machine(request):
     cpu_threads = params.get('cpu_threads', 1)
     port_speed = params.get('port_speed', 0)
     hypervisor_group_id = params.get('hypervisor_group_id')
+
+    # these are needed for SolusVM
+    solusvm_ipv4 = params.get('solusvm_ipv4', 1)
+    solusvm_ipv6 = params.get('solusvm_ipv6', 0)
+    size_swap = params.get('size_swap', 256)
+    solusvm_vttype = params.get('solusvm_vttype', 'openvz')
+    solusvm_node_group = params.get('solusvm_node_group', 1)
+    solusvm_user_id = params.get('solusvm_user_id', 31)
+    solusvm_bandwidth = params.get('solusvm_bandwidth', 1)
 
     auth_context = auth_context_from_request(request)
 
@@ -355,7 +364,15 @@ def create_machine(request):
               'cpu_sockets': cpu_sockets,
               'cpu_threads': cpu_threads,
               'port_speed': port_speed,
-              'hypervisor_group_id': hypervisor_group_id}
+              'hypervisor_group_id': hypervisor_group_id,
+              'solusvm_ipv4': solusvm_ipv4,
+              'solusvm_ipv6': solusvm_ipv6,
+              'size_swap': size_swap,
+              'solusvm_vttype': solusvm_vttype,
+              'solusvm_node_group': solusvm_node_group,
+              'solusvm_user_id': solusvm_user_id,
+              'solusvm_bandwidth': solusvm_bandwidth}
+
     if not async:
         ret = methods.create_machine(auth_context.owner, *args, **kwargs)
     else:
