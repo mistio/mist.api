@@ -240,24 +240,32 @@ class ListMachinesPollingSchedule(CloudPollingSchedule):
 
 class MachinePollingSchedule(PollingSchedule):
 
-    machine = me.ReferenceField(Machine, reverse_delete_rule=me.CASCADE)
+    machine_id = me.StringField(required=True)
+
+    @property
+    def machine(self):
+        return Machine.objects.get(id=self.machine_id)
+
+    @property
+    def enabled(self):
+        return bool(Machine.objects(id=self.machine_id).count())
 
     def get_name(self):
         return '%s(%s)' % (super(MachinePollingSchedule, self).get_name(),
-                           self.machine)
+                           self.machine_id)
 
     @classmethod
     def add(cls, machine, interval=None, ttl=300):
         try:
-            schedule = cls.objects.get(machine=machine)
+            schedule = cls.objects.get(machine_id=machine.id)
         except cls.DoesNotExist:
-            schedule = cls(machine=machine)
+            schedule = cls(machine_id=machine.id)
             try:
                 schedule.save()
             except me.NotUniqueError:
                 # Work around race condition where schedule was created since
                 # last time we checked.
-                schedule = cls.objects.get(machine=machine)
+                schedule = cls.objects.get(machine_id=machine.id)
         schedule.set_default_interval(60 * 60 * 2)
         if interval is not None:
             schedule.add_interval(interval, ttl)
