@@ -168,9 +168,9 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
         # rdp_port
         # host, os_type
         host=ips
-        machine_name = cloud.title + '_'+  machine_name
+        machine_name = cloud.title + '_'+ machine_name
         try:
-            machine = cloud.ctl.add_machine(machine_name,host=host,
+            machine = cloud.ctl.add_machine(machine_name, host=host,
                                             ssh_user='root', ssh_port=22,
                                             ssh_key=key_id, os_type='unix',
                                             rdp_port=3389, fail_on_error=True)
