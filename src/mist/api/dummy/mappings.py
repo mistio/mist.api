@@ -9,7 +9,7 @@
 class AsyncPermissionMapper(object):
     """This class provides a dummy interface to handle RBAC operations."""
 
-    def __init__(self, org=None):
+    def __init__(self, org):
         self.org = org
 
     def update(self, *args, **kwargs):
@@ -17,9 +17,6 @@ class AsyncPermissionMapper(object):
 
     def remove(self, *args, **kwargs):
         pass
-
-    def get_mappings(self, *args, **kwargs):
-        return []
 
     def get_resources(self, *args, **kwargs):
         return {}
