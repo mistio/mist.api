@@ -8,6 +8,7 @@ from time import time
 import paramiko
 
 from libcloud.compute.types import NodeState
+from libcloud.container.base import Container
 
 from base64 import b64encode
 
@@ -24,7 +25,7 @@ from mist.api.exceptions import ServiceUnavailableError, MachineNotFoundError
 from mist.api.shell import Shell
 
 from mist.api.users.models import User, Owner, Organization
-from mist.api.clouds.models import Cloud
+from mist.api.clouds.models import Cloud, DockerCloud
 from mist.api.machines.models import Machine
 from mist.api.scripts.models import Script
 from mist.api.schedules.models import Schedule
@@ -96,7 +97,11 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
         try:
             cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
             conn = connect_provider(cloud)
-            nodes = conn.list_nodes()  # TODO: use cache
+
+            if isinstance(cloud, DockerCloud):
+                nodes = conn.list_containers()
+            else:
+                nodes = conn.list_nodes()  # TODO: use cache
             for n in nodes:
                 if n.id == machine_id:
                     node = n
@@ -104,6 +109,9 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
             tmp_log('run list_machines')
         except:
             raise self.retry(exc=Exception(), countdown=10, max_retries=10)
+
+        if node and isinstance(node, Container):
+            node = cloud.ctl.compute.inspect_node(node)
 
         if node and len(node.public_ips):
             # filter out IPv6 addresses
@@ -406,8 +414,7 @@ def azure_post_create_steps(self, owner_id, cloud_id, machine_id, monitoring,
             if n.id == machine_id:
                 node = n
                 break
-
-        if node and node.state == 0 and len(node.public_ips):
+        if node and node.state == NodeState.RUNNING and len(node.public_ips):
             # filter out IPv6 addresses
             ips = filter(lambda ip: ':' not in ip, node.public_ips)
             host = ips[0]
@@ -1019,6 +1026,8 @@ def create_machine_async(owner_id, cloud_id, key_id, machine_name, location_id,
              'size_disk_swap': size_disk_swap,
              'boot': boot,
              'build': build,
+             'bare_metal': bare_metal,
+             'hourly': hourly,
              'cpu_priority': cpu_priority,
              'cpu_sockets': cpu_sockets,
              'cpu_threads': cpu_threads,

@@ -67,6 +67,10 @@ def remove_tags_from_resource(owner, resource_obj, tags, *args, **kwargs):
 
     Tag.objects(Q(owner=owner) & Q(resource=resource_obj) & (query)).delete()
 
+    # I think that the above overly complex query could simply be rewritten as
+    # Tag.objects(owner=owner, resource=resource_obj,
+    #             key__in=key_list).delete()
+
     # SEC
     owner.mapper.update(resource_obj)
 
@@ -115,7 +119,8 @@ def resolve_id_and_delete_tags(owner, rtype, rid, tags, *args, **kwargs):
     :return: the tags to be deleted from this resource
     """
     resource_obj = get_object_with_id(owner, rid, rtype, *args, **kwargs)
-    return remove_tags_from_resource(owner, resource_obj, tags, *args, **kwargs)
+    return remove_tags_from_resource(owner, resource_obj, tags,
+                                     *args, **kwargs)
 
 
 def modify_security_tags(auth_context, tags, resource=None):

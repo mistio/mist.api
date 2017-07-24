@@ -1140,13 +1140,18 @@ def probe(request):
             machine = Machine.objects.get(cloud=cloud_id,
                                           machine_id=machine_id,
                                           state__ne='terminated')
+            # used by logging_view_decorator
+            request.environ['machine_uuid'] = machine.id
         except Machine.DoesNotExist:
             raise NotFoundError("Machine %s doesn't exist" % machine_id)
     else:
-        machine_uuid = request.matchdict['machine']
+        machine_uuid = request.matchdict['machine_uuid']
         try:
             machine = Machine.objects.get(id=machine_uuid,
                                           state__ne='terminated')
+            # used by logging_view_decorator
+            request.environ['machine_id'] = machine.machine_id
+            request.environ['cloud_id'] = machine.cloud.id
         except Machine.DoesNotExist:
             raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
 
