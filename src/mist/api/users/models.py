@@ -3,6 +3,7 @@ import logging
 import json
 import uuid
 import re
+import netaddr
 import datetime
 import mongoengine as me
 
@@ -57,6 +58,21 @@ class HtmlSafeStrField(me.StringField):
         value = value.replace("<", "&lt;")
         value = value.replace(">", "&gt;")
         return value
+
+
+class WhitelistIP(me.EmbeddedDocument):
+    """A Class to store specific to the user IP whitelisting functionality"""
+
+    cidr = me.StringField()
+    description = me.StringField()
+
+    def clean(self):
+        """Checks the CIDR to determine if it maps to a valid IPv4 network."""
+
+        try:
+            netaddr.cidr_to_glob(self.cidr)
+        except (TypeError, netaddr.AddrFormatError) as err:
+            raise me.ValidationError(err)
 
 
 # TODO remove these, but first delete feedback field from user
@@ -294,6 +310,8 @@ class User(Owner):
 
     can_create_org = me.BooleanField(default=True)
     beta_access = me.BooleanField(default=True)
+
+    ips = me.EmbeddedDocumentListField(WhitelistIP, default=[])
 
     meta = {
         'indexes': [

@@ -32,6 +32,7 @@ from mist.api.networks.models import Network, Subnet
 from mist.api.users.models import Avatar, Owner, User, Organization
 from mist.api.users.models import MemberInvitation, Team
 from mist.api.auth.models import SessionToken, ApiToken
+from mist.api.users.methods import update_whitelist_ips
 
 from mist.api.users.methods import register_user
 
@@ -857,6 +858,22 @@ def confirm_invitation(request):
     trigger_session_update(auth_context.owner, ['org'])
 
     return HTTPFound('/')
+
+
+@view_config(route_name='api_v1_user_whitelist_ip', request_method='POST', renderer='json')
+def whitelist_ip(request):
+    """
+    Whitelist IPs for specified user.
+    """
+
+    auth_context = auth_context_from_request(request)
+    params = params_from_request(request)
+    ips = params.get('ips')
+
+    if not ips:
+        raise RequiredParameterMissingError('ips')
+
+    update_whitelist_ips(auth_context, ips)
 
 
 @view_config(route_name='api_v1_images', request_method='POST', renderer='json')

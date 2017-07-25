@@ -171,3 +171,19 @@ def filter_org(auth_context):
     org['members'] = members
 
     return org
+
+
+def update_whitelist_ips(auth_context, ips):
+    """
+    This function takes a list of dicts in the form:
+    [{cidr:'cidr1', 'description:'desc1'},
+    {cidr:'cidr2', 'description:'desc2'}]
+    and saves them in the User.ips field.
+    """
+    user = auth_context.user
+    user.ips = ips
+
+    try:
+        user.save()
+    except ValidationError as e:
+        raise BadRequestError({"msg": e.message, "errors": e.to_dict()})
