@@ -1,3 +1,5 @@
+import json
+import jsonpatch
 
 from mist.api import config
 from mist.api.helpers import send_email, amqp_publish_user
@@ -16,6 +18,13 @@ class BaseChannel():
         '''
         Accepts a notification and sends it using the
         current channel instance.
+        '''
+        pass
+
+    def delete(self, notification_id):
+        '''
+        Accepts a notification id and deletes the
+        corresponding notification
         '''
         pass
 
@@ -89,16 +98,47 @@ class EmailReportsChannel(BaseChannel):
 class InAppChannel(BaseChannel):
     '''
     In-app Notifications channel
-    Saves notification and triggers a session update
+    Manages notifications and triggers session updates
     '''
 
     def send(self, notification):
-        if not Notification.objects(
-                id=notification.id) and not notification.dismissed:
+
+        def modify(notification):
             notification.save()
+
+        self.modify_and_notify(notification, modify)
+
+    def delete(self, notification):
+
+        def modify(notification):
+            notification.delete()
+
+        self.modify_and_notify(notification, delete)
+
+    def dismiss(self, notification):
+
+        def modify(notification):
+            notification.dismissed = True
+            notification.save()
+
+        self.modify_and_notify(notification, delete)
+
+    def modify_and_notify(self, notification, modifier):
+        user = notification.user
+        old_notifications = Notification.objects(
+            user=user, dismissed=False).to_json()
+        modifier(notification)
+        new_notifications = Notification.objects(
+            user=user, dismissed=False).to_json()
+        patch = jsonpatch.JsonPatch.from_diff(
+            old_notifications, new_notifications).patch
+        if patch:
             amqp_publish_user(notification.organization,
                               routing_key='notification',
-                              data=notification.to_json())
+                              data=json.dumps({
+                                  "user": user,
+                                  "patch": patch
+                              }))
 
 
 class StdoutChannel(BaseChannel):
