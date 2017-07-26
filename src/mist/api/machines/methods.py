@@ -333,12 +333,18 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
         # list_machines
         try:
             machine = Machine(cloud=cloud, machine_id=node.id).save()
+            # Since this is the first time the new Machine object is persisted
+            # to mongodb, we need to also update the mappings. We cannot rely
+            # on list_machines, since the node will not be treated as seen for
+            # the first time and thus will not trigger an update.
+            machine.owner.mapper.update(machine)
         except me.NotUniqueError:
             machine = Machine.objects.get(cloud=cloud, machine_id=node.id)
 
         username = node.extra.get('username', '')
         machine.ctl.associate_key(key, username=username,
                                   port=ssh_port, no_connect=True)
+
     # Call post_deploy_steps for every provider
     if conn.type == Provider.AZURE:
         # for Azure, connect with the generated password, deploy the ssh key
