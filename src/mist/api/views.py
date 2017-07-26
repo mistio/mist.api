@@ -865,7 +865,6 @@ def whitelist_ip(request):
     """
     Whitelist IPs for specified user.
     """
-
     auth_context = auth_context_from_request(request)
     params = params_from_request(request)
     ips = params.get('ips')

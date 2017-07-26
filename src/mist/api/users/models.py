@@ -70,9 +70,12 @@ class WhitelistIP(me.EmbeddedDocument):
         """Checks the CIDR to determine if it maps to a valid IPv4 network."""
 
         try:
-            netaddr.cidr_to_glob(self.cidr)
+            # netaddr.cidr_to_glob(self.cidr)
+            self.cidr = str(netaddr.IPNetwork(self.cidr))
         except (TypeError, netaddr.AddrFormatError) as err:
             raise me.ValidationError(err)
+    def as_dict(self):
+        return json.loads(self.to_json())
 
 
 # TODO remove these, but first delete feedback field from user

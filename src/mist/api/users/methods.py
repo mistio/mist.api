@@ -3,6 +3,7 @@ from time import time
 
 from mist.api.users.models import User
 from mist.api.users.models import Organization
+from mist.api.users.models import WhitelistIP
 
 from mongoengine import ValidationError
 from mongoengine import OperationError
@@ -139,6 +140,7 @@ def get_user_data(auth_context):
         'first_name': user.first_name,
         'last_name': user.last_name,
         'username': user.username,
+        'ips': [ip.as_dict() for ip in user.ips],
         'has_pass': user.password is not None and user.password != '',
         'orgs': orgs,
         'csrf_token': auth_context.token.csrf_token,
@@ -180,8 +182,15 @@ def update_whitelist_ips(auth_context, ips):
     {cidr:'cidr2', 'description:'desc2'}]
     and saves them in the User.ips field.
     """
+
     user = auth_context.user
-    user.ips = ips
+
+    user.ips = []
+    for ip_dict in ips:
+        wip = WhitelistIP()
+        wip.cidr = ip_dict['cidr']
+        wip.description = ip_dict['description']
+        user.ips.append(wip)
 
     try:
         user.save()
