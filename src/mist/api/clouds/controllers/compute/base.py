@@ -174,6 +174,7 @@ class BaseComputeController(BaseController):
 
         machines = []
         now = datetime.datetime.utcnow()
+        month_days = calendar.monthrange(now.year, now.month)[1]
 
         # Process each machine in returned list.
         # Store previously unseen machines separately.
@@ -272,8 +273,6 @@ class BaseComputeController(BaseController):
                         log.warning("Can't parse %r as float.", num)
                         return 0
 
-                month_days = calendar.monthrange(now.year, now.month)[1]
-
                 cph = parse_num(tags.get('cost_per_hour'))
                 cpm = parse_num(tags.get('cost_per_month'))
                 if not (cph or cpm) or cph > 100 or cpm > 100 * 24 * 31:
@@ -320,6 +319,29 @@ class BaseComputeController(BaseController):
             # allow reboot action for bare metal with key associated
             if machine.key_associations:
                 machine.actions.reboot = True
+
+            # Get machine tags from db
+            tags = {tag.key: tag.value for tag in Tag.objects(
+                owner=self.cloud.owner, resource=machine,
+            ).only('key', 'value')}
+
+            # Apply cost reporting through tags
+            def parse_num(num):
+                try:
+                    return float(num or 0)
+                except (ValueError, TypeError):
+                    log.warning("Can't parse %r as float.", num)
+                    return 0
+
+            cph = parse_num(tags.get('cost_per_hour'))
+            cpm = parse_num(tags.get('cost_per_month'))
+            if not cph:
+                cph = float(cpm) / month_days / 24
+            elif not cpm:
+                cpm = cph * 24 * month_days
+            machine.cost.hourly = cph
+            machine.cost.monthly = cpm
+
             machine.save()
             machines.append(machine)
 
