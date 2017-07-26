@@ -25,7 +25,6 @@ from mist.api.logs.methods import get_stories
 
 from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
-from mist.api.poller.models import ListMachinesPollingSchedule
 
 from mist.api.auth.methods import auth_context_from_session_id
 
@@ -299,9 +298,7 @@ class MainConnection(MistConnection):
 
     def update_poller(self):
         """Increase polling frequency for all clouds"""
-        log.info("Updating poller for %s", self)
-        for cloud in Cloud.objects(owner=self.owner, deleted=None):
-            ListMachinesPollingSchedule.add(cloud=cloud, interval=10, ttl=120)
+        tasks.update_poller.delay(self.owner.id)
 
     def update_user(self):
         self.send('user', get_user_data(self.auth_context))
@@ -542,7 +539,8 @@ class MainConnection(MistConnection):
                 self.auth_context.org.reload()
                 self.update_org()
         elif routing_key == 'notification':
-            self.send('notification', result)
+            if json.loads(result).get('user') == self.user.id:
+                self.send('notification', result)
 
         elif routing_key == 'patch_machines':
             cloud_id = result['cloud_id']

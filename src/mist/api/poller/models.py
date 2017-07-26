@@ -7,6 +7,7 @@ import mongoengine as me
 
 
 from mist.api.clouds.models import Cloud
+from mist.api.machines.models import Machine
 
 
 log = logging.getLogger(__name__)
@@ -42,6 +43,7 @@ class PollingSchedule(me.Document):
 
     meta = {
         'allow_inheritance': True,
+        'strict': False,
     }
 
     # We use a unique name for easy identification and to avoid running the
@@ -73,12 +75,6 @@ class PollingSchedule(me.Document):
     last_run_at = me.DateTimeField()
     total_run_count = me.IntField(min_value=0)
     run_immediately = me.BooleanField()
-
-    # Extra fields used by poller.
-    last_success = me.DateTimeField()
-    last_failure = me.DateTimeField()
-    last_attempt_started = me.DateTimeField()
-    failure_count = me.IntField(default=0)
 
     def get_name(self):
         """Construct name based on self.task"""
@@ -240,3 +236,42 @@ class CloudPollingSchedule(PollingSchedule):
 class ListMachinesPollingSchedule(CloudPollingSchedule):
 
     task = 'mist.api.poller.tasks.list_machines'
+
+
+class MachinePollingSchedule(PollingSchedule):
+
+    machine = me.ReferenceField(Machine, reverse_delete_rule=me.CASCADE)
+
+    def get_name(self):
+        return '%s(%s)' % (super(MachinePollingSchedule, self).get_name(),
+                           self.machine)
+
+    @classmethod
+    def add(cls, machine, interval=None, ttl=300):
+        try:
+            schedule = cls.objects.get(machine=machine)
+        except cls.DoesNotExist:
+            schedule = cls(machine=machine)
+            try:
+                schedule.save()
+            except me.NotUniqueError:
+                # Work around race condition where schedule was created since
+                # last time we checked.
+                schedule = cls.objects.get(machine=machine)
+        schedule.set_default_interval(60 * 60 * 2)
+        if interval is not None:
+            schedule.add_interval(interval, ttl)
+        schedule.run_immediately = True
+        schedule.cleanup_expired_intervals()
+        schedule.save()
+        return schedule
+
+
+class PingProbeMachinePollingSchedule(MachinePollingSchedule):
+
+    task = 'mist.api.poller.tasks.ping_probe'
+
+
+class SSHProbeMachinePollingSchedule(MachinePollingSchedule):
+
+    task = 'mist.api.poller.tasks.ssh_probe'

@@ -31,6 +31,10 @@ from mist.api.scripts.models import Script
 from mist.api.schedules.models import Schedule
 from mist.api.dns.models import Zone, Record, RECORDS
 
+from mist.api.poller.models import ListMachinesPollingSchedule
+from mist.api.poller.models import PingProbeMachinePollingSchedule
+from mist.api.poller.models import SSHProbeMachinePollingSchedule
+
 celery_cfg = 'mist.core.celery_config'
 
 from mist.api.helpers import send_email as helper_send_email
@@ -880,7 +884,7 @@ class Ping(UserTask):
 
     def execute(self, owner_id, cloud_id, machine_id, host):
         from mist.api import methods
-        res = methods.ping(host, owner_id)
+        res = methods.ping(owner=Owner.objects.get(id=owner_id), host=host)
         return {'cloud_id': cloud_id,
                 'machine_id': machine_id,
                 'host': host,
@@ -974,7 +978,10 @@ def create_machine_async(owner_id, cloud_id, key_id, machine_name, location_id,
                          softlayer_backend_vlan_id=None, size_ram=256, size_cpu=1,
                          size_disk_primary=5, size_disk_swap=1, boot=True, build=True,
                          cpu_priority=1, cpu_sockets=1, cpu_threads=1, port_speed=0,
-                         hypervisor_group_id=None):
+                         hypervisor_group_id=None, solusvm_ipv4=1, solusvm_ipv6=0,
+                         size_swap=256, solusvm_vttype='openvz', solusvm_node_group=1,
+                         solusvm_user_id=31, solusvm_bandwidth=1):
+
     from multiprocessing.dummy import Pool as ThreadPool
     from mist.api.machines.methods import create_machine
     from mist.api.exceptions import MachineCreationError
@@ -1032,7 +1039,14 @@ def create_machine_async(owner_id, cloud_id, key_id, machine_name, location_id,
              'cpu_sockets': cpu_sockets,
              'cpu_threads': cpu_threads,
              'port_speed': port_speed,
-             'hypervisor_group_id': hypervisor_group_id}
+             'hypervisor_group_id': hypervisor_group_id,
+             'solusvm_ipv4': solusvm_ipv4,
+             'solusvm_ipv6': solusvm_ipv6,
+             'size_swap': size_swap,
+             'solusvm_vttype': solusvm_vttype,
+             'solusvm_node_group': solusvm_node_group,
+             'solusvm_user_id': solusvm_user_id,
+             'solusvm_bandwidth': solusvm_bandwidth}
         ))
 
     def create_machine_wrapper(args_kwargs):
@@ -1437,3 +1451,18 @@ def revoke_token(token):
     auth_token = AuthToken.objects.get(token=token)
     auth_token.invalidate()
     auth_token.save()
+
+
+@app.task
+def update_poller(org_id):
+    org = Organization.objects.get(id=org_id)
+    log.info("Updating poller for %s", org)
+    for cloud in Cloud.objects(owner=org, deleted=None):
+        log.info("Updating poller for cloud %s", cloud)
+        ListMachinesPollingSchedule.add(cloud=cloud, interval=10, ttl=120)
+        # for machine in cloud.ctl.compute.list_cached_machines():
+        #     log.info("Updating poller for machine %s", machine)
+        #     PingProbeMachinePollingSchedule.add(machine=machine,
+        #                                         interval=90, ttl=120)
+        #     SSHProbeMachinePollingSchedule.add(machine=machine,
+        #                                        interval=90, ttl=120)
