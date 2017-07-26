@@ -384,7 +384,7 @@ class MainConnection(MistConnection):
         org = filter_org(self.auth_context)
         channel = 'in_app'
         notifications_json = get_notifications(user, org, channel).to_json()
-        log.info("Emitting notifications.")
+        log.info("Emitting notifications list")
         self.send('notifications', notifications_json)
 
     def check_monitoring(self):
