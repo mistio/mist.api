@@ -74,6 +74,7 @@ class WhitelistIP(me.EmbeddedDocument):
             self.cidr = str(netaddr.IPNetwork(self.cidr))
         except (TypeError, netaddr.AddrFormatError) as err:
             raise me.ValidationError(err)
+
     def as_dict(self):
         return json.loads(self.to_json())
 
