@@ -266,6 +266,7 @@ class Machine(me.Document):
                 'cls': False,
             },
         ],
+        'strict': False,
     }
 
     def __init__(self, *args, **kwargs):
