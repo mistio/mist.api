@@ -9,6 +9,7 @@ import channels
 NOTIFICATION POLICIES
 '''
 
+
 def add_block_rule(user, org, source):
     '''
     Adds a block rule to a user-org policy for the specified source.
@@ -67,9 +68,11 @@ def get_policy(user, org, create=True):
             return None
     return policies[0]
 
+
 '''
 NOTIFICATION HELPERS
 '''
+
 
 def send_notification(notification):
     '''
@@ -87,7 +90,7 @@ def send_notification(notification):
 def get_notifications(user, org, channel, get_dismissed=False):
     '''
     Gets notifications with user, org and channel as parameters.
-    By default only gets active (i.e. not dismissed) 
+    By default only gets active (i.e. not dismissed)
     notifications.
     '''
     org = Organization.objects.get(id=org['id'])
@@ -146,8 +149,8 @@ def dismiss_scale_notifications(machine, feedback='neutral'):
     Calls dismiss on each notification's channel. May update
     the feedback field on each notification.
     '''
-    notifications = Notification.objects(resource=machine, 
-                            kind__contains="machine.scale")
+    notifications = Notification.objects(resource=machine,
+                                         kind__contains="machine.scale")
     for notification in notifications:
         notification.feedback = feedback
         chan = channels.channel_instance_with_name(notification.channel)
