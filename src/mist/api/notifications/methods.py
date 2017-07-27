@@ -5,19 +5,9 @@ import models
 from models import Notification
 import channels
 
-
-def send_notification(notification):
-    '''
-    Accepts a notification instance, checks against user
-    notification policy and sends the notification
-    through specified channels.
-    '''
-    policy = get_policy(notification.user, notification.organization)
-    if policy.notification_allowed(notification):
-        chan = channels.channel_instance_with_name(notification.channel)
-        if chan:
-            chan.send(notification)
-
+'''
+NOTIFICATION POLICIES
+'''
 
 def add_block_rule(user, org, source):
     '''
@@ -77,8 +67,29 @@ def get_policy(user, org, create=True):
             return None
     return policies[0]
 
+'''
+NOTIFICATION HELPERS
+'''
+
+def send_notification(notification):
+    '''
+    Accepts a notification instance, checks against user
+    notification policy and sends the notification
+    through specified channels.
+    '''
+    policy = get_policy(notification.user, notification.organization)
+    if policy.notification_allowed(notification):
+        chan = channels.channel_instance_with_name(notification.channel)
+        if chan:
+            chan.send([notification])
+
 
 def get_notifications(user, org, channel, get_dismissed=False):
+    '''
+    Gets notifications with user, org and channel as parameters.
+    By default only gets active (i.e. not dismissed) 
+    notifications.
+    '''
     org = Organization.objects.get(id=org['id'])
     if get_dismissed:
         notifications = Notification.objects(
@@ -104,7 +115,8 @@ def make_notification(
         save=False):
     '''
     Generates a notification. By default the notification is not
-    saved for efficiency.
+    saved for efficiency. If required, it will be saved later on
+    by the appropriate channel.
     '''
     notification = Notification()
     notification.created_date = datetime.now()
@@ -125,6 +137,22 @@ def make_notification(
     if save:
         notification.save()
     return notification
+
+
+def dismiss_scale_notifications(machine, feedback='neutral'):
+    '''
+    Convenience function to dismiss scale notifications from
+    a machine.
+    Calls dismiss on each notification's channel. May update
+    the feedback field on each notification.
+    '''
+    notifications = Notification.objects(resource=machine, 
+                            kind__contains="machine.scale")
+    for notification in notifications:
+        notification.feedback = feedback
+        chan = channels.channel_instance_with_name(notification.channel)
+        if chan:
+            chan.dismiss([notification])
 
 
 def test():
