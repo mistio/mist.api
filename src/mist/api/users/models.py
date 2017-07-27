@@ -308,6 +308,9 @@ class User(Owner):
     password_reset_token_ip_addr = me.StringField()
     password_reset_token = me.StringField()
     password_reset_token_created = me.FloatField()
+    whitelist_ip_token_ip_addr = me.StringField()
+    whitelist_ip_token = me.StringField()
+    whitelist_ip_token_created = me.FloatField()
     user_agent = me.StringField()
     social_auth_users = me.MapField(field=me.ReferenceField(SocialAuthUser))
     username = me.StringField()
@@ -316,6 +319,7 @@ class User(Owner):
     beta_access = me.BooleanField(default=True)
 
     ips = me.EmbeddedDocumentListField(WhitelistIP, default=[])
+    current_ip = me.StringField()
 
     meta = {
         'indexes': [

@@ -1,4 +1,5 @@
 import logging
+import netaddr
 
 from mist.api.logs.methods import log_event
 from mist.api.helpers import ip_from_request
@@ -8,8 +9,12 @@ from mist.api.auth.models import ApiToken
 from mist.api.auth.models import SessionToken
 
 from mist.api.auth.methods import session_from_request
+from mist.api.auth.methods import user_from_request
+
+from mist.api import config
 
 from pyramid.request import Request
+
 
 
 log = logging.getLogger(__name__)
@@ -60,6 +65,20 @@ class AuthMiddleware(object):
                         headers.append(header)
                     if 'OPTIONS' in environ['REQUEST_METHOD']:
                         return start_response('204 No Content', headers, exc_info)
+            user = user_from_request(request)
+            # Check whether the request IP is in the user whitelisted ones.
+            current_user_ip = netaddr.IPAddress(ip_from_request(request))
+            saved_wips = [netaddr.IPNetwork(ip.cidr) for ip in user.ips]
+            config_wips = [netaddr.IPNetwork(cidr) for cidr in config.WHITELIST_CIDR]
+            wips = saved_wips + config_wips
+            if len(saved_wips) > 0:
+                for ipnet in wips:
+                    if current_user_ip in ipnet:
+                        break
+                else:
+                    start_response('403 Forbidden',
+                                   [('Content-Type', 'text/plain')])
+                    return ["Request sent from non-whitelisted IP\n"]
 
             return start_response(status, headers, exc_info)
 

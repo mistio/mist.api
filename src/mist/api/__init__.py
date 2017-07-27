@@ -142,6 +142,8 @@ def add_routes(configurator):
     configurator.add_route('forgot_password', '/forgot')
     configurator.add_route('reset_password', '/reset-password')
     configurator.add_route('confirm_invitation', '/confirm-invitation')
+    configurator.add_route('request_whitelist_ip', '/request-whitelist-ip')
+    configurator.add_route('confirm_whitelist', '/confirm-whitelist')
 
     configurator.add_route('api_v1_avatars', '/api/v1/avatars')
     configurator.add_route('api_v1_avatar', '/api/v1/avatars/{avatar}')
