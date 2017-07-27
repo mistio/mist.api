@@ -11,7 +11,7 @@ import logging
 
 class BaseChannel():
     '''
-    Represents a notification channel
+    Base notification channel class
     '''
 
     def send(self, notification):
@@ -21,10 +21,17 @@ class BaseChannel():
         '''
         pass
 
-    def delete(self, notification_id):
+    def delete(self, notification):
         '''
-        Accepts a notification id and deletes the
-        corresponding notification
+        Accepts a notification and deletes it
+        if it had been saved
+        '''
+        pass
+
+    def dismiss(self, notification):
+        '''
+        Accepts a notification and marks it as
+        dismissed by the user
         '''
         pass
 
@@ -106,14 +113,14 @@ class InAppChannel(BaseChannel):
         def modify(notification):
             notification.save()
 
-        self.modify_and_notify(notification, modify)
+        self._modify_and_notify(notification, modify)
 
     def delete(self, notification):
 
         def modify(notification):
             notification.delete()
 
-        self.modify_and_notify(notification, delete)
+        self._modify_and_notify(notification, modify)
 
     def dismiss(self, notification):
 
@@ -121,9 +128,9 @@ class InAppChannel(BaseChannel):
             notification.dismissed = True
             notification.save()
 
-        self.modify_and_notify(notification, delete)
+        self._modify_and_notify(notification, modify)
 
-    def modify_and_notify(self, notification, modifier):
+    def _modify_and_notify(self, notification, modifier):
         user = notification.user
         old_notifications = Notification.objects(
             user=user, dismissed=False).to_json()
