@@ -248,7 +248,8 @@ class MachinePollingSchedule(PollingSchedule):
 
     @property
     def enabled(self):
-        return bool(Machine.objects(id=self.machine_id).count())
+        return bool(Machine.objects(id=self.machine_id,
+                                    missing_since__ne=None).count())
 
     def get_name(self):
         return '%s(%s)' % (super(MachinePollingSchedule, self).get_name(),

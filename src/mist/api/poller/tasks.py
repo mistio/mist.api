@@ -37,10 +37,7 @@ def list_machines(schedule_id):
     # FIXME: resolve circular deps error
     from mist.api.poller.models import ListMachinesPollingSchedule
     sched = ListMachinesPollingSchedule.objects.get(id=schedule_id)
-    try:
-        sched.cloud.ctl.compute.list_machines(persist=False)
-    except Exception as exc:
-        log.error("Error while listing machines for %s: %r", sched.cloud, exc)
+    sched.cloud.ctl.compute.list_machines(persist=False)
 
 
 @app.task(time_limit=45, soft_time_limit=40)

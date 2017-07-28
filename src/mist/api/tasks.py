@@ -1447,7 +1447,7 @@ def revoke_token(token):
 def update_poller(org_id):
     org = Organization.objects.get(id=org_id)
     log.info("Updating poller for %s", org)
-    for cloud in Cloud.objects(owner=org, deleted=None):
+    for cloud in Cloud.objects(owner=org, deleted=None, enabled=True):
         log.info("Updating poller for cloud %s", cloud)
         ListMachinesPollingSchedule.add(cloud=cloud, interval=10, ttl=120)
         for machine in cloud.ctl.compute.list_cached_machines():
