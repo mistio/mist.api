@@ -790,7 +790,7 @@ def confirm_whitelist(request):
     user.ips.append(wip)
     user.save()
 
-    return HTTPFound('/my-account/?ips=true')
+    return HTTPFound('/sign-in?return_to=/my-account/ips')
 
 
 # SEC
