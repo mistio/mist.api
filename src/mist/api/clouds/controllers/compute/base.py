@@ -44,8 +44,6 @@ from mist.api.helpers import amqp_owner_listening
 from mist.api.poller2.models import PeriodicTaskInfo
 from mist.api.poller2.models import PeriodicTaskThresholdExceeded
 
-from mist.api.notifications.methods import dismiss_scale_notifications
-
 try:
     from mist.core.vpn.methods import destination_nat as dnat
 except ImportError:
@@ -999,6 +997,8 @@ class BaseComputeController(BaseController):
         machine_libcloud = self._get_machine_libcloud(machine)
         try:
             self._resize_machine(machine, machine_libcloud, plan_id, kwargs)
+
+            from mist.api.notifications.methods import dismiss_scale_notifications
             # TODO: Make sure the user feedback is positive below!
             dismiss_scale_notifications(machine, feedback='positive')
         except Exception as exc:
