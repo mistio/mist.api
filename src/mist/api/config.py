@@ -745,7 +745,7 @@ WHITELIST_IP_EMAIL_BODY = \
 """Hi %s,
 
 We have received a request to whitelist the IP you just tried to login with.
-Please click on the following link:
+Please click on the following link to finish this action:
 
 %s/confirm-whitelist?key=%s
 

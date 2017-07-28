@@ -9,12 +9,10 @@ from mist.api.auth.models import ApiToken
 from mist.api.auth.models import SessionToken
 
 from mist.api.auth.methods import session_from_request
-from mist.api.auth.methods import user_from_request
 
 from mist.api import config
 
 from pyramid.request import Request
-
 
 
 log = logging.getLogger(__name__)

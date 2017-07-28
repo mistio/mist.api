@@ -320,7 +320,6 @@ def login(request):
 
     reissue_cookie_session(request, user)
 
-    user.current_ip = ip_from_request(request)
     user.last_login = time()
     user.user_agent = request.user_agent
     user.save()
@@ -718,7 +717,7 @@ def request_whitelist_ip(request):
     """
     User logs in successfully but it's from a non-whitelisted ip.
     They click on a link 'whitelist current ip', which sends an email
-    to their account 
+    to their account.
     """
     try:
         email = user_from_request(request).email
@@ -970,6 +969,8 @@ def whitelist_ip(request):
         raise RequiredParameterMissingError('ips')
 
     update_whitelist_ips(auth_context, ips)
+
+    return OK
 
 
 @view_config(route_name='api_v1_images', request_method='POST', renderer='json')
