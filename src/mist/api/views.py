@@ -790,7 +790,7 @@ def confirm_whitelist(request):
     user.ips.append(wip)
     user.save()
 
-    return HTTPFound('/')
+    return HTTPFound('/my-account')
 
 
 # SEC
@@ -963,9 +963,9 @@ def whitelist_ip(request):
     """
     auth_context = auth_context_from_request(request)
     params = params_from_request(request)
-    ips = params.get('ips')
+    ips = params.get('ips', None)
 
-    if not ips:
+    if ips is None:
         raise RequiredParameterMissingError('ips')
 
     update_whitelist_ips(auth_context, ips)
