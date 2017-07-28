@@ -141,7 +141,7 @@ class InAppChannel(BaseChannel):
             old_notifications, new_notifications).patch
         if patch:
             amqp_publish_user(notification.organization,
-                              routing_key='notification',
+                              routing_key='patch_notifications',
                               data=json.dumps({
                                   "user": user,
                                   "patch": patch
