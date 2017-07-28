@@ -70,7 +70,7 @@ class AuthMiddleware(object):
 
         user = session.get_user()
         # Check whether the request IP is in the user whitelisted ones.
-        if session and user is not None:
+        if session and user is not None and request.path != '/logout':
             current_user_ip = netaddr.IPAddress(ip_from_request(request))
             saved_wips = [netaddr.IPNetwork(ip.cidr) for ip in user.ips]
             config_wips = [netaddr.IPNetwork(cidr) for cidr in config.WHITELIST_CIDR]
