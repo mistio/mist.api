@@ -141,6 +141,7 @@ def get_user_data(auth_context):
         'last_name': user.last_name,
         'username': user.username,
         'ips': [ip.as_dict() for ip in user.ips],
+        'current_ip': auth_context.token.ip_address,
         'has_pass': user.password is not None and user.password != '',
         'orgs': orgs,
         'csrf_token': auth_context.token.csrf_token,

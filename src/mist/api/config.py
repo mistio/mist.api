@@ -988,8 +988,6 @@ if NO_VERIFY_HOSTS:
     libcloud.security.NO_VERIFY_MATCH_HOSTNAMES = NO_VERIFY_HOSTS
 
 WHITELIST_CIDR = [
-    '1.2.3.4/32',
-    '2.3.4.5/32'
 ]
 
 HOMEPAGE_INPUTS = {

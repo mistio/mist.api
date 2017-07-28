@@ -317,7 +317,6 @@ class User(Owner):
     beta_access = me.BooleanField(default=True)
 
     ips = me.EmbeddedDocumentListField(WhitelistIP, default=[])
-    current_ip = me.StringField()
 
     meta = {
         'indexes': [

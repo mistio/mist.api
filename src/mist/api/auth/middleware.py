@@ -30,7 +30,7 @@ class AuthMiddleware(object):
 
     def __call__(self, environ, start_response):
         request = Request(environ)
-        session_from_request(request)
+        session = session_from_request(request)
 
         def session_start_response(status, headers, exc_info=None):
             session = environ['session']  # reload in case it was reissued
@@ -65,8 +65,12 @@ class AuthMiddleware(object):
                         headers.append(header)
                     if 'OPTIONS' in environ['REQUEST_METHOD']:
                         return start_response('204 No Content', headers, exc_info)
-            user = user_from_request(request)
-            # Check whether the request IP is in the user whitelisted ones.
+
+            return start_response(status, headers, exc_info)
+
+        user = session.get_user()
+        # Check whether the request IP is in the user whitelisted ones.
+        if session and user is not None:
             current_user_ip = netaddr.IPAddress(ip_from_request(request))
             saved_wips = [netaddr.IPNetwork(ip.cidr) for ip in user.ips]
             config_wips = [netaddr.IPNetwork(cidr) for cidr in config.WHITELIST_CIDR]
@@ -76,12 +80,8 @@ class AuthMiddleware(object):
                     if current_user_ip in ipnet:
                         break
                 else:
-                    start_response('403 Forbidden',
-                                   [('Content-Type', 'text/plain')])
-                    return ["Request sent from non-whitelisted IP\n"]
-
-            return start_response(status, headers, exc_info)
-
+                    start_response('403 Forbidden', [('Content-type', 'text/html')])
+                    return ['Request sent from non-whitelisted IP\n']
         response = self.app(environ, session_start_response)
         return response
 

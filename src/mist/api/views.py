@@ -713,7 +713,7 @@ def reset_password(request):
     raise BadRequestError("Bad method %s" % request.method)
 
 
-@view_config(route_name='whitelist_ip', request_method='POST')
+@view_config(route_name='request_whitelist_ip', request_method='POST')
 def request_whitelist_ip(request):
     """
     User logs in successfully but it's from a non-whitelisted ip.
@@ -766,7 +766,6 @@ def confirm_whitelist(request):
 
     if not key:
         raise BadRequestError("Whitelist IP token is missing")
-    reissue_cookie_session(request)  # logout
 
     # SEC decrypt key using secret
     try:
@@ -787,8 +786,8 @@ def confirm_whitelist(request):
         raise MethodNotAllowedError("Whitelist IP token has expired.")
 
     wip = WhitelistIP()
-    wip.cidr = {'cidr': user.whitelist_ip_token_ip_addr }
-    wip.description = {'description': 'Added by Mist.io upon request'}
+    wip.cidr = user.whitelist_ip_token_ip_addr
+    wip.description = 'Added by Mist.io upon request'
     user.ips.append(wip)
     user.save()
 
