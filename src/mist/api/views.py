@@ -970,7 +970,7 @@ def whitelist_ip(request):
 
     update_whitelist_ips(auth_context, ips)
 
-    trigger_session_update(auth_context.user, ['user'])
+    trigger_session_update(auth_context.org, ['user'])
     return OK
 
 
