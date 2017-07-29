@@ -79,7 +79,9 @@ class AuthMiddleware(object):
                         break
                 else:
                     start_response('403 Forbidden', [('Content-type', 'text/html')])
-                    return ['Request sent from non-whitelisted IP\n']
+                    return ['Request sent from non-whitelisted IP.\n'\
+                            'Please <a href=/logout>logout</a> and sign back in'\
+                            'to request whitelisting your current IP via email.']
         response = self.app(environ, session_start_response)
         return response
 
