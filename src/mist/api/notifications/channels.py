@@ -1,7 +1,9 @@
+from datetime import datetime
 import json
 import jsonpatch
 
 from mist.api import config
+from mist.api.users.models import Owner
 from mist.api.helpers import send_email, amqp_publish_user
 
 from models import Notification
@@ -132,20 +134,23 @@ class InAppChannel(BaseChannel):
 
     def _modify_and_notify(self, notification, modifier):
         user = notification.user
-        old_notifications = Notification.objects(
-            user=user, dismissed=False).to_json()
+
+        old_notifications = [obj for obj in Notification.objects(
+            user=user, channel='in_app', dismissed=False)]
         modifier(notification)
-        new_notifications = Notification.objects(
-            user=user, dismissed=False).to_json()
+        new_notifications = [obj for obj in Notification.objects(
+            user=user, channel='in_app', dismissed=False)]
         patch = jsonpatch.JsonPatch.from_diff(
             old_notifications, new_notifications).patch
+
         if patch:
+            data = json.dumps({
+                            "user": user.id,
+                            "patch": patch
+                        }, cls=NotificationsEncoder)
             amqp_publish_user(notification.organization,
                               routing_key='patch_notifications',
-                              data=json.dumps({
-                                  "user": user,
-                                  "patch": patch
-                              }))
+                              data=data)
 
 
 class StdoutChannel(BaseChannel):
@@ -172,3 +177,11 @@ def channel_instance_with_name(name):
     elif name == 'in_app':
         return InAppChannel()
     return None
+
+class NotificationsEncoder(json.JSONEncoder):
+    def default(self, o):
+        # FIXME: this is kind of dumb, but it works
+        if isinstance(o, Notification):
+            return json.loads(o.to_json())
+        else:
+            return json.JSONEncoder.default(self, o)
