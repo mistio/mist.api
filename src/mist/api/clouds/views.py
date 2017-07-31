@@ -81,6 +81,7 @@ def add_cloud(request):
       - azure_arm
       - linode
       - onapp
+      - solusvm
       - hostvirtual
       - vultr
       required: true
