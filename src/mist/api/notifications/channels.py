@@ -145,9 +145,9 @@ class InAppChannel(BaseChannel):
 
         if patch:
             data = json.dumps({
-                            "user": user.id,
-                            "patch": patch
-                        }, cls=NotificationsEncoder)
+                "user": user.id,
+                "patch": patch
+            }, cls=NotificationsEncoder)
             amqp_publish_user(notification.organization,
                               routing_key='patch_notifications',
                               data=data)
@@ -177,6 +177,7 @@ def channel_instance_with_name(name):
     elif name == 'in_app':
         return InAppChannel()
     return None
+
 
 class NotificationsEncoder(json.JSONEncoder):
     def default(self, o):
