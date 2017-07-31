@@ -973,7 +973,6 @@ def logging_view_decorator(func):
                       'nephoscale': 'password',
                       'softlayer': 'api_key',
                       'onapp': 'api_key',
-                      'solusvm': 'api_key',
                       'digitalocean': 'token',
                       'gce': 'private_key',
                       'azure': 'certificate',

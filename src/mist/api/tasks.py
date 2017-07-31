@@ -974,10 +974,7 @@ def create_machine_async(owner_id, cloud_id, key_id, machine_name, location_id,
                          softlayer_backend_vlan_id=None, size_ram=256, size_cpu=1,
                          size_disk_primary=5, size_disk_swap=1, boot=True, build=True,
                          cpu_priority=1, cpu_sockets=1, cpu_threads=1, port_speed=0,
-                         hypervisor_group_id=None, solusvm_ipv4=1, solusvm_ipv6=0,
-                         size_swap=256, solusvm_vttype='openvz', solusvm_node_group=1,
-                         solusvm_user_id=31, solusvm_bandwidth=1):
-
+                         hypervisor_group_id=None):
     from multiprocessing.dummy import Pool as ThreadPool
     from mist.api.machines.methods import create_machine
     from mist.api.exceptions import MachineCreationError
@@ -1035,14 +1032,7 @@ def create_machine_async(owner_id, cloud_id, key_id, machine_name, location_id,
              'cpu_sockets': cpu_sockets,
              'cpu_threads': cpu_threads,
              'port_speed': port_speed,
-             'hypervisor_group_id': hypervisor_group_id,
-             'solusvm_ipv4': solusvm_ipv4,
-             'solusvm_ipv6': solusvm_ipv6,
-             'size_swap': size_swap,
-             'solusvm_vttype': solusvm_vttype,
-             'solusvm_node_group': solusvm_node_group,
-             'solusvm_user_id': solusvm_user_id,
-             'solusvm_bandwidth': solusvm_bandwidth}
+             'hypervisor_group_id': hypervisor_group_id}
         ))
 
     def create_machine_wrapper(args_kwargs):
