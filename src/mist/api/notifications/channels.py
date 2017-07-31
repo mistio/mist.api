@@ -1,9 +1,7 @@
-from datetime import datetime
 import json
 import jsonpatch
 
 from mist.api import config
-from mist.api.users.models import Owner
 from mist.api.helpers import send_email, amqp_publish_user
 
 from models import Notification
