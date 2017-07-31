@@ -84,7 +84,7 @@ def send_notification(notification):
     if policy.notification_allowed(notification):
         chan = channels.channel_instance_with_name(notification.channel)
         if chan:
-            chan.send([notification])
+            chan.send(notification)
 
 
 def get_notifications(user, org, channel, get_dismissed=False):
