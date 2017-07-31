@@ -130,11 +130,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                    size_disk_primary=5, size_disk_swap=1,
                    boot=True, build=True,
                    cpu_priority=1, cpu_sockets=1, cpu_threads=1, port_speed=0,
-                   hypervisor_group_id=None, solusvm_ipv4=1, solusvm_ipv6=0,
-                   size_swap=256, solusvm_vttype='openvz',
-                   solusvm_node_group=1, solusvm_user_id=31,
-                   solusvm_bandwidth=1):
-
+                   hypervisor_group_id=None):
     """Creates a new virtual machine on the specified cloud.
 
     If the cloud is Rackspace it attempts to deploy the node with an ssh key
@@ -259,13 +255,6 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
             boot, build, cpu_priority, cpu_sockets,
             cpu_threads, port_speed,
             location, networks, hypervisor_group_id
-        )
-    elif conn.type is Provider.SOLUSVM:
-        node = _create_machine_solusvm(
-            conn, machine_name, solusvm_vttype,
-            solusvm_node_group, solusvm_user_id,
-            image, size_ram, size_swap, size_disk_primary,
-            solusvm_ipv4, solusvm_ipv6, solusvm_bandwidth
         )
     elif conn.type is Provider.DIGITAL_OCEAN:
         node = _create_machine_digital_ocean(
@@ -732,43 +721,6 @@ def _create_machine_onapp(conn, public_key,
         )
     except Exception as e:
         raise MachineCreationError("OnApp, got exception %s" % e, e)
-
-    return node
-
-
-def _create_machine_solusvm(conn, machine_name, solusvm_vttype,
-                            solusvm_node_group, solusvm_user_id,
-                            image, size_ram, size_swap,
-                            size_disk_primary, solusvm_ipv4,
-                            solusvm_ipv6, solusvm_bandwidth):
-
-    """Create a machine in SolusVM.
-
-    """
-    if solusvm_vttype == 'kvm':
-        vmostpl = image.id
-        vmos = ''
-    else:
-        vmos = image.id
-        vmostpl = ''
-
-    try:
-        node = conn.create_node(
-            vttype=solusvm_vttype,
-            user_id=int(solusvm_user_id),
-            nodegroup_id=int(solusvm_node_group),
-            hostname=machine_name,
-            vmos=vmos,
-            vmostpl=vmostpl,
-            diskspace=int(size_disk_primary),
-            ram=int(size_ram),
-            burst=int(size_swap),
-            ipv4=solusvm_ipv4,
-            ipv6=solusvm_ipv6,
-            bandwidth=solusvm_bandwidth
-        )
-    except Exception as e:
-        raise MachineCreationError("SolusVM, got exception %s" % e, e)
 
     return node
 
