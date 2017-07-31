@@ -545,7 +545,7 @@ class MainConnection(MistConnection):
             patch = result['patch']
             machine_ids = []
             for line in patch:
-                machine_id, line['path'] = line['path'].split('-', 1)
+                machine_id, line['path'] = line['path'][1:].split('-', 1)
                 machine_ids.append(machine_id)
             if not self.auth_context.is_owner():
                 allowed_machine_ids = filter_machine_ids(self.auth_context,
