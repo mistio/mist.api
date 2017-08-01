@@ -3,8 +3,10 @@ import random
 import base64
 import mongoengine as me
 
-from libcloud.compute.base import NodeSize, NodeImage, NodeLocation
+from libcloud.compute.base import NodeSize, NodeImage, NodeLocation, Node
 from libcloud.compute.types import Provider
+from libcloud.container.types import Provider as Container_Provider
+from libcloud.container.base import ContainerImage
 from libcloud.compute.base import NodeAuthSSHKey
 from tempfile import NamedTemporaryFile
 
@@ -45,15 +47,15 @@ def machine_name_validator(provider, name):
     Validates machine names before creating a machine
     Provider specific
     """
-    if not name and provider not in config.EC2_PROVIDERS:
+    if not name and provider != Provider.EC2:
         raise MachineNameValidationError("machine name cannot be empty")
-    if provider is Provider.DOCKER:
+    if provider is Container_Provider.DOCKER:
         pass
     elif provider in [Provider.RACKSPACE_FIRST_GEN, Provider.RACKSPACE]:
         pass
     elif provider in [Provider.OPENSTACK]:
         pass
-    elif provider in config.EC2_PROVIDERS:
+    elif provider is Provider.EC2:
         if len(name) > 255:
             raise MachineNameValidationError("machine name max "
                                              "chars allowed is 255")
@@ -81,7 +83,7 @@ def machine_name_validator(provider, name):
                 "or numbers, dashes and periods")
     elif provider == Provider.AZURE:
         pass
-    elif provider in [Provider.VCLOUD, Provider.INDONESIAN_VCLOUD]:
+    elif provider in [Provider.VCLOUD]:
         pass
     elif provider is Provider.LINODE:
         if len(name) < 3:
@@ -155,7 +157,6 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
     # post_script_id: id of a script that exists - for mist.core. If script_id
     # or monitoring are supplied, this will run after both finish
     # post_script_params: extra params, for post_script_id
-
     log.info('Creating machine %s on cloud %s' % (machine_name, cloud_id))
     cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
     conn = connect_provider(cloud)
@@ -166,7 +167,8 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
         key = Key.objects.get(owner=owner, id=key_id, deleted=None)
 
     # if key_id not provided, search for default key
-    if conn.type not in [Provider.LIBVIRT, Provider.DOCKER, Provider.ONAPP]:
+    if conn.type not in [Provider.LIBVIRT,
+                         Container_Provider.DOCKER, Provider.ONAPP]:
         if not key_id:
             key = Key.objects.get(owner=owner, default=True, deleted=None)
             key_id = key.name
@@ -183,7 +185,8 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
     location = NodeLocation(location_id, name=location_name, country='',
                             driver=conn)
 
-    if conn.type is Provider.DOCKER:
+    if conn.type is Container_Provider.DOCKER:
+
         if public_key:
             node = _create_machine_docker(
                 conn, machine_name, image_id, '',
@@ -193,7 +196,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                 docker_port_bindings=docker_port_bindings,
                 docker_exposed_ports=docker_exposed_ports
             )
-            node_info = conn.inspect_node(node)
+            node_info = cloud.ctl.compute.inspect_node(node)
             try:
                 ssh_port = int(
                     node_info.extra[
@@ -215,7 +218,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
         node = _create_machine_openstack(conn, private_key, public_key,
                                          machine_name, image, size, location,
                                          networks, cloud_init)
-    elif conn.type in config.EC2_PROVIDERS and private_key:
+    elif conn.type is Provider.EC2 and private_key:
         locations = conn.list_locations()
         for loc in locations:
             if loc.id == location_id:
@@ -267,7 +270,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
             cloud_service_name=None,
             azure_port_bindings=azure_port_bindings
         )
-    elif conn.type in [Provider.VCLOUD, Provider.INDONESIAN_VCLOUD]:
+    elif conn.type in [Provider.VCLOUD]:
         node = _create_machine_vcloud(conn, machine_name, image,
                                       size, public_key, networks)
     elif conn.type is Provider.LINODE and private_key:
@@ -319,12 +322,18 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
         # list_machines
         try:
             machine = Machine(cloud=cloud, machine_id=node.id).save()
+            # Since this is the first time the new Machine object is persisted
+            # to mongodb, we need to also update the mappings. We cannot rely
+            # on list_machines, since the node will not be treated as seen for
+            # the first time and thus will not trigger an update.
+            machine.owner.mapper.update(machine)
         except me.NotUniqueError:
             machine = Machine.objects.get(cloud=cloud, machine_id=node.id)
 
         username = node.extra.get('username', '')
         machine.ctl.associate_key(key, username=username,
                                   port=ssh_port, no_connect=True)
+
     # Call post_deploy_steps for every provider
     if conn.type == Provider.AZURE:
         # for Azure, connect with the generated password, deploy the ssh key
@@ -378,11 +387,16 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
     ret = {'id': node.id,
            'name': node.name,
            'extra': node.extra,
-           'public_ips': node.public_ips,
-           'private_ips': node.private_ips,
            'job_id': job_id,
            }
 
+    if isinstance(node, Node):
+        ret.update({'public_ips': node.public_ips,
+                    'private_ips': node.private_ips})
+    else:
+        # add public and private ips for docker container
+        ret.update({'public_ips': [],
+                    'private_ips': []})
     return ret
 
 
@@ -504,7 +518,7 @@ def _create_machine_ec2(conn, key_name, private_key, public_key,
                 )
                 key_name = keypair['keyName']
             except Exception as exc:
-                raise CloudUnavailableError("Failed to import key")
+                raise CloudUnavailableError("Failed to import key: %s" % exc)
 
     # create security group
     name = config.EC2_SECURITYGROUP.get('name', '')
@@ -622,17 +636,17 @@ def _create_machine_softlayer(conn, key_name, private_key, public_key,
         server_key = ''
         keys = conn.list_key_pairs()
         for k in keys:
-            if key == k.key:
-                server_key = k.id
+            if key == k.public_key:
+                server_key = k.extra.get('id')
                 break
         if not server_key:
-            server_key = conn.create_key_pair(machine_name, key)
-            server_key = server_key.id
+            server_key = conn.import_key_pair_from_string(machine_name, key)
+            server_key = server_key.extra.get('id')
     except:
-        server_key = conn.create_key_pair(
+        server_key = conn.import_key_pair_from_string(
             'mistio' + str(random.randint(1, 100000)), key
         )
-        server_key = server_key.id
+        server_key = server_key.extra.get('id')
 
     if '.' in machine_name:
         domain = '.'.join(machine_name.split('.')[1:])
@@ -711,40 +725,59 @@ def _create_machine_onapp(conn, public_key,
     return node
 
 
-def _create_machine_docker(conn, machine_name, image, script=None,
-                           public_key=None, docker_env={}, docker_command=None,
+def _create_machine_docker(conn, machine_name, image_id,
+                           script=None, public_key=None,
+                           docker_env={}, docker_command=None,
                            tty_attach=True, docker_port_bindings={},
                            docker_exposed_ports={}):
-    """Create a machine in docker.
-
-    """
-
+    """Create a machine in docker."""
+    image = ContainerImage(id=image_id, name=image_id,
+                           extra={}, driver=conn, path=None,
+                           version=None)
     try:
         if public_key:
             environment = ['PUBLIC_KEY=%s' % public_key.strip()]
         else:
             environment = []
 
-        if docker_env:
+        if isinstance(docker_env, dict):
             # docker_env is a dict, and we must convert it ot be in the form:
             # [ "key=value", "key=value"...]
             docker_environment = ["%s=%s" % (key, value) for key, value in
                                   docker_env.iteritems()]
             environment += docker_environment
 
-        node = conn.create_node(
-            name=machine_name,
-            image=image,
-            command=docker_command,
-            environment=environment,
-            tty=tty_attach,
-            ports=docker_exposed_ports,
-            port_bindings=docker_port_bindings,
-        )
+        try:
+            container = conn.deploy_container(
+                machine_name, image,
+                command=docker_command,
+                environment=environment,
+                tty=tty_attach,
+                ports=docker_exposed_ports,
+                port_bindings=docker_port_bindings
+            )
+        except Exception as e:
+            # if image not found, try to pull it
+            if 'No such image' in str(e):
+                try:
+                    conn.install_image(image.name)
+                    container = conn.deploy_container(
+                        machine_name, image,
+                        command=docker_command,
+                        environment=environment,
+                        tty=tty_attach,
+                        ports=docker_exposed_ports,
+                        port_bindings=docker_port_bindings
+                    )
+                except Exception as e:
+                    raise Exception(e)
+            else:
+                raise Exception(e)
+
     except Exception as e:
         raise MachineCreationError("Docker, got exception %s" % e, e)
 
-    return node
+    return container
 
 
 def _create_machine_digital_ocean(conn, key_name, private_key, public_key,
@@ -757,32 +790,22 @@ def _create_machine_digital_ocean(conn, key_name, private_key, public_key,
 
     """
     key = public_key.replace('\n', '')
-
-    # on API v1 list keys returns only ids, without actual public keys
-    # So the check fails. If there's already a key with the same pub key,
-    # create key call will fail!
     try:
         server_key = ''
-        keys = conn.ex_list_ssh_keys()
+        keys = conn.list_key_pairs()
         for k in keys:
-            if key == k.pub_key:
+            if key == k.public_key:
                 server_key = k
                 break
         if not server_key:
-            server_key = conn.ex_create_ssh_key(machine_name, key)
+            server_key = conn.create_key_pair(machine_name, key)
     except:
-        try:
-            server_key = conn.ex_create_ssh_key('mistio' + str(
-                random.randint(1, 100000)), key)
-        except:
-            # on API v1 if we can't create that key, means that key is already
-            # on our account. Since we don't know the id, we pass all the ids
-            server_keys = [str(k.id) for k in keys]
+        server_keys = [str(k.extra.get('id')) for k in keys]
 
     if not server_key:
         ex_ssh_key_ids = server_keys
     else:
-        ex_ssh_key_ids = [str(server_key.id)]
+        ex_ssh_key_ids = [str(server_key.extra.get('id'))]
 
     # check if location allows the private_networking setting
     private_networking = False
@@ -796,25 +819,23 @@ def _create_machine_digital_ocean(conn, key_name, private_key, public_key,
     except:
         # do not break if this fails for some reason
         pass
+    size.name = size.id  # conn.create_node will use size.name
+    try:
+        node = conn.create_node(
+            name=machine_name,
+            image=image,
+            size=size,
+            ex_ssh_key_ids=ex_ssh_key_ids,
+            location=location,
+            ex_create_attr={'private_networking': private_networking},
+            ex_user_data=user_data
+        )
+    except Exception as e:
+        raise MachineCreationError(
+            "Digital Ocean, got exception %s" % e, e
+        )
 
-    with get_temp_file(private_key) as tmp_key_path:
-        try:
-            node = conn.create_node(
-                name=machine_name,
-                image=image,
-                size=size,
-                ex_ssh_key_ids=ex_ssh_key_ids,
-                location=location,
-                ssh_key=tmp_key_path,
-                private_networking=private_networking,
-                user_data=user_data
-            )
-        except Exception as e:
-            raise MachineCreationError(
-                "Digital Ocean, got exception %s" % e, e
-            )
-
-        return node
+    return node
 
 
 def _create_machine_libvirt(conn, machine_name, disk_size, ram, cpu,
@@ -932,15 +953,15 @@ def _create_machine_vultr(conn, public_key, machine_name, image,
 
     try:
         server_key = ''
-        keys = conn.ex_list_ssh_keys()
+        keys = conn.list_key_pairs()
         for k in keys:
             if key == k.ssh_key.replace('\n', ''):
                 server_key = k
                 break
         if not server_key:
-            server_key = conn.ex_create_ssh_key(machine_name, key)
+            server_key = conn.create_key_pair(machine_name, key)
     except:
-        server_key = conn.ex_create_ssh_key('mistio' + str(
+        server_key = conn.create_key_pair('mistio' + str(
             random.randint(1, 100000)), key)
 
     try:
@@ -948,14 +969,18 @@ def _create_machine_vultr(conn, public_key, machine_name, image,
     except:
         pass
 
+    ex_create_attr = {}
+    if cloud_init:
+        ex_create_attr['userdata'] = cloud_init
+
     try:
         node = conn.create_node(
             name=machine_name,
             size=size,
             image=image,
             location=location,
-            ssh_key=[server_key],
-            userdata=cloud_init
+            ex_ssh_key_ids=[server_key],
+            ex_create_attr=ex_create_attr
         )
     except Exception as e:
         raise MachineCreationError("Vultr, got exception %s" % e, e)
@@ -1154,6 +1179,28 @@ def destroy_machine(user, cloud_id, machine_id):
 
 
 # SEC
+def filter_machine_ids(auth_context, cloud_id, machine_ids):
+
+    if not isinstance(machine_ids, set):
+        machine_ids = set(machine_ids)
+
+    if auth_context.is_owner():
+        return machine_ids
+
+    # NOTE: We can trust the RBAC Mappings in order to fetch the latest list of
+    # machines for the current user, since mongo has been updated by either the
+    # Poller or the above `list_machines`.
+
+    try:
+        auth_context.check_perm('cloud', 'read', cloud_id)
+    except PolicyUnauthorizedError:
+        return set()
+
+    allowed_ids = set(auth_context.get_allowed_resources(rtype='machines'))
+    return machine_ids & allowed_ids
+
+
+# SEC
 def filter_list_machines(auth_context, cloud_id, machines=None, perm='read'):
     """Returns a list of machines.
 
@@ -1166,18 +1213,11 @@ def filter_list_machines(auth_context, cloud_id, machines=None, perm='read'):
         machines = list_machines(auth_context.owner, cloud_id)
     if not machines:  # Exit early in case the cloud provider returned 0 nodes.
         return []
+    if auth_context.is_owner():
+        return machines
 
-    # NOTE: We can trust the RBAC Mappings in order to fetch the latest list of
-    # machines for the current user, since mongo has been updated by either the
-    # Poller or the above `list_machines`.
-
-    if not auth_context.is_owner():
-        try:
-            auth_context.check_perm('cloud', 'read', cloud_id)
-        except PolicyUnauthorizedError:
-            return []
-        allowed_ids = set(auth_context.get_allowed_resources(rtype='machines'))
-        machines = [machine for machine in machines
-                    if machine['id'] in allowed_ids]
-
-    return machines
+    machine_ids = set(machine['id'] for machine in machines)
+    allowed_machine_ids = filter_machine_ids(auth_context, cloud_id,
+                                             machine_ids)
+    return [machine for machine in machines
+            if machine['id'] in allowed_machine_ids]

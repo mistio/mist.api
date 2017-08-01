@@ -175,6 +175,7 @@ class Machine(me.Document):
                 'cls': False,
             },
         ],
+        'strict': False,
     }
 
     def __init__(self, *args, **kwargs):
@@ -187,9 +188,14 @@ class Machine(me.Document):
         return self.cloud.owner
 
     def clean(self):
-        for assoc in self.key_associations:
-            if assoc.keypair.deleted:
-                assoc.delete()
+        # Remove any KeyAssociation, whose `keypair` has been deleted. Do NOT
+        # perform an atomic update on self, but rather remove items from the
+        # self.key_associations list by iterating over it and popping matched
+        # embedded documents in order to ensure that the most recent list is
+        # always processed and saved.
+        for ka in reversed(range(len(self.key_associations))):
+            if self.key_associations[ka].keypair.deleted:
+                self.key_associations.pop(ka)
 
     def delete(self):
         super(Machine, self).delete()
@@ -228,9 +234,12 @@ class Machine(me.Document):
             'monitoring': self.monitoring.as_dict() if self.monitoring else '',
             'key_associations': [ka.as_dict() for ka in self.key_associations],
             'cloud': self.cloud.id,
-            'last_seen': str(self.last_seen or ''),
-            'missing_since': str(self.missing_since or ''),
-            'created': str(self.created or ''),
+            'last_seen': str(self.last_seen.replace(tzinfo=None)
+                             if self.last_seen else ''),
+            'missing_since': str(self.missing_since.replace(tzinfo=None)
+                                 if self.missing_since else ''),
+            'created': str(self.created.replace(tzinfo=None)
+                           if self.created else ''),
             'machine_type': self.machine_type,
             'parent_id': self.parent.id if self.parent is not None else '',
         }

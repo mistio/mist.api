@@ -119,6 +119,19 @@ class BaseComputeController(BaseController):
         super(BaseComputeController, self).check_connection()
         self.list_machines()
 
+    def list_cached_machines(self, timedelta=datetime.timedelta(days=1)):
+        """Return list of machines from database
+
+        Only returns machines that existed last time we check and we've seen
+        during the last `timedelta`.
+
+        """
+        return Machine.objects(
+            cloud=self.cloud,
+            missing_since=None,
+            last_seen__gt=datetime.datetime.utcnow() - timedelta,
+        )
+
     def list_machines(self):
         """Return list of machines for cloud
 
@@ -879,7 +892,7 @@ class BaseComputeController(BaseController):
         machine_libcloud.destroy()
 
     # It isn't implemented in the ui
-    def resize_machine(self, machine, plan_id):
+    def resize_machine(self, machine, plan_id, kwargs):
         """Resize machine
 
         The param `machine` must be an instance of a machine model of this
@@ -904,15 +917,11 @@ class BaseComputeController(BaseController):
 
         machine_libcloud = self._get_machine_libcloud(machine)
         try:
-            self._resize_machine(machine, machine_libcloud, plan_id)
-        except MistError as exc:
-            log.error("Could not resize machine %s", machine)
-            raise
+            self._resize_machine(machine, machine_libcloud, plan_id, kwargs)
         except Exception as exc:
-            log.exception(exc)
-            raise InternalServerError(exc=exc)
+            raise BadRequestError('Failed to resize node: %s' % exc)
 
-    def _resize_machine(self, machine, machine_libcloud, plan_id):
+    def _resize_machine(self, machine, machine_libcloud, plan_id, kwargs):
         """Private method to resize a given machine
 
         Params:

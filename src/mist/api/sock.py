@@ -35,12 +35,15 @@ from mist.api.amqp_tornado import Consumer
 
 from mist.api.clouds.methods import filter_list_clouds
 from mist.api.keys.methods import filter_list_keys
-from mist.api.machines.methods import filter_list_machines
+from mist.api.machines.methods import filter_list_machines, filter_machine_ids
 from mist.api.scripts.methods import filter_list_scripts
 from mist.api.schedules.methods import filter_list_schedules
+from mist.api.dns.methods import filter_list_zones
 
 from mist.api import tasks
 from mist.api.hub.tornado_shell_client import ShellHubClient
+
+from mist.api.notifications.methods import get_notifications
 
 try:
     from mist.core.methods import get_stats, get_load, check_monitoring
@@ -282,6 +285,7 @@ class MainConnection(MistConnection):
         self.list_stacks()
         self.list_tunnels()
         self.list_clouds()
+        self.update_notifications()
         self.check_monitoring()
         if config.ACTIVATE_POLLER:
             self.periodic_update_poller()
@@ -344,9 +348,7 @@ class MainConnection(MistConnection):
             periodic_tasks.append(('list_machines', tasks.ListMachines()))
         else:
             for cloud in clouds:
-                after = datetime.datetime.utcnow() - datetime.timedelta(days=1)
-                machines = Machine.objects(cloud=cloud, missing_since=None,
-                                           last_seen__gt=after)
+                machines = cloud.ctl.compute.list_cached_machines()
                 machines = filter_list_machines(
                     self.auth_context, cloud_id=cloud.id,
                     machines=[machine.as_dict() for machine in machines]
@@ -373,7 +375,21 @@ class MainConnection(MistConnection):
                         )
                         if cached['machines'] is None:
                             continue
+                    elif key == 'list_zones':
+                        cached = filter_list_zones(
+                            self.auth_context, cloud.id, cached['zones']
+                        )
+                        if cached is None:
+                            continue
                     self.send(key, cached)
+
+    def update_notifications(self):
+        user = self.auth_context.user
+        org = filter_org(self.auth_context)
+        channel = 'in_app'
+        notifications_json = get_notifications(user, org, channel).to_json()
+        log.info("Emitting notifications.")
+        self.send('notifications', notifications_json)
 
     def check_monitoring(self):
         func = check_monitoring
@@ -479,6 +495,13 @@ class MainConnection(MistConnection):
                     )
                     if cached is not None:
                         self.send('ping', cached)
+            elif routing_key == 'list_zones':
+                zones = result['zones']
+                cloud_id = result['cloud_id']
+                filtered_zones = filter_list_zones(
+                    self.auth_context, cloud_id, zones
+                )
+                self.send(routing_key, filtered_zones)
             else:
                 self.send(routing_key, result)
 
@@ -500,7 +523,7 @@ class MainConnection(MistConnection):
                                        deleted=None)
                 for cloud in clouds:
                     if cloud.dns_enabled:
-                        task.delay(self.owner.id, cloud.id)
+                        task.smart_delay(self.owner.id, cloud.id)
             if 'templates' in sections:
                 self.list_templates()
             if 'stacks' in sections:
@@ -509,6 +532,8 @@ class MainConnection(MistConnection):
                 self.list_tags()
             if 'tunnels' in sections:
                 self.list_tunnels()
+            if 'notifications' in sections:
+                self.update_notifications()
             if 'monitoring' in sections:
                 self.check_monitoring()
             if 'user' in sections:
@@ -517,6 +542,28 @@ class MainConnection(MistConnection):
             if 'org' in sections:
                 self.auth_context.org.reload()
                 self.update_org()
+        elif routing_key == 'notification':
+            self.send('notification', result)
+
+        elif routing_key == 'patch_machines':
+            cloud_id = result['cloud_id']
+            patch = result['patch']
+            machine_ids = []
+            for line in patch:
+                machine_id, line['path'] = line['path'].split('-', 1)
+                machine_ids.append(machine_id)
+            if not self.auth_context.is_owner():
+                allowed_machine_ids = filter_machine_ids(self.auth_context,
+                                                         cloud_id, machine_ids)
+            else:
+                allowed_machine_ids = machine_ids
+            patch = [line for line, m_id in zip(patch, machine_ids)
+                     if m_id in allowed_machine_ids]
+            for line in patch:
+                line['path'] = '/clouds/%s/machines/%s' % (cloud_id,
+                                                           line['path'])
+            if patch:
+                self.send('patch_model', patch)
 
     def on_close(self, stale=False):
         if not self.closed:

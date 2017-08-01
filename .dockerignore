@@ -5,3 +5,5 @@
 **/.gitignore
 **/.dockerignore
 **/.gitlab-ci.yml
+celerybeat-schedule.dir
+celerybeat-schedule.pag

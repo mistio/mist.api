@@ -7,7 +7,7 @@ TASKS="${TASKS:-mist.api.tasks}"
 
 USAGE="Usage: $0 [-h] [-l <LOGLEVEL>] [-t <TASKS_PATH>]
 
-Start scheduler
+Start beat (used for internal/portal periodic tasks)
 
 Options:
     -h              Show this help message and exit.
@@ -38,6 +38,6 @@ set -x
 
 exec celery beat \
     -A $TASKS \
-    -S mist.api.schedules.models.UserScheduler \
+    -S mist.api.portal.schedulers.RunImmediatelyPersistentScheduler \
     --pidfile= \
     -l $LOGLEVEL

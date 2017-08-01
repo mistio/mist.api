@@ -2,12 +2,27 @@
 
 set -e
 
+# If running with mounted code...
 if [ ! -e clean ]; then
     set -x
+    unset JS_BUILD
+    echo "{\"sha\":\"$VERSION_SHA\",\"name\":\"$VERSION_NAME\",\"repo\":\"$VERSION_REPO\",\"modified\":true}" > /mist-version.json
     pip install -e paramiko/
     pip install -e libcloud/
     pip install -e celerybeat-mongo/
     pip install -e src/
+    set +x
+fi
+
+# Create settings.py file from template if missing...
+if [ -n "$SETTINGS_FILE" ] && [ ! -e "$SETTINGS_FILE" ]; then
+    set -x
+    conf_dir=$(dirname $SETTINGS_FILE)
+    mkdir -p $conf_dir
+    tmp_file=$(mktemp -p $conf_dir)
+    cp settings.py.dist $tmp_file
+    mv $tmp_file $SETTINGS_FILE
+    rm $tmp_file
     set +x
 fi
 

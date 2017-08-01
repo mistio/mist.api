@@ -126,6 +126,8 @@ def add_routes(configurator):
                 return True
         return False
 
+    configurator.add_route('version', '/version')
+
     configurator.add_route('ui_routes', '/{section}*fizzle',
                            custom_predicates=[valid_ui_section])
     configurator.add_route('home', '/')
@@ -153,12 +155,12 @@ def add_routes(configurator):
     configurator.add_route('api_v1_cloud_machine',
                            '/api/v1/clouds/{cloud}/machines/{machine}')
     configurator.add_route('api_v1_machine',
-                           '/api/v1/machines/{machine}')
+                           '/api/v1/machines/{machine_uuid}')
 
     configurator.add_route('api_v1_cloud_machine_rdp',
                            '/api/v1/clouds/{cloud}/machines/{machine}/rdp')
     configurator.add_route('api_v1_machine_rdp',
-                           '/api/v1/machines/{machine}/rdp')
+                           '/api/v1/machines/{machine_uuid}/rdp')
 
     configurator.add_route('api_v1_machine_tags',
                            '/api/v1/clouds/{cloud}/machines/{machine}/tags')
@@ -189,7 +191,8 @@ def add_routes(configurator):
 
     configurator.add_route('api_v1_cloud_probe',
                            '/api/v1/clouds/{cloud}/machines/{machine}/probe')
-    configurator.add_route('api_v1_probe', '/api/v1/machines/{machine}/probe')
+    configurator.add_route('api_v1_probe',
+                           '/api/v1/machines/{machine_uuid}/probe')
 
     configurator.add_route('api_v1_ping', '/api/v1/ping')
 
@@ -225,7 +228,7 @@ def add_routes(configurator):
         '/api/v1/clouds/{cloud}/machines/{machine}/keys/{key}'
     )
     configurator.add_route('api_v1_key_association',
-                           '/api/v1/machines/{machine}/keys/{key}')
+                           '/api/v1/machines/{machine_uuid}/keys/{key}')
 
     configurator.add_route('api_v1_rules', '/api/v1/rules')
     configurator.add_route('api_v1_rule', '/api/v1/rules/{rule}')
@@ -289,6 +292,10 @@ def add_routes(configurator):
                            '/api/v1/machines/{machine}/metrics')
     configurator.add_route('api_v1_metric', '/api/v1/metrics/{metric}')
     configurator.add_route('api_v1_stats', '/api/v1/machines/{machine}/stats')
+    # Notifications
+    configurator.add_route(
+        'api_v1_dismiss_notification',
+        '/api/v1/notifications/{notification_id}')
 
     configurator.add_route('user_invitations', '/user_invitations')
 
