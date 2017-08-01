@@ -998,8 +998,10 @@ class BaseComputeController(BaseController):
         try:
             self._resize_machine(machine, machine_libcloud, plan_id, kwargs)
 
+            # TODO: For better separation of concerns, maybe trigger below
+            # using an event?
             from mist.api.notifications.methods import dismiss_scale_notifications
-            # TODO: Make sure the user feedback is positive below!
+            # TODO: Make sure user feedback is positive below!
             dismiss_scale_notifications(machine, feedback='positive')
         except Exception as exc:
             raise BadRequestError('Failed to resize node: %s' % exc)
