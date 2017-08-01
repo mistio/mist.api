@@ -349,10 +349,9 @@ class MainConnection(MistConnection):
                     self.auth_context, cloud_id=cloud.id,
                     machines=[machine.as_dict() for machine in machines]
                 )
-                if machines:
-                    log.info("Emitting list_machines from poller's cache.")
-                    self.send('list_machines',
-                              {'cloud_id': cloud.id, 'machines': machines})
+                log.info("Emitting list_machines from poller's cache.")
+                self.send('list_machines',
+                          {'cloud_id': cloud.id, 'machines': machines})
 
         periodic_tasks.extend([('list_images', tasks.ListImages()),
                                ('list_sizes', tasks.ListSizes()),
@@ -547,7 +546,7 @@ class MainConnection(MistConnection):
             patch = result['patch']
             machine_ids = []
             for line in patch:
-                machine_id, line['path'] = line['path'].split('-', 1)
+                machine_id, line['path'] = line['path'][1:].split('-', 1)
                 machine_ids.append(machine_id)
             if not self.auth_context.is_owner():
                 allowed_machine_ids = filter_machine_ids(self.auth_context,
