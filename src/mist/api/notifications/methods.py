@@ -155,7 +155,7 @@ def dismiss_scale_notifications(machine, feedback='neutral'):
         notification.feedback = feedback
         chan = channels.channel_instance_with_name(notification.channel)
         if chan:
-            chan.dismiss([notification])
+            chan.dismiss(notification)
 
 
 def test():
