@@ -1343,29 +1343,28 @@ class SolusVMComputeController(BaseComputeController):
         return images
 
     def _list_sizes__fetch_sizes(self):
-        # sizes = []
-        # vttypes = {
-        #     'openvz': 'OpenVZ',
-        #     'kvm': 'KVM',
-        #     'xen': 'XEN',
-        #     'xenhvm': 'XENHVM',
-        # }
-        # for vttype in vttypes:
-        #     # we'll sent all parameters necessary to populate the
-        #     # create VM wizard as sizes
-        #     try:
-        #         params = self.connection.ex_list_vs_parameters(vttype)
-        #         size = NodeSize(vttype, name=vttypes[vttype],
-        #                         ram='', disk='',
-        #                         bandwidth='', price='',
-        #                         driver=self.connection,
-        #                         extra=params)
-        #         sizes.append(size)
-        #     except:
-        #         # Virtualization Type not supported, nothing to worry
-        #         pass
-        # return sizes
-        return []
+        sizes = []
+        vttypes = {
+            'openvz': 'OpenVZ',
+            'kvm': 'KVM',
+            'xen': 'XEN',
+            'xenhvm': 'XENHVM',
+        }
+        for vttype in vttypes:
+            # we'll sent all parameters necessary to populate the
+            # create VM wizard as sizes
+            try:
+                params = self.connection.ex_list_vs_parameters(vttype)
+                size = NodeSize(vttype, name=vttypes[vttype],
+                                ram='', disk='',
+                                bandwidth='', price='',
+                                driver=self.connection,
+                                extra=params)
+                sizes.append(size)
+            except:
+                # Virtualization Type not supported, nothing to worry
+                pass
+        return sizes
 
 
 class OtherComputeController(BaseComputeController):
