@@ -39,7 +39,6 @@ from libcloud.compute.types import Provider, NodeState
 from libcloud.container.types import Provider as Container_Provider
 from libcloud.container.types import ContainerState
 from libcloud.container.base import ContainerImage, Container
-from libcloud.compute.base import NodeImage
 from mist.api.exceptions import MistError
 from mist.api.exceptions import InternalServerError
 from mist.api.exceptions import MachineNotFoundError
@@ -1332,8 +1331,10 @@ class SolusVMComputeController(BaseComputeController):
                 templates = params['templatelist']
                 for template in templates:
                     template['vtype'] = vttype
-                    image = NodeImage(id=template['templateid'], name=template['friendlyname'],
-                                      driver=self.connection, extra=template)
+                    image = NodeImage(id=template['templateid'],
+                                      name=template['friendlyname'],
+                                      driver=self.connection,
+                                      extra=template)
                     images.append(image)
             except:
                 # Virtualization Type not supported, nothing to worry
@@ -1354,8 +1355,10 @@ class SolusVMComputeController(BaseComputeController):
         #     # create VM wizard as sizes
         #     try:
         #         params = self.connection.ex_list_vs_parameters(vttype)
-        #         size = NodeSize(vttype, name=vttypes[vttype], ram='', disk='',
-        #                         bandwidth='', price='', driver=self.connection,
+        #         size = NodeSize(vttype, name=vttypes[vttype],
+        #                         ram='', disk='',
+        #                         bandwidth='', price='',
+        #                         driver=self.connection,
         #                         extra=params)
         #         sizes.append(size)
         #     except:
