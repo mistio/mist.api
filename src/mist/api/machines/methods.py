@@ -770,7 +770,22 @@ def _create_machine_solusvm(conn, machine_name, solusvm_vttype,
     except Exception as e:
         raise MachineCreationError("SolusVM, got exception %s" % e, e)
 
-    return node
+    # need to get node, as the API response on succesfull
+    # node creation is an empty string
+    nodes = conn.list_nodes()
+    for node in nodes:
+        if node.name == machine_name:
+            return node
+
+    # in case this is not available yet, return
+    # an object
+    return Node(
+        id=machine_name,
+        name=machine_name,
+        state='unknown',
+        public_ips=[],
+        private_ips=[],
+        driver=conn)
 
 
 def _create_machine_docker(conn, machine_name, image_id,
