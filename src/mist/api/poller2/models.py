@@ -52,7 +52,7 @@ class PeriodicTaskInfo(me.Document):
     break_lock_after = datetime.timedelta(seconds=60)
 
     # Abort task if previous attempt was in less than this time before.
-    min_interval = datetime.timedelta(seconds=10)
+    min_interval = datetime.timedelta(seconds=5)
 
     @classmethod
     def get_or_add(cls, key):
