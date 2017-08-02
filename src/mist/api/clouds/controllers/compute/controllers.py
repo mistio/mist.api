@@ -39,6 +39,7 @@ from libcloud.compute.types import Provider, NodeState
 from libcloud.container.types import Provider as Container_Provider
 from libcloud.container.types import ContainerState
 from libcloud.container.base import ContainerImage, Container
+from libcloud.compute.base import NodeImage
 from mist.api.exceptions import MistError
 from mist.api.exceptions import InternalServerError
 from mist.api.exceptions import MachineNotFoundError
@@ -1318,10 +1319,7 @@ class SolusVMComputeController(BaseComputeController):
         return []
 
     def _list_images__fetch_images(self, search=None):
-        return []
-
-    def _list_sizes__fetch_sizes(self):
-        sizes = []
+        images = []
         vttypes = {
             'openvz': 'OpenVZ',
             'kvm': 'KVM',
@@ -1329,18 +1327,42 @@ class SolusVMComputeController(BaseComputeController):
             'xenhvm': 'XENHVM',
         }
         for vttype in vttypes:
-            # we'll sent all parameters necessary to populate the
-            # create VM wizard as sizes
             try:
                 params = self.connection.ex_list_vs_parameters(vttype)
-                size = NodeSize(vttype, name=vttypes[vttype], ram='', disk='',
-                                bandwidth='', price='', driver=self.connection,
-                                extra=params)
-                sizes.append(size)
+                templates = params['templatelist']
+                for template in templates:
+                    template['vtype'] = vttype
+                    image = NodeImage(id=template['templateid'], name=template['friendlyname'],
+                                      driver=self.connection, extra=template)
+                    images.append(image)
             except:
                 # Virtualization Type not supported, nothing to worry
                 pass
-        return sizes
+
+        return images
+
+    def _list_sizes__fetch_sizes(self):
+        # sizes = []
+        # vttypes = {
+        #     'openvz': 'OpenVZ',
+        #     'kvm': 'KVM',
+        #     'xen': 'XEN',
+        #     'xenhvm': 'XENHVM',
+        # }
+        # for vttype in vttypes:
+        #     # we'll sent all parameters necessary to populate the
+        #     # create VM wizard as sizes
+        #     try:
+        #         params = self.connection.ex_list_vs_parameters(vttype)
+        #         size = NodeSize(vttype, name=vttypes[vttype], ram='', disk='',
+        #                         bandwidth='', price='', driver=self.connection,
+        #                         extra=params)
+        #         sizes.append(size)
+        #     except:
+        #         # Virtualization Type not supported, nothing to worry
+        #         pass
+        # return sizes
+        return []
 
 
 class OtherComputeController(BaseComputeController):
