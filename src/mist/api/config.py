@@ -875,7 +875,7 @@ MACHINE_PATCHES = False
 ## DO NOT PUT ANYTHING BELOW HERE UNLESS YOU KNOW WHAT YOU ARE DOING
 
 # Get settings from mist.core.
-CORE_CONFIG_PATH = os.path.join(dirname(MIST_API_DIR, 2),
+CORE_CONFIG_PATH = os.path.join(dirname(MIST_API_DIR, 1),
                                 'mist', 'core', 'config.py')
 if os.path.exists(CORE_CONFIG_PATH):
     print >> sys.stderr, "Will load core config from %s" % CORE_CONFIG_PATH
