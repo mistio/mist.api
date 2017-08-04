@@ -1318,7 +1318,6 @@ class SolusVMComputeController(BaseComputeController):
         return []
 
     def _list_images__fetch_images(self, search=None):
-        return []
         images = []
         vttypes = {
             'openvz': 'OpenVZ',
