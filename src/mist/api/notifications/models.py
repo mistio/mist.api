@@ -62,12 +62,12 @@ class Notification(me.Document):
 
     # taxonomy fields
     channel = me.StringField(max_length=64, required=True, default="")
-    source = me.StringField(max_length=64, 
-        required=True, 
-        choices=(
-            'notification',
-            'recommendation'),
-             default='notification')
+    source = me.StringField(max_length=64,
+                            required=True,
+                            choices=(
+                                'notification',
+                                'recommendation'),
+                            default='notification')
     resource = me.GenericReferenceField(required=False)
     kind = me.StringField(required=True, default="")
     parameter = me.StringField(required=True, default="")

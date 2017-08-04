@@ -114,14 +114,14 @@ class InAppChannel(BaseChannel):
             # dismiss similar notifications if unique
             # deleting could also be an option
             if notification.unique:
-                similar = Notification.objects(user=notification.user,
+                similar = Notification.objects(
+                    user=notification.user,
                     organization=notification.organization,
                     channel=notification.channel,
                     source=notification.source,
                     resource=notification.resource,
                     kind=notification.kind,
-                    dismissed=False
-                    )
+                    dismissed=False)
                 for item in similar:
                     item.dismissed = True
                     item.save()
@@ -196,6 +196,7 @@ class NotificationsEncoder(json.JSONEncoder):
     JSON Encoder that properly handles Notification
     instances
     '''
+
     def default(self, o):
         # FIXME: this is kind of dumb, but it works
         if isinstance(o, Notification):
