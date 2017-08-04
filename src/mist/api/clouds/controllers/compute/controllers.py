@@ -32,7 +32,7 @@ import mongoengine as me
 from xml.sax.saxutils import escape
 
 from libcloud.pricing import get_size_price
-from libcloud.compute.base import Node, NodeImage, NodeSize
+from libcloud.compute.base import Node, NodeImage
 from libcloud.compute.providers import get_driver
 from libcloud.container.providers import get_driver as get_container_driver
 from libcloud.compute.types import Provider, NodeState
