@@ -111,6 +111,20 @@ class InAppChannel(BaseChannel):
     def send(self, notification):
 
         def modify(notification):
+            # dismiss similar notifications if unique
+            # deleting could also be an option
+            if notification.unique:
+                similar = Notification.objects(user=notification.user,
+                    organization=notification.organization,
+                    channel=notification.channel,
+                    source=notification.source,
+                    resource=notification.resource,
+                    kind=notification.kind,
+                    dismissed=False
+                    )
+                for item in similar:
+                    item.dismissed = True
+                    item.save()
             notification.save()
 
         self._modify_and_notify(notification, modify)
@@ -178,6 +192,10 @@ def channel_instance_with_name(name):
 
 
 class NotificationsEncoder(json.JSONEncoder):
+    '''
+    JSON Encoder that properly handles Notification
+    instances
+    '''
     def default(self, o):
         # FIXME: this is kind of dumb, but it works
         if isinstance(o, Notification):
