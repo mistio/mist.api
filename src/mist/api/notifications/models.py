@@ -60,14 +60,20 @@ class Notification(me.Document):
     body = me.StringField(required=True, default="")
     html_body = me.StringField(required=False, default="")
 
-    # source fields
-    source = me.StringField(max_length=64, required=True, default="")
+    # taxonomy fields
     channel = me.StringField(max_length=64, required=True, default="")
-
-    # resource and action fields
-    kind = me.StringField(required=True, default="")
+    source = me.StringField(max_length=64, 
+        required=True, 
+        choices=(
+            'notification',
+            'recommendation'),
+             default='notification')
     resource = me.GenericReferenceField(required=False)
+    kind = me.StringField(required=True, default="")
+    parameter = me.StringField(required=True, default="")
     action_link = me.URLField(required=False)
+
+    unique = me.BooleanField(required=True, default=True)
 
     # email-specific fields
     email = me.EmailField(required=False)
