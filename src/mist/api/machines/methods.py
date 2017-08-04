@@ -83,6 +83,8 @@ def machine_name_validator(provider, name):
                 "or numbers, dashes and periods")
     elif provider == Provider.AZURE:
         pass
+    elif provider == Provider.AZURE_ARM:
+        pass
     elif provider in [Provider.VCLOUD]:
         pass
     elif provider is Provider.LINODE:
@@ -268,6 +270,17 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
             image, size, location,
             cloud_init=cloud_init,
             cloud_service_name=None,
+            azure_port_bindings=azure_port_bindings
+        )
+    elif conn.type == Provider.AZURE_ARM:
+        node = _create_machine_azure_arm(
+            conn, key_id, private_key,
+            public_key, machine_name,
+            image, size, location,
+            cloud_init=cloud_init,
+            test='',
+            test2='',
+            ex_resource_group=None,
             azure_port_bindings=azure_port_bindings
         )
     elif conn.type in [Provider.VCLOUD]:
@@ -980,6 +993,49 @@ def _create_machine_vultr(conn, public_key, machine_name, image,
         raise MachineCreationError("Vultr, got exception %s" % e, e)
 
     return node
+
+
+def _create_machine_azure_arm(conn, public_key, machine_name, image, size, location, cloud_init, 
+                              storage, ex_resource_group):
+    """Create a machine Azure ARM.
+
+    Here there is no checking done, all parameters are expected to be
+    sanitized by create_machine.
+
+    """
+    public_key.replace('\n', '')
+
+    port_bindings = []
+
+    k = NodeAuthSSHKey(public_key)
+
+    try:
+        node = conn.create_node(
+            name=machine_name,
+            size=size,
+            image=image,
+            key=k,
+            ex_resource_group=ex_resource_group,
+            storage="miketeststor",
+            ex_network="mike-vnet"
+            location=location,
+            endpoint_ports=port_bindings,
+            custom_data=base64.b64encode(cloud_init)
+        )
+    except Exception as e:
+        try:
+            # try to get the message only out of the XML response
+            msg = re.search(r"(<Message>)(.*?)(</Message>)", e.value)
+            if not msg:
+                msg = re.search(r"(Message: ')(.*?)(', Body)", e.value)
+            if msg:
+                msg = msg.group(2)
+        except:
+            msg = e
+        raise MachineCreationError('Azure, got exception %s' % msg)
+
+    return node
+
 
 
 def _create_machine_azure(conn, key_name, private_key, public_key,
