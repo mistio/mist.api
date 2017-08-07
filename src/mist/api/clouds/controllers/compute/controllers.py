@@ -32,7 +32,7 @@ import mongoengine as me
 from xml.sax.saxutils import escape
 
 from libcloud.pricing import get_size_price
-from libcloud.compute.base import Node, NodeImage, NodeSize
+from libcloud.compute.base import Node, NodeImage, NodeLocation
 from libcloud.compute.providers import get_driver
 from libcloud.container.providers import get_driver as get_container_driver
 from libcloud.compute.types import Provider, NodeState
@@ -1314,55 +1314,46 @@ class SolusVMComputeController(BaseComputeController):
         machine.extra['bandwidth'] = "%s MB" % \
             str(int(machine.extra.get('bandwidth')) / 1024 / 1024)
 
-    def _list_locations__fetch_locations(self):
+    def _list_sizes__fetch_sizes(self):
         return []
 
     def _list_images__fetch_images(self, search=None):
         images = []
-        vttypes = {
-            'openvz': 'OpenVZ',
-            'kvm': 'KVM',
-            'xen': 'XEN',
-            'xenhvm': 'XENHVM',
-        }
-        for vttype in vttypes:
-            try:
-                params = self.connection.ex_list_vs_parameters(vttype)
-                templates = params['templatelist']
-                for template in templates:
-                    template['vtype'] = vttype
-                    image = NodeImage(id=template['templateid'],
-                                      name=template['friendlyname'],
-                                      driver=self.connection,
-                                      extra=template)
-                    images.append(image)
-            except:
-                # Virtualization Type not supported, nothing to worry
-                pass
+        vtypes = self.connection.ex_list_vs_parameters()
 
+        for vtype in vtypes:
+            templates = vtype['templatelist']
+            for template in templates:
+                template['vtype'] = vtype.get('vtype')
+                image = NodeImage(id=template['templateid'],
+                                  name=template['friendlyname'],
+                                  driver=self.connection,
+                                  extra=template)
+                images.append(image)
         return images
 
-    def _list_sizes__fetch_sizes(self):
-        sizes = []
-        vttypes = {
+    def _list_locations__fetch_locations(self):
+        # we'll sent all parameters necessary to populate the
+        # create VM wizard as locations
+
+        vtype_name_mapping = {
             'openvz': 'OpenVZ',
             'kvm': 'KVM',
             'xen': 'XEN',
             'xenhvm': 'XENHVM',
         }
-        for vttype in vttypes:
-            # we'll sent all parameters necessary to populate the
-            # create VM wizard as sizes
-            try:
-                params = self.connection.ex_list_vs_parameters(vttype)
-                size = NodeSize(vttype, name=vttypes[vttype], ram='', disk='',
-                                bandwidth='', price='', driver=self.connection,
-                                extra=params)
-                sizes.append(size)
-            except:
-                # Virtualization Type not supported, nothing to worry
-                pass
-        return sizes
+
+        locations = []
+        vtypes = self.connection.ex_list_vs_parameters()
+
+        for vtype in vtypes:
+            location_id = vtype.get('vtype')
+            location_name = vtype_name_mapping[location_id]
+            location = NodeLocation(location_id, name=location_name,
+                                    country=None, driver=self.connection,
+                                    extra=vtype)
+            locations.append(location)
+        return locations
 
 
 class OtherComputeController(BaseComputeController):
