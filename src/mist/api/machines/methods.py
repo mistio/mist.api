@@ -275,9 +275,8 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
     elif conn.type == Provider.AZURE_ARM:
         node = _create_machine_azure_arm(
             conn, public_key, machine_name,
-            image, size, location,
-            storage="",
-            ex_resource_group=None
+            image, size, location, networks,
+            ex_storage_account="miketeststor", ex_resource_group="mike",
         )
     elif conn.type in [Provider.VCLOUD]:
         node = _create_machine_vcloud(conn, machine_name, image,
@@ -992,7 +991,7 @@ def _create_machine_vultr(conn, public_key, machine_name, image,
 
 
 def _create_machine_azure_arm(conn, public_key, machine_name, image, size, location, 
-                              storage, ex_resource_group):
+                              networks, ex_storage_account, ex_resource_group):
     """Create a machine Azure ARM.
 
     Here there is no checking done, all parameters are expected to be
@@ -1001,20 +1000,25 @@ def _create_machine_azure_arm(conn, public_key, machine_name, image, size, locat
     """
     public_key.replace('\n', '')
 
-    port_bindings = []
-
     k = NodeAuthSSHKey(public_key)
+
+    sizes = conn.list_sizes(location)
+    for item in sizes:
+        if item.id == size:
+            azure_size = size
+
+    ex_network = networks[0]
 
     try:
         node = conn.create_node(
             name=machine_name,
-            size=conn.list_sizes(location)[0],
+            size=size,
             image=conn.list_images(location, ex_publisher="Canonical")[160],
             auth=k,
-            ex_resource_group="mike",
-            ex_storage_account="miketeststor",
-            ex_network="mike-vnet",
-            location=conn.list_locations()[7]
+            ex_resource_group=ex_resource_group,
+            ex_storage_account=ex_storage_account,
+            ex_network=ex_network,
+            location=location
         )
     except Exception as e:
         try:
