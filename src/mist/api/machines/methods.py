@@ -274,14 +274,10 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
         )
     elif conn.type == Provider.AZURE_ARM:
         node = _create_machine_azure_arm(
-            conn, key_id, private_key,
-            public_key, machine_name,
+            conn, public_key, machine_name,
             image, size, location,
-            cloud_init=cloud_init,
-            test='',
-            test2='',
-            ex_resource_group=None,
-            azure_port_bindings=azure_port_bindings
+            storage="",
+            ex_resource_group=None
         )
     elif conn.type in [Provider.VCLOUD]:
         node = _create_machine_vcloud(conn, machine_name, image,
@@ -995,7 +991,7 @@ def _create_machine_vultr(conn, public_key, machine_name, image,
     return node
 
 
-def _create_machine_azure_arm(conn, public_key, machine_name, image, size, location, cloud_init, 
+def _create_machine_azure_arm(conn, public_key, machine_name, image, size, location, 
                               storage, ex_resource_group):
     """Create a machine Azure ARM.
 
@@ -1012,15 +1008,13 @@ def _create_machine_azure_arm(conn, public_key, machine_name, image, size, locat
     try:
         node = conn.create_node(
             name=machine_name,
-            size=size,
-            image=image,
-            key=k,
-            ex_resource_group=ex_resource_group,
-            storage="miketeststor",
-            ex_network="mike-vnet"
-            location=location,
-            endpoint_ports=port_bindings,
-            custom_data=base64.b64encode(cloud_init)
+            size=conn.list_sizes(location)[0],
+            image=conn.list_images(location, ex_publisher="Canonical")[160],
+            auth=k,
+            ex_resource_group="mike",
+            ex_storage_account="miketeststor",
+            ex_network="mike-vnet",
+            location=conn.list_locations()[7]
         )
     except Exception as e:
         try:
