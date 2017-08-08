@@ -1023,7 +1023,8 @@ def _create_machine_azure_arm(conn, public_key, machine_name, image,
     ex_ip = conn.ex_create_public_ip(machine_name, ex_resource_group, location)
 
     ex_nic = conn.ex_create_network_interface(machine_name, ex_subnet,
-                                              ex_resource_group, location=location,
+                                              ex_resource_group,
+                                              location=location,
                                               public_ip=ex_ip)
 
     try:
