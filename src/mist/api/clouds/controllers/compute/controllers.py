@@ -461,13 +461,18 @@ class AzureArmComputeController(BaseComputeController):
         return machine_libcloud.created_at  # datetime
 
     def _list_images__fetch_images(self, search=None):
-        #grab one location
+        # grab one location
         location = self.connection.list_locations()[0]
-        #fetch images from some providers, otherwise Azure takes hour to bring everything
-        images = self.connection.list_images(location, ex_publisher="SUSE") + \
-                     self.connection.list_images(location, ex_publisher="Canonical") + \
-                     self.connection.list_images(location, ex_publisher="RedHat") + \
-                     self.connection.list_images(location, ex_publisher="MicrosoftWindowsServer")
+        # fetch images from some providers
+        # otherwise Azure takes hours to bring everything
+        images = (self.connection.list_images(location,
+                                        ex_publisher="SUSE") +
+                  self.connection.list_images(location,
+                                        ex_publisher="Canonical") +
+                  self.connection.list_images(location,
+                                        ex_publisher="RedHat") +
+                  self.connection.list_images(location,
+                                        ex_publisher="MicrosoftWindowsServer"))
         return images
 
     def _reboot_machine(self, machine, machine_libcloud):
@@ -483,7 +488,7 @@ class AzureArmComputeController(BaseComputeController):
             machine.actions.start = True
 
     def _list_sizes__fetch_sizes(self):
-        #grab one location
+        # grab one location
         location = self.connection.list_locations()[0]
         sizes = self.connection.list_sizes(location)
         return sizes
