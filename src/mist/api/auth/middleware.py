@@ -9,6 +9,7 @@ from mist.api.auth.models import ApiToken
 from mist.api.auth.models import SessionToken
 
 from mist.api.auth.methods import session_from_request
+from mist.api.auth.methods import reissue_cookie_session
 
 from mist.api import config
 
@@ -78,10 +79,11 @@ class AuthMiddleware(object):
                     if current_user_ip in ipnet:
                         break
                 else:
-                    start_response('403 Forbidden', [('Content-type', 'text/html')])
+                    reissue_cookie_session(request)
+                    start_response('403 Forbidden', [('Content-type', 'text/plain')])
                     return ['Request sent from non-whitelisted IP.\n'\
-                            'Please <a href=/logout>logout</a> and sign back in'\
-                            'to request whitelisting your current IP via email.']
+                            'You have been logged out from this account.\n'\
+                            'Please sign in to request whitelisting your current IP via email.']
         response = self.app(environ, session_start_response)
         return response
 
