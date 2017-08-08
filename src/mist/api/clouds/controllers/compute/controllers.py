@@ -466,13 +466,13 @@ class AzureArmComputeController(BaseComputeController):
         # fetch images from some providers
         # otherwise Azure takes hours to bring everything
         images = (self.connection.list_images(location,
-                                        ex_publisher="SUSE") +
+                                              ex_publisher="SUSE") +
                   self.connection.list_images(location,
-                                        ex_publisher="Canonical") +
+                                              ex_publisher="Canonical") +
                   self.connection.list_images(location,
-                                        ex_publisher="RedHat") +
+                                              ex_publisher="RedHat") +
                   self.connection.list_images(location,
-                                        ex_publisher="MicrosoftWindowsServer"))
+                                              ex_publisher="MicrosoftWindowsServer"))
         return images
 
     def _reboot_machine(self, machine, machine_libcloud):
