@@ -209,6 +209,8 @@ def create_machine(request):
     location_name = params.get('location_name', None)
     ips = params.get('ips', None)
     monitoring = params.get('monitoring', False)
+    ex_storage_account = params.get('ex_storage_account', '')
+    ex_resource_group = params.get('ex_resource_group', '')
     networks = params.get('networks', [])
     docker_env = params.get('docker_env', [])
     docker_command = params.get('docker_command', None)
@@ -324,7 +326,8 @@ def create_machine(request):
     args = (cloud_id, key_id, machine_name,
             location_id, image_id, size_id,
             image_extra, disk, image_name, size_name,
-            location_name, ips, monitoring, networks,
+            location_name, ips, monitoring,
+            ex_storage_account, ex_resource_group, networks,
             docker_env, docker_command)
     kwargs = {'script_id': script_id,
               'script_params': script_params, 'script': script, 'job': job,

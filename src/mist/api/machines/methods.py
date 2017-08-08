@@ -116,7 +116,8 @@ def list_machines(owner, cloud_id):
 
 def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                    image_id, size_id, image_extra, disk, image_name,
-                   size_name, location_name, ips, monitoring, networks=[],
+                   size_name, location_name, ips, monitoring,
+                   ex_storage_account, ex_resource_group,networks=[],
                    docker_env=[], docker_command=None, ssh_port=22, script='',
                    script_id='', script_params='', job_id=None, job=None,
                    docker_port_bindings={}, docker_exposed_ports={},
@@ -273,10 +274,11 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
             azure_port_bindings=azure_port_bindings
         )
     elif conn.type == Provider.AZURE_ARM:
+        image = conn.get_image(image_id,location)
         node = _create_machine_azure_arm(
             conn, public_key, machine_name,
             image, size, location, networks,
-            ex_storage_account="miketeststor", ex_resource_group="mike",
+            ex_storage_account, ex_resource_group,
         )
     elif conn.type in [Provider.VCLOUD]:
         node = _create_machine_vcloud(conn, machine_name, image,
@@ -1007,17 +1009,28 @@ def _create_machine_azure_arm(conn, public_key, machine_name, image, size, locat
         if item.id == size:
             azure_size = size
 
-    ex_network = networks[0]
+    network = networks[0]
+
+    networks = conn.ex_list_networks()
+    for item in networks:
+        if item.name == network:
+            ex_network = item
+
+    ex_subnet = conn.ex_list_subnets(ex_network)[0]
+
+    ex_ip = conn.ex_create_public_ip(machine_name,ex_resource_group,location)
+
+    ex_nic = conn.ex_create_network_interface(machine_name, ex_subnet, ex_resource_group, location=location, public_ip=ex_ip)
 
     try:
         node = conn.create_node(
             name=machine_name,
             size=size,
-            image=conn.list_images(location, ex_publisher="Canonical")[160],
+            image=image,
             auth=k,
             ex_resource_group=ex_resource_group,
             ex_storage_account=ex_storage_account,
-            ex_network=ex_network,
+            ex_nic=ex_nic,
             location=location
         )
     except Exception as e:
