@@ -734,7 +734,7 @@ def request_whitelist_ip(request):
     user.whitelist_ip_token = token
     user.whitelist_ip_token_created = time()
     user.whitelist_ip_token_ip_addr = ip_from_request(request)
-    log.debug("will now save (forgot)")
+    log.debug("will now save (whitelist_ip)")
     user.save()
 
     subject = config.WHITELIST_IP_EMAIL_SUBJECT
@@ -753,12 +753,14 @@ def request_whitelist_ip(request):
 
 
 # SEC
-@view_config(route_name='confirm_whitelist', request_method=('GET', 'POST'))
+@view_config(route_name='confirm_whitelist', request_method=('GET'))
 def confirm_whitelist(request):
     """
-    User visits reset password form and posts his email address
-    If he is logged in when he presses the link then he will be logged out
-    and then redirected to the landing page with the reset password token.
+    User tries to login successfully but from a non-whitelisted IP.
+    They get a link to request whitelisting their current IP and an email
+    with a link is sent to their email address.
+    When they click on the link and everything is valid they are then
+    redirected to the account page under the whitelisting IP tab.
     """
     params = params_from_request(request)
     key = params.get('key')
@@ -770,7 +772,7 @@ def confirm_whitelist(request):
     try:
         (token, email) = decrypt(key, config.SECRET).split(':')
     except:
-        raise BadRequestError("invalid password token.")
+        raise BadRequestError("invalid Whitelist IP token.")
 
     try:
         user = User.objects.get(email=email)
