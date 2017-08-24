@@ -218,6 +218,16 @@ class BaseComputeController(BaseController):
                     extra[key] = str(val)
             machine.extra = extra
 
+            # perform tag validation to prevent ValidationError
+            # on machine.save()
+            if machine.extra.get('tags') and isinstance(
+                    machine.extra.get('tags'), dict):
+                validated_tags = {}
+                for tag in machine.extra['tags']:
+                    if not (('.' in tag) or ('$' in tag)):
+                        validated_tags[tag] = machine.extra['tags'][tag]
+                machine.extra['tags'] = validated_tags
+
             # Set machine hostname
             if machine.extra.get('dns_name'):
                 machine.hostname = machine.extra['dns_name']
