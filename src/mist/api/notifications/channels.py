@@ -4,7 +4,7 @@ import jsonpatch
 from mist.api import config
 from mist.api.helpers import send_email, amqp_publish_user
 
-from models import Notification
+from models import Notification, EmailReport, InAppNotification
 
 import logging
 
@@ -112,15 +112,13 @@ class InAppChannel(BaseChannel):
 
         def modify(notification):
             # dismiss similar notifications if unique
-            # deleting could also be an option
+            # deleting or updating could also be an option
             if notification.unique:
-                similar = Notification.objects(
+                similar = InAppNotification.objects(
                     user=notification.user,
                     organization=notification.organization,
-                    channel=notification.channel,
-                    source=notification.source,
                     resource=notification.resource,
-                    kind=notification.kind,
+                    model_id=notification.model_id,
                     dismissed=False)
                 for item in similar:
                     item.dismissed = True
@@ -147,11 +145,11 @@ class InAppChannel(BaseChannel):
     def _modify_and_notify(self, notification, modifier):
         user = notification.user
 
-        old_notifications = [obj for obj in Notification.objects(
-            user=user, channel='in_app', dismissed=False)]
+        old_notifications = [obj for obj in InAppNotification.objects(
+            user=user, dismissed=False)]
         modifier(notification)
-        new_notifications = [obj for obj in Notification.objects(
-            user=user, channel='in_app', dismissed=False)]
+        new_notifications = [obj for obj in InAppNotification.objects(
+            user=user, dismissed=False)]
         patch = jsonpatch.JsonPatch.from_diff(
             old_notifications, new_notifications).patch
 
@@ -165,28 +163,14 @@ class InAppChannel(BaseChannel):
                               data=data)
 
 
-class StdoutChannel(BaseChannel):
+def channel_instance_for_notification(notification):
     '''
-    Stdout channel, mainly for testing/debugging
+    Accepts a notification instance and returns
+    the corresponding channel
     '''
-
-    def send(self, notification):
-        print notification.subject
-        if "summary" in notification:
-            print notification.summary
-        print notification.body
-
-
-def channel_instance_with_name(name):
-    '''
-    Accepts a string and returns a channel instance with
-    matching name or None
-    '''
-    if name == 'stdout':
-        return StdoutChannel()
-    elif name == 'email_reports':
+    if isinstance(notification, EmailReport):
         return EmailReportsChannel()
-    elif name == 'in_app':
+    elif isinstance(notification, InAppNotification):
         return InAppChannel()
     return None
 
@@ -196,10 +180,9 @@ class NotificationsEncoder(json.JSONEncoder):
     JSON Encoder that properly handles Notification
     instances
     '''
-
     def default(self, o):
-        # FIXME: this is kind of dumb, but it works
         if isinstance(o, Notification):
+            # FIXME: this is kind of dumb, but it works
             return json.loads(o.to_json())
         else:
             return json.JSONEncoder.default(self, o)

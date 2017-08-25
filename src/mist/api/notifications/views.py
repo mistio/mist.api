@@ -1,7 +1,7 @@
 
 from mist.api.helpers import view_config
 from mist.api.auth.methods import user_from_request
-from mist.api.notifications.channels import channel_instance_with_name
+from mist.api.notifications.channels import channel_instance_for_notification
 
 from models import Notification
 
@@ -22,5 +22,5 @@ def dismiss_notification(request):
             if ntfs:
                 ntf = ntfs[0]
                 if ntf.user == user:
-                    chan = channel_instance_with_name(ntf.channel)
+                    chan = channel_instance_for_notification(ntf)
                     chan.dismiss(ntf)
