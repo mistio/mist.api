@@ -1,6 +1,3 @@
-from datetime import datetime
-
-from mist.api.users.models import User, Organization
 import models
 from models import Notification
 import channels

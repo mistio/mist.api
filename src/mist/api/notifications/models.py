@@ -4,8 +4,6 @@ from datetime import datetime
 import mongoengine as me
 
 from mist.api.users.models import User, Organization
-from mist.api.machines.models import Machine
-from mist.api.clouds.models import Cloud
 
 
 class NotificationRule(me.EmbeddedDocument):
