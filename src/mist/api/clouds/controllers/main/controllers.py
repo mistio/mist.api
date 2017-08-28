@@ -290,9 +290,10 @@ class LibvirtMainController(BaseMainController):
         except me.DoesNotExist:
             machine = Machine.objects(cloud=self.cloud,
                                       machine_id=self.cloud.host).save()
-
-        machine.ctl.associate_key(self.cloud.key, username=self.cloud.username,
-                                  port=self.cloud.port)
+        if self.cloud.key:
+            machine.ctl.associate_key(self.cloud.key,
+                                      username=self.cloud.username,
+                                      port=self.cloud.port)
 
     def update(self, fail_on_error=True, fail_on_invalid_params=True,
                add=False, **kwargs):
