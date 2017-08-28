@@ -177,7 +177,7 @@ class PeriodicTaskInfo(me.Document):
 
         try:
             yield
-        except Exception as exc:
+        except Exception:
             self.last_failure = datetime.datetime.now()
             self.failures_count += 1
             raise
