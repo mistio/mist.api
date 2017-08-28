@@ -218,6 +218,11 @@ class BaseComputeController(BaseController):
                     extra[key] = str(val)
             machine.extra = extra
 
+            # save extra.tags as dict
+            if machine.extra.get('tags') and isinstance(
+                    machine.extra.get('tags'), list):
+                machine.extra['tags'] = dict.fromkeys(machine.extra['tags'],
+                                                      '')
             # perform tag validation to prevent ValidationError
             # on machine.save()
             if machine.extra.get('tags') and isinstance(
