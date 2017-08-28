@@ -25,7 +25,6 @@ from mist.api.logs.methods import get_stories
 
 from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
-from mist.api.poller.models import ListMachinesPollingSchedule
 
 from mist.api.auth.methods import auth_context_from_session_id
 
@@ -299,9 +298,7 @@ class MainConnection(MistConnection):
 
     def update_poller(self):
         """Increase polling frequency for all clouds"""
-        log.info("Updating poller for %s", self)
-        for cloud in Cloud.objects(owner=self.owner, deleted=None):
-            ListMachinesPollingSchedule.add(cloud=cloud, interval=10, ttl=120)
+        tasks.update_poller.delay(self.owner.id)
 
     def update_user(self):
         self.send('user', get_user_data(self.auth_context))
@@ -352,10 +349,9 @@ class MainConnection(MistConnection):
                     self.auth_context, cloud_id=cloud.id,
                     machines=[machine.as_dict() for machine in machines]
                 )
-                if machines:
-                    log.info("Emitting list_machines from poller's cache.")
-                    self.send('list_machines',
-                              {'cloud_id': cloud.id, 'machines': machines})
+                log.info("Emitting list_machines from poller's cache.")
+                self.send('list_machines',
+                          {'cloud_id': cloud.id, 'machines': machines})
 
         periodic_tasks.extend([('list_images', tasks.ListImages()),
                                ('list_sizes', tasks.ListSizes()),
@@ -549,7 +545,7 @@ class MainConnection(MistConnection):
             patch = result['patch']
             machine_ids = []
             for line in patch:
-                machine_id, line['path'] = line['path'].split('-', 1)
+                machine_id, line['path'] = line['path'][1:].split('-', 1)
                 machine_ids.append(machine_id)
             if not self.auth_context.is_owner():
                 allowed_machine_ids = filter_machine_ids(self.auth_context,
