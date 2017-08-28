@@ -13,7 +13,7 @@ NOTIFICATION POLICIES
 
 def add_block_rule(user, org, notification):
     '''
-    Adds a block rule to a user-org policy for the specified 
+    Adds a block rule to a user-org policy for the specified
     notification type.
     Creates the policy if it does not exist.
     '''
@@ -30,7 +30,7 @@ def add_block_rule(user, org, notification):
 
 def remove_block_rule(user, org, notification):
     '''
-    Removes a block rule to a user-org policy for the specified 
+    Removes a block rule to a user-org policy for the specified
     notification type.
     Creates the policy if it does not exist.
     '''

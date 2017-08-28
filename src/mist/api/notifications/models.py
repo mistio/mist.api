@@ -30,7 +30,7 @@ class UserNotificationPolicy(me.Document):
 
     def notification_allowed(self, notification):
         '''
-        Accepts a notification or string token and returns a boolean 
+        Accepts a notification or string token and returns a boolean
         indicating whether corresponding notification is allowed
         or is blocked
         '''
@@ -43,7 +43,7 @@ class UserNotificationPolicy(me.Document):
 
     def channel_allowed(self, channel):
         '''
-        Accepts a notification or string token and returns a boolean 
+        Accepts a notification or string token and returns a boolean
         indicating whether corresponding notification is allowed
         or is blocked
         '''
@@ -74,7 +74,7 @@ class Notification(me.Document):
     summary = me.StringField(max_length=512, required=False, default="")
     body = me.StringField(required=True, default="")
     html_body = me.StringField(required=False, default="")
-    
+
     # taxonomy fields
     source = me.StringField(max_length=64, required=True, default="")
     resource = me.GenericReferenceField(required=False)
@@ -120,8 +120,10 @@ class InAppNotification(Notification):
     '''
     Represents an in-app notification
     '''
-    model_id = me.StringField(required=True, default="") # "autoscale_v1"
-    model_output = me.DictField(required=True, default={}) # {"direction": "up"}
+    model_id = me.StringField(required=True, default="")  # "autoscale_v1"
+    model_output = me.DictField(
+        required=True,
+        default={})  # {"direction": "up"}
 
     dismissed = me.BooleanField(required=True, default=False)
 

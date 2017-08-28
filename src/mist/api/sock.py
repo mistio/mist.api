@@ -381,8 +381,8 @@ class MainConnection(MistConnection):
     def update_notifications(self):
         user = self.auth_context.user
         org = self.auth_context.org
-        notifications_json = InAppNotification.objects(user=user, 
-            organization=org, dismissed=False).to_json()
+        notifications_json = InAppNotification.objects(
+            user=user, organization=org, dismissed=False).to_json()
         log.info("Emitting notifications list")
         self.send('notifications', notifications_json)
 

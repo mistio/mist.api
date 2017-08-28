@@ -180,6 +180,7 @@ class NotificationsEncoder(json.JSONEncoder):
     JSON Encoder that properly handles Notification
     instances
     '''
+
     def default(self, o):
         if isinstance(o, Notification):
             # FIXME: this is kind of dumb, but it works
