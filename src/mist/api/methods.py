@@ -789,7 +789,7 @@ def _notify_playbook_result(owner, res, cloud_id=None, machine_id=None,
 def deploy_collectd(owner, cloud_id, machine_id, extra_vars):
     ret_dict = run_playbook(
         owner, cloud_id, machine_id,
-        playbook_path='src/deploy_collectd/ansible/enable.yml',
+        playbook_path='deploy_collectd/ansible/enable.yml',
         extra_vars=extra_vars,
         force_handlers=True,
         # debug=True,
@@ -802,7 +802,7 @@ def deploy_collectd(owner, cloud_id, machine_id, extra_vars):
 def undeploy_collectd(owner, cloud_id, machine_id):
     ret_dict = run_playbook(
         owner, cloud_id, machine_id,
-        playbook_path='src/deploy_collectd/ansible/disable.yml',
+        playbook_path='deploy_collectd/ansible/disable.yml',
         force_handlers=True,
         # debug=True,
     )
