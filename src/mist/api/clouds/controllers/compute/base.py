@@ -41,8 +41,8 @@ from mist.api.helpers import amqp_publish
 from mist.api.helpers import amqp_publish_user
 from mist.api.helpers import amqp_owner_listening
 
-from mist.api.poller2.models import PeriodicTaskInfo
-from mist.api.poller2.models import PeriodicTaskThresholdExceeded
+from mist.api.concurrency.models import PeriodicTaskInfo
+from mist.api.concurrency.models import PeriodicTaskThresholdExceeded
 
 try:
     from mist.core.vpn.methods import destination_nat as dnat

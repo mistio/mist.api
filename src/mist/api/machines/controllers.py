@@ -2,7 +2,7 @@ import jsonpatch
 
 from mist.api.helpers import amqp_publish_user
 
-from mist.api.poller2.models import PeriodicTaskInfo
+from mist.api.concurrency.models import PeriodicTaskInfo
 
 
 class MachineController(object):
