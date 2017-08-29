@@ -14,11 +14,15 @@ import logging
 import datetime
 import calendar
 
+import jsonpatch
+
 import mongoengine as me
 
 from libcloud.common.types import InvalidCredsError
 from libcloud.compute.types import NodeState
 from libcloud.compute.base import NodeLocation, Node
+
+from amqp.connection import Connection
 
 from mist.api import config
 
@@ -33,19 +37,23 @@ from mist.api.exceptions import CloudUnauthorizedError
 from mist.api.exceptions import SSLError
 
 from mist.api.helpers import get_datetime
+from mist.api.helpers import amqp_publish
+from mist.api.helpers import amqp_publish_user
+from mist.api.helpers import amqp_owner_listening
+
+from mist.api.concurrency.models import PeriodicTaskInfo
+from mist.api.concurrency.models import PeriodicTaskThresholdExceeded
 
 try:
     from mist.core.vpn.methods import destination_nat as dnat
-    from mist.core.vpn.methods import super_ping
 except ImportError:
-    from mist.api.dummy.methods import dnat, super_ping
+    from mist.api.dummy.methods import dnat
 
 from mist.api.clouds.controllers.base import BaseController
 
 from mist.api.tag.models import Tag
 
 from mist.api.machines.models import Machine
-
 
 log = logging.getLogger(__name__)
 
@@ -132,9 +140,71 @@ class BaseComputeController(BaseController):
             last_seen__gt=datetime.datetime.utcnow() - timedelta,
         )
 
-    def list_machines(self):
+    def list_machines(self, persist=True):
         """Return list of machines for cloud
 
+        A list of nodes is fetched from libcloud, the data is processed, stored
+        on machine models, and a list of machine models is returned.
+
+        Subclasses SHOULD NOT override or extend this method.
+
+        This method wraps `_list_machines` which contains the core
+        implementation.
+
+        """
+
+        task_key = 'cloud:list_machines:%s' % self.cloud.id
+        task = PeriodicTaskInfo.get_or_add(task_key)
+        try:
+            with task.task_runner(persist=persist):
+                old_machines = {'%s-%s' % (m.id, m.machine_id): m.as_dict()
+                                for m in self.list_cached_machines()}
+                machines = self._list_machines()
+        except PeriodicTaskThresholdExceeded:
+            self.cloud.disable()
+            raise
+
+        # Initialize AMQP connection to reuse for multiple messages.
+        amqp_conn = Connection(config.AMQP_URI)
+
+        if amqp_owner_listening(self.cloud.owner.id):
+            if not config.MACHINE_PATCHES:
+                amqp_publish_user(self.cloud.owner.id,
+                                  routing_key='list_machines',
+                                  connection=amqp_conn,
+                                  data={'cloud_id': self.cloud.id,
+                                        'machines': [machine.as_dict()
+                                                     for machine in machines]})
+            else:
+                # Publish patches to rabbitmq.
+                new_machines = {'%s-%s' % (m.id, m.machine_id): m.as_dict()
+                                for m in machines}
+                # Exclude last seen and probe fields from patch.
+                for md in old_machines, new_machines:
+                    for m in md.values():
+                        m.pop('last_seen')
+                        m.pop('probe')
+                patch = jsonpatch.JsonPatch.from_diff(old_machines,
+                                                      new_machines).patch
+                if patch:
+                    amqp_publish_user(self.cloud.owner.id,
+                                      routing_key='patch_machines',
+                                      connection=amqp_conn,
+                                      data={'cloud_id': self.cloud.id,
+                                            'patch': patch})
+
+        # Push historic information for inventory and cost reporting.
+        for machine in machines:
+            data = {'owner_id': self.cloud.owner.id,
+                    'machine_id': machine.id,
+                    'cost_per_month': machine.cost.monthly}
+            amqp_publish(exchange='machines_inventory', routing_key='',
+                         auto_delete=False, data=data, connection=amqp_conn)
+
+        return machines
+
+    def _list_machines(self):
+        """Core logic of list_machines method
         A list of nodes is fetched from libcloud, the data is processed, stored
         on machine models, and a list of machine models is returned.
 
@@ -154,7 +224,6 @@ class BaseComputeController(BaseController):
         default, dummy methods.
 
         """
-
         # Try to query list of machines from provider API.
         try:
             nodes = self._list_machines__fetch_machines()
@@ -217,6 +286,21 @@ class BaseComputeController(BaseController):
                 except TypeError:
                     extra[key] = str(val)
             machine.extra = extra
+
+            # save extra.tags as dict
+            if machine.extra.get('tags') and isinstance(
+                    machine.extra.get('tags'), list):
+                machine.extra['tags'] = dict.fromkeys(machine.extra['tags'],
+                                                      '')
+            # perform tag validation to prevent ValidationError
+            # on machine.save()
+            if machine.extra.get('tags') and isinstance(
+                    machine.extra.get('tags'), dict):
+                validated_tags = {}
+                for tag in machine.extra['tags']:
+                    if not (('.' in tag) or ('$' in tag)):
+                        validated_tags[tag] = machine.extra['tags'][tag]
+                machine.extra['tags'] = validated_tags
 
             # Set machine hostname
             if machine.extra.get('dns_name'):
@@ -323,13 +407,23 @@ class BaseComputeController(BaseController):
             machine.save()
             machines.append(machine)
 
+            # Set machine hostname
+            if not machine.hostname:
+                ips = machine.public_ips + machine.private_ips
+                if not ips:
+                    ips = []
+                for ip in ips:
+                    if ip and ':' not in ip:
+                        machine.hostname = ip
+                        break
+
         # Set last_seen on machine models we didn't see for the first time now.
         Machine.objects(cloud=self.cloud,
                         id__nin=[m.id for m in machines],
                         missing_since=None).update(missing_since=now)
 
         # Update RBAC Mappings given the list of nodes seen for the first time.
-        self.cloud.owner.mapper.update(new_machines)
+        self.cloud.owner.mapper.update(new_machines, async=False)
 
         # Update machine counts on cloud and org.
         # FIXME: resolve circular import issues
@@ -482,9 +576,9 @@ class BaseComputeController(BaseController):
             return True
         try:
             log.info("Pinging %s", hostname)
-            ping = super_ping(owner=self.cloud.owner,
-                              host=hostname, pkts=1)
-            if int(ping.get('packets_rx', 0)) > 0:
+            from mist.api.methods import ping
+            ping_res = ping(owner=self.cloud.owner, host=hostname, pkts=1)
+            if int(ping_res.get('packets_rx', 0)) > 0:
                 log.info("Successfully pinged %s", hostname)
                 return True
         except:

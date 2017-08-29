@@ -93,10 +93,10 @@ class Crontab(BaseScheduleType):
         def rfield(x):
             return str(x).replace(' ', '') or '*'
 
-        return 'Crontab {0} {1} {2} {3} {4} (m/h/d/dM/MY)'.format(
+        return 'Crontab {0} {1} {2} {3} {4} (m/h/dom/mon/dow)'.format(
             rfield(self.minute), rfield(self.hour),
-            rfield(self.day_of_week),
             rfield(self.day_of_month), rfield(self.month_of_year),
+            rfield(self.day_of_week),
         )
 
     def as_dict(self):
