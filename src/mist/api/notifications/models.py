@@ -1,10 +1,9 @@
 from uuid import uuid4
+from datetime import datetime
 
 import mongoengine as me
 
 from mist.api.users.models import User, Organization
-from mist.api.machines.models import Machine
-from mist.api.clouds.models import Cloud
 
 
 class NotificationRule(me.EmbeddedDocument):
@@ -29,12 +28,25 @@ class UserNotificationPolicy(me.Document):
 
     def notification_allowed(self, notification):
         '''
-        Accepts a notification and returns a boolean indicating
-        whether it is allowed or has been blocked by the user
+        Accepts a notification or string token and returns a boolean
+        indicating whether corresponding notification is allowed
+        or is blocked
+        '''
+        source = type(notification).__name__
+        for rule in self.rules:
+            if (rule.source == source and
+                    rule.value == 'BLOCK'):
+                return False
+        return True
+
+    def channel_allowed(self, channel):
+        '''
+        Accepts a notification or string token and returns a boolean
+        indicating whether corresponding notification is allowed
+        or is blocked
         '''
         for rule in self.rules:
-            # TODO: here eventually check for source as well
-            if (rule.source == notification.source and
+            if (rule.source == channel and
                     rule.value == 'BLOCK'):
                 return False
         return True
@@ -45,6 +57,8 @@ class Notification(me.Document):
     Represents a notification associated with a
     user-organization pair
     '''
+    meta = {'allow_inheritance': True}
+
     id = me.StringField(primary_key=True,
                         default=lambda: uuid4().hex)
 
@@ -56,26 +70,15 @@ class Notification(me.Document):
 
     # content fields
     summary = me.StringField(max_length=512, required=False, default="")
-    subject = me.StringField(max_length=256, required=False, default="")
     body = me.StringField(required=True, default="")
     html_body = me.StringField(required=False, default="")
 
-    # source fields
+    # taxonomy fields
     source = me.StringField(max_length=64, required=True, default="")
-    channel = me.StringField(max_length=64, required=True, default="")
-
-    # resource and action fields
-    kind = me.StringField(required=True, default="")
     resource = me.GenericReferenceField(required=False)
     action_link = me.URLField(required=False)
 
-    # email-specific fields
-    email = me.EmailField(required=False)
-    unsub_link = me.URLField(required=False)
-
-    # user action fields
-    viewed = me.BooleanField(required=True, default=False)
-    dismissed = me.BooleanField(required=True, default=False)
+    unique = me.BooleanField(required=True, default=True)
 
     severity = me.StringField(
         max_length=7,
@@ -95,16 +98,36 @@ class Notification(me.Document):
             'POSITIVE'),
         default='NEUTRAL')
 
-    def get_action_link(self):
-        '''
-        Either returns the action_link property if it exists,
-        or generates a link using the associated resource and
-        kind properties
-        '''
-        if self.action_link:
-            return self.action_link
-        if self.resource is Machine:
-            return "/machines/" + self.resource.id
-        if self.resource is Cloud:
-            return "/clouds/" + self.resource.id
-        return None
+    def __init__(self, *args, **kwargs):
+        super(Notification, self).__init__(*args, **kwargs)
+        if not self.created_date:
+            self.created_date = datetime.now()
+
+
+class EmailReport(Notification):
+    '''
+    Represents a notification corresponding to
+    an email report
+    '''
+    subject = me.StringField(max_length=256, required=False, default="")
+    email = me.EmailField(required=False)
+    unsub_link = me.URLField(required=False)
+
+
+class InAppNotification(Notification):
+    '''
+    Represents an in-app notification
+    '''
+    model_id = me.StringField(required=True, default="")  # "autoscale_v1"
+    model_output = me.DictField(
+        required=True,
+        default={})  # {"direction": "up"}
+
+    dismissed = me.BooleanField(required=True, default=False)
+
+
+class InAppRecommendation(InAppNotification):
+    '''
+    Represents an in-app recommendation
+    '''
+    pass

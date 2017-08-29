@@ -42,7 +42,7 @@ from mist.api.dns.methods import filter_list_zones
 from mist.api import tasks
 from mist.api.hub.tornado_shell_client import ShellHubClient
 
-from mist.api.notifications.methods import get_notifications
+from mist.api.notifications.models import InAppNotification
 
 try:
     from mist.core.methods import get_stats, get_load, check_monitoring
@@ -380,10 +380,10 @@ class MainConnection(MistConnection):
 
     def update_notifications(self):
         user = self.auth_context.user
-        org = filter_org(self.auth_context)
-        channel = 'in_app'
-        notifications_json = get_notifications(user, org, channel).to_json()
-        log.info("Emitting notifications.")
+        org = self.auth_context.org
+        notifications_json = InAppNotification.objects(
+            user=user, organization=org, dismissed=False).to_json()
+        log.info("Emitting notifications list")
         self.send('notifications', notifications_json)
 
     def check_monitoring(self):
@@ -537,8 +537,9 @@ class MainConnection(MistConnection):
             if 'org' in sections:
                 self.auth_context.org.reload()
                 self.update_org()
-        elif routing_key == 'notification':
-            self.send('notification', result)
+        elif routing_key == 'patch_notifications':
+            if json.loads(result).get('user') == self.user.id:
+                self.send('patch_notifications', result)
 
         elif routing_key == 'patch_machines':
             cloud_id = result['cloud_id']
