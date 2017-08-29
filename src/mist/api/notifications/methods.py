@@ -1,30 +1,21 @@
-from datetime import datetime
-
-from mist.api.users.models import User, Organization
 import models
 from models import Notification
 import channels
 
 
-def send_notification(notification):
-    '''
-    Accepts a notification instance, checks against user
-    notification policy and sends the notification
-    through specified channels.
-    '''
-    policy = get_policy(notification.user, notification.organization)
-    if policy.notification_allowed(notification):
-        chan = channels.channel_instance_with_name(notification.channel)
-        if chan:
-            chan.send(notification)
+'''
+NOTIFICATION POLICIES
+'''
 
 
-def add_block_rule(user, org, source):
+def add_block_rule(user, org, notification):
     '''
-    Adds a block rule to a user-org policy for the specified source.
+    Adds a block rule to a user-org policy for the specified
+    notification type.
     Creates the policy if it does not exist.
     '''
     policy = get_policy(user, org)
+    source = type(notification).__name__
     rules = [rule for rule in policy.rules if rule.source == source]
     if not rules:
         rule = models.NotificationRule()
@@ -34,29 +25,18 @@ def add_block_rule(user, org, source):
         policy.save()
 
 
-def remove_block_rule(user, org, source):
+def remove_block_rule(user, org, notification):
     '''
-    Removes a block rule to a user-org policy for the specified source.
+    Removes a block rule to a user-org policy for the specified
+    notification type.
     Creates the policy if it does not exist.
     '''
     policy = get_policy(user, org)
+    source = type(notification).__name__
     rules = [rule for rule in policy.rules if rule.source == source]
     if rules:
         policy.rules.remove(rules[0])
         policy.save()
-
-
-def has_block_rule(user, org, source):
-    '''
-    Accepts a user and org and queries whether
-    there is a block rule in place.
-    Creates the policy if it does not exist.
-    '''
-    policy = get_policy(user, org)
-    rules = [rule for rule in policy.rules if rule.source == source]
-    if rules:
-        return True
-    return False
 
 
 def get_policy(user, org, create=True):
@@ -78,75 +58,35 @@ def get_policy(user, org, create=True):
     return policies[0]
 
 
-def get_notifications(user, org, channel, get_dismissed=False):
-    org = Organization.objects.get(id=org['id'])
-    if get_dismissed:
-        notifications = Notification.objects(
-            user=user, organization=org, channel=channel)
-    else:
-        notifications = Notification.objects(
-            user=user, organization=org, channel=channel, dismissed=False)
-    return notifications
+'''
+NOTIFICATION HELPERS
+'''
 
 
-def make_notification(
-        subject,
-        body,
-        source,
-        channel,
-        user,
-        org,
-        summary=None,
-        html_body=None,
-        unsub_link=None,
-        resource=None,
-        kind="",
-        save=False):
+def send_notification(notification):
     '''
-    Generates a notification. By default the notification is not
-    saved for efficiency.
+    Accepts a notification instance, checks against user
+    notification policy and sends the notification
+    through specified channels.
     '''
-    notification = Notification()
-    notification.created_date = datetime.now()
-    notification.subject = subject
-    notification.body = body
-    notification.source = source
-    notification.channel = channel
-    notification.user = user
-    notification.organization = org
-    notification.resource = resource
-    notification.kind = kind
-    if summary:
-        notification.summary = summary
-    if html_body:
-        notification.html_body = html_body
-    if unsub_link:
-        notification.unsub_link = unsub_link
-    if save:
-        notification.save()
-    return notification
+    policy = get_policy(notification.user, notification.organization)
+    if policy.notification_allowed(notification):
+        chan = channels.channel_instance_for_notification(notification)
+        if chan:
+            chan.send(notification)
 
 
-def test():
+def dismiss_scale_notifications(machine, feedback='NEUTRAL'):
     '''
-    Test this
+    Convenience function to dismiss scale notifications from
+    a machine.
+    Calls dismiss on each notification's channel. May update
+    the feedback field on each notification.
     '''
-    user = User.objects.get(email="yconst@mist.io")
-    org = Organization.objects.get(members=user)
-
-    notification = make_notification("some spam", "more spam",
-                                     "alerts", "stdout", user, org)
-
-    # first send with no rules - it should pass
-    remove_block_rule(user, org, "alerts")
-    print "Sending with no rules - message should appear below:"
-    send_notification(notification)
-
-    # now create a rule - it should fail
-    add_block_rule(user, org, "alerts")
-    print "Sending with block rule - nothing should appear below:"
-    send_notification(notification)
-
-
-if __name__ == "__main__":
-    test()
+    notifications = Notification.objects(resource=machine,
+                                         model_id__contains="autoscale")
+    for notification in notifications:
+        notification.feedback = feedback
+        chan = channels.channel_instance_for_notification(notification)
+        if chan:
+            chan.dismiss(notification)
