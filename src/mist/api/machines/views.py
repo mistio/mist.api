@@ -5,6 +5,7 @@ from pyramid.response import Response
 import mist.api.machines.methods as methods
 
 from mist.api.clouds.models import Cloud
+from mist.api.clouds.models import LibvirtCloud
 from mist.api.machines.models import Machine
 
 from mist.api import tasks
@@ -26,6 +27,8 @@ logging.basicConfig(level=config.PY_LOG_LEVEL,
                     format=config.PY_LOG_FORMAT,
                     datefmt=config.PY_LOG_FORMAT_DATE)
 log = logging.getLogger(__name__)
+
+OK = Response("OK", 200)
 
 
 @view_config(route_name='api_v1_machines',
@@ -182,7 +185,6 @@ def create_machine(request):
 
     params = params_from_request(request)
     cloud_id = request.matchdict['cloud']
-
     for key in ('name', 'size'):
         if key not in params:
             raise RequiredParameterMissingError(key)
@@ -234,7 +236,8 @@ def create_machine(request):
     # hourly True is the default setting for SoftLayer hardware
     # servers, while False means the server has montly pricing
     softlayer_backend_vlan_id = params.get('softlayer_backend_vlan_id', None)
-    hourly = params.get('billing', True)
+    hourly = params.get('hourly', True)
+
     job_id = params.get('job_id')
     job_id = params.get('job_id')
     # The `job` variable points to the event that started the job. If a job_id
@@ -376,7 +379,7 @@ def machine_actions(request):
     ACTION permission required on machine(ACTION can be START,
     STOP, DESTROY, REBOOT).
     ---
-    machine:
+    machine_uuid:
       in: path
       required: true
       type: string
@@ -401,6 +404,10 @@ def machine_actions(request):
     params = params_from_request(request)
     action = params.get('action', '')
     plan_id = params.get('plan_id', '')
+    memory = params.get('memory', '')
+    cpus = params.get('cpus', '')
+    cpu_shares = params.get('cpu_shares', '')
+    cpu_units = params.get('cpu_units', '')
     name = params.get('name', '')
     auth_context = auth_context_from_request(request)
 
@@ -412,13 +419,21 @@ def machine_actions(request):
             machine = Machine.objects.get(cloud=cloud_id,
                                           machine_id=machine_id,
                                           state__ne='terminated')
+            # used by logging_view_decorator
+            request.environ['machine_uuid'] = machine.id
         except Machine.DoesNotExist:
             raise NotFoundError("Machine %s doesn't exist" % machine_id)
     else:
-        machine_uuid = request.matchdict['machine']
+        machine_uuid = request.matchdict['machine_uuid']
         try:
-            machine = Machine.objects.get(id=machine_uuid,
-                                          state__ne='terminated')
+            machine = Machine.objects.get(id=machine_uuid)
+            # VMs in libvirt can be started no matter if they are terminated
+            if machine.state == 'terminated' and not isinstance(machine.cloud,
+                                                                LibvirtCloud):
+                raise
+            # used by logging_view_decorator
+            request.environ['machine_id'] = machine.machine_id
+            request.environ['cloud_id'] = machine.cloud.id
         except Machine.DoesNotExist:
             raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
 
@@ -435,8 +450,7 @@ def machine_actions(request):
 
     if action not in actions:
         raise BadRequestError("Action '%s' should be "
-                              "one of %s" % (action, actions)
-                              )
+                              "one of %s" % (action, actions))
     if action == 'destroy':
         methods.destroy_machine(auth_context.owner, cloud_id,
                                 machine.machine_id)
@@ -448,7 +462,16 @@ def machine_actions(request):
             raise BadRequestError("You must give a name!")
         getattr(machine.ctl, action)(name)
     elif action == 'resize':
-        getattr(machine.ctl, action)(plan_id)
+        kwargs = {}
+        if memory:
+            kwargs['memory'] = memory
+        if cpus:
+            kwargs['cpus'] = cpus
+        if cpu_shares:
+            kwargs['cpu_shares'] = cpu_shares
+        if cpu_units:
+            kwargs['cpu_units'] = cpu_units
+        getattr(machine.ctl, action)(plan_id, kwargs)
 
     # TODO: We shouldn't return list_machines, just OK. Save the API!
     return methods.filter_list_machines(auth_context, cloud_id)
@@ -495,13 +518,18 @@ def machine_rdp(request):
             machine = Machine.objects.get(cloud=cloud_id,
                                           machine_id=machine_id,
                                           state__ne='terminated')
+            # used by logging_view_decorator
+            request.environ['machine_uuid'] = machine.id
         except Machine.DoesNotExist:
             raise NotFoundError("Machine %s doesn't exist" % machine_id)
     else:
-        machine_uuid = request.matchdict['machine']
+        machine_uuid = request.matchdict['machine_uuid']
         try:
             machine = Machine.objects.get(id=machine_uuid,
                                           state__ne='terminated')
+            # used by logging_view_decorator
+            request.environ['machine_id'] = machine.machine_id
+            request.environ['cloud_id'] = machine.cloud.id
         except Machine.DoesNotExist:
             raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
 
@@ -516,7 +544,7 @@ def machine_rdp(request):
         raise BadRequestError('No hostname specified')
     try:
         1 < int(rdp_port) < 65535
-    except:
+    except (ValueError, TypeError):
         rdp_port = 3389
 
     host, rdp_port = dnat(auth_context.owner, host, rdp_port)

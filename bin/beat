@@ -2,30 +2,24 @@
 
 set -e
 
-QUEUES="${QUEUES:-celery,machines,scripts,command,ping,probe}"
 LOGLEVEL="INFO"
 TASKS="${TASKS:-mist.api.tasks}"
 
-USAGE="Usage: $0 [-h] [-q <QUEUES>] [-l <LOGLEVEL>] [-t <TASK_PATH>]
+USAGE="Usage: $0 [-h] [-l <LOGLEVEL>] [-t <TASKS_PATH>]
 
-Start uwsgi
+Start beat (used for internal/portal periodic tasks)
 
 Options:
     -h              Show this help message and exit.
-    -q <QUEUES>     Comma separated list of queues to subscribe to. Defaults to
-                    $QUEUES.
     -l <LOGLEVEL>   Log level. Defaults to $LOGLEVEL.
     -t <TASKS_PATH> Tasks file to import. Defaults to $TASKS.
 "
 
-while getopts "hq:l:t:" opt; do
+while getopts "hl:t:" opt; do
     case "$opt" in
         h)
             echo "$USAGE"
             exit
-            ;;
-        q)
-            QUEUES=$OPTARG
             ;;
         l)
             LOGLEVEL=$OPTARG
@@ -41,10 +35,9 @@ while getopts "hq:l:t:" opt; do
 done
 
 set -x
-export C_FORCE_ROOT=1
-export CELERY_CONTEXT=1
-exec celery worker \
+
+exec celery beat \
     -A $TASKS \
-    -Q $QUEUES \
-    -l $LOGLEVEL \
-    -Ofair
+    -S mist.api.portal.schedulers.RunImmediatelyPersistentScheduler \
+    --pidfile= \
+    -l $LOGLEVEL

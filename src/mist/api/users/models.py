@@ -19,10 +19,8 @@ else:
 
 try:
     from mist.core.rbac.mappings import RBACMapping
-    from mist.core.rbac.mappings import PermissionMapper
 except ImportError:
     from mist.api.dummy.mappings import RBACMapping
-    from mist.api.dummy.mappings import PermissionMapper
 
 from mist.api import config
 
@@ -473,7 +471,11 @@ class Organization(Owner):
     @property
     def mapper(self):
         """Returns the `PermissionMapper` for the current Org context."""
-        return PermissionMapper(self)
+        try:
+            from mist.core.rbac.tasks import AsyncPermissionMapper
+        except ImportError:
+            from mist.api.dummy.mappings import AsyncPermissionMapper
+        return AsyncPermissionMapper(self)
 
     def __str__(self):
         return 'Org %s (%d teams - %d members)' % (self.name, len(self.teams),

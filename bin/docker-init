@@ -16,6 +16,7 @@ if [ ! -e clean ]; then
     pip install -e $DIR/../libcloud/
     pip install -e $DIR/../celerybeat-mongo/
     pip install -e $DIR/../src/
+    pip install -r $DIR/../requirements.txt
     set +x
 fi
 
