@@ -12,6 +12,7 @@ be performed inside the corresponding method functions.
 import urllib
 import requests
 import json
+import netaddr
 import traceback
 import mongoengine as me
 
@@ -31,7 +32,9 @@ from mist.api.machines.models import Machine
 from mist.api.networks.models import Network, Subnet
 from mist.api.users.models import Avatar, Owner, User, Organization
 from mist.api.users.models import MemberInvitation, Team
+from mist.api.users.models import WhitelistIP
 from mist.api.auth.models import SessionToken, ApiToken
+from mist.api.users.methods import update_whitelist_ips
 
 from mist.api.users.methods import register_user
 
@@ -53,6 +56,7 @@ from mist.api.exceptions import OrganizationNameExistsError
 from mist.api.exceptions import TeamForbidden, TeamNotFound
 from mist.api.exceptions import OrganizationOperationError
 from mist.api.exceptions import MethodNotAllowedError
+from mist.api.exceptions import WhitelistIPError
 
 from mist.api.helpers import encrypt, decrypt
 from mist.api.helpers import get_auth_header, params_from_request
@@ -301,6 +305,18 @@ def login(request):
         auth_token.save()
     else:
         raise RequiredParameterMissingError("'password' or 'token'")
+
+    # Check whether the request IP is in the user whitelisted ones.
+    current_user_ip = netaddr.IPAddress(ip_from_request(request))
+    saved_wips = [netaddr.IPNetwork(ip.cidr) for ip in user.ips]
+    config_wips = [netaddr.IPNetwork(cidr) for cidr in config.WHITELIST_CIDR]
+    wips = saved_wips + config_wips
+    if len(saved_wips) > 0:
+        for ipnet in wips:
+            if current_user_ip in ipnet:
+                break
+        else:
+            raise WhitelistIPError()
 
     reissue_cookie_session(request, user)
 
@@ -696,6 +712,89 @@ def reset_password(request):
     raise BadRequestError("Bad method %s" % request.method)
 
 
+@view_config(route_name='request_whitelist_ip', request_method='POST')
+def request_whitelist_ip(request):
+    """
+    User logs in successfully but it's from a non-whitelisted ip.
+    They click on a link 'whitelist current ip', which sends an email
+    to their account.
+    """
+    try:
+        email = user_from_request(request).email
+    except UserUnauthorizedError:
+        email = params_from_request(request).get('email', '')
+
+    try:
+        user = User.objects.get(email=email)
+    except (UserNotFoundError, me.DoesNotExist):
+        # still return OK so that there's no leak on valid email
+        return OK
+
+    token = get_secure_rand_token()
+    user.whitelist_ip_token = token
+    user.whitelist_ip_token_created = time()
+    user.whitelist_ip_token_ip_addr = ip_from_request(request)
+    log.debug("will now save (whitelist_ip)")
+    user.save()
+
+    subject = config.WHITELIST_IP_EMAIL_SUBJECT
+    body = config.WHITELIST_IP_EMAIL_BODY
+    body = body % ( (user.first_name or "") + " " + (user.last_name or ""),
+                   config.CORE_URI,
+                   encrypt("%s:%s" % (token, email), config.SECRET),
+                   user.whitelist_ip_token_ip_addr,
+                   config.CORE_URI)
+    if not send_email(subject, body, email):
+        log.info("Failed to send email to user %s for whitelist IP link" %
+                 user.email)
+        raise ServiceUnavailableError()
+    log.info("Sent email to user %s\n%s" % (email, body))
+    return OK
+
+
+# SEC
+@view_config(route_name='confirm_whitelist', request_method=('GET'))
+def confirm_whitelist(request):
+    """
+    User tries to login successfully but from a non-whitelisted IP.
+    They get a link to request whitelisting their current IP and an email
+    with a link is sent to their email address.
+    When they click on the link and everything is valid they are then
+    redirected to the account page under the whitelisting IP tab.
+    """
+    params = params_from_request(request)
+    key = params.get('key')
+
+    if not key:
+        raise BadRequestError("Whitelist IP token is missing")
+
+    # SEC decrypt key using secret
+    try:
+        (token, email) = decrypt(key, config.SECRET).split(':')
+    except:
+        raise BadRequestError("invalid Whitelist IP token.")
+
+    try:
+        user = User.objects.get(email=email)
+    except (UserNotFoundError, me.DoesNotExist):
+        raise UserUnauthorizedError()
+
+    # SEC check status, token, expiration
+    if token != user.whitelist_ip_token:
+        raise BadRequestError("Invalid whitelist IP token.")
+    delay = time() - user.whitelist_ip_token_created
+    if delay > config.WHITELIST_IP_EXPIRATION_TIME:
+        raise MethodNotAllowedError("Whitelist IP token has expired.")
+
+    wip = WhitelistIP()
+    wip.cidr = user.whitelist_ip_token_ip_addr
+    wip.description = 'Added by Mist.io upon request'
+    user.ips.append(wip)
+    user.save()
+
+    return HTTPFound('/sign-in?return_to=/my-account/ips')
+
+
 # SEC
 @view_config(route_name='set_password', request_method=('GET', 'POST'))
 def set_password(request):
@@ -857,6 +956,24 @@ def confirm_invitation(request):
     trigger_session_update(auth_context.owner, ['org'])
 
     return HTTPFound('/')
+
+
+@view_config(route_name='api_v1_user_whitelist_ip', request_method='POST', renderer='json')
+def whitelist_ip(request):
+    """
+    Whitelist IPs for specified user.
+    """
+    auth_context = auth_context_from_request(request)
+    params = params_from_request(request)
+    ips = params.get('ips', None)
+
+    if ips is None:
+        raise RequiredParameterMissingError('ips')
+
+    update_whitelist_ips(auth_context, ips)
+
+    trigger_session_update(auth_context.org, ['user'])
+    return OK
 
 
 @view_config(route_name='api_v1_images', request_method='POST', renderer='json')

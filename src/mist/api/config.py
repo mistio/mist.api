@@ -639,6 +639,7 @@ GCE_IMAGES = ['debian-cloud',
 
 RESET_PASSWORD_EXPIRATION_TIME = 60*60*24
 
+WHITELIST_IP_EXPIRATION_TIME = 60*60*24
 
 ## Email templates
 
@@ -727,6 +728,29 @@ Please click on the following link:
 
 This request originated from the IP address %s. If it wasn't you, simply ignore
 this message. Your password has not been changed.
+
+
+Best regards,
+The mist.io team
+
+--
+%s
+Govern the clouds
+"""
+
+
+WHITELIST_IP_EMAIL_SUBJECT = "[mist.io] Account IP whitelist request"
+
+WHITELIST_IP_EMAIL_BODY = \
+"""Hi %s,
+
+We have received a request to whitelist the IP you just tried to login with.
+Please click on the following link to finish this action:
+
+%s/confirm-whitelist?key=%s
+
+This request originated from the IP address %s. If it wasn't you, simply ignore
+this message. The above IP will not be whitelisted.
 
 
 Best regards,
@@ -963,6 +987,8 @@ if NO_VERIFY_HOSTS:
         NO_VERIFY_HOSTS.append(DOCKER_IP)
     libcloud.security.NO_VERIFY_MATCH_HOSTNAMES = NO_VERIFY_HOSTS
 
+WHITELIST_CIDR = [
+]
 
 HOMEPAGE_INPUTS = {
     'google_analytics_id': GOOGLE_ANALYTICS_ID,
