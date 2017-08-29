@@ -79,6 +79,19 @@ class AuthMiddleware(object):
                     if current_user_ip in ipnet:
                         break
                 else:
+                    log_event(
+                        owner_id=user.id,
+                        user_id=user.id,
+                        email=user.email,
+                        request_method=request.method,
+                        request_path=request.path,
+                        request_ip=ip_from_request(request),
+                        user_agent=request.user_agent,
+                        session_csrf=session.csrf_token,
+                        event_type='request',
+                        action='ip_whitelisting_validation',
+                        error=True,
+                    )
                     reissue_cookie_session(request)
                     start_response('403 Forbidden', [('Content-type', 'text/plain')])
                     return ['Request sent from non-whitelisted IP.\n'\
