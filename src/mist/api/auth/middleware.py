@@ -80,7 +80,7 @@ class AuthMiddleware(object):
                         break
                 else:
                     log_event(
-                        owner_id=user.id,
+                        owner_id=session.org.id,
                         user_id=user.id,
                         email=user.email,
                         request_method=request.method,
@@ -88,8 +88,8 @@ class AuthMiddleware(object):
                         request_ip=ip_from_request(request),
                         user_agent=request.user_agent,
                         session_csrf=session.csrf_token,
-                        event_type='request',
-                        action='ip_whitelisting_validation',
+                        event_type='ip_whitelist_mismatch',
+                        action=request.path,
                         error=True,
                     )
                     reissue_cookie_session(request)
@@ -126,7 +126,8 @@ class CsrfMiddleware(object):
                 log.error("Bad CSRF token '%s'", csrf_token)
                 user = session.get_user()
                 if user is not None:
-                    owner_id = user_id = user.id
+                    owner_id = session.org.id
+                    user_id = user.id
                     email = user.email
                 else:
                     owner_id = user_id = None
