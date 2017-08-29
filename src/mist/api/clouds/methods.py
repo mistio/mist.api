@@ -128,8 +128,4 @@ def filter_list_clouds(auth_context, perm='read'):
 def list_clouds(owner):
     clouds = [cloud.as_dict() for cloud in Cloud.objects(owner=owner,
                                                          deleted=None)]
-    for cloud in clouds:
-        # FIXME: cloud must be a mongoengine object FFS!
-        # Also, move into cloud model's as_dict method?
-        cloud['tags'] = get_tags_for_resource(owner, cloud)
     return clouds

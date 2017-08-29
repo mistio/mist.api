@@ -172,6 +172,15 @@ class Cloud(me.Document):
             self.dns_enabled = False
 
     def as_dict(self):
+        # tags as a list return for the ui
+        tags = {tag.key: tag.value for tag in Tag.objects(
+            owner=self.owner, resource=self
+        ).only('key', 'value')}
+        # Optimize tags data structure for js...
+        if isinstance(tags, dict):
+            tags = [{'key': key, 'value': value}
+                    for key, value in tags.iteritems()]
+
         cdict = {
             'id': self.id,
             'title': self.title,
@@ -179,6 +188,7 @@ class Cloud(me.Document):
             'enabled': self.enabled,
             'dns_enabled': self.dns_enabled,
             'state': 'online' if self.enabled else 'offline',
+            'tags': tags,
             'polling_interval': self.polling_interval,
         }
         cdict.update({key: getattr(self, key)
