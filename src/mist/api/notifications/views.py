@@ -18,9 +18,9 @@ def dismiss_notification(request):
     if user:
         notification_id = request.matchdict.get("notification_id")
         if notification_id:
-            ntfs = Notification.objects(id=notification_id)
-            if ntfs:
-                ntf = ntfs[0]
-                if ntf.user == user:
-                    chan = channel_instance_for_notification(ntf)
-                    chan.dismiss(ntf)
+            notifications = Notification.objects(id=notification_id)
+            if notifications:
+                notification = notifications[0]
+                if notification.user == user:
+                    chan = channel_instance_for_notification(notification)
+                    chan.dismiss(notification)
