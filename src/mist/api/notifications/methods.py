@@ -76,7 +76,7 @@ def send_notification(notification):
             chan.send(notification)
 
 
-def dismiss_scale_notifications(machine, feedback='neutral'):
+def dismiss_scale_notifications(machine, feedback='NEUTRAL'):
     '''
     Convenience function to dismiss scale notifications from
     a machine.

@@ -1018,7 +1018,7 @@ class BaseComputeController(BaseController):
             from mist.api.notifications.methods import (
                 dismiss_scale_notifications)
             # TODO: Make sure user feedback is positive below!
-            dismiss_scale_notifications(machine, feedback='positive')
+            dismiss_scale_notifications(machine, feedback='POSITIVE')
         except Exception as exc:
             raise BadRequestError('Failed to resize node: %s' % exc)
 
