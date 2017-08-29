@@ -41,8 +41,8 @@ from mist.api.helpers import amqp_publish
 from mist.api.helpers import amqp_publish_user
 from mist.api.helpers import amqp_owner_listening
 
-from mist.api.poller2.models import PeriodicTaskInfo
-from mist.api.poller2.models import PeriodicTaskThresholdExceeded
+from mist.api.concurrency.models import PeriodicTaskInfo
+from mist.api.concurrency.models import PeriodicTaskThresholdExceeded
 
 try:
     from mist.core.vpn.methods import destination_nat as dnat
@@ -286,6 +286,21 @@ class BaseComputeController(BaseController):
                 except TypeError:
                     extra[key] = str(val)
             machine.extra = extra
+
+            # save extra.tags as dict
+            if machine.extra.get('tags') and isinstance(
+                    machine.extra.get('tags'), list):
+                machine.extra['tags'] = dict.fromkeys(machine.extra['tags'],
+                                                      '')
+            # perform tag validation to prevent ValidationError
+            # on machine.save()
+            if machine.extra.get('tags') and isinstance(
+                    machine.extra.get('tags'), dict):
+                validated_tags = {}
+                for tag in machine.extra['tags']:
+                    if not (('.' in tag) or ('$' in tag)):
+                        validated_tags[tag] = machine.extra['tags'][tag]
+                machine.extra['tags'] = validated_tags
 
             # Set machine hostname
             if machine.extra.get('dns_name'):
