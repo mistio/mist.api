@@ -1,5 +1,6 @@
 import json
 import jsonpatch
+import urllib2
 
 from mist.api import config
 from mist.api.helpers import send_email, amqp_publish_user
@@ -93,6 +94,9 @@ class EmailReportsChannel(BaseChannel):
             try:
                 return self.sg_instance.client.mail.send.post(
                     request_body=mdict)
+            except urllib2.URLError as exc:
+                logging.error(exc)
+                exit()
             except Exception as exc:
                 logging.error(str(exc.status_code) + ' - ' + exc.reason)
                 logging.error(exc.to_dict)
