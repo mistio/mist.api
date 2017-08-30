@@ -3,6 +3,7 @@ import logging
 import json
 import uuid
 import re
+import netaddr
 import datetime
 import mongoengine as me
 
@@ -55,6 +56,24 @@ class HtmlSafeStrField(me.StringField):
         value = value.replace("<", "&lt;")
         value = value.replace(">", "&gt;")
         return value
+
+
+class WhitelistIP(me.EmbeddedDocument):
+    """A Class to store specific to the user IP whitelisting functionality"""
+
+    cidr = me.StringField()
+    description = me.StringField()
+
+    def clean(self):
+        """Checks the CIDR to determine if it maps to a valid IPv4 network."""
+
+        try:
+            self.cidr = str(netaddr.IPNetwork(self.cidr))
+        except (TypeError, netaddr.AddrFormatError) as err:
+            raise me.ValidationError(err)
+
+    def as_dict(self):
+        return json.loads(self.to_json())
 
 
 # TODO remove these, but first delete feedback field from user
@@ -286,12 +305,17 @@ class User(Owner):
     password_reset_token_ip_addr = me.StringField()
     password_reset_token = me.StringField()
     password_reset_token_created = me.FloatField()
+    whitelist_ip_token_ip_addr = me.StringField()
+    whitelist_ip_token = me.StringField()
+    whitelist_ip_token_created = me.FloatField()
     user_agent = me.StringField()
     social_auth_users = me.MapField(field=me.ReferenceField(SocialAuthUser))
     username = me.StringField()
 
     can_create_org = me.BooleanField(default=True)
     beta_access = me.BooleanField(default=True)
+
+    ips = me.EmbeddedDocumentListField(WhitelistIP, default=[])
 
     meta = {
         'indexes': [
