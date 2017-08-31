@@ -7,11 +7,10 @@ import channels
 NOTIFICATION POLICIES
 '''
 
-
-def add_block_rule(user, org, notification):
+def add_rule(user, org, notification, value='BLOCK'):
     '''
-    Adds a block rule to a user-org policy for the specified
-    notification type.
+    Adds a notification rule to a user-org policy 
+    for the specified notification type.
     Creates the policy if it does not exist.
     '''
     policy = get_policy(user, org)
@@ -20,15 +19,15 @@ def add_block_rule(user, org, notification):
     if not rules:
         rule = models.NotificationRule()
         rule.source = source
-        rule.value = "BLOCK"
+        rule.value = value
         policy.rules.append(rule)
         policy.save()
 
 
-def remove_block_rule(user, org, notification):
+def remove_rule(user, org, notification):
     '''
-    Removes a block rule to a user-org policy for the specified
-    notification type.
+    Removes a notification rule to a user-org policy 
+    for the specified notification type.
     Creates the policy if it does not exist.
     '''
     policy = get_policy(user, org)
