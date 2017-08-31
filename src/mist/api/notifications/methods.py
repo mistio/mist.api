@@ -7,9 +7,10 @@ import channels
 NOTIFICATION POLICIES
 '''
 
+
 def add_rule(user, org, notification, value='BLOCK'):
     '''
-    Adds a notification rule to a user-org policy 
+    Adds a notification rule to a user-org policy
     for the specified notification type.
     Creates the policy if it does not exist.
     '''
@@ -26,7 +27,7 @@ def add_rule(user, org, notification, value='BLOCK'):
 
 def remove_rule(user, org, notification):
     '''
-    Removes a notification rule to a user-org policy 
+    Removes a notification rule to a user-org policy
     for the specified notification type.
     Creates the policy if it does not exist.
     '''

@@ -140,6 +140,7 @@ class InAppRecommendation(InAppNotification):
     '''
     Represents an in-app recommendation
     '''
+
     def __init__(self, *args, **kwargs):
         super(InAppNotification, self).__init__(*args, **kwargs)
         # recommendations should be explicitly allowed by
