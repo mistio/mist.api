@@ -476,6 +476,7 @@ class Organization(Owner):
     promo_codes = me.ListField()
     selected_plan = me.StringField()
     enterprise_plan = me.DictField()
+    enable_r12ns = me.BooleanField(required=True, default=False)
 
     try:
         import mist.core
