@@ -140,9 +140,9 @@ class InAppRecommendation(InAppNotification):
     '''
     Represents an in-app recommendation
     '''
-        __init__(self, *args, **kwargs):
-            super(InAppNotification, self).__init__(*args, **kwargs)
-            # recommendations should be explicitly allowed by
-            # the user
-            if not self.explicit_allow:
-                self.explicit_allow = True
+    __init__(self, *args, **kwargs):
+        super(InAppNotification, self).__init__(*args, **kwargs)
+        # recommendations should be explicitly allowed by
+        # the user
+        if not self.explicit_allow:
+            self.explicit_allow = True
