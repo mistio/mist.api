@@ -37,9 +37,12 @@ class UserNotificationPolicy(me.Document):
             if (rule.source == source and
                     rule.value == 'BLOCK'):
                 return False
-        return True
+            elif (rule.source == source and
+                    rule.value == 'ALLOW'):
+                return True
+        return not notification.explicit_allow
 
-    def channel_allowed(self, channel):
+    def channel_allowed(self, channel, default=False):
         '''
         Accepts a notification or string token and returns a boolean
         indicating whether corresponding notification is allowed
@@ -49,7 +52,10 @@ class UserNotificationPolicy(me.Document):
             if (rule.source == channel and
                     rule.value == 'BLOCK'):
                 return False
-        return True
+            elif (rule.source == channel and
+                    rule.value == 'ALLOW'):
+                return True
+        return default
 
 
 class Notification(me.Document):
@@ -98,6 +104,10 @@ class Notification(me.Document):
             'POSITIVE'),
         default='NEUTRAL')
 
+    # if true, only send (show) if explicitly
+    # allowed by a notifications rule
+    explicit_allow = me.BooleanField(required=True, default=False)
+
     def __init__(self, *args, **kwargs):
         super(Notification, self).__init__(*args, **kwargs)
         if not self.created_date:
@@ -130,4 +140,9 @@ class InAppRecommendation(InAppNotification):
     '''
     Represents an in-app recommendation
     '''
-    pass
+        __init__(self, *args, **kwargs):
+            super(InAppNotification, self).__init__(*args, **kwargs)
+            # recommendations should be explicitly allowed by
+            # the user
+            if not self.explicit_allow:
+                self.explicit_allow = True
