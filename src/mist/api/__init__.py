@@ -289,7 +289,7 @@ def add_routes(configurator):
     )
 
     configurator.add_route('api_v1_user_whitelist_ip',
-                           '/api/v1/users/whitelist')
+                           '/api/v1/whitelist')
 
     # Logs & stories.
     configurator.add_route('api_v1_logs', '/api/v1/logs')

@@ -87,12 +87,14 @@ class AuthMiddleware(object):
                         request_path=request.path,
                         request_ip=ip_from_request(request),
                         user_agent=request.user_agent,
-                        session_csrf=session.csrf_token,
                         event_type='ip_whitelist_mismatch',
                         action=request.path,
                         error=True,
                     )
-                    reissue_cookie_session(request)
+                    # Only logout user if token is SessionToken
+                    # Do not logout if it's ApiToken
+                    if isinstance(session, SessionToken):
+                        reissue_cookie_session(request)
                     start_response('403 Forbidden', [('Content-type', 'text/plain')])
                     return ['Request sent from non-whitelisted IP.\n'\
                             'You have been logged out from this account.\n'\
