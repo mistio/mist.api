@@ -44,6 +44,29 @@ class AuthContext(object):
     def _get_matching_tags(self, rtype, action):
         return {}
 
+    def serialize(self):
+        """This returns the basic context info in a dict of strings and can
+        safely be passed to celery tasks etc. To recreate the context, just
+        feed it to AuthContext.deserialize"""
+        return {
+            'user_id': self.user.id,
+            'token_id': str(self.token.id) if self.token is not None else None,
+        }
+
+    @staticmethod
+    def deserialize(serialized):
+        if not isinstance(serialized, dict):
+            raise TypeError("Expected serialized AuthContext as dict, "
+                            "got %r instead." % serialized)
+        user_id = serialized.get('user_id')
+        token_id = serialized.get('token_id')
+        user = mist.api.users.models.User.objects.get(id=user_id)
+        if token_id:
+            token = mist.api.auth.models.AuthToken.objects.get(id=token_id)
+        else:
+            token = None
+        return AuthContext(user, token)
+
 
 def validate_rule_rid(rule, owner):
     return
