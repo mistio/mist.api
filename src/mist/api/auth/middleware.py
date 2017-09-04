@@ -1,4 +1,5 @@
 import logging
+import netaddr
 
 from mist.api.logs.methods import log_event
 from mist.api.helpers import ip_from_request
@@ -8,6 +9,9 @@ from mist.api.auth.models import ApiToken
 from mist.api.auth.models import SessionToken
 
 from mist.api.auth.methods import session_from_request
+from mist.api.auth.methods import reissue_cookie_session
+
+from mist.api import config
 
 from pyramid.request import Request
 
@@ -25,7 +29,7 @@ class AuthMiddleware(object):
 
     def __call__(self, environ, start_response):
         request = Request(environ)
-        session_from_request(request)
+        session = session_from_request(request)
 
         def session_start_response(status, headers, exc_info=None):
             session = environ['session']  # reload in case it was reissued
@@ -63,6 +67,38 @@ class AuthMiddleware(object):
 
             return start_response(status, headers, exc_info)
 
+        user = session.get_user()
+        # Check whether the request IP is in the user whitelisted ones.
+        if session and user is not None and request.path != '/logout':
+            current_user_ip = netaddr.IPAddress(ip_from_request(request))
+            saved_wips = [netaddr.IPNetwork(ip.cidr) for ip in user.ips]
+            config_wips = [netaddr.IPNetwork(cidr) for cidr in config.WHITELIST_CIDR]
+            wips = saved_wips + config_wips
+            if len(saved_wips) > 0:
+                for ipnet in wips:
+                    if current_user_ip in ipnet:
+                        break
+                else:
+                    log_event(
+                        owner_id=session.org.id,
+                        user_id=user.id,
+                        email=user.email,
+                        request_method=request.method,
+                        request_path=request.path,
+                        request_ip=ip_from_request(request),
+                        user_agent=request.user_agent,
+                        event_type='ip_whitelist_mismatch',
+                        action=request.path,
+                        error=True,
+                    )
+                    # Only logout user if token is SessionToken
+                    # Do not logout if it's ApiToken
+                    if isinstance(session, SessionToken):
+                        reissue_cookie_session(request)
+                    start_response('403 Forbidden', [('Content-type', 'text/plain')])
+                    return ['Request sent from non-whitelisted IP.\n'\
+                            'You have been logged out from this account.\n'\
+                            'Please sign in to request whitelisting your current IP via email.']
         response = self.app(environ, session_start_response)
         return response
 
@@ -92,7 +128,8 @@ class CsrfMiddleware(object):
                 log.error("Bad CSRF token '%s'", csrf_token)
                 user = session.get_user()
                 if user is not None:
-                    owner_id = user_id = user.id
+                    owner_id = session.org.id
+                    user_id = user.id
                     email = user.email
                 else:
                     owner_id = user_id = None

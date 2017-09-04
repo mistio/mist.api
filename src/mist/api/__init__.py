@@ -142,6 +142,8 @@ def add_routes(configurator):
     configurator.add_route('forgot_password', '/forgot')
     configurator.add_route('reset_password', '/reset-password')
     configurator.add_route('confirm_invitation', '/confirm-invitation')
+    configurator.add_route('request_whitelist_ip', '/request-whitelist-ip')
+    configurator.add_route('confirm_whitelist', '/confirm-whitelist')
 
     configurator.add_route('api_v1_avatars', '/api/v1/avatars')
     configurator.add_route('api_v1_avatar', '/api/v1/avatars/{avatar}')
@@ -275,6 +277,9 @@ def add_routes(configurator):
         'api_v1_team_member',
         '/api/v1/org/{org_id}/teams/{team_id}/members/{user_id}'
     )
+
+    configurator.add_route('api_v1_user_whitelist_ip',
+                           '/api/v1/whitelist')
 
     # Logs & stories.
     configurator.add_route('api_v1_logs', '/api/v1/logs')

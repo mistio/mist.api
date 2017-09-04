@@ -1,6 +1,7 @@
 
 from mist.api.helpers import view_config
 from mist.api.auth.methods import user_from_request
+from mist.api.notifications.channels import channel_instance_for_notification
 
 from models import Notification
 
@@ -17,10 +18,9 @@ def dismiss_notification(request):
     if user:
         notification_id = request.matchdict.get("notification_id")
         if notification_id:
-            ntfs = Notification.objects(id=notification_id)
-            if ntfs:
-                ntf = ntfs[0]
-                if ntf.user == user:
-                    ntf.dismissed = True
-                    ntf.save()
-                    return ntf.to_json()
+            notifications = Notification.objects(id=notification_id)
+            if notifications:
+                notification = notifications[0]
+                if notification.user == user:
+                    chan = channel_instance_for_notification(notification)
+                    chan.dismiss(notification)

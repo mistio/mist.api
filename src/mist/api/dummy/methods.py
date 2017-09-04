@@ -16,10 +16,6 @@ def to_tunnel(owner, host):
     return
 
 
-def super_ping(owner, tunnel_id='', host='', pkts=10):
-    return {}
-
-
 def filter_list_templates(auth_context):
     return {}
 
