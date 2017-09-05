@@ -26,7 +26,7 @@ class UserNotificationPolicy(me.Document):
     user = me.ReferenceField(User, required=True)
     organization = me.ReferenceField(Organization, required=True)
 
-    def notification_allowed(self, notification):
+    def notification_allowed(self, notification, default=True):
         '''
         Accepts a notification or string token and returns a boolean
         indicating whether corresponding notification is allowed
@@ -40,9 +40,9 @@ class UserNotificationPolicy(me.Document):
             elif (rule.source == source and
                     rule.value == 'ALLOW'):
                 return True
-        return not notification.explicit_allow
+        return default
 
-    def channel_allowed(self, channel, default=False):
+    def channel_allowed(self, channel, default=True):
         '''
         Accepts a notification or string token and returns a boolean
         indicating whether corresponding notification is allowed
@@ -103,10 +103,6 @@ class Notification(me.Document):
             'NEUTRAL',
             'POSITIVE'),
         default='NEUTRAL')
-
-    # if true, only send (show) if explicitly
-    # allowed by a notifications rule
-    explicit_allow = me.BooleanField(required=True, default=False)
 
     def __init__(self, *args, **kwargs):
         super(Notification, self).__init__(*args, **kwargs)
