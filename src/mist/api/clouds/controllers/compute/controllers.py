@@ -116,6 +116,12 @@ class AmazonComputeController(BaseComputeController):
             ).os_type
         except:
             os_type = 'linux'
+        # save machine.os_type
+        if os_type in ('unix', 'linux', 'windows', 'coreos') \
+                and machine.os_type != os_type:
+                machine.os_type = os_type
+                machine.save()
+
         sizes = machine_libcloud.driver.list_sizes()
         size = machine_libcloud.extra.get('instance_type')
         for node_size in sizes:
@@ -376,6 +382,13 @@ class AzureComputeController(BaseComputeController):
         return get_driver(Provider.AZURE)(self.cloud.subscription_id,
                                           tmp_cert_file.name)
 
+    def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        os_type = machine_libcloud.extra.get('os_type', 'linux')
+        if os_type in ('unix', 'linux', 'windows', 'coreos') \
+                and machine.os_type != os_type:
+                machine.os_type = os_type
+                machine.save()
+
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         if machine_libcloud.state not in [NodeState.RUNNING, NodeState.PAUSED]:
             return 0, 0
@@ -451,6 +464,13 @@ class AzureArmComputeController(BaseComputeController):
                                               self.cloud.subscription_id,
                                               self.cloud.key,
                                               self.cloud.secret)
+
+    def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        os_type = machine_libcloud.extra.get('os_type', 'linux')
+        if os_type in ('unix', 'linux', 'windows', 'coreos') \
+                and machine.os_type != os_type:
+                machine.os_type = os_type
+                machine.save()
 
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         if machine_libcloud.state not in [NodeState.RUNNING, NodeState.PAUSED]:
