@@ -417,4 +417,5 @@ class OtherCloud(Cloud):
         self.can_create_vms = False
         super(OtherCloud, self).clean()
 
+
 _populate_clouds()
