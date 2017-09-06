@@ -3,7 +3,7 @@
 Main controllers implement common cloud operations, such as add, update,
 disable, that mainly affect mist, instead of interacting with the remote cloud
 itself. These operations are mostly the same for all different clouds.
-
+222
 A cloud controller is initialized given a cloud. Most of the time it will be
 accessed through a cloud model, using the `ctl` abbreviation, like this:
 
@@ -312,6 +312,17 @@ class LibvirtMainController(BaseMainController):
 class SolusVMMainController(BaseMainController):
     provider = 'solusvm'
     ComputeController = compute_ctls.SolusVMComputeController
+
+    def update(self, fail_on_error=True, fail_on_invalid_params=True,
+               **kwargs):
+        super(SolusVMMainController, self).update(
+            fail_on_error=fail_on_error,
+            fail_on_invalid_params=fail_on_invalid_params,
+            **kwargs
+        )
+        # call list_users to set a correct reseller
+        # and thus can_create_vms value
+        self.cloud.ctl.compute.list_users()
 
 
 class OtherMainController(BaseMainController):
