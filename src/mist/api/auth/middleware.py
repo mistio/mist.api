@@ -15,6 +15,13 @@ from mist.api import config
 
 from pyramid.request import Request
 
+try:
+    from mist.core.rbac.tokens import ReadOnlyApiToken
+except ImportError:
+    READ_ONLY_AVAILABLE = False
+else:
+    READ_ONLY_AVAILABLE = True
+
 
 log = logging.getLogger(__name__)
 
@@ -99,6 +106,15 @@ class AuthMiddleware(object):
                     return ['Request sent from non-whitelisted IP.\n'\
                             'You have been logged out from this account.\n'\
                             'Please sign in to request whitelisting your current IP via email.']
+
+        # Enforce read-only access.
+        if READ_ONLY_AVAILABLE:
+            if isinstance(session, ReadOnlyApiToken):
+                if request.method not in ('GET', 'HEAD', 'OPTIONS', ):
+                    start_response('405 Method Not Allowed',
+                                   [('Content-type', 'text/plain')])
+                    return ['State-changing HTTP method not allowed\n']
+
         response = self.app(environ, session_start_response)
         return response
 
