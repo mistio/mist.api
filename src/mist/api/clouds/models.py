@@ -180,6 +180,11 @@ class Cloud(me.Document):
             'dns_enabled': self.dns_enabled,
             'state': 'online' if self.enabled else 'offline',
             'polling_interval': self.polling_interval,
+            'tags': [
+                {'key': tag.key, 'value': tag.value}
+                for tag in Tag.objects(owner=self.owner,
+                                       resource=self).only('key', 'value')
+            ],
         }
         cdict.update({key: getattr(self, key)
                       for key in self._cloud_specific_fields
