@@ -1303,6 +1303,13 @@ class SolusVMComputeController(BaseComputeController):
                                             port=int(self.cloud.port),
                                             verify=self.cloud.verify)
 
+    def list_users(self):
+        users = self.connection.ex_list_users()
+        self.cloud.reseller = users.get('reseller')
+        self.cloud.save()
+        list_of_users = users.get('list_of_users', [])
+        return list_of_users
+
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
         return machine_libcloud.extra.get('creationdate')
 

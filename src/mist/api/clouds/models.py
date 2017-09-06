@@ -87,6 +87,7 @@ class Cloud(me.Document):
 
     deleted = me.DateTimeField()
 
+    can_create_vms = me.BooleanField(default=True)
     meta = {
         'strict': False,
         'allow_inheritance': True,
@@ -180,6 +181,7 @@ class Cloud(me.Document):
             'dns_enabled': self.dns_enabled,
             'state': 'online' if self.enabled else 'offline',
             'polling_interval': self.polling_interval,
+            'can_create_vms': self.can_create_vms,
             'tags': [
                 {'key': tag.key, 'value': tag.value}
                 for tag in Tag.objects(owner=self.owner,
@@ -314,6 +316,10 @@ class VSphereCloud(Cloud):
     _private_fields = ('password', )
     _controller_cls = controllers.VSphereMainController
 
+    def clean(self):
+        self.can_create_vms = False
+        super(VSphereCloud, self).clean()
+
 
 class VCloud(Cloud):
 
@@ -393,14 +399,22 @@ class SolusVMCloud(Cloud):
     host = me.StringField(required=True)
     port = me.IntField(required=True, default=80)
     verify = me.BooleanField(default=True)
+    reseller = me.BooleanField(default=True)
 
     _private_fields = ('apikey', )
     _controller_cls = controllers.SolusVMMainController
+
+    def clean(self):
+        self.can_create_vms = self.reseller
+        super(SolusVMCloud, self).clean()
 
 
 class OtherCloud(Cloud):
 
     _controller_cls = controllers.OtherMainController
 
+    def clean(self):
+        self.can_create_vms = False
+        super(OtherCloud, self).clean()
 
 _populate_clouds()
