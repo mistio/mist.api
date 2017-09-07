@@ -604,6 +604,8 @@ class BaseComputeController(BaseController):
         default, dummy methods.
 
         """
+        if not self.cloud.can_create_vms:
+            return []
 
         # Fetch images list, usually from libcloud connection.
         images = self._list_images__fetch_images(search=search)
@@ -683,6 +685,8 @@ class BaseComputeController(BaseController):
         default, dummy methods.
 
         """
+        if not self.cloud.can_create_vms:
+            return []
 
         # Fetch sizes, usually from libcloud connection.
         sizes = self._list_sizes__fetch_sizes()
@@ -733,6 +737,8 @@ class BaseComputeController(BaseController):
         default, dummy methods.
 
         """
+        if not self.cloud.can_create_vms:
+            return []
 
         # Fetch locations, usually from libcloud connection.
         locations = self._list_locations__fetch_locations()
