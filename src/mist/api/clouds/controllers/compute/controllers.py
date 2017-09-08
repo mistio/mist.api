@@ -87,6 +87,21 @@ class AmazonComputeController(BaseComputeController):
         super(AmazonComputeController, self)._list_machines__machine_actions(
             machine, machine_libcloud)
         machine.actions.rename = True
+        if machine_libcloud.state != NodeState.TERMINATED:
+            machine.actions.resize = True
+
+    def _resize_machine(self, machine, machine_libcloud, plan_id, kwargs):
+        attributes = {'InstanceType.Value': 't2.large'}
+        # instance must be in stopped mode
+        if machine_libcloud.state != NodeState.STOPPED:
+            raise BadRequestError('The instance has to be stopped '
+                                  'in order to be resized')
+        try:
+            self.connection.ex_modify_instance_attribute(machine_libcloud,
+                                                         attributes)
+            self.connection.ex_start_node(machine_libcloud)
+        except Exception as exc:
+            raise BadRequestError('Failed to resize node: %s' % exc)
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         # This is windows for windows servers and None for Linux.
