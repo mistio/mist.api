@@ -214,6 +214,7 @@ class Machine(me.Document):
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
 
     cloud = me.ReferenceField('Cloud', required=True)
+    owner = me.ReferenceField('Organization', required=True)
     name = me.StringField()
 
     # Info gathered mostly by libcloud (or in some cases user input).
@@ -273,11 +274,6 @@ class Machine(me.Document):
         super(Machine, self).__init__(*args, **kwargs)
         self.ctl = MachineController(self)
 
-    # Should this be a field? Should it be a @property? Or should it not exist?
-    @property
-    def owner(self):
-        return self.cloud.owner
-
     def clean(self):
         # Remove any KeyAssociation, whose `keypair` has been deleted. Do NOT
         # perform an atomic update on self, but rather remove items from the
@@ -287,6 +283,9 @@ class Machine(me.Document):
         for ka in reversed(range(len(self.key_associations))):
             if self.key_associations[ka].keypair.deleted:
                 self.key_associations.pop(ka)
+        # Populate owner field based on self.cloud.owner
+        if not self.owner:
+            self.owner = self.cloud.owner
 
     def delete(self):
         super(Machine, self).delete()
