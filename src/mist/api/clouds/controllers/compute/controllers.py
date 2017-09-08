@@ -32,7 +32,7 @@ import mongoengine as me
 from xml.sax.saxutils import escape
 
 from libcloud.pricing import get_size_price
-from libcloud.compute.base import Node, NodeImage
+from libcloud.compute.base import Node, NodeImage, NodeSize
 from libcloud.compute.providers import get_driver
 from libcloud.container.providers import get_driver as get_container_driver
 from libcloud.compute.types import Provider, NodeState
@@ -201,6 +201,13 @@ class DigitalOceanComputeController(BaseComputeController):
         super(DigitalOceanComputeController,
               self)._list_machines__machine_actions(machine, machine_libcloud)
         machine.actions.rename = True
+        machine.actions.resize = True
+
+    def _resize_machine(self, machine, machine_libcloud, plan_id, kwargs):
+        try:
+            self.connection.ex_resize_node(machine_libcloud, plan_id)
+        except Exception as exc:
+            raise BadRequestError('Failed to resize node: %s' % exc)
 
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         size = machine_libcloud.extra.get('size', {})
@@ -755,6 +762,16 @@ class OpenStackComputeController(BaseComputeController):
         super(OpenStackComputeController,
               self)._list_machines__machine_actions(machine, machine_libcloud)
         machine.actions.rename = True
+        machine.actions.resize = True
+
+    def _resize_machine(self, machine, machine_libcloud, plan_id, kwargs):
+        size = NodeSize(plan_id, name=plan_id, ram='', disk='',
+                        bandwidth='', price='', driver=self.connection)
+        try:
+            self.connection.ex_resize(machine_libcloud, size)
+            self.connection.ex_confirm_resize(machine_libcloud)
+        except Exception as exc:
+            raise BadRequestError('Failed to resize node: %s' % exc)
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         # do not include ipv6 on public ips
