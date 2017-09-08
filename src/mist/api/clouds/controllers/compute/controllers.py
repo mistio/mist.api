@@ -91,7 +91,7 @@ class AmazonComputeController(BaseComputeController):
             machine.actions.resize = True
 
     def _resize_machine(self, machine, machine_libcloud, plan_id, kwargs):
-        attributes = {'InstanceType.Value': 't2.large'}
+        attributes = {'InstanceType.Value': plan_id}
         # instance must be in stopped mode
         if machine_libcloud.state != NodeState.STOPPED:
             raise BadRequestError('The instance has to be stopped '
