@@ -106,6 +106,7 @@ class AmazonComputeController(BaseComputeController):
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         # This is windows for windows servers and None for Linux.
         machine.os_type = machine_libcloud.extra.get('platform', 'linux')
+        machine.size = machine['extra'].get('instance_type')
 
         try:
             # return list of ids for network interfaces as str
@@ -209,6 +210,9 @@ class DigitalOceanComputeController(BaseComputeController):
     def _connect(self):
         return get_driver(Provider.DIGITAL_OCEAN)(self.cloud.token)
 
+    def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        machine.size = machine['extra'].get('size_slug')
+
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
         return machine_libcloud.extra.get('created_at')  # iso8601 string
 
@@ -239,6 +243,9 @@ class LinodeComputeController(BaseComputeController):
 
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
         return machine_libcloud.extra.get('CREATE_DT')  # iso8601 string
+
+    def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        machine.size = machine['extra'].get('PLANID')
 
     def _list_machines__machine_actions(self, machine, machine_libcloud):
         super(LinodeComputeController, self)._list_machines__machine_actions(
@@ -795,6 +802,7 @@ class OpenStackComputeController(BaseComputeController):
             if ip and ':' not in ip:
                 public_ips.append(ip)
         machine.public_ips = public_ips
+        machine.size = machine['extra'].get('flavorId')
 
 
 class DockerComputeController(BaseComputeController):
