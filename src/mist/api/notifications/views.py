@@ -45,7 +45,3 @@ def set_notification_rules(request):
             assert(rule.source == new_rule["source"])
             assert(rule.channel == new_rule["channel"])
             rule.value = new_rule["value"]
-
-        
-
-
