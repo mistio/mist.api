@@ -284,6 +284,7 @@ class MainConnection(MistConnection):
         self.list_tunnels()
         self.list_clouds()
         self.update_notifications()
+        self.update_notification_rules()
         self.check_monitoring()
         if config.ACTIVATE_POLLER:
             self.periodic_update_poller()
@@ -385,6 +386,16 @@ class MainConnection(MistConnection):
             user=user, organization=org, dismissed=False).to_json()
         log.info("Emitting notifications list")
         self.send('notifications', notifications_json)
+
+    def update_notification_rules(self):
+        user = self.auth_context.user
+        org = self.auth_context.org
+        policies = NotificationPolicy.objects(user=user, org=org)
+        if policies:
+            policy = policies[0]
+            notification_rules_json = json.encode(policy.rules)
+            log.info("Emitting notification rules list")
+            self.send('notification_rules', notifications_json)
 
     def check_monitoring(self):
         func = check_monitoring
@@ -529,6 +540,8 @@ class MainConnection(MistConnection):
                 self.list_tunnels()
             if 'notifications' in sections:
                 self.update_notifications()
+            if 'notification_rules' in sections:
+                self.update_notification_rules()
             if 'monitoring' in sections:
                 self.check_monitoring()
             if 'user' in sections:
@@ -537,6 +550,7 @@ class MainConnection(MistConnection):
             if 'org' in sections:
                 self.auth_context.org.reload()
                 self.update_org()
+
         elif routing_key == 'patch_notifications':
             if json.loads(result).get('user') == self.user.id:
                 self.send('patch_notifications', result)
