@@ -42,8 +42,8 @@ from mist.api.dns.methods import filter_list_zones
 from mist.api import tasks
 from mist.api.hub.tornado_shell_client import ShellHubClient
 
-from mist.api.notifications.models import (NotificationPolicy, 
-    UserNotificationPolicy)
+from mist.api.notifications.models import (InAppNotification,
+                                           UserNotificationPolicy)
 
 try:
     from mist.core.methods import get_stats, get_load, check_monitoring
