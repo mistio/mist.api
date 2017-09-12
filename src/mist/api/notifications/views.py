@@ -3,7 +3,7 @@ from mist.api.helpers import view_config
 from mist.api.auth.methods import user_from_request, org_from_request
 from mist.api.notifications.channels import channel_instance_for_notification
 
-from models import Notification, NotificationPolicy, NotificationRule
+from models import Notification, NotificationPolicy
 
 
 @view_config(route_name='api_v1_dismiss_notification',

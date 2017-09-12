@@ -42,7 +42,8 @@ from mist.api.dns.methods import filter_list_zones
 from mist.api import tasks
 from mist.api.hub.tornado_shell_client import ShellHubClient
 
-from mist.api.notifications.models import InAppNotification
+from mist.api.notifications.models import (NotificationPolicy, 
+    UserNotificationPolicy)
 
 try:
     from mist.core.methods import get_stats, get_load, check_monitoring
@@ -390,12 +391,12 @@ class MainConnection(MistConnection):
     def update_notification_rules(self):
         user = self.auth_context.user
         org = self.auth_context.org
-        policies = NotificationPolicy.objects(user=user, org=org)
+        policies = UserNotificationPolicy.objects(user=user, org=org)
         if policies:
             policy = policies[0]
             notification_rules_json = json.encode(policy.rules)
             log.info("Emitting notification rules list")
-            self.send('notification_rules', notifications_json)
+            self.send('notification_rules', notification_rules_json)
 
     def check_monitoring(self):
         func = check_monitoring
