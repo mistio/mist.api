@@ -50,7 +50,7 @@ def install_telegraf(owner_id, cloud_id, machine_id, job=None, job_id=None):
     try:
         shell = mist.api.shell.Shell(host)
         key, user = shell.autoconfigure(owner, cloud.id, machine.machine_id)
-        exit_code, stdout = shell.command(unix_install(machine.id))
+        exit_code, stdout = shell.command(unix_install(machine))
         stdout = stdout.encode('utf-8', 'ignore')
         stdout = stdout.replace('\r\n', '\n').replace('\r', '\n')
     except Exception as err:
@@ -110,7 +110,7 @@ def uninstall_telegraf(owner_id, cloud_id, machine_id, job=None, job_id=None):
     try:
         shell = mist.api.shell.Shell(host)
         key, user = shell.autoconfigure(owner, cloud_id, machine_id)
-        exit_code, stdout = shell.command(unix_uninstall(machine.id))
+        exit_code, stdout = shell.command(unix_uninstall())
         stdout = stdout.encode('utf-8', 'ignore')
         stdout = stdout.replace('\r\n', '\n').replace('\r', '\n')
     except Exception as err:

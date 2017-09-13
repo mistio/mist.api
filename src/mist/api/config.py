@@ -75,6 +75,9 @@ INFLUX = {
     "host": "http://influxdb:8086", "db": "telegraf"
 }
 
+TELEGRAF_TARGET = "http://traefik"
+TRAEFIK_API = "http://traefik:8080"
+
 # Default, built-in metrics.
 BUILTIN_METRICS = {
     'cpu.cpu=cpu-total.usage_user': {

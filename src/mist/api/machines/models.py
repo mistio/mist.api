@@ -1,4 +1,5 @@
 """Machine entity model."""
+import os
 import json
 import uuid
 import logging
@@ -76,7 +77,8 @@ class Monitoring(me.EmbeddedDocument):
     # Most of these will change with the new UI.
     hasmonitoring = me.BooleanField()
     monitor_server = me.StringField()  # Deprecated
-    collectd_password = me.StringField()
+    collectd_password = me.StringField(
+        default=lambda: os.urandom(32).encode('hex'))
     metrics = me.ListField()  # list of metric_id's
     installation_status = me.EmbeddedDocumentField(InstallationStatus)
 
@@ -88,8 +90,8 @@ class Monitoring(me.EmbeddedDocument):
             from mist.api.monitoring.commands import unix_install
             from mist.api.monitoring.commands import coreos_install
             cmds = {
-                'unix': unix_install(self._instance.id),
-                'coreos': coreos_install(self._instance.id),
+                'unix': unix_install(self._instance),
+                'coreos': coreos_install(self._instance),
             }
         else:
             from mist.api.methods import get_deploy_collectd_command_unix

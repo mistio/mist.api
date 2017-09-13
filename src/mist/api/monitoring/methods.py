@@ -24,6 +24,7 @@ from mist.api.monitoring.helpers import show_measurements
 from mist.api.monitoring.handlers import HANDLERS
 from mist.api.monitoring.handlers import MainStatsHandler
 from mist.api.monitoring.handlers import MultiLoadHandler
+from mist.api.monitoring import traefik
 
 
 log = logging.getLogger(__name__)
@@ -215,6 +216,8 @@ def enable_monitoring(owner, cloud_id, machine_id, name='', dns_name='',
 
         trigger_session_update(owner, ['monitoring'])
 
+        traefik.reset_config()
+
         # Install Telegraf.
         if not no_ssh:
             if job_id:
@@ -274,6 +277,8 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=''):
     # Update monitoring information.
     machine.monitoring.hasmonitoring = False
     machine.save()
+
+    traefik.reset_config()
 
     trigger_session_update(owner, ['monitoring'])
     return ret
