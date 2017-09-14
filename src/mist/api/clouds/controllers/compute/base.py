@@ -13,6 +13,7 @@ import socket
 import logging
 import datetime
 import calendar
+import requests
 
 import jsonpatch
 
@@ -233,7 +234,7 @@ class BaseComputeController(BaseController):
             log.warning("Invalid creds on running list_nodes on %s: %s",
                         self.cloud, exc)
             raise CloudUnauthorizedError(msg=exc.message)
-        except ssl.SSLError as exc:
+        except (requests.exceptions.SSLError, ssl.SSLError) as exc:
             log.error("SSLError on running list_nodes on %s: %s",
                       self.cloud, exc)
             raise SSLError(exc=exc)
