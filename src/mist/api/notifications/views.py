@@ -1,7 +1,7 @@
 import json
 
 from mist.api.helpers import view_config
-from mist.api.auth.methods import auth_context_from_request
+from mist.api.auth.methods import user_from_request, auth_context_from_request
 from mist.api.notifications.channels import (channel_instance_for_notification,
                                              NotificationsEncoder)
 
@@ -64,7 +64,5 @@ def set_notification_rules(request):
             new_rule = new_rules[i]
             assert(rule.source == new_rule["source"])
             assert(rule.channel == new_rule["channel"])
-            import ipdb
-            ipdb.set_trace()
             rule.value = new_rule["value"]
             rule.save()
