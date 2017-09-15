@@ -8,6 +8,7 @@ from libcloud.compute.types import Provider
 from libcloud.container.types import Provider as Container_Provider
 from libcloud.container.base import ContainerImage
 from libcloud.compute.base import NodeAuthSSHKey
+from libcloud.compute.base import NodeAuthPassword
 from tempfile import NamedTemporaryFile
 
 import mist.api.tasks
@@ -1009,7 +1010,10 @@ def _create_machine_azure_arm(conn, public_key, machine_name, image,
     """
     public_key.replace('\n', '')
 
-    k = NodeAuthSSHKey(public_key)
+    if 'Windows' in image.id:
+        k = NodeAuthPassword('Mysecr3tpassw0rd@')
+    else:
+        k = NodeAuthSSHKey(public_key)
 
     network = networks[0]
 
