@@ -187,8 +187,8 @@ class NotificationsEncoder(json.JSONEncoder):
     '''
 
     def default(self, o):
-        if (isinstance(o, Notification) or 
-            isinstance(o, NotificationRule)):
+        if (isinstance(o, Notification) or
+                isinstance(o, NotificationRule)):
             # FIXME: this is kind of dumb, but it works
             return json.loads(o.to_json())
         else:
