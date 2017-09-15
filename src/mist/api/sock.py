@@ -25,7 +25,6 @@ from mist.api.logs.methods import get_stories
 
 from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
-from mist.api.poller.models import ListMachinesPollingSchedule
 
 from mist.api.auth.methods import auth_context_from_session_id
 
@@ -43,7 +42,7 @@ from mist.api.dns.methods import filter_list_zones
 from mist.api import tasks
 from mist.api.hub.tornado_shell_client import ShellHubClient
 
-from mist.api.notifications.methods import get_notifications
+from mist.api.notifications.models import InAppNotification
 
 try:
     from mist.core.methods import get_stats, get_load, check_monitoring
@@ -299,9 +298,7 @@ class MainConnection(MistConnection):
 
     def update_poller(self):
         """Increase polling frequency for all clouds"""
-        log.info("Updating poller for %s", self)
-        for cloud in Cloud.objects(owner=self.owner, deleted=None):
-            ListMachinesPollingSchedule.add(cloud=cloud, interval=10, ttl=120)
+        tasks.update_poller.delay(self.owner.id)
 
     def update_user(self):
         self.send('user', get_user_data(self.auth_context))
@@ -352,10 +349,9 @@ class MainConnection(MistConnection):
                     self.auth_context, cloud_id=cloud.id,
                     machines=[machine.as_dict() for machine in machines]
                 )
-                if machines:
-                    log.info("Emitting list_machines from poller's cache.")
-                    self.send('list_machines',
-                              {'cloud_id': cloud.id, 'machines': machines})
+                log.info("Emitting list_machines from poller's cache.")
+                self.send('list_machines',
+                          {'cloud_id': cloud.id, 'machines': machines})
 
         periodic_tasks.extend([('list_images', tasks.ListImages()),
                                ('list_sizes', tasks.ListSizes()),
@@ -384,10 +380,10 @@ class MainConnection(MistConnection):
 
     def update_notifications(self):
         user = self.auth_context.user
-        org = filter_org(self.auth_context)
-        channel = 'in_app'
-        notifications_json = get_notifications(user, org, channel).to_json()
-        log.info("Emitting notifications.")
+        org = self.auth_context.org
+        notifications_json = InAppNotification.objects(
+            user=user, organization=org, dismissed=False).to_json()
+        log.info("Emitting notifications list")
         self.send('notifications', notifications_json)
 
     def check_monitoring(self):
@@ -541,15 +537,16 @@ class MainConnection(MistConnection):
             if 'org' in sections:
                 self.auth_context.org.reload()
                 self.update_org()
-        elif routing_key == 'notification':
-            self.send('notification', result)
+        elif routing_key == 'patch_notifications':
+            if json.loads(result).get('user') == self.user.id:
+                self.send('patch_notifications', result)
 
         elif routing_key == 'patch_machines':
             cloud_id = result['cloud_id']
             patch = result['patch']
             machine_ids = []
             for line in patch:
-                machine_id, line['path'] = line['path'].split('-', 1)
+                machine_id, line['path'] = line['path'][1:].split('-', 1)
                 machine_ids.append(machine_id)
             if not self.auth_context.is_owner():
                 allowed_machine_ids = filter_machine_ids(self.auth_context,

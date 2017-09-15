@@ -400,3 +400,8 @@ class ZoneCreationError(InternalServerError):
 
 class RecordCreationError(InternalServerError):
     msg = "Record creation failed"
+
+
+# FORBIDDEN (translated as 403 in views)
+class WhitelistIPError(ForbiddenError):
+    msg = "Trying to login from a non-whitelisted IP address."
