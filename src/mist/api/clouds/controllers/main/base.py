@@ -305,6 +305,12 @@ class BaseMainController(object):
     def disable(self):
         self.cloud.enabled = False
         self.cloud.save()
+        # FIXME: Circular dependency.
+        from mist.api.machines.models import Machine
+        Machine.objects(cloud=self.cloud,
+                        missing_since=None).update(
+            missing_since=datetime.datetime.now()
+        )
 
     def dns_enable(self):
         self.cloud.dns_enabled = True

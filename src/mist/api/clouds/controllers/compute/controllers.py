@@ -26,6 +26,8 @@ import socket
 import logging
 import netaddr
 import tempfile
+import iso8601
+import pytz
 
 import mongoengine as me
 
@@ -1203,7 +1205,10 @@ class OnAppComputeController(BaseComputeController):
             machine.actions.resume = True
 
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
-        return machine_libcloud.extra.get('created_at')
+        created_at = machine_libcloud.extra.get('created_at')
+        created_at = iso8601.parse_date(created_at)
+        created_at = pytz.UTC.normalize(created_at)
+        return created_at
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         machine.os_type = machine_libcloud.extra.get('operating_system',

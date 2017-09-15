@@ -20,6 +20,7 @@ elasticsearch_tornado
 flake8
 gevent
 greenlet
+ipaddress # requests needs this for dns matching
 ipython
 iso8601
 jsonpatch
@@ -47,4 +48,4 @@ tornado
 tornado_profile
 uwsgidecorators
 websocket-client
-ipaddress # requests needs this for dns matching
+https://github.com/ssteinerx/pingparser/archive/master.zip

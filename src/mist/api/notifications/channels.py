@@ -1,21 +1,38 @@
+import json
+import jsonpatch
+import urllib2
 
 from mist.api import config
 from mist.api.helpers import send_email, amqp_publish_user
 
-from models import Notification
+from models import Notification, EmailReport, InAppNotification
 
 import logging
 
 
 class BaseChannel():
     '''
-    Represents a notification channel
+    Base notification channel class
     '''
 
     def send(self, notification):
         '''
         Accepts a notification and sends it using the
         current channel instance.
+        '''
+        pass
+
+    def delete(self, notification):
+        '''
+        Accepts a notification and deletes it
+        if it had been saved
+        '''
+        pass
+
+    def dismiss(self, notification):
+        '''
+        Accepts a notification and marks it as
+        dismissed by the user
         '''
         pass
 
@@ -77,6 +94,9 @@ class EmailReportsChannel(BaseChannel):
             try:
                 return self.sg_instance.client.mail.send.post(
                     request_body=mdict)
+            except urllib2.URLError as exc:
+                logging.error(exc)
+                exit()
             except Exception as exc:
                 logging.error(str(exc.status_code) + ' - ' + exc.reason)
                 logging.error(exc.to_dict)
@@ -89,39 +109,85 @@ class EmailReportsChannel(BaseChannel):
 class InAppChannel(BaseChannel):
     '''
     In-app Notifications channel
-    Saves notification and triggers a session update
+    Manages notifications and triggers session updates
     '''
 
     def send(self, notification):
-        if not Notification.objects(
-                id=notification.id) and not notification.dismissed:
+
+        def modify(notification):
+            # dismiss similar notifications if unique
+            # deleting or updating could also be an option
+            if notification.unique:
+                similar = InAppNotification.objects(
+                    user=notification.user,
+                    organization=notification.organization,
+                    resource=notification.resource,
+                    model_id=notification.model_id,
+                    dismissed=False)
+                for item in similar:
+                    item.dismissed = True
+                    item.save()
             notification.save()
+
+        self._modify_and_notify(notification, modify)
+
+    def delete(self, notification):
+
+        def modify(notification):
+            notification.delete()
+
+        self._modify_and_notify(notification, modify)
+
+    def dismiss(self, notification):
+
+        def modify(notification):
+            notification.dismissed = True
+            notification.save()
+
+        self._modify_and_notify(notification, modify)
+
+    def _modify_and_notify(self, notification, modifier):
+        user = notification.user
+
+        old_notifications = [obj for obj in InAppNotification.objects(
+            user=user, dismissed=False)]
+        modifier(notification)
+        new_notifications = [obj for obj in InAppNotification.objects(
+            user=user, dismissed=False)]
+        patch = jsonpatch.JsonPatch.from_diff(
+            old_notifications, new_notifications).patch
+
+        if patch:
+            data = json.dumps({
+                "user": user.id,
+                "patch": patch
+            }, cls=NotificationsEncoder)
             amqp_publish_user(notification.organization,
-                              routing_key='notification',
-                              data=notification.to_json())
+                              routing_key='patch_notifications',
+                              data=data)
 
 
-class StdoutChannel(BaseChannel):
+def channel_instance_for_notification(notification):
     '''
-    Stdout channel, mainly for testing/debugging
+    Accepts a notification instance and returns
+    the corresponding channel
     '''
-
-    def send(self, notification):
-        print notification.subject
-        if "summary" in notification:
-            print notification.summary
-        print notification.body
-
-
-def channel_instance_with_name(name):
-    '''
-    Accepts a string and returns a channel instance with
-    matching name or None
-    '''
-    if name == 'stdout':
-        return StdoutChannel()
-    elif name == 'email_reports':
+    if isinstance(notification, EmailReport):
         return EmailReportsChannel()
-    elif name == 'in_app':
+    elif isinstance(notification, InAppNotification):
         return InAppChannel()
     return None
+
+
+class NotificationsEncoder(json.JSONEncoder):
+    '''
+    JSON Encoder that properly handles Notification
+    instances
+    '''
+
+    def default(self, o):
+        if isinstance(o, Notification):
+            # FIXME: this is kind of dumb, but it works
+            return json.loads(o.to_json())
+        else:
+            return json.JSONEncoder.default(self, o)

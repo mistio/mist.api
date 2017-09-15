@@ -2,15 +2,21 @@
 
 set -e
 
+# Get the directory of this executable in order to get the relative path to
+# installable modules. This is useful when invoking docker-init from places
+# other than the parent dir.
+DIR=$( dirname "$0" )
+
 # If running with mounted code...
 if [ ! -e clean ]; then
     set -x
     unset JS_BUILD
     echo "{\"sha\":\"$VERSION_SHA\",\"name\":\"$VERSION_NAME\",\"repo\":\"$VERSION_REPO\",\"modified\":true}" > /mist-version.json
-    pip install -e paramiko/
-    pip install -e libcloud/
-    pip install -e celerybeat-mongo/
-    pip install -e src/
+    pip install -e $DIR/../paramiko/
+    pip install -e $DIR/../libcloud/
+    pip install -e $DIR/../celerybeat-mongo/
+    pip install -e $DIR/../src/
+    pip install -r $DIR/../requirements.txt
     set +x
 fi
 

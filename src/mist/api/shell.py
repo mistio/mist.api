@@ -239,10 +239,7 @@ class ParamikoShell(object):
                  cloud_id, machine_id)
 
         cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
-        try:
-            machine = Machine.objects.get(cloud=cloud, machine_id=machine_id)
-        except me.DoesNotExist:
-            machine = Machine(cloud=cloud, machine_id=machine_id)
+        machine = Machine.objects.get(cloud=cloud, machine_id=machine_id)
         if key_id:
             keys = [Key.objects.get(owner=owner, id=key_id, deleted=None)]
         else:

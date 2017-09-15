@@ -1,9 +1,13 @@
 import os
 import re
+import json
 import shutil
 import tempfile
-import json
+import subprocess
+
 import requests
+
+import pingparser
 
 from mongoengine import ValidationError, NotUniqueError, DoesNotExist
 
@@ -40,11 +44,6 @@ import mist.api.inventory
 from mist.api.clouds.models import Cloud
 from mist.api.networks.models import NETWORKS, SUBNETS, Network, Subnet
 from mist.api.machines.models import Machine
-
-try:
-    from mist.core.vpn.methods import super_ping
-except ImportError:
-    from mist.api.dummy.methods import super_ping
 
 from mist.api import config
 
@@ -307,7 +306,7 @@ def probe(owner, cloud_id, machine_id, host, key_id='', ssh_user=''):
     if not host:
         raise RequiredParameterMissingError('host')
 
-    ping = super_ping(owner=owner, host=host)
+    ping_res = ping(owner=owner, host=host)
     try:
         ret = probe_ssh_only(owner, cloud_id, machine_id, host,
                              key_id=key_id, ssh_user=ssh_user)
@@ -316,7 +315,7 @@ def probe(owner, cloud_id, machine_id, host, key_id='', ssh_user=''):
         log.warning("SSH failed when probing, let's see what ping has to say.")
         ret = {}
 
-    ret.update(ping)
+    ret.update(ping_res)
     return ret
 
 
@@ -333,7 +332,7 @@ def probe_ssh_only(owner, cloud_id, machine_id, host, key_id='', ssh_user='',
         "echo -------- && "
         "uptime && "
         "echo -------- && "
-        "if [ -f /proc/uptime ]; then cat /proc/uptime; "
+        "if [ -f /proc/uptime ]; then cat /proc/uptime | cut -d' ' -f1; "
         "else expr `date '+%s'` - `sysctl kern.boottime | sed -En 's/[^0-9]*([0-9]+).*/\\1/p'`;"
         "fi; "
         "echo -------- && "
@@ -360,7 +359,8 @@ def probe_ssh_only(owner, cloud_id, machine_id, host, key_id='', ssh_user='',
                                  host, command, key_id=key_id)
     else:
         retval, cmd_output = shell.command(command)
-    cmd_output = cmd_output.replace('\r', '').split('--------')
+    cmd_output = [str(part).strip()
+                  for part in cmd_output.replace('\r', '').split('--------')]
     log.warn(cmd_output)
     uptime_output = cmd_output[1]
     loadavg = re.split('load averages?: ', uptime_output)[1].split(', ')
@@ -402,8 +402,51 @@ def probe_ssh_only(owner, cloud_id, machine_id, host, key_id='', ssh_user='',
     }
 
 
-def ping(host, owner=None):
-    return super_ping(owner, host=host)
+def _ping_host(host, pkts=10):
+    ping = subprocess.Popen(['ping', '-c', str(pkts), '-i', '0.4', '-W',
+                             '1', '-q', host], stdout=subprocess.PIPE)
+    return pingparser.parse(ping.stdout.read())
+
+
+def ping(owner, host, pkts=10):
+    try:
+        from mist.core.vpn.methods import super_ping
+    except ImportError:
+        result = _ping_host(host, pkts=pkts)
+    else:
+        result = super_ping(owner=owner, host=host, pkts=pkts)
+
+    # In both cases, the returned dict is formatted by pingparser.
+
+    # Properly cast values.
+    for key in result:
+        if result[key] == 'NaN':
+            result[key] = None
+    for key in ('sent', 'received'):
+        try:
+            result[key] = int(result[key])
+        except (ValueError, TypeError) as exc:
+            log.warning("Error casting ping result '%s=%s' to int: %r",
+                        key, result[key], exc)
+    for key in ('packet_loss', 'minping', 'maxping', 'avgping', 'jitter'):
+        try:
+            result[key] = float(result[key])
+        except (ValueError, TypeError) as exc:
+            log.warning("Error casting ping result '%s=%s' to float: %r",
+                        key, result[key], exc)
+
+    # Rename keys.
+    final = {}
+    for key, newkey in (('sent', 'packets_tx'),
+                        ('received', 'packets_rx'),
+                        ('packet_loss', 'packets_loss'),
+                        ('minping', 'rtt_min'),
+                        ('maxping', 'rtt_max'),
+                        ('avgping', 'rtt_avg'),
+                        ('jitter', 'rtt_stdev')):
+        if key in result:
+            final[newkey] = result[key]
+    return final
 
 
 def find_public_ips(ips):
@@ -746,7 +789,7 @@ def _notify_playbook_result(owner, res, cloud_id=None, machine_id=None,
 def deploy_collectd(owner, cloud_id, machine_id, extra_vars):
     ret_dict = run_playbook(
         owner, cloud_id, machine_id,
-        playbook_path='src/deploy_collectd/ansible/enable.yml',
+        playbook_path='deploy_collectd/ansible/enable.yml',
         extra_vars=extra_vars,
         force_handlers=True,
         # debug=True,
@@ -759,7 +802,7 @@ def deploy_collectd(owner, cloud_id, machine_id, extra_vars):
 def undeploy_collectd(owner, cloud_id, machine_id):
     ret_dict = run_playbook(
         owner, cloud_id, machine_id,
-        playbook_path='src/deploy_collectd/ansible/disable.yml',
+        playbook_path='deploy_collectd/ansible/disable.yml',
         force_handlers=True,
         # debug=True,
     )
