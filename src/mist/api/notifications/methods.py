@@ -16,6 +16,8 @@ def add_rule(user, org, notification, value='BLOCK'):
     '''
     policy = get_policy(user, org)
     source = type(notification).__name__
+    if source == 'str':
+        source = notification
     rules = [rule for rule in policy.rules if rule.source == source]
     if not rules:
         rule = models.NotificationRule()
@@ -33,6 +35,8 @@ def remove_rule(user, org, notification):
     '''
     policy = get_policy(user, org)
     source = type(notification).__name__
+    if source == 'str':
+        source = notification
     rules = [rule for rule in policy.rules if rule.source == source]
     if rules:
         policy.rules.remove(rules[0])
