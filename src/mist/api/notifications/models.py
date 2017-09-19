@@ -80,7 +80,7 @@ class Notification(me.Document):
     html_body = me.StringField(required=False, default="")
 
     # taxonomy fields
-    resource = me.GenericReferenceField(required=False) # machine
+    resource = me.GenericReferenceField(required=False)  # machine
     action_link = me.URLField(required=False)
 
     unique = me.BooleanField(required=True, default=True)

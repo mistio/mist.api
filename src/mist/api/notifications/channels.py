@@ -155,11 +155,17 @@ class InAppChannel(BaseChannel):
     def _modify_and_notify(self, notification, modifier):
         user = notification.user
 
-        old_notifications = [json.loads(obj.to_json()) for obj in InAppNotification.objects(
-            user=user, dismissed=False)]
+        old_notifications = [
+            json.loads(
+                obj.to_json()) for obj in InAppNotification.objects(
+                user=user,
+                dismissed=False)]
         modifier(notification)
-        new_notifications = [json.loads(obj.to_json()) for obj in InAppNotification.objects(
-            user=user, dismissed=False)]
+        new_notifications = [
+            json.loads(
+                obj.to_json()) for obj in InAppNotification.objects(
+                user=user,
+                dismissed=False)]
         patch = jsonpatch.JsonPatch.from_diff(
             old_notifications, new_notifications).patch
         if patch:
