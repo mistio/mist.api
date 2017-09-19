@@ -118,7 +118,7 @@ def list_machines(owner, cloud_id):
 def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                    image_id, size_id, image_extra, disk, image_name,
                    size_name, location_name, ips, monitoring,
-                   ex_storage_account, ex_resource_group, networks=[],
+                   ex_storage_account, machine_password, ex_resource_group, networks=[],
                    docker_env=[], docker_command=None, ssh_port=22, script='',
                    script_id='', script_params='', job_id=None, job=None,
                    docker_port_bindings={}, docker_exposed_ports={},
@@ -279,7 +279,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
         node = _create_machine_azure_arm(
             conn, public_key, machine_name,
             image, size, location, networks,
-            ex_storage_account, ex_resource_group,
+            ex_storage_account, machine_password, ex_resource_group,
         )
     elif conn.type in [Provider.VCLOUD]:
         node = _create_machine_vcloud(conn, machine_name, image,
@@ -1001,7 +1001,7 @@ def _create_machine_vultr(conn, public_key, machine_name, image,
 
 def _create_machine_azure_arm(conn, public_key, machine_name, image,
                               size, location, networks,
-                              ex_storage_account, ex_resource_group):
+                              ex_storage_account, machine_password, ex_resource_group):
     """Create a machine Azure ARM.
 
     Here there is no checking done, all parameters are expected to be
@@ -1011,7 +1011,7 @@ def _create_machine_azure_arm(conn, public_key, machine_name, image,
     public_key.replace('\n', '')
 
     if 'Windows' in image.id:
-        k = NodeAuthPassword('Mysecr3tpassw0rd@')
+        k = NodeAuthPassword(machine_password)
     else:
         k = NodeAuthSSHKey(public_key)
 
