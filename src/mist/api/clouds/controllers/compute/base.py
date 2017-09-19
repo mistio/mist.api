@@ -397,21 +397,19 @@ class BaseComputeController(BaseController):
         for machine in self._list_machines__fetch_generic_machines():
             machine.last_seen = now
             machine.missing_since = None
-            if machine.cloud.ctl.provider == 'bare_metal' and \
-                    machine.state == 'terminated':
-                pass
-            else:
+            if machine.cloud.ctl.provider == 'bare_metal' or \
+                    machine.state != 'terminated':
                 machine.state = config.STATES[NodeState.UNKNOWN]
             for action in ('start', 'stop', 'reboot', 'destroy', 'rename',
-                           'resume', 'suspend', 'undefine'):
+                           'resume', 'suspend', 'undefine', 'remove'):
                 setattr(machine.actions, action, False)
             machine.actions.tag = True
             # allow reboot action for bare metal with key associated
             if machine.key_associations:
                 machine.actions.reboot = True
-            # allow destroy action for bare metal
+            # allow remove action for bare metal
             if machine.cloud.ctl.provider == 'bare_metal':
-                machine.actions.destroy = True
+                machine.actions.remove = True
             machine.save()
             machines.append(machine)
 
