@@ -279,6 +279,10 @@ class AmazonSubnet(Subnet):
     availability_zone = me.StringField(required=True)
 
 
+class AzureArmSubnet(Subnet):
+    pass
+
+
 class GoogleSubnet(Subnet):
     region = me.StringField(required=True)
 
