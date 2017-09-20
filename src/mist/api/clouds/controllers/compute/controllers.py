@@ -499,10 +499,6 @@ class AzureArmComputeController(BaseComputeController):
         resource_groups = self.connection.ex_list_resource_groups()
         return resource_groups
 
-    def _list_networks(self):
-        networks = self.connection.ex_list_networks()
-        return networks
-
     def _list_locations(self):
         locations = self.connection.list_locations()
         return locations

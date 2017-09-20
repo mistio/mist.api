@@ -17,6 +17,12 @@ from mist.api.clouds.controllers.network.base import BaseNetworkController
 log = logging.getLogger(__name__)
 
 
+class AzureArmNetworkController(BaseNetworkController):
+
+    def _list_networks__cidr_range(self, network, libcloud_network):
+        return libcloud_network.extra['addressSpace']['addressPrefixes'][0]
+
+
 class AmazonNetworkController(BaseNetworkController):
 
     def _create_network__prepare_args(self, kwargs):
