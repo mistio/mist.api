@@ -16,6 +16,7 @@ import mist.api.tasks
 from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 from mist.api.keys.models import Key
+from mist.api.networks.models import Network
 
 from mist.api.exceptions import PolicyUnauthorizedError
 from mist.api.exceptions import MachineNameValidationError
@@ -1015,12 +1016,17 @@ def _create_machine_azure_arm(conn, public_key, machine_name, image,
     else:
         k = NodeAuthSSHKey(public_key)
 
-    network = networks[0]
-
-    networks = conn.ex_list_networks()
-    for item in networks:
-        if item.name == network:
-            ex_network = item
+    # select the right network object
+    ex_network = None
+    try:
+        if networks:
+            available_networks = conn.ex_list_networks()
+            mist_net = Network.objects.get(id=networks)
+            for libcloud_net in available_networks:
+                if mist_net.network_id == libcloud_net.id:
+                    ex_network = libcloud_net
+    except:
+        pass
 
     ex_subnet = conn.ex_list_subnets(ex_network)[0]
 
