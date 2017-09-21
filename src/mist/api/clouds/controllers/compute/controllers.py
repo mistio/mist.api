@@ -599,20 +599,9 @@ class GoogleComputeController(BaseComputeController):
         # https://cloud.google.com/compute/pricing
         size = machine_libcloud.extra.get('machineType').split('/')[-1]
         location = machine_libcloud.extra.get('zone').name
-        # Get the location, locations currently are
-        # europe us asia-east asia-northeast
-        # all with different pricing
-        if 'asia-northeast' in location:
-            # eg asia-northeast1-a
-            location = 'asia_northeast'
-        elif 'asia-east' in location:
-            # eg asia-east1-a
-            location = 'asia_east'
-        elif 'asia' in location:
-            location = 'asia'
-        else:
-            # eg europe-west1-d
-            location = location.split('-')[0]
+        # could be europe-west1-d, we want europe_west1
+        location = '-'.join(location.split('-')[:2])
+
         driver_name = 'google_' + location
         price = get_size_price(driver_type='compute', driver_name=driver_name,
                                size_id=size)
@@ -677,8 +666,12 @@ class GoogleComputeController(BaseComputeController):
             pass
 
     def _list_sizes__fetch_sizes(self):
+        ret = {}
         sizes = self.connection.list_sizes()
+        # improve name shown on wizard, and show sizes only once
+        # default list_sizes returns 500 sizes
         for size in sizes:
+            size.name = "%s (%s)" % (size.name, size.extra.get('description'))
             zone = size.extra.pop('zone')
             size.extra['zone'] = {
                 'id': zone.id,
@@ -686,7 +679,9 @@ class GoogleComputeController(BaseComputeController):
                 'status': zone.status,
                 'country': zone.country,
             }
-        return sizes
+
+            ret[size.name] = size
+        return ret.values()
 
 
 class HostVirtualComputeController(BaseComputeController):
