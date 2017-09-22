@@ -136,6 +136,7 @@ class PeriodicTaskInfo(me.Document):
                     break
             if i < attempts - 1:
                 time.sleep(retry_sleep)
+                self.reload()
         else:
             log.warning("Lock for task '%s' is taken.", self.key)
             raise LockTakenError()
@@ -145,7 +146,7 @@ class PeriodicTaskInfo(me.Document):
     def release_lock(self):
         lock_id = self.lock.id
         self.reload()
-        if lock_id != self.lock.id:
+        if not self.lock or lock_id != self.lock.id:
             log.error("Someone broke our lock for task '%s' since we "
                       "acquired it!", self.key)
             return
