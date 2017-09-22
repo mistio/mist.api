@@ -41,13 +41,13 @@ def remove_rule(user, org, notification):
     source = type(notification).__name__
     for rule in policy.rules:
         if (rule.tag_id and notification.tag and
-            rule.tag_id != notification.tag.id):
+                rule.tag_id != notification.tag.id):
             continue
         if (rule.cloud_id and notification.cloud and
-            rule.cloud_id != notification.cloud.id):
+                rule.cloud_id != notification.cloud.id):
             continue
         if (rule.machine_id and notification.machine and
-            rule.machine_id != notification.machine.id):
+                rule.machine_id != notification.machine.id):
             continue
         if rule.source == source:
             policy.rules.remove(rule)
