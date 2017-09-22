@@ -117,11 +117,15 @@ class InAppChannel(BaseChannel):
         def modify(notification):
             # dismiss similar notifications if unique
             # deleting or updating could also be an option
+            # note that here we want to match all attributes
+            # exactly, even if None
             if notification.unique:
                 similar = InAppNotification.objects(
                     user=notification.user,
                     organization=notification.organization,
-                    resource=notification.resource,
+                    machine=notification.machine,
+                    tag=notification.tag,
+                    cloud=notification.cloud,
                     model_id=notification.model_id,
                     dismissed=False)
                 for item in similar:

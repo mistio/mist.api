@@ -6,15 +6,30 @@ import mongoengine as me
 from mist.api.users.models import User, Organization
 
 
-class NotificationRule(me.EmbeddedDocument):
+class NotificationOverride(me.EmbeddedDocument):
     '''
-    Represents a single notification rule, with a notification source
-    and optional channel.
+    Represents a single notification override.
     '''
     source = me.StringField(max_length=64, required=True, default="")
-    channel = me.StringField(max_length=64, required=False, default="")
+
+    machine_id = me.StringField(max_length=128, required=False)
+    tag_id = me.StringField(max_length=64, required=False)
+    cloud_id = me.StringField(max_length=64, required=False)
+
     value = me.StringField(max_length=7, required=True,
                            choices=('ALLOW', 'BLOCK'), default='BLOCK')
+
+    def matches_notification(self, notification):
+        if self.machine_id and notification.machine:
+            if self.machine_id != notification.machine.id:
+                return False
+        if self.tag_id and notification.tag:
+            if self.tag_id != notification.tag.id:
+                return False
+        if self.cloud_id and notification.cloud:
+            if self.cloud_id != notification.cloud.id:
+                return False
+        return self.source == type(notification).__name__
 
 
 class UserNotificationPolicy(me.Document):
@@ -22,7 +37,7 @@ class UserNotificationPolicy(me.Document):
     Represents a notification policy associated with a
     user-organization pair, and containing a list of rules.
     '''
-    rules = me.EmbeddedDocumentListField(NotificationRule)
+    rules = me.EmbeddedDocumentListField(NotificationOverride)
     user = me.ReferenceField(User, required=True)
     organization = me.ReferenceField(Organization, required=True)
 
@@ -32,14 +47,12 @@ class UserNotificationPolicy(me.Document):
         indicating whether corresponding notification is allowed
         or is blocked
         '''
-        source = type(notification).__name__
         for rule in self.rules:
-            if (rule.source == source and
-                    rule.value == 'BLOCK'):
-                return False
-            elif (rule.source == source and
-                    rule.value == 'ALLOW'):
-                return True
+            if rule.matches_notification(notification):
+                if rule.value == 'BLOCK':
+                    return False
+                elif rule.value == 'ALLOW':
+                    return True
         return default
 
     def channel_allowed(self, channel, default=True):
@@ -81,7 +94,9 @@ class Notification(me.Document):
 
     # taxonomy fields
     source = me.StringField(max_length=64, required=True, default="")
-    resource = me.GenericReferenceField(required=False)
+    machine = me.GenericReferenceField(required=False)
+    tag = me.GenericReferenceField(required=False)
+    cloud = me.GenericReferenceField(required=False)
     action_link = me.URLField(required=False)
 
     unique = me.BooleanField(required=True, default=True)

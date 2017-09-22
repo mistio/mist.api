@@ -18,9 +18,15 @@ def add_rule(user, org, notification, value='BLOCK'):
     source = type(notification).__name__
     rules = [rule for rule in policy.rules if rule.source == source]
     if not rules:
-        rule = models.NotificationRule()
+        rule = models.NotificationOverride()
         rule.source = source
         rule.value = value
+        if notification.machine:
+            rule.machine_id = notification.machine.id
+        if notification.tag:
+            rule.tag_id = notification.tag.id
+        if notification.cloud:
+            rule.cloud_id = notification.cloud.id
         policy.rules.append(rule)
         policy.save()
 
@@ -33,10 +39,19 @@ def remove_rule(user, org, notification):
     '''
     policy = get_policy(user, org)
     source = type(notification).__name__
-    rules = [rule for rule in policy.rules if rule.source == source]
-    if rules:
-        policy.rules.remove(rules[0])
-        policy.save()
+    for rule in policy.rules:
+        if (rule.tag_id and notification.tag and
+            rule.tag_id != notification.tag.id):
+            continue
+        if (rule.cloud_id and notification.cloud and
+            rule.cloud_id != notification.cloud.id):
+            continue
+        if (rule.machine_id and notification.machine and
+            rule.machine_id != notification.machine.id):
+            continue
+        if rule.source == source:
+            policy.rules.remove(rule)
+    policy.save()
 
 
 def get_policy(user, org, create=True):
