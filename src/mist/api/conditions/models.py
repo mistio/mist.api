@@ -38,7 +38,6 @@ class ConditionalClassMixin(object):
 
     condition_resource_cls = None  # Instance of mongoengine model class
 
-    owner = me.ReferenceField(Organization, required=True)
     conditions = me.EmbeddedDocumentListField(BaseCondition)
 
     def owner_query(self):
@@ -51,7 +50,7 @@ class ConditionalClassMixin(object):
         return self.condition_resource_cls.objects(query)
 
     def get_ids(self):
-        return [resource.id for resource in self.get_resources().only('id')]
+        return [resource.id for resource in self.get_resources()]
 
 
 class FieldCondition(BaseCondition):
@@ -67,6 +66,8 @@ class FieldCondition(BaseCondition):
 
     @property
     def q(self):
+        if self.operator == 'eq':
+            return me.Q(**{self.field: self.value})
         return me.Q(**{'%s__%s' % (self.field, self.operator): self.value})
 
     def as_dict(self):
