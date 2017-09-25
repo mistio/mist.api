@@ -119,12 +119,12 @@ def list_machines(owner, cloud_id):
 def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                    image_id, size_id, image_extra, disk, image_name,
                    size_name, location_name, ips, monitoring,
-                   ex_storage_account, machine_password, ex_resource_group, networks=[],
-                   docker_env=[], docker_command=None, ssh_port=22, script='',
-                   script_id='', script_params='', job_id=None, job=None,
-                   docker_port_bindings={}, docker_exposed_ports={},
-                   azure_port_bindings='', hostname='', plugins=None,
-                   disk_size=None, disk_path=None,
+                   ex_storage_account, machine_password, ex_resource_group,
+                   networks=[], docker_env=[], docker_command=None,
+                   ssh_port=22, script='', script_id='', script_params='',
+                   job_id=None, job=None, docker_port_bindings={},
+                   docker_exposed_ports={}, azure_port_bindings='',
+                   hostname='', plugins=None, disk_size=None, disk_path=None,
                    post_script_id='', post_script_params='', cloud_init='',
                    associate_floating_ip=False,
                    associate_floating_ip_subnet=None, project_id=None,
@@ -1001,8 +1001,8 @@ def _create_machine_vultr(conn, public_key, machine_name, image,
 
 
 def _create_machine_azure_arm(conn, public_key, machine_name, image,
-                              size, location, networks,
-                              ex_storage_account, machine_password, ex_resource_group):
+                              size, location, networks, ex_storage_account,
+                              machine_password, ex_resource_group):
     """Create a machine Azure ARM.
 
     Here there is no checking done, all parameters are expected to be

@@ -25,8 +25,10 @@ class AzureArmNetworkController(BaseNetworkController):
         return libcloud_network.extra['addressSpace']['addressPrefixes'][0]
 
     def _list_subnets__fetch_subnets(self, network):
-        libcloud_network = AzureNetwork(network.network_id,network.name,'',network.extra)
-        return self.cloud.ctl.compute.connection.ex_list_subnets(libcloud_network)
+        libcloud_network = AzureNetwork(network.network_id,
+                                        network.name, '', network.extra)
+        ret = self.cloud.ctl.compute.connection.ex_list_subnets(libcloud_network)
+        return ret
 
     def _list_subnets__cidr_range(self, subnet, libcloud_subnet):
         return subnet.extra.pop('addressPrefix')
