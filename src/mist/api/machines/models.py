@@ -224,8 +224,8 @@ class Machine(me.Document):
     public_ips = me.ListField()
     private_ips = me.ListField()
     ssh_port = me.IntField(default=22)
-    os_type = me.StringField(default='unix', choices=('unix', 'linux',
-                                                      'windows', 'coreos'))
+    OS_TYPES = ('windows', 'coreos', 'freebsd', 'linux', 'unix')
+    os_type = me.StringField(default='unix', choices=OS_TYPES)
     rdp_port = me.IntField(default=3389)
     actions = me.EmbeddedDocumentField(Actions, default=lambda: Actions())
     extra = me.DictField()
@@ -287,6 +287,17 @@ class Machine(me.Document):
         for ka in reversed(range(len(self.key_associations))):
             if self.key_associations[ka].keypair.deleted:
                 self.key_associations.pop(ka)
+        self.clean_os_type()
+
+    def clean_os_type(self):
+        """Clean self.os_type"""
+        if self.os_type not in self.OS_TYPES:
+            for os_type in self.OS_TYPES:
+                if self.os_type.lower() == os_type:
+                    self.os_type = os_type
+                    break
+            else:
+                self.os_type = 'unix'
 
     def delete(self):
         super(Machine, self).delete()
