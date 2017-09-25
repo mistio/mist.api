@@ -26,7 +26,7 @@ class AzureArmNetworkController(BaseNetworkController):
 
     def _list_subnets__fetch_subnets(self, network):
         l_network = AzureNetwork(network.network_id,
-                                        network.name, '', network.extra)
+                                 network.name, '', network.extra)
         ret = self.cloud.ctl.compute.connection.ex_list_subnets(l_network)
         return ret
 
