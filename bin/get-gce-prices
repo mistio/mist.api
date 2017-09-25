@@ -26,21 +26,27 @@ def main(argv):
                          "'gcp_price_list' node\n")
         sys.exit(1)
 
-    # This is a map from regions used in the pricing JSON file to the regions
+    # This is a list from regions used in the pricing JSON file to the regions
     # as reflected in the Google Cloud Platform documentation and APIs.
-    pricing_to_region = {
-        'us': 'us',
-        'eu': 'europe',  # alias for 'europe'
-        'europe': 'europe',
-        'apac': 'asia',  # alias for 'asia'
-        'asia': 'asia',
-        'asia-northeast': 'asia_northeast',
-        'asia-east': 'asia_east',
-        'asia-southeast': 'asia_southeast'
-    }
+    pricing_regions = ['europe',
+                       'australia-southeast1',
+                       'asia-southeast',
+                       'europe-west2',
+                       'europe-west3',
+                       'us-east4',
+                       'europe-west1',
+                       'us',
+                       'us-east1',
+                       'us-central1',
+                       'australia',
+                       'us-west1',
+                       'asia-northeast',
+                       'asia-east',
+                       'asia',
+                       'southamerica-east1']
 
     # Initialize Google Cloud Platform regions.
-    for _, region in pricing_to_region.iteritems():
+    for region in pricing_regions:
         libcloud_data['google_%s' % region] = {}
 
     # Update Google Compute Engine pricing.
@@ -57,9 +63,8 @@ def main(argv):
             short_name = name[len(gce_vm_prefix):]
             machine_type = short_name.lower()
         for key, price in prices.iteritems():
-            if key in pricing_to_region:
-                region = pricing_to_region[key]
-                libcloud_data['google_%s' % region][machine_type] = price
+            if key in pricing_regions:
+                libcloud_data['google_%s' % key][machine_type] = price
 
     # Update last-modified timestamp.
 
