@@ -2125,6 +2125,7 @@ def edit_organization(request):
     name = params.get('new_name')
     alerts_email = params.get('alerts_email')
     avatar = params.get('avatar')
+    enable_r12ns = params.get('enable_r12ns')
 
     if avatar:
         try:
@@ -2139,6 +2140,9 @@ def edit_organization(request):
 
     if not name and not alerts_email and not avatar:
         raise RequiredParameterMissingError()
+
+    if enable_r12ns is not None:
+        auth_context.org.enable_r12ns = enable_r12ns
 
     # SEC check if owner
     if not (auth_context.org and auth_context.is_owner() and
