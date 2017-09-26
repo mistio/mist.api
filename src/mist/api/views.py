@@ -478,7 +478,8 @@ def register(request):
             first_name = name[0]
             last_name = name[1] if len(name) > 1 else ""
             user, org = register_user(email, first_name, last_name, 'email',
-                                      request, selected_plan, promo_code, token)
+                                      selected_plan, promo_code, token,
+                                      request=request)
 
         if user.status == 'pending':
             # if user is not confirmed yet resend the email
