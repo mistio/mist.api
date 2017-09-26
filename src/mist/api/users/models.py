@@ -111,7 +111,7 @@ class SocialAuthUser(me.Document):
     # The id of the user that has connected with this account
     user_id = me.StringField(required=True)
 
-    # A dictionary with the various data that the provider returned for the user
+    # A dictionary with the various data the provider returned for the user
     user_data = me.DictField()
 
     # A field that is needed by the social auth library to store temp data

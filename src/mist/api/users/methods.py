@@ -16,6 +16,8 @@ from mist.api.exceptions import OrganizationOperationError
 
 from mist.api.portal.models import Portal
 
+from mist.api.helpers import ip_from_request
+
 from mist.api import config
 
 try:
@@ -71,7 +73,7 @@ def register_user(email, first_name, last_name, registration_method,
     }
 
     if request:
-        log_event.args.update({
+        log_event_args.update({
             'request_method': request.method,
             'request_path': request.path,
             'request_ip': ip_from_request(request),
