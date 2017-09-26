@@ -6,7 +6,7 @@ import mongoengine as me
 from functools import partial
 from datetime import datetime, timedelta
 
-from mist.api.users.models import User, Organization
+from mist.api.users.models import User, Organization, SocialAuthUser
 from mist.api.exceptions import UserNotFoundError
 
 try:
@@ -81,7 +81,7 @@ class AuthToken(me.Document):
     def is_valid(self):
         return not (self.revoked or self.is_expired() or self.is_timedout())
 
-    def invalidate(self):
+    def invalidate(self, *args, **kwargs):
         self.revoked = True
 
     def touch(self):

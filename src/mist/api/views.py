@@ -433,19 +433,6 @@ def logout(request):
         raise ForbiddenError('If you wish to revoke a token use the /tokens'
                              ' path')
     real_user = session.get_user(effective=False)
-
-    # this will revoke all the tokens sent by the provider
-    sso_backend = session.context.get('social_auth_backend')
-    if sso_backend:
-        from mist.core.helpers import initiate_social_auth_request
-        initiate_social_auth_request(request, backend=sso_backend)
-        try:
-            request.backend.disconnect(user=user,
-                                       association_id=None,
-                                       request=request)
-        except Exception as e:
-            log.info('There was an exception while revoking tokens for user'
-                     ' %s: %s' % (user.email, repr(e)))
     if user != real_user:
         log.warn("Su logout")
         reissue_cookie_session(request, real_user)
@@ -491,7 +478,7 @@ def register(request):
             first_name = name[0]
             last_name = name[1] if len(name) > 1 else ""
             user, org = register_user(email, first_name, last_name, 'email',
-                                      selected_plan, promo_code, token)
+                                      request, selected_plan, promo_code, token)
 
         if user.status == 'pending':
             # if user is not confirmed yet resend the email
