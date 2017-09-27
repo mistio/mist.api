@@ -81,7 +81,7 @@ class AuthToken(me.Document):
     def is_valid(self):
         return not (self.revoked or self.is_expired() or self.is_timedout())
 
-    def invalidate(self, *args, **kwargs):
+    def invalidate(self):
         self.revoked = True
 
     def touch(self):
@@ -178,3 +178,8 @@ class SessionToken(AuthToken):
     fingerprint = me.StringField(default='')
     experiment = me.StringField(default='')
     choice = me.StringField(default='')
+
+    meta = {
+        'allow_inheritance': True,
+    }
+
