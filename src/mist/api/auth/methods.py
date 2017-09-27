@@ -19,6 +19,7 @@ from mist.api.tasks import revoke_token
 try:
     from mist.core.rbac.tokens import SuperToken
     from mist.core.rbac.methods import AuthContext
+    from mist.core.auth.social import OAuth2SessionToken
 except:
     from mist.api.dummy.rbac import AuthContext
     SUPER_EXISTS = False
