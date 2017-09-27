@@ -338,7 +338,7 @@ class OtherMainController(BaseMainController):
             raise CloudExistsError("Cloud with name %s already exists"
                                    % self.cloud.title)
 
-        # Add machine.
+        # Add machine if we have been given a list of args
         if kwargs:
             try:
                 self.add_machine_wrapper(
@@ -364,36 +364,44 @@ class OtherMainController(BaseMainController):
         FIXME: This wrapper should be deprecated
 
         """
-        # Sanitize params.
-        rename_kwargs(kwargs, 'machine_ip', 'host')
-        rename_kwargs(kwargs, 'machine_user', 'ssh_user')
-        rename_kwargs(kwargs, 'machine_key', 'ssh_key')
-        rename_kwargs(kwargs, 'machine_port', 'ssh_port')
-        rename_kwargs(kwargs, 'remote_desktop_port', 'rdp_port')
-        if kwargs.get('operating_system') == 'windows':
-            kwargs['os_type'] = 'windows'
-        else:
-            kwargs['os_type'] = 'unix'
-        kwargs.pop('operating_system', None)
-        errors = {}
-        for key in kwargs.keys():
-            if key not in ('host', 'ssh_user', 'ssh_port', 'ssh_key',
-                           'os_type', 'rdp_port'):
-                error = "Invalid parameter %s=%r." % (key, kwargs[key])
-                if fail_on_invalid_params:
-                    errors[key] = error
-                else:
-                    log.warning(error)
-                    kwargs.pop(key)
-        if errors:
-            raise BadRequestError({
-                'msg': "Invalid parameters %s." % errors.keys(),
-                'errors': errors,
-            })
 
-        # Add machine.
-        return self.add_machine(name, fail_on_error=fail_on_error,
-                                **kwargs)
+        machines = []
+        # Sanitize params.
+        for machine_kwargs in kwargs['machine_params']:
+            rename_kwargs(machine_kwargs, 'machine_ip', 'host')
+            rename_kwargs(machine_kwargs, 'machine_user', 'ssh_user')
+            rename_kwargs(machine_kwargs, 'machine_key', 'ssh_key')
+            rename_kwargs(machine_kwargs, 'machine_port', 'ssh_port')
+            rename_kwargs(machine_kwargs, 'remote_desktop_port', 'rdp_port')
+            if machine_kwargs.get('operating_system') == 'windows':
+                machine_kwargs['os_type'] = 'windows'
+            else:
+                machine_kwargs['os_type'] = 'unix'
+            machine_kwargs.pop('operating_system', None)
+            errors = {}
+            for key in machine_kwargs.keys():
+                if key not in ('host', 'ssh_user', 'ssh_port', 'ssh_key',
+                            'os_type', 'rdp_port'):
+                    error = "Invalid parameter %s=%r." % (key, kwargs[key])
+                    if fail_on_invalid_params:
+                        errors[key] = error
+                    else:
+                        log.warning(error)
+                        machine_kwargs.pop(key)
+            if errors:
+                raise BadRequestError({
+                    'msg': "Invalid parameters %s." % errors.keys(),
+                    'errors': errors,
+                })
+
+            # Add then machine.
+            try:
+                machine = self.add_machine(name, fail_on_error=fail_on_error,
+                                           **machine_kwargs)
+            except (CloudUnauthorizedError, MistError) as exc:
+                log.error("Failed to add machine due to: %s", exc)
+            else:
+                machine.append(machine)
 
     def add_machine(self, name, host='',
                     ssh_user='root', ssh_port=22, ssh_key=None,

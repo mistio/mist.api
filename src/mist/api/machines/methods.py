@@ -167,7 +167,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
         # ssh_port, ssh_user
         # rdp_port
         # host, os_type
-        host=ips
+        host = ips
         machine_name = cloud.title + '_'+ machine_name
         try:
             machine = cloud.ctl.add_machine(machine_name, host=host,
@@ -184,7 +184,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                'public_ips': machine.public_ips,
                'private_ips': machine.private_ips,
                'job_id': job_id,
-               }
+              }
         return ret
 
     conn = connect_provider(cloud)
