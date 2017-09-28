@@ -179,7 +179,3 @@ class SessionToken(AuthToken):
     experiment = me.StringField(default='')
     choice = me.StringField(default='')
 
-    meta = {
-        'allow_inheritance': True,
-    }
-
