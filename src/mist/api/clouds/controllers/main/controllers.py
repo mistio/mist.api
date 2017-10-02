@@ -325,7 +325,7 @@ class OtherMainController(BaseMainController):
         `self.cloud`. The `self.cloud` model is not yet saved.
 
         If appropriate kwargs are passed, this can currently also act as a
-        shortcut to also add the first machine on this dummy cloud.
+        shortcut to also add machines on this cloud.
 
         """
         # Attempt to save.
@@ -338,17 +338,15 @@ class OtherMainController(BaseMainController):
             raise CloudExistsError("Cloud with name %s already exists"
                                    % self.cloud.title)
 
-        # Add machine if we have been given a list of args
-        if kwargs:
-            try:
-                self.add_machine_wrapper(
-                    self.cloud.title, fail_on_error=fail_on_error,
-                    fail_on_invalid_params=fail_on_invalid_params, **kwargs
-                )
-            except Exception as exc:
-                if fail_on_error:
-                    self.cloud.delete()
-                raise
+        # If we have been given a list of machines kwargs, create a machine
+        # for each one of them. The machines handled here are only bare metal
+        # and hence we only create the relevant object in the database, no
+        # remote calls to any provider is performed.
+        if kwargs['machines']:
+            self.add_machine_wrapper(
+                self.cloud.title, fail_on_error=fail_on_error,
+                fail_on_invalid_params=fail_on_invalid_params, **kwargs
+            )
 
     def update(self, fail_on_error=True, fail_on_invalid_params=True,
                **kwargs):
@@ -367,7 +365,7 @@ class OtherMainController(BaseMainController):
 
         machines = []
         # Sanitize params.
-        for machine_kwargs in kwargs['machine_params']:
+        for machine_kwargs in kwargs['machines']:
             rename_kwargs(machine_kwargs, 'machine_ip', 'host')
             rename_kwargs(machine_kwargs, 'machine_user', 'ssh_user')
             rename_kwargs(machine_kwargs, 'machine_key', 'ssh_key')
@@ -401,7 +399,7 @@ class OtherMainController(BaseMainController):
             except (CloudUnauthorizedError, MistError) as exc:
                 log.error("Failed to add machine due to: %s", exc)
             else:
-                machine.append(machine)
+                machines.append(machine)
 
     def add_machine(self, name, host='',
                     ssh_user='root', ssh_port=22, ssh_key=None,
