@@ -379,7 +379,7 @@ class OtherMainController(BaseMainController):
             errors = {}
             for key in machine_kwargs.keys():
                 if key not in ('host', 'ssh_user', 'ssh_port', 'ssh_key',
-                            'os_type', 'rdp_port'):
+                               'os_type', 'rdp_port'):
                     error = "Invalid parameter %s=%r." % (key, kwargs[key])
                     if fail_on_invalid_params:
                         errors[key] = error

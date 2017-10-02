@@ -456,7 +456,7 @@ def machine_actions(request):
                                 machine.machine_id)
     elif action == 'remove':
         methods.remove_machine(auth_context.owner, cloud_id,
-                                machine.machine_id)
+                               machine.machine_id)
     elif action in ('start', 'stop', 'reboot',
                     'undefine', 'suspend', 'resume'):
         getattr(machine.ctl, action)()
