@@ -1312,9 +1312,6 @@ class OtherComputeController(BaseComputeController):
         return self.reboot_machine_ssh(machine)
 
     def remove_machine(self, machine):
-        # TODO
-        # if machine.cloud.machine_count ==1 , delete also cloud
-        # but check also the permissions
         while machine.key_associations:
             machine.key_associations.pop()
         machine.state = 'terminated'

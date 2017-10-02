@@ -397,7 +397,7 @@ class BaseComputeController(BaseController):
         for machine in self._list_machines__fetch_generic_machines():
             machine.last_seen = now
             machine.missing_since = None
-            if machine.cloud.ctl.provider == 'bare_metal' or \
+            if machine.cloud.ctl.provider != 'bare_metal' or \
                     machine.state != 'terminated':
                 machine.state = config.STATES[NodeState.UNKNOWN]
             for action in ('start', 'stop', 'reboot', 'destroy', 'rename',
@@ -990,6 +990,10 @@ class BaseComputeController(BaseController):
         is called by the public method `destroy_machine`.
         """
         machine_libcloud.destroy()
+
+    def remove_machine(self, machine):
+        raise BadRequestError("Machines on public clouds can't be removed."
+                              "This is only supported in Bare Metal clouds.")
 
     # It isn't implemented in the ui
     def resize_machine(self, machine, plan_id, kwargs):

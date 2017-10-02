@@ -446,13 +446,16 @@ def machine_actions(request):
     auth_context.check_perm("machine", action, machine.id)
 
     actions = ('start', 'stop', 'reboot', 'destroy', 'resize',
-               'rename', 'undefine', 'suspend', 'resume')
+               'rename', 'undefine', 'suspend', 'resume', 'remove')
 
     if action not in actions:
         raise BadRequestError("Action '%s' should be "
                               "one of %s" % (action, actions))
     if action == 'destroy':
         methods.destroy_machine(auth_context.owner, cloud_id,
+                                machine.machine_id)
+    elif action == 'remove':
+        methods.remove_machine(auth_context.owner, cloud_id,
                                 machine.machine_id)
     elif action in ('start', 'stop', 'reboot',
                     'undefine', 'suspend', 'resume'):

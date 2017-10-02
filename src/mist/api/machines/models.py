@@ -66,6 +66,7 @@ class Actions(me.EmbeddedDocument):
     destroy = me.BooleanField(default=False)
     resize = me.BooleanField(default=False)
     rename = me.BooleanField(default=False)
+    remove = me.BooleanField(default=False)
     tag = me.BooleanField(default=False)
     resume = me.BooleanField(default=False)
     suspend = me.BooleanField(default=False)

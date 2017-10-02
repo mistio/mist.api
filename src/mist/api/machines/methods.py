@@ -171,7 +171,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
         machine_name = cloud.title + '_'+ machine_name
         try:
             machine = cloud.ctl.add_machine(machine_name, host=host,
-                                            ssh_user='root', ssh_port=22,
+                                            ssh_user='root', ssh_port=ssh_port,
                                             ssh_key=key_id, os_type='unix',
                                             rdp_port=3389, fail_on_error=True)
         except Exception as e:
@@ -1204,6 +1204,31 @@ def destroy_machine(user, cloud_id, machine_id):
                     "machine never had monitoring enabled. Error: %r", exc)
 
     machine.ctl.destroy()
+
+
+def remove_machine(user, cloud_id, machine_id):
+    """Removes a machine from a bare metal cloud.
+
+    After removing a machine it also deletes all key associations. However,
+    it doesn't undeploy the keypair.
+    """
+    log.info('Removing machine %s in cloud %s' % (machine_id, cloud_id))
+    machine = Machine.objects.get(cloud=cloud_id, machine_id=machine_id)
+
+    if not machine.monitoring.hasmonitoring:
+        machine.ctl.remove()
+        return
+
+    # if machine has monitoring, disable it. the way we disable depends on
+    # whether this is a standalone io installation or not
+    try:
+        # we don't actually bother to undeploy collectd
+        disable_monitoring(user, cloud_id, machine_id, no_ssh=True)
+    except Exception as exc:
+        log.warning("Didn't manage to disable monitoring, maybe the "
+                    "machine never had monitoring enabled. Error: %r", exc)
+
+    machine.ctl.remove()
 
 
 # SEC
