@@ -4,7 +4,6 @@ import datetime
 import mongoengine as me
 
 from mist.api.tag.models import Tag
-from mist.api.users.models import Organization
 
 
 class BaseCondition(me.EmbeddedDocument):
@@ -50,7 +49,7 @@ class ConditionalClassMixin(object):
         return self.condition_resource_cls.objects(query)
 
     def get_ids(self):
-        return [resource.id for resource in self.get_resources()]
+        return [resource.id for resource in self.get_resources().only('id')]
 
 
 class FieldCondition(BaseCondition):
