@@ -10,8 +10,14 @@ class NotificationOverride(me.EmbeddedDocument):
     '''
     Represents a single notification override.
     '''
-    source = me.StringField(max_length=64, required=True, default="") # eg "alerts"
-    channel = me.StringField(max_length=64, required=False, default="") # eg "InAppNotification"
+    source = me.StringField(
+        max_length=64,
+        required=True,
+        default="")  # eg "alerts"
+    channel = me.StringField(
+        max_length=64,
+        required=False,
+        default="")  # eg "InAppNotification"
 
     machine_id = me.StringField(max_length=128, required=False)
     tag_id = me.StringField(max_length=64, required=False)
