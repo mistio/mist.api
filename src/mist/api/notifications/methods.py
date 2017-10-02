@@ -16,7 +16,8 @@ def add_override(user, org, notification, value='BLOCK'):
     '''
     policy = get_policy(user, org)
     source = type(notification).__name__
-    overrides = [override for override in policy.overrides if override.source == source]
+    overrides = [
+        override for override in policy.overrides if override.source == source]
     if not overrides:
         override = models.NotificationOverride()
         override.source = source
@@ -38,7 +39,8 @@ def add_override_source(user, org, source, value='BLOCK'):
     Creates the policy if it does not exist.
     '''
     policy = get_policy(user, org)
-    overrides = [override for override in policy.overrides if override.source == source]
+    overrides = [
+        override for override in policy.overrides if override.source == source]
     if not overrides:
         override = models.NotificationOverride()
         override.source = source
