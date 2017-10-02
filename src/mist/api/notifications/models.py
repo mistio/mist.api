@@ -10,7 +10,8 @@ class NotificationOverride(me.EmbeddedDocument):
     '''
     Represents a single notification override.
     '''
-    source = me.StringField(max_length=64, required=True, default="")
+    source = me.StringField(max_length=64, required=True, default="") # eg "alerts"
+    channel = me.StringField(max_length=64, required=False, default="") # eg "InAppNotification"
 
     machine_id = me.StringField(max_length=128, required=False)
     tag_id = me.StringField(max_length=64, required=False)
@@ -128,14 +129,23 @@ class Notification(me.Document):
     def update_from(self, notification):
         self.created_date = notification.created_date
         self.expiry_date = notification.expiry_date
+
         self.user = notification.user
         self.organization = notification.organization
+
         self.summary = notification.summary
         self.body = notification.body
         self.html_body = notification.html_body
-        self.resource = notification.resource
+
+        self.source = notification.source
+        self.machine = notification.machine
+        self.tag = notification.tag
+        self.cloud = notification.cloud
+
         self.unique = notification.unique
+
         self.action_link = notification.action_link
+
         self.severity = notification.severity
         self.feedback = notification.feedback
 
@@ -173,7 +183,8 @@ class InAppNotification(Notification):
 
         self.model_id = notification.model_id
         self.model_output = notification.model_output
-        self.dismissed = notification.dismissed
+        # do not include dismissed atribute in updates
+        # self.dismissed = notification.dismissed
 
 
 class InAppRecommendation(InAppNotification):
