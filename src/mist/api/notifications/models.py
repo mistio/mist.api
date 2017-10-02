@@ -42,9 +42,9 @@ class NotificationOverride(me.EmbeddedDocument):
 class UserNotificationPolicy(me.Document):
     '''
     Represents a notification policy associated with a
-    user-organization pair, and containing a list of rules.
+    user-organization pair, and containing a list of overrides.
     '''
-    rules = me.EmbeddedDocumentListField(NotificationOverride)
+    overrides = me.EmbeddedDocumentListField(NotificationOverride)
     user = me.ReferenceField(User, required=True)
     organization = me.ReferenceField(Organization, required=True)
 
@@ -54,11 +54,11 @@ class UserNotificationPolicy(me.Document):
         indicating whether corresponding notification is allowed
         or is blocked
         '''
-        for rule in self.rules:
-            if rule.matches_notification(notification):
-                if rule.value == 'BLOCK':
+        for override in self.overrides:
+            if override.matches_notification(notification):
+                if override.value == 'BLOCK':
                     return False
-                elif rule.value == 'ALLOW':
+                elif override.value == 'ALLOW':
                     return True
         return default
 
@@ -68,12 +68,12 @@ class UserNotificationPolicy(me.Document):
         indicating whether corresponding notification is allowed
         or is blocked
         '''
-        for rule in self.rules:
-            if (rule.source == channel and
-                    rule.value == 'BLOCK'):
+        for override in self.overrides:
+            if (override.source == channel and
+                    override.value == 'BLOCK'):
                 return False
-            elif (rule.source == channel and
-                    rule.value == 'ALLOW'):
+            elif (override.source == channel and
+                    override.value == 'ALLOW'):
                 return True
         return default
 
