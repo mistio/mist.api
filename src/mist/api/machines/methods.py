@@ -184,7 +184,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                'public_ips': machine.public_ips,
                'private_ips': machine.private_ips,
                'job_id': job_id,
-              }
+               }
         return ret
 
     conn = connect_provider(cloud)
