@@ -122,8 +122,7 @@ class InAppChannel(BaseChannel):
                     machine=notification.machine,
                     tag=notification.tag,
                     cloud=notification.cloud,
-                    model_id=notification.model_id,
-                    dismissed=False)
+                    model_id=notification.model_id)
                 if similar:
                     # unfortunately, queryset does not support pop()
                     first = similar[0]
