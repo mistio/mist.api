@@ -43,7 +43,7 @@ class UserNotificationPolicy(me.Document):
 
     def notification_allowed(self, notification, default=True):
         '''
-        Accepts a notification or string token and returns a boolean
+        Accepts a notification and returns a boolean
         indicating whether corresponding notification is allowed
         or is blocked
         '''
@@ -57,7 +57,7 @@ class UserNotificationPolicy(me.Document):
 
     def channel_allowed(self, channel, default=True):
         '''
-        Accepts a notification or string token and returns a boolean
+        Accepts a string token and returns a boolean
         indicating whether corresponding notification is allowed
         or is blocked
         '''
@@ -97,6 +97,7 @@ class Notification(me.Document):
     machine = me.GenericReferenceField(required=False)
     tag = me.GenericReferenceField(required=False)
     cloud = me.GenericReferenceField(required=False)
+
     action_link = me.URLField(required=False)
 
     unique = me.BooleanField(required=True, default=True)
@@ -124,6 +125,20 @@ class Notification(me.Document):
         if not self.created_date:
             self.created_date = datetime.now()
 
+    def update_from(self, notification):
+        self.created_date = notification.created_date
+        self.expiry_date = notification.expiry_date
+        self.user = notification.user
+        self.organization = notification.organization
+        self.summary = notification.summary
+        self.body = notification.body
+        self.html_body = notification.html_body
+        self.resource = notification.resource
+        self.unique = notification.unique
+        self.action_link = notification.action_link
+        self.severity = notification.severity
+        self.feedback = notification.feedback
+
 
 class EmailReport(Notification):
     '''
@@ -133,6 +148,13 @@ class EmailReport(Notification):
     subject = me.StringField(max_length=256, required=False, default="")
     email = me.EmailField(required=False)
     unsub_link = me.URLField(required=False)
+
+    def update_from(self, notification):
+        super(EmailReport, self).update_from(notification)
+
+        self.subject = notification.subject
+        self.email = notification.email
+        self.unsub_link = notification.unsub_link
 
 
 class InAppNotification(Notification):
@@ -145,6 +167,13 @@ class InAppNotification(Notification):
         default={})  # {"direction": "up"}
 
     dismissed = me.BooleanField(required=True, default=False)
+
+    def update_from(self, notification):
+        super(InAppNotification, self).update_from(notification)
+
+        self.model_id = notification.model_id
+        self.model_output = notification.model_output
+        self.dismissed = notification.dismissed
 
 
 class InAppRecommendation(InAppNotification):
