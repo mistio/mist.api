@@ -494,7 +494,7 @@ class AzureArmComputeController(BaseComputeController):
         location = self.connection.list_locations()[0]
         sizes = self.connection.list_sizes(location)
         for size in sizes:
-            size.name = size.name + ' ' + str(size.extra['numberOfCores']) + ' cpus/' + str(size.ram/1024) + 'G RAM'
+            size.name = size.name + ' ' + str(size.extra['numberOfCores']) + ' cpus/' + str(size.ram / 1024) + 'G RAM'
         return sizes
 
     def _list_resource_groups(self):
