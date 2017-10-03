@@ -613,13 +613,14 @@ class BaseComputeController(BaseController):
             images = list(images)
 
         # Filter out duplicate images, if any.
-        seen_ids = set()
-        for i in reversed(xrange(len(images))):
-            image = images[i]
-            if image.id in seen_ids:
-                images.pop(i)
-            else:
-                seen_ids.add(image.id)
+        if self.cloud.ctl.provider != 'solusvm':
+            seen_ids = set()
+            for i in reversed(xrange(len(images))):
+                image = images[i]
+                if image.id in seen_ids:
+                    images.pop(i)
+                else:
+                    seen_ids.add(image.id)
 
         # Filter images based on search term.
         if search:
