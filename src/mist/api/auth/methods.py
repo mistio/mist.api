@@ -19,6 +19,7 @@ from mist.api.tasks import revoke_token
 try:
     from mist.core.rbac.tokens import SuperToken
     from mist.core.rbac.methods import AuthContext
+    from mist.core.auth.social.models import OAuth2SessionToken
 except:
     from mist.api.dummy.rbac import AuthContext
     SUPER_EXISTS = False
@@ -197,7 +198,7 @@ def auth_context_from_session_id(session_id):
 
 
 def reissue_cookie_session(request, user_id='', su='', org=None, after=0,
-                           **kwargs):
+                           TokenClass=SessionToken, **kwargs):
     """Invalidate previous cookie session and issue a fresh one
 
     Params `user_id` and `su` can be instances of `User`, `user_id`s or emails.
@@ -214,8 +215,13 @@ def reissue_cookie_session(request, user_id='', su='', org=None, after=0,
         session.invalidate()
         session.save()
 
+    kwargs.update({
+        'ip_address': mist.api.helpers.ip_from_request(request),
+        'user_agent': request.user_agent,
+    })
+
     # And then issue the new session
-    new_session = SessionToken()
+    new_session = TokenClass(**kwargs)
 
     # Pass on fingerprint & experiment choice to new session
     if session.fingerprint:
@@ -259,15 +265,6 @@ def reissue_cookie_session(request, user_id='', su='', org=None, after=0,
                     from mist.api.users.methods import create_org_for_user
                     org = create_org_for_user(user_for_session)
 
-    if kwargs.get('ttl') and kwargs.get('ttl') >= 0:
-        session.ttl = kwargs['ttl']
-    if kwargs.get('timeout') and kwargs.get('timeout') >= 0:
-        session.timeout = kwargs['timeout']
-    if kwargs.get('social_auth_backend'):
-        session.context['social_auth_backend'] = kwargs.get('social_auth_backend')
-
-    session.ip_address = mist.api.helpers.ip_from_request(request)
-    session.user_agent = request.user_agent
     session.org = org
     session.su = su
     session.save()

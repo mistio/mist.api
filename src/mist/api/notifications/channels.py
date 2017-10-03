@@ -116,8 +116,6 @@ class InAppChannel(BaseChannel):
     def send(self, notification):
 
         def modify(notification):
-            # dismiss similar notifications if unique
-            # deleting or updating could also be an option
             if notification.unique:
                 similar = InAppNotification.objects(
                     user=notification.user,
@@ -125,10 +123,18 @@ class InAppChannel(BaseChannel):
                     resource=notification.resource,
                     model_id=notification.model_id,
                     dismissed=False)
-                for item in similar:
-                    item.dismissed = True
-                    item.save()
-            notification.save()
+                if similar:
+                    # unfortunately, queryset does not support pop()
+                    first = similar[0]
+                    first.update_from(notification)
+                    first.save()
+                    for item in [item for item in similar if item != first]:
+                        item.dismissed = True
+                        item.save()
+                else:
+                    notification.save()
+            else:
+                notification.save()
 
         self._modify_and_notify(notification, modify)
 
@@ -150,14 +156,19 @@ class InAppChannel(BaseChannel):
     def _modify_and_notify(self, notification, modifier):
         user = notification.user
 
-        old_notifications = [obj for obj in InAppNotification.objects(
-            user=user, dismissed=False)]
+        old_notifications = [
+            json.loads(
+                obj.to_json()) for obj in InAppNotification.objects(
+                user=user,
+                dismissed=False)]
         modifier(notification)
-        new_notifications = [obj for obj in InAppNotification.objects(
-            user=user, dismissed=False)]
+        new_notifications = [
+            json.loads(
+                obj.to_json()) for obj in InAppNotification.objects(
+                user=user,
+                dismissed=False)]
         patch = jsonpatch.JsonPatch.from_diff(
             old_notifications, new_notifications).patch
-
         if patch:
             data = json.dumps({
                 "user": user.id,
