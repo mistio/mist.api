@@ -28,11 +28,11 @@ def dismiss_notification(request):
                     chan.dismiss(notification)
 
 
-@view_config(route_name='api_v1_notification_rules',
+@view_config(route_name='api_v1_notification_overrides',
              request_method='GET', renderer='json')
-def get_notification_rules(request):
+def get_notification_overrides(request):
     """
-    Get notification rules for user, org policy
+    Get notification overrides for user, org policy
     ---
     """
     auth_context = auth_context_from_request(request)
@@ -41,28 +41,28 @@ def get_notification_rules(request):
     policies = UserNotificationPolicy.objects(user=user, organization=org)
     if policies:
         policy = policies[0]
-        return json.dumps(policy.rules, cls=NotificationsEncoder)
+        return json.dumps(policy.overrides, cls=NotificationsEncoder)
 
 
-@view_config(route_name='api_v1_notification_rules',
+@view_config(route_name='api_v1_notification_overrides',
              request_method='PUT', renderer='json')
-def set_notification_rules(request):
+def set_notification_overrides(request):
     """
-    Set notification rules for user, org policy
+    Set notification overrides for user, org policy
     ---
     """
     auth_context = auth_context_from_request(request)
     request_body = json.loads(request.body)
-    new_rules = request_body["rules"]
+    new_overrides = request_body["overrides"]
     user = auth_context.user
     org = auth_context.org
     policies = UserNotificationPolicy.objects(user=user, organization=org)
     if policies:
         policy = policies[0]
-        for i in range(len(policy.rules)):
-            rule = policy.rules[i]
-            new_rule = new_rules[i]
-            assert(rule.source == new_rule["source"])
-            assert(rule.channel == new_rule["channel"])
-            rule.value = new_rule["value"]
-            rule.save()
+        for i in range(len(policy.overrides)):
+            override = policy.overrides[i]
+            new_override = new_overrides[i]
+            assert(override.source == new_override["source"])
+            assert(override.channel == new_override["channel"])
+            override.value = new_override["value"]
+            override.save()

@@ -5,7 +5,7 @@ import urllib2
 from mist.api import config
 from mist.api.helpers import send_email, amqp_publish_user
 
-from models import (Notification, NotificationRule,
+from models import (Notification, NotificationOverride,
                     EmailReport, InAppNotification)
 
 import logging
@@ -200,7 +200,7 @@ class NotificationsEncoder(json.JSONEncoder):
 
     def default(self, o):
         if (isinstance(o, Notification) or
-                isinstance(o, NotificationRule)):
+                isinstance(o, NotificationOverride)):
             # FIXME: this is kind of dumb, but it works
             return json.loads(o.to_json())
         else:

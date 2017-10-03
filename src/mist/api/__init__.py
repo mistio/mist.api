@@ -302,8 +302,8 @@ def add_routes(configurator):
         '/api/v1/notifications/{notification_id}')
 
     configurator.add_route(
-        'api_v1_notification_rules',
-        '/api/v1/notification_rules')
+        'api_v1_notification_overrides',
+        '/api/v1/notification_overrides')
 
     configurator.add_route('user_invitations', '/user_invitations')
 
