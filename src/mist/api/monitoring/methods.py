@@ -2,6 +2,8 @@ import re
 import uuid
 import time
 import logging
+
+import requests
 import mongoengine as me
 
 import mist.api.config as config
@@ -30,7 +32,7 @@ from mist.api.monitoring import traefik
 log = logging.getLogger(__name__)
 
 
-def get_stats(owner, cloud_id, machine_id, start='', stop='', step='',
+def get_stats(machine, start='', stop='', step='',
               metrics=None, callback=None, tornado_async=False):
     """Get all monitoring data for the specified machine.
 
@@ -46,9 +48,7 @@ def get_stats(owner, cloud_id, machine_id, start='', stop='', step='',
     regular expressions, since dots are also used to delimit the metrics' path.
 
     Arguments:
-        - owner: either an Organization mongoengine object or a UUID
-        - cloud_id: the id of the Cloud, whose machines' stats will be fetched
-        - machine_id: the id of the Machine to fetch stats for
+        - machine: Machine model instance to get stats for
         - start: the time since when to query for stats, eg. 10s, 2m, etc
         - stop: the time until which to query for stats
         - step: the step at which to return stats
@@ -57,41 +57,51 @@ def get_stats(owner, cloud_id, machine_id, start='', stop='', step='',
         - tornado_async: denotes whether to issue a Tornado-safe HTTP request
 
     """
-    try:
-        cloud = Cloud.objects.get(id=cloud_id, owner=owner, deleted=None)
-        machine = Machine.objects.get(id=machine_id, cloud=cloud)
-    except me.DoesNotExist:
-        raise NotFoundError('Machine does not exist')
     if not machine.monitoring.hasmonitoring:
         raise MethodNotAllowedError('Machine does not have monitoring enabled')
-    if not metrics:
-        metrics = config.BUILTIN_METRICS.keys() + machine.monitoring.metrics
-    if not isinstance(metrics, list):
+    if metrics is None:
+        metrics = []
+    elif not isinstance(metrics, list):
         metrics = [metrics]
 
-    # NOTE: For backwards compatibility.
-    # Transform "min" and "sec" to "m" and "s", respectively.
-    start, stop, step = map(
-        lambda x: re.sub('in|ec', repl='', string=x),
-        (start.strip('-'), stop.strip('-'), step)
-    )
+    if machine.monitoring.system == 'collectd-graphite':
+        if not config.HAS_CORE:
+            raise Exception()
+        from mist.core.methods import _graphite_get_stats
+        return _graphite_get_stats(
+            machine, start=start, stop=stop, step=step, metrics=metrics,
+            callback=callback, tornado_async=tornado_async,
+        )
+    elif machine.monitoring.system == 'telegraf-influxdb':
+        if not metrics:
+            metrics = (config.INFLUXDB_BUILTIN_METRICS.keys() +
+                       machine.monitoring.metrics)
 
-    # Fetch series.
-    results = {}
-    for metric in metrics:
-        path = metric.split('.')
-        measurement = path[0]
-        if len(path) is 1:
-            metric += '.*'
-        if not measurement or measurement == '*':
-            raise BadRequestError('No measurement specified')
-        handler = HANDLERS.get(measurement, MainStatsHandler)(machine)
-        data = handler.get_stats(metric=metric, start=start, stop=stop,
-                                 step=step, callback=callback,
-                                 tornado_async=tornado_async)
-        if data:
-            results.update(data)
-    return results
+        # NOTE: For backwards compatibility.
+        # Transform "min" and "sec" to "m" and "s", respectively.
+        start, stop, step = map(
+            lambda x: re.sub('in|ec', repl='', string=x),
+            (start.strip('-'), stop.strip('-'), step)
+        )
+
+        # Fetch series.
+        results = {}
+        for metric in metrics:
+            path = metric.split('.')
+            measurement = path[0]
+            if len(path) is 1:
+                metric += '.*'
+            if not measurement or measurement == '*':
+                raise BadRequestError('No measurement specified')
+            handler = HANDLERS.get(measurement, MainStatsHandler)(machine)
+            data = handler.get_stats(metric=metric, start=start, stop=stop,
+                                     step=step, callback=callback,
+                                     tornado_async=tornado_async)
+            if data:
+                results.update(data)
+        return results
+    else:
+        raise Exception("Invalid monitoring system")
 
 
 def get_load(owner, start='', stop='', step='', uuids=None,
@@ -121,14 +131,7 @@ def get_load(owner, start='', stop='', step='', uuids=None,
 def check_monitoring(owner):
     """Return the monitored machines, enabled metrics, and user details."""
 
-    def _get_metrics_as_dict(owner):
-        return {
-            metric.metric_id: {
-                'name': metric.name, 'unit': metric.unit
-            } for metric in Metric.objects(owner=owner)
-        }
-
-    custom_metrics = _get_metrics_as_dict(owner)
+    custom_metrics = owner.get_metrics_dict()
     for metric in custom_metrics.values():
         metric['machines'] = []
 
@@ -141,37 +144,50 @@ def check_monitoring(owner):
 
     for machine in machines:
         monitored_machines.append([machine.cloud.id, machine.machine_id])
+        try:
+            commands = machine.monitoring.get_commands()
+        except Exception as exc:
+            log.error(exc)
+            commands = {}
         monitored_machines_2[machine.id] = {
             'cloud_id': machine.cloud.id,
             'machine_id': machine.machine_id,
             'installation_status':
                 machine.monitoring.installation_status.as_dict(),
-            'commands': machine.monitoring.get_commands(),
+            'commands': commands,
         }
         for metric_id in machine.monitoring.metrics:
             if metric_id in custom_metrics:
                 machines = custom_metrics[metric_id]['machines']
                 machines.append((machine.cloud.id, machine.machine_id))
 
+    if config.HAS_CORE:
+        from mist.core.helpers import curr_plan_as_dict
+    else:
+        def curr_plan_as_dict(owner):
+            return {}
+
     ret = {
-        'current_plan': {},
+        'current_plan': curr_plan_as_dict(owner),
         'machines': monitored_machines,
         'monitored_machines': monitored_machines_2,
-        'rules': {},
+        'rules': owner.get_rules_dict(),
         'alerts_email': owner.alerts_email,
         'custom_metrics': custom_metrics,
-        'builtin_metrics': config.BUILTIN_METRICS,
+        # TODO
+        # FIXME
+        'builtin_metrics': config.INFLUXDB_BUILTIN_METRICS,
     }
-    for key in ('builtin_metrics', 'custom_metrics'):
+    for key in ('rules', 'builtin_metrics', 'custom_metrics'):
         for id in ret[key]:
             ret[key][id]['id'] = id
     return ret
 
 
 # FIXME: Method arguments are left unchanged for backwards compatibility.
-def enable_monitoring(owner, cloud_id, machine_id, name='', dns_name='',
-                      public_ips=None, private_ips=None, no_ssh=False,
-                      dry=False, job_id='', plugins=None, deploy_async=True):
+def enable_monitoring(owner, cloud_id, machine_id,
+                      no_ssh=False,
+                      dry=False, job_id='', deploy_async=True, plugins=None):
     """Enable monitoring for a machine.
 
     If `no_ssh` is False, then the monitoring agent will be deployed over SSH.
@@ -179,63 +195,109 @@ def enable_monitoring(owner, cloud_id, machine_id, name='', dns_name='',
     to be ran manually.
 
     """
+    log.info("%s: Enabling monitoring for machine '%s' in cloud '%s'.",
+             owner.id, machine_id, cloud_id)
+
     try:
-        machine = Machine.objects.get(machine_id=machine_id, cloud=cloud_id)
+        cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
+    except Cloud.DoesNotExist:
+        raise NotFoundError('Cloud does not exist')
+    try:
+        machine = Machine.objects.get(cloud=cloud, machine_id=machine_id)
     except Machine.DoesNotExist:
         raise NotFoundError("Machine %s doesn't exist" % machine_id)
-    if machine.owner != owner:  # Cloud's Owner.
-        raise NotFoundError("Machine %s doesn't exist" % machine_id)
     if machine.monitoring.hasmonitoring:
-        msg = 'Monitoring is already enabled for Machine %s of Cloud %s'
+        log.warning("%s: Monitoring is already enabled for "
+                    "machine '%s' in cloud '%s'.",
+                    owner.id, machine_id, cloud_id)
+
+    # Extra vars
+    machine.monitoring.system = config.DEFAULT_MONITORING_METHOD
+    if config.DEFAULT_MONITORING_METHOD == 'collectd-graphite':
+        if not config.HAS_CORE:
+            raise Exception()
+        from mist.core.methods import _enable_monitoring_prepare
+        extra_vars = _enable_monitoring_prepare(machine)
+    elif config.DEFAULT_MONITORING_METHOD == 'telegraf-influxdb':
+        extra_vars = {'uuid': machine.id, 'monitor': config.INFLUX['host']}
     else:
-        msg = 'Enabling monitoring for Machine %s of Cloud %s'
-    log.warning(msg, machine.id, cloud_id)
+        raise Exception("Invalid DEFAULT_MONITORING_METHOD")
 
-    ret = {
-        'extra_vars': {
-            'uuid': machine.id,
-            'monitor': config.INFLUX['host'],
-        },
-    }
-    commands = machine.monitoring.get_commands()
-    ret['command'] = commands['unix']
-    ret['unix_command'] = commands['unix']  # FIXME For backwards compatibility
+    # Ret dict
+    ret_dict = {'extra_vars': extra_vars}
+    for os_type, cmd in machine.monitoring.get_commands().items():
+        ret_dict['%s_command' % os_type] = cmd
+    # for backwards compatibility
+    ret_dict['command'] = ret_dict['unix_command']
 
-    if not dry:
-        # Reset Machines's InstallationStatus field.
-        machine.monitoring.installation_status = InstallationStatus()
-        machine.monitoring.installation_status.started_at = time.time()
-        machine.monitoring.installation_status.state = 'preparing'
-        machine.monitoring.installation_status.manual = no_ssh
-        machine.monitoring.hasmonitoring = True
-        if no_ssh:
-            machine.monitoring.installation_status.state = 'installing'
-        else:
-            machine.monitoring.installation_status.state = 'pending'
+    # Dry run, so return!
+    if dry:
+        return ret_dict
+
+    # Reset Machines's InstallationStatus field.
+    machine.monitoring.installation_status = InstallationStatus()
+    machine.monitoring.installation_status.started_at = time.time()
+    machine.monitoring.installation_status.state = 'preparing'
+    machine.monitoring.installation_status.manual = no_ssh
+    machine.monitoring.hasmonitoring = True
+    machine.monitoring.system = config.DEFAULT_MONITORING_METHOD
+
+    machine.save()
+    trigger_session_update(owner, ['monitoring'])
+
+    # Attempt to contact monitor server and enable monitoring for the machine
+    try:
+        if config.DEFAULT_MONITORING_METHOD == 'collectd-graphite':
+            if not config.HAS_CORE:
+                raise Exception()
+            from mist.core.methods import _enable_monitoring_monitor
+            _enable_monitoring_monitor(owner, cloud_id, machine_id)
+        elif config.DEFAULT_MONITORING_METHOD == 'telegraf-influxdb':
+            traefik.reset_config()
+    except Exception as exc:
+        machine.monitoring.installation_status.state = 'failed'
+        machine.monitoring.installation_status.error_msg = repr(exc)
+        machine.monitoring.installation_status.finished_at = time.time()
+        machine.monitoring.hasmonitoring = False
         machine.save()
-
         trigger_session_update(owner, ['monitoring'])
+        raise
 
-        traefik.reset_config()
+    # Update installation status
+    if no_ssh:
+        machine.monitoring.installation_status.state = 'installing'
+    else:
+        machine.monitoring.installation_status.state = 'pending'
+    machine.save()
+    trigger_session_update(owner, ['monitoring'])
 
-        # Install Telegraf.
-        if not no_ssh:
-            if job_id:
-                job = None
-            else:
-                job_id = uuid.uuid4().hex
-                job = 'enable_monitoring'
-            ret['job'] = job
-
+    if not no_ssh:
+        if job_id:
+            job = None
+        else:
+            job_id = uuid.uuid4().hex
+            job = 'enable_monitoring'
+        ret_dict['job'] = job
+        if config.DEFAULT_MONITORING_METHOD == 'collectd-graphite':
+            # Install collectd to the machine
+            func = mist.api.tasks.deploy_collectd
+            if deploy_async:
+                func = func.delay
+            func(
+                owner.id, machine.cloud.id, machine.machine_id, extra_vars,
+                job_id=job_id, job=job, plugins=plugins,
+            )
+        elif config.DEFAULT_MONITORING_METHOD == 'telegraf-influxdb':
+            # Install Telegraf
             func = mist.api.monitoring.tasks.install_telegraf
             if deploy_async:
                 func = func.delay
             func(owner.id, machine.cloud.id, machine.machine_id, job, job_id)
 
-        if job_id:
-            ret['job_id'] = job_id
+    if job_id:
+        ret_dict['job_id'] = job_id
 
-    return ret
+    return ret_dict
 
 
 # TODO: Switch to mongo's UUID.
@@ -246,42 +308,78 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=''):
     the monitoring agent.
 
     """
-    try:
-        machine = Machine.objects.get(machine_id=machine_id, cloud=cloud_id)
-    except Machine.DoesNotExist:
-        raise NotFoundError("Machine %s doesn't exist" % machine_id)
-    if machine.owner != owner:  # Cloud's Owner.
-        raise NotFoundError("Machine %s doesn't exist" % machine_id)
-    if not machine.monitoring.hasmonitoring:
-        raise BadRequestError('Machine does not have monitoring enabled')
-
-    log.info('Disabling monitoring for Owner %s, Machine %s of Cloud %s',
+    log.info("%s: Disabling monitoring for machine '%s' in cloud '%s'.",
              owner.id, machine_id, cloud_id)
 
-    # Schedule undeployment of Telegraf.
-    ret = {}
+    try:
+        cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
+    except Cloud.DoesNotExist:
+        raise NotFoundError('Cloud does not exist')
+    try:
+        machine = Machine.objects.get(cloud=cloud, machine_id=machine_id)
+    except Machine.DoesNotExist:
+        raise NotFoundError("Machine %s doesn't exist" % machine_id)
+    if machine.monitoring.hasmonitoring:
+        raise BadRequestError('Machine does not have monitoring enabled')
+
+    # Uninstall monitoring agent.
+    ret_dict = {}
     if not no_ssh:
         if job_id:
             job = None
         else:
             job = 'disable_monitoring'
             job_id = uuid.uuid4().hex
-        ret['job'] = job
+        ret_dict['job'] = job
 
-        mist.api.monitoring.tasks.uninstall_telegraf.delay(
-            owner.id, machine.cloud.id, machine.machine_id, job, job_id)
+        if machine.monitoring.system == 'collectd-graphite':
+            if not config.HAS_CORE:
+                raise Exception
+            from mist.core.tasks import undeploy_collectd
+            undeploy_collectd.delay(owner.id, cloud_id, machine_id,
+                                    job_id=job_id, job=job)
+        elif machine.monitoring.system == 'telegraf-influxdb':
+            # Schedule undeployment of Telegraf.
+            mist.api.monitoring.tasks.uninstall_telegraf.delay(
+                owner.id, machine.cloud.id, machine.machine_id, job, job_id)
 
     if job_id:
-        ret['job_id'] = job_id
+        ret_dict['job_id'] = job_id
+
+    # tell monitor server to no longer monitor this uuid
+    try:
+        if machine.monitoring.system == 'collectd-graphite':
+            if not config.HAS_CORE:
+                raise Exception
+            url = "%s/machines/%s" % (config.MONITOR_URI, machine.id)
+            ret = requests.delete(url)
+            if ret.status_code == 404:
+                log.warning("Monitor server couldn't find uuid, continuing..")
+            elif ret.status_code != 200:
+                log.error("disable_monitoring: "
+                          "Monitor server bad response %d:%s",
+                          ret.status_code, ret.text)
+            else:
+                log.debug("Monitor server good response in disable_monitoring")
+        elif machine.monitoring.system == 'telegraf-influxdb':
+            traefik.reset_config()
+    except Exception as exc:
+        log.error("Exception %s while asking monitor server in "
+                  "disable_monitoring", exc)
 
     # Update monitoring information.
+    # since we successfully disabled in monitor server, update local database
+    # delete rules
+    for rule_id, rule in owner.rules.items():
+        if rule.cloud == cloud_id and rule.machine == machine_id:
+            owner.rules[rule_id].delete()
+            del owner.rules[rule_id]
+    owner.save()
     machine.monitoring.hasmonitoring = False
     machine.save()
 
-    traefik.reset_config()
-
     trigger_session_update(owner, ['monitoring'])
-    return ret
+    return ret_dict
 
 
 def disable_monitoring_cloud(owner, cloud_id, no_ssh=False):

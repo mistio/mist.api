@@ -264,6 +264,27 @@ class Owner(me.Document):
                 self.emails = emails
         super(Owner, self).clean()
 
+    def get_rules_dict(self):
+        rules = {}
+        modified = False
+        for rule_id in self.rules.keys():
+            # These is ugly, but is done to remove stale rule refs.
+            if not isinstance(self.rules[rule_id], Rule):
+                del self.rules[rule_id]
+                modified = True
+            else:
+                rules[rule_id] = self.rules[rule_id].as_dict()
+        if modified:
+            self.save()
+        return rules
+
+    def get_metrics_dict(self):
+        return {
+            metric.metric_id: {
+                'name': metric.name, 'unit': metric.unit
+            } for metric in Metric.objects(owner=self)
+        }
+
 
 class User(Owner):
     email = HtmlSafeStrField()

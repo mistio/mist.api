@@ -79,7 +79,7 @@ TELEGRAF_TARGET = "http://traefik"
 TRAEFIK_API = "http://traefik:8080"
 
 # Default, built-in metrics.
-BUILTIN_METRICS = {
+INFLUXDB_BUILTIN_METRICS = {
     'cpu.cpu=cpu-total.usage_user': {
         'name': 'CPU',
         'unit': '%',
@@ -166,7 +166,7 @@ HOME_DASHBOARD_DEFAULT = {
     }
 }
 
-MACHINE_DASHBOARD_DEFAULT = {
+INFLUXDB_MACHINE_DASHBOARD_DEFAULT = {
     "meta": {},
     "dashboard": {
         "id": 1,
@@ -317,6 +317,8 @@ MACHINE_DASHBOARD_DEFAULT = {
         "timezone": "browser"
     }
 }
+
+DEFAULT_MONITORING_METHOD = 'telegraf-influxdb'
 
 ACTIVATE_POLLER = True
 
@@ -1152,8 +1154,10 @@ CORE_CONFIG_PATH = os.path.join(dirname(MIST_API_DIR, 2),
 if os.path.exists(CORE_CONFIG_PATH):
     print >> sys.stderr, "Will load core config from %s" % CORE_CONFIG_PATH
     execfile(CORE_CONFIG_PATH)
+    HAS_CORE = True
 else:
     print >> sys.stderr, "Couldn't find core config in %s" % CORE_CONFIG_PATH
+    HAS_CORE = False
 
 
 # Get settings from environmental variables.

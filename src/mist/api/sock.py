@@ -44,8 +44,9 @@ from mist.api.hub.tornado_shell_client import ShellHubClient
 
 from mist.api.notifications.models import InAppNotification
 
+from mist.api.monitoring.methods import get_stats
 try:
-    from mist.core.methods import get_stats, get_load, check_monitoring
+    from mist.core.methods import get_load, check_monitoring
     from mist.core.methods import get_user_data, filter_list_tags
     from mist.core.methods import filter_list_vpn_tunnels
     from mist.core.rbac.methods import filter_org
@@ -59,7 +60,7 @@ except ImportError:
     from mist.api.dummy.methods import filter_list_stacks
     from mist.api.users.methods import get_user_data
     from mist.api.monitoring.methods import check_monitoring
-    from mist.api.monitoring.methods import get_stats, get_load
+    from mist.api.monitoring.methods import get_load
 
 from mist.api import config
 
@@ -418,7 +419,20 @@ class MainConnection(MistConnection):
                 get_load(self.owner, start, stop, step,
                          tornado_callback=callback)
             else:
-                get_stats(self.owner, cloud_id, machine_id, start, stop, step,
+                try:
+                    cloud = Cloud.objects.get(owner=self.owner, id=cloud_id,
+                                              deleted=None)
+                except Cloud.DoesNotExist:
+                    raise MistError("Cloud %s does not exist" % cloud_id)
+                try:
+                    machine = Machine.objects.get(
+                        cloud=cloud,
+                        machine_id=machine_id,
+                        state__ne='terminated',
+                    )
+                except Machine.DoesNotExist:
+                    raise MistError("Machine %s doesn't exist" % machine_id)
+                get_stats(machine, start, stop, step,
                           metrics=metrics, callback=callback,
                           tornado_async=True)
         except MistError as exc:

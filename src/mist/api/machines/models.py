@@ -81,41 +81,52 @@ class Monitoring(me.EmbeddedDocument):
         default=lambda: os.urandom(32).encode('hex'))
     metrics = me.ListField()  # list of metric_id's
     installation_status = me.EmbeddedDocumentField(InstallationStatus)
+    system = me.StringField(default='collectd-graphite',
+                            choices=['collectd-graphite', 'telegraf-influxdb'])
 
     def get_commands(self):
-        # FIXME: This is a hack.
-        try:
-            import mist.core  # NOQA
-        except ImportError:
-            from mist.api.monitoring.commands import unix_install
-            from mist.api.monitoring.commands import coreos_install
-            cmds = {
-                'unix': unix_install(self._instance),
-                'coreos': coreos_install(self._instance),
-            }
-        else:
+        if self.system == 'collectd-graphite' and config.HAS_CORE:
             from mist.api.methods import get_deploy_collectd_command_unix
             from mist.api.methods import get_deploy_collectd_command_windows
             from mist.api.methods import get_deploy_collectd_command_coreos
             args = (self._instance.id, self.collectd_password,
                     config.COLLECTD_HOST, config.COLLECTD_PORT)
-            cmds = {
+            return {
                 'unix': get_deploy_collectd_command_unix(*args),
                 'coreos': get_deploy_collectd_command_coreos(*args),
                 'windows': get_deploy_collectd_command_windows(*args),
             }
-        return cmds
+        elif self.system == 'telegraf-influxdb':
+            from mist.api.monitoring.commands import unix_install
+            from mist.api.monitoring.commands import coreos_install
+            return {
+                'unix': unix_install(self._instance),
+                'coreos': coreos_install(self._instance),
+            }
+        else:
+            raise Exception("Invalid monitoring system %s" % self.system)
+
+    def get_rules_dict(self):
+        m = self._instance
+        return {rid: rdict
+                for rid, rdict in m.cloud.owner.get_rules_dict().items()
+                if rdict['cloud'] == m.cloud.id and
+                rdict['machine'] == m.machine_id}
 
     def as_dict(self):
         status = self.installation_status
-
+        try:
+            commands = self.get_commands()
+        except:
+            commands = {}
         return {
             'hasmonitoring': self.hasmonitoring,
             'monitor_server': config.COLLECTD_HOST,
             'collectd_password': self.collectd_password,
             'metrics': self.metrics,
             'installation_status': status.as_dict() if status else '',
-            'commands': self.get_commands(),
+            'commands': commands,
+            'system': self.system,
         }
 
 

@@ -27,10 +27,7 @@ from mist.api.methods import connect_provider
 from mist.api.networks.methods import list_networks
 from mist.api.tag.methods import resolve_id_and_set_tags
 
-try:
-    from mist.core.methods import disable_monitoring
-except ImportError:
-    from mist.api.monitoring.methods import disable_monitoring
+from mist.api.monitoring.methods import disable_monitoring
 
 from mist.api import config
 

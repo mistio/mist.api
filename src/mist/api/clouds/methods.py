@@ -10,12 +10,8 @@ from mist.api.exceptions import BadRequestError, NotFoundError
 
 from mist.api.poller.models import ListMachinesPollingSchedule
 
-try:
-    from mist.core.methods import enable_monitoring
-    from mist.core.methods import disable_monitoring_cloud
-except ImportError:
-    from mist.api.monitoring.methods import enable_monitoring
-    from mist.api.monitoring.methods import disable_monitoring_cloud
+from mist.api.monitoring.methods import enable_monitoring
+from mist.api.monitoring.methods import disable_monitoring_cloud
 
 from mist.api import config
 
