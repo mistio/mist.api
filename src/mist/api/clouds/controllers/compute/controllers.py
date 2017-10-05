@@ -35,7 +35,6 @@ from xml.sax.saxutils import escape
 
 from libcloud.pricing import get_size_price
 from libcloud.compute.base import Node, NodeImage
-from libcloud.compute.drivers.azure_arm import AzureImage
 from libcloud.compute.providers import get_driver
 from libcloud.container.providers import get_driver as get_container_driver
 from libcloud.compute.types import Provider, NodeState
@@ -488,7 +487,7 @@ class AzureArmComputeController(BaseComputeController):
         sizes = self.connection.list_sizes(location)
         for size in sizes:
             size.name += ' ' + str(size.extra['numberOfCores']) \
-                            + ' cpus/' + str(size.ram / 1024) + 'G RAM'
+                         + ' cpus/' + str(size.ram / 1024) + 'G RAM'
         return sizes
 
     def _list_resource_groups(self):
