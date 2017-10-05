@@ -35,6 +35,7 @@ from xml.sax.saxutils import escape
 
 from libcloud.pricing import get_size_price
 from libcloud.compute.base import Node, NodeImage
+from libcloud.compute.drivers.azure_arm import AzureImage
 from libcloud.compute.providers import get_driver
 from libcloud.container.providers import get_driver as get_container_driver
 from libcloud.compute.types import Provider, NodeState
@@ -463,18 +464,10 @@ class AzureArmComputeController(BaseComputeController):
         return machine_libcloud.created_at  # datetime
 
     def _list_images__fetch_images(self, search=None):
-        # grab one location
-        location = self.connection.list_locations()[0]
-        # fetch images from some providers
-        # otherwise Azure takes hours to bring everything
-        images = (self.connection.list_images(
-                  location, ex_publisher="SUSE") +
-                  self.connection.list_images(
-                  location, ex_publisher="Canonical") +
-                  self.connection.list_images(
-                  location, ex_publisher="RedHat") +
-                  self.connection.list_images(
-                  location, ex_publisher="MicrosoftWindowsServer"))
+        # Fetch mist's recommended images
+        images = [NodeImage(id=image, name=name,
+                            driver=self.connection, extra={})
+                  for image, name in config.AZURE_ARM_IMAGES.items()]
         return images
 
     def _reboot_machine(self, machine, machine_libcloud):
