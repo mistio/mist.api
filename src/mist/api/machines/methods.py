@@ -86,7 +86,10 @@ def machine_name_validator(provider, name):
     elif provider == Provider.AZURE:
         pass
     elif provider == Provider.AZURE_ARM:
-        pass
+        if not re.search(r'^[0-9a-zA-Z\-]+$', name):
+            raise MachineNameValidationError(
+                "machine name may only contain ASCII letters "
+                "or numbers and dashes")
     elif provider in [Provider.VCLOUD]:
         pass
     elif provider is Provider.LINODE:
