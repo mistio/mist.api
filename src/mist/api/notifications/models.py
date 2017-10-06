@@ -19,22 +19,22 @@ class NotificationOverride(me.EmbeddedDocument):
         required=False,
         default="")  # eg "InAppNotification"
 
-    machine_id = me.StringField(max_length=128, required=False)
-    tag_id = me.StringField(max_length=64, required=False)
-    cloud_id = me.StringField(max_length=64, required=False)
+    machine = me.GenericReferenceField(required=False)
+    tag = me.GenericReferenceField(required=False)
+    cloud = me.GenericReferenceField(required=False)
 
     value = me.StringField(max_length=7, required=True,
                            choices=('ALLOW', 'BLOCK'), default='BLOCK')
 
     def matches_notification(self, notification):
-        if self.machine_id and notification.machine:
-            if self.machine_id != notification.machine.id:
+        if self.machine and notification.machine:
+            if self.machine != notification.machine:
                 return False
-        if self.tag_id and notification.tag:
-            if self.tag_id != notification.tag.id:
+        if self.tag and notification.tag:
+            if self.tag != notification.tag:
                 return False
-        if self.cloud_id and notification.cloud:
-            if self.cloud_id != notification.cloud.id:
+        if self.cloud and notification.cloud:
+            if self.cloud != notification.cloud:
                 return False
         return self.source == type(notification).__name__
 
