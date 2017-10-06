@@ -178,7 +178,7 @@ def list_resource_groups(owner, cloud_id):
     else:
         groups = []
 
-    ret = [{'id': group.id,
+    ret = [{'id': group.name,
             'name': group.name,
             'extra': group.extra
             }
@@ -205,7 +205,7 @@ def list_stor_accounts(owner, cloud_id):
     else:
         accounts = []
 
-    ret = [{'id': account.id,
+    ret = [{'id': account.name,
             'name': account.name,
             'extra': account.extra
             }
