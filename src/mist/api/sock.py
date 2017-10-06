@@ -358,7 +358,7 @@ class MainConnection(MistConnection):
                                ('list_networks', tasks.ListNetworks()),
                                ('list_zones', tasks.ListZones()),
                                ('list_locations', tasks.ListLocations()),
-                               ('list_resource_groups', tasks.ListResourceGroups()),
+                               ('list_resource_groups', tasks.ListResGroups()),
                                ('list_projects', tasks.ListProjects())])
         for key, task in periodic_tasks:
             for cloud in clouds:

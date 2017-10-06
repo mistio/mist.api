@@ -789,7 +789,7 @@ class ListProjects(UserTask):
         return {'cloud_id': cloud_id, 'projects': projects}
 
 
-class ListResourceGroups(UserTask):
+class ListResGroups(UserTask):
     abstract = False
     task_key = 'list_resource_groups'
     result_expires = 60 * 60 * 24 * 7
