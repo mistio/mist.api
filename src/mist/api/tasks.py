@@ -807,7 +807,7 @@ class ListResGroups(UserTask):
                  owner.id, cloud_id)
         return {'cloud_id': cloud_id, 'resource_groups': resource_groups}
 
-class ListStorAccounts(UserTask):
+class ListStorAccnts(UserTask):
     abstract = False
     task_key = 'list_stor_accounts'
     result_expires = 60 * 60 * 24 * 7
