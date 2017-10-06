@@ -490,10 +490,6 @@ class AzureArmComputeController(BaseComputeController):
                          + ' cpus/' + str(size.ram / 1024) + 'G RAM'
         return sizes
 
-    def _list_resource_groups(self):
-        resource_groups = self.connection.ex_list_resource_groups()
-        return resource_groups
-
     def _list_locations(self):
         locations = self.connection.list_locations()
         return locations

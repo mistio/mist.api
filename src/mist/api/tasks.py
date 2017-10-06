@@ -789,6 +789,25 @@ class ListProjects(UserTask):
         return {'cloud_id': cloud_id, 'projects': projects}
 
 
+class ListResourceGroups(UserTask):
+    abstract = False
+    task_key = 'list_resource_groups'
+    result_expires = 60 * 60 * 24 * 7
+    result_fresh = 60 * 60
+    polling = False
+    soft_time_limit = 30
+
+    def execute(self, owner_id, cloud_id):
+        owner = Owner.objects.get(id=owner_id)
+        log.warn('Running list resource groups for user %s cloud %s',
+                 owner.id, cloud_id)
+        from mist.api import methods
+        resource_groups = methods.list_resource_groups(owner, cloud_id)
+        log.warn('Returning list resource groups for user %s cloud %s',
+                 owner.id, cloud_id)
+        return {'cloud_id': cloud_id, 'resource_groups': resource_groups}
+
+
 class ListMachines(UserTask):
     abstract = False
     task_key = 'list_machines'
