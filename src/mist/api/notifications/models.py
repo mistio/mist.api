@@ -33,7 +33,7 @@ class NotificationOverride(me.EmbeddedDocument):
         if self.tag and notification.tag:
             if self.tag != notification.tag:
                 return False
-        if self.cloud_id and notification.cloud:
+        if self.cloud and notification.cloud:
             if self.cloud != notification.cloud:
                 return False
         return self.source == type(notification).__name__
