@@ -359,6 +359,7 @@ class MainConnection(MistConnection):
                                ('list_zones', tasks.ListZones()),
                                ('list_locations', tasks.ListLocations()),
                                ('list_resource_groups', tasks.ListResGroups()),
+                               ('list_stor_accounts', tasks.ListStorAccounts()),
                                ('list_projects', tasks.ListProjects())])
         for key, task in periodic_tasks:
             for cloud in clouds:
@@ -435,8 +436,8 @@ class MainConnection(MistConnection):
         log.info("Got %s", routing_key)
         if routing_key in set(['notify', 'probe', 'list_sizes', 'list_images',
                                'list_networks', 'list_machines', 'list_zones',
-                               'list_locations', 'list_projects',
-                               'list_resource_groups', 'ping']):
+                               'list_locations', 'list_projects', 'ping',
+                               'list_resource_groups', 'list_stor_accounts']):
             if routing_key == 'list_machines':
                 # probe newly discovered running machines
                 machines = result['machines']
