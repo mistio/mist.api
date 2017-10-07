@@ -2,6 +2,7 @@ import re
 import random
 import base64
 import mongoengine as me
+import time
 
 from libcloud.compute.base import NodeSize, NodeImage, NodeLocation, Node
 from libcloud.compute.types import Provider
@@ -129,6 +130,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                    docker_exposed_ports={}, azure_port_bindings='',
                    hostname='', plugins=None, disk_size=None, disk_path=None,
                    post_script_id='', post_script_params='', cloud_init='',
+                   create_storage_account=False, new_storage_account='',
                    associate_floating_ip=False,
                    associate_floating_ip_subnet=None, project_id=None,
                    schedule={}, command=None, tags=None,
@@ -284,6 +286,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
             conn, public_key, machine_name,
             image, size, location, networks,
             ex_storage_account, machine_password, ex_resource_group,
+            create_storage_account, new_storage_account
         )
     elif conn.type in [Provider.VCLOUD]:
         node = _create_machine_vcloud(conn, machine_name, image,
@@ -1005,7 +1008,8 @@ def _create_machine_vultr(conn, public_key, machine_name, image,
 
 def _create_machine_azure_arm(conn, public_key, machine_name, image,
                               size, location, networks, ex_storage_account,
-                              machine_password, ex_resource_group):
+                              machine_password, ex_resource_group,
+                              create_storage_account, new_storage_account):
     """Create a machine Azure ARM.
 
     Here there is no checking done, all parameters are expected to be
@@ -1018,6 +1022,13 @@ def _create_machine_azure_arm(conn, public_key, machine_name, image,
         k = NodeAuthPassword(machine_password)
     else:
         k = NodeAuthSSHKey(public_key)
+
+    if create_storage_account:
+        conn.ex_create_storage_account(new_storage_account, ex_resource_group, 'Storage', location)
+        storage_account = new_storage_account
+        time.sleep(5)
+    else:
+        storage_account = ex_storage_account
 
     # select the right network object
     ex_network = None
@@ -1047,7 +1058,7 @@ def _create_machine_azure_arm(conn, public_key, machine_name, image,
             image=image,
             auth=k,
             ex_resource_group=ex_resource_group,
-            ex_storage_account=ex_storage_account,
+            ex_storage_account=storage_account,
             ex_nic=ex_nic,
             location=location
         )

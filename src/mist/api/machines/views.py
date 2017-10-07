@@ -209,6 +209,8 @@ def create_machine(request):
     location_name = params.get('location_name', None)
     ips = params.get('ips', None)
     monitoring = params.get('monitoring', False)
+    create_storage_account = params.get('create_storage_account', False)
+    new_storage_account = params.get('new_storage_account', '')
     ex_storage_account = params.get('ex_storage_account', '')
     machine_password = params.get('machine_password', '')
     ex_resource_group = params.get('ex_resource_group', '')
@@ -353,6 +355,8 @@ def create_machine(request):
               'size_cpu': size_cpu,
               'size_disk_primary': size_disk_primary,
               'size_disk_swap': size_disk_swap,
+              'create_storage_account': create_storage_account,
+              'new_storage_account': new_storage_account,
               'boot': boot,
               'build': build,
               'cpu_priority': cpu_priority,
