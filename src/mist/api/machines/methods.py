@@ -1024,7 +1024,8 @@ def _create_machine_azure_arm(conn, public_key, machine_name, image,
         k = NodeAuthSSHKey(public_key)
 
     if create_storage_account:
-        conn.ex_create_storage_account(new_storage_account, ex_resource_group, 'Storage', location)
+        conn.ex_create_storage_account(new_storage_account, ex_resource_group,
+                                       'Storage', location)
         storage_account = new_storage_account
         time.sleep(5)
     else:
