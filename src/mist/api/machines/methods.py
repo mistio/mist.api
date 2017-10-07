@@ -1018,7 +1018,7 @@ def _create_machine_azure_arm(conn, public_key, machine_name, image,
     """
     public_key.replace('\n', '')
 
-    if 'Windows' in image.id:
+    if 'microsoft' in image.name.lower():
         k = NodeAuthPassword(machine_password)
     else:
         k = NodeAuthSSHKey(public_key)
