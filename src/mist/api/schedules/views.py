@@ -44,8 +44,8 @@ def add_schedule_entry(request):
       type: array
       description: list of machines_tags
     name:
-      required:true
-      type:string
+      required: true
+      type: string
       description: schedule name
     task_enabled:
       type: boolean
@@ -179,7 +179,7 @@ def edit_schedule_entry(request):
       type: string
     action:
       type: string
-     machines_uuids:
+    machines_uuids:
       required: true
       type: array
       description: list of machines_uuids
@@ -188,8 +188,8 @@ def edit_schedule_entry(request):
       type: array
       description: list of machines_tags
     name:
-      required:true
-      type:string
+      required: true
+      type: string
       description: schedule name
     enabled:
       type: boolean

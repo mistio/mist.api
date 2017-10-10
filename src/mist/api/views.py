@@ -1991,7 +1991,7 @@ def edit_organization(request):
           required: true
         name:
           description: The team's name
-          type:string
+          type: string
         """
     auth_context = auth_context_from_request(request)
 
@@ -2182,7 +2182,7 @@ def edit_team(request):
       required: true
     name:
       description: The team's name
-      type:string
+      type: string
     description:
       description: the teams's description
     """
