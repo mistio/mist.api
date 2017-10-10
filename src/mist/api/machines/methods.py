@@ -130,6 +130,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                    docker_exposed_ports={}, azure_port_bindings='',
                    hostname='', plugins=None, disk_size=None, disk_path=None,
                    post_script_id='', post_script_params='', cloud_init='',
+                   create_resource_group=False, new_resource_group='',
                    create_storage_account=False, new_storage_account='',
                    associate_floating_ip=False,
                    associate_floating_ip_subnet=None, project_id=None,
@@ -286,6 +287,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
             conn, public_key, machine_name,
             image, size, location, networks,
             ex_storage_account, machine_password, ex_resource_group,
+            create_resource_group, new_resource_group,
             create_storage_account, new_storage_account
         )
     elif conn.type in [Provider.VCLOUD]:
@@ -1009,6 +1011,7 @@ def _create_machine_vultr(conn, public_key, machine_name, image,
 def _create_machine_azure_arm(conn, public_key, machine_name, image,
                               size, location, networks, ex_storage_account,
                               machine_password, ex_resource_group,
+                              create_resource_group, new_resource_group,
                               create_storage_account, new_storage_account):
     """Create a machine Azure ARM.
 
@@ -1023,8 +1026,15 @@ def _create_machine_azure_arm(conn, public_key, machine_name, image,
     else:
         k = NodeAuthSSHKey(public_key)
 
+    if create_resource_group:
+        conn.ex_create_resource_group(new_resource_group, location)
+        resource_group = new_resource_group
+        time.sleep(5)
+    else:
+        resource_group = ex_resource_group
+
     if create_storage_account:
-        conn.ex_create_storage_account(new_storage_account, ex_resource_group,
+        conn.ex_create_storage_account(new_storage_account, resource_group,
                                        'Storage', location)
         storage_account = new_storage_account
         time.sleep(5)
@@ -1045,10 +1055,10 @@ def _create_machine_azure_arm(conn, public_key, machine_name, image,
 
     ex_subnet = conn.ex_list_subnets(ex_network)[0]
 
-    ex_ip = conn.ex_create_public_ip(machine_name, ex_resource_group, location)
+    ex_ip = conn.ex_create_public_ip(machine_name, resource_group, location)
 
     ex_nic = conn.ex_create_network_interface(machine_name, ex_subnet,
-                                              ex_resource_group,
+                                              resource_group,
                                               location=location,
                                               public_ip=ex_ip)
 
@@ -1058,7 +1068,7 @@ def _create_machine_azure_arm(conn, public_key, machine_name, image,
             size=size,
             image=image,
             auth=k,
-            ex_resource_group=ex_resource_group,
+            ex_resource_group=resource_group,
             ex_storage_account=storage_account,
             ex_nic=ex_nic,
             location=location

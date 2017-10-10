@@ -213,6 +213,8 @@ def create_machine(request):
     new_storage_account = params.get('new_storage_account', '')
     ex_storage_account = params.get('ex_storage_account', '')
     machine_password = params.get('machine_password', '')
+    create_resource_group = params.get('create_resource_group', False)
+    new_resource_group = params.get('new_resource_group', '')
     ex_resource_group = params.get('ex_resource_group', '')
     networks = params.get('networks', [])
     docker_env = params.get('docker_env', [])
@@ -357,6 +359,8 @@ def create_machine(request):
               'size_disk_swap': size_disk_swap,
               'create_storage_account': create_storage_account,
               'new_storage_account': new_storage_account,
+              'create_resource_group': create_resource_group,
+              'new_resource_group': new_resource_group,
               'boot': boot,
               'build': build,
               'cpu_priority': cpu_priority,
