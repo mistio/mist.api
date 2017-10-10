@@ -43,8 +43,8 @@ def delete_network(owner, network):
 
 def list_networks(owner, cloud_id):
     """List networks from each cloud.
-    Currently EC2, Openstack and GCE clouds are supported. For other providers
-    this returns an empty list.
+    Currently EC2, Openstack, Azure ARM and GCE clouds are supported.
+    For other providers this returns an empty list.
     """
     ret = {'public': [],
            'private': [],
