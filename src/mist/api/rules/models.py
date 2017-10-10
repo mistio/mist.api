@@ -4,6 +4,7 @@ import mongoengine as me
 from mist.api.exceptions import BadRequestError
 from mist.api.users.models import Organization
 from mist.api.machines.models import Machine
+from mist.api.conditions.models import ConditionalClassMixin
 
 from mist.api.rules.base import ResourceRuleController
 from mist.api.rules.base import ArbitraryRuleController
@@ -13,9 +14,6 @@ from mist.api.rules.conditions import Window
 from mist.api.rules.conditions import Frequency
 from mist.api.rules.conditions import TriggerOffset
 from mist.api.rules.conditions import QueryCondition
-
-from mist.api.conditions.models import BaseCondition
-from mist.api.conditions.models import ConditionalClassMixin
 
 
 class Rule(me.Document):

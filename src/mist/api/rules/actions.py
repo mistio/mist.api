@@ -22,8 +22,9 @@ def is_email_valid(email):
 
     """
     # TODO Move this to mist.api.helpers.
-    return (re.match('(^[\w\.-]+@[a-zA-Z0-9-]+(\.[a-zA-Z0-9-.]+)+$)', email)
-            and email.split('@')[1] not in BANNED_EMAIL_PROVIDERS)
+    regex = '(^[\w\.-]+@[a-zA-Z0-9-]+(\.[a-zA-Z0-9-.]+)+$)'
+    return (re.match(regex, email) and
+            email.split('@')[1] not in BANNED_EMAIL_PROVIDERS)
 
 
 class BaseAlertAction(me.EmbeddedDocument):
@@ -49,7 +50,7 @@ class BaseAlertAction(me.EmbeddedDocument):
                 if not fail_on_error:
                     continue
                 raise me.ValidationError('Field "%s" does not exist on %s',
-                                          key, type(self))
+                                         key, type(self))
             setattr(self, key, value)
 
     def run(self):

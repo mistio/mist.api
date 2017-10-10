@@ -1,7 +1,6 @@
 import logging
 import mongoengine as me
 
-from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import RequiredParameterMissingError
 

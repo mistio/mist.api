@@ -107,7 +107,7 @@ class BasePeriodType(me.EmbeddedDocument):
                 if not fail_on_error:
                     continue
                 raise me.ValidationError('Field "%s" does not exist on %s',
-                                          key, type(self))
+                                         key, type(self))
             setattr(self, key, value)
 
     def clean(self):
