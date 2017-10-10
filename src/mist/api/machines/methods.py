@@ -1045,8 +1045,9 @@ def _create_machine_azure_arm(conn, public_key, machine_name, image,
         storage_account = ex_storage_account
 
     if create_network:
-        #create the new network and get the ex_subnet
-        ex_network = conn.ex_create_network(new_network, resource_group, location)
+        # create the new network
+        ex_network = conn.ex_create_network(new_network,
+                                            resource_group, location)
     else:
         # select the right network object
         ex_network = None
