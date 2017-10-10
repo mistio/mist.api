@@ -130,6 +130,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                    docker_exposed_ports={}, azure_port_bindings='',
                    hostname='', plugins=None, disk_size=None, disk_path=None,
                    post_script_id='', post_script_params='', cloud_init='',
+                   create_network=False, new_network='',
                    create_resource_group=False, new_resource_group='',
                    create_storage_account=False, new_storage_account='',
                    associate_floating_ip=False,
@@ -287,6 +288,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
             conn, public_key, machine_name,
             image, size, location, networks,
             ex_storage_account, machine_password, ex_resource_group,
+            create_network, new_network,
             create_resource_group, new_resource_group,
             create_storage_account, new_storage_account
         )
@@ -1011,6 +1013,7 @@ def _create_machine_vultr(conn, public_key, machine_name, image,
 def _create_machine_azure_arm(conn, public_key, machine_name, image,
                               size, location, networks, ex_storage_account,
                               machine_password, ex_resource_group,
+                              create_network, new_network,
                               create_resource_group, new_resource_group,
                               create_storage_account, new_storage_account):
     """Create a machine Azure ARM.
@@ -1041,17 +1044,21 @@ def _create_machine_azure_arm(conn, public_key, machine_name, image,
     else:
         storage_account = ex_storage_account
 
-    # select the right network object
-    ex_network = None
-    try:
-        if networks:
-            available_networks = conn.ex_list_networks()
-            mist_net = Network.objects.get(id=networks)
-            for libcloud_net in available_networks:
-                if mist_net.network_id == libcloud_net.id:
-                    ex_network = libcloud_net
-    except:
-        pass
+    if create_network:
+        #create the new network and get the ex_subnet
+        ex_network = conn.ex_create_network(new_network, resource_group, location)
+    else:
+        # select the right network object
+        ex_network = None
+        try:
+            if networks:
+                available_networks = conn.ex_list_networks()
+                mist_net = Network.objects.get(id=networks)
+                for libcloud_net in available_networks:
+                    if mist_net.network_id == libcloud_net.id:
+                        ex_network = libcloud_net
+        except:
+            pass
 
     ex_subnet = conn.ex_list_subnets(ex_network)[0]
 
