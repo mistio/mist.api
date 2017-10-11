@@ -83,10 +83,10 @@ def delete_notification_override(request):
     user = auth_context.user
     org = auth_context.org
     policies = UserNotificationPolicy.objects(user=user, organization=org)
-        if policies:
-            policy = policies[0]
-            for override in policy.overrides:
-                if override.id == override_id
-                override.delete()
-                return json.dumps({"id": override_id,
-                                   "status": "deleted"})
+    if policies:
+        policy = policies[0]
+        for override in policy.overrides:
+            if override.id == override_id
+            override.delete()
+            return json.dumps({"id": override_id,
+                               "status": "deleted"})
