@@ -8,6 +8,7 @@ from time import time
 import paramiko
 
 from libcloud.compute.types import NodeState
+from libcloud.container.base import Container
 
 from base64 import b64encode
 
@@ -24,11 +25,15 @@ from mist.api.exceptions import ServiceUnavailableError, MachineNotFoundError
 from mist.api.shell import Shell
 
 from mist.api.users.models import User, Owner, Organization
-from mist.api.clouds.models import Cloud
+from mist.api.clouds.models import Cloud, DockerCloud
 from mist.api.machines.models import Machine
 from mist.api.scripts.models import Script
 from mist.api.schedules.models import Schedule
 from mist.api.dns.models import Zone, Record, RECORDS
+
+from mist.api.poller.models import ListMachinesPollingSchedule
+from mist.api.poller.models import PingProbeMachinePollingSchedule
+from mist.api.poller.models import SSHProbeMachinePollingSchedule
 
 celery_cfg = 'mist.core.celery_config'
 
@@ -50,6 +55,7 @@ log = logging.getLogger(__name__)
 app = Celery('tasks')
 app.conf.update(**config.CELERY_SETTINGS)
 app.autodiscover_tasks(['mist.api.poller'])
+app.autodiscover_tasks(['mist.api.portal'])
 
 
 @app.task
@@ -95,7 +101,11 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
         try:
             cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
             conn = connect_provider(cloud)
-            nodes = conn.list_nodes()  # TODO: use cache
+
+            if isinstance(cloud, DockerCloud):
+                nodes = conn.list_containers()
+            else:
+                nodes = conn.list_nodes()  # TODO: use cache
             for n in nodes:
                 if n.id == machine_id:
                     node = n
@@ -103,6 +113,9 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
             tmp_log('run list_machines')
         except:
             raise self.retry(exc=Exception(), countdown=10, max_retries=10)
+
+        if node and isinstance(node, Container):
+            node = cloud.ctl.compute.inspect_node(node)
 
         if node and len(node.public_ips):
             # filter out IPv6 addresses
@@ -405,8 +418,7 @@ def azure_post_create_steps(self, owner_id, cloud_id, machine_id, monitoring,
             if n.id == machine_id:
                 node = n
                 break
-
-        if node and node.state == 0 and len(node.public_ips):
+        if node and node.state == NodeState.RUNNING and len(node.public_ips):
             # filter out IPv6 addresses
             ips = filter(lambda ip: ':' not in ip, node.public_ips)
             host = ips[0]
@@ -724,6 +736,7 @@ class ListZones(UserTask):
         owner = Owner.objects.get(id=owner_id)
         log.warn('Running list zones for user %s cloud %s'
                  % (owner.id, cloud_id))
+        from mist.api.dns.methods import list_zones
         try:
             cloud = Cloud.objects.get(owner=owner, id=cloud_id)
         except Cloud.DoesNotExist:
@@ -732,13 +745,7 @@ class ListZones(UserTask):
             return {'cloud_id': cloud_id, 'zones': []}
         ret = []
         if cloud.dns_enabled:
-            zones = cloud.ctl.dns.list_zones()
-
-            for zone in zones:
-                zone_dict = zone.as_dict()
-                zone_dict['records'] = [record.as_dict() for
-                                        record in zone.ctl.list_records()]
-                ret.append(zone_dict)
+            ret = list_zones(owner, cloud.id)
             log.warn('Returning list zones for user %s cloud %s'
                      % (owner.id, cloud_id))
         return {'cloud_id': cloud_id, 'zones': ret}
@@ -877,7 +884,7 @@ class Ping(UserTask):
 
     def execute(self, owner_id, cloud_id, machine_id, host):
         from mist.api import methods
-        res = methods.ping(host, owner_id)
+        res = methods.ping(owner=Owner.objects.get(id=owner_id), host=host)
         return {'cloud_id': cloud_id,
                 'machine_id': machine_id,
                 'host': host,
@@ -1023,6 +1030,8 @@ def create_machine_async(owner_id, cloud_id, key_id, machine_name, location_id,
              'size_disk_swap': size_disk_swap,
              'boot': boot,
              'build': build,
+             'bare_metal': bare_metal,
+             'hourly': hourly,
              'cpu_priority': cpu_priority,
              'cpu_sockets': cpu_sockets,
              'cpu_threads': cpu_threads,
@@ -1432,3 +1441,18 @@ def revoke_token(token):
     auth_token = AuthToken.objects.get(token=token)
     auth_token.invalidate()
     auth_token.save()
+
+
+@app.task
+def update_poller(org_id):
+    org = Organization.objects.get(id=org_id)
+    log.info("Updating poller for %s", org)
+    for cloud in Cloud.objects(owner=org, deleted=None, enabled=True):
+        log.info("Updating poller for cloud %s", cloud)
+        ListMachinesPollingSchedule.add(cloud=cloud, interval=10, ttl=120)
+        for machine in cloud.ctl.compute.list_cached_machines():
+            log.info("Updating poller for machine %s", machine)
+            PingProbeMachinePollingSchedule.add(machine=machine,
+                                                interval=90, ttl=120)
+            SSHProbeMachinePollingSchedule.add(machine=machine,
+                                               interval=90, ttl=120)

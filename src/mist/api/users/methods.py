@@ -3,6 +3,7 @@ from time import time
 
 from mist.api.users.models import User
 from mist.api.users.models import Organization
+from mist.api.users.models import WhitelistIP
 
 from mongoengine import ValidationError
 from mongoengine import OperationError
@@ -12,6 +13,10 @@ from mist.api.auth.models import get_secure_rand_token
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import MethodNotAllowedError
 from mist.api.exceptions import OrganizationOperationError
+
+from mist.api.portal.models import Portal
+
+from mist.api.helpers import ip_from_request
 
 from mist.api import config
 
@@ -33,7 +38,7 @@ def get_users_count(mongo_uri=None, confirmed=False):
 
 def register_user(email, first_name, last_name, registration_method,
                   selected_plan=None, promo_code=None, token=None,
-                  status='pending', create_organization=True):
+                  status='pending', create_organization=True, request=None):
     # User does not exist so we have to add him/her to the database
     # First make sure that email is not banned
     # Then create the User objects and the Organization
@@ -51,8 +56,13 @@ def register_user(email, first_name, last_name, registration_method,
     user.can_create_org = True
     user.save()
 
+    # For some users registering through sso it might not be necessary to
+    # create an organization, hence the flag
+    org = create_org_for_user(user, '', promo_code, token, selected_plan) \
+        if create_organization else None
+
     log_event_args = {
-        'owner_id': '',
+        'owner_id': org and org.id or '',
         'user_id': user.id,
         'first_name': user.first_name,
         'last_name': user.last_name,
@@ -62,10 +72,13 @@ def register_user(email, first_name, last_name, registration_method,
         'authentication_provider': registration_method
     }
 
-    # For some users registering through sso it might not be necessary to
-    # create an organization, hence the flag
-    org = create_org_for_user(user, '', promo_code, token, selected_plan) \
-        if create_organization else None
+    if request:
+        log_event_args.update({
+            'request_method': request.method,
+            'request_path': request.path,
+            'request_ip': ip_from_request(request),
+            'user_agent': request.user_agent,
+        })
 
     if org:
         log_event_args.update({
@@ -137,10 +150,15 @@ def get_user_data(auth_context):
         'first_name': user.first_name,
         'last_name': user.last_name,
         'username': user.username,
+        'ips': [ip.as_dict() for ip in user.ips],
+        'current_ip': auth_context.token.ip_address,
         'has_pass': user.password is not None and user.password != '',
         'orgs': orgs,
         'csrf_token': auth_context.token.csrf_token,
     }
+    if user.role == 'Admin':
+        upgrades = Portal.get_singleton().get_available_upgrades()
+        ret['available_upgrades'] = upgrades
     return ret
 
 
@@ -166,3 +184,26 @@ def filter_org(auth_context):
     org['members'] = members
 
     return org
+
+
+def update_whitelist_ips(auth_context, ips):
+    """
+    This function takes a list of dicts in the form:
+    [{cidr:'cidr1', 'description:'desc1'},
+    {cidr:'cidr2', 'description:'desc2'}]
+    and saves them in the User.ips field.
+    """
+
+    user = auth_context.user
+
+    user.ips = []
+    for ip_dict in ips:
+        wip = WhitelistIP()
+        wip.cidr = ip_dict['cidr']
+        wip.description = ip_dict['description']
+        user.ips.append(wip)
+
+    try:
+        user.save()
+    except ValidationError as e:
+        raise BadRequestError({"msg": e.message, "errors": e.to_dict()})

@@ -1,7 +1,7 @@
 FROM mist/alpine:3.4
 
 # Install libvirt which requires system dependencies.
-RUN apk add --update --no-cache libvirt libvirt-dev libxml2-dev libxslt-dev
+RUN apk add --update --no-cache g++ gcc libvirt libvirt-dev libxml2-dev libxslt-dev
 RUN pip install libvirt-python==2.4.0
 
 RUN pip install --no-cache-dir ipython pdb ipdb flake8 pytest pytest-cov
@@ -35,9 +35,16 @@ RUN touch clean
 
 ENTRYPOINT ["/mist.api/bin/docker-init"]
 
-ARG JS_BUILD=1
-ARG VERSION_REPO=mistio/mist.api
-ARG VERSION_SHA
-ARG VERSION_NAME
+ARG API_VERSION_SHA
+ARG API_VERSION_NAME
 
-RUN echo "{\"sha\":\"$VERSION_SHA\",\"name\":\"$VERSION_NAME\",\"repo\":\"$VERSION_REPO\",\"modified\":false}" > /mist-version.json
+# Variables defined solely by ARG are accessible as environmental variables
+# during build but not during runtime. To persist these in the image, they're
+# redefined as ENV in addition to ARG.
+ENV JS_BUILD=1 \
+    VERSION_REPO=mistio/mist.api \
+    VERSION_SHA=$API_VERSION_SHA \
+    VERSION_NAME=$API_VERSION_NAME
+
+RUN echo "{\"sha\":\"$VERSION_SHA\",\"name\":\"$VERSION_NAME\",\"repo\":\"$VERSION_REPO\",\"modified\":false}" \
+        > /mist-version.json

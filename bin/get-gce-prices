@@ -26,37 +26,50 @@ def main(argv):
                          "'gcp_price_list' node\n")
         sys.exit(1)
 
-    # This is a map from regions used in the pricing JSON file to the regions
+    # This is a list from regions used in the pricing JSON file to the regions
     # as reflected in the Google Cloud Platform documentation and APIs.
-    pricing_to_region = {
-        'us': 'us',
-        'eu': 'europe',  # alias for 'europe'
-        'europe': 'europe',
-        'apac': 'asia',  # alias for 'asia'
-        'asia': 'asia'
-    }
+    pricing_regions = ['europe',
+                       'australia-southeast1',
+                       'asia-southeast',
+                       'europe-west2',
+                       'europe-west3',
+                       'us-east4',
+                       'europe-west1',
+                       'us',
+                       'us-east1',
+                       'us-central1',
+                       'australia',
+                       'us-west1',
+                       'asia-northeast',
+                       'asia-east',
+                       'asia',
+                       'southamerica-east1']
 
     # Initialize Google Cloud Platform regions.
-    for _, region in pricing_to_region.iteritems():
+    for region in pricing_regions:
         libcloud_data['google_%s' % region] = {}
 
     # Update Google Compute Engine pricing.
     gcp_price_list = google_ext_prices['gcp_price_list']
     gce_vm_prefix = 'CP-COMPUTEENGINE-VMIMAGE-'
+    gce_custom_vm_prefix = 'CP-COMPUTEENGINE-CUSTOM-V'
     for name, prices in gcp_price_list.iteritems():
-        if not name.startswith(gce_vm_prefix):
-            continue
-        short_name = name[len(gce_vm_prefix):]
-        machine_type = short_name.lower()
+        if name.startswith(gce_custom_vm_prefix):
+            short_name = name[len('CP-COMPUTEENGINE-'):]
+            machine_type = short_name.lower()
+        else:
+            if not name.startswith(gce_vm_prefix):
+                continue
+            short_name = name[len(gce_vm_prefix):]
+            machine_type = short_name.lower()
         for key, price in prices.iteritems():
-            if key in pricing_to_region:
-                region = pricing_to_region[key]
-                libcloud_data['google_%s' % region][machine_type] = price
+            if key in pricing_regions:
+                libcloud_data['google_%s' % key][machine_type] = price
 
     # Update last-modified timestamp.
 
     # Write updated price list.
-    json_str = json.dumps(libcloud_data, indent=4)
+    json_str = json.dumps(libcloud_data, indent=6)
     print json_str
 
 

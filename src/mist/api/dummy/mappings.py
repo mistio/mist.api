@@ -6,7 +6,7 @@
 # be used as placeholders.
 
 
-class PermissionMapper(object):
+class AsyncPermissionMapper(object):
     """This class provides a dummy interface to handle RBAC operations."""
 
     def __init__(self, org):

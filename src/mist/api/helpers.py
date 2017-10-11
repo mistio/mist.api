@@ -155,50 +155,6 @@ def get_auth_header(user):
     return user.mist_api_token
 
 
-def parse_ping(stdout):
-    """Parse ping's stdout and return dict of extracted metrics."""
-    re_header = "^--- (.*) ping statistics ---$"
-    re_packets = "^([\d]+) packets transmitted, ([\d]+)"
-    re_rtt = ".*min/avg/max/[a-z]* = " \
-             "([\d]+\.[\d]+)/([\d]+\.[\d]+)/([\d]+\.[\d]+)"
-    lines = stdout.split("\n")
-    for i in range(len(lines) - 2):
-        line = lines[i]
-        # match statistics header line
-        match = re.match(re_header, line)
-        if match is None:
-            continue
-        host = match.groups()[0]
-        # match packets statistics line
-        line = lines[i + 1]
-        match = re.match(re_packets, line)
-        if match is None:
-            break
-        packets_tx = int(match.groups()[0])
-        packets_rx = int(match.groups()[1])
-        packets_loss = float(packets_tx - packets_rx) / packets_tx
-        # match rtt statistics line
-        line = lines[i + 2]
-        match = re.match(re_rtt, line)
-        if match is None:
-            break
-        rtt_min = float(match.groups()[0])
-        rtt_avg = float(match.groups()[1])
-        rtt_max = float(match.groups()[2])
-        return {
-            # "host": host,
-            "packets_tx": packets_tx,
-            "packets_rx": packets_rx,
-            "packets_loss": packets_loss,
-            "rtt_min": rtt_min,
-            "rtt_avg": rtt_avg,
-            "rtt_max": rtt_max,
-        }
-    # parsing failed. good job..
-    log.error("Ping parsing failed for stdout '%s'", stdout)
-    return {}
-
-
 def parse_os_release(os_release):
     """
     Extract os name and version from the output of `cat /etc/*release`
@@ -291,15 +247,20 @@ def dirty_cow(os, os_version, kernel_version):
 
 
 def amqp_publish(exchange, routing_key, data,
-                 ex_type='fanout', ex_declare=False, auto_delete=True):
-    connection = Connection(config.AMQP_URI)
+                 ex_type='fanout', ex_declare=False, auto_delete=True,
+                 connection=None):
+    close = False
+    if connection is None:
+        connection = Connection(config.AMQP_URI)
+        close = True
     channel = connection.channel()
     if ex_declare:
         channel.exchange_declare(exchange=exchange, type=ex_type, auto_delete=auto_delete)
     msg = Message(json.dumps(data))
     channel.basic_publish(msg, exchange=exchange, routing_key=routing_key)
     channel.close()
-    connection.close()
+    if close:
+        connection.close()
 
 
 def amqp_subscribe(exchange, callback, queue='',
@@ -347,9 +308,10 @@ def _amqp_owner_exchange(owner):
     return "owner_%s" % owner.id
 
 
-def amqp_publish_user(owner, routing_key, data):
+def amqp_publish_user(owner, routing_key, data, connection=None):
     try:
-        amqp_publish(_amqp_owner_exchange(owner), routing_key, data)
+        amqp_publish(_amqp_owner_exchange(owner), routing_key, data,
+                     connection=connection)
     except AmqpNotFound:
         return False
     except Exception:
@@ -831,7 +793,6 @@ def logging_view_decorator(func):
         will be handled there.
 
         """
-
         # hack to preserve view function's name if an exception is raised
         # and handled by exception handler (otherwise we got exception_handler
         # as view_name)
@@ -942,6 +903,20 @@ def logging_view_decorator(func):
             if snake_to_camel(key) in params:
                 log_dict[key] = params.pop(snake_to_camel(key))
 
+        cloud_id = request.environ.get('cloud_id')
+        if cloud_id and not log_dict.get('cloud_id'):
+            log_dict['cloud_id'] = cloud_id
+
+        machine_id = request.environ.get('machine_id')
+        if machine_id and not log_dict.get('machine_id'):
+            log_dict['machine_id'] = request.environ.get('machine_id')
+
+        machine_uuid = request.matchdict.get('machine_uuid') or \
+                       params.get('machine_uuid') or \
+                       request.environ.get('machine_uuid')
+        if machine_uuid and not log_dict.get('machine_uuid'):
+            log_dict['machine_uuid'] = machine_uuid
+
         for key in ('priv', 'password', 'new_password', 'apikey', 'apisecret',
                     'cert_file', 'key_file'):
             if params.get(key):
@@ -949,7 +924,6 @@ def logging_view_decorator(func):
         if log_dict['action'] == 'add_cloud':
             provider = params.get('provider')
             censor = {'vcloud': 'password',
-                      'indonesian_vcloud': 'password',
                       'ec2': 'api_secret',
                       'rackspace': 'api_key',
                       'nephoscale': 'password',
@@ -975,6 +949,8 @@ def logging_view_decorator(func):
             if 'cloud' in bdict and 'cloud_id' not in log_dict:
                 log_dict['cloud_id'] = bdict['cloud']
             if 'machine' in bdict and 'machine_id' not in log_dict:
+                log_dict['machine_id'] = bdict['machine']
+            if 'machine_uuid' in bdict and 'machine_id' not in log_dict:
                 log_dict['machine_id'] = bdict['machine']
             # Match resource type based on the action performed.
             for rtype in ['cloud', 'machine', 'key', 'script', 'tunnel',

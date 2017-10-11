@@ -7,9 +7,12 @@ import sys
 import ssl
 import json
 import logging
+import datetime
 
 import libcloud.security
 from libcloud.compute.types import Provider
+from libcloud.container.types import Provider as Container_Provider
+
 from libcloud.compute.types import NodeState
 
 
@@ -37,6 +40,9 @@ AMQP_URI = "rabbitmq:5672"
 MEMCACHED_HOST = ["memcached:11211"]
 BROKER_URL = "amqp://guest:guest@rabbitmq/"
 SSL_VERIFY = True
+
+VERSION_CHECK = True
+USAGE_SURVEY = False
 
 ELASTICSEARCH = {
     'elastic_host': 'elasticsearch',
@@ -250,22 +256,6 @@ STATES = {
     NodeState.RECONFIGURING: 'reconfiguring'
 }
 
-# All EC2 providers, useful for type checking
-EC2_PROVIDERS = (
-    Provider.EC2_US_EAST,
-    Provider.EC2_AP_NORTHEAST,
-    Provider.EC2_AP_NORTHEAST1,
-    Provider.EC2_AP_NORTHEAST2,
-    Provider.EC2_EU_WEST,
-    Provider.EC2_EU_CENTRAL,
-    Provider.EC2_US_WEST,
-    Provider.EC2_AP_SOUTHEAST,
-    Provider.EC2_AP_SOUTHEAST2,
-    Provider.EC2_SA_EAST,
-    Provider.EC2_US_WEST_OREGON,
-    # Provider.EC2_AP_SOUTH1,
-)
-
 EC2_SECURITYGROUP = {
     'name': 'mistio',
     'description': 'Security group created by mist.io'
@@ -309,48 +299,60 @@ SUPPORTED_PROVIDERS_V_2 = [
         'regions': [
             {
                 'location': 'Tokyo',
-                'id': Provider.EC2_AP_NORTHEAST
+                'id': 'ap-northeast-1'
             },
             {
                 'location': 'Seoul',
-                'id': Provider.EC2_AP_NORTHEAST2
+                'id': 'ap-northeast-2'
             },
             {
                 'location': 'Singapore',
-                'id': Provider.EC2_AP_SOUTHEAST
+                'id': 'ap-southeast-1'
             },
             {
                 'location': 'Sydney',
-                'id': Provider.EC2_AP_SOUTHEAST2
+                'id': 'ap-southeast-2'
             },
             {
                 'location': 'Frankfurt',
-                'id': Provider.EC2_EU_CENTRAL
+                'id': 'eu-central-1'
             },
             {
                 'location': 'Ireland',
-                'id': Provider.EC2_EU_WEST
+                'id': 'eu-west-1'
+            },
+            {
+                'location': 'London',
+                'id': 'eu-west-2'
+            },
+            {
+                'location': 'Canada Central',
+                'id': 'ca-central-1'
             },
             {
                 'location': 'Sao Paulo',
-                'id': Provider.EC2_SA_EAST
+                'id': 'sa-east-1'
             },
             {
                 'location': 'N. Virginia',
-                'id': Provider.EC2_US_EAST
+                'id': 'us-east-1'
             },
             {
                 'location': 'N. California',
-                'id': Provider.EC2_US_WEST
+                'id': 'us-west-1'
             },
             {
                 'location': 'Oregon',
-                'id': Provider.EC2_US_WEST_OREGON
+                'id': 'us-west-2'
             },
-            # {
-            #     'location': 'Mumbai',
-            #     'id': Provider.EC2_AP_SOUTH1
-            # },
+            {
+                'location': 'Ohio',
+                'id': 'us-east-2'
+            },
+            {
+                'location': 'Mumbai',
+                'id': 'ap-south-1'
+            },
         ]
     },
     # GCE
@@ -432,19 +434,13 @@ SUPPORTED_PROVIDERS_V_2 = [
     # Docker
     {
         'title': 'Docker',
-        'provider': Provider.DOCKER,
+        'provider': Container_Provider.DOCKER,
         'regions': []
     },
     # vCloud
     {
         'title': 'VMware vCloud',
         'provider': Provider.VCLOUD,
-        'regions': []
-    },
-    # Indonesian vCloud
-    {
-        'title': 'Indonesian Cloud',
-        'provider': Provider.INDONESIAN_VCLOUD,
         'regions': []
     },
     # libvirt
@@ -479,317 +475,171 @@ SUPPORTED_PROVIDERS_V_2 = [
     }
 ]
 
-SUPPORTED_PROVIDERS = [
-    # BareMetal
-    {
-        'title': 'Bare Metal Server',
-        'provider': 'bare_metal'
-    },
-    # Azure
-    {
-        'title': 'Azure',
-        'provider': Provider.AZURE
-    },
-    # Azure ARM
-    {
-        'title': 'Azure ARM',
-        'provider': Provider.AZURE_ARM
-    },
-    # EC2
-    {
-        'title': 'EC2 AP Tokyo',
-        'provider': Provider.EC2_AP_NORTHEAST1
-    },
-    {
-        'title': 'EC2 AP Seoul',
-        'provider': Provider.EC2_AP_NORTHEAST2
-    },
-    # {
-    #     'title': 'EC2 AP Mumbai',
-    #     'provider': Provider.EC2_AP_SOUTH1
-    # },
-    {
-        'title': 'EC2 AP SOUTHEAST',
-        'provider': Provider.EC2_AP_SOUTHEAST
-    },
-    {
-        'title': 'EC2 AP Sydney',
-        'provider': Provider.EC2_AP_SOUTHEAST2
-    },
-    {
-        'title': 'EC2 EU Frankfurt',
-        'provider': Provider.EC2_EU_CENTRAL
-    },
-
-    {
-        'title': 'EC2 EU Ireland',
-        'provider': Provider.EC2_EU_WEST
-    },
-    {
-        'title': 'EC2 SA EAST',
-        'provider': Provider.EC2_SA_EAST
-    },
-    {
-        'title': 'EC2 US EAST',
-        'provider': Provider.EC2_US_EAST
-    },
-    {
-        'title': 'EC2 US WEST',
-        'provider': Provider.EC2_US_WEST
-    },
-    {
-        'title': 'EC2 US WEST OREGON',
-        'provider': Provider.EC2_US_WEST_OREGON
-    },
-    # GCE
-    {
-        'title': 'Google Compute Engine',
-        'provider' : Provider.GCE
-    },
-
-    # NephoScale
-    {
-        'title': 'NephoScale',
-        'provider' : Provider.NEPHOSCALE
-    },
-    # DigitalOcean
-    {
-        'title': 'DigitalOcean',
-        'provider' : Provider.DIGITAL_OCEAN
-    },
-    # Linode
-    {
-        'title': 'Linode',
-        'provider' : Provider.LINODE
-    },
-    # OpenStack TODO: re-enable & test
-    {
-        'title': 'OpenStack',
-        'provider': Provider.OPENSTACK
-    },
-    # Rackspace
-    {
-        'title': 'Rackspace DFW',
-        'provider': "%s:dfw" % Provider.RACKSPACE
-    },
-    {
-        'title': 'Rackspace ORD',
-        'provider' : "%s:ord" % Provider.RACKSPACE
-    },
-    {
-        'title': 'Rackspace IAD',
-        'provider' : "%s:iad" % Provider.RACKSPACE
-    },
-    {
-        'title': 'Rackspace LON',
-        'provider' : "%s:lon" % Provider.RACKSPACE
-    },
-    {
-        'title': 'Rackspace AU',
-        'provider' : "%s:syd" % Provider.RACKSPACE
-    },
-    {
-        'title': 'Rackspace HKG',
-        'provider' : "%s:hkg" % Provider.RACKSPACE
-    },
-    {
-        'title': 'Rackspace US (OLD)',
-        'provider' : "%s:us" % Provider.RACKSPACE_FIRST_GEN
-    },
-    {
-        'title': 'Rackspace UK (OLD)',
-        'provider' : "%s:uk" % Provider.RACKSPACE_FIRST_GEN
-    },
-    # Softlayer
-    {
-        'title': 'SoftLayer',
-        'provider' : Provider.SOFTLAYER
-    },
-    # Docker
-    {
-        'title': 'Docker',
-        'provider' : Provider.DOCKER
-    },
-    # vCloud
-    {
-        'title': 'VMware vCloud',
-        'provider' : Provider.VCLOUD
-    }
-]
-
 # Base AMIs
 EC2_IMAGES = {
-    'eu-west-1': {
-        'ami-d41d58a7': 'Amazon Linux AMI 2016.09.0 (HVM), SSD Volume Type',
-        'ami-0e10557d': 'Amazon Linux AMI 2016.09.0 (PV)',
-        'ami-05bfde76': 'Ubuntu Server 14.04 LTS (PV), SSD Volume Type',
-        'ami-ed82e39e': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-        'ami-8b8c57f8': 'Red Hat Enterprise Linux 7.2 (HVM), SSD Volume Type',
-        'ami-f4278487': 'SUSE Linux Enterprise Server 12 SP1 (HVM), SSD Volume Type',
-        'ami-fa7cdd89': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',
-        'ami-b6b8d8c5': 'CoreOS stable 1068.8.0 (PV)',
-        'ami-cbb5d5b8': 'CoreOS stable 1068.8.0 (HVM)',
-    },
     'eu-central-1': {
-        'ami-0044b96f': 'Amazon Linux AMI 2016.09.0 (HVM), SSD Volume Type',
-        'ami-1345b87c': 'Amazon Linux AMI 2016.09.0 (PV)',
-        'ami-875042eb': 'Red Hat Enterprise Linux 7.2 (HVM), SSD Volume Type',
-        'ami-a9a557c6': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
-        'ami-26c43149': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
+        'ami-e4c63e8b': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
+        'ami-060cde69': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
         'ami-2eaeb342': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',
-        'ami-6bd2ce07': 'SUSE Linux Enterprise Server 12 SP1 (HVM), SSD Volume Type',
-        'ami-7b7a8f14': 'CoreOS stable 1068.8.0 (HVM)',
-        'ami-d1c431be': 'CoreOS stable 1068.8.0 (PV)',
+        'ami-ba68bad5': 'Amazon Linux AMI 2017.03.0 (PV)',
+        'ami-b968bad6': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
+        'ami-c425e4ab': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',
+        'ami-25a97a4a': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
+        'ami-e37b8e8c': 'CoreOS-stable-1068.8.0 (PV)',
+        'ami-7b7a8f14': 'CoreOS-stable-1068.8.0 (HVM',
+    },
+    'eu-west-1': {
+        'ami-02ace471': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
+        'ami-a8d2d7ce': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-fa7cdd89': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',
+        'ami-d1c0c4b7': 'Amazon Linux AMI 2017.03.0 (PV)',
+        'ami-01ccc867': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
+        'ami-9186a1e2': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',
+        'ami-09447c6f': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
+        'ami-cbb5d5b8': 'CoreOS stable 1068.8.0 (HVM)',
+        'ami-b6b8d8c5': 'CoreOS stable 1068.8.0 (PV)',
+    },
+    'eu-west-2': {
+        'ami-9c363cf8': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
+        'ami-f1d7c395': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-63342007': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
+        'ami-b6daced2': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
+        'ami-a9eae0cd': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',
+        'ami-9fc7cdfb': 'SUSE Linux Enterprise Server 11 SP4 (HVM), SSD Volume Type',
+    },
+    'ca-central-1': {
+        'ami-9062d0f4': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
+        'ami-b3d965d7': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-beea56da': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
+        'ami-0bd66a6f': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
+        'ami-14368470': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',
+        'ami-1562d071': 'SUSE Linux Enterprise Server 11 SP4 (HVM), SSD Volume Type',
     },
     'us-east-1': {
-        'ami-c481fad3': 'Amazon Linux AMI 2016.09.0 (HVM), SSD Volume Type',
-        'ami-4d87fc5a': 'Amazon Linux AMI 2016.09.0 (PV)',
-        'ami-2051294a': 'Red Hat Enterprise Linux 7.2 (HVM), SSD Volume Type',
-        'ami-b7b4fedd': 'SUSE Linux Enterprise Server 12 SP1 (HVM), SSD Volume Type',
-        'ami-2d39803a': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-        'ami-2ef48339': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
-        'ami-7f2e6015': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',
+        'ami-b63769a1': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
+        'ami-80861296': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-70065467': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',
+        'ami-668f1e70': 'Amazon Linux AMI 2017.03.0 (PV)',
+        'ami-c58c1dd3': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
+        'ami-fde4ebea': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',
+        'ami-772aa961': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
         'ami-098e011e': 'CoreOS stable 1068.8.0 (PV)',
         'ami-368c0321': 'CoreOS stable 1068.8.0 (HVM)',
     },
+    'us-east-2': {
+        'ami-0932686c': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
+        'ami-618fab04': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-8fab8fea': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
+        'ami-4191b524': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
+        'ami-61a7fd04': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',
+        'ami-4af2a92f': 'SUSE Linux Enterprise Server 11 SP4 (HVM), SSD Volume Type',
+    },
     'us-west-1': {
-        'ami-de347abe': 'Amazon Linux AMI 2016.09.0 (HVM), SSD Volume Type',
-        'ami-df3779bf': 'Amazon Linux AMI 2016.09.0 (PV)',
-        'ami-48db9d28': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-        'ami-a9a8e4c9': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
-        'ami-d1315fb1': 'Red Hat Enterprise Linux 7.2 (HVM), SSD Volume Type',
-        'ami-6d701b0d': 'SUSE Linux Enterprise Server 12 SP 1 (HVM), SSD Volume Type',
+        'ami-2cade64c': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
+        'ami-2afbde4a': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
         'ami-e7a4cc87': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',
+        'ami-0f85a06f': 'Amazon Linux AMI 2017.03.0 (PV)',
+        'ami-7a85a01a': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
+        'ami-e09acc80': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',
+        'ami-1da8f27d': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
         'ami-ae2564ce': 'CoreOS stable 1068.8.0 (PV)',
         'ami-bc2465dc': 'CoreOS stable 1068.8.0 (HVM)',
     },
     'us-west-2': {
-        'ami-b04e92d0': 'Amazon Linux AMI 2016.09.0 (HVM), SSD Volume Type',
-        'ami-1d49957d': 'Amazon Linux AMI 2016.09.0 (PV)',
-        'ami-775e4f16': 'Red Hat Enterprise Linux 7.2 (HVM), SSD Volume Type',
-        'ami-d2627db3': 'SUSE Linux Enterprise Server 12 SP1 (HVM), SSD Volume Type',
-        'ami-d732f0b7': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-        'ami-746aba14': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
-        'ami-86fae7e7': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',
+        'ami-6f68cf0f': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
+        'ami-efd0428f': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-baab0fda': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',
+        'ami-c737a5a7': 'Amazon Linux AMI 2017.03.0 (PV)',
+        'ami-4836a428': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
+        'ami-e4a30084': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',
+        'ami-7c22b41c': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
         'ami-cfef22af': 'CoreOS stable 1068.8.0 (HVM)',
         'ami-ecec218c': 'CoreOS stable 1068.8.0 (PV)',
     },
-    'ap-southeast-1': {
-        'ami-7243e611': 'Amazon Linux AMI 2016.09.0 (HVM), SSD Volume Type',
-        'ami-3f03c55c': 'Red Hat Enterprise Linux 7.2 (HVM), SSD Volume Type',
-        'ami-2a19da49': 'SUSE Linux Enterprise Server 12 SP 1 (HVM), SSD Volume Type',
-        'ami-21d30f42': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-        'ami-1a5f9f79': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',
-        'ami-42934921': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
-        'ami-a743e6c4': 'Amazon Linux AMI 2016.09.0 (PV)',
-        'ami-3203df51': 'CoreOS stable 1068.8.0 (PV)',
-        'ami-9b00dcf8': 'CoreOS stable 1068.8.0 (HVM)',
-    },
-    'ap-southeast-2': {
-        'ami-3ad6e659': 'Amazon Linux AMI 2016.09.0 (PV)',
-        'ami-55d4e436': 'Amazon Linux AMI 2016.09.0 (HVM), SSD Volume Type',
-        'ami-e0c19f83': 'Red Hat Enterprise Linux 7.2 (HVM), SSD Volume Type',
-        'ami-0f510a6c': 'SUSE Linux Enterprise Server 12 SP 1 (HVM), SSD Volume Type',
-        'ami-8ea3fbed': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',
-        'ami-ba3e14d9': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-        'ami-623c0d01': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
-        'ami-e8e4ce8b': 'CoreOS stable 1068.8.0 (HVM)',
-        'ami-ede4ce8e': 'CoreOS stable 1068.8.0 (PV)',
-    },
-    'sa-east-1': {
-        'ami-b777e4db': 'Amazon Linux AMI 2016.09.0 (HVM), SSD Volume Type',
-        'ami-27b3094b': 'Red Hat Enterprise Linux 7.2 (HVM), SSD Volume Type',
-        'ami-4ede5922': 'SUSE Linux Enterprise Server 12 SP 1 (HVM), SSD Volume Type',
-        'ami-dc48dcb0': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-        'ami-029a1e6e': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',
-        'ami-60bd2d0c': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
-        'ami-1d75e671': 'Amazon Linux AMI 2016.09.0 (PV)',
-        'ami-0317836f': 'CoreOS stable 1068.8.0 (PV)',
-        'ami-ef43d783': 'CoreOS stable 1068.8.0 (HVM)',
-    },
     'ap-northeast-1': {
-        'ami-1a15c77b': 'Amazon Linux AMI 2016.09.0 (HVM), SSD Volume Type',
-        'ami-cf14c6ae': 'Amazon Linux AMI 2016.09.0 (PV)',
-        'ami-0dd8f963': 'Red Hat Enterprise Linux 7.2 (HVM), SSD Volume Type',
-        'ami-5e849130': 'Ubuntu Server 16.04 Beta2 (PV)',
-        'ami-0919cd68': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
-        'ami-a21529cc': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
+        'ami-5de0433c': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
+        'ami-afb09dc8': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
         'ami-27fed749': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',
-        'ami-f8220896': 'SUSE Linux Enterprise Server 12 SP1 (HVM), SSD Volume Type',
+        'ami-30391657': 'Amazon Linux AMI 2017.03.0 (PV)',
+        'ami-923d12f5': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
+        'ami-e21c7285': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',
+        'ami-d85e7fbf': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
         'ami-d0e21bb1': 'CoreOS stable 1068.8.0 (PV)',
         'ami-fcd9209d': 'CoreOS stable 1068.8.0 (HVM)',
     },
     'ap-northeast-2': {
-        'ami-a04297ce': 'Amazon Linux AMI 2016.09.0 (HVM), SSD Volume Type',
         'ami-44db152a': 'Red Hat Enterprise Linux 7.2 (HVM), SSD Volume Type',
-        'ami-e9985687': 'SUSE Linux Enterprise Server 12 SP1 (HVM), SSD Volume Type',
-        'ami-09dc1267': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
+        'ami-66e33108': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-9d15c7f3': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
+        'ami-5060b73e': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',
+        'ami-15d5077b': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
         'ami-91de14ff': 'CoreOS stable 1068.8.0 (HVM)',
         'ami-9edf15f0': 'CoreOS stable 1068.8.0 (PV)'
     },
-    'ap-south-1': {
-        'ami-cacbbea5': 'Amazon Linux AMI 2016.09.0 (HVM), SSD Volume Type',
-        'ami-cdbdd7a2': 'Red Hat Enterprise Linux 7.2 (HVM), SSD Volume Type',
-        'ami-cebed4a1': 'SUSE Linux Enterprise Server 12 SP1 (HVM), SSD Volume Type',
-        'ami-4a90fa25': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-        'ami-7e94fe11': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
-        'ami-985025f7': 'CoreOS-stable-1068.10.0-hvm',
-        'ami-ec5f2a83': 'CoreOS-stable-1068.10.0',
+    'sa-east-1': {
+        'ami-7de77b11': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
+        'ami-4090f22c': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-029a1e6e': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',
+        'ami-36cfad5a': 'Amazon Linux AMI 2017.03.0 (PV)',
+        'ami-37cfad5b': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
+        'ami-e1cd558d': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',
+        'ami-8df695e1': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
+        'ami-0317836f': 'CoreOS stable 1068.8.0 (PV)',
+        'ami-ef43d783': 'CoreOS stable 1068.8.0 (HVM)',
     },
+    'ap-southeast-1': {
+        'ami-2c95344f': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
+        'ami-8fcc75ec': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-1a5f9f79': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',
+        'ami-ab5ce5c8': 'Amazon Linux AMI 2017.03.0 (PV)',
+        'ami-fc5ae39f': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
+        'ami-67b21d04': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',
+        'ami-0a19a669': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
+        'ami-3203df51': 'CoreOS stable 1068.8.0 (PV)',
+        'ami-9b00dcf8': 'CoreOS stable 1068.8.0 (HVM)',
+    },
+    'ap-southeast-2': {
+        'ami-39ac915a': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
+        'ami-96666ff5': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-8ea3fbed': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',
+        'ami-af2128cc': 'Amazon Linux AMI 2017.03.0 (PV)',
+        'ami-162c2575': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
+        'ami-527b4031': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',
+        'ami-807876e3': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
+        'ami-e8e4ce8b': 'CoreOS stable 1068.8.0 (HVM)',
+        'ami-ede4ce8e': 'CoreOS stable 1068.8.0 (PV)',
+    },
+    'ap-south-1': {
+        'ami-cdbdd7a2': 'Red Hat Enterprise Linux 7.2 (HVM), SSD Volume Type',
+        'ami-c2ee9dad': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
+        'ami-52c7b43d': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
+        'ami-8f8afde0': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',
+        'ami-83a8dbec': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
+    }
 }
-
-EC2_IMAGES[Provider.EC2_EU_WEST] = EC2_IMAGES['eu-west-1']
-EC2_IMAGES[Provider.EC2_SA_EAST] = EC2_IMAGES['sa-east-1']
-EC2_IMAGES[Provider.EC2_AP_NORTHEAST] = EC2_IMAGES['ap-northeast-1']
-EC2_IMAGES[Provider.EC2_AP_SOUTHEAST2] = EC2_IMAGES['ap-southeast-2']
-EC2_IMAGES[Provider.EC2_AP_SOUTHEAST] = EC2_IMAGES['ap-southeast-1']
-EC2_IMAGES[Provider.EC2_US_WEST] = EC2_IMAGES['us-west-1']
-EC2_IMAGES[Provider.EC2_US_WEST_OREGON] = EC2_IMAGES['us-west-2']
-EC2_IMAGES[Provider.EC2_US_EAST] = EC2_IMAGES['us-east-1']
-EC2_IMAGES[Provider.EC2_EU_CENTRAL] = EC2_IMAGES['eu-central-1']
-EC2_IMAGES[Provider.EC2_AP_NORTHEAST2] = EC2_IMAGES['ap-northeast-2']
-EC2_IMAGES[Provider.EC2_AP_NORTHEAST1] = EC2_IMAGES['ap-northeast-1']
-#EC2_IMAGES[Provider.EC2_AP_SOUTH1] = EC2_IMAGES['ap-south-1']
-
-# Provider.EC2_EU_WEST etc naming is deprecated by libcloud.
-#
-# Now we call driver = get_driver(Providers.EC2_EU_WEST) in helpers.connect
-# which calls the default EC2 driver passing datacenter argument. Instead we
-# should call the default driver of EC2 passing the datacenter, example
-#
-# driver = get_driver(Providers.EC2)
-# conn = driver(key, secret, datacenter='eu-west-1')
-#
-# What we gain:
-# 1 Avoid using libcloud deprecated code
-# 2 No need to keep a separate mapping of ec2 providers
-#
-# EC2 datacenters are ['us-east-1', 'us-west-2', 'us-west-1', 'eu-west-1',
-# 'ap-southeast-1', 'ap-northeast-1', 'ap-southeast-2','sa-east-1']
 
 DOCKER_IMAGES = {
-    'mist/ubuntu-14.04': 'Ubuntu 14.04',
-    'mist/debian-wheezy': 'Debian Wheezy',
-    'mist/opensuse-13.1': 'OpenSUSE 13.1',
-    'mist/fedora-20': 'Fedora 20',
+    'mist/ubuntu-14.04': 'Ubuntu 14.04 - mist.io image',
+    'mist/debian-wheezy': 'Debian Wheezy - mist.io image',
+    'mist/opensuse-13.1': 'OpenSUSE 13.1 - mist.io image',
+    'mist/fedora-20': 'Fedora 20 - mist.io image',
 }
 
-GCE_IMAGES = [
-    'debian-cloud',
-    'centos-cloud',
-    'suse-cloud',
-    'rhel-cloud',
-    'coreos-cloud',
-    'gce-nvme',
-    'google-containers',
-    'opensuse-cloud',
-    'suse-cloud',
-    'ubuntu-os-cloud',
-    'windows-cloud',
-]
+GCE_IMAGES = ['debian-cloud',
+              'centos-cloud',
+              'suse-cloud',
+              'rhel-cloud',
+              'coreos-cloud',
+              'gce-nvme',
+              'google-containers',
+              'opensuse-cloud',
+              'suse-cloud',
+              'ubuntu-os-cloud',
+              'windows-cloud']
 
 RESET_PASSWORD_EXPIRATION_TIME = 60*60*24
 
+WHITELIST_IP_EXPIRATION_TIME = 60*60*24
 
 ## Email templates
 
@@ -878,6 +728,29 @@ Please click on the following link:
 
 This request originated from the IP address %s. If it wasn't you, simply ignore
 this message. Your password has not been changed.
+
+
+Best regards,
+The mist.io team
+
+--
+%s
+Govern the clouds
+"""
+
+
+WHITELIST_IP_EMAIL_SUBJECT = "[mist.io] Account IP whitelist request"
+
+WHITELIST_IP_EMAIL_BODY = \
+"""Hi %s,
+
+We have received a request to whitelist the IP you just tried to login with.
+Please click on the following link to finish this action:
+
+%s/confirm-whitelist?key=%s
+
+This request originated from the IP address %s. If it wasn't you, simply ignore
+this message. The above IP will not be whitelisted.
 
 
 Best regards,
@@ -1021,12 +894,13 @@ ENABLE_BILLING = False
 ENABLE_RBAC = False
 ENABLE_AB = False
 ENABLE_MONITORING = False
+MACHINE_PATCHES = True
 
 ## DO NOT PUT ANYTHING BELOW HERE UNLESS YOU KNOW WHAT YOU ARE DOING
 
 # Get settings from mist.core.
 CORE_CONFIG_PATH = os.path.join(dirname(MIST_API_DIR, 2),
-                                'mist', 'core', 'config.py')
+                                'src', 'mist', 'core', 'config.py')
 if os.path.exists(CORE_CONFIG_PATH):
     print >> sys.stderr, "Will load core config from %s" % CORE_CONFIG_PATH
     execfile(CORE_CONFIG_PATH)
@@ -1044,7 +918,7 @@ FROM_ENV_INTS = [
 ]
 FROM_ENV_BOOLS = [
     'SSL_VERIFY', 'ALLOW_CONNECT_LOCALHOST', 'ALLOW_CONNECT_PRIVATE',
-    'ALLOW_LIBVIRT_LOCALHOST', 'JS_BUILD',
+    'ALLOW_LIBVIRT_LOCALHOST', 'JS_BUILD', 'VERSION_CHECK', 'USAGE_SURVEY',
 ]
 FROM_ENV_ARRAYS = [
     'MEMCACHED_HOST',
@@ -1090,6 +964,21 @@ CELERY_SETTINGS.update({
     'CELERYD_LOG_FORMAT': PY_LOG_FORMAT,
     'CELERYD_TASK_LOG_FORMAT': PY_LOG_FORMAT,
 })
+_schedule = {}
+if VERSION_CHECK:
+    _schedule['version-check'] = {
+        'task': 'mist.api.portal.tasks.check_new_versions',
+        'schedule': datetime.timedelta(hours=24),
+        # 'args': ('https://mist.io/api/v1/version-check', ),
+    }
+if USAGE_SURVEY:
+    _schedule['usage-survey'] = {
+        'task': 'mist.api.portal.tasks.usage_survey',
+        'schedule': datetime.timedelta(hours=24),
+        # 'args': ('https://mist.io/api/v1/usage-survey', ),
+    }
+if _schedule:
+    CELERY_SETTINGS.update({'CELERYBEAT_SCHEDULE': _schedule})
 
 
 # Configure libcloud to not verify certain hosts.
@@ -1098,6 +987,8 @@ if NO_VERIFY_HOSTS:
         NO_VERIFY_HOSTS.append(DOCKER_IP)
     libcloud.security.NO_VERIFY_MATCH_HOSTNAMES = NO_VERIFY_HOSTS
 
+WHITELIST_CIDR = [
+]
 
 HOMEPAGE_INPUTS = {
     'google_analytics_id': GOOGLE_ANALYTICS_ID,

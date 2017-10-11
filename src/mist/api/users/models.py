@@ -3,6 +3,7 @@ import logging
 import json
 import uuid
 import re
+import netaddr
 import datetime
 import mongoengine as me
 
@@ -19,10 +20,8 @@ else:
 
 try:
     from mist.core.rbac.mappings import RBACMapping
-    from mist.core.rbac.mappings import PermissionMapper
 except ImportError:
     from mist.api.dummy.mappings import RBACMapping
-    from mist.api.dummy.mappings import PermissionMapper
 
 from mist.api import config
 
@@ -59,6 +58,24 @@ class HtmlSafeStrField(me.StringField):
         return value
 
 
+class WhitelistIP(me.EmbeddedDocument):
+    """A Class to store specific to the user IP whitelisting functionality"""
+
+    cidr = me.StringField()
+    description = me.StringField()
+
+    def clean(self):
+        """Checks the CIDR to determine if it maps to a valid IPv4 network."""
+
+        try:
+            self.cidr = str(netaddr.IPNetwork(self.cidr))
+        except (TypeError, netaddr.AddrFormatError) as err:
+            raise me.ValidationError(err)
+
+    def as_dict(self):
+        return json.loads(self.to_json())
+
+
 # TODO remove these, but first delete feedback field from user
 class Feedback(me.EmbeddedDocument):
     company_name = me.StringField()
@@ -88,26 +105,24 @@ class SocialAuthUser(me.Document):
     provider = me.StringField(required=True)
 
     # This is the unique id that the authentication provider uses to
+    # identify a user
     uid = me.StringField(required=True, unique=True)
 
     # The id of the user that has connected with this account
     user_id = me.StringField(required=True)
 
-    access_token = me.StringField()
-    logged_in = me.BooleanField()
-
+    # A dictionary with the various data the provider returned for the user
     user_data = me.DictField()
 
+    # A field that is needed by the social auth library to store temp data
     extra_data = me.DictField()
 
     def get_user(self):
-        if self.user_id:
-            try:
-                user = User.objects.get(id=self.user_id)
-                return user
-            except me.DoesNotExist:
-                pass
-        return None
+        try:
+            return User.objects.get(id=self.user_id)
+        except User.DoesNotExist:
+            raise User.DoesNotExist("User with id %s can not be found"
+                                    % self.user_id)
 
     @property
     def user(self):
@@ -279,21 +294,21 @@ class User(Owner):
     selected_plan = me.StringField()
     enterprise_plan = me.DictField()
 
-    is_ibm_user = me.BooleanField()
-
     open_id_url = HtmlSafeStrField()
-    g_plus_url = HtmlSafeStrField()
-    github_url = HtmlSafeStrField()
 
     password_reset_token_ip_addr = me.StringField()
     password_reset_token = me.StringField()
     password_reset_token_created = me.FloatField()
+    whitelist_ip_token_ip_addr = me.StringField()
+    whitelist_ip_token = me.StringField()
+    whitelist_ip_token_created = me.FloatField()
     user_agent = me.StringField()
-    social_auth_users = me.MapField(field=me.ReferenceField(SocialAuthUser))
     username = me.StringField()
 
     can_create_org = me.BooleanField(default=True)
     beta_access = me.BooleanField(default=True)
+
+    ips = me.EmbeddedDocumentListField(WhitelistIP, default=[])
 
     meta = {
         'indexes': [
@@ -454,6 +469,7 @@ class Organization(Owner):
     promo_codes = me.ListField()
     selected_plan = me.StringField()
     enterprise_plan = me.DictField()
+    enable_r12ns = me.BooleanField(required=True, default=False)
 
     try:
         import mist.core
@@ -473,7 +489,11 @@ class Organization(Owner):
     @property
     def mapper(self):
         """Returns the `PermissionMapper` for the current Org context."""
-        return PermissionMapper(self)
+        try:
+            from mist.core.rbac.tasks import AsyncPermissionMapper
+        except ImportError:
+            from mist.api.dummy.mappings import AsyncPermissionMapper
+        return AsyncPermissionMapper(self)
 
     def __str__(self):
         return 'Org %s (%d teams - %d members)' % (self.name, len(self.teams),
