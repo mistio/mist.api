@@ -1045,12 +1045,43 @@ def _create_machine_azure_arm(conn, public_key, machine_name, image,
         storage_account = ex_storage_account
 
     if create_network:
+        #create a security group and open ports
+        securityRules = [
+            {
+                "name": "allowInbound",
+                "properties": {
+                    "protocol": "*",
+                    "sourceAddressPrefix": "*",
+                    "destinationAddressPrefix": "*",
+                    "access": "Allow",
+                    "destinationPortRange": "*",
+                    "sourcePortRange": "*",
+                    "priority": 130,
+                    "direction": "Inbound"
+                }
+            },
+            {
+                "name": "allowOutbound",
+                "properties": {
+                    "protocol": "*",
+                    "sourceAddressPrefix": "*",
+                    "destinationAddressPrefix": "*",
+                    "access": "Allow",
+                    "destinationPortRange": "*",
+                    "sourcePortRange": "*",
+                    "priority": 131,
+                    "direction": "Outbound"
+                }
+            }
+        ]
+        sg = conn.ex_create_network_security_group(new_network, resource_group, location=location, securityRules=securityRules)
         # create the new network
         ex_network = conn.ex_create_network(new_network,
                                             resource_group, location)
     else:
         # select the right network object
         ex_network = None
+        sg = ""
         try:
             if networks:
                 available_networks = conn.ex_list_networks()
@@ -1065,10 +1096,17 @@ def _create_machine_azure_arm(conn, public_key, machine_name, image,
 
     ex_ip = conn.ex_create_public_ip(machine_name, resource_group, location)
 
-    ex_nic = conn.ex_create_network_interface(machine_name, ex_subnet,
+    if sg:
+          ex_nic = conn.ex_create_network_interface(machine_name, ex_subnet,
                                               resource_group,
                                               location=location,
-                                              public_ip=ex_ip)
+                                              public_ip=ex_ip,
+                                              networkSecurityGroup=sg.id)
+    else:
+        ex_nic = conn.ex_create_network_interface(machine_name, ex_subnet,
+                                                  resource_group,
+                                                  location=location,
+                                                  public_ip=ex_ip)
 
     try:
         node = conn.create_node(
