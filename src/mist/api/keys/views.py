@@ -138,7 +138,6 @@ def delete_keys(request):
       type: array
       items:
         type: string
-        name: key_id
     """
     auth_context = auth_context_from_request(request)
 

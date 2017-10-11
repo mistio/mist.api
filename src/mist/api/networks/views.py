@@ -65,9 +65,9 @@ def create_network(request):
       type: string
     network:
       required: true
-      type: dict
+      type: object
     subnet:
-      type: dict
+      type: object
     """
     cloud_id = request.matchdict['cloud']
 

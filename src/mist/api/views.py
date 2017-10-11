@@ -1018,7 +1018,7 @@ def create_subnet(request):
       type: string
     subnet:
       required: true
-      type: dict
+      type: object
     """
     cloud_id = request.matchdict['cloud']
     network_id = request.matchdict['network']
@@ -2295,9 +2295,8 @@ def delete_teams(request):
     team_ids:
       required: true
       type: array
-    items:
-      type: string
-      name: team_id
+      items:
+        type: string
     """
     auth_context = auth_context_from_request(request)
     org_id = request.matchdict['org_id']
