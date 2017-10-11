@@ -1048,7 +1048,7 @@ def _create_machine_azure_arm(conn, public_key, machine_name, image,
         #create a security group and open ports
         securityRules = [
             {
-                "name": "allowInbound",
+                "name": "allowSSHInbound",
                 "properties": {
                     "protocol": "*",
                     "sourceAddressPrefix": "*",
@@ -1061,6 +1061,19 @@ def _create_machine_azure_arm(conn, public_key, machine_name, image,
                 }
             },
             {
+                "name": "allowRDPInbound",
+                "properties": {
+                    "protocol": "*",
+                    "sourceAddressPrefix": "*",
+                    "destinationAddressPrefix": "*",
+                    "access": "Allow",
+                    "destinationPortRange": "3389",
+                    "sourcePortRange": "*",
+                    "priority": 201,
+                    "direction": "Inbound"
+                }
+            },
+            {
                 "name": "allowOutbound",
                 "properties": {
                     "protocol": "*",
@@ -1069,7 +1082,7 @@ def _create_machine_azure_arm(conn, public_key, machine_name, image,
                     "access": "Allow",
                     "destinationPortRange": "*",
                     "sourcePortRange": "*",
-                    "priority": 201,
+                    "priority": 202,
                     "direction": "Outbound"
                 }
             }
