@@ -1048,7 +1048,7 @@ def _create_machine_azure_arm(conn, public_key, machine_name, image,
         storage_account = ex_storage_account
 
     if create_network:
-        #create a security group and open ports
+        # create a security group and open ports
         securityRules = [
             {
                 "name": "allowSSHInbound",
