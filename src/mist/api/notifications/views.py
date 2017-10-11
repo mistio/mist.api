@@ -48,7 +48,9 @@ def get_notification_overrides(request):
              request_method='PUT', renderer='json')
 def set_notification_overrides(request):
     """
-    Set notification overrides for user, org policy
+    Set notification overrides for user, org policy.
+    Count of notification overrides in request must match
+    count of those stored.
     ---
     """
     auth_context = auth_context_from_request(request)
@@ -66,3 +68,25 @@ def set_notification_overrides(request):
             assert(override.channel == new_override["channel"])
             override.value = new_override["value"]
             override.save()
+
+
+@view_config(route_name='api_v1_notification_overrides',
+             request_method='DELETE', renderer='json')
+def delete_notification_override(request):
+    """
+    Delete a notification override.
+    ---
+    """
+    auth_context = auth_context_from_request(request)
+    request_body = json.loads(request.body)
+    override_id = request_body["override_id"]
+    user = auth_context.user
+    org = auth_context.org
+    policies = UserNotificationPolicy.objects(user=user, organization=org)
+        if policies:
+            policy = policies[0]
+            for override in policy.overrides:
+                if override.id == override_id
+                override.delete()
+                return json.dumps({"id": override_id,
+                                   "status": "deleted"})
