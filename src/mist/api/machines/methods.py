@@ -2,7 +2,6 @@ import re
 import random
 import base64
 import mongoengine as me
-import time
 
 from libcloud.compute.base import NodeSize, NodeImage, NodeLocation, Node
 from libcloud.compute.types import Provider
@@ -1032,7 +1031,6 @@ def _create_machine_azure_arm(conn, public_key, machine_name, image,
     if create_resource_group:
         conn.ex_create_resource_group(new_resource_group, location)
         resource_group = new_resource_group
-        time.sleep(5)
     else:
         resource_group = ex_resource_group
 
@@ -1040,7 +1038,6 @@ def _create_machine_azure_arm(conn, public_key, machine_name, image,
         conn.ex_create_storage_account(new_storage_account, resource_group,
                                        'Storage', location)
         storage_account = new_storage_account
-        time.sleep(5)
     else:
         storage_account = ex_storage_account
 
