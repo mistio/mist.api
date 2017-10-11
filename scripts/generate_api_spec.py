@@ -13,7 +13,8 @@ for p in paths:
 
 import mist.api
 
-BASE_SPEC_FILE_PATH = os.path.join(this_dir,'base.yml')
+BASE_FILE_PATH = os.path.join(this_dir,'base.yml')
+OAS_FILE_PATH = os.path.join(this_dir,'spec.yml')
 
 def docstring_to_object(docstring):
     if not docstring:
@@ -56,10 +57,10 @@ def main():
             paths[path] = {}
         paths[path][method] = operation
 
-    with open(BASE_SPEC_FILE_PATH,'r') as f:
+    with open(BASE_FILE_PATH,'r') as f:
         openapi = yaml.safe_load(f.read())
         openapi['paths'] = paths
-    with open('spec.yml','w') as f:
+    with open(OAS_FILE_PATH,'w') as f:
         yaml.dump(openapi,f,default_flow_style=False)
 
 if __name__ == '__main__':
