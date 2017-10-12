@@ -2,6 +2,7 @@ import re
 import random
 import base64
 import mongoengine as me
+import time
 
 from libcloud.compute.base import NodeSize, NodeImage, NodeLocation, Node
 from libcloud.compute.types import Provider
@@ -284,22 +285,13 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
     elif conn.type == Provider.AZURE_ARM:
         image = conn.get_image(image_id, location)
         node = _create_machine_azure_arm(
-            conn, public_key, machine_name,
+            owner, cloud_id, conn, public_key, machine_name,
             image, size, location, networks,
             ex_storage_account, machine_password, ex_resource_group,
             create_network, new_network,
             create_resource_group, new_resource_group,
             create_storage_account, new_storage_account
         )
-        taskRG = mist.api.tasks.ListResGroups()
-        taskRG.clear_cache(owner.id, cloud_id)
-        taskRG.delay(owner.id, cloud_id)
-        taskSA = mist.api.tasks.ListStorAccnts()
-        taskSA.clear_cache(owner.id, cloud_id)
-        taskSA.delay(owner.id, cloud_id)
-        taskNET = mist.api.tasks.ListNetworks()
-        taskNET.clear_cache(owner.id, cloud_id)
-        taskNET.delay(owner.id, cloud_id)
     elif conn.type in [Provider.VCLOUD]:
         node = _create_machine_vcloud(conn, machine_name, image,
                                       size, public_key, networks)
@@ -1018,10 +1010,10 @@ def _create_machine_vultr(conn, public_key, machine_name, image,
     return node
 
 
-def _create_machine_azure_arm(conn, public_key, machine_name, image,
-                              size, location, networks, ex_storage_account,
-                              machine_password, ex_resource_group,
-                              create_network, new_network,
+def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
+                              image, size, location, networks,
+                              ex_storage_account, machine_password,
+                              ex_resource_group, create_network, new_network,
                               create_resource_group, new_resource_group,
                               create_storage_account, new_storage_account):
     """Create a machine Azure ARM.
@@ -1041,6 +1033,11 @@ def _create_machine_azure_arm(conn, public_key, machine_name, image,
         try:
             conn.ex_create_resource_group(new_resource_group, location)
             resource_group = new_resource_group
+            time.sleep(5)
+            # clear resource groups cache
+            taskRG = mist.api.tasks.ListResGroups()
+            taskRG.clear_cache(owner.id, cloud_id)
+            taskRG.delay(owner.id, cloud_id)
         except Exception as exc:
             raise InternalServerError("Couldn't create resource group", exc)
     else:
@@ -1052,6 +1049,10 @@ def _create_machine_azure_arm(conn, public_key, machine_name, image,
                                            resource_group,
                                            'Storage', location)
             storage_account = new_storage_account
+            # clear storage accounts cache
+            taskSA = mist.api.tasks.ListStorAccnts()
+            taskSA.clear_cache(owner.id, cloud_id)
+            taskSA.delay(owner.id, cloud_id)
         except Exception as exc:
             raise InternalServerError("Couldn't create storage account", exc)
     else:
@@ -1102,10 +1103,11 @@ def _create_machine_azure_arm(conn, public_key, machine_name, image,
         ]
         try:
             sg = conn.ex_create_network_security_group(
-                     new_network,
-                     resource_group,
-                     location=location,
-                     securityRules=securityRules)
+                new_network,
+                resource_group,
+                location=location,
+                securityRules=securityRules
+            )
         except Exception as exc:
             raise InternalServerError("Couldn't create security group", exc)
 
