@@ -1035,15 +1035,22 @@ def _create_machine_azure_arm(conn, public_key, machine_name, image,
         k = NodeAuthSSHKey(public_key)
 
     if create_resource_group:
-        conn.ex_create_resource_group(new_resource_group, location)
-        resource_group = new_resource_group
+        try:
+            conn.ex_create_resource_group(new_resource_group, location)
+            resource_group = new_resource_group
+        except Exception as exc:
+            raise InternalServerError("Couldn't create resource group", exc)
     else:
         resource_group = ex_resource_group
 
     if create_storage_account:
-        conn.ex_create_storage_account(new_storage_account, resource_group,
-                                       'Storage', location)
-        storage_account = new_storage_account
+        try:
+            conn.ex_create_storage_account(new_storage_account,
+                                           resource_group,
+                                           'Storage', location)
+            storage_account = new_storage_account
+        except Exception as exc:
+            raise InternalServerError("Couldn't create storage account", exc)
     else:
         storage_account = ex_storage_account
 
@@ -1090,15 +1097,24 @@ def _create_machine_azure_arm(conn, public_key, machine_name, image,
                 }
             }
         ]
-        sg = conn.ex_create_network_security_group(new_network,
-                                                   resource_group,
-                                                   location=location,
-                                                   securityRules=securityRules)
+        try:
+            sg = conn.ex_create_network_security_group(
+                          new_network,
+                          resource_group,
+                          location=location,
+                          securityRules=securityRules
+                      )
+        except Exception as exc:
+            raise InternalServerError("Couldn't create security group", exc)
+
         # create the new network
-        ex_network = conn.ex_create_network(new_network,
-                                            resource_group,
-                                            location=location,
-                                            networkSecurityGroup=sg.id)
+        try:
+            ex_network = conn.ex_create_network(new_network,
+                                                resource_group,
+                                                location=location,
+                                                networkSecurityGroup=sg.id)
+        except Exception as exc:
+            raise InternalServerError("Couldn't create new network", exc)
     else:
         # select the right network object
         ex_network = None
@@ -1115,12 +1131,20 @@ def _create_machine_azure_arm(conn, public_key, machine_name, image,
 
     ex_subnet = conn.ex_list_subnets(ex_network)[0]
 
-    ex_ip = conn.ex_create_public_ip(machine_name, resource_group, location)
+    try:
+        ex_ip = conn.ex_create_public_ip(machine_name,
+                                         resource_group,
+                                         location)
+    except Exception as exc:
+        raise InternalServerError("Couldn't create new ip", exc)
 
-    ex_nic = conn.ex_create_network_interface(machine_name, ex_subnet,
-                                              resource_group,
-                                              location=location,
-                                              public_ip=ex_ip)
+    try:
+        ex_nic = conn.ex_create_network_interface(machine_name, ex_subnet,
+                                                  resource_group,
+                                                  location=location,
+                                                  public_ip=ex_ip)
+    except Exception as exc:
+        raise InternalServerError("Couldn't create network interface", exc)
 
     try:
         node = conn.create_node(
