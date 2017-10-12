@@ -2,7 +2,6 @@ import re
 import random
 import base64
 import mongoengine as me
-import time
 
 from libcloud.compute.base import NodeSize, NodeImage, NodeLocation, Node
 from libcloud.compute.types import Provider
@@ -1033,7 +1032,6 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
         try:
             conn.ex_create_resource_group(new_resource_group, location)
             resource_group = new_resource_group
-            time.sleep(5)
             # clear resource groups cache
             taskRG = mist.api.tasks.ListResGroups()
             taskRG.clear_cache(owner.id, cloud_id)
