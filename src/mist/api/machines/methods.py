@@ -180,7 +180,9 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
 
     # if key_id not provided, search for default key
     if conn.type not in [Provider.LIBVIRT,
-                         Container_Provider.DOCKER, Provider.ONAPP]:
+                         Container_Provider.DOCKER,
+                         Provider.ONAPP,
+                         Provider.AZURE_ARM]:
         if not key_id:
             key = Key.objects.get(owner=owner, default=True, deleted=None)
             key_id = key.name
@@ -1022,7 +1024,8 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
     sanitized by create_machine.
 
     """
-    public_key.replace('\n', '')
+    if public_key:
+        public_key = public_key.replace('\n', '')
 
     if 'microsoft' in image.name.lower():
         k = NodeAuthPassword(machine_password)
