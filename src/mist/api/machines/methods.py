@@ -1088,13 +1088,13 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
                 }
             },
             {
-                "name": "allowOutbound",
+                "name": "allowMonitoringOutbound",
                 "properties": {
                     "protocol": "*",
                     "sourceAddressPrefix": "*",
                     "destinationAddressPrefix": "*",
                     "access": "Allow",
-                    "destinationPortRange": "*",
+                    "destinationPortRange": "25826",
                     "sourcePortRange": "*",
                     "priority": 202,
                     "direction": "Outbound"
