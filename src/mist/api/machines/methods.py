@@ -297,6 +297,9 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
         taskSA = mist.api.tasks.ListStorAccnts()
         taskSA.clear_cache(owner.id, cloud_id)
         taskSA.delay(owner.id, cloud_id)
+        taskNET = mist.api.tasks.ListNetworks()
+        taskNET.clear_cache(owner.id, cloud_id)
+        taskNET.delay(owner.id, cloud_id)
     elif conn.type in [Provider.VCLOUD]:
         node = _create_machine_vcloud(conn, machine_name, image,
                                       size, public_key, networks)
