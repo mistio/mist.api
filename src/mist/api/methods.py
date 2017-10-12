@@ -191,7 +191,7 @@ def list_resource_groups(owner, cloud_id):
     return ret
 
 
-def list_stor_accounts(owner, cloud_id):
+def list_storage_accounts(owner, cloud_id):
     """List storage accounts for each account.
     Currently supported for Azure Arm. For other providers
     this returns an empty list

@@ -789,7 +789,7 @@ class ListProjects(UserTask):
         return {'cloud_id': cloud_id, 'projects': projects}
 
 
-class ListResGroups(UserTask):
+class ListResourceGroups(UserTask):
     abstract = False
     task_key = 'list_resource_groups'
     result_expires = 60 * 60 * 24 * 7
@@ -807,9 +807,9 @@ class ListResGroups(UserTask):
                  owner.id, cloud_id)
         return {'cloud_id': cloud_id, 'resource_groups': resource_groups}
 
-class ListStorAccnts(UserTask):
+class ListStorageAccounts(UserTask):
     abstract = False
-    task_key = 'list_stor_accounts'
+    task_key = 'list_storage_accounts'
     result_expires = 60 * 60 * 24 * 7
     result_fresh = 60 * 60
     polling = False
@@ -820,10 +820,10 @@ class ListStorAccnts(UserTask):
         log.warn('Running list storage accounts for user %s cloud %s',
                  owner.id, cloud_id)
         from mist.api import methods
-        stor_accounts = methods.list_stor_accounts(owner, cloud_id)
+        storage_accounts = methods.list_storage_accounts(owner, cloud_id)
         log.warn('Returning list storage accounts for user %s cloud %s',
                  owner.id, cloud_id)
-        return {'cloud_id': cloud_id, 'stor_accounts': stor_accounts}
+        return {'cloud_id': cloud_id, 'storage_accounts': storage_accounts}
 
 
 class ListMachines(UserTask):
