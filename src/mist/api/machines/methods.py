@@ -1102,11 +1102,10 @@ def _create_machine_azure_arm(conn, public_key, machine_name, image,
         ]
         try:
             sg = conn.ex_create_network_security_group(
-                          new_network,
-                          resource_group,
-                          location=location,
-                          securityRules=securityRules
-                      )
+                      new_network,
+                      resource_group,
+                      location=location,
+                      securityRules=securityRules)
         except Exception as exc:
             raise InternalServerError("Couldn't create security group", exc)
 
