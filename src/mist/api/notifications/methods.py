@@ -8,35 +8,72 @@ NOTIFICATION POLICIES
 '''
 
 
-def add_rule(user, org, notification, value='BLOCK'):
+def add_override(notification, value='BLOCK'):
     '''
-    Adds a notification rule to a user-org policy
-    for the specified notification type.
+    Adds a notification override to a user-org policy
+    using matching fields of the specified notification.
     Creates the policy if it does not exist.
     '''
+    user = notification.user
+    org = notification.organization
     policy = get_policy(user, org)
     source = type(notification).__name__
-    rules = [rule for rule in policy.rules if rule.source == source]
-    if not rules:
-        rule = models.NotificationRule()
-        rule.source = source
-        rule.value = value
-        policy.rules.append(rule)
+    overrides = [
+        override for override in policy.overrides if override.source == source]
+    if not overrides:
+        override = models.NotificationOverride()
+        override.source = source
+        override.value = value
+        if notification.machine:
+            override.machine = notification.machine
+        if notification.tag:
+            override.tag = notification.tag
+        if notification.cloud:
+            override.cloud = notification.cloud
+        policy.overrides.append(override)
         policy.save()
 
 
-def remove_rule(user, org, notification):
+def add_override_source(user, org, source, value='BLOCK'):
     '''
-    Removes a notification rule to a user-org policy
-    for the specified notification type.
+    Adds a notification override to a user-org policy
+    for the specified source.
     Creates the policy if it does not exist.
     '''
     policy = get_policy(user, org)
-    source = type(notification).__name__
-    rules = [rule for rule in policy.rules if rule.source == source]
-    if rules:
-        policy.rules.remove(rules[0])
+    overrides = [
+        override for override in policy.overrides if override.source == source]
+    if not overrides:
+        override = models.NotificationOverride()
+        override.source = source
+        override.value = value
+        policy.overrides.append(override)
         policy.save()
+
+
+def remove_override(notification):
+    '''
+    Removes a notification override to a user-org policy
+    for the specified notification type.
+    Creates the policy if it does not exist.
+    '''
+    user = notification.user
+    org = notification.organization
+    policy = get_policy(user, org)
+    source = type(notification).__name__
+    for override in policy.overrides:
+        if (override.tag and notification.tag and
+                override.tag != notification.tag):
+            continue
+        if (override.cloud and notification.cloud and
+                override.cloud != notification.cloud):
+            continue
+        if (override.machine and notification.machine and
+                override.machine != notification.machine):
+            continue
+        if override.source == source:
+            policy.overrides.remove(override)
+    policy.save()
 
 
 def get_policy(user, org, create=True):
