@@ -396,10 +396,7 @@ class BaseComputeController(BaseController):
         # Append generic-type machines, which aren't handled by libcloud.
         for machine in self._list_machines__fetch_generic_machines():
             machine.last_seen = now
-            machine.missing_since = None
-            if machine.cloud.ctl.provider != 'bare_metal' or \
-                    machine.state != 'terminated':
-                machine.state = config.STATES[NodeState.UNKNOWN]
+            self._list_machines__update_state(machine)
             for action in ('start', 'stop', 'reboot', 'destroy', 'rename',
                            'resume', 'suspend', 'undefine', 'remove'):
                 setattr(machine.actions, action, False)
@@ -448,8 +445,13 @@ class BaseComputeController(BaseController):
             self.disconnect()
         except Exception as exc:
             log.warning("Error while closing connection: %r", exc)
-
         return machines
+
+    def _list_machines__update_state(self, machine):
+        """Helper method to update the machine state.
+
+        This is only overriden by the OtherServer Controller"""
+        pass
 
     def _list_machines__fetch_machines(self):
         """Perform the actual libcloud call to get list of nodes"""

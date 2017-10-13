@@ -51,6 +51,9 @@ class MachineController(object):
         return self.machine.cloud.ctl.compute.rename_machine(self.machine,
                                                              name)
 
+    def add(self, kwargs):
+        """Adds a new machine"""
+
     # TODO we want this also ?
     # def tag(self):
     #     return self.machine.cloud.ctl.compute.tag(self.machine)

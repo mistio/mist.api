@@ -249,6 +249,7 @@ class Machine(me.Document):
 
     last_seen = me.DateTimeField()
     missing_since = me.DateTimeField()
+    unreachable_since = me.DateTimeField()
     created = me.DateTimeField()
 
     monitoring = me.EmbeddedDocumentField(Monitoring,

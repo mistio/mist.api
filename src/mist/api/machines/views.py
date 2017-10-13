@@ -366,6 +366,62 @@ def create_machine(request):
     ret.update({'job': job})
     return ret
 
+@view_config(route_name='api_v1_machines', request_method='PUT',
+             renderer='json')
+def add_machine(request):
+    """
+    Add a machine to an OtherServer Cloud. This works for bare_metal clouds.
+    """
+    cloud_id = request.matchdict.get('cloud')
+    params = params_from_request(request)
+    machine_ip = params.get('machine_ip')
+    if not machine_ip:
+        raise RequiredParameterMissingError("machine_ip")
+
+    async = params.get('async', False)
+    operating_system = params.get('operating_system', '')
+    machine_name = params.get('machine_name', '')
+    machine_key = params.get('machine_key', '')
+    machine_user = params.get('machine_user', '')
+    machine_port = params.get('machine_port', '')
+    remote_desktop_port = params.get('remote_desktop_port', '')
+    monitoring = params.get('monitoring', '')
+
+    job_id = params.get('job_id')
+    if not job_id:
+        job = 'add_machine'
+        job_id = uuid.uuid4().hex
+    else:
+        job = None
+
+
+    auth_context = auth_context_from_request(request)
+    auth_context.check_perm("cloud", "read", cloud_id)
+
+    if machine_key:
+        auth_context.check_perm("key", "read", machine_key)
+
+    try:
+        Cloud.objects.get(owner=auth_context.owner,
+                          id=cloud_id, deleted=None)
+    except Cloud.DoesNotExist:
+        raise NotFoundError('Cloud does not exist')
+
+    kwargs = {
+        'host': machine_ip,
+        'machine_name': machine_name,
+        'os_type': operating_system,
+        'ssh_user': machine_user,
+        'ssh_key': machine_key,
+        'ssh_port': machine_port,
+        'rdp_port': remote_desktop_port,
+        'monitoring': monitoring,
+        'job_id': job_id
+    }
+
+    ret = methods.add_machine(auth_context.owner, cloud_id, **kwargs)
+    return ret
+
 
 @view_config(route_name='api_v1_cloud_machine',
              request_method='POST', renderer='json')

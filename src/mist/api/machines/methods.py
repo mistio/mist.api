@@ -112,6 +112,36 @@ def list_machines(owner, cloud_id):
     return [machine.as_dict() for machine in machines]
 
 
+def add_machine(owner, cloud_id, machine_name, host, ssh_key, monitoring,
+                ssh_user='root', ssh_port=22, os_type='unix', rdp_port=3389,
+                job_id=None, fail_on_error=True):
+    """Method that adds a bare metal server to a bare metal cloud."""
+
+    log.info('Adding bare metal machine %s on cloud %s' \
+             % (machine_name, cloud_id))
+    cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
+
+    machine_name = cloud.title + '_' + machine_name
+    try:
+        machine = cloud.ctl.add_machine(machine_name, host=host,
+                                        ssh_user=ssh_user, ssh_port=ssh_port,
+                                        ssh_key=ssh_key, os_type=os_type,
+                                        rdp_port=rdp_port,
+                                        fail_on_error=fail_on_error)
+    except Exception as e:
+        raise MachineCreationError("OtherServer, got exception %r" % e,
+                                   exc=e)
+    # TODO maybe also here enable monitoring?
+    ret = {'id': machine.id,
+           'name': machine.name,
+           'extra': {},
+           'public_ips': machine.public_ips,
+           'private_ips': machine.private_ips,
+           'job_id': job_id,
+           }
+    return ret
+
+
 def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                    image_id, size_id, image_extra, disk, image_name,
                    size_name, location_name, ips, monitoring, networks=[],
@@ -159,33 +189,6 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
     # post_script_params: extra params, for post_script_id
     log.info('Creating machine %s on cloud %s' % (machine_name, cloud_id))
     cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
-
-    # add vm to other server cloud
-    if cloud.ctl.provider == 'bare_metal':
-        # TODO add validation for name
-        # TODO ui must send the following params:
-        # ssh_port, ssh_user
-        # rdp_port
-        # host, os_type
-        host = ips
-        machine_name = cloud.title + '_' + machine_name
-        try:
-            machine = cloud.ctl.add_machine(machine_name, host=host,
-                                            ssh_user='root', ssh_port=ssh_port,
-                                            ssh_key=key_id, os_type='unix',
-                                            rdp_port=3389, fail_on_error=True)
-        except Exception as e:
-            raise MachineCreationError("OtherServer, got exception %r" % e,
-                                       exc=e)
-        # TODO maybe also here enable monitoring?
-        ret = {'id': machine.id,
-               'name': machine.name,
-               'extra': {},
-               'public_ips': machine.public_ips,
-               'private_ips': machine.private_ips,
-               'job_id': job_id,
-               }
-        return ret
 
     conn = connect_provider(cloud)
 

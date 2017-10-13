@@ -24,6 +24,7 @@ import re
 import copy
 import socket
 import logging
+import datetime
 import netaddr
 import tempfile
 import iso8601
@@ -1302,11 +1303,18 @@ class OtherComputeController(BaseComputeController):
     def _list_machines__fetch_machines(self):
         return []
 
+    def _list_machines__update_state(self, machine):
+        if machine.ssh_probe:
+            machine.state = config.STATES[NodeState.RUNNING]
+            machine.unreachable_since = None
+        elif machine.unreachable_since:
+            machine.state = config.STATES[NodeState.UNKNOWN]
+
     def _get_machine_libcloud(self, machine):
         return None
 
     def _list_machines__fetch_generic_machines(self):
-        return Machine.objects(cloud=self.cloud)
+        return Machine.objects(cloud=self.cloud, missing_since=None)
 
     def reboot_machine(self, machine):
         return self.reboot_machine_ssh(machine)
@@ -1314,7 +1322,7 @@ class OtherComputeController(BaseComputeController):
     def remove_machine(self, machine):
         while machine.key_associations:
             machine.key_associations.pop()
-        machine.state = 'terminated'
+        machine.missing_since = datetime.datetime.now()
         machine.save()
 
     def list_images(self, search=None):
