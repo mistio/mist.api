@@ -6,7 +6,7 @@ import mongoengine as me
 from functools import partial
 from datetime import datetime, timedelta
 
-from mist.api.users.models import User, Organization
+from mist.api.users.models import User, Organization, SocialAuthUser
 from mist.api.exceptions import UserNotFoundError
 
 try:
@@ -178,3 +178,4 @@ class SessionToken(AuthToken):
     fingerprint = me.StringField(default='')
     experiment = me.StringField(default='')
     choice = me.StringField(default='')
+

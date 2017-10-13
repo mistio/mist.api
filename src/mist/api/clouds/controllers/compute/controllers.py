@@ -34,7 +34,7 @@ import mongoengine as me
 from xml.sax.saxutils import escape
 
 from libcloud.pricing import get_size_price
-from libcloud.compute.base import Node, NodeImage
+from libcloud.compute.base import Node, NodeImage, NodeSize
 from libcloud.compute.providers import get_driver
 from libcloud.container.providers import get_driver as get_container_driver
 from libcloud.compute.types import Provider, NodeState
@@ -89,6 +89,21 @@ class AmazonComputeController(BaseComputeController):
         super(AmazonComputeController, self)._list_machines__machine_actions(
             machine, machine_libcloud)
         machine.actions.rename = True
+        if machine_libcloud.state != NodeState.TERMINATED:
+            machine.actions.resize = True
+
+    def _resize_machine(self, machine, machine_libcloud, plan_id, kwargs):
+        attributes = {'InstanceType.Value': plan_id}
+        # instance must be in stopped mode
+        if machine_libcloud.state != NodeState.STOPPED:
+            raise BadRequestError('The instance has to be stopped '
+                                  'in order to be resized')
+        try:
+            self.connection.ex_modify_instance_attribute(machine_libcloud,
+                                                         attributes)
+            self.connection.ex_start_node(machine_libcloud)
+        except Exception as exc:
+            raise BadRequestError('Failed to resize node: %s' % exc)
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         # Find os_type.
@@ -198,6 +213,9 @@ class DigitalOceanComputeController(BaseComputeController):
     def _connect(self):
         return get_driver(Provider.DIGITAL_OCEAN)(self.cloud.token)
 
+    def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        machine.size = machine['extra'].get('size_slug')
+
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
         return machine_libcloud.extra.get('created_at')  # iso8601 string
 
@@ -205,6 +223,13 @@ class DigitalOceanComputeController(BaseComputeController):
         super(DigitalOceanComputeController,
               self)._list_machines__machine_actions(machine, machine_libcloud)
         machine.actions.rename = True
+        machine.actions.resize = True
+
+    def _resize_machine(self, machine, machine_libcloud, plan_id, kwargs):
+        try:
+            self.connection.ex_resize_node(machine_libcloud, plan_id)
+        except Exception as exc:
+            raise BadRequestError('Failed to resize node: %s' % exc)
 
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         size = machine_libcloud.extra.get('size', {})
@@ -221,6 +246,9 @@ class LinodeComputeController(BaseComputeController):
 
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
         return machine_libcloud.extra.get('CREATE_DT')  # iso8601 string
+
+    def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        machine.size = machine['extra'].get('PLANID')
 
     def _list_machines__machine_actions(self, machine, machine_libcloud):
         super(LinodeComputeController, self)._list_machines__machine_actions(
@@ -761,6 +789,16 @@ class OpenStackComputeController(BaseComputeController):
         super(OpenStackComputeController,
               self)._list_machines__machine_actions(machine, machine_libcloud)
         machine.actions.rename = True
+        machine.actions.resize = True
+
+    def _resize_machine(self, machine, machine_libcloud, plan_id, kwargs):
+        size = NodeSize(plan_id, name=plan_id, ram='', disk='',
+                        bandwidth='', price='', driver=self.connection)
+        try:
+            self.connection.ex_resize(machine_libcloud, size)
+            self.connection.ex_confirm_resize(machine_libcloud)
+        except Exception as exc:
+            raise BadRequestError('Failed to resize node: %s' % exc)
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         # do not include ipv6 on public ips
@@ -769,6 +807,7 @@ class OpenStackComputeController(BaseComputeController):
             if ip and ':' not in ip:
                 public_ips.append(ip)
         machine.public_ips = public_ips
+        machine.size = machine['extra'].get('flavorId')
 
 
 class DockerComputeController(BaseComputeController):
