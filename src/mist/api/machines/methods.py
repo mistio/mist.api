@@ -117,7 +117,7 @@ def add_machine(owner, cloud_id, machine_name, host, ssh_key, monitoring,
                 job_id=None, fail_on_error=True):
     """Method that adds a bare metal server to a bare metal cloud."""
 
-    log.info('Adding bare metal machine %s on cloud %s' \
+    log.info('Adding bare metal machine %s on cloud %s'
              % (machine_name, cloud_id))
     cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
 
@@ -189,7 +189,6 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
     # post_script_params: extra params, for post_script_id
     log.info('Creating machine %s on cloud %s' % (machine_name, cloud_id))
     cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
-
     conn = connect_provider(cloud)
 
     machine_name = machine_name_validator(conn.type, machine_name)

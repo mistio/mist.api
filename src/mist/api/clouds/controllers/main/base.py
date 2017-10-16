@@ -358,5 +358,5 @@ class BaseMainController(object):
         Add a machine in a bare metal cloud.
         This is only supported on Other Server clouds.
         """
-        raise BadRequestError("Adding machines is only supported in Bare" \
+        raise BadRequestError("Adding machines is only supported in Bare"
                               "Metal clouds.")

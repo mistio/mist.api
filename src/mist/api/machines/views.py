@@ -366,6 +366,7 @@ def create_machine(request):
     ret.update({'job': job})
     return ret
 
+
 @view_config(route_name='api_v1_machines', request_method='PUT',
              renderer='json')
 def add_machine(request):
@@ -378,7 +379,6 @@ def add_machine(request):
     if not machine_ip:
         raise RequiredParameterMissingError("machine_ip")
 
-    async = params.get('async', False)
     operating_system = params.get('operating_system', '')
     machine_name = params.get('machine_name', '')
     machine_key = params.get('machine_key', '')
@@ -393,7 +393,6 @@ def add_machine(request):
         job_id = uuid.uuid4().hex
     else:
         job = None
-
 
     auth_context = auth_context_from_request(request)
     auth_context.check_perm("cloud", "read", cloud_id)
@@ -420,6 +419,7 @@ def add_machine(request):
     }
 
     ret = methods.add_machine(auth_context.owner, cloud_id, **kwargs)
+    ret.update({'job': job})
     return ret
 
 
