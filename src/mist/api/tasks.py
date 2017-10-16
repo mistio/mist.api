@@ -1018,7 +1018,7 @@ def create_machine_async(owner_id, cloud_id, key_id, machine_name, location_id,
                          softlayer_backend_vlan_id=None, size_ram=256, size_cpu=1,
                          size_disk_primary=5, size_disk_swap=1, boot=True, build=True,
                          cpu_priority=1, cpu_sockets=1, cpu_threads=1, port_speed=0,
-                         hypervisor_group_id=None):
+                         hypervisor_group_id=None, machine_username=''):
     from multiprocessing.dummy import Pool as ThreadPool
     from mist.api.machines.methods import create_machine
     from mist.api.exceptions import MachineCreationError
@@ -1083,7 +1083,8 @@ def create_machine_async(owner_id, cloud_id, key_id, machine_name, location_id,
              'cpu_sockets': cpu_sockets,
              'cpu_threads': cpu_threads,
              'port_speed': port_speed,
-             'hypervisor_group_id': hypervisor_group_id}
+             'hypervisor_group_id': hypervisor_group_id,
+             'machine_username': machine_username}
         ))
 
     def create_machine_wrapper(args_kwargs):

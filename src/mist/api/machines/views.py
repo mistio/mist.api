@@ -213,6 +213,7 @@ def create_machine(request):
     new_storage_account = params.get('new_storage_account', '')
     ex_storage_account = params.get('ex_storage_account', '')
     machine_password = params.get('machine_password', '')
+    machine_username = params.get('machine_username', '')
     create_resource_group = params.get('create_resource_group', False)
     new_resource_group = params.get('new_resource_group', '')
     ex_resource_group = params.get('ex_resource_group', '')
@@ -371,7 +372,8 @@ def create_machine(request):
               'cpu_sockets': cpu_sockets,
               'cpu_threads': cpu_threads,
               'port_speed': port_speed,
-              'hypervisor_group_id': hypervisor_group_id}
+              'hypervisor_group_id': hypervisor_group_id,
+              'machine_username': machine_username}
     if not async:
         ret = methods.create_machine(auth_context.owner, *args, **kwargs)
     else:

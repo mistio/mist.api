@@ -141,7 +141,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                    size_disk_primary=5, size_disk_swap=1,
                    boot=True, build=True,
                    cpu_priority=1, cpu_sockets=1, cpu_threads=1, port_speed=0,
-                   hypervisor_group_id=None):
+                   hypervisor_group_id=None, machine_username=''):
     """Creates a new virtual machine on the specified cloud.
 
     If the cloud is Rackspace it attempts to deploy the node with an ssh key
@@ -291,7 +291,8 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
             ex_storage_account, machine_password, ex_resource_group,
             create_network, new_network,
             create_resource_group, new_resource_group,
-            create_storage_account, new_storage_account
+            create_storage_account, new_storage_account,
+            machine_username
         )
     elif conn.type in [Provider.VCLOUD]:
         node = _create_machine_vcloud(conn, machine_name, image,
@@ -1016,7 +1017,8 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
                               ex_storage_account, machine_password,
                               ex_resource_group, create_network, new_network,
                               create_resource_group, new_resource_group,
-                              create_storage_account, new_storage_account):
+                              create_storage_account, new_storage_account,
+                              machine_username):
     """Create a machine Azure ARM.
 
     Here there is no checking done, all parameters are expected to be
@@ -1160,7 +1162,8 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
             ex_resource_group=resource_group,
             ex_storage_account=storage_account,
             ex_nic=ex_nic,
-            location=location
+            location=location,
+            ex_user_name=machine_username
         )
     except Exception as e:
         try:
