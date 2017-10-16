@@ -6,7 +6,6 @@ from mist.api.notifications.channels import (channel_instance_for_notification,
                                              NotificationsEncoder)
 
 from models import Notification, UserNotificationPolicy
-from channels import NotificationsEncoder
 
 
 @view_config(route_name='api_v1_dismiss_notification',
