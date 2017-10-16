@@ -6,6 +6,7 @@ from mist.api.notifications.channels import (channel_instance_for_notification,
                                              NotificationsEncoder)
 
 from models import Notification, UserNotificationPolicy
+from channels import NotificationsEncoder
 
 
 @view_config(route_name='api_v1_dismiss_notification',
@@ -87,6 +88,6 @@ def delete_notification_override(request):
         policy = policies[0]
         for override in policy.overrides:
             if override.id == override_id:
-                override.delete()
-                return json.dumps({"id": override_id,
-                                   "status": "deleted"})
+                policy.overrides.remove(override)
+                policy.save()
+                return json.dumps(policy.overrides, cls=NotificationsEncoder)
