@@ -291,7 +291,10 @@ class Machine(me.Document):
     def delete(self):
         super(Machine, self).delete()
         mist.api.tag.models.Tag.objects(resource=self).delete()
-        self.owner.mapper.remove(self)
+        try:
+            self.owner.mapper.remove(self)
+        except (AttributeError, me.DoesNotExist) as exc:
+            log.error(exc)
 
     def as_dict(self):
         # Return a dict as it will be returned to the API
