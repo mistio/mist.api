@@ -407,7 +407,8 @@ def _ping_host(host, pkts=10):
     ping = subprocess.Popen(['ping', '-c', str(pkts), '-i', '0.4', '-W',
                              '1', '-q', host], stdout=subprocess.PIPE)
     ping_parser = pingparsing.PingParsing()
-    return ping_parser.parse(ping.stdout.read())
+    ping_parser.parse(ping.stdout.read())
+    return ping_parser.as_dict()
 
 
 def ping(owner, host, pkts=10):
@@ -419,36 +420,7 @@ def ping(owner, host, pkts=10):
         result = super_ping(owner=owner, host=host, pkts=pkts)
 
     # In both cases, the returned dict is formatted by pingparsing.
-
-    # Properly cast values.
-    for key in result:
-        if result[key] == 'NaN':
-            result[key] = None
-    for key in ('sent', 'received'):
-        try:
-            result[key] = int(result[key])
-        except (ValueError, TypeError) as exc:
-            log.warning("Error casting ping result '%s=%s' to int: %r",
-                        key, result[key], exc)
-    for key in ('packet_loss', 'minping', 'maxping', 'avgping', 'jitter'):
-        try:
-            result[key] = float(result[key])
-        except (ValueError, TypeError) as exc:
-            log.warning("Error casting ping result '%s=%s' to float: %r",
-                        key, result[key], exc)
-
-    # Rename keys.
-    final = {}
-    for key, newkey in (('sent', 'packets_tx'),
-                        ('received', 'packets_rx'),
-                        ('packet_loss', 'packets_loss'),
-                        ('minping', 'rtt_min'),
-                        ('maxping', 'rtt_max'),
-                        ('avgping', 'rtt_avg'),
-                        ('jitter', 'rtt_stdev')):
-        if key in result:
-            final[newkey] = result[key]
-    return final
+    return result
 
 
 def find_public_ips(ips):
