@@ -118,6 +118,7 @@ class PingProbe(me.EmbeddedDocument):
     packets_tx = me.IntField()
     packets_rx = me.IntField()
     packets_loss = me.FloatField()
+    packet_duplicate = me.FloatField(default=0.0)
     rtt_min = me.FloatField()
     rtt_max = me.FloatField()
     rtt_avg = me.FloatField()

@@ -420,7 +420,20 @@ def ping(owner, host, pkts=10):
         result = super_ping(owner=owner, host=host, pkts=pkts)
 
     # In both cases, the returned dict is formatted by pingparsing.
-    return result
+
+    # Rename keys.
+    final = {}
+    for key, newkey in (('packet_transmit', 'packets_tx'),
+                        ('packet_receive', 'packets_rx'),
+                        ('packet_duplicate_rate', 'packets_duplicate'),
+                        ('packet_loss_rate', 'packets_loss'),
+                        ('rtt_min', 'rtt_min'),
+                        ('rtt_max', 'rtt_max'),
+                        ('rtt_avg', 'rtt_avg'),
+                        ('rtt_mdev', 'rtt_std')):
+        if key in result:
+            final[newkey] = result[key]
+    return final
 
 
 def find_public_ips(ips):
