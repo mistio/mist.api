@@ -7,7 +7,8 @@ import subprocess
 
 import requests
 
-import pingparser
+import pingparsing
+
 
 from mongoengine import ValidationError, NotUniqueError, DoesNotExist
 
@@ -405,7 +406,8 @@ def probe_ssh_only(owner, cloud_id, machine_id, host, key_id='', ssh_user='',
 def _ping_host(host, pkts=10):
     ping = subprocess.Popen(['ping', '-c', str(pkts), '-i', '0.4', '-W',
                              '1', '-q', host], stdout=subprocess.PIPE)
-    return pingparser.parse(ping.stdout.read())
+    ping_parser = pingparsing.PingParsing()
+    return ping_parser.parse(ping.stdout.read())
 
 
 def ping(owner, host, pkts=10):
@@ -416,7 +418,7 @@ def ping(owner, host, pkts=10):
     else:
         result = super_ping(owner=owner, host=host, pkts=pkts)
 
-    # In both cases, the returned dict is formatted by pingparser.
+    # In both cases, the returned dict is formatted by pingparsing.
 
     # Properly cast values.
     for key in result:
