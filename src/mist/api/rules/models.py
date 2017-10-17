@@ -160,6 +160,15 @@ class Rule(me.Document):
         """
         return None
 
+    def get_action(self, action_id):
+        """Return the action given its UUID.
+
+        If the action does not exist, a me.DoesNotExist exception will be
+        thrown. Exception handling should be taken care of by the caller.
+
+        """
+        return self.actions.get(id=action_id)
+
     def is_arbitrary(self):
         """Return True if self is arbitrary.
 
@@ -177,10 +186,27 @@ class Rule(me.Document):
         # have to change in the future due to uniqueness constrains.
         if not self.name:
             self.name = 'rule%d' % self.owner.rule_counter
+
         # FIXME Ensure a single query condition is specified for backwards
         # compatibility with the existing monitoring/alert stack.
         if not len(self.queries) is 1:
             raise me.ValidationError()
+
+        # Push the NotificationAction, if specified, at the beggining of the
+        # actions list. This way we make sure that users are always notified
+        # even if subsequent actions fail. We also enforce a single instance
+        # of the NotificationAction.
+        for i, action in enumerate(self.actions):
+            if isinstance(action, NotificationAction):
+                self.actions.pop(i)
+                self.actions.insert(0, action)
+                break
+        for action in self.actions[1:]:
+            if isinstance(action, NotificationAction):
+                raise me.ValidationError(
+                    "Multiple notifications are not supported. Users "
+                    "will always be notified at the beginning of the "
+                    "actions' cycle.")
 
     def as_dict(self):
         return {
