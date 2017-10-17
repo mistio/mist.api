@@ -520,7 +520,8 @@ class AzureArmComputeController(BaseComputeController):
         sizes = self.connection.list_sizes(location)
         for size in sizes:
             size.name += ' ' + str(size.extra['numberOfCores']) \
-                         + ' cpus/' + str(size.ram / 1024) + 'G RAM/ ' + str(size.disk) + 'GB SSD'
+                         + ' cpus/' + str(size.ram / 1024) + 'G RAM/ '
+                         + str(size.disk) + 'GB SSD'
         return sizes
 
     def _list_locations(self):
