@@ -141,6 +141,7 @@ class Record(me.Document):
     # we delete the zone.
     zone = me.ReferenceField(Zone, required=True,
                              reverse_delete_rule=me.CASCADE)
+    owner = me.ReferenceField('Organization', required=True)
 
     deleted = me.DateTimeField()
 
@@ -161,10 +162,6 @@ class Record(me.Document):
     def __init__(self, *args, **kwargs):
         super(Record, self).__init__(*args, **kwargs)
         self.ctl = RecordController(self)
-
-    @property
-    def owner(self):
-        return self.zone.owner
 
     @classmethod
     def add(cls, owner=None, zone=None, id='', **kwargs):
@@ -213,6 +210,8 @@ class Record(me.Document):
     def clean(self):
         """Overriding the default clean method to implement param checking"""
         self.type = self._record_type
+        if not self.owner:
+            self.owner = self.zone.owner
 
     def __str__(self):
         return 'Record %s (name:%s, type:%s) of %s' % (

@@ -118,6 +118,7 @@ class PingProbe(me.EmbeddedDocument):
     packets_tx = me.IntField()
     packets_rx = me.IntField()
     packets_loss = me.FloatField()
+    packet_duplicate = me.FloatField(default=0.0)
     rtt_min = me.FloatField()
     rtt_max = me.FloatField()
     rtt_avg = me.FloatField()
@@ -214,6 +215,7 @@ class Machine(me.Document):
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
 
     cloud = me.ReferenceField('Cloud', required=True)
+    owner = me.ReferenceField('Organization', required=True)
     name = me.StringField()
 
     # Info gathered mostly by libcloud (or in some cases user input).
@@ -273,11 +275,6 @@ class Machine(me.Document):
         super(Machine, self).__init__(*args, **kwargs)
         self.ctl = MachineController(self)
 
-    # Should this be a field? Should it be a @property? Or should it not exist?
-    @property
-    def owner(self):
-        return self.cloud.owner
-
     def clean(self):
         # Remove any KeyAssociation, whose `keypair` has been deleted. Do NOT
         # perform an atomic update on self, but rather remove items from the
@@ -287,6 +284,9 @@ class Machine(me.Document):
         for ka in reversed(range(len(self.key_associations))):
             if self.key_associations[ka].keypair.deleted:
                 self.key_associations.pop(ka)
+        # Populate owner field based on self.cloud.owner
+        if not self.owner:
+            self.owner = self.cloud.owner
         self.clean_os_type()
 
     def clean_os_type(self):
@@ -302,7 +302,10 @@ class Machine(me.Document):
     def delete(self):
         super(Machine, self).delete()
         mist.api.tag.models.Tag.objects(resource=self).delete()
-        self.owner.mapper.remove(self)
+        try:
+            self.owner.mapper.remove(self)
+        except (AttributeError, me.DoesNotExist) as exc:
+            log.error(exc)
 
     def as_dict(self):
         # Return a dict as it will be returned to the API
