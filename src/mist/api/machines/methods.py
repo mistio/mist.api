@@ -2,6 +2,7 @@ import re
 import random
 import base64
 import mongoengine as me
+import time
 
 from libcloud.compute.base import NodeSize, NodeImage, NodeLocation, Node
 from libcloud.compute.types import Provider
@@ -1041,6 +1042,8 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
             taskRG = mist.api.tasks.ListResourceGroups()
             taskRG.clear_cache(owner.id, cloud_id)
             taskRG.delay(owner.id, cloud_id)
+            # add delay cause sometimes the group is not yet ready
+            time.sleep(5)
         except Exception as exc:
             raise InternalServerError("Couldn't create resource group", exc)
     else:
@@ -1111,6 +1114,8 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
                 location=location,
                 securityRules=securityRules
             )
+            # add delay cause sometimes the group is not yet ready
+            time.sleep(3)
         except Exception as exc:
             raise InternalServerError("Couldn't create security group", exc)
 
