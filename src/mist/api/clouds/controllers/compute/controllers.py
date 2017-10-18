@@ -34,7 +34,7 @@ import mongoengine as me
 from xml.sax.saxutils import escape
 
 from libcloud.pricing import get_size_price
-from libcloud.compute.base import Node, NodeImage
+from libcloud.compute.base import Node, NodeImage, NodeSize
 from libcloud.compute.providers import get_driver
 from libcloud.container.providers import get_driver as get_container_driver
 from libcloud.compute.types import Provider, NodeState
@@ -89,10 +89,34 @@ class AmazonComputeController(BaseComputeController):
         super(AmazonComputeController, self)._list_machines__machine_actions(
             machine, machine_libcloud)
         machine.actions.rename = True
+        if machine_libcloud.state != NodeState.TERMINATED:
+            machine.actions.resize = True
+
+    def _resize_machine(self, machine, machine_libcloud, plan_id, kwargs):
+        attributes = {'InstanceType.Value': plan_id}
+        # instance must be in stopped mode
+        if machine_libcloud.state != NodeState.STOPPED:
+            raise BadRequestError('The instance has to be stopped '
+                                  'in order to be resized')
+        try:
+            self.connection.ex_modify_instance_attribute(machine_libcloud,
+                                                         attributes)
+            self.connection.ex_start_node(machine_libcloud)
+        except Exception as exc:
+            raise BadRequestError('Failed to resize node: %s' % exc)
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        # This is windows for windows servers and None for Linux.
-        machine.os_type = machine_libcloud.extra.get('platform', 'linux')
+        # Find os_type.
+        try:
+            machine.os_type = CloudImage.objects.get(
+                cloud_provider=machine_libcloud.driver.type,
+                image_id=machine_libcloud.extra.get('image_id'),
+            ).os_type
+        except:
+            # This is windows for windows servers and None for Linux.
+            machine.os_type = machine_libcloud.extra.get('platform')
+        if not machine.os_type:
+            machine.os_type = 'linux'
 
         try:
             # return list of ids for network interfaces as str
@@ -111,18 +135,11 @@ class AmazonComputeController(BaseComputeController):
         if machine_libcloud.state == NodeState.STOPPED:
             return 0, 0
 
-        image_id = machine_libcloud.extra.get('image_id')
-        try:
-            os_type = CloudImage.objects.get(
-                cloud_provider=machine_libcloud.driver.type, image_id=image_id
-            ).os_type
-        except:
-            os_type = 'linux'
         sizes = machine_libcloud.driver.list_sizes()
         size = machine_libcloud.extra.get('instance_type')
         for node_size in sizes:
             if node_size.id == size:
-                plan_price = node_size.price.get(os_type)
+                plan_price = node_size.price.get(machine.os_type)
                 if not plan_price:
                     # Use the default which is linux.
                     plan_price = node_size.price.get('linux')
@@ -196,6 +213,9 @@ class DigitalOceanComputeController(BaseComputeController):
     def _connect(self):
         return get_driver(Provider.DIGITAL_OCEAN)(self.cloud.token)
 
+    def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        machine.size = machine['extra'].get('size_slug')
+
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
         return machine_libcloud.extra.get('created_at')  # iso8601 string
 
@@ -203,6 +223,13 @@ class DigitalOceanComputeController(BaseComputeController):
         super(DigitalOceanComputeController,
               self)._list_machines__machine_actions(machine, machine_libcloud)
         machine.actions.rename = True
+        machine.actions.resize = True
+
+    def _resize_machine(self, machine, machine_libcloud, plan_id, kwargs):
+        try:
+            self.connection.ex_resize_node(machine_libcloud, plan_id)
+        except Exception as exc:
+            raise BadRequestError('Failed to resize node: %s' % exc)
 
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         size = machine_libcloud.extra.get('size', {})
@@ -219,6 +246,9 @@ class LinodeComputeController(BaseComputeController):
 
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
         return machine_libcloud.extra.get('CREATE_DT')  # iso8601 string
+
+    def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        machine.size = machine['extra'].get('PLANID')
 
     def _list_machines__machine_actions(self, machine, machine_libcloud):
         super(LinodeComputeController, self)._list_machines__machine_actions(
@@ -258,21 +288,13 @@ class RackSpaceComputeController(BaseComputeController):
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         # Need to get image in order to specify the OS type
         # out of the image id.
-        instance_image = machine_libcloud.extra.get('imageId')
-        try:
-            os_type = CloudImage.objects.get(
-                cloud_provider=machine_libcloud.driver.type,
-                image_id=instance_image
-            ).os_type
-        except:
-            os_type = 'linux'
         size = machine_libcloud.extra.get('flavorId')
         location = machine_libcloud.driver.region[:3]
         driver_name = 'rackspacenova' + location
         price = get_size_price(driver_type='compute', driver_name=driver_name,
                                size_id=size)
         if price:
-            plan_price = price.get(os_type, 'linux')
+            plan_price = price.get(machine.os_type) or price.get('linux')
             # 730 is the number of hours per month as on
             # https://www.rackspace.com/calculator
             return plan_price, float(plan_price) * 730
@@ -288,6 +310,15 @@ class RackSpaceComputeController(BaseComputeController):
             if ip and ':' not in ip:
                 public_ips.append(ip)
         machine.public_ips = public_ips
+
+        # Find os_type.
+        try:
+            machine.os_type = CloudImage.objects.get(
+                cloud_provider=machine_libcloud.driver.type,
+                image_id=machine_libcloud.extra.get('imageId'),
+            ).os_type
+        except:
+            machine.os_type = 'linux'
 
 
 class SoftLayerComputeController(BaseComputeController):
@@ -378,6 +409,9 @@ class AzureComputeController(BaseComputeController):
         return get_driver(Provider.AZURE)(self.cloud.subscription_id,
                                           tmp_cert_file.name)
 
+    def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        machine.os_type = machine_libcloud.extra.get('os_type', 'linux')
+
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         if machine_libcloud.state not in [NodeState.RUNNING, NodeState.PAUSED]:
             return 0, 0
@@ -453,6 +487,9 @@ class AzureArmComputeController(BaseComputeController):
                                               self.cloud.subscription_id,
                                               self.cloud.key,
                                               self.cloud.secret)
+
+    def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        machine.os_type = machine_libcloud.extra.get('os_type', 'linux')
 
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         if machine_libcloud.state not in [NodeState.RUNNING, NodeState.PAUSED]:
@@ -752,6 +789,16 @@ class OpenStackComputeController(BaseComputeController):
         super(OpenStackComputeController,
               self)._list_machines__machine_actions(machine, machine_libcloud)
         machine.actions.rename = True
+        machine.actions.resize = True
+
+    def _resize_machine(self, machine, machine_libcloud, plan_id, kwargs):
+        size = NodeSize(plan_id, name=plan_id, ram='', disk='',
+                        bandwidth='', price='', driver=self.connection)
+        try:
+            self.connection.ex_resize(machine_libcloud, size)
+            self.connection.ex_confirm_resize(machine_libcloud)
+        except Exception as exc:
+            raise BadRequestError('Failed to resize node: %s' % exc)
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         # do not include ipv6 on public ips
@@ -760,6 +807,7 @@ class OpenStackComputeController(BaseComputeController):
             if ip and ':' not in ip:
                 public_ips.append(ip)
         machine.public_ips = public_ips
+        machine.size = machine['extra'].get('flavorId')
 
 
 class DockerComputeController(BaseComputeController):

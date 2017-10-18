@@ -6,54 +6,74 @@ import mongoengine as me
 from mist.api.users.models import User, Organization
 
 
-class NotificationRule(me.EmbeddedDocument):
+class NotificationOverride(me.EmbeddedDocument):
     '''
-    Represents a single notification rule, with a notification source
-    and optional channel.
+    Represents a single notification override.
     '''
-    source = me.StringField(max_length=64, required=True, default="")
-    channel = me.StringField(max_length=64, required=False, default="")
+    source = me.StringField(
+        max_length=64,
+        required=True,
+        default="")  # eg "alerts"
+    channel = me.StringField(
+        max_length=64,
+        required=False,
+        default="")  # eg "InAppNotification"
+
+    machine = me.GenericReferenceField(required=False)
+    tag = me.GenericReferenceField(required=False)
+    cloud = me.GenericReferenceField(required=False)
+
     value = me.StringField(max_length=7, required=True,
                            choices=('ALLOW', 'BLOCK'), default='BLOCK')
+
+    def matches_notification(self, notification):
+        if self.machine and notification.machine:
+            if self.machine != notification.machine:
+                return False
+        if self.tag and notification.tag:
+            if self.tag != notification.tag:
+                return False
+        if self.cloud and notification.cloud:
+            if self.cloud != notification.cloud:
+                return False
+        return self.source == type(notification).__name__
 
 
 class UserNotificationPolicy(me.Document):
     '''
     Represents a notification policy associated with a
-    user-organization pair, and containing a list of rules.
+    user-organization pair, and containing a list of overrides.
     '''
-    rules = me.EmbeddedDocumentListField(NotificationRule)
+    overrides = me.EmbeddedDocumentListField(NotificationOverride)
     user = me.ReferenceField(User, required=True)
     organization = me.ReferenceField(Organization, required=True)
 
     def notification_allowed(self, notification, default=True):
         '''
-        Accepts a notification or string token and returns a boolean
+        Accepts a notification and returns a boolean
         indicating whether corresponding notification is allowed
         or is blocked
         '''
-        source = type(notification).__name__
-        for rule in self.rules:
-            if (rule.source == source and
-                    rule.value == 'BLOCK'):
-                return False
-            elif (rule.source == source and
-                    rule.value == 'ALLOW'):
-                return True
+        for override in self.overrides:
+            if override.matches_notification(notification):
+                if override.value == 'BLOCK':
+                    return False
+                elif override.value == 'ALLOW':
+                    return True
         return default
 
     def channel_allowed(self, channel, default=True):
         '''
-        Accepts a notification or string token and returns a boolean
+        Accepts a string token and returns a boolean
         indicating whether corresponding notification is allowed
         or is blocked
         '''
-        for rule in self.rules:
-            if (rule.source == channel and
-                    rule.value == 'BLOCK'):
+        for override in self.overrides:
+            if (override.source == channel and
+                    override.value == 'BLOCK'):
                 return False
-            elif (rule.source == channel and
-                    rule.value == 'ALLOW'):
+            elif (override.source == channel and
+                    override.value == 'ALLOW'):
                 return True
         return default
 
@@ -81,7 +101,10 @@ class Notification(me.Document):
 
     # taxonomy fields
     source = me.StringField(max_length=64, required=True, default="")
-    resource = me.GenericReferenceField(required=False)
+    machine = me.GenericReferenceField(required=False)
+    tag = me.GenericReferenceField(required=False)
+    cloud = me.GenericReferenceField(required=False)
+
     action_link = me.URLField(required=False)
 
     unique = me.BooleanField(required=True, default=True)
@@ -109,6 +132,29 @@ class Notification(me.Document):
         if not self.created_date:
             self.created_date = datetime.now()
 
+    def update_from(self, notification):
+        self.created_date = notification.created_date
+        self.expiry_date = notification.expiry_date
+
+        self.user = notification.user
+        self.organization = notification.organization
+
+        self.summary = notification.summary
+        self.body = notification.body
+        self.html_body = notification.html_body
+
+        self.source = notification.source
+        self.machine = notification.machine
+        self.tag = notification.tag
+        self.cloud = notification.cloud
+
+        self.unique = notification.unique
+
+        self.action_link = notification.action_link
+
+        self.severity = notification.severity
+        self.feedback = notification.feedback
+
 
 class EmailReport(Notification):
     '''
@@ -118,6 +164,13 @@ class EmailReport(Notification):
     subject = me.StringField(max_length=256, required=False, default="")
     email = me.EmailField(required=False)
     unsub_link = me.URLField(required=False)
+
+    def update_from(self, notification):
+        super(EmailReport, self).update_from(notification)
+
+        self.subject = notification.subject
+        self.email = notification.email
+        self.unsub_link = notification.unsub_link
 
 
 class InAppNotification(Notification):
@@ -130,6 +183,14 @@ class InAppNotification(Notification):
         default={})  # {"direction": "up"}
 
     dismissed = me.BooleanField(required=True, default=False)
+
+    def update_from(self, notification):
+        super(InAppNotification, self).update_from(notification)
+
+        self.model_id = notification.model_id
+        self.model_output = notification.model_output
+        # do not include dismissed atribute in updates
+        # self.dismissed = notification.dismissed
 
 
 class InAppRecommendation(InAppNotification):

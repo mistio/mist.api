@@ -16,6 +16,8 @@ from mist.api.exceptions import OrganizationOperationError
 
 from mist.api.portal.models import Portal
 
+from mist.api.helpers import ip_from_request
+
 from mist.api import config
 
 try:
@@ -36,7 +38,7 @@ def get_users_count(mongo_uri=None, confirmed=False):
 
 def register_user(email, first_name, last_name, registration_method,
                   selected_plan=None, promo_code=None, token=None,
-                  status='pending', create_organization=True):
+                  status='pending', create_organization=True, request=None):
     # User does not exist so we have to add him/her to the database
     # First make sure that email is not banned
     # Then create the User objects and the Organization
@@ -54,8 +56,13 @@ def register_user(email, first_name, last_name, registration_method,
     user.can_create_org = True
     user.save()
 
+    # For some users registering through sso it might not be necessary to
+    # create an organization, hence the flag
+    org = create_org_for_user(user, '', promo_code, token, selected_plan) \
+        if create_organization else None
+
     log_event_args = {
-        'owner_id': '',
+        'owner_id': org and org.id or '',
         'user_id': user.id,
         'first_name': user.first_name,
         'last_name': user.last_name,
@@ -65,10 +72,13 @@ def register_user(email, first_name, last_name, registration_method,
         'authentication_provider': registration_method
     }
 
-    # For some users registering through sso it might not be necessary to
-    # create an organization, hence the flag
-    org = create_org_for_user(user, '', promo_code, token, selected_plan) \
-        if create_organization else None
+    if request:
+        log_event_args.update({
+            'request_method': request.method,
+            'request_path': request.path,
+            'request_ip': ip_from_request(request),
+            'user_agent': request.user_agent,
+        })
 
     if org:
         log_event_args.update({

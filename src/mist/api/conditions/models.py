@@ -4,7 +4,6 @@ import datetime
 import mongoengine as me
 
 from mist.api.tag.models import Tag
-from mist.api.users.models import Organization
 
 
 class BaseCondition(me.EmbeddedDocument):
@@ -38,7 +37,6 @@ class ConditionalClassMixin(object):
 
     condition_resource_cls = None  # Instance of mongoengine model class
 
-    owner = me.ReferenceField(Organization, required=True)
     conditions = me.EmbeddedDocumentListField(BaseCondition)
 
     def owner_query(self):
@@ -67,6 +65,8 @@ class FieldCondition(BaseCondition):
 
     @property
     def q(self):
+        if self.operator == 'eq':
+            return me.Q(**{self.field: self.value})
         return me.Q(**{'%s__%s' % (self.field, self.operator): self.value})
 
     def as_dict(self):
