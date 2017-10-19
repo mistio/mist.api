@@ -6,6 +6,9 @@ from mist.api.config import BANNED_EMAIL_PROVIDERS
 from mist.api.methods import ssh_command
 from mist.api.machines.models import Machine
 
+from mist.api.notifications.methods import (create_notifications_with_alert,
+                                            send_notifications)
+
 
 ACTIONS = {}  # This is a map of action types to action classes.
 
@@ -83,16 +86,18 @@ class NotificationAction(BaseAlertAction):
     def run(self, machine, value, triggered, timestamp, incident_id,
             action=''):
         try:
-            # TODO Use the Notifications system.
-            from mist.core.methods import _alert_action
+            from mist.core.methods import _alert_pretty_details
         except ImportError:
             pass
         else:
             # TODO Shouldn't be specific to machines.
             assert isinstance(machine, Machine)
             assert machine.owner == self._instance.owner
-            _alert_action(machine.owner, self._instance.rule_id, value,
-                          triggered, timestamp, incident_id, action=action)
+            details = _alert_pretty_details(machine.owner, self._instance.rule_id, value, triggered, timestamp, incident_id, action=action)
+            org = self._instance.owner
+            users = User.objects({"email" : {"$in" : self.emails}})
+            notifications = create_notifications_with_alert(users, org, details)
+            send_notifications(notifications)
 
     def clean(self):
         """Perform e-mail address validation."""
