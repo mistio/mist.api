@@ -101,7 +101,7 @@ def dismiss_scale_notifications(machine, feedback='NEUTRAL'):
             chan.dismiss(notification)
 
 
-def create_notifications_with_rule(users, alert_details):
+def create_notifications_with_alert(users, alert_details):
     '''
     Accepts a list of users and a dictionary with alert details,
     and generates notifications for each user in the corresponding
