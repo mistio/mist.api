@@ -9,10 +9,10 @@ from mist.api.conditions.models import ConditionalClassMixin
 
 from mist.api.rules.base import ResourceRuleController
 from mist.api.rules.base import ArbitraryRuleController
-from mist.api.rules.models import Window
-from mist.api.rules.models import Frequency
-from mist.api.rules.models import TriggerOffset
-from mist.api.rules.models import QueryCondition
+from mist.api.rules.models.conditions import Window
+from mist.api.rules.models.conditions import Frequency
+from mist.api.rules.models.conditions import TriggerOffset
+from mist.api.rules.models.conditions import QueryCondition
 from mist.api.rules.actions import BaseAlertAction
 from mist.api.rules.actions import NotificationAction
 
