@@ -123,21 +123,58 @@ class Notification(me.Document):
         self.feedback = notification.feedback
 
 
-class EmailReport(Notification):
+class EmailNotification(Notification):
     '''
-    Represents a notification corresponding to
-    an email report
+    Represents a generic email notification
     '''
+    sender_email = me.StringField(max_length=256, required=True)
+    sender_title = me.StringField(max_length=256, required=True)
+
     subject = me.StringField(max_length=256, required=False, default="")
     email = me.EmailField(required=False)
     unsub_link = me.URLField(required=False)
 
+    def __init__(self):
+        super(EmailNotification, self).__init__(*args, **kwargs)
+        if not self.sender_email:
+            sender_email = config.EMAIL_NOTIFICATIONS_SENDER
+        if not self.sender_title:
+            sender_title = "Mist.io Notifications"
+
     def update_from(self, notification):
-        super(EmailReport, self).update_from(notification)
+        super(EmailNotification, self).update_from(notification)
 
         self.subject = notification.subject
         self.email = notification.email
         self.unsub_link = notification.unsub_link
+
+
+class EmailAlert(EmailNotification):
+    '''
+    Represents a notification corresponding to
+    an email alert
+    '''
+
+    def __init__(self):
+        super(EmailNotification, self).__init__(*args, **kwargs)
+        if not self.sender_email:
+            sender_email = config.EMAIL_ALERTS_SENDER
+        if not self.sender_title:
+            sender_title = "Mist.io Alerts"
+
+
+class EmailReport(EmailNotification):
+    '''
+    Represents a notification corresponding to
+    an email report
+    '''
+
+    def __init__(self):
+        super(EmailNotification, self).__init__(*args, **kwargs)
+        if not self.sender_email:
+            sender_email = config.EMAIL_REPORTS_SENDER
+        if not self.sender_title:
+            sender_title = "Mist.io Reports"
 
 
 class InAppNotification(Notification):
