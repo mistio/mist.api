@@ -4,12 +4,12 @@ import mongoengine as me
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import RequiredParameterMissingError
 
-from mist.api.rules.actions import ACTIONS
+from mist.api.rules.models import Window
+from mist.api.rules.models import Frequency
+from mist.api.rules.models import TriggerOffset
+from mist.api.rules.models import QueryCondition
 
-from mist.api.rules.conditions import Window
-from mist.api.rules.conditions import Frequency
-from mist.api.rules.conditions import TriggerOffset
-from mist.api.rules.conditions import QueryCondition
+from mist.api.rules.actions import ACTIONS
 
 from mist.api.conditions.models import MachinesCondition
 
