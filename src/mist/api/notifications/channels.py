@@ -119,9 +119,10 @@ class InAppChannel(BaseChannel):
                 similar = InAppNotification.objects(
                     user=notification.user,
                     organization=notification.organization,
-                    resource=notification.resource,
-                    model_id=notification.model_id,
-                    dismissed=False)
+                    machine=notification.machine,
+                    tag=notification.tag,
+                    cloud=notification.cloud,
+                    model_id=notification.model_id)
                 if similar:
                     # unfortunately, queryset does not support pop()
                     first = similar[0]

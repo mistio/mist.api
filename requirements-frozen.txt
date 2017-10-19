@@ -55,6 +55,7 @@ pdb==0.1
 pexpect==4.2.1
 pickleshare==0.7.4
 pika==0.10.0
+pingparsing==0.10.0
 pretty==0.1
 prompt-toolkit==1.0.14
 ptyprocess==0.5.1
@@ -98,4 +99,3 @@ websocket-client==0.40.0
 yappi==0.98
 zope.deprecation==4.2.0
 zope.interface==4.4.0
-https://github.com/ssteinerx/pingparser/archive/master.zip
