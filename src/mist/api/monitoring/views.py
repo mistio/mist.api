@@ -80,7 +80,7 @@ def machine_dashboard(request):
     if not machine.monitoring.hasmonitoring:
         raise MethodNotAllowedError("Machine doesn't have monitoring enabled")
 
-    if machine.monitoring.system == 'collectd-graphite':
+    if machine.monitoring.system in ('collectd-graphite', 'telegraf-graphite'):
         if not config.HAS_CORE:
             raise Exception()
         ret = copy.deepcopy(config.GRAPHITE_MACHINE_DASHBOARD_DEFAULT)

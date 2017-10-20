@@ -64,7 +64,7 @@ def get_stats(machine, start='', stop='', step='',
     elif not isinstance(metrics, list):
         metrics = [metrics]
 
-    if machine.monitoring.system == 'collectd-graphite':
+    if machine.monitoring.system in ('collectd-graphite', 'telegraf-graphite'):
         if not config.HAS_CORE:
             raise Exception()
         from mist.core.methods import _graphite_get_stats
@@ -218,7 +218,8 @@ def enable_monitoring(owner, cloud_id, machine_id,
             raise Exception()
         from mist.core.methods import _enable_monitoring_prepare
         extra_vars = _enable_monitoring_prepare(machine)
-    elif config.DEFAULT_MONITORING_METHOD == 'telegraf-influxdb':
+    elif config.DEFAULT_MONITORING_METHOD in ('telegraf-influxdb',
+                                              'telegraf-graphite'):
         extra_vars = {'uuid': machine.id, 'monitor': config.INFLUX['host']}
     else:
         raise Exception("Invalid DEFAULT_MONITORING_METHOD")
@@ -252,7 +253,8 @@ def enable_monitoring(owner, cloud_id, machine_id,
                 raise Exception()
             from mist.core.methods import _enable_monitoring_monitor
             _enable_monitoring_monitor(owner, cloud_id, machine_id)
-        elif config.DEFAULT_MONITORING_METHOD == 'telegraf-influxdb':
+        elif config.DEFAULT_MONITORING_METHOD in ('telegraf-influxdb',
+                                                  'telegraf-graphite'):
             traefik.reset_config()
     except Exception as exc:
         machine.monitoring.installation_status.state = 'failed'
@@ -287,7 +289,8 @@ def enable_monitoring(owner, cloud_id, machine_id,
                 owner.id, machine.cloud.id, machine.machine_id, extra_vars,
                 job_id=job_id, job=job, plugins=plugins,
             )
-        elif config.DEFAULT_MONITORING_METHOD == 'telegraf-influxdb':
+        elif config.DEFAULT_MONITORING_METHOD in ('telegraf-influxdb',
+                                                  'telegraf-graphite'):
             # Install Telegraf
             func = mist.api.monitoring.tasks.install_telegraf
             if deploy_async:
@@ -319,7 +322,7 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=''):
         machine = Machine.objects.get(cloud=cloud, machine_id=machine_id)
     except Machine.DoesNotExist:
         raise NotFoundError("Machine %s doesn't exist" % machine_id)
-    if machine.monitoring.hasmonitoring:
+    if not machine.monitoring.hasmonitoring:
         raise BadRequestError('Machine does not have monitoring enabled')
 
     # Uninstall monitoring agent.
@@ -338,7 +341,8 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=''):
             from mist.core.tasks import undeploy_collectd
             undeploy_collectd.delay(owner.id, cloud_id, machine_id,
                                     job_id=job_id, job=job)
-        elif machine.monitoring.system == 'telegraf-influxdb':
+        elif machine.monitoring.system in ('telegraf-influxdb',
+                                           'telegraf-graphite'):
             # Schedule undeployment of Telegraf.
             mist.api.monitoring.tasks.uninstall_telegraf.delay(
                 owner.id, machine.cloud.id, machine.machine_id, job, job_id)
@@ -361,7 +365,8 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=''):
                           ret.status_code, ret.text)
             else:
                 log.debug("Monitor server good response in disable_monitoring")
-        elif machine.monitoring.system == 'telegraf-influxdb':
+        elif machine.monitoring.system in ('telegraf-influxdb',
+                                           'telegraf-graphite'):
             traefik.reset_config()
     except Exception as exc:
         log.error("Exception %s while asking monitor server in "

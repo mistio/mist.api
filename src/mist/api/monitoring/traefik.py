@@ -12,6 +12,13 @@ def _gen_machine_frontend_config(machine):
     """Generate traefik frontend config for machine with monitoring"""
     if not machine.monitoring.hasmonitoring:
         raise Exception("Machine.monitoring.hasmonitoring is False")
+    if machine.monitoring.system == 'telegraf-graphite':
+        backend = 'gocky-graphite'
+    elif machine.monitoring.system == 'telegraf-influxdb':
+        backend = 'gocky-influxdb'
+    else:
+        raise Exception("Invalid monitoring method '%s'"
+                        % machine.monitoring.system)
     return {
         "routes": {
             "main": {
@@ -20,7 +27,7 @@ def _gen_machine_frontend_config(machine):
                 ),
             },
         },
-        "backend": "gocky",
+        "backend": backend,
         "passHostHeader": True,
         "headers": {
             "customrequestheaders": {
@@ -41,7 +48,7 @@ def _gen_config():
     """Generate traefik config from scratch for all machines"""
     return {
         "backends": {
-            "gocky": {
+            "gocky-influxdb": {
                 "loadBalancer": {
                     "method": "wrr",
                 },
@@ -52,10 +59,25 @@ def _gen_config():
                     },
                 },
             },
+            "gocky-graphite": {
+                "loadBalancer": {
+                    "method": "wrr",
+                },
+                "servers": {
+                    "gocky": {
+                        "url": "http://gocky:9097",
+                        "weight": 10,
+                    },
+                },
+            },
         },
         "frontends": {
             machine.id: _gen_machine_frontend_config(machine)
-            for machine in Machine.objects(monitoring__hasmonitoring=True)
+            for machine in Machine.objects(
+                monitoring__hasmonitoring=True,
+                monitoring__system__in=['telegraf-graphite',
+                                        'telegraf-influxdb'],
+            )
         },
     }
 

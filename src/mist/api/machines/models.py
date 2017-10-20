@@ -82,7 +82,8 @@ class Monitoring(me.EmbeddedDocument):
     metrics = me.ListField()  # list of metric_id's
     installation_status = me.EmbeddedDocumentField(InstallationStatus)
     system = me.StringField(default='collectd-graphite',
-                            choices=['collectd-graphite', 'telegraf-influxdb'])
+                            choices=['collectd-graphite', 'telegraf-influxdb',
+                                     'telegraf-graphite',])
 
     def get_commands(self):
         if self.system == 'collectd-graphite' and config.HAS_CORE:
@@ -96,7 +97,7 @@ class Monitoring(me.EmbeddedDocument):
                 'coreos': get_deploy_collectd_command_coreos(*args),
                 'windows': get_deploy_collectd_command_windows(*args),
             }
-        elif self.system == 'telegraf-influxdb':
+        elif self.system in ('telegraf-influxdb', 'telegraf-graphite'):
             from mist.api.monitoring.commands import unix_install
             from mist.api.monitoring.commands import coreos_install
             return {
