@@ -518,10 +518,6 @@ class AzureArmComputeController(BaseComputeController):
         if machine_libcloud.state is NodeState.PAUSED:
             machine.actions.start = True
 
-    def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        machine.os_type = machine_libcloud.extra.get('os_type',
-                                                     'linux')
-
     def _list_sizes__fetch_sizes(self):
         # grab one location
         location = self.connection.list_locations()[0]
