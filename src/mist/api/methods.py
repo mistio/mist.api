@@ -165,6 +165,59 @@ def list_projects(owner, cloud_id):
     return ret
 
 
+def list_resource_groups(owner, cloud_id):
+    """List resource groups for each account.
+    Currently supported for Azure Arm. For other providers
+    this returns an empty list
+    """
+    cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
+    conn = connect_provider(cloud)
+
+    ret = {}
+    if conn.type in [Provider.AZURE_ARM]:
+        groups = conn.ex_list_resource_groups()
+    else:
+        groups = []
+
+    ret = [{'id': group.name,
+            'name': group.name,
+            'extra': group.extra
+            }
+           for group in groups]
+    return ret
+
+    if conn.type == 'libvirt':
+        # close connection with libvirt
+        conn.disconnect()
+    return ret
+
+
+def list_storage_accounts(owner, cloud_id):
+    """List storage accounts for each account.
+    Currently supported for Azure Arm. For other providers
+    this returns an empty list
+    """
+    cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
+    conn = connect_provider(cloud)
+
+    ret = {}
+    if conn.type in [Provider.AZURE_ARM]:
+        accounts = conn.ex_list_storage_accounts()
+    else:
+        accounts = []
+
+    ret = [{'id': account.name,
+            'name': account.name,
+            'extra': account.extra
+            }
+           for account in accounts]
+    return ret
+
+    if conn.type == 'libvirt':
+        # close connection with libvirt
+        conn.disconnect()
+    return ret
+
 def create_subnet(owner, cloud, network, subnet_params):
     """
     Create a new subnet attached to the specified network ont he given cloud.

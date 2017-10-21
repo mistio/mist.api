@@ -500,7 +500,11 @@ class AzureArmComputeController(BaseComputeController):
         return machine_libcloud.created_at  # datetime
 
     def _list_images__fetch_images(self, search=None):
-        return []
+        # Fetch mist's recommended images
+        images = [NodeImage(id=image, name=name,
+                            driver=self.connection, extra={})
+                  for image, name in config.AZURE_ARM_IMAGES.items()]
+        return images
 
     def _reboot_machine(self, machine, machine_libcloud):
         self.connection.reboot_node(machine_libcloud)
@@ -513,6 +517,20 @@ class AzureArmComputeController(BaseComputeController):
             machine, machine_libcloud)
         if machine_libcloud.state is NodeState.PAUSED:
             machine.actions.start = True
+
+    def _list_sizes__fetch_sizes(self):
+        # grab one location
+        location = self.connection.list_locations()[0]
+        sizes = self.connection.list_sizes(location)
+        for size in sizes:
+            size.name += ' ' + str(size.extra['numberOfCores']) \
+                + ' cpus/' + str(size.ram / 1024) + 'G RAM/ ' \
+                + str(size.disk) + 'GB SSD'
+        return sizes
+
+    def _list_locations(self):
+        locations = self.connection.list_locations()
+        return locations
 
 
 class GoogleComputeController(BaseComputeController):

@@ -656,8 +656,7 @@ class BaseComputeController(BaseController):
 
         # Filter out invalid images.
         images = [img for img in images
-                  if img.name and img.id[:3] not in ('aki', 'ari') and
-                  'windows' not in img.name.lower()]
+                  if img.name and img.id[:3] not in ('aki', 'ari')]
 
         # Turn images to dict to return and star them.
         images = [{'id': img.id,
