@@ -431,11 +431,11 @@ class OtherMainController(BaseMainController):
             # Sanitize inputs.
             host = sanitize_host(host)
             check_host(host)
+            machine.hostname = host
 
             if is_private_subnet(socket.gethostbyname(host)):
                 machine.private_ips = [host]
             else:
-                machine.hostname = host
                 machine.public_ips = [host]
         machine.save()
 
