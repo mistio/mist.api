@@ -6,8 +6,7 @@ from mist.api.config import BANNED_EMAIL_PROVIDERS
 from mist.api.methods import ssh_command
 from mist.api.machines.models import Machine
 
-from mist.api.notifications.methods import (create_notifications_with_alert,
-                                            send_notifications)
+from mist.api.notifications.methods import send_notifications
 
 
 ACTIONS = {}  # This is a map of action types to action classes.
@@ -87,6 +86,7 @@ class NotificationAction(BaseAlertAction):
             action=''):
         try:
             from mist.core.methods import _alert_pretty_details
+            from mist.core.notifications.methods import create_notifications_with_alert
         except ImportError:
             pass
         else:
