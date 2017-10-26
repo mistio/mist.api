@@ -137,9 +137,9 @@ class EmailNotification(Notification):
     def __init__(self):
         super(EmailNotification, self).__init__(*args, **kwargs)
         if not self.sender_email:
-            sender_email = config.EMAIL_NOTIFICATIONS_SENDER
+            self.sender_email = config.EMAIL_NOTIFICATIONS_SENDER
         if not self.sender_title:
-            sender_title = "Mist.io Notifications"
+            self.sender_title = "Mist.io Notifications"
 
     def update_from(self, notification):
         super(EmailNotification, self).update_from(notification)
