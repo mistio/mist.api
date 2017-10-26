@@ -875,6 +875,18 @@ DOCKER_IMAGES = {
     'mist/fedora-20': 'Fedora 20 - mist.io image',
 }
 
+AZURE_ARM_IMAGES = {
+    'MicrosoftWindowsServer:WindowsServer:2008-R2-SP1:2.127.20170918': 'MicrosoftWindowsServer WindowsServer 2008-R2-SP1 2.127.20170918',
+    'MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20170822': 'MicrosoftWindowsServer WindowsServer 2012-R2-Datacenter 4.127.20170822',
+    'MicrosoftWindowsServer:WindowsServer:2016-Datacenter:2016.127.20170918': 'MicrosoftWindowsServer WindowsServer 2016-Datacenter 2016.127.20170918',
+    'SUSE:openSUSE-Leap:42.3:2017.07.26': 'SUSE openSUSE-Leap 42.3 2017.07.26',
+    'Canonical:UbuntuServer:16.04-LTS:16.04.201709190': 'Canonical UbuntuServer 16.04-LTS 16.04.201709190',
+    'Canonical:UbuntuServer:14.04.5-LTS:14.04.201708310': 'Canonical UbuntuServer 14.04.5-LTS 14.04.201708310',
+    'Canonical:UbuntuServer:17.04:17.04.201709220': 'Canonical UbuntuServer 17.04 17.04.201709220',
+    'RedHat:RHEL:7.3:7.3.2017090723': 'RedHat RHEL 7.3 7.3.2017090723',
+    'RedHat:RHEL:6.9:6.9.2017090105': 'RedHat RHEL 6.9 6.9.2017090105',
+}
+
 GCE_IMAGES = ['debian-cloud',
               'centos-cloud',
               'suse-cloud',

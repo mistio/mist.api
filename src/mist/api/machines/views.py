@@ -209,6 +209,16 @@ def create_machine(request):
     location_name = params.get('location_name', None)
     ips = params.get('ips', None)
     monitoring = params.get('monitoring', False)
+    create_storage_account = params.get('create_storage_account', False)
+    new_storage_account = params.get('new_storage_account', '')
+    ex_storage_account = params.get('ex_storage_account', '')
+    machine_password = params.get('machine_password', '')
+    machine_username = params.get('machine_username', '')
+    create_resource_group = params.get('create_resource_group', False)
+    new_resource_group = params.get('new_resource_group', '')
+    ex_resource_group = params.get('ex_resource_group', '')
+    create_network = params.get('create_network', False)
+    new_network = params.get('new_network', '')
     networks = params.get('networks', [])
     docker_env = params.get('docker_env', [])
     docker_command = params.get('docker_command', None)
@@ -324,7 +334,8 @@ def create_machine(request):
     args = (cloud_id, key_id, machine_name,
             location_id, image_id, size_id,
             image_extra, disk, image_name, size_name,
-            location_name, ips, monitoring, networks,
+            location_name, ips, monitoring,
+            ex_storage_account, machine_password, ex_resource_group, networks,
             docker_env, docker_command)
     kwargs = {'script_id': script_id,
               'script_params': script_params, 'script': script, 'job': job,
@@ -349,13 +360,20 @@ def create_machine(request):
               'size_cpu': size_cpu,
               'size_disk_primary': size_disk_primary,
               'size_disk_swap': size_disk_swap,
+              'create_storage_account': create_storage_account,
+              'new_storage_account': new_storage_account,
+              'create_network': create_network,
+              'new_network': new_network,
+              'create_resource_group': create_resource_group,
+              'new_resource_group': new_resource_group,
               'boot': boot,
               'build': build,
               'cpu_priority': cpu_priority,
               'cpu_sockets': cpu_sockets,
               'cpu_threads': cpu_threads,
               'port_speed': port_speed,
-              'hypervisor_group_id': hypervisor_group_id}
+              'hypervisor_group_id': hypervisor_group_id,
+              'machine_username': machine_username}
     if not async:
         ret = methods.create_machine(auth_context.owner, *args, **kwargs)
     else:

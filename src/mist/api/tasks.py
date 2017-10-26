@@ -63,7 +63,7 @@ app.autodiscover_tasks(['mist.api.monitoring'])
 
 @app.task
 def ssh_command(owner_id, cloud_id, machine_id, host, command,
-                      key_id=None, username=None, password=None, port=22):
+                key_id=None, username=None, password=None, port=22):
 
     owner = Owner.objects.get(id=owner_id)
     shell = Shell(host)
@@ -83,6 +83,7 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                       script_id='', script_params='', job_id=None, job=None,
                       hostname='', plugins=None, script='',
                       post_script_id='', post_script_params='', schedule={}):
+    #TODO: break into subtasks
 
     from mist.api.methods import connect_provider, probe_ssh_only
     from mist.api.methods import notify_user, notify_admin
@@ -131,8 +132,8 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
 
         machine = Machine.objects.get(cloud=cloud, machine_id=machine_id,
                                       state__ne='terminated')
-        # TODO add schedule_id for adding a machine to an already exist
-        if schedule:
+
+        if schedule and schedule.get('name'): # ugly hack to prevent dupes
             log_dict = {
                 'owner_id': owner.id,
                 'event_type': 'job',
@@ -149,21 +150,22 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                 from mist.api.dummy.rbac import AuthContext
 
             try:
-                name = schedule.pop('name') + '_' + machine_id
+                name = schedule.get('action') + '-' + schedule.pop('name') + '-' + machine_id[:4]
 
                 auth_context = AuthContext.deserialize(
                     schedule.pop('auth_context'))
-                # TODO add machines
-                machines_uuids = [machine.id]
-                schedule['machines_uuids'] = machines_uuids
                 tmp_log('Add scheduler entry %s', name)
+                schedule['conditions'] = [{
+                    'type': 'machines',
+                    'ids': [machine.id]
+                }]
                 schedule_info = Schedule.add(auth_context, name, **schedule)
                 tmp_log("A new scheduler was added")
                 log_event(action='Add scheduler entry',
                           scheduler=schedule_info.as_dict(), **log_dict)
             except Exception as e:
                 print repr(e)
-                error = True
+                error = repr(e)
                 notify_user(owner, "add scheduler entry failed for "
                                    "machine %s" % machine_id, repr(e),
                             error=error)
@@ -184,15 +186,15 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                                     key_id=key_id, ssh_user=ssh_user,
                                     shell=shell)
             log_dict = {
-                    'owner_id': owner.id,
-                    'event_type': 'job',
-                    'cloud_id': cloud_id,
-                    'machine_id': machine_id,
-                    'job_id': job_id,
-                    'job': job,
-                    'host': host,
-                    'key_id': key_id,
-                    'ssh_user': ssh_user,
+                'owner_id': owner.id,
+                'event_type': 'job',
+                'cloud_id': cloud_id,
+                'machine_id': machine_id,
+                'job_id': job_id,
+                'job': job,
+                'host': host,
+                'key_id': key_id,
+                'ssh_user': ssh_user,
                 }
             log_event(action='probe', result=result, **log_dict)
             cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
@@ -232,7 +234,7 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                 retval, output = shell.command(script)
                 tmp_log('executed script %s', script)
                 execution_time = time() - start_time
-                output = output.decode('utf-8','ignore')
+                output = output.decode('utf-8', 'ignore')
                 title = "Deployment script %s" % ('failed' if retval
                                                   else 'succeeded')
                 error = retval > 0
@@ -258,7 +260,7 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                 try:
                     enable_monitoring(
                         owner, cloud_id, node.id,
-                        name=node.name, dns_name=node.extra.get('dns_name',''),
+                        name=node.name, dns_name=node.extra.get('dns_name', ''),
                         public_ips=ips, no_ssh=False, dry=False, job_id=job_id,
                         plugins=plugins, deploy_async=False,
                     )
@@ -476,10 +478,10 @@ def azure_post_create_steps(self, owner_id, cloud_id, machine_id, monitoring,
 
 @app.task(bind=True, default_retry_delay=2*60)
 def rackspace_first_gen_post_create_steps(
-    self, owner_id, cloud_id, machine_id, monitoring, key_id, password,
-    public_key, username='root', script='', script_id='', script_params='',
-    job_id=None, job=None, hostname='', plugins=None, post_script_id='',
-    post_script_params='', schedule={}):
+        self, owner_id, cloud_id, machine_id, monitoring, key_id, password,
+        public_key, username='root', script='', script_id='', script_params='',
+        job_id=None, job=None, hostname='', plugins=None, post_script_id='',
+        post_script_params='', schedule={}):
     from mist.api.methods import connect_provider
 
     owner = Owner.objects.get(id=owner_id)
@@ -549,7 +551,7 @@ class UserTask(Task):
             self._ut_cache = MemcacheClient(config.MEMCACHED_HOST)
         return self._ut_cache
 
-    def smart_delay(self, *args,  **kwargs):
+    def smart_delay(self, *args, **kwargs):
         """Return cached result if it exists, send job to celery if needed"""
         # check cache
         id_str = json.dumps([self.task_key, args, kwargs])
@@ -789,6 +791,43 @@ class ListProjects(UserTask):
         return {'cloud_id': cloud_id, 'projects': projects}
 
 
+class ListResourceGroups(UserTask):
+    abstract = False
+    task_key = 'list_resource_groups'
+    result_expires = 60 * 60 * 24 * 7
+    result_fresh = 60 * 60
+    polling = False
+    soft_time_limit = 30
+
+    def execute(self, owner_id, cloud_id):
+        owner = Owner.objects.get(id=owner_id)
+        log.warn('Running list resource groups for user %s cloud %s',
+                 owner.id, cloud_id)
+        from mist.api import methods
+        resource_groups = methods.list_resource_groups(owner, cloud_id)
+        log.warn('Returning list resource groups for user %s cloud %s',
+                 owner.id, cloud_id)
+        return {'cloud_id': cloud_id, 'resource_groups': resource_groups}
+
+class ListStorageAccounts(UserTask):
+    abstract = False
+    task_key = 'list_storage_accounts'
+    result_expires = 60 * 60 * 24 * 7
+    result_fresh = 60 * 60
+    polling = False
+    soft_time_limit = 30
+
+    def execute(self, owner_id, cloud_id):
+        owner = Owner.objects.get(id=owner_id)
+        log.warn('Running list storage accounts for user %s cloud %s',
+                 owner.id, cloud_id)
+        from mist.api import methods
+        storage_accounts = methods.list_storage_accounts(owner, cloud_id)
+        log.warn('Returning list storage accounts for user %s cloud %s',
+                 owner.id, cloud_id)
+        return {'cloud_id': cloud_id, 'storage_accounts': storage_accounts}
+
+
 class ListMachines(UserTask):
     abstract = False
     task_key = 'list_machines'
@@ -809,12 +848,15 @@ class ListMachines(UserTask):
             if machine.get("tags"):
                 tags = {}
                 for tag in machine["tags"]:
-                    tags[tag["key"]]= tag["value"]
+                    tags[tag["key"]] = tag["value"]
             try:
                 from mist.api.tag.methods import resolve_id_and_get_tags
-                mistio_tags = resolve_id_and_get_tags(owner, 'machine',
-                                                    machine.get("machine_id"),
-                                                    cloud_id=cloud_id)
+                mistio_tags = resolve_id_and_get_tags(
+                    owner,
+                    'machine',
+                    machine.get("machine_id"),
+                    cloud_id=cloud_id
+                )
             except:
                 log.info("Machine has not tags in mist db")
                 mistio_tags = {}
@@ -825,7 +867,7 @@ class ListMachines(UserTask):
                     machine['tags'].append(tag)
             # FIXME: optimize!
         log.warn('Returning list machines for user %s cloud %s',
-             owner.id, cloud_id)
+                 owner.id, cloud_id)
         return {'cloud_id': cloud_id, 'machines': machines}
 
     def error_rerun_handler(self, exc, errors, owner_id, cloud_id):
@@ -965,20 +1007,23 @@ def undeploy_collectd(owner_id, cloud_id, machine_id):
 def create_machine_async(owner_id, cloud_id, key_id, machine_name, location_id,
                          image_id, size_id, image_extra, disk,
                          image_name, size_name, location_name, ips, monitoring,
+                         ex_storage_account, machine_password, ex_resource_group,
                          networks, docker_env, docker_command, script='',
                          script_id='', script_params='',
                          post_script_id='', post_script_params='',
                          quantity=1, persist=False, job_id=None, job=None,
                          docker_port_bindings={}, docker_exposed_ports={},
                          azure_port_bindings='', hostname='', plugins=None,
-                         disk_size=None, disk_path=None,
-                         cloud_init='', associate_floating_ip=False,
+                         disk_size=None, disk_path=None, create_storage_account=False,
+                         new_storage_account='', create_resource_group=False,
+                         new_resource_group='', create_network=False,
+                         new_network='', cloud_init='', associate_floating_ip=False,
                          associate_floating_ip_subnet=None, project_id=None,
                          tags=None, schedule={}, bare_metal=False, hourly=True,
                          softlayer_backend_vlan_id=None, size_ram=256, size_cpu=1,
                          size_disk_primary=5, size_disk_swap=1, boot=True, build=True,
                          cpu_priority=1, cpu_sockets=1, cpu_threads=1, port_speed=0,
-                         hypervisor_group_id=None):
+                         hypervisor_group_id=None, machine_username=''):
     from multiprocessing.dummy import Pool as ThreadPool
     from mist.api.machines.methods import create_machine
     from mist.api.exceptions import MachineCreationError
@@ -1009,7 +1054,8 @@ def create_machine_async(owner_id, cloud_id, key_id, machine_name, location_id,
         specs.append((
             (owner, cloud_id, key_id, name, location_id, image_id,
              size_id, image_extra, disk, image_name, size_name,
-             location_name, ips, monitoring, networks, docker_env,
+             location_name, ips, monitoring, ex_storage_account,
+             machine_password, ex_resource_group,networks, docker_env,
              docker_command, 22, script, script_id, script_params,
              job_id, job),
             {'hostname': hostname, 'plugins': plugins,
@@ -1028,6 +1074,12 @@ def create_machine_async(owner_id, cloud_id, key_id, machine_name, location_id,
              'size_cpu': size_cpu,
              'size_disk_primary': size_disk_primary,
              'size_disk_swap': size_disk_swap,
+             'create_network': create_network,
+             'new_network': new_network,
+             'create_resource_group': create_resource_group,
+             'new_resource_group': new_resource_group,
+             'create_storage_account': create_storage_account,
+             'new_storage_account': new_storage_account,
              'boot': boot,
              'build': build,
              'bare_metal': bare_metal,
@@ -1036,7 +1088,8 @@ def create_machine_async(owner_id, cloud_id, key_id, machine_name, location_id,
              'cpu_sockets': cpu_sockets,
              'cpu_threads': cpu_threads,
              'port_speed': port_speed,
-             'hypervisor_group_id': hypervisor_group_id}
+             'hypervisor_group_id': hypervisor_group_id,
+             'machine_username': machine_username}
         ))
 
     def create_machine_wrapper(args_kwargs):

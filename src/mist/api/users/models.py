@@ -189,6 +189,8 @@ class Rule(me.Document):
     emails = me.ListField(me.StringField(), default=[])
     # email to send the alerts. Can be a list of email addresses
 
+    migrated = me.BooleanField()
+
     def clean(self):
         # TODO: check if these are valid email addresses,
         # to avoid possible spam

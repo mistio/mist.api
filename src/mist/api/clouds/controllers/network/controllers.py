@@ -13,8 +13,29 @@ from mist.api.exceptions import NetworkNotFoundError
 
 from mist.api.clouds.controllers.network.base import BaseNetworkController
 
+from libcloud.compute.drivers.azure_arm import AzureNetwork
+
 
 log = logging.getLogger(__name__)
+
+
+class AzureArmNetworkController(BaseNetworkController):
+
+    def _list_networks__cidr_range(self, network, libcloud_network):
+        return libcloud_network.extra['addressSpace']['addressPrefixes'][0]
+
+    def _list_networks__postparse_network(self, network, libcloud_network):
+        location = libcloud_network.location
+        network.location = location
+
+    def _list_subnets__fetch_subnets(self, network):
+        l_network = AzureNetwork(network.network_id,
+                                 network.name, '', network.extra)
+        ret = self.cloud.ctl.compute.connection.ex_list_subnets(l_network)
+        return ret
+
+    def _list_subnets__cidr_range(self, subnet, libcloud_subnet):
+        return subnet.extra.pop('addressPrefix')
 
 
 class AmazonNetworkController(BaseNetworkController):
