@@ -5,7 +5,7 @@ import mongoengine as me
 from mist.api.config import BANNED_EMAIL_PROVIDERS
 from mist.api.methods import ssh_command
 from mist.api.machines.models import Machine
-
+from mist.api.users.models import User
 from mist.api.notifications.methods import send_notifications
 
 
@@ -97,7 +97,7 @@ class NotificationAction(BaseAlertAction):
                                             value, triggered, timestamp, incident_id,
                                             action=action)
             org = self._instance.owner
-            users = User.objects({"email" : {"$in" : self.emails}})
+            users = User.objects({"email": {"$in": self.emails}})
             notifications = create_notifications_with_alert(users, org, details)
             send_notifications(notifications)
 

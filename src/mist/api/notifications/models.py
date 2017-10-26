@@ -3,6 +3,8 @@ from datetime import datetime
 
 import mongoengine as me
 
+from mist.api import config
+
 from mist.api.users.models import User, Organization
 
 
@@ -134,7 +136,7 @@ class EmailNotification(Notification):
     email = me.EmailField(required=False)
     unsub_link = me.URLField(required=False)
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         super(EmailNotification, self).__init__(*args, **kwargs)
         if not self.sender_email:
             self.sender_email = config.EMAIL_NOTIFICATIONS_SENDER
@@ -155,7 +157,7 @@ class EmailAlert(EmailNotification):
     an email alert
     '''
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         super(EmailNotification, self).__init__(*args, **kwargs)
         if not self.sender_email:
             self.sender_email = config.EMAIL_ALERTS_SENDER
@@ -169,7 +171,7 @@ class EmailReport(EmailNotification):
     an email report
     '''
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         super(EmailNotification, self).__init__(*args, **kwargs)
         if not self.sender_email:
             self.sender_email = config.EMAIL_REPORTS_SENDER
