@@ -254,7 +254,6 @@ class BaseNetworkController(BaseController):
 
             network.name = net.name
             network.extra = copy.copy(net.extra)
-
             # Get the Network's CIDR.
             try:
                 network.cidr = self._list_networks__cidr_range(network, net)

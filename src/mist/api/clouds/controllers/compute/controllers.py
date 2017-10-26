@@ -106,9 +106,17 @@ class AmazonComputeController(BaseComputeController):
             raise BadRequestError('Failed to resize node: %s' % exc)
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        # This is windows for windows servers and None for Linux.
-        machine.os_type = machine_libcloud.extra.get('platform', 'linux')
-        machine.size = machine['extra'].get('instance_type')
+        # Find os_type.
+        try:
+            machine.os_type = CloudImage.objects.get(
+                cloud_provider=machine_libcloud.driver.type,
+                image_id=machine_libcloud.extra.get('image_id'),
+            ).os_type
+        except:
+            # This is windows for windows servers and None for Linux.
+            machine.os_type = machine_libcloud.extra.get('platform')
+        if not machine.os_type:
+            machine.os_type = 'linux'
 
         try:
             # return list of ids for network interfaces as str
@@ -127,18 +135,11 @@ class AmazonComputeController(BaseComputeController):
         if machine_libcloud.state == NodeState.STOPPED:
             return 0, 0
 
-        image_id = machine_libcloud.extra.get('image_id')
-        try:
-            os_type = CloudImage.objects.get(
-                cloud_provider=machine_libcloud.driver.type, image_id=image_id
-            ).os_type
-        except:
-            os_type = 'linux'
         sizes = machine_libcloud.driver.list_sizes()
         size = machine_libcloud.extra.get('instance_type')
         for node_size in sizes:
             if node_size.id == size:
-                plan_price = node_size.price.get(os_type)
+                plan_price = node_size.price.get(machine.os_type)
                 if not plan_price:
                     # Use the default which is linux.
                     plan_price = node_size.price.get('linux')
@@ -287,21 +288,13 @@ class RackSpaceComputeController(BaseComputeController):
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         # Need to get image in order to specify the OS type
         # out of the image id.
-        instance_image = machine_libcloud.extra.get('imageId')
-        try:
-            os_type = CloudImage.objects.get(
-                cloud_provider=machine_libcloud.driver.type,
-                image_id=instance_image
-            ).os_type
-        except:
-            os_type = 'linux'
         size = machine_libcloud.extra.get('flavorId')
         location = machine_libcloud.driver.region[:3]
         driver_name = 'rackspacenova' + location
         price = get_size_price(driver_type='compute', driver_name=driver_name,
                                size_id=size)
         if price:
-            plan_price = price.get(os_type, 'linux')
+            plan_price = price.get(machine.os_type) or price.get('linux')
             # 730 is the number of hours per month as on
             # https://www.rackspace.com/calculator
             return plan_price, float(plan_price) * 730
@@ -317,6 +310,15 @@ class RackSpaceComputeController(BaseComputeController):
             if ip and ':' not in ip:
                 public_ips.append(ip)
         machine.public_ips = public_ips
+
+        # Find os_type.
+        try:
+            machine.os_type = CloudImage.objects.get(
+                cloud_provider=machine_libcloud.driver.type,
+                image_id=machine_libcloud.extra.get('imageId'),
+            ).os_type
+        except:
+            machine.os_type = 'linux'
 
 
 class SoftLayerComputeController(BaseComputeController):
@@ -407,6 +409,9 @@ class AzureComputeController(BaseComputeController):
         return get_driver(Provider.AZURE)(self.cloud.subscription_id,
                                           tmp_cert_file.name)
 
+    def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        machine.os_type = machine_libcloud.extra.get('os_type', 'linux')
+
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         if machine_libcloud.state not in [NodeState.RUNNING, NodeState.PAUSED]:
             return 0, 0
@@ -483,6 +488,9 @@ class AzureArmComputeController(BaseComputeController):
                                               self.cloud.key,
                                               self.cloud.secret)
 
+    def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        machine.os_type = machine_libcloud.extra.get('os_type', 'linux')
+
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         if machine_libcloud.state not in [NodeState.RUNNING, NodeState.PAUSED]:
             return 0, 0
@@ -492,7 +500,11 @@ class AzureArmComputeController(BaseComputeController):
         return machine_libcloud.created_at  # datetime
 
     def _list_images__fetch_images(self, search=None):
-        return []
+        # Fetch mist's recommended images
+        images = [NodeImage(id=image, name=name,
+                            driver=self.connection, extra={})
+                  for image, name in config.AZURE_ARM_IMAGES.items()]
+        return images
 
     def _reboot_machine(self, machine, machine_libcloud):
         self.connection.reboot_node(machine_libcloud)
@@ -505,6 +517,20 @@ class AzureArmComputeController(BaseComputeController):
             machine, machine_libcloud)
         if machine_libcloud.state is NodeState.PAUSED:
             machine.actions.start = True
+
+    def _list_sizes__fetch_sizes(self):
+        # grab one location
+        location = self.connection.list_locations()[0]
+        sizes = self.connection.list_sizes(location)
+        for size in sizes:
+            size.name += ' ' + str(size.extra['numberOfCores']) \
+                + ' cpus/' + str(size.ram / 1024) + 'G RAM/ ' \
+                + str(size.disk) + 'GB SSD'
+        return sizes
+
+    def _list_locations(self):
+        locations = self.connection.list_locations()
+        return locations
 
 
 class GoogleComputeController(BaseComputeController):
