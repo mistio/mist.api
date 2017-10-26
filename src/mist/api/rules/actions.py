@@ -86,19 +86,23 @@ class NotificationAction(BaseAlertAction):
             action=''):
         try:
             from mist.core.methods import _alert_pretty_details
-            from mist.core.notifications.methods import create_notifications_with_alert
+            from mist.core.notifications.methods import (
+                create_notifications_with_alert)
         except ImportError:
             pass
         else:
             # TODO Shouldn't be specific to machines.
             assert isinstance(machine, Machine)
             assert machine.owner == self._instance.owner
-            details = _alert_pretty_details(machine.owner, self._instance.rule_id,
-                                            value, triggered, timestamp, incident_id,
+            details = _alert_pretty_details(machine.owner, 
+                                            self._instance.rule_id,
+                                            value, triggered, 
+                                            timestamp, incident_id,
                                             action=action)
             org = self._instance.owner
             users = User.objects({"email": {"$in": self.emails}})
-            notifications = create_notifications_with_alert(users, org, details)
+            notifications = create_notifications_with_alert(
+                users, org, details)
             send_notifications(notifications)
 
     def clean(self):
