@@ -25,3 +25,4 @@ exclude =
     src/mist/api/methods.py,
     src/mist/api/amqp_tornado.py,
     src/mist/api/scripts/controllers.py,
+    src/mist/api/rules/models/__init__.py,
