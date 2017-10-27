@@ -5,8 +5,8 @@ import urllib2
 from mist.api import config
 from mist.api.helpers import send_email, amqp_publish_user
 
-from models import (Notification, NotificationOverride,
-                    EmailReport, InAppNotification)
+from mist.api.notifications.models import (Notification, NotificationOverride,
+                                           EmailReport, InAppNotification)
 
 import logging
 
