@@ -1350,6 +1350,10 @@ class OtherComputeController(BaseComputeController):
         elif machine.unreachable_since:
             machine.state = config.STATES[NodeState.UNKNOWN]
 
+    def _list_machines__update_action_remove(self, machine):
+        """Allow remove action for bare metal"""
+        machine.actions.remove = True
+
     def _get_machine_libcloud(self, machine):
         return None
 

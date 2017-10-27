@@ -112,36 +112,6 @@ def list_machines(owner, cloud_id):
     return [machine.as_dict() for machine in machines]
 
 
-def add_machine(owner, cloud_id, machine_name, host, ssh_key, monitoring,
-                ssh_user='root', ssh_port=22, os_type='unix', rdp_port=3389,
-                job_id=None, fail_on_error=True):
-    """Method that adds a bare metal server to a bare metal cloud."""
-
-    log.info('Adding bare metal machine %s on cloud %s'
-             % (machine_name, cloud_id))
-    cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
-
-    machine_name = cloud.title + '_' + machine_name
-    try:
-        machine = cloud.ctl.add_machine(machine_name, host=host,
-                                        ssh_user=ssh_user, ssh_port=ssh_port,
-                                        ssh_key=ssh_key, os_type=os_type,
-                                        rdp_port=rdp_port,
-                                        fail_on_error=fail_on_error)
-    except Exception as e:
-        raise MachineCreationError("OtherServer, got exception %r" % e,
-                                   exc=e)
-    # TODO maybe also here enable monitoring?
-    ret = {'id': machine.id,
-           'name': machine.name,
-           'extra': {},
-           'public_ips': machine.public_ips,
-           'private_ips': machine.private_ips,
-           'job_id': job_id,
-           }
-    return ret
-
-
 def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                    image_id, size_id, image_extra, disk, image_name,
                    size_name, location_name, ips, monitoring, networks=[],
@@ -1206,31 +1176,6 @@ def destroy_machine(user, cloud_id, machine_id):
                     "machine never had monitoring enabled. Error: %r", exc)
 
     machine.ctl.destroy()
-
-
-def remove_machine(user, cloud_id, machine_id):
-    """Removes a machine from a bare metal cloud.
-
-    After removing a machine it also deletes all key associations. However,
-    it doesn't undeploy the keypair.
-    """
-    log.info('Removing machine %s in cloud %s' % (machine_id, cloud_id))
-    machine = Machine.objects.get(cloud=cloud_id, machine_id=machine_id)
-
-    if not machine.monitoring.hasmonitoring:
-        machine.ctl.remove()
-        return
-
-    # if machine has monitoring, disable it. the way we disable depends on
-    # whether this is a standalone io installation or not
-    try:
-        # we don't actually bother to undeploy collectd
-        disable_monitoring(user, cloud_id, machine_id, no_ssh=True)
-    except Exception as exc:
-        log.warning("Didn't manage to disable monitoring, maybe the "
-                    "machine never had monitoring enabled. Error: %r", exc)
-
-    machine.ctl.remove()
 
 
 # SEC

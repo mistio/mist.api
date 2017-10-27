@@ -342,10 +342,11 @@ class OtherMainController(BaseMainController):
         # for each one of them. The machines handled here are only bare metal
         # and hence we only create the relevant object in the database, no
         # remote calls to any provider is performed.
-        if kwargs['machines']:
+        for machine_kwargs in kwargs['machines']:
+            machine_name = machine_kwargs.pop('machine_name', '')
             self.add_machine_wrapper(
-                self.cloud.title, fail_on_error=fail_on_error,
-                fail_on_invalid_params=fail_on_invalid_params, **kwargs
+                machine_name, fail_on_error=fail_on_error,
+                fail_on_invalid_params=fail_on_invalid_params, **machine_kwargs
             )
 
     def update(self, fail_on_error=True, fail_on_invalid_params=True,
@@ -363,43 +364,39 @@ class OtherMainController(BaseMainController):
 
         """
 
-        machines = []
         # Sanitize params.
-        for machine_kwargs in kwargs['machines']:
-            rename_kwargs(machine_kwargs, 'machine_ip', 'host')
-            rename_kwargs(machine_kwargs, 'machine_user', 'ssh_user')
-            rename_kwargs(machine_kwargs, 'machine_key', 'ssh_key')
-            rename_kwargs(machine_kwargs, 'machine_port', 'ssh_port')
-            rename_kwargs(machine_kwargs, 'remote_desktop_port', 'rdp_port')
-            if machine_kwargs.get('operating_system') == 'windows':
-                machine_kwargs['os_type'] = 'windows'
-            else:
-                machine_kwargs['os_type'] = 'unix'
-            machine_kwargs.pop('operating_system', None)
-            errors = {}
-            for key in machine_kwargs.keys():
-                if key not in ('host', 'ssh_user', 'ssh_port', 'ssh_key',
-                               'os_type', 'rdp_port'):
-                    error = "Invalid parameter %s=%r." % (key, kwargs[key])
-                    if fail_on_invalid_params:
-                        errors[key] = error
-                    else:
-                        log.warning(error)
-                        machine_kwargs.pop(key)
-            if errors:
-                raise BadRequestError({
-                    'msg': "Invalid parameters %s." % errors.keys(),
-                    'errors': errors,
-                })
+        rename_kwargs(kwargs, 'machine_ip', 'host')
+        rename_kwargs(kwargs, 'machine_user', 'ssh_user')
+        rename_kwargs(kwargs, 'machine_key', 'ssh_key')
+        rename_kwargs(kwargs, 'machine_port', 'ssh_port')
+        rename_kwargs(kwargs, 'remote_desktop_port', 'rdp_port')
+        if kwargs.get('operating_system') == 'windows':
+            kwargs['os_type'] = 'windows'
+        else:
+            kwargs['os_type'] = 'unix'
+        kwargs.pop('operating_system', None)
+        errors = {}
+        for key in kwargs.keys():
+            if key not in ('host', 'ssh_user', 'ssh_port', 'ssh_key',
+                           'os_type', 'rdp_port'):
+                error = "Invalid parameter %s=%r." % (key, kwargs[key])
+                if fail_on_invalid_params:
+                    errors[key] = error
+                else:
+                    log.warning(error)
+                    kwargs.pop(key)
+        if errors:
+            raise BadRequestError({
+                'msg': "Invalid parameters %s." % errors.keys(),
+                'errors': errors,
+            })
 
-            # Add then machine.
-            try:
-                machine = self.add_machine(name, fail_on_error=fail_on_error,
-                                           **machine_kwargs)
-            except (CloudUnauthorizedError, MistError) as exc:
-                log.error("Failed to add machine due to: %s", exc)
-            else:
-                machines.append(machine)
+        # Add then machine.
+        try:
+            self.add_machine(name, fail_on_error=fail_on_error,
+                             **kwargs)
+        except (CloudUnauthorizedError, MistError) as exc:
+            log.error("Failed to add machine due to: %s", exc)
 
     def add_machine(self, name, host='',
                     ssh_user='root', ssh_port=22, ssh_key=None,
@@ -471,5 +468,3 @@ class OtherMainController(BaseMainController):
                 if fail_on_error:
                     machine.delete()
                 raise
-
-        return machine

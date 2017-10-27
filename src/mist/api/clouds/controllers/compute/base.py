@@ -404,9 +404,7 @@ class BaseComputeController(BaseController):
             # allow reboot action for bare metal with key associated
             if machine.key_associations:
                 machine.actions.reboot = True
-            # allow remove action for bare metal
-            if machine.cloud.ctl.provider == 'bare_metal':
-                machine.actions.remove = True
+            self._list_machines__update_action_remove(machine)
             machine.save()
             machines.append(machine)
 
@@ -450,6 +448,11 @@ class BaseComputeController(BaseController):
     def _list_machines__update_state(self, machine):
         """Helper method to update the machine state.
 
+        This is only overriden by the OtherServer Controller"""
+        pass
+    
+    def _list_machines__update_action_remove(self, machine):
+        """Helper method to update machine remove action.
         This is only overriden by the OtherServer Controller"""
         pass
 
