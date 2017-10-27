@@ -106,6 +106,7 @@ class AmazonComputeController(BaseComputeController):
             raise BadRequestError('Failed to resize node: %s' % exc)
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        machine.size = machine['extra'].get('instance_type')
         # Find os_type.
         try:
             machine.os_type = CloudImage.objects.get(
