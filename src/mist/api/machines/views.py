@@ -439,8 +439,10 @@ def add_machine(request):
 
     try:
         machine = cloud.ctl.add_machine(machine_name, host=machine_ip,
-                                        ssh_user=machine_user, ssh_port=machine_port,
-                                        ssh_key=machine_key, os_type=operating_system,
+                                        ssh_user=machine_user,
+                                        ssh_port=machine_port,
+                                        ssh_key=machine_key,
+                                        os_type=operating_system,
                                         rdp_port=remote_desktop_port,
                                         fail_on_error=True)
     except Exception as e:
@@ -567,7 +569,8 @@ def machine_actions(request):
         # whether this is a standalone io installation or not
         try:
             # we don't actually bother to undeploy collectd
-            disable_monitoring(auth_context.owner, cloud_id, machine_id, no_ssh=True)
+            disable_monitoring(auth_context.owner, cloud_id, machine_id,
+                               no_ssh=True)
         except Exception as exc:
             log.warning("Didn't manage to disable monitoring, maybe the "
                         "machine never had monitoring enabled. Error: %r", exc)

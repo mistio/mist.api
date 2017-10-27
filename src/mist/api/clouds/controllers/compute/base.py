@@ -479,7 +479,7 @@ class BaseComputeController(BaseController):
 
         This is only overriden by the OtherServer Controller"""
         pass
-    
+
     def _list_machines__update_action_remove(self, machine):
         """Helper method to update machine remove action.
         This is only overriden by the OtherServer Controller"""
