@@ -543,6 +543,7 @@ class MainConnection(MistConnection):
             if 'org' in sections:
                 self.auth_context.org.reload()
                 self.update_org()
+
         elif routing_key == 'patch_notifications':
             if json.loads(result).get('user') == self.user.id:
                 self.send('patch_notifications', result)

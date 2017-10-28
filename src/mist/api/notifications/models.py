@@ -10,6 +10,9 @@ class NotificationOverride(me.EmbeddedDocument):
     '''
     Represents a single notification override.
     '''
+    id = me.StringField(primary_key=True,
+                        default=lambda: uuid4().hex)
+
     source = me.StringField(
         max_length=64,
         required=True,
