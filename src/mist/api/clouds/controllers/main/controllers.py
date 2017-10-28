@@ -469,3 +469,5 @@ class OtherMainController(BaseMainController):
                 if fail_on_error:
                     machine.delete()
                 raise
+
+        return machine

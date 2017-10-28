@@ -12,6 +12,8 @@ from mist.api import tasks
 
 from mist.api.auth.methods import auth_context_from_request
 from mist.api.helpers import view_config, params_from_request
+from mist.api.helpers import trigger_session_update
+
 
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import BadRequestError, NotFoundError
@@ -462,10 +464,12 @@ def add_machine(request):
            'extra': {},
            'public_ips': machine.public_ips,
            'private_ips': machine.private_ips,
-           'monitoring': monitor,
            'job_id': job_id,
            'job': job
            }
+
+    if monitoring:
+        ret.update({'monitoring': monitor})
 
     return ret
 
@@ -558,8 +562,8 @@ def machine_actions(request):
         methods.destroy_machine(auth_context.owner, cloud_id,
                                 machine.machine_id)
     elif action == 'remove':
-        log.info('Removing machine %s in cloud %s' % (machine_id, cloud_id))
-        machine = Machine.objects.get(cloud=cloud_id, machine_id=machine_id)
+        log.info('Removing machine %s in cloud %s'
+                 % (machine.machine_id, cloud_id))
 
         if not machine.monitoring.hasmonitoring:
             machine.ctl.remove()
@@ -576,6 +580,10 @@ def machine_actions(request):
                         "machine never had monitoring enabled. Error: %r", exc)
 
         machine.ctl.remove()
+
+        # Schedule a UI update
+        trigger_session_update(auth_context.owner, ['clouds'])
+
     elif action in ('start', 'stop', 'reboot',
                     'undefine', 'suspend', 'resume'):
         getattr(machine.ctl, action)()
