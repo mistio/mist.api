@@ -351,9 +351,11 @@ class Machine(me.Document):
             'parent_id': self.parent.id if self.parent is not None else '',
             'probe': {
                 'ping': (self.ping_probe.as_dict()
-                         if self.ping_probe is not None else PingProbe().as_dict()),
+                         if self.ping_probe is not None
+                         else PingProbe().as_dict()),
                 'ssh': (self.ssh_probe.as_dict()
-                        if self.ssh_probe is not None else SSHProbe().as_dict()),
+                        if self.ssh_probe is not None
+                        else SSHProbe().as_dict()),
             },
         }
 
