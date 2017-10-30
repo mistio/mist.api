@@ -471,6 +471,9 @@ def add_machine(request):
     if monitoring:
         ret.update({'monitoring': monitor})
 
+    # Schedule a UI update
+    trigger_session_update(auth_context.owner, ['clouds'])
+
     return ret
 
 
