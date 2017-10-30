@@ -120,7 +120,7 @@ def dismiss_scale_notifications(machine, feedback='NEUTRAL'):
     Calls dismiss on each notification's channel. May update
     the feedback field on each notification.
     '''
-    notifications = Notification.objects(resource=machine,
+    notifications = Notification.objects(machine=machine,
                                          model_id__contains="autoscale")
     for notification in notifications:
         notification.feedback = feedback
