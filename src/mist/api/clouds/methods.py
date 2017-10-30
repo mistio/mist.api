@@ -54,7 +54,7 @@ def add_cloud_v_2(owner, title, provider, params):
     # Add the cloud.
     try:
         cloud = cloud_cls.add(owner, title, fail_on_error=fail_on_error,
-                            fail_on_invalid_params=False, **params)
+                              fail_on_invalid_params=False, **params)
     # If we got a mist error it means that there was a problem adding
     # one of the machines
     except MistError as exc:

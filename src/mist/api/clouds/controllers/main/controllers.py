@@ -362,7 +362,6 @@ class OtherMainController(BaseMainController):
             raise MistError('Some of the machines failed to be added due to %s'
                             % machine_errors)
 
-
     def update(self, fail_on_error=True, fail_on_invalid_params=True,
                **kwargs):
         raise BadRequestError("OtherServer clouds don't support `update`. "
