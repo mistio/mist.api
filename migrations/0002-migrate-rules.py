@@ -93,19 +93,20 @@ def prepare_kwargs(owner, old_rule):
 def verify(old_rule, rule_id, new_rule):
     """Ensure backwards compatibility. Exit immediately, if it fails."""
     try:
-        assert rule_id == new_rule.rule_id
-        assert old_rule.metric == new_rule.metric
-        assert old_rule.operator == new_rule.operator
-        assert old_rule.value == new_rule.value
-        assert old_rule.aggregate == new_rule.aggregate
-        assert old_rule.reminder_offset == new_rule.reminder_offset
-        assert old_rule.machine == new_rule.machine
-        assert old_rule.cloud == new_rule.cloud
-        assert old_rule.action == new_rule.action
-        assert old_rule.emails == new_rule.emails
-        assert (old_rule.command or '') == new_rule.command
-    except AssertionError:
-        print "Failed to verify %s" % new_rule
+        assert rule_id == new_rule.rule_id, 'rule_id'
+        assert old_rule.metric == new_rule.metric, 'metric'
+        assert old_rule.operator == new_rule.operator, 'operator'
+        assert old_rule.value == new_rule.value, 'value'
+        assert old_rule.aggregate == new_rule.aggregate, 'aggregate'
+        assert old_rule.reminder_offset == new_rule.reminder_offset, 'offset'
+        assert old_rule.machine == new_rule.machine, 'machine'
+        assert old_rule.cloud == new_rule.cloud, 'cloud'
+        assert old_rule.action == new_rule.action, 'action'
+        assert old_rule.emails == new_rule.emails, 'emails'
+        if old_rule.action == 'command':
+            assert (old_rule.command or '') == new_rule.command, 'command'
+    except AssertionError as err:
+        print "Failed to verify %s: %r" % (new_rule, err)
         new_rule.delete()
         sys.exit(1)
 
