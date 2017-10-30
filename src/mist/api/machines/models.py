@@ -125,6 +125,7 @@ class PingProbe(me.EmbeddedDocument):
     rtt_avg = me.FloatField()
     rtt_std = me.FloatField()
     updated_at = me.DateTimeField()
+    meta = {'strict': False}
 
     def update_from_dict(self, data):
         for key in data:
@@ -155,6 +156,7 @@ class SSHProbe(me.EmbeddedDocument):
     os_version = me.StringField()
     dirty_cow = me.BooleanField()
     updated_at = me.DateTimeField()
+    meta = {'strict': False}
 
     def update_from_dict(self, data):
 
@@ -351,9 +353,11 @@ class Machine(me.Document):
             'parent_id': self.parent.id if self.parent is not None else '',
             'probe': {
                 'ping': (self.ping_probe.as_dict()
-                         if self.ping_probe is not None else {}),
+                         if self.ping_probe is not None
+                         else PingProbe().as_dict()),
                 'ssh': (self.ssh_probe.as_dict()
-                        if self.ssh_probe is not None else {}),
+                        if self.ssh_probe is not None
+                        else SSHProbe().as_dict()),
             },
         }
 
