@@ -343,12 +343,25 @@ class OtherMainController(BaseMainController):
         # for each one of them. The machines handled here are only bare metal
         # and hence we only create the relevant object in the database, no
         # remote calls to any provider is performed.
+        machine_errors = []
+        add_machines_failed = False
         for machine_kwargs in kwargs['machines']:
+            errors = None
             machine_name = machine_kwargs.pop('machine_name', '')
-            self.add_machine_wrapper(
+            errors = self.add_machine_wrapper(
                 machine_name, fail_on_error=fail_on_error,
                 fail_on_invalid_params=fail_on_invalid_params, **machine_kwargs
             )
+            if errors:
+                add_machines_failed = True
+            machine_errors.append({'host': machine_kwargs['machine_ip'],
+                                   'machine_name': machine_name,
+                                   'errors': errors})
+
+        if add_machines_failed:
+            raise MistError('Some of the machines failed to be added due to %s'
+                            % machine_errors)
+
 
     def update(self, fail_on_error=True, fail_on_invalid_params=True,
                **kwargs):
@@ -387,17 +400,17 @@ class OtherMainController(BaseMainController):
                     log.warning(error)
                     kwargs.pop(key)
         if errors:
-            raise BadRequestError({
-                'msg': "Invalid parameters %s." % errors.keys(),
-                'errors': errors,
-            })
+            log.error("Invalid parameters %s." % errors.keys())
 
-        # Add then machine.
+        # Add the machine.
         try:
             self.add_machine(name, fail_on_error=fail_on_error,
                              **kwargs)
         except (CloudUnauthorizedError, MistError) as exc:
             log.error("Failed to add machine due to: %s", exc)
+            errors['addMachineError'] = exc
+
+        return errors
 
     def add_machine(self, name, host='',
                     ssh_user='root', ssh_port=22, ssh_key=None,
@@ -469,5 +482,4 @@ class OtherMainController(BaseMainController):
                 if fail_on_error:
                     machine.delete()
                 raise
-
         return machine

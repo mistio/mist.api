@@ -1371,9 +1371,20 @@ class OtherComputeController(BaseComputeController):
         return []
 
     def _list_machines__update_state(self, machine):
+        # If we have a machine and ssh_probe data then it
+        # means that the machine is running and we can reach it
         if machine.ssh_probe:
             machine.state = config.STATES[NodeState.RUNNING]
             machine.unreachable_since = None
+        # Else if we don't have ssh_probe data but we do have
+        # ping_probe data then the machine is running but we
+        # cannot reach it.
+        elif machine.ping_probe:
+            machine.state = config.STATES[NodeState.RUNNING]
+            machine.unreachable_since = datetime.datetime.now()
+        # Else if we have neither ssh_probe or ping_probe data
+        # then as far as we are concerned the machine is
+        # unreachable and the state should be unknown.
         elif machine.unreachable_since:
             machine.state = config.STATES[NodeState.UNKNOWN]
 
