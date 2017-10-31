@@ -5,7 +5,6 @@ from mist.api.machines.models import Machine
 
 from mist.api.helpers import trigger_session_update
 
-from mist.api.exceptions import MistError
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import BadRequestError, NotFoundError
 
