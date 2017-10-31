@@ -368,16 +368,14 @@ class OtherMainController(BaseMainController):
                 machine_name, fail_on_error=fail_on_error,
                 fail_on_invalid_params=fail_on_invalid_params, **machine_kwargs
             )
-            if monitoring:
+            if machine and monitoring:
                 enable_monitoring(
                     self.cloud.owner, self.cloud.id, machine.machine_id,
                     no_ssh=not (machine.os_type == 'unix' and
                                 machine.key_associations)
                 )
 
-            machine_errors.append({'host': machine_kwargs['machine_ip'],
-                                   'machine_name': machine_name,
-                                   'errors': errors})
+            machine_errors.append({'errors': errors})
         self.cloud.machine_errors = machine_errors
         self.cloud.save()
 
@@ -417,16 +415,25 @@ class OtherMainController(BaseMainController):
                 else:
                     log.warning(error)
                     kwargs.pop(key)
+        if not name:
+            errors['name'] = "Required parameter name missing"
+            log.error(errors['name'])
+        if 'host' not in kwargs:
+            errors['host'] = "Required parameter host missing"
+            log.error(errors['host'])
+
         if errors:
             log.error("Invalid parameters %s." % errors.keys())
-
-        # Add the machine.
-        try:
-            machine = self.add_machine(name, fail_on_error=fail_on_error,
-                                       **kwargs)
-        except (CloudUnauthorizedError, MistError) as exc:
-            log.error("Failed to add machine due to: %s", exc)
-            errors['addMachineError'] = exc
+            machine = None
+        else:
+            # Add the machine.
+            try:
+                machine = self.add_machine(name, fail_on_error=fail_on_error,
+                                           **kwargs)
+            except (CloudUnauthorizedError, MistError) as exc:
+                log.error("Failed to add machine due to: %s", exc)
+                machine = None
+                errors['addMachineError'] = exc
 
         return machine, errors
 
