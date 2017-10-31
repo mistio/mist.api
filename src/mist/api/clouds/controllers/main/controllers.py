@@ -423,7 +423,7 @@ class OtherMainController(BaseMainController):
         # Add the machine.
         try:
             machine = self.add_machine(name, fail_on_error=fail_on_error,
-                             **kwargs)
+                                       **kwargs)
         except (CloudUnauthorizedError, MistError) as exc:
             log.error("Failed to add machine due to: %s", exc)
             errors['addMachineError'] = exc
