@@ -38,9 +38,9 @@ class BaseChannel():
         pass
 
 
-class EmailReportsChannel(BaseChannel):
+class EmailNotificationsChannel(BaseChannel):
     '''
-    Email channel for reports.
+    Email channel for notifications.
     Tries to send using Sendgrid, if credentials are available
     in config, otherwise sends email using SMTP.
     '''
@@ -48,7 +48,7 @@ class EmailReportsChannel(BaseChannel):
     def send(self, notification):
         '''
         Accepts a notification and sends an email using included data.
-        If SENDGRID_REPORTING_KEY and EMAIL_REPORT_SENDER are available
+        If SENDGRID_EMAIL_NOTIFICATIONS_KEY is available
         in config, it uses Sendgrid to deliver the email. Otherwise, it
         uses plain SMTP through send_email()
         '''
@@ -58,8 +58,7 @@ class EmailReportsChannel(BaseChannel):
         full_name = user.get_nice_name()
         first_name = user.first_name or user.get_nice_name()
 
-        if (hasattr(config, "SENDGRID_REPORTING_KEY") and
-                hasattr(config, "EMAIL_REPORT_SENDER")):
+        if (hasattr(config, "SENDGRID_EMAIL_NOTIFICATIONS_KEY")):
             from sendgrid.helpers.mail import (Email,
                                                Mail,
                                                Personalization,
@@ -68,12 +67,11 @@ class EmailReportsChannel(BaseChannel):
             import sendgrid
 
             self.sg_instance = sendgrid.SendGridAPIClient(
-                apikey=config.SENDGRID_REPORTING_KEY)
+                apikey=config.SENDGRID_EMAIL_NOTIFICATIONS_KEY)
 
             mail = Mail()
-            mail.from_email = Email(
-                config.EMAIL_REPORT_SENDER,
-                "Mist.io Reports")
+            mail.from_email = Email(notification.sender_email,
+                                    notification.sender_title)
             personalization = Personalization()
             personalization.add_to(Email(to, full_name))
             personalization.subject = notification.subject
@@ -104,7 +102,7 @@ class EmailReportsChannel(BaseChannel):
                 exit()
         else:
             send_email(notification.subject, notification.body,
-                       [to], sender="config.EMAIL_REPORT_SENDER")
+                       [to], sender=notification.sender_email)
 
 
 class InAppChannel(BaseChannel):
@@ -180,18 +178,6 @@ class InAppChannel(BaseChannel):
                               data=data)
 
 
-def channel_instance_for_notification(notification):
-    '''
-    Accepts a notification instance and returns
-    the corresponding channel
-    '''
-    if isinstance(notification, EmailReport):
-        return EmailReportsChannel()
-    elif isinstance(notification, InAppNotification):
-        return InAppChannel()
-    return None
-
-
 class NotificationsEncoder(json.JSONEncoder):
     '''
     JSON Encoder that properly handles Notification
@@ -205,3 +191,15 @@ class NotificationsEncoder(json.JSONEncoder):
             return json.loads(o.to_json())
         else:
             return json.JSONEncoder.default(self, o)
+
+
+def channel_instance_for_notification(notification):
+    '''
+    Accepts a notification instance and returns
+    an instance of the corresponding channel
+    '''
+    if isinstance(notification, EmailNotification):
+        return EmailNotificationsChannel()
+    elif isinstance(notification, InAppNotification):
+        return InAppChannel()
+    return None
