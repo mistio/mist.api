@@ -471,9 +471,6 @@ def add_machine(request):
     if monitoring:
         ret.update({'monitoring': monitor})
 
-    # Schedule a UI update
-    trigger_session_update(auth_context.owner, ['clouds'])
-
     return ret
 
 
@@ -570,6 +567,8 @@ def machine_actions(request):
 
         if not machine.monitoring.hasmonitoring:
             machine.ctl.remove()
+            # Schedule a UI update
+            trigger_session_update(auth_context.owner, ['clouds'])
             return
 
         # if machine has monitoring, disable it. the way we disable depends on
