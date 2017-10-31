@@ -5,7 +5,7 @@ from mist.api.auth.methods import user_from_request, auth_context_from_request
 from mist.api.notifications.channels import (channel_instance_for_notification,
                                              NotificationsEncoder)
 
-from mist.api.notifications.models import (Notification, 
+from mist.api.notifications.models import (Notification,
                                            UserNotificationPolicy)
 
 from mist.api.notifications.methods import add_override
