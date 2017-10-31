@@ -113,6 +113,15 @@ def send_notification(notification):
             chan.send(notification)
 
 
+def send_notifications(notifications):
+    '''
+    Accepts a list of notifications and sends the ones allowed.
+    Calls send_notification
+    '''
+    for notification in notifications:
+        send_notification(notification)
+
+
 def dismiss_scale_notifications(machine, feedback='NEUTRAL'):
     '''
     Convenience function to dismiss scale notifications from
