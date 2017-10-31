@@ -356,7 +356,6 @@ class OtherMainController(BaseMainController):
         # and hence we only create the relevant object in the database, no
         # remote calls to any provider is performed.
         machine_errors = []
-        add_machines_failed = False
         for machine_kwargs in kwargs['machines']:
             errors = None
             machine_name = machine_kwargs.pop('machine_name', '')
@@ -364,15 +363,11 @@ class OtherMainController(BaseMainController):
                 machine_name, fail_on_error=fail_on_error,
                 fail_on_invalid_params=fail_on_invalid_params, **machine_kwargs
             )
-            if errors:
-                add_machines_failed = True
             machine_errors.append({'host': machine_kwargs['machine_ip'],
                                    'machine_name': machine_name,
                                    'errors': errors})
-
-        if add_machines_failed:
-            raise MistError('Some of the machines failed to be added due to %s'
-                            % machine_errors)
+        self.cloud.machine_errors = machine_errors
+        self.cloud.save()
 
     def update(self, fail_on_error=True, fail_on_invalid_params=True,
                **kwargs):

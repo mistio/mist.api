@@ -50,17 +50,11 @@ def add_cloud_v_2(owner, title, provider, params):
         raise BadRequestError("Invalid provider '%s'." % provider)
     cloud_cls = cloud_models.CLOUDS[provider]  # Class of Cloud model.
 
-    ret = {}
     # Add the cloud.
-    try:
-        cloud = cloud_cls.add(owner, title, fail_on_error=fail_on_error,
-                              fail_on_invalid_params=False, **params)
-    # If we got a mist error it means that there was a problem adding
-    # one of the machines
-    except MistError as exc:
-        ret['errors'] = exc
+    cloud = cloud_cls.add(owner, title, fail_on_error=fail_on_error,
+                          fail_on_invalid_params=False, **params)
 
-    ret['cloud_id'] = cloud.id
+    ret = {'cloud_id': cloud.id}
     if provider == 'bare_metal':
         # Let's overload this a bit more by also combining monitoring.
         machines = Machine.objects(cloud=cloud)
