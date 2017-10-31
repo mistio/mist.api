@@ -51,8 +51,10 @@ from mist.api.clouds.controllers.dns import controllers as dns_ctls
 
 try:
     from mist.core.vpn.methods import to_tunnel
+    from mist.core.methods import enable_monitoring
 except ImportError:
     from mist.api.dummy.methods import to_tunnel
+    from mist.api.dummy.methods import enable_monitoring
 
 
 log = logging.getLogger(__name__)
@@ -357,12 +359,22 @@ class OtherMainController(BaseMainController):
         # remote calls to any provider is performed.
         machine_errors = []
         for machine_kwargs in kwargs['machines']:
+            # We need to extract the monitoring data from the machine params
+            # to use them later in enabling monitoring
+            monitoring = machine_kwargs.pop('monitoring', None)
             errors = None
             machine_name = machine_kwargs.pop('machine_name', '')
-            errors = self.add_machine_wrapper(
+            machine, errors = self.add_machine_wrapper(
                 machine_name, fail_on_error=fail_on_error,
                 fail_on_invalid_params=fail_on_invalid_params, **machine_kwargs
             )
+            if monitoring:
+                enable_monitoring(
+                    self.cloud.owner, self.cloud.id, machine.machine_id,
+                    no_ssh=not (machine.os_type == 'unix' and
+                                machine.key_associations)
+                )
+
             machine_errors.append({'host': machine_kwargs['machine_ip'],
                                    'machine_name': machine_name,
                                    'errors': errors})
@@ -410,13 +422,13 @@ class OtherMainController(BaseMainController):
 
         # Add the machine.
         try:
-            self.add_machine(name, fail_on_error=fail_on_error,
+            machine = self.add_machine(name, fail_on_error=fail_on_error,
                              **kwargs)
         except (CloudUnauthorizedError, MistError) as exc:
             log.error("Failed to add machine due to: %s", exc)
             errors['addMachineError'] = exc
 
-        return errors
+        return machine, errors
 
     def add_machine(self, name, host='',
                     ssh_user='root', ssh_port=22, ssh_key=None,

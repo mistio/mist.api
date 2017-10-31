@@ -34,13 +34,9 @@ def add_cloud_v_2(owner, title, provider, params):
     # FIXME: Some of these should be explicit arguments, others shouldn't exist
     fail_on_error = params.pop('fail_on_error',
                                params.pop('remove_on_error', True))
+    monitoring = params.pop('monitoring', False)
     params.pop('title', None)
     params.pop('provider', None)
-    # We need to extract the monitoring data from the machine params
-    # to use them later in enabling monitoring
-    monitoring = {}
-    for machine in params['machines']:
-        monitoring[machine['machine_name']] = machine.pop('monitoring', None)
     # Find proper Cloud subclass.
     if not provider:
         raise RequiredParameterMissingError("provider")
@@ -52,20 +48,7 @@ def add_cloud_v_2(owner, title, provider, params):
     # Add the cloud.
     cloud = cloud_cls.add(owner, title, fail_on_error=fail_on_error,
                           fail_on_invalid_params=False, **params)
-
     ret = {'cloud_id': cloud.id}
-    if provider == 'bare_metal':
-        # Let's overload this a bit more by also combining monitoring.
-        machines = Machine.objects(cloud=cloud)
-        # For each machine in this cloud check it against the provided
-        # machine params to find out if we need to enable monitoring
-        for machine in machines:
-            if monitoring[machine.name]:
-                enable_monitoring(
-                    owner, cloud.id, machine.machine_id,
-                    no_ssh=not (machine.os_type == 'unix' and
-                                machine.key_associations)
-                )
 
     # SEC
     owner.mapper.update(cloud)
