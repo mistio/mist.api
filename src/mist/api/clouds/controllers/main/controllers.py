@@ -315,6 +315,18 @@ class OtherMainController(BaseMainController):
     provider = 'bare_metal'
     ComputeController = compute_ctls.OtherComputeController
 
+    def disable(self):
+        """ For OtherServer clouds we do not want to set the missing_since
+        on the cloud machines when we disable the cloud because we are using
+        the missing_since field to remove them.
+
+        Setting the cloud enabled field to False is enough to not return
+        them during listing machine actions because we are not using
+        the cloud on listings.
+        """
+        self.cloud.enabled = False
+        self.cloud.save()
+
     def add(self, fail_on_error=True, fail_on_invalid_params=True, **kwargs):
         """Add new Cloud to the database
 
