@@ -128,7 +128,7 @@ class InAppChannel(BaseChannel):
                     # unfortunately, queryset does not support pop()
                     first = similar[0]
                     first.update_from(notification)
-                    # first.dismissed = False # To display again
+                    first.dismissed = False # To display again
                     first.save()
                     for item in [item for item in similar if item != first]:
                         item.dismissed = True
