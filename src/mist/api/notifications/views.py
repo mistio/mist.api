@@ -40,9 +40,7 @@ def add_notification_override(request):
     properties
     ---
     """
-    auth_context = auth_context_from_request(request)
-    user = auth_context.user
-    org = auth_context.org
+    user = user_from_request(request)
     if user:
         # Use relevant notification to generate override
         notification_id = request.matchdict.get("notification_id")
