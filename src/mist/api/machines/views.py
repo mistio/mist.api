@@ -94,7 +94,7 @@ def list_cloud_machines(request):
     return machines
 
 
-@view_config(route_name='api_v1_machines', request_method='POST',
+@view_config(route_name='api_v1_cloud_machines', request_method='POST',
              renderer='json')
 def create_machine(request):
     """
