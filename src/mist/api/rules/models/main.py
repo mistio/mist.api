@@ -1,14 +1,17 @@
 import uuid
+import celery
 import mongoengine as me
 
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import BadRequestError
+
 from mist.api.users.models import Organization
 from mist.api.machines.models import Machine
 from mist.api.conditions.models import ConditionalClassMixin
 
 from mist.api.rules.base import ResourceRuleController
 from mist.api.rules.base import ArbitraryRuleController
+from mist.api.rules.models import RuleState
 from mist.api.rules.models import Window
 from mist.api.rules.models import Frequency
 from mist.api.rules.models import TriggerOffset
@@ -57,12 +60,6 @@ class Rule(me.Document):
     """
 
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
-    # TODO This must be globally unique, since celerybeat-mongo uses schedule
-    # names to prepare the dictionary of schedules to be run. As the keys of
-    # this dictionary are the schedules' names, we could end up with schedules
-    # being skipped. We should use a deterministic, computed property in order
-    # to autogenerate a schedule's `name`.
-    # name = me.StringField()
     title = me.StringField(required=True)
     owner_id = me.StringField(required=True)
 
@@ -70,9 +67,15 @@ class Rule(me.Document):
     # ANDed together in order to decide whether an alert should be raised.
     queries = me.EmbeddedDocumentListField(QueryCondition, required=True)
 
-    # Defines the time window and frequency of each search. TODO required.
-    window = me.EmbeddedDocumentField(Window)
-    frequency = me.EmbeddedDocumentField(Frequency)
+    # Defines the time window and frequency of each search.
+    window = me.EmbeddedDocumentField(
+        Window, required=True,
+        default=lambda: Window(start=2, period='minutes')
+    )
+    frequency = me.EmbeddedDocumentField(
+        Frequency, required=True,
+        default=lambda: Frequency(every=2, period='minutes')
+    )
 
     # Associates a reminder offset, which will cause an alert to be fired if
     # and only if the threshold is exceeded for a number of trigger_after
@@ -84,11 +87,25 @@ class Rule(me.Document):
     # Defines a list of actions to be executed once the rule is triggered.
     # Defaults to just notifying the users.
     actions = me.EmbeddedDocumentListField(
-        BaseAlertAction, default=lambda: [NotificationAction()]
+        BaseAlertAction, required=True, default=lambda: [NotificationAction()]
     )
 
     # Disable the rule organization-wide.
     disabled = me.BooleanField(default=False)
+
+    # Fields passed to celerybeat as optional arguments.
+    queue = me.StringField()
+    exchange = me.StringField()
+    routing_key = me.StringField()
+    soft_time_limit = me.IntField()
+
+    # Fields updated by the scheduler.
+    last_run_at = me.DateTimeField()
+    run_immediately = me.BooleanField()
+    total_run_count = me.IntField(min_value=0, default=0)
+
+    # Field updated by celery workers. This is where celery workers keep state.
+    states = me.MapField(field=me.EmbeddedDocumentField(RuleState))
 
     meta = {
         'strict': False,
@@ -125,7 +142,7 @@ class Rule(me.Document):
         self.ctl = self._controller_cls(self)
 
     @classmethod
-    def add(cls, owner_id, title=None, **kwargs):
+    def add(cls, owner_id, title, **kwargs):
         """Add a new Rule.
 
         New rules should be added by invoking this class method on a Rule
@@ -171,6 +188,62 @@ class Rule(me.Document):
         """
         return None
 
+    # NOTE The following properties are required by the scheduler.
+
+    @property
+    def name(self):
+        """Return the name of the celery task.
+
+        This must be globally unique, since celerybeat-mongo uses schedule
+        names as keys of the dictionary of schedules to run.
+
+        """
+        return 'Org(%s):Rule(%s)' % (self.owner_id, self.id)
+
+    @property
+    def task(self):
+        """Return the celery task to run.
+
+        This is the most basic celery task that should be used for most rule
+        evaluations. However, subclasses may provide their own property or
+        class attribute based on their needs.
+
+        """
+        return 'mist.api.rules.tasks.evaluate'
+
+    @property
+    def args(self):
+        """Return the args of the celery task."""
+        return (self.id, )
+
+    @property
+    def kwargs(self):
+        """Return the kwargs of the celery task."""
+        return {}
+
+    @property
+    def expires(self):
+        """Return None to denote that self is not meant to expire."""
+        return None
+
+    @property
+    def enabled(self):
+        """Return True if the celery task is currently enabled.
+
+        Subclasses MAY override or extend this property.
+
+        """
+        return not self.disabled
+
+    @property
+    def schedule(self):
+        """Return a celery schedule instance.
+
+        Used internally by the scheduler. Subclasses MUST NOT override this.
+
+        """
+        return celery.schedules.schedule(self.frequency.timedelta)
+
     def is_arbitrary(self):
         """Return True if self is arbitrary.
 
@@ -188,10 +261,6 @@ class Rule(me.Document):
         # have to change in the future due to uniqueness constrains.
         if not self.title:
             self.title = 'rule%d' % self.owner.rule_counter
-        # FIXME Ensure a single query condition is specified for backwards
-        # compatibility with the existing monitoring/alert stack.
-        if not len(self.queries) is 1:
-            raise me.ValidationError()
 
     def as_dict(self):
         return {
@@ -201,8 +270,6 @@ class Rule(me.Document):
             'window': self.window.as_dict(),
             'frequency': self.frequency.as_dict(),
             'trigger_after': self.trigger_after.as_dict(),
-            'no_data_alert': self.no_data_alert,
-            'no_data_state': self.no_data_state,
             'actions': [action.as_dict() for action in self.actions],
             'disabled': self.disabled,
         }
@@ -246,6 +313,11 @@ class ResourceRule(Rule, ConditionalClassMixin):
     """
 
     _controller_cls = ResourceRuleController
+
+    @property
+    def enabled(self):
+        return (super(ResourceRule, self).enabled and
+                self.get_resources().count())
 
     def as_dict(self):
         d = super(ResourceRule, self).as_dict()
@@ -336,10 +408,24 @@ class ResourceRule(Rule, ConditionalClassMixin):
         }
 
 
+from mist.api.rules.base import NoDataRuleController
+from mist.api.rules.backends.graphite.plugin import GraphiteNoDataPlugin
+from mist.api.rules.backends.graphite.plugin import GraphiteBackendPlugin
+
+
 class MachineMetricRule(ResourceRule):
 
     condition_resource_cls = Machine
 
     @property
     def backend_plugin(self):
-        return 'graphite'
+        return GraphiteBackendPlugin(self)
+
+
+class NoDataRule(MachineMetricRule):
+
+    _controller_cls = NoDataRuleController
+
+    @property
+    def backend_plugin(self):
+        return GraphiteNoDataPlugin(self)

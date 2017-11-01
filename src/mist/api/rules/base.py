@@ -11,6 +11,7 @@ from mist.api.rules.models import QueryCondition
 
 from mist.api.rules.actions import ACTIONS
 
+from mist.api.conditions.models import FieldCondition
 from mist.api.conditions.models import MachinesCondition
 
 
@@ -44,6 +45,10 @@ class BaseController(object):
     def __init__(self, rule):
         """Initialize the controller given a Rule instance."""
         self.rule = rule
+
+    @property
+    def plugin(self):
+        return self.rule.backend_plugin
 
     def add(self, fail_on_error=True, **kwargs):
         """Add a new Rule.
@@ -137,6 +142,23 @@ class BaseController(object):
             log.error('Error updating %s: %s', self.rule.name, err)
             raise BadRequestError('Rule "%s" already exists' % self.rule.name)
 
+    def evaluate(self, update_state=False, trigger=False):
+        """Evaluate a Rule.
+
+        This method exposes the corresponding plugin's functionality by running
+        a full evaluation cycle of `self.rule` and it is meant to be invoked as
+        such:
+
+            rule = mist.api.rules.models.Rule.objects.get(id=1)
+            rule.ctl.evaluate()
+
+        This method is just a wrapper around the corresponding plugin's `run`
+        method.
+
+        """
+        self.plugin.run(update_state=update_state, run_actions=trigger)
+        #self.rule.backend_plugin.run(update=update, trigger=trigger)
+
 
 class ArbitraryRuleController(BaseController):
 
@@ -163,3 +185,49 @@ class ResourceRuleController(BaseController):
                 self.rule.conditions.append(cond_cls)
         super(ResourceRuleController, self).update(
             save=save, fail_on_error=fail_on_error, **kwargs)
+
+
+class NoDataRuleController(BaseController):
+
+    def update(self, save=True, fail_on_error=True, **kwargs):
+        raise BadRequestError('NoData rules may not be edited')
+
+    def auto_setup(self):
+        """Idempotently setup a NoDataRule."""
+        from ipdb import set_trace; set_trace()
+        # The rule's title. There should be a single NoDataRule per Org.
+        self.rule.title = 'NoData'
+
+        # The list of query conditions to evaluate. If at least one of
+        # the following metrics returns non-None datapoints, the rule
+        # will not be triggered.
+        self.rule.queries = []
+        for target in ('load.shortterm', 'load.midterm', 'cpu.0.idle', ):
+            cond = QueryCondition(target=target, operator='gt',
+                                  threshold=0, aggregation='any')
+            self.rule.queries.append(cond)
+
+        # The rule's time window and frequency. These denote the maximum
+        # time window for which we tolerate the absence of points before
+        # raising an alert.
+        self.rule.window.start = 2
+        self.rule.frequency.every = 2
+
+        # The rule's single action.
+        #self.rule.action = [NoDataAction]
+
+        # The rule's resource conditions. This pair of conditions makes
+        # the NoDataRule to be evaluated only for machines with enabled
+        # monitoring, for which we have received monitoring data.
+        self.rule.conditions = [
+            FieldCondition(
+                field='monitoring__hasmonitoring',
+                operator='eq', value=True
+            ),
+            FieldCondition(
+                field='monitoring__installation_status__activated_at',
+                operator='gt', value=0
+            )
+        ]
+
+        self.rule.save()
