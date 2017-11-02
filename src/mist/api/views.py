@@ -1266,14 +1266,8 @@ def probe(request):
     host = machine.hostname
     auth_context.check_perm("machine", "read", machine.id)
 
-    ret = methods.probe(auth_context.owner, cloud_id,
-                        machine.machine_id, host, key_id, ssh_user)
-    amqp_publish_user(auth_context.owner, "probe",
-                 {
-                    'cloud_id': cloud_id,
-                    'machine_id': machine.machine_id,
-                    'result': ret
-                 })
+    ret = {'ping': machine.ctl.ping_probe(),
+           'ssh': machine.ctl.ssh_probe()}
     return ret
 
 
