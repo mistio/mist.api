@@ -5,7 +5,8 @@ import urllib2
 from mist.api import config
 from mist.api.helpers import send_email, amqp_publish_user
 
-from models import Notification, EmailReport, InAppNotification
+from mist.api.notifications.models import (Notification, NotificationOverride,
+                                           EmailReport, InAppNotification)
 
 import logging
 
@@ -119,9 +120,10 @@ class InAppChannel(BaseChannel):
                 similar = InAppNotification.objects(
                     user=notification.user,
                     organization=notification.organization,
-                    resource=notification.resource,
-                    model_id=notification.model_id,
-                    dismissed=False)
+                    machine=notification.machine,
+                    tag=notification.tag,
+                    cloud=notification.cloud,
+                    model_id=notification.model_id)
                 if similar:
                     # unfortunately, queryset does not support pop()
                     first = similar[0]
@@ -197,7 +199,8 @@ class NotificationsEncoder(json.JSONEncoder):
     '''
 
     def default(self, o):
-        if isinstance(o, Notification):
+        if (isinstance(o, Notification) or
+                isinstance(o, NotificationOverride)):
             # FIXME: this is kind of dumb, but it works
             return json.loads(o.to_json())
         else:

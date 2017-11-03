@@ -7,7 +7,8 @@ import subprocess
 
 import requests
 
-import pingparser
+import pingparsing
+
 
 from mongoengine import ValidationError, NotUniqueError, DoesNotExist
 
@@ -163,6 +164,59 @@ def list_projects(owner, cloud_id):
         conn.disconnect()
     return ret
 
+
+def list_resource_groups(owner, cloud_id):
+    """List resource groups for each account.
+    Currently supported for Azure Arm. For other providers
+    this returns an empty list
+    """
+    cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
+    conn = connect_provider(cloud)
+
+    ret = {}
+    if conn.type in [Provider.AZURE_ARM]:
+        groups = conn.ex_list_resource_groups()
+    else:
+        groups = []
+
+    ret = [{'id': group.name,
+            'name': group.name,
+            'extra': group.extra
+            }
+           for group in groups]
+    return ret
+
+    if conn.type == 'libvirt':
+        # close connection with libvirt
+        conn.disconnect()
+    return ret
+
+
+def list_storage_accounts(owner, cloud_id):
+    """List storage accounts for each account.
+    Currently supported for Azure Arm. For other providers
+    this returns an empty list
+    """
+    cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
+    conn = connect_provider(cloud)
+
+    ret = {}
+    if conn.type in [Provider.AZURE_ARM]:
+        accounts = conn.ex_list_storage_accounts()
+    else:
+        accounts = []
+
+    ret = [{'id': account.name,
+            'name': account.name,
+            'extra': account.extra
+            }
+           for account in accounts]
+    return ret
+
+    if conn.type == 'libvirt':
+        # close connection with libvirt
+        conn.disconnect()
+    return ret
 
 def create_subnet(owner, cloud, network, subnet_params):
     """
@@ -405,7 +459,9 @@ def probe_ssh_only(owner, cloud_id, machine_id, host, key_id='', ssh_user='',
 def _ping_host(host, pkts=10):
     ping = subprocess.Popen(['ping', '-c', str(pkts), '-i', '0.4', '-W',
                              '1', '-q', host], stdout=subprocess.PIPE)
-    return pingparser.parse(ping.stdout.read())
+    ping_parser = pingparsing.PingParsing()
+    ping_parser.parse(ping.stdout.read())
+    return ping_parser.as_dict()
 
 
 def ping(owner, host, pkts=10):
@@ -416,34 +472,18 @@ def ping(owner, host, pkts=10):
     else:
         result = super_ping(owner=owner, host=host, pkts=pkts)
 
-    # In both cases, the returned dict is formatted by pingparser.
-
-    # Properly cast values.
-    for key in result:
-        if result[key] == 'NaN':
-            result[key] = None
-    for key in ('sent', 'received'):
-        try:
-            result[key] = int(result[key])
-        except (ValueError, TypeError) as exc:
-            log.warning("Error casting ping result '%s=%s' to int: %r",
-                        key, result[key], exc)
-    for key in ('packet_loss', 'minping', 'maxping', 'avgping', 'jitter'):
-        try:
-            result[key] = float(result[key])
-        except (ValueError, TypeError) as exc:
-            log.warning("Error casting ping result '%s=%s' to float: %r",
-                        key, result[key], exc)
+    # In both cases, the returned dict is formatted by pingparsing.
 
     # Rename keys.
     final = {}
-    for key, newkey in (('sent', 'packets_tx'),
-                        ('received', 'packets_rx'),
-                        ('packet_loss', 'packets_loss'),
-                        ('minping', 'rtt_min'),
-                        ('maxping', 'rtt_max'),
-                        ('avgping', 'rtt_avg'),
-                        ('jitter', 'rtt_stdev')):
+    for key, newkey in (('packet_transmit', 'packets_tx'),
+                        ('packet_receive', 'packets_rx'),
+                        ('packet_duplicate_rate', 'packets_duplicate'),
+                        ('packet_loss_rate', 'packets_loss'),
+                        ('rtt_min', 'rtt_min'),
+                        ('rtt_max', 'rtt_max'),
+                        ('rtt_avg', 'rtt_avg'),
+                        ('rtt_mdev', 'rtt_std')):
         if key in result:
             final[newkey] = result[key]
     return final

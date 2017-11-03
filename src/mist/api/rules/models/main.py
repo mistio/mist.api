@@ -1,6 +1,7 @@
 import uuid
 import mongoengine as me
 
+from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import BadRequestError
 from mist.api.users.models import Organization
 from mist.api.machines.models import Machine
@@ -8,12 +9,12 @@ from mist.api.conditions.models import ConditionalClassMixin
 
 from mist.api.rules.base import ResourceRuleController
 from mist.api.rules.base import ArbitraryRuleController
+from mist.api.rules.models import Window
+from mist.api.rules.models import Frequency
+from mist.api.rules.models import TriggerOffset
+from mist.api.rules.models import QueryCondition
 from mist.api.rules.actions import BaseAlertAction
 from mist.api.rules.actions import NotificationAction
-from mist.api.rules.conditions import Window
-from mist.api.rules.conditions import Frequency
-from mist.api.rules.conditions import TriggerOffset
-from mist.api.rules.conditions import QueryCondition
 
 
 class Rule(me.Document):
@@ -59,11 +60,11 @@ class Rule(me.Document):
     # TODO This must be globally unique, since celerybeat-mongo uses schedule
     # names to prepare the dictionary of schedules to be run. As the keys of
     # this dictionary are the schedules' names, we could end up with schedules
-    # being skipped. For now, this field will store the existing rule_id which
-    # is incremented by 1 per new rule per organization.
-    name = me.StringField()
-    owner = me.ReferenceField('Organization', required=True,
-                              reverse_delete_rule=me.CASCADE)
+    # being skipped. We should use a deterministic, computed property in order
+    # to autogenerate a schedule's `name`.
+    # name = me.StringField()
+    title = me.StringField(required=True)
+    owner_id = me.StringField(required=True)
 
     # Specifies a list of queries to be evaluated. Results will be logically
     # ANDed together in order to decide whether an alert should be raised.
@@ -86,13 +87,6 @@ class Rule(me.Document):
         BaseAlertAction, default=lambda: [NotificationAction()]
     )
 
-    # Denotes how to handle NoData alerts, whether to suppress them or to
-    # translate them to a different state.
-    no_data_alert = me.BooleanField(default=True)
-    no_data_state = me.StringField(default='no_data', choices=('no_data',
-                                                               'as_null',
-                                                               'last_state'))
-
     # Disable the rule organization-wide.
     disabled = me.BooleanField(default=False)
 
@@ -101,8 +95,12 @@ class Rule(me.Document):
         'collection': 'rules',
         'allow_inheritance': True,
         'indexes': [
-            'name',
-            'owner'
+            {
+                'fields': ['owner_id', 'title'],
+                'sparse': False,
+                'unique': True,
+                'cls': False,
+            }
         ]
     }
 
@@ -127,7 +125,7 @@ class Rule(me.Document):
         self.ctl = self._controller_cls(self)
 
     @classmethod
-    def add(cls, owner, name=None, **kwargs):
+    def add(cls, owner_id, title=None, **kwargs):
         """Add a new Rule.
 
         New rules should be added by invoking this class method on a Rule
@@ -136,20 +134,33 @@ class Rule(me.Document):
         Arguments:
 
             owner:  instance of mist.api.users.models.Organization
-            name:   the name of the rule. This must be universally unique
+            title:  the name of the rule. This must be unique per Organization
             kwargs: additional keyword arguments that will be passed to the
                     corresponding controller in order to setup the self
 
         """
-        assert isinstance(owner, Organization)
         try:
-            cls.objects.get(owner=owner, name=name)
+            Organization.objects.get(id=owner_id)
+        except Organization.DoesNotExist:
+            raise NotFoundError('Organization %s does not exist' % owner_id)
+        try:
+            cls.objects.get(owner_id=owner_id, title=title)
         except cls.DoesNotExist:
-            rule = cls(owner=owner, name=name)
+            rule = cls(owner_id=owner_id, title=title)
         else:
-            raise BadRequestError('Name "%s" is already in use' % name)
+            raise BadRequestError('Title "%s" is already in use' % title)
         rule.ctl.add(**kwargs)
         return rule
+
+    @property
+    def owner(self):
+        """Return the Organization (instance) owning self.
+
+        We refrain from storing the owner as a me.ReferenceField in order to
+        avoid automatic/unwanted dereferencing.
+
+        """
+        return Organization.objects.get(id=self.owner_id)
 
     @property
     def backend_plugin(self):
@@ -184,8 +195,8 @@ class Rule(me.Document):
         # FIXME This is needed in order to ensure rule name convention remains
         # backwards compatible with the old monitoring stack. However, it will
         # have to change in the future due to uniqueness constrains.
-        if not self.name:
-            self.name = 'rule%d' % self.owner.rule_counter
+        if not self.title:
+            self.title = 'rule%d' % self.owner.rule_counter
 
         # FIXME Ensure a single query condition is specified for backwards
         # compatibility with the existing monitoring/alert stack.
@@ -211,7 +222,7 @@ class Rule(me.Document):
     def as_dict(self):
         return {
             'id': self.id,
-            'name': self.name,
+            'title': self.title,
             'queries': [query.as_dict() for query in self.queries],
             'window': self.window.as_dict(),
             'frequency': self.frequency.as_dict(),
@@ -223,7 +234,8 @@ class Rule(me.Document):
         }
 
     def __str__(self):
-        return '%s %s of %s' % (self.__class__.__name__, self.name, self.owner)
+        return '%s %s of %s' % (self.__class__.__name__,
+                                self.title, self.owner)
 
 
 class ArbitraryRule(Rule):
@@ -259,24 +271,7 @@ class ResourceRule(Rule, ConditionalClassMixin):
 
     """
 
-    # chain_globals_by = me.StringField(default='or', choices=('or', 'and'))
-
     _controller_cls = ResourceRuleController
-
-    def is_global(self):
-        """Return True if self applies to multiple resources.
-
-        This is always False for arbitrary rules, since at this point the
-        exact list of resources to which an arbitrary rule applies cannot
-        be extracted.
-
-        """
-        return self.get_resources().count() > 1
-
-    # FIXME Needs https://gitlab.ops.mist.io/mistio/mist.io/merge_requests/466
-    def owner_query(self):
-        from mist.api.clouds.models import Cloud
-        return me.Q(cloud__in=Cloud.objects(owner=self.owner))
 
     def as_dict(self):
         d = super(ResourceRule, self).as_dict()
@@ -287,7 +282,7 @@ class ResourceRule(Rule, ConditionalClassMixin):
 
     @property
     def rule_id(self):
-        return self.name
+        return self.title
 
     @property
     def metric(self):
