@@ -280,7 +280,7 @@ class ResourceRule(Rule, ConditionalClassMixin):
 
     @property
     def reminder_offset(self):
-        return self.trigger_after.timedelta.total_seconds() / 60
+        return self.frequency.timedelta.total_seconds() - 60
 
     @property
     def machine(self):
