@@ -136,7 +136,7 @@ class MachineAction(BaseAlertAction):
     def run(self, machine, *args, **kwargs):
         assert isinstance(machine, Machine)
         assert machine.owner == self._instance.owner
-        getattr(machine.ctl, self.action)
+        getattr(machine.ctl, self.action)()
         if self.action == 'destroy':  # If destroy, disable monitoring, too.
             try:
                 from mist.core.methods import disable_monitoring
