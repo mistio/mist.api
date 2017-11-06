@@ -64,9 +64,13 @@ def prepare_kwargs(owner, old_rule):
             'threshold': old_rule.value,
             'aggregation': old_rule.aggregate,
         }],
-        'trigger_after': {
-            'offset': old_rule.reminder_offset,
-            'period': 'minutes',
+        'window': {
+            'start': old_rule.reminder_offset + 60,
+            'period': 'seconds',
+        },
+        'frequency': {
+            'every': old_rule.reminder_offset + 60,
+            'period': 'seconds',
         },
         'actions': [
             {
