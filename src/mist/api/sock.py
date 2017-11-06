@@ -253,7 +253,7 @@ class LogsConsumer(Consumer):
 class MainConnection(MistConnection):
 
     def on_open(self, conn_info):
-        log.info("************** Open! %s", self.auth_context.owner.id)
+        log.info("************** Open!")
         super(MainConnection, self).on_open(conn_info)
         self.running_machines = set()
         self.consumer = None
