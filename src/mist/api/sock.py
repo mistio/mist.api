@@ -93,14 +93,14 @@ class MistConnection(SockJSConnection):
     closed = False
 
     def on_open(self, conn_info):
-        import random
-        r = int(random.random()*10000)
-        log.info("%d %s: Initializing", r, self.__class__.__name__)
+        log.info("%s: Initializing", self.__class__.__name__)
         self.ip, self.user_agent, session_id = get_conn_info(conn_info)
-        log.info("%d Got connection info %s %s %s", r, self.ip, self.user_agent, session_id)
+        log.info("Got connection info: %s %s %s",
+                 self.ip, self.user_agent, session_id)
         try:
             self.auth_context = auth_context_from_session_id(session_id)
-            log.info("%d Got auth context %s", r, self.auth_context.owner.id)
+            log.info("Got auth context %s for session %s",
+                     self.auth_context.owner.id, session_id)
         except UnauthorizedError:
             log.error("%s: Unauthorized session_id", self.__class__.__name__)
             self.send('logout')
@@ -111,7 +111,6 @@ class MistConnection(SockJSConnection):
             self.owner = self.auth_context.owner
             self.session_id = uuid.uuid4().hex
             CONNECTIONS.add(self)
-        log.info("%d Open completed succesfully %s", r, self.auth_context.owner.id)
 
     def send(self, msg, data=None):
         super(MistConnection, self).send(json.dumps({msg: data}))
