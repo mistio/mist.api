@@ -641,6 +641,13 @@ class Organization(Owner):
             if owners.policy.rules:
                 raise me.ValidationError("Can't set policy rules for Owners.")
 
+        # make sure org name is unique - we can't use the unique keyword on the
+        # field definition because both User and Organization subclass Owner
+        # but only Organization has a name
+        if self.name and Organization.objects(name=self.name, id__ne=self.id):
+            raise me.ValidationError("Organization with name '%s' "
+                                     "already exists." % self.name)
+
         self.members_count = len(self.members)
         self.teams_count = len(self.teams)
         super(Organization, self).clean()
