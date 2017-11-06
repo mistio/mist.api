@@ -89,7 +89,7 @@ class QueryCondition(me.EmbeddedDocument):
 class BasePeriodType(me.EmbeddedDocument):
     """Base abstract class for various period|interval related documents."""
 
-    period = me.StringField(choices=('days', 'hours', 'minutes'))
+    period = me.StringField(choices=('days', 'hours', 'minutes', 'seconds', ))
 
     meta = {'allow_inheritance': True}
 
