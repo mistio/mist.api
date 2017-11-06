@@ -488,17 +488,6 @@ class Organization(Owner):
     super_org = me.BooleanField(default=False)
     parent = me.ReferenceField('Organization', required=False)
 
-    meta = {
-        'indexes': [
-            {
-                'fields': ['name'],
-                'sparse': True,
-                'unique': True,
-                'cls': False,
-            },
-        ],
-    }
-
     @property
     def mapper(self):
         """Returns the `PermissionMapper` for the current Org context."""
