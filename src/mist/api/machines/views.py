@@ -7,6 +7,7 @@ import mist.api.machines.methods as methods
 from mist.api.clouds.models import Cloud
 from mist.api.clouds.models import LibvirtCloud
 from mist.api.machines.models import Machine
+from mist.api.clouds.methods import filter_list_clouds
 
 from mist.api import tasks
 
@@ -18,6 +19,7 @@ from mist.api.helpers import trigger_session_update
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import BadRequestError, NotFoundError
 from mist.api.exceptions import MachineCreationError
+from mist.api.exceptions import CloudUnauthorizedError, CloudUnavailableError
 
 from mist.api import config
 
@@ -44,6 +46,30 @@ OK = Response("OK", 200)
 @view_config(route_name='api_v1_machines',
              request_method='GET', renderer='json')
 def list_machines(request):
+    """
+    List machines of all clouds
+    Gets machines and their metadata from all clouds
+    Check Permissions take place in filter_list_machines
+    """
+    auth_context = auth_context_from_request(request)
+    # to prevent iterate throw every cloud
+    auth_context.check_perm("cloud", "read", None)
+    clouds = filter_list_clouds(auth_context)
+    machines = []
+    for cloud in clouds:
+        if cloud.get('enabled'):
+            try:
+                cloud_machines = methods.filter_list_machines(
+                    auth_context, cloud.get('id'))
+                machines.extend(cloud_machines)
+            except (CloudUnavailableError, CloudUnauthorizedError):
+                pass
+    return machines
+
+
+@view_config(route_name='api_v1_cloud_machines',
+             request_method='GET', renderer='json')
+def list_cloud_machines(request):
     """
     List machines on cloud
     Gets machines and their metadata from a cloud
@@ -78,7 +104,7 @@ def list_machines(request):
     return machines
 
 
-@view_config(route_name='api_v1_machines', request_method='POST',
+@view_config(route_name='api_v1_cloud_machines', request_method='POST',
              renderer='json')
 def create_machine(request):
     """

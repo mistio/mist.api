@@ -1,6 +1,7 @@
 """Definition of Cloud mongoengine models"""
 
 import uuid
+import logging
 
 import mongoengine as me
 
@@ -19,6 +20,9 @@ from mist.api.exceptions import RequiredParameterMissingError
 # 'linode': LinodeCloud
 # It is autofilled by _populate_clouds which is run on the end of this file.
 CLOUDS = {}
+
+
+log = logging.getLogger(__name__)
 
 
 def _populate_clouds():
@@ -165,7 +169,10 @@ class Cloud(me.Document):
     def delete(self):
         super(Cloud, self).delete()
         Tag.objects(resource=self).delete()
-        self.owner.mapper.remove(self)
+        try:
+            self.owner.mapper.remove(self)
+        except Exception as exc:
+            log.error("Got error %r while removing cloud %s", exc, self.id)
 
     def clean(self):
         if self.dns_enabled and not hasattr(self.ctl, 'dns'):

@@ -343,6 +343,7 @@ class Machine(me.Document):
             'monitoring': self.monitoring.as_dict() if self.monitoring else '',
             'key_associations': [ka.as_dict() for ka in self.key_associations],
             'cloud': self.cloud.id,
+            'cloud_title': self.cloud.title,
             'last_seen': str(self.last_seen.replace(tzinfo=None)
                              if self.last_seen else ''),
             'missing_since': str(self.missing_since.replace(tzinfo=None)
