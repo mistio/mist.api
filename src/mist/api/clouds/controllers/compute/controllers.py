@@ -1393,10 +1393,10 @@ class OtherComputeController(BaseComputeController):
         This method only applies to generic machines"""
         try:
             ssh_probe_time = machine.ssh_probe.updated_at
-        except AttributeError as exc:
+        except AttributeError:
             # If we do not have ssh probe data we cannot update the state
             # of the machine.
-            log.info('Ssh Probe data do not exist.')
+            log.info('Ssh probe data do not exist.')
             return
         delta = datetime.datetime.now() - datetime.timedelta(seconds=90)
 

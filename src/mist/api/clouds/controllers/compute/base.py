@@ -426,8 +426,9 @@ class BaseComputeController(BaseController):
             # allow reboot action for bare metal with key associated
             if machine.key_associations:
                 self._list_machines__enable_generic_machine_action(machine,
-                                                                    'reboot')
-            self._list_machines__enable_generic_machine_action(machine, 'remove')
+                                                                   'reboot')
+            self._list_machines__enable_generic_machine_action(machine,
+                                                               'remove')
             machine.save()
             machines.append(machine)
 
