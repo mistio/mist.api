@@ -417,7 +417,7 @@ class BaseComputeController(BaseController):
         # Append generic-type machines, which aren't handled by libcloud.
         for machine in self._list_machines__fetch_generic_machines():
             machine.last_seen = now
-            self._list_machines__update_state(machine)
+            self._list_machines__update_generic_machine_state(machine)
             for action in ('start', 'stop', 'reboot', 'destroy', 'rename',
                            'resume', 'suspend', 'undefine', 'remove'):
                 setattr(machine.actions, action, False)
@@ -425,8 +425,9 @@ class BaseComputeController(BaseController):
 
             # allow reboot action for bare metal with key associated
             if machine.key_associations:
-                machine.actions.reboot = True
-            self._list_machines__update_action_remove(machine)
+                self._list_machines__enable_generic_machine_action(machine,
+                                                                    'reboot')
+            self._list_machines__enable_generic_machine_action(machine, 'remove')
             machine.save()
             machines.append(machine)
 
@@ -474,14 +475,15 @@ class BaseComputeController(BaseController):
             log.warning("Error while closing connection: %r", exc)
         return machines
 
-    def _list_machines__update_state(self, machine):
+    def _list_machines__update_generic_machine_state(self, machine):
         """Helper method to update the machine state.
 
-        This is only overriden by the OtherServer Controller"""
+        This is only overriden by the OtherServer Controller.
+        It applies only to generic machines."""
         pass
 
-    def _list_machines__update_action_remove(self, machine):
-        """Helper method to update machine remove action.
+    def _list_machines__enable_generic_machine_action(self, machine, action):
+        """Helper method to update machine action.
         This is only overriden by the OtherServer Controller"""
         pass
 
