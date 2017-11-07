@@ -5,6 +5,7 @@ set -e
 QUEUES="${QUEUES:-celery,machines,scripts,command,ping,probe}"
 LOGLEVEL="INFO"
 TASKS="${TASKS:-mist.api.tasks}"
+CONCURRENCY=4
 
 USAGE="Usage: $0 [-h] [-q <QUEUES>] [-l <LOGLEVEL>] [-t <TASK_PATH>]
 
@@ -16,9 +17,10 @@ Options:
                     $QUEUES.
     -l <LOGLEVEL>   Log level. Defaults to $LOGLEVEL.
     -t <TASKS_PATH> Tasks file to import. Defaults to $TASKS.
+    -c <CONCURRENCY>Number of children processes. Defaults to $CONCURRENCY.
 "
 
-while getopts "hq:l:t:" opt; do
+while getopts "hq:l:t:c:" opt; do
     case "$opt" in
         h)
             echo "$USAGE"
@@ -32,6 +34,9 @@ while getopts "hq:l:t:" opt; do
             ;;
         t)
             TASKS=$OPTARG
+            ;;
+        c)
+            CONCURRENCY=$OPTARG
             ;;
         \?)
             echo "Invalid option: -$OPTARG" >&2
@@ -47,4 +52,5 @@ exec celery worker \
     -A $TASKS \
     -Q $QUEUES \
     -l $LOGLEVEL \
+    -c $CONCURRENCY \
     -Ofair
