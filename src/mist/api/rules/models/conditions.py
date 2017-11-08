@@ -171,6 +171,11 @@ class TriggerOffset(BasePeriodType):
     def clean(self):
         if self.offset:
             super(TriggerOffset, self).clean()
+            q, r = divmod(self.timedelta.total_seconds(),
+                          self._instance.frequency.timedelta.total_seconds())
+            if not q or r:
+                raise me.ValidationError("The trigger offset must be a"
+                                         " multiple of the rule's frequency")
 
     def as_dict(self):
         return {'offset': self.offset, 'period': self.period}
