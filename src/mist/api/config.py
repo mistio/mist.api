@@ -70,7 +70,12 @@ ENABLE_DEV_USERS = False
 MONGO_URI = "mongodb:27017"
 MONGO_DB = "mist2"
 
+GRAPHITE_URI = "http://graphite"
+
 ACTIVATE_POLLER = True
+
+# Alert service's authentication key
+CILIA_SECRET_KEY = ""
 
 # number of api tokens user can have
 ACTIVE_APITOKEN_NUM = 20

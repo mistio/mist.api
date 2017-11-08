@@ -245,8 +245,11 @@ def add_routes(configurator):
     configurator.add_route('api_v1_key_association',
                            '/api/v1/machines/{machine_uuid}/keys/{key}')
 
+    # Rules.
     configurator.add_route('api_v1_rules', '/api/v1/rules')
     configurator.add_route('api_v1_rule', '/api/v1/rules/{rule}')
+    configurator.add_route('api_v1_rule_triggered', '/api/v1/rule-triggered')
+
     configurator.add_route('api_v1_check_auth', '/api/v1/auth')
 
     configurator.add_route('api_v1_zones',
