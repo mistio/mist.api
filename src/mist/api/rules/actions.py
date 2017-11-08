@@ -1,7 +1,10 @@
 import re
+import uuid
 import mongoengine as me
 
 from mist.api.config import BANNED_EMAIL_PROVIDERS
+from mist.api.methods import ssh_command
+from mist.api.machines.models import Machine
 
 
 ACTIONS = {}  # This is a map of action types to action classes.
@@ -44,6 +47,8 @@ class BaseAlertAction(me.EmbeddedDocument):
 
     atype = None
 
+    id = me.StringField(required=True, default=lambda: uuid.uuid4().hex)
+
     def update(self, fail_on_error=True, **kwargs):
         for key, value in kwargs.iteritems():
             if key not in self._fields:
@@ -56,7 +61,7 @@ class BaseAlertAction(me.EmbeddedDocument):
     def run(self):
         """Execute self.
 
-        Subclasses MUST override this method.
+        The body of the action to be executed. Subclasses MUST override this.
 
         """
         raise NotImplementedError()
@@ -64,19 +69,34 @@ class BaseAlertAction(me.EmbeddedDocument):
     def as_dict(self):
         return {'type': self.atype}
 
+    def __str__(self):
+        return '%s %s' % (self.__class__.__name__, self.id)
+
 
 class NotificationAction(BaseAlertAction):
     """An action that notifies the users, once a rule has been triggered."""
-
-    # TODO Use the Notifications system.
-    # TODO Concat owner.alerts_email in here.
 
     atype = 'notification'
 
     emails = me.ListField(me.StringField(), default=lambda: [])
 
+    def run(self, machine, value, triggered, timestamp, incident_id,
+            action=''):
+        try:
+            # TODO Use the Notifications system.
+            from mist.core.methods import _alert_action
+        except ImportError:
+            pass
+        else:
+            # TODO Shouldn't be specific to machines.
+            assert isinstance(machine, Machine)
+            assert machine.owner == self._instance.owner
+            _alert_action(machine.owner, self._instance.rule_id, value,
+                          triggered, timestamp, incident_id, action=action)
+
     def clean(self):
         """Perform e-mail address validation."""
+        # TODO Concat owner.alerts_email in here.
         emails = []
         for email in self.emails:
             if is_email_valid(email) and email not in emails:
@@ -96,6 +116,12 @@ class CommandAction(BaseAlertAction):
 
     command = me.StringField(required=True)
 
+    def run(self, machine, *args, **kwargs):
+        assert isinstance(machine, Machine)
+        assert machine.owner == self._instance.owner
+        return ssh_command(machine.owner, machine.cloud.id, machine.machine_id,
+                           machine.hostname, self.command)
+
     def as_dict(self):
         return {'type': self.atype, 'command': self.command}
 
@@ -106,6 +132,23 @@ class MachineAction(BaseAlertAction):
     atype = 'machine_action'
 
     action = me.StringField(required=True, choices=('reboot', 'destroy'))
+
+    def run(self, machine, *args, **kwargs):
+        assert isinstance(machine, Machine)
+        assert machine.owner == self._instance.owner
+        getattr(machine.ctl, self.action)()
+        if self.action == 'destroy':  # If destroy, disable monitoring, too.
+            try:
+                from mist.core.methods import disable_monitoring
+            except ImportError:
+                pass
+            else:
+                # TODO Move this into machine.ctl.destroy method and
+                # deprecate mist.api.machines.methods:destroy_machine.
+                # Could also be implemented as new method inside the
+                # MachineController.
+                disable_monitoring(machine.owner, machine.cloud.id,
+                                   machine.machine_id, no_ssh=True)
 
     def as_dict(self):
         return {'type': self.atype, 'action': self.action}
