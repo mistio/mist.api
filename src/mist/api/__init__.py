@@ -6,10 +6,12 @@ import logging
 
 from pyramid.config import Configurator
 from pyramid.renderers import JSON
+from pyramid.events import NewRequest
 
 import mongoengine as me
 
 from mist.api import config
+from mist.api.renderers import json_to_csv_subscriber
 
 logging.basicConfig(level=config.PY_LOG_LEVEL,
                     format=config.PY_LOG_FORMAT,
@@ -77,6 +79,10 @@ def main(global_config, **settings):
 
     json_renderer.add_adapter(object, string_adapter)
     configurator.add_renderer('json', json_renderer)
+
+    # Add CSV renderer
+    configurator.add_renderer('csv', 'mist.api.renderers.CSVRenderer')
+    configurator.add_subscriber(json_to_csv_subscriber, NewRequest)
 
     configurator.add_static_view('docs', path='../../../docs/build')
 
