@@ -120,6 +120,7 @@ class Rule(me.Document):
     }
 
     _controller_cls = None
+    _backend_plugin = None
 
     def __init__(self, *args, **kwargs):
         super(Rule, self).__init__(*args, **kwargs)
@@ -131,7 +132,7 @@ class Rule(me.Document):
                 "attribute derived from `mist.api.rules.base:BaseController`, "
                 "instead." % self.__class__.__name__
             )
-        if self.backend_plugin is None:
+        if self._backend_plugin is None:
             raise NotImplementedError(
                 "Cannot instantiate self. %s does not define a backend_plugin "
                 "in order to evaluate rules against the corresponding backend "
@@ -178,13 +179,13 @@ class Rule(me.Document):
         return Organization.objects.get(id=self.owner_id)
 
     @property
-    def backend_plugin(self):
+    def plugin(self):
         """Return the instance of a backend plugin.
 
         Subclasses MUST define the plugin to be used, instantiated with `self`.
 
         """
-        return None
+        return self._backend_plugin(self)
 
     # NOTE The following properties are required by the scheduler.
 
@@ -418,19 +419,13 @@ class ResourceRule(Rule, ConditionalClassMixin):
 class MachineMetricRule(ResourceRule):
 
     condition_resource_cls = Machine
-
-    @property
-    def backend_plugin(self):
-        return GraphiteBackendPlugin(self)
+    _backend_plugin = GraphiteBackendPlugin
 
 
 class NoDataRule(MachineMetricRule):
 
     _controller_cls = NoDataRuleController
-
-    @property
-    def backend_plugin(self):
-        return GraphiteNoDataPlugin(self)
+    _backend_plugin = GraphiteNoDataPlugin
 
     # FIXME All following properties are for backwards compatibility.
     # However, this rule is not meant to match any queries, but to be

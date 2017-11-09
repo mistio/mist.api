@@ -169,7 +169,7 @@ class BaseController(object):
         method.
 
         """
-        self.rule.backend_plugin.run(update_state, trigger_actions)
+        self.rule.plugin.run(update_state, trigger_actions)
 
 
 class ArbitraryRuleController(BaseController):
