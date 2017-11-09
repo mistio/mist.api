@@ -71,9 +71,17 @@ class BaseBackendPlugin(object):
 
         """
         active_states = {}
+        remove_states = set()
 
         for rid in self.rids:
-            _, incident, state = self.evaluate(rid, trigger_actions)
+            try:
+                _, incident, state = self.evaluate(rid, trigger_actions)
+            except methods.ResourceNotFoundError:
+                remove_states.add(rid)
+                continue
+            except Exception as exc:
+                log.error('Failed during %s evaluation: %r', self.rule, exc)
+                continue
 
             if state:
                 active_states.update({incident: state})
@@ -83,7 +91,7 @@ class BaseBackendPlugin(object):
             self.rule.states = {
                 incident: state for
                 incident, state in self.rule.states.iteritems() if not
-                state.expired()
+                (state.expired() or state['resource'] in remove_states)
             }
             self.rule.save()
 
@@ -202,19 +210,14 @@ class BaseBackendPlugin(object):
         Subclasses MAY override this method.
 
         """
-        try:
-            import mist.core  # NOQA
-        except ImportError:
-            pass
-        else:
-            params = state.as_dict()
-            params['value'] = params['value'] or 0
-            params.update({
-                'incident': incident,
-                'triggered': 1 if triggered else 0,
-                'triggered_now': 1 if incident not in self.rule.states else 0,
-            })
-            return methods.send_trigger(self.rule.id, params)
+        params = state.as_dict()
+        params['value'] = params['value'] or 0
+        params.update({
+            'incident': incident,
+            'triggered': 1 if triggered else 0,
+            'triggered_now': 1 if incident not in self.rule.states else 0,
+        })
+        methods.send_trigger(self.rule.id, params)
 
     @staticmethod
     def validate(rule):

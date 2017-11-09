@@ -7,6 +7,10 @@ import mist.api.config as config
 log = logging.getLogger(__name__)
 
 
+class ResourceNotFoundError(Exception):
+    pass
+
+
 def compute(operator, aggregate, values, threshold):
     """Compare the `values` against the specified `threshold`."""
     if aggregate == 'avg':  # Apply avg aggregator before the operator.
@@ -41,5 +45,6 @@ def send_trigger(rule_id, params):
     )
     if not resp.ok:
         log.error('mist.api.rules.plugins.methods:send_trigger failed with '
-                  'status code %d: %s', resp.status_code, resp.content)
-    return resp.ok
+                  'status code %d: %s', resp.status_code, resp.text)
+        if resp.status_code == 404:
+            raise ResourceNotFoundError()
