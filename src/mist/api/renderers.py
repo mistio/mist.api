@@ -5,9 +5,9 @@ import json
 import csv
 
 try:
-    from StringIO import StringIO # python 2
+    from StringIO import StringIO  # python 2
 except ImportError:
-    from io import StringIO # python 3
+    from io import StringIO  # python 3
 
 from pyramid.events import subscriber
 from pyramid.events import NewRequest
@@ -21,8 +21,8 @@ def json_to_csv_subscriber(event):
     """
     request = event.request
     try:
-        if (request.accept.header_value.endswith('csv')
-                and request.path.startswith('/api/')):
+        if (request.accept.header_value.endswith('csv') and
+                request.path.startswith('/api/')):
             request.override_renderer = 'csv'
             return True
     except AttributeError:
@@ -62,7 +62,8 @@ def json2csv(value, columns=None):
         columns = [x for row in flat_value for x in row.keys()]
     columns = list(set(columns))
     fout = StringIO()
-    writer = csv.writer(fout, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    writer = csv.writer(fout, delimiter=',', quotechar='"',
+                        quoting=csv.QUOTE_MINIMAL)
 
     writer.writerow(columns)
     for row in flat_value:
