@@ -269,22 +269,6 @@ class Rule(me.Document):
         if not self.title:
             self.title = 'rule%d' % self.owner.rule_counter
 
-        # Push the NotificationAction, if specified, at the beggining of the
-        # actions list. This way we make sure that users are always notified
-        # even if subsequent actions fail. We also enforce a single instance
-        # of the NotificationAction.
-        for i, action in enumerate(self.actions):
-            if isinstance(action, NotificationAction):
-                self.actions.pop(i)
-                self.actions.insert(0, action)
-                break
-        for action in self.actions[1:]:
-            if isinstance(action, NotificationAction):
-                raise me.ValidationError(
-                    "Multiple notifications are not supported. Users "
-                    "will always be notified at the beginning of the "
-                    "actions' cycle.")
-
     def as_dict(self):
         return {
             'id': self.id,

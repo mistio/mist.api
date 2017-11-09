@@ -87,6 +87,22 @@ class BaseController(object):
                                        'errors': err.to_dict()})
             self.rule.actions.append(action_cls)
 
+        # Push the NotificationAction, if specified, at the beggining of the
+        # actions list. This way we make sure that users are always notified
+        # even if subsequent actions fail. We also enforce a single instance
+        # of the NotificationAction.
+        for i, action in enumerate(self.rule.actions):
+            if isinstance(action, ACTIONS['notification']):
+                self.rule.actions.pop(i)
+                self.rule.actions.insert(0, action)
+                break
+        for action in self.rule.actions[1:]:
+            if isinstance(action, ACTIONS['notification']):
+                raise me.ValidationError(
+                    "Multiple notifications are not supported. Users "
+                    "will always be notified at the beginning of the "
+                    "actions' cycle.")
+
         # Update query condition.
         if 'queries' in kwargs:
             self.rule.queries = []
