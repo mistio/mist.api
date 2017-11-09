@@ -138,6 +138,13 @@ class BaseController(object):
                                        'errors': err.to_dict()})
             setattr(self.rule, field, doc_cls)
 
+        # Validate the rule against the plugin in use.
+        try:
+            self.rule._backend_plugin.validate(self.rule)
+        except AssertionError:
+            raise BadRequestError('%s: %s validation failed' % (
+                                  type(self.rule._backend_plugin), self.rule))
+
         # Attempt to save self.rule.
         try:
             # FIXME This is temporary to ensure that the rule is not actually

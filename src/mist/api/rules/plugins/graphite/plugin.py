@@ -55,23 +55,23 @@ class GraphiteBackendPlugin(base.BaseBackendPlugin):
                                             datapoints, query.threshold)
         return triggered, retval
 
-    def validate(self):
+    @staticmethod
+    def validate(rule):
         # No arbitrary rules.
-        assert not self.rule.is_arbitrary()
+        assert not rule.is_arbitrary()
 
         # Capped query window.
-        assert self.rule.window.timedelta.total_seconds() <= 60 * 10
+        assert rule.window.timedelta.total_seconds() <= 60 * 10
 
         # The frequency should be at least 70% of the time window.
-        window_seconds = self.rule.window.timedelta.total_seconds()
-        frequency_seconds = self.rule.frequency.timedelta.total_seconds()
+        window_seconds = rule.window.timedelta.total_seconds()
+        frequency_seconds = rule.frequency.timedelta.total_seconds()
         assert round(frequency_seconds / (1. * window_seconds), 2) >= .7
 
         # Ensure a simple query condition with no additional filters.
-        assert len(self.rule.queries) is 1
-        assert not self.rule.queries[0].filters
-        assert self.rule.queries[0].target in TARGETS
-        assert self.rule.queries[0].aggregation in ('all', 'any', 'avg', )
+        assert len(rule.queries) is 1
+        assert not rule.queries[0].filters
+        assert rule.queries[0].target in TARGETS
 
     @property
     def window(self):

@@ -3,8 +3,6 @@ import copy
 import logging
 import datetime
 
-from mist.api import config
-
 from mist.api.rules.models import RuleState
 from mist.api.rules.plugins import methods
 
@@ -128,7 +126,7 @@ class BaseBackendPlugin(object):
             if triggered is None:
                 return triggered, incident, None
 
-            # Not triggered or unitriggered. Resolve triggered state.
+            # Not triggered or untriggered. Resolve triggered state.
             if not triggered:
                 if state:
                     state.value = retval
@@ -205,12 +203,12 @@ class BaseBackendPlugin(object):
 
         """
         try:
-            import mist.core
+            import mist.core  # NOQA
         except ImportError:
             pass
         else:
             params = state.as_dict()
-            params['value'] = params['value'] or 0  #
+            params['value'] = params['value'] or 0
             params.update({
                 'incident': incident,
                 'triggered': 1 if triggered else 0,
@@ -218,8 +216,9 @@ class BaseBackendPlugin(object):
             })
             return methods.send_trigger(self.rule.id, params)
 
-    def validate(self):
-        """Validate `self.rule`.
+    @staticmethod
+    def validate(rule):
+        """Validate `rule`.
 
         This method may be used to perform any sort of validation and enforce
         limitations on a rule's parameters.
