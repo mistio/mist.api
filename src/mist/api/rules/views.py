@@ -103,7 +103,7 @@ def triggered(request):
 
     # Get timestamps.
     firing_since = str(params['firing_since'])
-    pending_since = str(params['pending_since'])
+    # pending_since = str(params['pending_since'])
     resolved_since = str(params['resolved_since'])
 
     try:
@@ -127,15 +127,15 @@ def triggered(request):
     try:
         machine = Machine.objects.get(id=resource_id)  # missing_since=None?
     except Machine.DoesNotExist:
-        raise NotFoundError('Machine with id %s does not exist' % machine_uuid)
+        raise NotFoundError('Machine with id %s does not exist' % resource_id)
 
     try:
-        owner = machine.cloud.owner
+        machine.cloud.owner
     except AttributeError:
-        raise NotFoundError('Machine with id %s does not exist' % machine_uuid)
+        raise NotFoundError('Machine with id %s does not exist' % resource_id)
 
     if machine.cloud.deleted:
-        raise NotFoundError('Machine with id %s does not exist' % machine_uuid)
+        raise NotFoundError('Machine with id %s does not exist' % resource_id)
 
     if not machine.monitoring.hasmonitoring:
         raise NotFoundError('%s does not have monitoring enabled' % machine)

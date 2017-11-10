@@ -12,13 +12,7 @@ import logging
 import requests
 import HTMLParser
 
-from multiprocessing.pool import ThreadPool  # TODO
-
-from mist.api import config
-
-
-class GraphiteError(Exception):
-    pass
+import mist.api.config as config
 
 
 log = logging.getLogger(__name__)
@@ -42,7 +36,7 @@ def as_percent(series_list, total=None):
     if total:
         return "asPercent(%s,%s)" % (series_list, total)
     else:
-        return "asPercent(%s) % series_list"
+        return "asPercent(%s)" % series_list
 
 
 def exclude(series_list, regex):
@@ -69,7 +63,6 @@ class GenericHandler(object):
             requested_target = target
             target, _alias = self.target_alias(target)
             if target:
-                # target = target % {'head': self.head()}
                 _target = target
                 if interval_str:
                     target = summarize(target, interval_str)
@@ -105,7 +98,7 @@ class GenericHandler(object):
             resp = requests.get(url)
         except Exception as exc:
             log.error("Error sending request to graphite: %r", exc)
-            raise GraphiteError(repr(exc))
+            raise
 
         if not resp.ok:
             # try to parse error message from graphite's HTML error response
@@ -143,13 +136,12 @@ class GenericHandler(object):
                               "the machine never sent Graphite any data.")
             log.error("Got error response from graphite: [%d] %s",
                       resp.status_code, reason or resp.text)
-            raise GraphiteError(reason)
+            raise Exception(reason)
         return resp
 
     def target_alias(self, name):
         """Given a metric identifier, return the correct target and alias"""
         target = name.replace("%s." % self.head(), "%(head)s.")
-        # if "%(head)s." not in target:
         if not target.startswith('%(head)s.'):
             target = "%(head)s." + target
         return target, target
@@ -567,7 +559,6 @@ class MultiHandler(GenericHandler):
             'cpu': CpuHandler,
             'memory': MemoryHandler,
             'ping': PingHandler,
-            'nodata': NoDataHandler,
         }
         self.vtargets = []
 
@@ -622,10 +613,16 @@ class MultiHandler(GenericHandler):
                 log.warning("Multihandler got response: %r", exc)
                 return []
 
-        pool = ThreadPool(10)
-        parts = pool.map(_run, run_args)
+        # TODO This should be implemented using `gevent.Pool`, if needed. For
+        # now, only one target is specified at a time.
+        # pool = ThreadPool(10)
+        # parts = pool.map(_run, run_args)
+        # data = reduce(lambda x, y: x + y, parts)
+        # pool.terminate()
+
+        parts = map(_run, run_args)
         data = reduce(lambda x, y: x + y, parts)
-        pool.terminate()
+
         log.info("Multihandler get_data completed in: %.2f secs",
                  time.time() - started_at)
 
@@ -656,53 +653,3 @@ class MultiHandler(GenericHandler):
 
     def decorate_target(self, target):
         return self.get_handler(target).decorate_target(target)
-
-
-class NoDataHandler(MultiHandler, CustomHandler):
-    plugin = "nodata"
-
-    def parse_target(self, target):
-        parts = super(NoDataHandler, self).parse_target(target)
-        if parts is not None:
-            return parts
-        log.error("%s() got invalid target: '%s'.",
-                  self.__class__.__name__, target)
-
-    def decorate_target(self, target):
-        return {
-            'target': "%(head)s.nodata",
-            'alias': "%(head)s.nodata",
-            'name': "No Data",
-            'unit': "boolean",
-            'max_value': 1,
-            'min_value': 0,
-            'priority': 0,
-        }
-
-    def find_metrics(self, plugin=""):
-        return [self.decorate_target("%(head)s.nodata")]
-
-    def get_data(self, targets, start="", stop="", interval_str=""):
-        real_targets = [
-            "%(head)s.load.shortterm",
-            "%(head)s.load.midterm",
-            "%(head)s.cpu.0.idle",
-        ]
-        data = super(NoDataHandler, self).get_data(
-            real_targets, start=start, stop=stop, interval_str=interval_str
-        )
-        points = {}
-        for item in data:
-            for value, timestamp in item['datapoints']:
-                if timestamp not in points:
-                    points[timestamp] = 0
-                if value is not None:
-                    points[timestamp] += 1
-        if not points:
-            # points[0] = 0
-            return []
-        metric = self.find_metrics()[0]
-        metric['datapoints'] = [(1 if points[timestamp] == 0 else 0, timestamp)
-                                for timestamp in sorted(points.keys())]
-        metric['_requested_target'] = "nodata"
-        return [metric]

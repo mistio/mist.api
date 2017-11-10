@@ -113,7 +113,7 @@ class NotificationAction(BaseAlertAction):
         """Perform e-mail address validation."""
         for email in self.emails:
             if not is_email_valid(email):
-                raise me.ValidationError('Invalid e-mail address: %s', email)
+                raise me.ValidationError('Invalid e-mail address: %s' % email)
 
     def as_dict(self):
         return {'type': self.atype, 'emails': self.emails}
