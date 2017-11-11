@@ -6,8 +6,9 @@ QUEUES="${QUEUES:-celery,machines,scripts,command,ping,probe}"
 LOGLEVEL="INFO"
 TASKS="${TASKS:-mist.api.tasks}"
 CONCURRENCY=${CONCURRENCY:-8}
+POOL=${POOL:-prefork}
 
-USAGE="Usage: $0 [-h] [-q <QUEUES>] [-l <LOGLEVEL>] [-t <TASK_PATH>]
+USAGE="Usage: $0 [-h] [-q <QUEUES>] [-l <LOGLEVEL>] [-t <TASK_PATH>] [-P <POOL>]
 
 Start uwsgi
 
@@ -18,9 +19,10 @@ Options:
     -l <LOGLEVEL>   Log level. Defaults to $LOGLEVEL.
     -t <TASKS_PATH> Tasks file to import. Defaults to $TASKS.
     -c <CONCURRENCY>Number of children processes. Defaults to $CONCURRENCY.
+    -P <POOL>       Celery pool. Defaults to $POOL.
 "
 
-while getopts "hq:l:t:c:" opt; do
+while getopts "hq:l:t:c:P:" opt; do
     case "$opt" in
         h)
             echo "$USAGE"
@@ -38,6 +40,9 @@ while getopts "hq:l:t:c:" opt; do
         c)
             CONCURRENCY=$OPTARG
             ;;
+        P)
+            POOL=$OPTARG
+            ;;
         \?)
             echo "Invalid option: -$OPTARG" >&2
             echo "$USAGE" >&2
@@ -53,4 +58,5 @@ exec celery worker \
     -Q $QUEUES \
     -l $LOGLEVEL \
     -c $CONCURRENCY \
+    -P $POOL \
     -Ofair
