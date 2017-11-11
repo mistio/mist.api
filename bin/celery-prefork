@@ -4,4 +4,4 @@ set -e
 
 export QUEUES="${QUEUES:-celery,machines,command}"
 
-exec ./bin/celery-all $@
+exec ./bin/celery $@
