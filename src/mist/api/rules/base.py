@@ -51,13 +51,13 @@ class BaseController(object):
         This method is meant to be invoked only by the `Rule.add` classmethod.
 
         """
-        for field in ('queries', ):  # TODO 'window', 'interval', ):
+        for field in ('queries', 'window', 'frequency', ):
             if field not in kwargs:
                 raise RequiredParameterMissingError(field)
         try:
             self.update(fail_on_error=fail_on_error, **kwargs)
         except (me.ValidationError, BadRequestError) as err:
-            log.error('Error adding %s: %s', self.rule.name, err)
+            log.error('Error adding %s: %s', self.rule.title, err)
             raise
 
     def update(self, save=True, fail_on_error=True, **kwargs):
@@ -66,7 +66,7 @@ class BaseController(object):
         This method is invoked by `self.add` when adding a new Rule, but it
         can also be called directly, as such:
 
-            rule = Rule.objects.get(owner=owner, name='rule15')
+            rule = Rule.objects.get(owner=owner, title='rule15')
             rule.ctl.update(**kwargs)
 
         """
@@ -102,7 +102,7 @@ class BaseController(object):
         # Update time parameters.
         doc_classes = {
             'window': Window,
-            'interval': Frequency,
+            'frequency': Frequency,
             'trigger_after': TriggerOffset,
         }
         for field, params in kwargs.iteritems():
@@ -130,12 +130,12 @@ class BaseController(object):
             # /
             self.rule.save()
         except me.ValidationError as err:
-            log.error('Error updating %s: %s', self.rule.name, err)
+            log.error('Error updating %s: %s', self.rule.title, err)
             raise BadRequestError({'msg': err.message,
                                    'errors': err.to_dict()})
         except me.NotUniqueError as err:
-            log.error('Error updating %s: %s', self.rule.name, err)
-            raise BadRequestError('Rule "%s" already exists' % self.rule.name)
+            log.error('Error updating %s: %s', self.rule.title, err)
+            raise BadRequestError('Rule "%s" already exists' % self.rule.title)
 
 
 class ArbitraryRuleController(BaseController):

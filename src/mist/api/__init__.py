@@ -153,6 +153,9 @@ def add_routes(configurator):
     configurator.add_route('api_v1_cloud_action', '/api/v1/clouds/{cloud}')
 
     configurator.add_route('api_v1_machines',
+                           '/api/v1/machines')
+
+    configurator.add_route('api_v1_cloud_machines',
                            '/api/v1/clouds/{cloud}/machines')
     configurator.add_route('api_v1_cloud_machine',
                            '/api/v1/clouds/{cloud}/machines/{machine}')
