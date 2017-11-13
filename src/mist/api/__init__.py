@@ -78,6 +78,9 @@ def main(global_config, **settings):
     json_renderer.add_adapter(object, string_adapter)
     configurator.add_renderer('json', json_renderer)
 
+    # Add CSV renderer
+    configurator.add_renderer('csv', 'mist.api.renderers.CSVRenderer')
+
     configurator.add_static_view('docs', path='../../../docs/build')
 
     # FIXME this should not be necessary
