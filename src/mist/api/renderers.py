@@ -12,6 +12,8 @@ except ImportError:
 from pyramid.events import subscriber
 from pyramid.events import NewRequest
 
+from mist.api.helpers import params_from_request
+
 
 @subscriber(NewRequest)
 def json_to_csv_subscriber(event):
@@ -55,7 +57,7 @@ def json2csv(value, columns=None):
     """
     Transforms a serialized JSON object to CSV format
     """
-    if value.__class__ in [str, unicode]:
+    if isinstance(value, basestring):
         value = json.loads(value)
     flat_value = map(lambda x: flattenjson(x, "__"), value)
     if not columns:
@@ -90,10 +92,7 @@ class CSVRenderer(object):
             if request.path.startswith('/api/') and \
                request.accept.header_value.endswith('csv'):
                 response.content_type = 'text/csv'
-                try:
-                    params = request.json_body
-                except:
-                    params = request.params
+                params = params_from_request(request)
                 columns = params.get('columns', '')
                 columns = columns and columns.split(',') or []
                 response.body = json2csv(value, columns)
