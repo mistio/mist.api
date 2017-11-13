@@ -211,12 +211,40 @@ CELERY_SETTINGS = {
     'CELERY_TASK_SERIALIZER': 'json',
     'CELERYD_LOG_FORMAT': PY_LOG_FORMAT,
     'CELERYD_TASK_LOG_FORMAT': PY_LOG_FORMAT,
-    'CELERYD_CONCURRENCY': 4,
+    'CELERYD_CONCURRENCY': 8,
     'CELERYD_MAX_TASKS_PER_CHILD': 32,
     'CELERYD_MAX_MEMORY_PER_CHILD': 204800,  # 20480 KiB - 200 MiB
     'CELERY_MONGODB_SCHEDULER_DB': 'mist2',
     'CELERY_MONGODB_SCHEDULER_COLLECTION': 'schedules',
     'CELERY_MONGODB_SCHEDULER_URL': MONGO_URI,
+    'CELERY_ROUTES': {
+
+        # Command queue
+        'mist.api.tasks.ssh_command': {'queue': 'command'},
+
+        # Machines queue
+        'mist.api.tasks.list_machines': {'queue': 'machines'},
+        'mist.api.poller.tasks.list_machines': {'queue': 'machines'},
+
+        # Scripts queue (handled by gevent)
+        'mist.api.tasks.group_run_script': {'queue': 'scripts'},
+        'mist.api.tasks.run_script': {'queue': 'scripts'},
+        'mist.api.tasks.group_machines_actions': {'queue': 'scripts'},
+        'mist.api.tasks.machine_action': {'queue': 'scripts'},
+
+        # SSH probe queue (handled by gevent)
+        'mist.api.tasks.probe_ssh': {'queue': 'probe'},
+        'mist.api.poller.tasks.ssh_probe': {'queue': 'probe'},
+
+        # Ping probe queue (handled by gevent)
+        'mist.api.tasks.ping': {'queue': 'ping'},
+        'mist.api.poller.tasks.ping_probe': {'queue': 'ping'},
+
+        # Core tasks
+        'mist.core.insights.tasks.list_deployments': {'queue': 'deployments'},
+        'mist.core.rbac.tasks.update_mappings': {'queue': 'mappings'},
+        'mist.core.rbac.tasks.remove_mappings': {'queue': 'mappings'},
+    },
 }
 
 LANDING_CATEGORIES = [{
@@ -916,6 +944,7 @@ CORE_CONFIG_PATH = os.path.join(dirname(MIST_API_DIR, 2),
 if os.path.exists(CORE_CONFIG_PATH):
     print >> sys.stderr, "Will load core config from %s" % CORE_CONFIG_PATH
     execfile(CORE_CONFIG_PATH)
+    CELERY_SETTINGS['CELERY_TASK_SERIALIZER'] = 'pickle'
 else:
     print >> sys.stderr, "Couldn't find core config in %s" % CORE_CONFIG_PATH
 
