@@ -17,6 +17,9 @@ try:
 except ImportError:
     from mist.api.dummy.methods import enable_monitoring
     from mist.api.dummy.methods import disable_monitoring_cloud
+    HAS_CORE = False
+else:
+    HAS_CORE = True
 
 from mist.api import config
 
@@ -63,10 +66,13 @@ def add_cloud_v_2(owner, title, provider, params):
     # SEC
     # Update the RBAC mappings with the new Cloud and finally trigger
     # a session update by registering it as a chained task.
-    owner.mapper.update(
-        cloud,
-        callback=async_session_update, args=(owner.id, ['clouds'], )
-    )
+    if HAS_CORE:
+        owner.mapper.update(
+            cloud,
+            callback=async_session_update, args=(owner.id, ['clouds'], )
+        )
+    else:
+        trigger_session_update(owner.id, ['clouds'])
 
     log.info("Cloud with id '%s' added succesfully.", cloud.id)
 
