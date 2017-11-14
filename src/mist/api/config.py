@@ -944,7 +944,6 @@ CORE_CONFIG_PATH = os.path.join(dirname(MIST_API_DIR, 2),
 if os.path.exists(CORE_CONFIG_PATH):
     print >> sys.stderr, "Will load core config from %s" % CORE_CONFIG_PATH
     execfile(CORE_CONFIG_PATH)
-    CELERY_SETTINGS['CELERY_TASK_SERIALIZER'] = 'pickle'
 else:
     print >> sys.stderr, "Couldn't find core config in %s" % CORE_CONFIG_PATH
 
