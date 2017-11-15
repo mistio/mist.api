@@ -83,7 +83,7 @@ class Monitoring(me.EmbeddedDocument):
     installation_status = me.EmbeddedDocumentField(InstallationStatus)
     system = me.StringField(default='collectd-graphite',
                             choices=['collectd-graphite', 'telegraf-influxdb',
-                                     'telegraf-graphite',])
+                                     'telegraf-graphite'])
 
     def get_commands(self):
         if self.system == 'collectd-graphite' and config.HAS_CORE:
