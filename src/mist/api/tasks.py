@@ -1509,3 +1509,13 @@ def update_poller(org_id):
                                                 interval=90, ttl=120)
             SSHProbeMachinePollingSchedule.add(machine=machine,
                                                interval=90, ttl=120)
+
+
+@app.task
+def async_session_update(owner, sections=None):
+    if sections is None:
+        sections = [
+            'org', 'user', 'keys', 'zones', 'clouds', 'stacks',
+            'scripts', 'schedules', 'templates', 'monitoring'
+        ]
+    trigger_session_update(owner, sections)

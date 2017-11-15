@@ -25,8 +25,8 @@ class ChannelSession(session.BaseSession):
         args = msg_parts[1] if len(msg_parts) > 1 else ()
         try:
             args = json.loads(args)
-        except:
-            log.warning("Couldn't json parse args: %r", args)
+        except Exception as e:
+            log.warning("Couldn't json parse args: %r %r", args, e)
         if hasattr(self.conn, handler):
             log.info("Calling %s with args %s", handler, args)
             getattr(self.conn, handler)(*args)
