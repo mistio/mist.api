@@ -29,10 +29,12 @@ def list_networks(request):
     For other providers this returns an empty list.
     READ permission required on cloud.
     ---
-    cloud:
+    parameters:
+    - name: cloud
       in: path
       required: true
-      type: string
+      schema:
+        type: string
     """
     cloud_id = request.matchdict['cloud']
     auth_context = auth_context_from_request(request)
@@ -58,16 +60,27 @@ def create_network(request):
     network's id to create a subnet.
     CREATE_RESOURCES permission required on cloud.
     ---
-    cloud_id:
+    parameters:
+    - name: cloud_id
       in: path
       required: true
       description: The Cloud ID
-      type: string
-    network:
+      schema:
+        type: string
+    requestBody:
+      description: Foo
       required: true
-      type: dict
-    subnet:
-      type: dict
+      content:
+        'application/json':
+          schema:
+            type: object
+            properties:
+              network:
+                type: object
+              subnet:
+                type: object
+            required:
+            - network
     """
     cloud_id = request.matchdict['cloud']
 
@@ -114,14 +127,17 @@ def delete_network(request):
     Delete a network.
     CREATE_RESOURCES permission required on cloud.
     ---
-    cloud_id:
+    parameters:
+    - name: cloud_id
       in: path
       required: true
-      type: string
-    network_id:
+      schema:
+        type: string
+    - name: network_id
       in: path
       required: true
-      type: string
+      schema:
+        type: string
     """
     cloud_id = request.matchdict['cloud']
     network_id = request.matchdict['network']
@@ -154,23 +170,35 @@ def associate_ip(request):
     READ permission required on cloud.
     EDIT permission required on cloud.
     ---
-    cloud:
+    parameters:
+    - name: cloud
       in: path
       required: true
-      type: string
-    network:
+      schema:
+        type: string
+    - name: network
       in: path
       required: true
-      type: string
-    assign:
-      default: true
-      type: boolean
-    ip:
+      schema:
+        type: string
+    requestBody:
+      description: Foo
       required: true
-      type: string
-    machine:
-      required: true
-      type: string
+      content:
+        'application/json':
+          schema:
+            type: object
+            properties:
+              assign:
+                default: true
+                type: boolean
+              ip:
+                type: string
+              machine:
+                type: string
+            required:
+            - ip
+            - machine
     """
     cloud_id = request.matchdict['cloud']
     network_id = request.matchdict['network']

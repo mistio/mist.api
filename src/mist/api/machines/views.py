@@ -180,7 +180,7 @@ def create_machine(request):
       description: ' Needed only by SoftLayer cloud'
       type: string
     schedule:
-      type: dict
+      type: object
     """
 
     params = params_from_request(request)

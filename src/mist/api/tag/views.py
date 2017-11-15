@@ -43,10 +43,10 @@ def tag_resources(request):
     ---
     tags:
       required: true
-      type: list
+      type: array
     resource:
       required: true
-      type: dict
+      type: object
     """
 
     auth_context = auth_context_from_request(request)

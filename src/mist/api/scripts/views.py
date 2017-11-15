@@ -78,7 +78,7 @@ def add_script(request):
     description:
       type: string
     extra:
-      type: dict
+      type: object
     """
 
     params = params_from_request(request)
@@ -260,7 +260,6 @@ def delete_scripts(request):
       type: array
       items:
         type: string
-        name: script_id
     """
     auth_context = auth_context_from_request(request)
     params = params_from_request(request)
