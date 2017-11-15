@@ -1,0 +1,9 @@
+#!/bin/sh
+
+set -e
+
+export QUEUES="${QUEUES:-scripts,probe,ping}"
+export POOL=gevent
+export CONCURRENCY=${CONCURRENCY:-100}
+
+exec ./bin/celery $@
