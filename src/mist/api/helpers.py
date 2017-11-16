@@ -32,6 +32,9 @@ from time import time, strftime, sleep
 
 from base64 import urlsafe_b64encode
 
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
 from pymongo import MongoClient
 from bson.objectid import ObjectId
 
@@ -597,7 +600,8 @@ def ip_from_request(request):
             '0.0.0.0')
 
 
-def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3):
+def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3,
+               html_body=None):
     """Send email.
 
     subject: email's subject
@@ -613,22 +617,27 @@ def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3):
         sender = config.EMAIL_FROM
     if isinstance(recipients, basestring):
         recipients = [recipients]
-    headers = [
-        "From: %s" % sender,
-        "To: %s" % ", ".join(recipients),
-        "Subject: %s" % subject,
-        "Date: %s" % formatdate(),
-        "Message-ID: %s" % make_msgid()
-    ]
+
+    msg = MIMEMultipart('alternative')
+    msg["Subject"] = subject
+    msg["From"] = sender
+    msg["Date"] = formatdate()
+    msg["To"] = ", ".join(recipients)
+    msg["Message-ID"] = make_msgid()
+
     if bcc:
-        headers.append("Bcc: %s" % bcc)
+        msg["Bcc" ] = bcc
         recipients.append(bcc)
 
     if isinstance(body, str):
         body = body.decode('utf8')
 
-    message = "%s\r\n\r\n%s" % ("\r\n".join(headers), body)
-    message = message.encode('utf-8', 'ignore')
+    part1 = MIMEText(body, "plain", "utf-8")
+    msg.attach(part1)
+
+    if html_body:
+        part2 = MIMEText(html_body, "html", "utf-8")
+        msg.attach(part2)
 
     mail_settings = config.MAILER_SETTINGS
     host = mail_settings.get('mail.host')
@@ -650,7 +659,7 @@ def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3):
             if username:
                 server.login(username, password)
 
-            ret = server.sendmail(sender, recipients, message)
+            ret = server.sendmail(sender, recipients, msg.as_string())
             server.quit()
             return True
         except smtplib.SMTPException as exc:
