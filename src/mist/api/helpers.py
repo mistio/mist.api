@@ -618,7 +618,14 @@ def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3,
     if isinstance(recipients, basestring):
         recipients = [recipients]
 
-    msg = MIMEMultipart('alternative')
+    if isinstance(body, str):
+        body = body.decode('utf8')
+
+    if html_body:
+        msg = MIMEMultipart('alternative')
+    else:
+        msg = MIMEText(body, 'plain')
+
     msg["Subject"] = subject
     msg["From"] = sender
     msg["Date"] = formatdate()
@@ -626,17 +633,13 @@ def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3,
     msg["Message-ID"] = make_msgid()
 
     if bcc:
-        msg["Bcc" ] = bcc
+        msg["Bcc"] = bcc
         recipients.append(bcc)
 
-    if isinstance(body, str):
-        body = body.decode('utf8')
-
-    part1 = MIMEText(body, "plain", "utf-8")
-    msg.attach(part1)
-
     if html_body:
+        part1 = MIMEText(body, "plain", "utf-8")
         part2 = MIMEText(html_body, "html", "utf-8")
+        msg.attach(part1)
         msg.attach(part2)
 
     mail_settings = config.MAILER_SETTINGS
@@ -659,7 +662,7 @@ def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3,
             if username:
                 server.login(username, password)
 
-            ret = server.sendmail(sender, recipients, msg.as_string())
+            server.sendmail(sender, recipients, msg.as_string())
             server.quit()
             return True
         except smtplib.SMTPException as exc:
