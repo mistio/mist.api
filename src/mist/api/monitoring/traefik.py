@@ -12,13 +12,13 @@ def _gen_machine_frontend_config(machine):
     """Generate traefik frontend config for machine with monitoring"""
     if not machine.monitoring.hasmonitoring:
         raise Exception("Machine.monitoring.hasmonitoring is False")
-    if machine.monitoring.system == 'telegraf-graphite':
+    if machine.monitoring.method == 'telegraf-graphite':
         backend = 'gocky-graphite'
-    elif machine.monitoring.system == 'telegraf-influxdb':
+    elif machine.monitoring.method == 'telegraf-influxdb':
         backend = 'gocky-influxdb'
     else:
         raise Exception("Invalid monitoring method '%s'"
-                        % machine.monitoring.system)
+                        % machine.monitoring.method)
     return {
         "routes": {
             "main": {
@@ -75,7 +75,7 @@ def _gen_config():
             machine.id: _gen_machine_frontend_config(machine)
             for machine in Machine.objects(
                 monitoring__hasmonitoring=True,
-                monitoring__system__in=['telegraf-graphite',
+                monitoring__method__in=['telegraf-graphite',
                                         'telegraf-influxdb'],
             )
         },

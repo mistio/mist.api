@@ -81,12 +81,11 @@ class Monitoring(me.EmbeddedDocument):
         default=lambda: os.urandom(32).encode('hex'))
     metrics = me.ListField()  # list of metric_id's
     installation_status = me.EmbeddedDocumentField(InstallationStatus)
-    system = me.StringField(default='collectd-graphite',
-                            choices=['collectd-graphite', 'telegraf-influxdb',
-                                     'telegraf-graphite'])
+    method = me.StringField(default=config.DEFAULT_MONITORING_METHOD,
+                            choices=config.MONITORING_METHODS)
 
     def get_commands(self):
-        if self.system == 'collectd-graphite' and config.HAS_CORE:
+        if self.method == 'collectd-graphite' and config.HAS_CORE:
             from mist.api.methods import get_deploy_collectd_command_unix
             from mist.api.methods import get_deploy_collectd_command_windows
             from mist.api.methods import get_deploy_collectd_command_coreos
@@ -97,7 +96,7 @@ class Monitoring(me.EmbeddedDocument):
                 'coreos': get_deploy_collectd_command_coreos(*args),
                 'windows': get_deploy_collectd_command_windows(*args),
             }
-        elif self.system in ('telegraf-influxdb', 'telegraf-graphite'):
+        elif self.method in ('telegraf-influxdb', 'telegraf-graphite'):
             from mist.api.monitoring.commands import unix_install
             from mist.api.monitoring.commands import coreos_install
             return {
@@ -105,7 +104,7 @@ class Monitoring(me.EmbeddedDocument):
                 'coreos': coreos_install(self._instance),
             }
         else:
-            raise Exception("Invalid monitoring system %s" % self.system)
+            raise Exception("Invalid monitoring method %s" % self.method)
 
     def get_rules_dict(self):
         m = self._instance
@@ -127,7 +126,7 @@ class Monitoring(me.EmbeddedDocument):
             'metrics': self.metrics,
             'installation_status': status.as_dict() if status else '',
             'commands': commands,
-            'system': self.system,
+            'method': self.method,
         }
 
 

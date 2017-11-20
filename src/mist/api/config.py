@@ -318,6 +318,11 @@ INFLUXDB_MACHINE_DASHBOARD_DEFAULT = {
     }
 }
 
+MONITORING_METHODS = (
+    'collectd-graphite',
+    'telegraf-influxdb',
+    'telegraf-graphite',
+)
 DEFAULT_MONITORING_METHOD = 'telegraf-influxdb'
 
 ACTIVATE_POLLER = True
