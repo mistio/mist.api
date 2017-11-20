@@ -52,6 +52,7 @@ from mist.api.machines.models import Machine
 from mist.api.misc.cloud import CloudImage
 
 from mist.api.clouds.controllers.main.base import BaseComputeController
+from mist.api.clouds.controllers.compute.base import _sync_machine_tags
 
 from mist.api import config
 
@@ -760,6 +761,9 @@ class VSphereComputeController(BaseComputeController):
                                             username=self.cloud.username,
                                             password=self.cloud.password)
 
+    def _list_machines__sync_machine_tags(self, machine, machine_libcloud):
+        _sync_machine_tags(machine, 'metadata')
+
     def check_connection(self):
         """Check connection without performing `list_machines`
 
@@ -800,6 +804,9 @@ class OpenStackComputeController(BaseComputeController):
             ex_force_service_region=self.cloud.region,
             ex_force_base_url=self.cloud.compute_endpoint,
         )
+
+    def _list_machines__sync_machine_tags(self, machine, machine_libcloud):
+        _sync_machine_tags(machine, 'metadata')
 
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
         return machine_libcloud.extra.get('created')  # iso8601 string

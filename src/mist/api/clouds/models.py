@@ -87,6 +87,7 @@ class Cloud(me.Document):
     unstarred = me.ListField()
     polling_interval = me.IntField(default=0)  # in seconds
 
+    sync_tags = me.BooleanField(default=False)
     dns_enabled = me.BooleanField(default=False)
 
     deleted = me.DateTimeField()
@@ -185,6 +186,7 @@ class Cloud(me.Document):
             'provider': self.ctl.provider,
             'enabled': self.enabled,
             'dns_enabled': self.dns_enabled,
+            'sync_tags': self.sync_tags,
             'state': 'online' if self.enabled else 'offline',
             'polling_interval': self.polling_interval,
             'tags': [
