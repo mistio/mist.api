@@ -292,11 +292,11 @@ class User(Owner):
     email = HtmlSafeStrField()
     # NOTE: deprecated. Only still used to migrate old API tokens
     mist_api_token = me.StringField()
-    last_name = HtmlSafeStrField()
+    last_name = HtmlSafeStrField(default='')
     feedback = me.EmbeddedDocumentField(Feedback, default=Feedback())
 
     activation_key = me.StringField()
-    first_name = HtmlSafeStrField()
+    first_name = HtmlSafeStrField(default='')
     invitation_accepted = me.FloatField()
     invitation_date = me.FloatField()
     last_login = me.FloatField()
@@ -389,11 +389,14 @@ class User(Owner):
         super(User, self).clean()
 
     def get_nice_name(self):
-        if self.first_name and not self.last_name:
-            return self.first_name + '(' + self.email + ')'
-        else:
-            name = (self.first_name or '') + ' ' + (self.last_name or '')
-            return name.strip() or self.email
+        try:
+            if self.first_name and not self.last_name:
+                return self.first_name + '(' + self.email + ')'
+            else:
+                name = (self.first_name or '') + ' ' + (self.last_name or '')
+                return name.strip() or self.email
+        except AttributeError:
+                return self.email
 
 
 class Avatar(me.Document):
@@ -579,9 +582,7 @@ class Organization(Owner):
         view["id"] = view_id
         view["members"] = []
         for member in self.members:
-            name = ""
-            name = (member.first_name or ' ') + (member.last_name or '')
-            name = (name.strip() or member.email)
+            name = member.get_nice_name()
             view["members"].append({
                 "id": member.id,
                 "name": name,

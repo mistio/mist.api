@@ -1114,9 +1114,11 @@ def create_machine_async(owner_id, cloud_id, key_id, machine_name, location_id,
 
 
 @app.task(bind=True, default_retry_delay=5, max_retries=3)
-def send_email(self, subject, body, recipients, sender=None, bcc=None):
+def send_email(self, subject, body, recipients, sender=None, bcc=None,
+               html_body=None):
     if not helper_send_email(subject, body, recipients,
-                             sender=sender, bcc=bcc, attempts=1):
+                             sender=sender, bcc=bcc, attempts=1,
+                             html_body=html_body):
         raise self.retry()
     return True
 
