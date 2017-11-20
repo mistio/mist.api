@@ -17,12 +17,17 @@ def add_override(notification, value='BLOCK'):
     user = notification.user
     org = notification.organization
     policy = get_policy(user, org)
-    source = type(notification).__name__
-    overrides = [
-        override for override in policy.overrides if override.source == source]
+    source = notification.source
+    channel = type(notification).__name__
+    overrides = []
+    for override in policy.overrides:
+        if override.channel == channel:
+            if (source and override.source == source) or (not source):
+                overrides.append(override)
     if not overrides:
         override = models.NotificationOverride()
         override.source = source
+        override.channel = channel
         override.value = value
         if notification.machine:
             override.machine = notification.machine
@@ -34,18 +39,18 @@ def add_override(notification, value='BLOCK'):
         policy.save()
 
 
-def add_override_source(user, org, source, value='BLOCK'):
+def add_override_channel(user, org, channel, value='BLOCK'):
     '''
     Adds a notification override to a user-org policy
-    for the specified source.
+    for the specified channel (e.g. "InAppNotifications").
     Creates the policy if it does not exist.
     '''
     policy = get_policy(user, org)
     overrides = [
-        override for override in policy.overrides if override.source == source]
+        override for override in policy.overrides if override.channel == channel]
     if not overrides:
         override = models.NotificationOverride()
-        override.source = source
+        override.channel = channel
         override.value = value
         policy.overrides.append(override)
         policy.save()
@@ -87,6 +92,25 @@ def get_policy(user, org, create=True):
         if create:
             policy = models.UserNotificationPolicy()
             policy.user = user
+            policy.organization = org
+            policy.save()
+            return policy
+        else:
+            return None
+    return policies[0]
+
+
+def get_non_member_policy(email, org, create=True):
+    '''
+    Accepts an email and returns the corresponding notification
+    policy, with the option to create one if not exist.
+    '''
+    policies = models.NonMemberNotificationPolicy.objects(
+        email=email, organization=org)
+    if not policies:
+        if create:
+            policy = models.NonMemberNotificationPolicy()
+            policy.email = email
             policy.organization = org
             policy.save()
             return policy
