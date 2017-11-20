@@ -211,10 +211,16 @@ def enable_monitoring(owner, cloud_id, machine_id,
                     "machine '%s' in cloud '%s'.",
                     owner.id, machine_id, cloud_id)
 
-    # Extra vars
-    machine.monitoring.method = config.DEFAULT_MONITORING_METHOD
+    # Decide on monitoring method
+    machine.monitoring.method = (
+        machine.cloud.default_monitoring_method or
+        machine.cloud.owner.default_monitoring_method or
+        config.DEFAULT_MONITORING_METHOD
+    )
     assert machine.monitoring.method in config.MONITORING_METHODS
     assert machine.monitoring.method != 'collectd-graphite' or config.HAS_CORE
+
+    # Extra vars
     if machine.monitoring.method == 'collectd-graphite':
         from mist.core.methods import _enable_monitoring_prepare
         extra_vars = _enable_monitoring_prepare(machine)

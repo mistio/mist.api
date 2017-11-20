@@ -496,6 +496,8 @@ class Organization(Owner):
     selected_plan = me.StringField()
     enterprise_plan = me.DictField()
     enable_r12ns = me.BooleanField(required=True, default=False)
+    default_monitoring_method = me.StringField(
+        choices=config.MONITORING_METHODS)
 
     try:
         import mist.core
