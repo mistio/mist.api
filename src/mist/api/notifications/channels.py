@@ -7,7 +7,8 @@ from mist.api import config
 from mist.api.helpers import send_email, amqp_publish_user
 
 from mist.api.notifications.models import (Notification, NotificationOverride,
-                                           EmailReport, InAppNotification)
+                                           EmailReport, EmailNotification,
+                                           InAppNotification)
 
 import logging
 
