@@ -18,6 +18,8 @@ class Tag(me.Document):
     value = me.StringField()
     resource = me.GenericReferenceField()
 
+    upstream = me.BooleanField()
+
     meta = {
         'indexes': [
             {
@@ -42,4 +44,5 @@ class Tag(me.Document):
             'owner': self.owner.id,
             'resource_type': self.resource_type,
             'resource': str(self.resource),
+            'upstream': self.upstream,
         }

@@ -103,6 +103,47 @@ def _decide_machine_cost(machine, tags=None, cost=(0, 0)):
     machine.cost.monthly = cpm
 
 
+def _sync_machine_tags(machine, key='tags'):
+    """Parse and sync a machine's upstream tags
+
+    This method can be used to parse/validate the machine's tags in place,
+    as well as store them in the local db as mist.api.tag.models.Tag.
+
+    Params:
+
+        machine: an instance of mist.api.machines.models.Machine
+        key:     the key of the machine's extra under which the tags exist
+
+    """
+    def is_valid(key):
+        # Perhaps we could substitute '.' with something else and escape '$'.
+        return not ('.' in key or key.startswith('$'))
+
+    if machine.extra.get(key):
+        # Transform list to a dict with empty values.
+        if isinstance(machine.extra.get(key), list):
+            machine.extra[key] = dict.fromkeys(machine.extra[key], '')
+
+        # Validate keys due to restrictions enforced by mongoDB. Document keys
+        # may not include dots "." since they are used to describe nested docs,
+        # while "$" is used by operators.
+        if isinstance(machine.extra.get(key), dict):
+            machine.extra[key] = {
+                k:v for k, v in machine.extra[key].iteritems() if is_valid(key)
+            }
+
+        # Store upstream tags locally.
+        if machine.cloud.sync_tags:
+            Tag.objects(resource=machine, upstream=True).delete()
+            for key, value in machine.extra.get(key, {}).iteritems():
+                try:
+                    Tag(owner=machine.owner, resource=machine, key=key,
+                        value=value, upstream=True).save()
+                except (me.NotUniqueError, me.ValidationError) as err:
+                    log.exception('Failed to save upstream tag %s:%s of '
+                                  '%s: %r', key, value, machine, err)
+
+
 class BaseComputeController(BaseController):
     """Abstract base class for every cloud/provider controller
 
@@ -332,20 +373,11 @@ class BaseComputeController(BaseController):
                     extra[key] = str(val)
             machine.extra = extra
 
-            # save extra.tags as dict
-            if machine.extra.get('tags') and isinstance(
-                    machine.extra.get('tags'), list):
-                machine.extra['tags'] = dict.fromkeys(machine.extra['tags'],
-                                                      '')
-            # perform tag validation to prevent ValidationError
-            # on machine.save()
-            if machine.extra.get('tags') and isinstance(
-                    machine.extra.get('tags'), dict):
-                validated_tags = {}
-                for tag in machine.extra['tags']:
-                    if not (('.' in tag) or ('$' in tag)):
-                        validated_tags[tag] = machine.extra['tags'][tag]
-                machine.extra['tags'] = validated_tags
+            # Clean node metadata
+            try:
+                self._list_machines__sync_machine_tags(machine, node)
+            except Exception as exc:
+                log.exception("Error syncing tags for %s: %r", machine, exc)
 
             # Set machine hostname
             if machine.extra.get('dns_name'):
@@ -484,6 +516,10 @@ class BaseComputeController(BaseController):
         inject extra metadata.
         """
         return copy.copy(machine_libcloud.extra)
+
+    def _list_machines__sync_machine_tags(self, machine, machine_libcloud):
+        """Parse the tags returned in a node's metadata"""
+        _sync_machine_tags(machine, 'tags')
 
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
         return
