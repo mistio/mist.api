@@ -82,7 +82,6 @@ class NotificationAction(BaseAlertAction):
 
     def run(self, machine, value, triggered, timestamp, incident_id,
             action=''):
-        import ipdb; ipdb.set_trace()
         try:
             # TODO Use the Notifications system.
             from mist.core.methods import _alert_action
