@@ -47,7 +47,7 @@ def add_override_channel(user, org, channel, value='BLOCK'):
     '''
     policy = get_policy(user, org)
     overrides = [
-        override for override in policy.overrides if override.channel == channel]
+        ovr for ovr in policy.overrides if ovr.channel == channel]
     if not overrides:
         override = models.NotificationOverride()
         override.channel = channel

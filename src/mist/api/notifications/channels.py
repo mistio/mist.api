@@ -6,8 +6,9 @@ import jsonpatch
 from mist.api import config
 from mist.api.helpers import send_email, amqp_publish_user
 
-from mist.api.notifications.models import (Notification, NotificationOverride,
-                                           EmailReport, EmailNotification,
+from mist.api.notifications.models import (Notification,
+                                           NotificationOverride,
+                                           EmailNotification,
                                            InAppNotification)
 
 import logging
