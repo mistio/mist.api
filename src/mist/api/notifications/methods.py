@@ -134,7 +134,7 @@ def send_notification(notification):
     '''
     if notification.user:
         policy = get_policy(notification.user, notification.organization)
-    else if notification.email:
+    elif notification.email:
         policy = get_non_member_policy(
             notification.email, notification.organization)
 
