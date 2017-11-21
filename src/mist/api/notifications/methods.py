@@ -135,7 +135,8 @@ def send_notification(notification):
     if notification.user:
         policy = get_policy(notification.user, notification.organization)
     else if notification.email:
-        policy = get_non_member_policy(notification.email, notification.organization)
+        policy = get_non_member_policy(
+            notification.email, notification.organization)
 
     if policy.notification_allowed(notification):
         chan = channels.channel_instance_for_notification(notification)
