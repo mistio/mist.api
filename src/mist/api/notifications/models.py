@@ -41,7 +41,7 @@ class NotificationOverride(me.EmbeddedDocument):
         if self.cloud and notification.cloud:
             if self.cloud != notification.cloud:
                 return False
-        return self.source == type(notification).__name__
+        return self.channel == type(notification).__name__
 
 
 class UserNotificationPolicy(me.Document):
@@ -74,10 +74,10 @@ class UserNotificationPolicy(me.Document):
         or is blocked
         '''
         for override in self.overrides:
-            if (override.source == channel and
+            if (override.channel == channel and
                     override.value == 'BLOCK'):
                 return False
-            elif (override.source == channel and
+            elif (override.channel == channel and
                     override.value == 'ALLOW'):
                 return True
         return default
@@ -96,7 +96,7 @@ class Notification(me.Document):
     created_date = me.DateTimeField(required=False)
     expiry_date = me.DateTimeField(required=False)
 
-    user = me.ReferenceField(User, required=True)
+    user = me.ReferenceField(User)
     organization = me.ReferenceField(Organization, required=True)
 
     # content fields
