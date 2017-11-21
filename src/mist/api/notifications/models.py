@@ -175,7 +175,7 @@ class EmailNotification(Notification):
     def __init__(self, *args, **kwargs):
         super(EmailNotification, self).__init__(*args, **kwargs)
         if not self.sender_email:
-            self.sender_email = config.EMAIL_NOTIFICATIONS_SENDER
+            self.sender_email = config.EMAIL_NOTIFICATIONS
         if not self.sender_title:
             self.sender_title = "Mist.io Notifications"
 
@@ -196,7 +196,7 @@ class EmailAlert(EmailNotification):
     def __init__(self, *args, **kwargs):
         super(EmailNotification, self).__init__(*args, **kwargs)
         if not self.sender_email:
-            self.sender_email = config.EMAIL_ALERTS_SENDER
+            self.sender_email = config.EMAIL_ALERTS
         if not self.sender_title:
             self.sender_title = "Mist.io Alerts"
 
@@ -210,7 +210,7 @@ class EmailReport(EmailNotification):
     def __init__(self, *args, **kwargs):
         super(EmailNotification, self).__init__(*args, **kwargs)
         if not self.sender_email:
-            self.sender_email = config.EMAIL_REPORTS_SENDER
+            self.sender_email = config.EMAIL_REPORTS
         if not self.sender_title:
             self.sender_title = "Mist.io Reports"
 
