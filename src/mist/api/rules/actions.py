@@ -84,15 +84,15 @@ class NotificationAction(BaseAlertAction):
             action=''):
         try:
             # TODO Use the Notifications system.
-            from mist.core.methods import _alert_action
+            from mist.core.notifications.methods import send_alert_email
         except ImportError:
             pass
         else:
             # TODO Shouldn't be specific to machines.
             assert isinstance(machine, Machine)
             assert machine.owner == self._instance.owner
-            _alert_action(machine.owner, self._instance.rule_id, value,
-                          triggered, timestamp, incident_id, action=action)
+            send_alert_email(machine.owner, self._instance.rule_id, value,
+                             triggered, timestamp, incident_id, action=action)
 
     def clean(self):
         """Perform e-mail address validation."""
