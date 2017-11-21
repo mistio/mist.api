@@ -20,23 +20,24 @@ def add_override(notification, value='BLOCK'):
     source = notification.source
     channel = type(notification).__name__
     overrides = []
+
     for override in policy.overrides:
         if override.channel == channel:
             if (source and override.source == source) or (not source):
-                overrides.append(override)
-    if not overrides:
-        override = models.NotificationOverride()
-        override.source = source
-        override.channel = channel
-        override.value = value
-        if notification.machine:
-            override.machine = notification.machine
-        if notification.tag:
-            override.tag = notification.tag
-        if notification.cloud:
-            override.cloud = notification.cloud
-        policy.overrides.append(override)
-        policy.save()
+                return
+
+    override = models.NotificationOverride()
+    override.source = source
+    override.channel = channel
+    override.value = value
+    if notification.machine:
+        override.machine = notification.machine
+    if notification.tag:
+        override.tag = notification.tag
+    if notification.cloud:
+        override.cloud = notification.cloud
+    policy.overrides.append(override)
+    policy.save()
 
 
 def add_override_channel(user, org, channel, value='BLOCK'):
@@ -46,14 +47,15 @@ def add_override_channel(user, org, channel, value='BLOCK'):
     Creates the policy if it does not exist.
     '''
     policy = get_policy(user, org)
-    overrides = [
-        ovr for ovr in policy.overrides if ovr.channel == channel]
-    if not overrides:
-        override = models.NotificationOverride()
-        override.channel = channel
-        override.value = value
-        policy.overrides.append(override)
-        policy.save()
+    for override in policy.overrides:
+        if override.channel == channel:
+            return
+
+    override = models.NotificationOverride()
+    override.channel = channel
+    override.value = value
+    policy.overrides.append(override)
+    policy.save()
 
 
 def remove_override(notification):
@@ -127,10 +129,14 @@ NOTIFICATION HELPERS
 def send_notification(notification):
     '''
     Accepts a notification instance, checks against user
-    notification policy and sends the notification
-    through specified channels.
+    or non-member notification policy and sends the
+    notification through specified channels.
     '''
-    policy = get_policy(notification.user, notification.organization)
+    if notification.user:
+        policy = get_policy(notification.user, notification.organization)
+    else if notification.email:
+        policy = get_non_member_policy(notification.email, notification.organization)
+
     if policy.notification_allowed(notification):
         chan = channels.channel_instance_for_notification(notification)
         if chan:
