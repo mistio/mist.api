@@ -211,12 +211,40 @@ CELERY_SETTINGS = {
     'CELERY_TASK_SERIALIZER': 'json',
     'CELERYD_LOG_FORMAT': PY_LOG_FORMAT,
     'CELERYD_TASK_LOG_FORMAT': PY_LOG_FORMAT,
-    'CELERYD_CONCURRENCY': 4,
+    'CELERYD_CONCURRENCY': 8,
     'CELERYD_MAX_TASKS_PER_CHILD': 32,
     'CELERYD_MAX_MEMORY_PER_CHILD': 204800,  # 20480 KiB - 200 MiB
     'CELERY_MONGODB_SCHEDULER_DB': 'mist2',
     'CELERY_MONGODB_SCHEDULER_COLLECTION': 'schedules',
     'CELERY_MONGODB_SCHEDULER_URL': MONGO_URI,
+    'CELERY_ROUTES': {
+
+        # Command queue
+        'mist.api.tasks.ssh_command': {'queue': 'command'},
+
+        # Machines queue
+        'mist.api.tasks.list_machines': {'queue': 'machines'},
+        'mist.api.poller.tasks.list_machines': {'queue': 'machines'},
+
+        # Scripts queue (handled by gevent)
+        'mist.api.tasks.group_run_script': {'queue': 'scripts'},
+        'mist.api.tasks.run_script': {'queue': 'scripts'},
+        'mist.api.tasks.group_machines_actions': {'queue': 'scripts'},
+        'mist.api.tasks.machine_action': {'queue': 'scripts'},
+
+        # SSH probe queue (handled by gevent)
+        'mist.api.tasks.probe_ssh': {'queue': 'probe'},
+        'mist.api.poller.tasks.ssh_probe': {'queue': 'probe'},
+
+        # Ping probe queue (handled by gevent)
+        'mist.api.tasks.ping': {'queue': 'ping'},
+        'mist.api.poller.tasks.ping_probe': {'queue': 'ping'},
+
+        # Core tasks
+        'mist.core.insights.tasks.list_deployments': {'queue': 'deployments'},
+        'mist.core.rbac.tasks.update_mappings': {'queue': 'mappings'},
+        'mist.core.rbac.tasks.remove_mappings': {'queue': 'mappings'},
+    },
 }
 
 LANDING_CATEGORIES = [{
@@ -625,6 +653,18 @@ DOCKER_IMAGES = {
     'mist/fedora-20': 'Fedora 20 - mist.io image',
 }
 
+AZURE_ARM_IMAGES = {
+    'MicrosoftWindowsServer:WindowsServer:2008-R2-SP1:2.127.20170918': 'MicrosoftWindowsServer WindowsServer 2008-R2-SP1 2.127.20170918',
+    'MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20170822': 'MicrosoftWindowsServer WindowsServer 2012-R2-Datacenter 4.127.20170822',
+    'MicrosoftWindowsServer:WindowsServer:2016-Datacenter:2016.127.20170918': 'MicrosoftWindowsServer WindowsServer 2016-Datacenter 2016.127.20170918',
+    'SUSE:openSUSE-Leap:42.3:2017.07.26': 'SUSE openSUSE-Leap 42.3 2017.07.26',
+    'Canonical:UbuntuServer:16.04-LTS:16.04.201709190': 'Canonical UbuntuServer 16.04-LTS 16.04.201709190',
+    'Canonical:UbuntuServer:14.04.5-LTS:14.04.201708310': 'Canonical UbuntuServer 14.04.5-LTS 14.04.201708310',
+    'Canonical:UbuntuServer:17.04:17.04.201709220': 'Canonical UbuntuServer 17.04 17.04.201709220',
+    'RedHat:RHEL:7.3:7.3.2017090723': 'RedHat RHEL 7.3 7.3.2017090723',
+    'RedHat:RHEL:6.9:6.9.2017090105': 'RedHat RHEL 6.9 6.9.2017090105',
+}
+
 GCE_IMAGES = ['debian-cloud',
               'centos-cloud',
               'suse-cloud',
@@ -890,7 +930,7 @@ ALLOW_SIGNIN_GITHUB = False
 ENABLE_TUNNELS = False
 ENABLE_ORCHESTRATION = False
 ENABLE_INSIGHTS = False
-ENABLE_BILLING = False
+ENABLE_BILLING = STRIPE_PUBLIC_APIKEY = False
 ENABLE_RBAC = False
 ENABLE_AB = False
 ENABLE_MONITORING = False
@@ -1011,6 +1051,9 @@ HOMEPAGE_INPUTS = {
     'enable_ab': ENABLE_AB,
     'enable_monitoring': ENABLE_MONITORING
 }
+
+if ENABLE_BILLING and STRIPE_PUBLIC_APIKEY:
+    HOMEPAGE_INPUTS['stripe_public_apikey'] = STRIPE_PUBLIC_APIKEY
 ## DO NOT PUT REGULAR SETTINGS BELOW, PUT THEM ABOVE THIS SECTION
 
 

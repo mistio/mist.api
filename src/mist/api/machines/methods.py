@@ -2,12 +2,14 @@ import re
 import random
 import base64
 import mongoengine as me
+import time
 
 from libcloud.compute.base import NodeSize, NodeImage, NodeLocation, Node
 from libcloud.compute.types import Provider
 from libcloud.container.types import Provider as Container_Provider
 from libcloud.container.base import ContainerImage
 from libcloud.compute.base import NodeAuthSSHKey
+from libcloud.compute.base import NodeAuthPassword
 from tempfile import NamedTemporaryFile
 
 import mist.api.tasks
@@ -15,6 +17,7 @@ import mist.api.tasks
 from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 from mist.api.keys.models import Key
+from mist.api.networks.models import Network
 
 from mist.api.exceptions import PolicyUnauthorizedError
 from mist.api.exceptions import MachineNameValidationError
@@ -83,6 +86,11 @@ def machine_name_validator(provider, name):
                 "or numbers, dashes and periods")
     elif provider == Provider.AZURE:
         pass
+    elif provider == Provider.AZURE_ARM:
+        if not re.search(r'^[0-9a-zA-Z\-]+$', name):
+            raise MachineNameValidationError(
+                "machine name may only contain ASCII letters "
+                "or numbers and dashes")
     elif provider in [Provider.VCLOUD]:
         pass
     elif provider is Provider.LINODE:
@@ -114,13 +122,17 @@ def list_machines(owner, cloud_id):
 
 def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                    image_id, size_id, image_extra, disk, image_name,
-                   size_name, location_name, ips, monitoring, networks=[],
-                   docker_env=[], docker_command=None, ssh_port=22, script='',
-                   script_id='', script_params='', job_id=None, job=None,
-                   docker_port_bindings={}, docker_exposed_ports={},
-                   azure_port_bindings='', hostname='', plugins=None,
-                   disk_size=None, disk_path=None,
+                   size_name, location_name, ips, monitoring,
+                   ex_storage_account, machine_password, ex_resource_group,
+                   networks=[], docker_env=[], docker_command=None,
+                   ssh_port=22, script='', script_id='', script_params='',
+                   job_id=None, job=None, docker_port_bindings={},
+                   docker_exposed_ports={}, azure_port_bindings='',
+                   hostname='', plugins=None, disk_size=None, disk_path=None,
                    post_script_id='', post_script_params='', cloud_init='',
+                   create_network=False, new_network='',
+                   create_resource_group=False, new_resource_group='',
+                   create_storage_account=False, new_storage_account='',
                    associate_floating_ip=False,
                    associate_floating_ip_subnet=None, project_id=None,
                    schedule={}, command=None, tags=None,
@@ -130,7 +142,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                    size_disk_primary=5, size_disk_swap=1,
                    boot=True, build=True,
                    cpu_priority=1, cpu_sockets=1, cpu_threads=1, port_speed=0,
-                   hypervisor_group_id=None):
+                   hypervisor_group_id=None, machine_username=''):
     """Creates a new virtual machine on the specified cloud.
 
     If the cloud is Rackspace it attempts to deploy the node with an ssh key
@@ -168,7 +180,9 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
 
     # if key_id not provided, search for default key
     if conn.type not in [Provider.LIBVIRT,
-                         Container_Provider.DOCKER, Provider.ONAPP]:
+                         Container_Provider.DOCKER,
+                         Provider.ONAPP,
+                         Provider.AZURE_ARM]:
         if not key_id:
             key = Key.objects.get(owner=owner, default=True, deleted=None)
             key_id = key.name
@@ -269,6 +283,17 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
             cloud_init=cloud_init,
             cloud_service_name=None,
             azure_port_bindings=azure_port_bindings
+        )
+    elif conn.type == Provider.AZURE_ARM:
+        image = conn.get_image(image_id, location)
+        node = _create_machine_azure_arm(
+            owner, cloud_id, conn, public_key, machine_name,
+            image, size, location, networks,
+            ex_storage_account, machine_password, ex_resource_group,
+            create_network, new_network,
+            create_resource_group, new_resource_group,
+            create_storage_account, new_storage_account,
+            machine_username
         )
     elif conn.type in [Provider.VCLOUD]:
         node = _create_machine_vcloud(conn, machine_name, image,
@@ -984,6 +1009,178 @@ def _create_machine_vultr(conn, public_key, machine_name, image,
         )
     except Exception as e:
         raise MachineCreationError("Vultr, got exception %s" % e, e)
+
+    return node
+
+
+def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
+                              image, size, location, networks,
+                              ex_storage_account, machine_password,
+                              ex_resource_group, create_network, new_network,
+                              create_resource_group, new_resource_group,
+                              create_storage_account, new_storage_account,
+                              machine_username):
+    """Create a machine Azure ARM.
+
+    Here there is no checking done, all parameters are expected to be
+    sanitized by create_machine.
+
+    """
+    if public_key:
+        public_key = public_key.replace('\n', '')
+
+    if 'microsoft' in image.name.lower():
+        k = NodeAuthPassword(machine_password)
+    else:
+        k = NodeAuthSSHKey(public_key)
+
+    if create_resource_group:
+        try:
+            conn.ex_create_resource_group(new_resource_group, location)
+            resource_group = new_resource_group
+            # clear resource groups cache
+            taskRG = mist.api.tasks.ListResourceGroups()
+            taskRG.clear_cache(owner.id, cloud_id)
+            taskRG.delay(owner.id, cloud_id)
+            # add delay cause sometimes the group is not yet ready
+            time.sleep(5)
+        except Exception as exc:
+            raise InternalServerError("Couldn't create resource group", exc)
+    else:
+        resource_group = ex_resource_group
+
+    if create_storage_account:
+        try:
+            conn.ex_create_storage_account(new_storage_account,
+                                           resource_group,
+                                           'Storage', location)
+            storage_account = new_storage_account
+            # clear storage accounts cache
+            taskSA = mist.api.tasks.ListStorageAccounts()
+            taskSA.clear_cache(owner.id, cloud_id)
+            taskSA.delay(owner.id, cloud_id)
+        except Exception as exc:
+            raise InternalServerError("Couldn't create storage account", exc)
+    else:
+        storage_account = ex_storage_account
+
+    if create_network:
+        # create a security group and open ports
+        securityRules = [
+            {
+                "name": "allowSSHInbound",
+                "properties": {
+                    "protocol": "*",
+                    "sourceAddressPrefix": "*",
+                    "destinationAddressPrefix": "*",
+                    "access": "Allow",
+                    "destinationPortRange": "22",
+                    "sourcePortRange": "*",
+                    "priority": 200,
+                    "direction": "Inbound"
+                }
+            },
+            {
+                "name": "allowRDPInbound",
+                "properties": {
+                    "protocol": "*",
+                    "sourceAddressPrefix": "*",
+                    "destinationAddressPrefix": "*",
+                    "access": "Allow",
+                    "destinationPortRange": "3389",
+                    "sourcePortRange": "*",
+                    "priority": 201,
+                    "direction": "Inbound"
+                }
+            },
+            {
+                "name": "allowMonitoringOutbound",
+                "properties": {
+                    "protocol": "*",
+                    "sourceAddressPrefix": "*",
+                    "destinationAddressPrefix": "*",
+                    "access": "Allow",
+                    "destinationPortRange": "25826",
+                    "sourcePortRange": "*",
+                    "priority": 202,
+                    "direction": "Outbound"
+                }
+            }
+        ]
+        try:
+            sg = conn.ex_create_network_security_group(
+                new_network,
+                resource_group,
+                location=location,
+                securityRules=securityRules
+            )
+            # add delay cause sometimes the group is not yet ready
+            time.sleep(3)
+        except Exception as exc:
+            raise InternalServerError("Couldn't create security group", exc)
+
+        # create the new network
+        try:
+            ex_network = conn.ex_create_network(new_network,
+                                                resource_group,
+                                                location=location,
+                                                networkSecurityGroup=sg.id)
+        except Exception as exc:
+            raise InternalServerError("Couldn't create new network", exc)
+    else:
+        # select the right network object
+        ex_network = None
+        sg = ""
+        try:
+            if networks:
+                available_networks = conn.ex_list_networks()
+                mist_net = Network.objects.get(id=networks)
+                for libcloud_net in available_networks:
+                    if mist_net.network_id == libcloud_net.id:
+                        ex_network = libcloud_net
+        except:
+            pass
+
+    ex_subnet = conn.ex_list_subnets(ex_network)[0]
+
+    try:
+        ex_ip = conn.ex_create_public_ip(machine_name,
+                                         resource_group,
+                                         location)
+    except Exception as exc:
+        raise InternalServerError("Couldn't create new ip", exc)
+
+    try:
+        ex_nic = conn.ex_create_network_interface(machine_name, ex_subnet,
+                                                  resource_group,
+                                                  location=location,
+                                                  public_ip=ex_ip)
+    except Exception as exc:
+        raise InternalServerError("Couldn't create network interface", exc)
+
+    try:
+        node = conn.create_node(
+            name=machine_name,
+            size=size,
+            image=image,
+            auth=k,
+            ex_resource_group=resource_group,
+            ex_storage_account=storage_account,
+            ex_nic=ex_nic,
+            location=location,
+            ex_user_name=machine_username
+        )
+    except Exception as e:
+        try:
+            # try to get the message only out of the XML response
+            msg = re.search(r"(<Message>)(.*?)(</Message>)", e.value)
+            if not msg:
+                msg = re.search(r"(Message: ')(.*?)(', Body)", e.value)
+            if msg:
+                msg = msg.group(2)
+        except:
+            msg = e
+        raise MachineCreationError('Azure, got exception %s' % msg)
 
     return node
 

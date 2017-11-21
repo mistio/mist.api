@@ -59,6 +59,50 @@ from mist.api.machines.models import Machine
 log = logging.getLogger(__name__)
 
 
+def _decide_machine_cost(machine, tags=None, cost=(0, 0)):
+    """Decide what the monthly and hourly machine cost is
+
+    Params:
+    machine:    Machine model instance
+    tags:       Optional machine tags dict, if not provided it will be queried.
+    cost:       Optional two-tuple of hourly/monthly cost, such as that
+                returned by cloud provider.
+
+    Any cost-specific tags take precedence.
+    """
+
+    def parse_num(num):
+        try:
+            return float(num or 0)
+        except (ValueError, TypeError):
+            log.warning("Can't parse %r as float.", num)
+            return 0
+
+    now = datetime.datetime.utcnow()
+    month_days = calendar.monthrange(now.year, now.month)[1]
+
+    # Get machine tags from db
+    tags = tags or {tag.key: tag.value for tag in Tag.objects(
+        owner=machine.cloud.owner, resource=machine,
+    )}
+
+    try:
+        cph = parse_num(tags.get('cost_per_hour'))
+        cpm = parse_num(tags.get('cost_per_month'))
+        if not (cph or cpm) or cph > 100 or cpm > 100 * 24 * 31:
+            log.warning("Invalid cost tags for machine %s", machine)
+            cph, cpm = map(parse_num, cost)
+        if not cph:
+            cph = float(cpm) / month_days / 24
+        elif not cpm:
+            cpm = cph * 24 * month_days
+    except Exception:
+        log.exception("Error while deciding cost for machine %s", machine)
+
+    machine.cost.hourly = cph
+    machine.cost.monthly = cpm
+
+
 class BaseComputeController(BaseController):
     """Abstract base class for every cloud/provider controller
 
@@ -315,11 +359,6 @@ class BaseComputeController(BaseController):
                         machine.hostname = ip
                         break
 
-            # Get machine tags from db
-            tags = {tag.key: tag.value for tag in Tag.objects(
-                owner=self.cloud.owner, resource=machine,
-            ).only('key', 'value')}
-
             # Get machine creation date.
             try:
                 created = self._list_machines__machine_creation_date(machine,
@@ -350,28 +389,10 @@ class BaseComputeController(BaseController):
 
             # Apply any cloud/provider cost reporting.
             try:
-                def parse_num(num):
-                    try:
-                        return float(num or 0)
-                    except (ValueError, TypeError):
-                        log.warning("Can't parse %r as float.", num)
-                        return 0
-
-                month_days = calendar.monthrange(now.year, now.month)[1]
-
-                cph = parse_num(tags.get('cost_per_hour'))
-                cpm = parse_num(tags.get('cost_per_month'))
-                if not (cph or cpm) or cph > 100 or cpm > 100 * 24 * 31:
-                    cph, cpm = map(parse_num,
-                                   self._list_machines__cost_machine(machine,
-                                                                     node))
-                if not cph:
-                    cph = float(cpm) / month_days / 24
-                elif not cpm:
-                    cpm = cph * 24 * month_days
-                machine.cost.hourly = cph
-                machine.cost.monthly = cpm
-
+                _decide_machine_cost(
+                    machine,
+                    cost=self._list_machines__cost_machine(machine, node),
+                )
             except Exception as exc:
                 log.exception("Error while calculating cost "
                               "for machine %s:%s for %s",
@@ -402,11 +423,10 @@ class BaseComputeController(BaseController):
                            'resume', 'suspend', 'undefine'):
                 setattr(machine.actions, action, False)
             machine.actions.tag = True
+
             # allow reboot action for bare metal with key associated
             if machine.key_associations:
                 machine.actions.reboot = True
-            machine.save()
-            machines.append(machine)
 
             # Set machine hostname
             if not machine.hostname:
@@ -417,6 +437,13 @@ class BaseComputeController(BaseController):
                     if ip and ':' not in ip:
                         machine.hostname = ip
                         break
+
+            # Parse cost from tags
+            _decide_machine_cost(machine)
+
+            # Save machine
+            machine.save()
+            machines.append(machine)
 
         # Set last_seen on machine models we didn't see for the first time now.
         Machine.objects(cloud=self.cloud,
@@ -629,8 +656,7 @@ class BaseComputeController(BaseController):
 
         # Filter out invalid images.
         images = [img for img in images
-                  if img.name and img.id[:3] not in ('aki', 'ari') and
-                  'windows' not in img.name.lower()]
+                  if img.name and img.id[:3] not in ('aki', 'ari')]
 
         # Turn images to dict to return and star them.
         images = [{'id': img.id,

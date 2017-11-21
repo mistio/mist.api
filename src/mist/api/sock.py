@@ -95,8 +95,12 @@ class MistConnection(SockJSConnection):
     def on_open(self, conn_info):
         log.info("%s: Initializing", self.__class__.__name__)
         self.ip, self.user_agent, session_id = get_conn_info(conn_info)
+        log.info("Got connection info: %s %s %s",
+                 self.ip, self.user_agent, session_id)
         try:
             self.auth_context = auth_context_from_session_id(session_id)
+            log.info("Got auth context %s for session %s",
+                     self.auth_context.owner.id, session_id)
         except UnauthorizedError:
             log.error("%s: Unauthorized session_id", self.__class__.__name__)
             self.send('logout')
@@ -262,10 +266,12 @@ class MainConnection(MistConnection):
         }
         if self.auth_context.token.su:
             self.log_kwargs['su'] = self.auth_context.token.su
+        log.info('About to log open event %s', self.auth_context.owner.id)
         log_event(action='connect', **self.log_kwargs)
+        log.info('Done %s', self.auth_context.owner.id)
 
     def on_ready(self):
-        log.info("************** Ready to go!")
+        log.info("************** Ready to go! %s", self.auth_context.owner.id)
         if self.consumer is None:
             self.consumer = OwnerUpdatesConsumer(self)
             self.consumer.run()
@@ -358,6 +364,10 @@ class MainConnection(MistConnection):
                                ('list_networks', tasks.ListNetworks()),
                                ('list_zones', tasks.ListZones()),
                                ('list_locations', tasks.ListLocations()),
+                               ('list_resource_groups',
+                                tasks.ListResourceGroups()),
+                               ('list_storage_accounts',
+                                tasks.ListStorageAccounts()),
                                ('list_projects', tasks.ListProjects())])
         for key, task in periodic_tasks:
             for cloud in clouds:
@@ -434,7 +444,9 @@ class MainConnection(MistConnection):
         log.info("Got %s", routing_key)
         if routing_key in set(['notify', 'probe', 'list_sizes', 'list_images',
                                'list_networks', 'list_machines', 'list_zones',
-                               'list_locations', 'list_projects', 'ping']):
+                               'list_locations', 'list_projects', 'ping',
+                               'list_resource_groups',
+                               'list_storage_accounts']):
             if routing_key == 'list_machines':
                 # probe newly discovered running machines
                 machines = result['machines']
@@ -537,6 +549,7 @@ class MainConnection(MistConnection):
             if 'org' in sections:
                 self.auth_context.org.reload()
                 self.update_org()
+
         elif routing_key == 'patch_notifications':
             if json.loads(result).get('user') == self.user.id:
                 self.send('patch_notifications', result)

@@ -78,6 +78,9 @@ def main(global_config, **settings):
     json_renderer.add_adapter(object, string_adapter)
     configurator.add_renderer('json', json_renderer)
 
+    # Add CSV renderer
+    configurator.add_renderer('csv', 'mist.api.renderers.CSVRenderer')
+
     configurator.add_static_view('docs', path='../../../docs/build')
 
     # FIXME this should not be necessary
@@ -153,6 +156,9 @@ def add_routes(configurator):
     configurator.add_route('api_v1_cloud_action', '/api/v1/clouds/{cloud}')
 
     configurator.add_route('api_v1_machines',
+                           '/api/v1/machines')
+
+    configurator.add_route('api_v1_cloud_machines',
                            '/api/v1/clouds/{cloud}/machines')
     configurator.add_route('api_v1_cloud_machine',
                            '/api/v1/clouds/{cloud}/machines/{machine}')
@@ -300,6 +306,14 @@ def add_routes(configurator):
     configurator.add_route(
         'api_v1_dismiss_notification',
         '/api/v1/notifications/{notification_id}')
+
+    configurator.add_route(
+        'api_v1_notification_override',
+        '/api/v1/notification-overrides/{notification_id}')
+
+    configurator.add_route(
+        'api_v1_notification_overrides',
+        '/api/v1/notification-overrides')
 
     configurator.add_route('user_invitations', '/user_invitations')
 

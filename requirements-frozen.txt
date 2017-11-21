@@ -51,10 +51,10 @@ PasteDeploy==1.5.2
 PasteScript==2.0.2
 pathlib2==2.2.1
 pbr==3.0.0
-pdb==0.1
 pexpect==4.2.1
 pickleshare==0.7.4
 pika==0.10.0
+pingparsing==0.10.0
 pretty==0.1
 prompt-toolkit==1.0.14
 ptyprocess==0.5.1
@@ -78,7 +78,7 @@ python-openid==2.2.5
 pytz==2017.2
 PyYAML==3.12
 repoze.lru==0.6
-requests==2.13.0
+requests==2.18.4
 scandir==1.5
 sentinels==1.0.0
 simplegeneric==0.8.1
@@ -98,4 +98,3 @@ websocket-client==0.40.0
 yappi==0.98
 zope.deprecation==4.2.0
 zope.interface==4.4.0
-https://github.com/ssteinerx/pingparser/archive/master.zip

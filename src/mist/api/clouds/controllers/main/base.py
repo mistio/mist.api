@@ -295,8 +295,11 @@ class BaseMainController(object):
         return
 
     def rename(self, title):
-        self.cloud.title = title
-        self.cloud.save()
+        try:
+            self.cloud.title = title
+            self.cloud.save()
+        except me.NotUniqueError:
+            raise CloudExistsError()
 
     def enable(self):
         self.cloud.enabled = True

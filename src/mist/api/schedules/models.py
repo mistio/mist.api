@@ -190,6 +190,8 @@ class Schedule(me.Document, ConditionalClassMixin):
     description = me.StringField()
     deleted = me.DateTimeField()
 
+    owner = me.ReferenceField(Organization, required=True)
+
     # celery periodic task specific fields
     queue = me.StringField()
     exchange = me.StringField()
@@ -210,8 +212,6 @@ class Schedule(me.Document, ConditionalClassMixin):
     max_run_count = me.IntField(min_value=0, default=0)
 
     no_changes = False
-
-    # _controller_cls = None
 
     def __init__(self, *args, **kwargs):
         # FIXME
