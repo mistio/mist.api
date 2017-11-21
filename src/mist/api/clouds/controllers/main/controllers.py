@@ -49,9 +49,11 @@ from mist.api.clouds.controllers.compute import controllers as compute_ctls
 from mist.api.clouds.controllers.network import controllers as network_ctls
 from mist.api.clouds.controllers.dns import controllers as dns_ctls
 
-try:
+from mist.api import config
+
+if config.HAS_CORE:
     from mist.core.vpn.methods import to_tunnel
-except ImportError:
+else:
     from mist.api.dummy.methods import to_tunnel
 
 

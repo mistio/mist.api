@@ -144,9 +144,9 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                 'host': host,
                 'key_id': key_id,
             }
-            try:
+            if config.HAS_CORE:
                 from mist.core.rbac.methods import AuthContext
-            except ImportError:
+            else:
                 from mist.api.dummy.rbac import AuthContext
 
             try:

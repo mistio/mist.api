@@ -20,9 +20,9 @@ from mist.api.exceptions import CloudUnauthorizedError, CloudUnavailableError
 
 from mist.api import config
 
-try:
+if config.HAS_CORE:
     from mist.core.vpn.methods import destination_nat as dnat
-except ImportError:
+else:
     from mist.api.dummy.methods import dnat
 
 logging.basicConfig(level=config.PY_LOG_LEVEL,

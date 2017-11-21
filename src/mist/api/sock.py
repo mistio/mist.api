@@ -12,8 +12,9 @@ import uuid
 import json
 import time
 import random
-import traceback
+import logging
 import datetime
+import traceback
 
 import tornado.gen
 
@@ -45,26 +46,26 @@ from mist.api.hub.tornado_shell_client import ShellHubClient
 from mist.api.notifications.models import InAppNotification
 
 from mist.api.monitoring.methods import get_stats
-try:
-    from mist.core.methods import get_load, check_monitoring
+from mist.api.monitoring.methods import check_monitoring
+
+from mist.api import config
+
+if config.HAS_CORE:
+    from mist.core.methods import get_load
     from mist.core.methods import get_user_data, filter_list_tags
     from mist.core.methods import filter_list_vpn_tunnels
     from mist.core.rbac.methods import filter_org
     from mist.core.orchestration.methods import filter_list_templates
     from mist.core.orchestration.methods import filter_list_stacks
-except ImportError:
+else:
     from mist.api.dummy.methods import filter_list_tags
     from mist.api.dummy.methods import filter_list_vpn_tunnels
     from mist.api.users.methods import filter_org
     from mist.api.dummy.methods import filter_list_templates
     from mist.api.dummy.methods import filter_list_stacks
     from mist.api.users.methods import get_user_data
-    from mist.api.monitoring.methods import check_monitoring
     from mist.api.monitoring.methods import get_load
 
-from mist.api import config
-
-import logging
 logging.basicConfig(level=config.PY_LOG_LEVEL,
                     format=config.PY_LOG_FORMAT,
                     datefmt=config.PY_LOG_FORMAT_DATE)
@@ -399,9 +400,8 @@ class MainConnection(MistConnection):
         self.send('notifications', notifications_json)
 
     def check_monitoring(self):
-        func = check_monitoring
         try:
-            self.send('monitoring', func(self.owner))
+            self.send('monitoring', check_monitoring(self.owner))
         except Exception as exc:
             log.warning("Check monitoring failed with: %r", exc)
 

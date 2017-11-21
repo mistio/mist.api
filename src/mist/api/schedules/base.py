@@ -21,12 +21,15 @@ from mist.api.exceptions import NotFoundError
 from mist.api.conditions.models import FieldCondition, MachinesCondition
 from mist.api.conditions.models import TaggingCondition, MachinesAgeCondition
 
-try:
+import mist.api.schedules.models as schedules
+
+from mist.api import config
+
+if config.HAS_CORE:
     from mist.core.rbac.methods import AuthContext
-except ImportError:
+else:
     from mist.api.dummy.rbac import AuthContext
 
-import mist.api.schedules.models as schedules
 
 log = logging.getLogger(__name__)
 

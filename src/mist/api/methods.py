@@ -361,12 +361,11 @@ def _ping_host(host, pkts=10):
 
 
 def ping(owner, host, pkts=10):
-    try:
+    if config.HAS_CORE:
         from mist.core.vpn.methods import super_ping
-    except ImportError:
-        result = _ping_host(host, pkts=pkts)
-    else:
         result = super_ping(owner=owner, host=host, pkts=pkts)
+    else:
+        result = _ping_host(host, pkts=pkts)
 
     # In both cases, the returned dict is formatted by pingparsing.
 
@@ -399,13 +398,9 @@ def find_public_ips(ips):
 
 def notify_admin(title, message="", team="all"):
     """ This will only work on a multi-user setup configured to send emails """
-    try:
-        from mist.api.helpers import send_email
-        send_email(title, message,
-                   config.NOTIFICATION_EMAIL.get(team,
-                                                 config.NOTIFICATION_EMAIL))
-    except ImportError:
-        pass
+    from mist.api.helpers import send_email
+    send_email(title, message,
+               config.NOTIFICATION_EMAIL.get(team, config.NOTIFICATION_EMAIL))
 
 
 def notify_user(owner, title, message="", email_notify=True, **kwargs):
@@ -463,14 +458,11 @@ def notify_user(owner, title, message="", email_notify=True, **kwargs):
     if 'output' in kwargs:
         body += "Output: %s\n" % kwargs['output'].decode('utf-8', 'ignore')
 
-    try:  # Send email in multi-user env
-        if email_notify:
-            from mist.api.helpers import send_email
-            email = owner.email if hasattr(owner, 'email') else owner.get_email()
-            send_email("[mist.io] %s" % title, body.encode('utf-8', 'ignore'),
-                       email)
-    except ImportError:
-        pass
+    if email_notify:
+        from mist.api.helpers import send_email
+        email = owner.email if hasattr(owner, 'email') else owner.get_email()
+        send_email("[mist.io] %s" % title, body.encode('utf-8', 'ignore'),
+                   email)
 
 
 def undeploy_python_plugin(owner, cloud_id, machine_id, plugin_id, host):

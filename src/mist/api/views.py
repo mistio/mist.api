@@ -2559,9 +2559,9 @@ def fetch(request):
         raise RequiredParameterMissingError('No action specified')
 
     if action == 'vpn_script':
-        try:
+        if config.HAS_CORE:
             from mist.core.vpn.views import fetch_vpn_script
-        except ImportError:
+        else:
             raise NotImplementedError()
         return fetch_vpn_script(params.get('object_id'))
     elif action == 'fetch_script':

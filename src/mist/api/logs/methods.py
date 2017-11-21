@@ -24,10 +24,10 @@ from mist.api.logs.constants import FIELDS, JOBS
 from mist.api.logs.constants import EXCLUDED_BUCKETS, TYPES
 from mist.api.logs.constants import STARTS_STORY, CLOSES_STORY, CLOSES_INCIDENT
 
-try:
+if config.HAS_CORE:
     from mist.core.rbac.methods import filter_logs
     from mist.core.experiments.helpers import cross_populate_session_data
-except ImportError:
+else:
     from mist.api.dummy.rbac import filter_logs
     from mist.api.dummy.methods import cross_populate_session_data
 

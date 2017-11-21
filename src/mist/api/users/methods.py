@@ -20,11 +20,6 @@ from mist.api.helpers import ip_from_request
 
 from mist.api import config
 
-try:
-    from mist.core.methods import assign_promo
-except ImportError:
-    from mist.api.dummy.methods import assign_promo
-
 log = logging.getLogger(__name__)
 
 
@@ -108,6 +103,10 @@ def create_org_for_user(user, org_name='', promo_code=None, token=None,
 
     # assign promo if applicable
     if promo_code or token:
+        if config.HAS_CORE:
+            from mist.core.methods import assign_promo
+        else:
+            from mist.api.dummy.methods import assign_promo
         assign_promo(org, promo_code, token)
     return org
 

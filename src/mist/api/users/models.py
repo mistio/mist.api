@@ -11,19 +11,13 @@ from uuid import uuid4
 
 from passlib.context import CryptContext
 
-try:
-    from mist.core.rbac.models import Policy
-except ImportError:
-    HAS_POLICY = False
-else:
-    HAS_POLICY = True
-
-try:
-    from mist.core.rbac.mappings import RBACMapping
-except ImportError:
-    from mist.api.dummy.mappings import RBACMapping
-
 from mist.api import config
+
+if config.HAS_CORE:
+    from mist.core.rbac.models import Policy
+    from mist.core.rbac.mappings import RBACMapping
+else:
+    from mist.api.dummy.mappings import RBACMapping
 
 
 logging.basicConfig(level=config.PY_LOG_LEVEL,
@@ -413,7 +407,7 @@ class Team(me.EmbeddedDocument):
     description = me.StringField()
     members = me.ListField(me.ReferenceField(User))
     visible = me.BooleanField(default=True)
-    if HAS_POLICY:
+    if config.HAS_CORE:
         policy = me.EmbeddedDocumentField(
             Policy, default=lambda: Policy(operator='DENY'), required=True
         )
@@ -468,7 +462,7 @@ class Team(me.EmbeddedDocument):
             'members': self.members,
             'visible': self.visible
         }
-        if HAS_POLICY:
+        if config.HAS_CORE:
             ret['policy'] = self.policy
         return ret
 
@@ -479,7 +473,7 @@ class Team(me.EmbeddedDocument):
 
 
 def _get_default_org_teams():
-    if HAS_POLICY:
+    if config.HAS_CORE:
         return [Team(name='Owners', policy=Policy(operator='ALLOW'))]
     return [Team(name='Owners')]
 
@@ -517,9 +511,9 @@ class Organization(Owner):
     @property
     def mapper(self):
         """Returns the `PermissionMapper` for the current Org context."""
-        try:
+        if config.HAS_CORE:
             from mist.core.rbac.tasks import AsyncPermissionMapper
-        except ImportError:
+        else:
             from mist.api.dummy.mappings import AsyncPermissionMapper
         return AsyncPermissionMapper(self)
 
@@ -656,7 +650,7 @@ class Organization(Owner):
         if not owners.members:
             raise me.ValidationError("Owners team can't be empty.")
 
-        if HAS_POLICY:
+        if config.HAS_CORE:
             # make sure owners policy allows all permissions
             if owners.policy.operator != 'ALLOW':
                 raise me.ValidationError("Owners policy must be set to ALLOW.")
