@@ -19,7 +19,6 @@ def add_override(notification, value='BLOCK'):
     policy = get_policy(user, org)
     source = notification.source
     channel = type(notification).__name__
-    overrides = []
 
     for override in policy.overrides:
         if override.channel == channel:
