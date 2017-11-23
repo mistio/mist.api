@@ -24,7 +24,6 @@ from mist.api.logs.methods import log_event
 from mist.api.logs.methods import get_stories
 
 from mist.api.clouds.models import Cloud
-from mist.api.machines.models import Machine
 
 from mist.api.auth.methods import auth_context_from_session_id
 
@@ -291,8 +290,7 @@ class MainConnection(MistConnection):
         self.list_clouds()
         self.update_notifications()
         self.check_monitoring()
-        if config.ACTIVATE_POLLER:
-            self.periodic_update_poller()
+        self.periodic_update_poller()
 
     @tornado.gen.coroutine
     def periodic_update_poller(self):
@@ -340,24 +338,20 @@ class MainConnection(MistConnection):
         self.send('list_tunnels', filter_list_vpn_tunnels(self.auth_context))
 
     def list_clouds(self):
-        if config.ACTIVATE_POLLER:
-            self.update_poller()
+        self.update_poller()
         self.send('list_clouds', filter_list_clouds(self.auth_context))
         clouds = Cloud.objects(owner=self.owner, enabled=True, deleted=None)
         log.info(clouds)
         periodic_tasks = []
-        if not config.ACTIVATE_POLLER:
-            periodic_tasks.append(('list_machines', tasks.ListMachines()))
-        else:
-            for cloud in clouds:
-                machines = cloud.ctl.compute.list_cached_machines()
-                machines = filter_list_machines(
-                    self.auth_context, cloud_id=cloud.id,
-                    machines=[machine.as_dict() for machine in machines]
-                )
-                log.info("Emitting list_machines from poller's cache.")
-                self.send('list_machines',
-                          {'cloud_id': cloud.id, 'machines': machines})
+        for cloud in clouds:
+            machines = cloud.ctl.compute.list_cached_machines()
+            machines = filter_list_machines(
+                self.auth_context, cloud_id=cloud.id,
+                machines=[machine.as_dict() for machine in machines]
+            )
+            log.info("Emitting list_machines from poller's cache.")
+            self.send('list_machines',
+                      {'cloud_id': cloud.id, 'machines': machines})
 
         periodic_tasks.extend([('list_images', tasks.ListImages()),
                                ('list_sizes', tasks.ListSizes()),
@@ -484,24 +478,6 @@ class MainConnection(MistConnection):
                         if not ips:
                             continue
 
-                    machine_obj = Machine.objects(
-                        cloud=cloud,
-                        machine_id=machine['machine_id'],
-                        key_associations__not__size=0
-                    ).first()
-                    if machine_obj:
-                        cached = tasks.ProbeSSH().smart_delay(
-                            self.owner.id, cloud_id, machine['machine_id'],
-                            ips[0], machine['id']
-                        )
-                        if cached is not None:
-                            self.send('probe', cached)
-
-                    cached = tasks.Ping().smart_delay(
-                        self.owner.id, cloud_id, machine['machine_id'], ips[0]
-                    )
-                    if cached is not None:
-                        self.send('ping', cached)
             elif routing_key == 'list_zones':
                 zones = result['zones']
                 cloud_id = result['cloud_id']
