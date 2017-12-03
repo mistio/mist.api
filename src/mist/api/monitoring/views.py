@@ -1,8 +1,6 @@
 import copy
 import logging
 
-from pyramid.response import Response
-
 import mist.api.config as config
 import mist.api.monitoring.methods
 
@@ -190,21 +188,41 @@ def update_monitoring(request):
         raise BadRequestError('Action must be one of (enable, disable)')
 
 
+@view_config(route_name='api_v1_cloud_metrics',
+             request_method='GET', renderer='json')
 @view_config(route_name='api_v1_metrics',
              request_method='GET', renderer='json')
 def find_metrics(request):
-    """Get metrics associated with a machine"""
+    """Get metrics associated with a machine
+
+    Get all metrics associated with specific machine.
+    READ permission required on cloud.
+    READ permission required on machine.
+    ---
+    machine:
+      in: path
+      required: true
+      type: string
+    """
     auth_context = auth_context_from_request(request)
-    machine_uuid = request.matchdict['machine']
-    return mist.api.monitoring.methods.find_metrics(auth_context.owner,
-                                                    machine_uuid)
+    machine = _machine_from_matchdict(request)
+
+    # SEC require permission READ on machine
+    auth_context.check_perm("machine", "read", machine.id)
+
+    return mist.api.monitoring.methods.find_metrics(machine)
 
 
+@view_config(route_name='api_v1_cloud_metrics',
+             request_method='PUT', renderer='json')
 @view_config(route_name='api_v1_metrics',
              request_method='PUT', renderer='json')
 def associate_metric(request):
     """Associate a new metric to a machine
 
+    READ permission required on cloud.
+    EDIT_GRAPHS permission required on machine
+
     ---
 
     machine:
@@ -217,23 +235,30 @@ def associate_metric(request):
 
     """
     auth_context = auth_context_from_request(request)
-    params = params_from_request(request)
+    machine = _machine_from_matchdict(request)
 
-    machine_uuid = request.matchdict['machine']
+    # SEC require permission EDIT_GRAPHS on machine
+    auth_context.check_perm("machine", "edit_graphs", machine.id)
+
+    params = params_from_request(request)
     metric_id = params.get('metric_id')
     if not metric_id:
         raise RequiredParameterMissingError('metric_id')
 
-    metric = mist.api.monitoring.methods.associate_metric(
-        auth_context.owner, machine_uuid, metric_id)
+    metric = mist.api.monitoring.methods.associate_metric(machine, metric_id)
     return metric.as_dict()
 
 
+@view_config(route_name='api_v1_cloud_metrics',
+             request_method='DELETE', renderer='json')
 @view_config(route_name='api_v1_metrics',
              request_method='DELETE', renderer='json')
 def disassociate_metric(request):
     """Disassociate a metric from a machine
 
+    READ permission required on cloud.
+    EDIT_GRAPHS permission required on machine
+
     ---
 
     machine:
@@ -246,16 +271,18 @@ def disassociate_metric(request):
 
     """
     auth_context = auth_context_from_request(request)
-    params = params_from_request(request)
+    machine = _machine_from_matchdict(request)
 
-    machine_uuid = request.matchdict['machine']
+    # SEC require permission EDIT_GRAPHS on machine
+    auth_context.check_perm("machine", "edit_graphs", machine.id)
+
+    params = params_from_request(request)
     metric_id = params.get('metric_id')
     if not metric_id:
         raise RequiredParameterMissingError('metric_id')
 
-    mist.api.monitoring.methods.disassociate_metric(
-        auth_context.owner, machine_uuid, metric_id)
-    return Response('OK', 200)
+    mist.api.monitoring.methods.disassociate_metric(machine, metric_id)
+    return {}
 
 
 @view_config(route_name='api_v1_cloud_stats', request_method='GET',

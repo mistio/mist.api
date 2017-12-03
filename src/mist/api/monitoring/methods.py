@@ -28,6 +28,7 @@ from mist.api.monitoring.handlers import MainStatsHandler
 from mist.api.monitoring.handlers import MultiLoadHandler
 from mist.api.monitoring import traefik
 
+from mist.api.rules.models import Rule
 
 log = logging.getLogger(__name__)
 
@@ -101,7 +102,7 @@ def get_stats(machine, start='', stop='', step='',
                 results.update(data)
         return results
     else:
-        raise Exception("Invalid monitoring system")
+        raise Exception("Invalid monitoring method")
 
 
 def get_load(owner, start='', stop='', step='', uuids=None,
@@ -413,58 +414,56 @@ def disable_monitoring_cloud(owner, cloud_id, no_ssh=False):
                       "Cloud %s (%s): %s", cloud.id, owner.id, exc)
 
 
-def find_metrics(owner, machine_uuid):
+def find_metrics(machine):
     """Return the metrics associated with the specified machine."""
-    try:
-        machine = Machine.objects.get(id=machine_uuid)
-    except Machine.DoesNotExist:
-        raise NotFoundError("Machine doesn't exist")
-    if machine.owner != owner:
-        raise NotFoundError("Machine doesn't exist")
     if not machine.monitoring.hasmonitoring:
         raise MethodNotAllowedError("Machine doesn't have monitoring enabled")
-    metrics = {}
-    for metric in show_fields(show_measurements(machine_uuid)):
-        metrics[metric['id']] = metric
-    return metrics
+
+    if machine.monitoring.method in ('collectd-graphite', 'telegraf-graphite'):
+        if not config.HAS_CORE:
+            raise Exception()
+        from mist.core.methods import _graphite_find_metrics
+        return _graphite_find_metrics(machine)
+    elif machine.monitoring.method == 'telegraf-influxdb':
+        metrics = {}
+        for metric in show_fields(show_measurements(machine.id)):
+            metrics[metric['id']] = metric
+        return metrics
+    else:
+        raise Exception("Invalid monitoring method")
 
 
-def associate_metric(owner, machine_uuid, metric_id, name='', unit=''):
+def associate_metric(machine, metric_id, name='', unit=''):
     """Associate a new metric to a machine."""
-    try:
-        machine = Machine.objects.get(id=machine_uuid)
-    except Machine.DoesNotExist:
-        raise NotFoundError("Machine doesn't exist")
-    if machine.owner != owner:
-        raise NotFoundError("Machine doesn't exist")
     if not machine.monitoring.hasmonitoring:
         raise MethodNotAllowedError("Machine doesn't have monitoring enabled")
-    metric = update_metric(owner, metric_id, name, unit)
+    metric = update_metric(machine.owner, metric_id, name, unit)
     if metric_id not in machine.monitoring.metrics:
         machine.monitoring.metrics.append(metric_id)
         machine.save()
+    trigger_session_update(machine.owner, ['monitoring'])
     return metric
 
 
-def disassociate_metric(owner, machine_uuid, metric_id):
+def disassociate_metric(machine, metric_id):
     """Disassociate a metric from a machine."""
-    try:
-        machine = Machine.objects.get(id=machine_uuid)
-    except Machine.DoesNotExist:
-        raise NotFoundError("Machine doesn't exist")
-    if machine.owner != owner:
-        raise NotFoundError("Machine doesn't exist")
     if not machine.monitoring.hasmonitoring:
         raise MethodNotAllowedError("Machine doesn't have monitoring enabled")
     try:
-        Metric.objects.get(owner=owner, metric_id=metric_id)
+        Metric.objects.get(owner=machine.owner, metric_id=metric_id)
     except Metric.DoesNotExist:
         raise NotFoundError("Invalid metric_id")
     if metric_id not in machine.monitoring.metrics:
         raise NotFoundError("Metric isn't associated with this Machine")
+    if config.HAS_CORE:
+        from mist.core.methods import delete_rule
+        for rule in Rule.objects(owner_id=machine.owner.id):
+            if rule.cloud == machine.cloud.id and rule.machine == machine.id:
+                if rule.metric == metric_id:
+                    delete_rule(machine.owner, rule.rule_id)
     machine.monitoring.metrics.remove(metric_id)
     machine.save()
-    trigger_session_update(owner, ['monitoring'])
+    trigger_session_update(machine.owner, ['monitoring'])
 
 
 def update_metric(owner, metric_id, name='', unit=''):

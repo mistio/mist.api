@@ -25,6 +25,7 @@ from mist.api.logs.methods import log_event
 from mist.api.logs.methods import get_stories
 
 from mist.api.clouds.models import Cloud
+from mist.api.machines.models import Machine
 
 from mist.api.auth.methods import auth_context_from_session_id
 
