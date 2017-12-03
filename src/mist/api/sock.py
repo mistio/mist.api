@@ -45,13 +45,13 @@ from mist.api.hub.tornado_shell_client import ShellHubClient
 
 from mist.api.notifications.models import InAppNotification
 
+from mist.api.monitoring.methods import get_load
 from mist.api.monitoring.methods import get_stats
 from mist.api.monitoring.methods import check_monitoring
 
 from mist.api import config
 
 if config.HAS_CORE:
-    from mist.core.methods import get_load
     from mist.core.methods import get_user_data, filter_list_tags
     from mist.core.methods import filter_list_vpn_tunnels
     from mist.core.rbac.methods import filter_org
@@ -64,7 +64,6 @@ else:
     from mist.api.dummy.methods import filter_list_templates
     from mist.api.dummy.methods import filter_list_stacks
     from mist.api.users.methods import get_user_data
-    from mist.api.monitoring.methods import get_load
 
 logging.basicConfig(level=config.PY_LOG_LEVEL,
                     format=config.PY_LOG_FORMAT,
