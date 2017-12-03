@@ -204,10 +204,20 @@ def check_monitoring(owner):
         'rules': owner.get_rules_dict(),
         'alerts_email': owner.alerts_email,
         'custom_metrics': custom_metrics,
-        # TODO
-        # FIXME
-        'builtin_metrics': config.INFLUXDB_BUILTIN_METRICS,
     }
+    if config.HAS_CORE:
+        ret.update({
+            # Keep for backwards compatibility
+            'builtin_metrics': config.GRAPHITE_BUILTIN_METRICS,
+            'builtin_metrics_graphite': config.GRAPHITE_BUILTIN_METRICS,
+            'builtin_metrics_influxdb': config.INFLUXDB_BUILTIN_METRICS,
+        })
+    else:
+        ret.update({
+            # Keep for backwards compatibility
+            'builtin_metrics': config.INFLUXDB_BUILTIN_METRICS,
+            'builtin_metrics_influxdb': config.INFLUXDB_BUILTIN_METRICS,
+        })
     for key in ('rules', 'builtin_metrics', 'custom_metrics'):
         for id in ret[key]:
             ret[key][id]['id'] = id
