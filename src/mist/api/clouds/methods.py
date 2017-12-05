@@ -3,6 +3,7 @@ import mist.api.clouds.models as cloud_models
 from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 
+from mist.api.tasks import async_session_update
 from mist.api.helpers import trigger_session_update
 
 from mist.api.exceptions import RequiredParameterMissingError
@@ -16,6 +17,9 @@ try:
 except ImportError:
     from mist.api.dummy.methods import enable_monitoring
     from mist.api.dummy.methods import disable_monitoring_cloud
+    HAS_CORE = False
+else:
+    HAS_CORE = True
 
 from mist.api import config
 
@@ -60,10 +64,18 @@ def add_cloud_v_2(owner, title, provider, params):
         )
 
     # SEC
-    owner.mapper.update(cloud)
+    # Update the RBAC mappings with the new Cloud and finally trigger
+    # a session update by registering it as a chained task.
+    if HAS_CORE:
+        owner.mapper.update(
+            cloud,
+            callback=async_session_update, args=(owner.id, ['clouds'], )
+        )
+    else:
+        trigger_session_update(owner.id, ['clouds'])
 
     log.info("Cloud with id '%s' added succesfully.", cloud.id)
-    trigger_session_update(owner, ['clouds'])
+
     c_count = Cloud.objects(owner=owner, deleted=None).count()
     if owner.clouds_count != c_count:
         owner.clouds_count = c_count

@@ -624,7 +624,7 @@ class GoogleComputeController(BaseComputeController):
         return images
 
     def _list_machines__cost_machine(self, machine, machine_libcloud):
-        if machine_libcloud.state == NodeState.TERMINATED:
+        if machine_libcloud.state == NodeState.STOPPED:
             return 0, 0
         # https://cloud.google.com/compute/pricing
         size = machine_libcloud.extra.get('machineType').split('/')[-1]

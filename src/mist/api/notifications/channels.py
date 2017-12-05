@@ -1,6 +1,7 @@
 import json
-import jsonpatch
 import urllib2
+
+import jsonpatch
 
 from mist.api import config
 from mist.api.helpers import send_email, amqp_publish_user
@@ -128,6 +129,7 @@ class InAppChannel(BaseChannel):
                     # unfortunately, queryset does not support pop()
                     first = similar[0]
                     first.update_from(notification)
+                    first.dismissed = False  # To display again
                     first.save()
                     for item in [item for item in similar if item != first]:
                         item.dismissed = True
@@ -158,16 +160,16 @@ class InAppChannel(BaseChannel):
         user = notification.user
 
         old_notifications = [
-            json.loads(
-                obj.to_json()) for obj in InAppNotification.objects(
+            json.loads(obj.to_json()) for obj in InAppNotification.objects(
                 user=user,
-                dismissed=False)]
+                dismissed=False)
+        ]
         modifier(notification)
         new_notifications = [
-            json.loads(
-                obj.to_json()) for obj in InAppNotification.objects(
+            json.loads(obj.to_json()) for obj in InAppNotification.objects(
                 user=user,
-                dismissed=False)]
+                dismissed=False)
+        ]
         patch = jsonpatch.JsonPatch.from_diff(
             old_notifications, new_notifications).patch
         if patch:
