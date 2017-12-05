@@ -70,8 +70,6 @@ ENABLE_DEV_USERS = False
 MONGO_URI = "mongodb:27017"
 MONGO_DB = "mist2"
 
-ACTIVATE_POLLER = True
-
 # number of api tokens user can have
 ACTIVE_APITOKEN_NUM = 20
 ALLOW_CONNECT_LOCALHOST = True
