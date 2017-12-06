@@ -100,6 +100,7 @@ class Monitoring(me.EmbeddedDocument):
             from mist.api.monitoring.commands import unix_install
             from mist.api.monitoring.commands import coreos_install
             from mist.api.monitoring.commands import windows_install
+            log.error(windows_install(self._instance))
             return {
                 'unix': unix_install(self._instance),
                 'coreos': coreos_install(self._instance),

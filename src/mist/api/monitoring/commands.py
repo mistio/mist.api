@@ -31,16 +31,14 @@ def coreos_uninstall():
 
 
 def windows_install(machine):
-    cmd = """
-    $TELEGRAF_MACHINE = '%s';
-    $TELEGRAF_HOST = '%s/%s';
-    mkdir 'C:\Program Files\Telegraf'; cd 'C:\Program Files\Telegraf';
-    Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force;
-    (New-Object System.Net.WebClient).DownloadFile('https://dl.influxdata.com/telegraf/releases/telegraf-1.4.4_windows_i386.zip', 'C:\Program Files\Telegraf\\telegraf.zip');
-    Expand-Archive .\\telegraf.zip ; cp .\\telegraf\\telegraf\\telegraf.exe .;
-    Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force;
-    (New-Object System.Net.WebClient).DownloadFile('https://raw.githubusercontent.com/mistio/mist-telegraf/windows-monitoring/telegraf-windows.conf', 'C:\Program Files\Telegraf\\telegraf.conf');
-    """ % (machine.id, config.TELEGRAF_HOST,
-           machine.monitoring.collectd_password)
+    cmd = "$TELEGRAF_MACHINE = '%s';" \
+          "$TELEGRAF_HOST = '%s/%s';" \
+          "mkdir 'C:\Program Files\Telegraf'; cd 'C:\Program Files\Telegraf';" \
+          "Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force;" \
+          "(New-Object System.Net.WebClient).DownloadFile('https://dl.influxdata.com/telegraf/releases/telegraf-1.4.4_windows_i386.zip', 'C:\Program Files\Telegraf\\telegraf.zip');" \
+          "Expand-Archive .\\telegraf.zip ; cp .\\telegraf\\telegraf\\telegraf.exe .;" \
+          "Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force;" \
+          "(New-Object System.Net.WebClient).DownloadFile('https://raw.githubusercontent.com/mistio/mist-telegraf/windows-monitoring/telegraf-windows.conf', 'C:\Program Files\Telegraf\\telegraf.conf');" % (machine.id, config.TELEGRAF_TARGET, machine.monitoring.collectd_password)
+        #    % (machine.id, config.TELEGRAF_TARGET, machine.monitoring.collectd_password)
 
     return cmd
