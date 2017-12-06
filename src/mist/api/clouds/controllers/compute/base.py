@@ -1014,7 +1014,8 @@ class BaseComputeController(BaseController):
         try:
             machine_libcloud.destroy()
         except BaseHTTPError as e:
-            raise ForbiddenError("Cannot destroy machine. Check the termination protection setting on your cloud provider.")
+            raise ForbiddenError("Cannot destroy machine. Check the "
+                "termination protection setting on your cloud provider.")
 
     # It isn't implemented in the ui
     def resize_machine(self, machine, plan_id, kwargs):
