@@ -30,7 +30,7 @@ def coreos_uninstall():
     return "wget -O- %s/docker-telegraf.sh | sudo sh -s -- -k" % REPO
 
 
-def windows_install():
+def windows_install(machine):
     cmd = """
     $TELEGRAF_MACHINE = '%s';
     $TELEGRAF_HOST = '%s/%s';
