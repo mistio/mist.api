@@ -8,17 +8,6 @@ from mist.api.rules.plugins.graphite import handlers as hrs
 log = logging.getLogger(__name__)
 
 
-TARGETS = (
-    'load.shortterm',
-    'cpu.total.nonidle',
-    'memory.nonfree_percent',
-    'disk.total.disk_octets.read',
-    'disk.total.disk_octets.write',
-    'interface.total.if_octets.rx',
-    'interface.total.if_octets.tx',
-)
-
-
 class GraphiteBackendPlugin(base.BaseBackendPlugin):
 
     def execute(self, query, rid=None):
@@ -36,6 +25,7 @@ class GraphiteBackendPlugin(base.BaseBackendPlugin):
         # a single series.
         if len(data) > 1:
             log.warning('Got multiple series for %s.%s', rid, query.target)
+            return None, None
 
         # Ensure requested and returned targets match.
         data = data[0]
@@ -68,7 +58,6 @@ class GraphiteBackendPlugin(base.BaseBackendPlugin):
         # Ensure a simple query condition with no additional filters.
         assert len(rule.queries) is 1
         assert not rule.queries[0].filters
-        assert rule.queries[0].target in TARGETS
 
     @property
     def window(self):
