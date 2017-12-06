@@ -69,9 +69,13 @@ def triggered(request):
         type: datetime
         required: true
         description: >
-          the time at which the incident which the specified UUID resolved
+          the time at which the incident with the specified UUID resolved
 
     """
+    # FIXME Remove alongside the old alert service.
+    if not config.CILIA_TRIGGER:
+        return Response('OK', 200)
+
     # Do not publicly expose this API endpoint?
     if config.CILIA_SECRET_KEY != request.headers.get('Cilia-Secret-Key'):
         raise UnauthorizedError()
