@@ -83,7 +83,10 @@ def machine_dashboard(request):
     if machine.monitoring.method in ('collectd-graphite', 'telegraf-graphite'):
         if not config.HAS_CORE:
             raise Exception()
-        ret = copy.deepcopy(config.GRAPHITE_MACHINE_DASHBOARD_DEFAULT)
+        if machine.os_type == "windows":
+            ret = copy.deepcopy(config.WINDOWS_MACHINE_DASHBOARD_DEFAULT)
+        else:
+            ret = copy.deepcopy(config.GRAPHITE_MACHINE_DASHBOARD_DEFAULT)
     else:
         ret = copy.deepcopy(config.INFLUXDB_MACHINE_DASHBOARD_DEFAULT)
     dashboard = ret['dashboard']
