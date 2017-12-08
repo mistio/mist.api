@@ -73,7 +73,7 @@ MONGO_DB = "mist2"
 GRAPHITE_URI = "http://graphite"
 
 # Alert service's authentication key
-CILIA_TRIGGER = False
+CILIA_TRIGGER = True
 CILIA_SECRET_KEY = ""
 
 # number of api tokens user can have
