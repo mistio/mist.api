@@ -1,10 +1,16 @@
 import re
 import uuid
+import time
+import logging
 import mongoengine as me
 
 from mist.api.config import BANNED_EMAIL_PROVIDERS
 from mist.api.methods import ssh_command
+from mist.api.logs.methods import log_event
 from mist.api.machines.models import Machine
+
+
+log = logging.getLogger(__name__)
 
 
 ACTIONS = {}  # This is a map of action types to action classes.
@@ -14,8 +20,9 @@ def _populate_actions():
     """Populate ACTIONS variable."""
     for key, value in globals().iteritems():
         if key.endswith('Action') and key != 'Action':
-            if issubclass(value, BaseAlertAction) and value.atype is not None:
-                ACTIONS[value.atype] = value
+            if issubclass(value, BaseAlertAction):
+                if value.atype not in (None, 'no_data', ):  # Exclude these.
+                    ACTIONS[value.atype] = value
 
 
 def is_email_valid(email):
@@ -80,8 +87,14 @@ class NotificationAction(BaseAlertAction):
 
     emails = me.ListField(me.StringField(), default=lambda: [])
 
-    def run(self, machine, value, triggered, timestamp, incident_id,
-            action=''):
+    def run(self, machine, value, triggered, timestamp, incident_id, action='',
+            notification_level=0):
+        if notification_level > 3:
+            # FIXME Prevents spam of notification e-mails. This shouldn't be
+            # taken care of here, but rather by the Notifications system.
+            log.warning('Notification level %d for %s', notification_level,
+                        self._instance)
+            return
         try:
             # TODO Use the Notifications system.
             from mist.core.notifications.methods import send_alert_email
@@ -91,20 +104,49 @@ class NotificationAction(BaseAlertAction):
             # TODO Shouldn't be specific to machines.
             assert isinstance(machine, Machine)
             assert machine.owner == self._instance.owner
-            send_alert_email(machine.owner, self._instance.rule_id, value,
-                             triggered, timestamp, incident_id, action=action)
+            send_alert_email(machine.owner, self._instance.title, value,
+                             triggered, timestamp, incident_id, action=action,
+                             cloud_id=machine.cloud.id,
+                             machine_id=machine.machine_id)
 
     def clean(self):
         """Perform e-mail address validation."""
-        # TODO Concat owner.alerts_email in here.
-        emails = []
         for email in self.emails:
-            if is_email_valid(email) and email not in emails:
-                emails.append(email)
-        self.emails = emails
+            if not is_email_valid(email):
+                raise me.ValidationError('Invalid e-mail address: %s' % email)
 
     def as_dict(self):
         return {'type': self.atype, 'emails': self.emails}
+
+
+class NoDataAction(NotificationAction):
+    """An action triggered in case of a NoData alert."""
+
+    atype = 'no_data'
+
+    def run(self, machine, value, triggered, timestamp, incident_id, **kwargs):
+        if timestamp + 60 * 60 * 24 < time.time():  # 24 hours.
+            try:
+                from mist.core.methods import disable_monitoring
+            except ImportError:
+                pass
+            else:
+                # If NoData alerts are being triggered for over 24h, disable
+                # monitoring and log the action to close any open incidents.
+                disable_monitoring(machine.owner, machine.cloud.id,
+                                   machine.machine_id, no_ssh=True)
+                log_event(
+                    machine.owner.id, 'incident', 'disable_monitoring',
+                    cloud_id=machine.cloud.id, machine_id=machine.machine_id,
+                    incident_id=incident_id
+                )
+            action = 'Disable Monitoring'
+            notification_level = 0
+        else:
+            action = 'Alert'
+            notification_level = kwargs.get('notification_level', 0)
+        super(NoDataAction, self).run(machine, value, triggered, timestamp,
+                                      incident_id, action, notification_level)
 
 
 class CommandAction(BaseAlertAction):
