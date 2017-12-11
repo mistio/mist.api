@@ -2827,9 +2827,6 @@ def register_dev_user(request):
     first_name = name_parts[0]
     last_name = name_parts[1] if len(name_parts) > 1 else ''
 
-    #User.objects(email=email).delete()
-    #Organization.objects(name=org_name).delete()
-
     log.warning("[DEV ENDPOINT]: creating User %s " % email)
     user = User(email=email)
     user.set_password(password)
