@@ -2758,6 +2758,41 @@ def delete_member_from_team(request):
     return OK
 
 
+@view_config(route_name='api_v1_add_dev_user_to_team', request_method='POST',
+             renderer='json')
+def add_dev_user_to_team(request):
+    """
+    Add user to team. This method is user by integration tests.
+
+    It is enabled only if config.ENABLE_DEV_USERS is set to True (False by
+    default).
+    ---
+    org:
+      in: path
+      required: true
+      type: string
+    team:
+      in: path
+      required: true
+      type: string
+    """
+
+    auth_context = auth_context_from_request(request)
+
+    if not config.ENABLE_DEV_USERS:
+        raise NotFoundError()
+
+    params = params_from_request(request)
+    email = params.get('email', '').strip().lower()
+
+    team_id = request.matchdict['team_id']
+
+    user = User.objects.get(email=email)
+
+    auth_context.org.add_member_to_team_by_id(team_id, user)
+    auth_context.org.save()
+
+
 @view_config(route_name='api_v1_dev_register', request_method='POST',
              renderer='json')
 def register_dev_user(request):
@@ -2792,8 +2827,8 @@ def register_dev_user(request):
     first_name = name_parts[0]
     last_name = name_parts[1] if len(name_parts) > 1 else ''
 
-    User.objects(email=email).delete()
-    Organization.objects(name=org_name).delete()
+    #User.objects(email=email).delete()
+    #Organization.objects(name=org_name).delete()
 
     log.warning("[DEV ENDPOINT]: creating User %s " % email)
     user = User(email=email)
