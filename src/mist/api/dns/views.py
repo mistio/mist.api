@@ -22,10 +22,13 @@ OK = Response("OK", 200)
 @view_config(route_name='api_v1_zones', request_method='GET', renderer='json')
 def list_dns_zones(request):
     """
-    Lists all DNS zones.
-    Retrieves a list of all DNS zones based on the user Clouds.
+    Lists all DNS zones based on the cloud_id.
     For each cloud that supports DNS functionality, we get all available zones.
     ---
+    cloud:
+      in: path
+      required: true
+      type: string
     """
     auth_context = auth_context_from_request(request)
     cloud_id = request.matchdict['cloud']
@@ -42,8 +45,16 @@ def list_dns_zones(request):
 @view_config(route_name='api_v1_records', request_method='GET', renderer='json')
 def list_dns_records(request):
     """
-    List all DNS zone records for a particular zone.
+    Lists all DNS zone records for a particular zone.
     ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    zone:
+      in: path
+      required: true
+      type: string
     """
     auth_context = auth_context_from_request(request)
     cloud_id = request.matchdict['cloud']
