@@ -22,13 +22,18 @@ OK = Response("OK", 200)
 @view_config(route_name='api_v1_zones', request_method='GET', renderer='json')
 def list_dns_zones(request):
     """
-    List all DNS zones.
+    Lists all DNS zones.
     Retrieves a list of all DNS zones based on the user Clouds.
     For each cloud that supports DNS functionality, we get all available zones.
     ---
     """
     auth_context = auth_context_from_request(request)
     cloud_id = request.matchdict['cloud']
+
+    try:
+        cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id)
+    except me.DoesNotExist:
+        raise CloudNotFoundError
 
     zones = filter_list_zones(auth_context, cloud_id)
     return zones
