@@ -324,5 +324,6 @@ def add_routes(configurator):
 
     # DEV ENDPOINT
     configurator.add_route('api_v1_dev_register', '/api/v1/dev/register')
-    configurator.add_route('api_v1_add_dev_user_to_team', '/api/v1/dev/orgs/{org_id}/teams/{team_id}')
+    configurator.add_route('api_v1_add_dev_user_to_team',
+                           '/api/v1/dev/orgs/{org_id}/teams/{team_id}')
     configurator.add_route('api_v1_dev_users', '/api/v1/dev/users')
