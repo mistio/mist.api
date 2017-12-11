@@ -10,7 +10,9 @@ from mist.api.rules.models import TriggerOffset
 from mist.api.rules.models import QueryCondition
 
 from mist.api.rules.actions import ACTIONS
+from mist.api.rules.actions import NoDataAction
 
+from mist.api.conditions.models import FieldCondition
 from mist.api.conditions.models import MachinesCondition
 
 
@@ -85,6 +87,22 @@ class BaseController(object):
                                        'errors': err.to_dict()})
             self.rule.actions.append(action_cls)
 
+        # Push the NotificationAction, if specified, at the beggining of the
+        # actions list. This way we make sure that users are always notified
+        # even if subsequent actions fail. We also enforce a single instance
+        # of the NotificationAction.
+        for i, action in enumerate(self.rule.actions):
+            if isinstance(action, ACTIONS['notification']):
+                self.rule.actions.pop(i)
+                self.rule.actions.insert(0, action)
+                break
+        for action in self.rule.actions[1:]:
+            if isinstance(action, ACTIONS['notification']):
+                raise me.ValidationError(
+                    "Multiple notifications are not supported. Users "
+                    "will always be notified at the beginning of the "
+                    "actions' cycle.")
+
         # Update query condition.
         if 'queries' in kwargs:
             self.rule.queries = []
@@ -120,6 +138,13 @@ class BaseController(object):
                                        'errors': err.to_dict()})
             setattr(self.rule, field, doc_cls)
 
+        # Validate the rule against the plugin in use.
+        try:
+            self.rule._backend_plugin.validate(self.rule)
+        except AssertionError:
+            raise BadRequestError('%s: %s validation failed' % (
+                                  type(self.rule._backend_plugin), self.rule))
+
         # Attempt to save self.rule.
         try:
             # FIXME This is temporary to ensure that the rule is not actually
@@ -136,6 +161,22 @@ class BaseController(object):
         except me.NotUniqueError as err:
             log.error('Error updating %s: %s', self.rule.title, err)
             raise BadRequestError('Rule "%s" already exists' % self.rule.title)
+
+    def evaluate(self, update_state=False, trigger_actions=False):
+        """Evaluate a Rule.
+
+        This method exposes the corresponding plugin's functionality by running
+        a full evaluation cycle of `self.rule` and it is meant to be invoked as
+        such:
+
+            rule = mist.api.rules.models.Rule.objects.get(id=1)
+            rule.ctl.evaluate()
+
+        This method is just a wrapper around the corresponding plugin's `run`
+        method.
+
+        """
+        self.rule.plugin.run(update_state, trigger_actions)
 
 
 class ArbitraryRuleController(BaseController):
@@ -163,3 +204,49 @@ class ResourceRuleController(BaseController):
                 self.rule.conditions.append(cond_cls)
         super(ResourceRuleController, self).update(
             save=save, fail_on_error=fail_on_error, **kwargs)
+
+
+class NoDataRuleController(BaseController):
+
+    def update(self, save=True, fail_on_error=True, **kwargs):
+        raise BadRequestError('NoData rules may not be edited')
+
+    def auto_setup(self):
+        """Idempotently setup a NoDataRule."""
+        # The rule's title. There should be a single NoDataRule per Org.
+        self.rule.title = 'NoData'
+
+        # The list of query conditions to evaluate. If at least one of
+        # the following metrics returns non-None datapoints, the rule
+        # will not be triggered.
+        self.rule.queries = []
+        for target in ('load.shortterm', 'load.midterm', 'cpu.0.idle', ):
+            cond = QueryCondition(target=target, operator='gt',
+                                  threshold=0, aggregation='any')
+            self.rule.queries.append(cond)
+
+        # The rule's time window and frequency. These denote the maximum
+        # time window for which we tolerate the absence of points before
+        # raising an alert.
+        self.rule.window = Window(start=2, period='minutes')
+        self.rule.frequency = Frequency(every=2, period='minutes')
+
+        # The rule's single action.
+        self.rule.actions = [NoDataAction()]
+
+        # The rule's resource conditions. This pair of conditions makes
+        # the NoDataRule to be evaluated only for machines with enabled
+        # monitoring, for which we have received monitoring data.
+        # TODO Can be extended with `missing_since=None` & `state='running'`.
+        self.rule.conditions = [
+            FieldCondition(
+                field='monitoring__hasmonitoring',
+                operator='eq', value=True
+            ),
+            FieldCondition(
+                field='monitoring__installation_status__activated_at',
+                operator='gt', value=0
+            )
+        ]
+
+        self.rule.save()
