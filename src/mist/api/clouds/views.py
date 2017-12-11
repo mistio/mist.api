@@ -29,7 +29,7 @@ OK = Response("OK", 200)
 @view_config(route_name='api_v1_clouds', request_method='GET', renderer='json')
 def list_clouds(request):
     """
-    Request a list of all added clouds.
+    Lists all added clouds.
     READ permission required on cloud.
     ---
     """
@@ -43,8 +43,7 @@ def list_clouds(request):
              request_method='POST', renderer='json')
 def add_cloud(request):
     """
-    Add a new cloud
-    Adds a new cloud to the user and returns the cloud_id
+    Adds a new cloud and returns the cloud_id
     ADD permission required on cloud.
 
     ---
@@ -63,7 +62,7 @@ def add_cloud(request):
     machine_user:
       type: string
     provider:
-      description: The id of the cloud provider.
+      description: The cloud provider.
       enum:
       - vcloud
       - bare_metal
@@ -91,7 +90,6 @@ def add_cloud(request):
       type: string
     title:
       description: The human readable title of the cloud.
-      required: true
       type: string
     """
     auth_context = auth_context_from_request(request)
@@ -138,8 +136,7 @@ def add_cloud(request):
 @view_config(route_name='api_v1_cloud_action', request_method='DELETE')
 def delete_cloud(request):
     """
-    Delete a cloud
-    Deletes cloud with given cloud_id.
+    Deletes a cloud with given cloud_id.
     REMOVE permission required on cloud.
     ---
     cloud:
@@ -161,7 +158,6 @@ def delete_cloud(request):
 @view_config(route_name='api_v1_cloud_action', request_method='PUT')
 def rename_cloud(request):
     """
-    Rename a cloud
     Renames cloud with given cloud_id.
     EDIT permission required on cloud.
     ---
@@ -170,7 +166,7 @@ def rename_cloud(request):
       required: true
       type: string
     new_name:
-      description: ' New name for the key (will also serve as the key''s id)'
+      description: ' New name for the given cloud'
       type: string
     """
     auth_context = auth_context_from_request(request)
@@ -193,11 +189,11 @@ def rename_cloud(request):
 @view_config(route_name='api_v1_cloud_action', request_method='PATCH')
 def update_cloud(request):
     """
-    UPDATE cloud with given cloud_id.
+    Updates cloud with given cloud_id.
     EDIT permission required on cloud.
     Not all fields need to be specified, only the ones being modified
     ---
-    cloud:
+    cloud_id:
       in: path
       required: true
       type: string
@@ -247,7 +243,7 @@ def toggle_cloud(request):
     Toggles cloud with given cloud_id.
     EDIT permission required on cloud.
     ---
-    cloud:
+    cloud_id:
       in: path
       required: true
       type: string
@@ -255,6 +251,7 @@ def toggle_cloud(request):
       enum:
       - '0'
       - '1'
+      required: true
       type: string
     """
     auth_context = auth_context_from_request(request)
