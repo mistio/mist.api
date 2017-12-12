@@ -76,8 +76,14 @@ def list_dns_records(request):
 @view_config(route_name='api_v1_zones', request_method='POST', renderer='json')
 def create_dns_zone(request):
     """
-    Create a new DNS zone under a specific cloud.
+    Creates a new DNS zone under the given cloud.
+    CREATE_RESOURCES permission required on cloud.
+    ADD permission required on zone.
     ---
+    cloud:
+      in: path
+      required: true
+      type: string
     """
     auth_context = auth_context_from_request(request)
 
@@ -85,7 +91,7 @@ def create_dns_zone(request):
     auth_context.check_perm("cloud", "read", cloud_id)
     auth_context.check_perm("cloud", "create_resources", cloud_id)
     tags = auth_context.check_perm("zone", "add", None)
-    # Try to get the specific cloud for which we will create the zone.
+
     try:
         cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id)
     except me.DoesNotExist:
