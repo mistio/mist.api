@@ -72,6 +72,7 @@ def list_dns_records(request):
 
     return filter_list_records(auth_context, zone)
 
+
 @view_config(route_name='api_v1_zones', request_method='POST', renderer='json')
 def create_dns_zone(request):
     """
