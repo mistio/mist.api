@@ -43,9 +43,8 @@ def list_clouds(request):
              request_method='POST', renderer='json')
 def add_cloud(request):
     """
-    Adds a new cloud and returns the cloud_id
+    Adds a new cloud and returns the cloud's id
     ADD permission required on cloud.
-
     ---
     api_key:
       type: string
@@ -239,8 +238,7 @@ def update_cloud(request):
 @view_config(route_name='api_v1_cloud_action', request_method='POST')
 def toggle_cloud(request):
     """
-    Toggle a cloud
-    Toggles cloud with given cloud_id.
+    Toggles cloud with given cloud id.
     EDIT permission required on cloud.
     ---
     cloud_id:
