@@ -159,13 +159,14 @@ def create_dns_record(request):
 @view_config(route_name='api_v1_zone', request_method='DELETE', renderer='json')
 def delete_dns_zone(request):
     """
-    Delete a specific DNS zone under a cloud.
+    Deletes a specific DNS zone under a cloud.
     ---
+    REMOVE permission required on cloud.
     """
     auth_context = auth_context_from_request(request)
     cloud_id = request.matchdict['cloud']
     zone_id = request.matchdict['zone']
-    # Do we need the cloud here, now that the models have been created?
+
     try:
         cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id)
     except me.DoesNotExist:
@@ -179,9 +180,9 @@ def delete_dns_zone(request):
 
     zone.ctl.delete_zone()
 
-    # Schedule a UI update
     trigger_session_update(auth_context.owner, ['zones'])
     return OK
+
 
 @view_config(route_name='api_v1_record', request_method='DELETE', renderer='json')
 def delete_dns_record(request):
