@@ -155,6 +155,7 @@ def create_dns_record(request):
     trigger_session_update(auth_context.owner, ['zones'])
     return rec
 
+
 @view_config(route_name='api_v1_zone', request_method='DELETE', renderer='json')
 def delete_dns_zone(request):
     """
