@@ -23,6 +23,7 @@ OK = Response("OK", 200)
 def list_dns_zones(request):
     """
     Lists all DNS zones based on the given cloud id.
+    READ permission required on zone.
     ---
     cloud:
       in: path
@@ -44,7 +45,8 @@ def list_dns_zones(request):
 @view_config(route_name='api_v1_records', request_method='GET', renderer='json')
 def list_dns_records(request):
     """
-    Lists all DNS zone records for a particular zone.
+    Lists all DNS records for a particular zone.
+    READ permission required on zone and record.
     ---
     cloud:
       in: path
