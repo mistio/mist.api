@@ -161,7 +161,7 @@ def delete_dns_zone(request):
     """
     Deletes a specific DNS zone under a cloud.
     ---
-    REMOVE permission required on cloud.
+    REMOVE permission required on zone.
     """
     auth_context = auth_context_from_request(request)
     cloud_id = request.matchdict['cloud']
@@ -187,7 +187,8 @@ def delete_dns_zone(request):
 @view_config(route_name='api_v1_record', request_method='DELETE', renderer='json')
 def delete_dns_record(request):
     """
-    Delete a specific DNS record under a zone.
+    Deletes a specific DNS record under a zone.
+    REMOVE permission required on zone.
     ---
     """
     auth_context = auth_context_from_request(request)
@@ -211,6 +212,5 @@ def delete_dns_record(request):
 
     record.ctl.delete_record()
 
-    # Schedule a UI update
     trigger_session_update(auth_context.owner, ['zones'])
     return OK

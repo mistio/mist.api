@@ -25,8 +25,7 @@ OK = Response("OK", 200)
 @view_config(route_name='api_v1_keys', request_method='GET', renderer='json')
 def list_keys(request):
     """
-    List keys
-    Retrieves a list of all added keys
+    Lists all added keys
     READ permission required on key.
     ---
     """
@@ -37,11 +36,10 @@ def list_keys(request):
 @view_config(route_name='api_v1_keys', request_method='PUT', renderer='json')
 def add_key(request):
     """
-    Add key
-    Add key with specific name
+    Adds key
     ADD permission required on key.
     ---
-    id:
+    name:
       description: The key name
       required: true
       type: string
