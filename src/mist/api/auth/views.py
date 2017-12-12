@@ -63,11 +63,10 @@ def create_token(request):
     """
     Create a new api token
     Used so that a user can send his credentials and produce a new api token.
-    They api token itself will be returned in a json document along with it's
+    The api token itself will be returned in a json document along with it's
     id and it's name.
-    If user has used su then he should provide his own credentials however the
-    api token will authenticate the user that he is impersonating.
-    User can also send as parameters the name and the ttl.
+    If user has used su then he should provide his own credentials. However, the
+    api token will authenticate the user he is impersonating.
     If name is not sent then a random one with the format api_token_xyz where
     xyz is a number will be produced.
     If the user provides a name then there must be no other token for that user
@@ -81,7 +80,7 @@ def create_token(request):
     If user is coming from oauth then he will be able to create a new token
     without a password provided he is authenticated somehow.
     If you are using the /auth route please switch to /api_v1_tokens route. The
-    /auth route is deprecated and will be removed completely in the future.
+    /auth route is deprecated.
     ---
     email:
       description: User's email
