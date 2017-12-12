@@ -104,9 +104,9 @@ def create_dns_zone(request):
         resolve_id_and_set_tags(auth_context.owner, 'zone', new_zone['id'],
                                 tags, cloud_id=cloud_id)
 
-    # Schedule a UI update
     trigger_session_update(auth_context.owner, ['zones'])
     return new_zone
+
 
 @view_config(route_name='api_v1_records', request_method='POST', renderer='json')
 def create_dns_record(request):
