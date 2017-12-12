@@ -111,13 +111,22 @@ def create_dns_zone(request):
 @view_config(route_name='api_v1_records', request_method='POST', renderer='json')
 def create_dns_record(request):
     """
-    Create a new record under a specific zone
+    Creates a new record under a specific zone.
+    CREATE_RESOURCES permission required on cloud.
+    CREATE_RECORDS permission required on zone
     ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    zone:
+      in: path
+      required: true
+      type: string
     """
     auth_context = auth_context_from_request(request)
 
     cloud_id = request.matchdict['cloud']
-    # Try to get the specific cloud for which we will create the zone.
     try:
         cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id)
     except me.DoesNotExist:
@@ -133,7 +142,7 @@ def create_dns_record(request):
     auth_context.check_perm("zone", "read", zone_id)
     auth_context.check_perm("zone", "create_records", zone_id)
     tags = auth_context.check_perm("record", "add", None)
-    # Get the params and create the new record
+
     params = params_from_request(request)
     dns_cls = RECORDS[params['type']]
 
@@ -143,7 +152,6 @@ def create_dns_record(request):
         resolve_id_and_set_tags(auth_context.owner, 'record', rec['id'], tags,
                                 cloud_id=cloud_id, zone_id=zone_id)
 
-    # Schedule a UI update
     trigger_session_update(auth_context.owner, ['zones'])
     return rec
 
