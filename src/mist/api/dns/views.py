@@ -22,8 +22,7 @@ OK = Response("OK", 200)
 @view_config(route_name='api_v1_zones', request_method='GET', renderer='json')
 def list_dns_zones(request):
     """
-    Lists all DNS zones based on the cloud_id.
-    For each cloud that supports DNS functionality, we get all available zones.
+    Lists all DNS zones based on the given cloud id.
     ---
     cloud:
       in: path
