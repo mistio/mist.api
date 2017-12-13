@@ -40,7 +40,7 @@ def add_key(request):
     ADD permission required on key.
     ---
     name:
-      description: The key name
+      description: The key's name
       required: true
       type: string
     priv:
@@ -49,9 +49,7 @@ def add_key(request):
       type: string
     certificate:
       description: The signed public key, when using signed ssh keys
-      required: false
       type: string
-
     """
     params = params_from_request(request)
     key_name = params.pop('name', None)
@@ -90,8 +88,7 @@ def add_key(request):
              renderer='json')
 def delete_key(request):
     """
-    Delete key
-    Delete key. When a key gets deleted, it takes its associations with it
+    Deletes a key. When a key gets deleted, it takes its associations with it
     so just need to remove from the server too. If the default key gets
     deleted, it sets the next one as default, provided that at least another
     key exists. It returns the list of all keys after the deletion,
@@ -123,7 +120,7 @@ def delete_key(request):
              request_method='DELETE', renderer='json')
 def delete_keys(request):
     """
-    Delete multiple keys.
+    Deletes multiple keys.
     Provide a list of key ids to be deleted. The method will try to delete
     all of them and then return a json that describes for each key id
     whether or not it was deleted or not_found if the key id could not
@@ -177,12 +174,12 @@ def delete_keys(request):
              renderer='json')
 def edit_key(request):
     """
-    Edit a key
-    Edits a given key's name  to new_name
+    Edits a given key's name to new_name
     EDIT permission required on key.
     ---
     new_name:
       description: The new key name
+      required: true
       type: string
     key_id:
       description: The key id
@@ -271,7 +268,6 @@ def get_private_key(request):
              renderer='json')
 def get_public_key(request):
     """
-    Get public key
     Gets public key from key name.
     READ permission required on key.
     ---
@@ -299,8 +295,7 @@ def get_public_key(request):
 @view_config(route_name='api_v1_keys', request_method='POST', renderer='json')
 def generate_key(request):
     """
-    Generate key
-    Generate key pair
+    Generates key pair
     ---
     """
     key = SSHKey()
