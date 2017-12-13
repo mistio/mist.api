@@ -309,7 +309,6 @@ def generate_key(request):
              renderer='json')
 def associate_key(request):
     """
-    Associate a key to a machine
     Associates a key with a machine. If host is set it will also attempt to
     actually deploy it to the machine. To do that it requires another key
     (existing_key) that can connect to the machine.
@@ -399,7 +398,6 @@ def associate_key(request):
              request_method='DELETE', renderer='json')
 def disassociate_key(request):
     """
-    Disassociate a key from a machine
     Disassociates a key from a machine. If host is set it will also attempt to
     actually remove it from the machine.
     READ permission required on cloud.
