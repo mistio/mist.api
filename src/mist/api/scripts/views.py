@@ -35,7 +35,7 @@ OK = Response("OK", 200)
              renderer='json')
 def list_scripts(request):
     """
-    List user scripts
+    Lists user scripts
     READ permission required on each script.
     ---
     """
@@ -214,7 +214,7 @@ def download_script(request):
              renderer='json')
 def delete_script(request):
     """
-    Delete script
+    Deletes script
     REMOVE permission required on script.
     ---
     script_id:
@@ -247,7 +247,7 @@ def delete_script(request):
              request_method='DELETE', renderer='json')
 def delete_scripts(request):
     """
-    Delete multiple scripts.
+    Deletes multiple scripts.
     Provide a list of script ids to be deleted. The method will try to delete
     all of them and then return a json that describes for each script id
     whether or not it was deleted or the not_found if the script id could not

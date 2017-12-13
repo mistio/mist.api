@@ -90,7 +90,7 @@ def add_schedule_entry(request):
              renderer='json')
 def list_schedules_entries(request):
     """
-    List user schedules entries, order by _id
+    Lists user schedules entries, order by _id
     READ permission required on schedules
     ---
     """
