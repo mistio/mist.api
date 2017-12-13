@@ -24,8 +24,8 @@ OK = Response("OK", 200)
              request_method='GET', renderer='json')
 def list_networks(request):
     """
-    List networks of a cloud.
-    Currently supports the EC2, GCE and OpenStack clouds.
+    Lists networks of a cloud.
+    Currently supports the EC2, GCE and OpenStack providers.
     For other providers this returns an empty list.
     READ permission required on cloud.
     ---
@@ -33,8 +33,7 @@ def list_networks(request):
     - name: cloud
       in: path
       required: true
-      schema:
-        type: string
+      type: string
     """
     cloud_id = request.matchdict['cloud']
     auth_context = auth_context_from_request(request)
@@ -54,7 +53,6 @@ def list_networks(request):
              request_method='POST', renderer='json')
 def create_network(request):
     """
-    Create network on a cloud
     Creates a new network. If subnet dict is specified,
     after creating the network it will use the new
     network's id to create a subnet.
@@ -124,7 +122,7 @@ def create_network(request):
 @view_config(route_name='api_v1_network', request_method='DELETE')
 def delete_network(request):
     """
-    Delete a network.
+    Deletes a network.
     CREATE_RESOURCES permission required on cloud.
     ---
     parameters:
@@ -165,8 +163,7 @@ def delete_network(request):
 @view_config(route_name='api_v1_network', request_method='POST')
 def associate_ip(request):
     """
-    Associate ip
-    Associate ip with the specific network and machine
+    Associates ip with the specific network and machine
     READ permission required on cloud.
     EDIT permission required on cloud.
     ---
