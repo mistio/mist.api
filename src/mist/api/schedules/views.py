@@ -25,9 +25,8 @@ OK = Response("OK", 200)
              renderer='json')
 def add_schedule_entry(request):
     """
-    Add an entry to user schedules
+    Adds an entry to user schedules
     Add permission required on schedule.
-    READ permission required on cloud.
     RUN_SCRIPT permission required on machine.
     RUN permission required on script.
     ---
@@ -60,6 +59,7 @@ def add_schedule_entry(request):
       type: string
       description: describe schedule
     schedule_type:
+      required: true
       type: string
       description: three different types, interval, crontab, one_off
     schedule_entry:
@@ -105,11 +105,12 @@ def list_schedules_entries(request):
              renderer='json')
 def show_schedule_entry(request):
     """
-    Show a schedule details of a user
+    Show details of schedule
     READ permission required on schedule
     ---
     schedule_id:
       type: string
+      required: true
     """
     schedule_id = request.matchdict['schedule_id']
     auth_context = auth_context_from_request(request)
@@ -133,11 +134,12 @@ def show_schedule_entry(request):
              renderer='json')
 def delete_schedule(request):
     """
-    Delete a schedule entry of a user
+    Deletes a schedule entry of a user
     REMOVE permission required on schedule
     ---
     schedule_id:
       type: string
+      required: true
     """
     schedule_id = request.matchdict['schedule_id']
     auth_context = auth_context_from_request(request)
@@ -170,10 +172,8 @@ def edit_schedule_entry(request):
     """
     Edit a schedule entry
     EDIT permission required on schedule
-    READ permission required on cloud.
     RUN_SCRIPT permission required on machine.
     RUN permission required on script.
-
     ---
     script_id:
       type: string
@@ -226,9 +226,9 @@ def edit_schedule_entry(request):
     auth_context.check_perm('schedule', 'edit', schedule_id)
 
     owner = auth_context.owner
-    # Check if entry exists
-    try:
+
         schedule = Schedule.objects.get(id=schedule_id, owner=owner,
+        try:
                                         deleted=None)
     except me.DoesNotExist:
         raise ScheduleTaskNotFound()
