@@ -15,7 +15,6 @@ from mist.api.notifications.methods import add_override
              request_method='DELETE', renderer='json')
 def dismiss_notification(request):
     """
-    Dismiss notification
     Dismisses specified notification
     ---
     """
@@ -35,7 +34,6 @@ def dismiss_notification(request):
              request_method='PUT', renderer='json')
 def add_notification_override(request):
     """
-    Add an override
     Adds a notification override with the specified
     properties
     ---
@@ -75,12 +73,12 @@ def get_notification_overrides(request):
              request_method='PUT', renderer='json')
 def set_notification_overrides(request):
     """
-    Set notification overrides for user, org policy.
+    Sets notification overrides for user, org policy.
     Count of notification overrides in request must match
     count of those stored.
     ---
     """
-    auth_context = auth_context_from_request(request)
+    auth_context = auth_context_from_request(request)s
     request_body = json.loads(request.body)
     new_overrides = request_body["overrides"]
     user = auth_context.user
@@ -101,7 +99,7 @@ def set_notification_overrides(request):
              request_method='DELETE', renderer='json')
 def delete_notification_override(request):
     """
-    Delete a notification override.
+    Deletes a notification override.
     ---
     """
     auth_context = auth_context_from_request(request)
