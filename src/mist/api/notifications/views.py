@@ -78,7 +78,7 @@ def set_notification_overrides(request):
     count of those stored.
     ---
     """
-    auth_context = auth_context_from_request(request)s
+    auth_context = auth_context_from_request(request)
     request_body = json.loads(request.body)
     new_overrides = request_body["overrides"]
     user = auth_context.user

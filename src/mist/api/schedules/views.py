@@ -226,9 +226,8 @@ def edit_schedule_entry(request):
     auth_context.check_perm('schedule', 'edit', schedule_id)
 
     owner = auth_context.owner
-
+    try:
         schedule = Schedule.objects.get(id=schedule_id, owner=owner,
-        try:
                                         deleted=None)
     except me.DoesNotExist:
         raise ScheduleTaskNotFound()
