@@ -56,6 +56,7 @@ app = Celery('tasks')
 app.conf.update(**config.CELERY_SETTINGS)
 app.autodiscover_tasks(['mist.api.poller'])
 app.autodiscover_tasks(['mist.api.portal'])
+app.autodiscover_tasks(['mist.api.rules'])
 
 
 @app.task
@@ -828,114 +829,6 @@ class ListStorageAccounts(UserTask):
         return {'cloud_id': cloud_id, 'storage_accounts': storage_accounts}
 
 
-class ListMachines(UserTask):
-    abstract = False
-    task_key = 'list_machines'
-    result_expires = 60 * 60 * 24
-    result_fresh = 10
-    polling = True
-    soft_time_limit = 60
-
-    def execute(self, owner_id, cloud_id):
-        from mist.api.machines.methods import list_machines
-        owner = Owner.objects.get(id=owner_id)
-        log.warn('Running list machines for user %s cloud %s',
-                 owner.id, cloud_id)
-        machines = list_machines(owner, cloud_id)
-
-        for machine in machines:
-            # TODO tags tags tags
-            if machine.get("tags"):
-                tags = {}
-                for tag in machine["tags"]:
-                    tags[tag["key"]] = tag["value"]
-            try:
-                from mist.api.tag.methods import resolve_id_and_get_tags
-                mistio_tags = resolve_id_and_get_tags(
-                    owner,
-                    'machine',
-                    machine.get("machine_id"),
-                    cloud_id=cloud_id
-                )
-            except:
-                log.info("Machine has not tags in mist db")
-                mistio_tags = {}
-            else:
-                machine["tags"] = []
-                # optimized for js
-                for tag in mistio_tags:
-                    machine['tags'].append(tag)
-            # FIXME: optimize!
-        log.warn('Returning list machines for user %s cloud %s',
-                 owner.id, cloud_id)
-        return {'cloud_id': cloud_id, 'machines': machines}
-
-    def error_rerun_handler(self, exc, errors, owner_id, cloud_id):
-        from mist.api.methods import notify_user
-
-        if len(errors) < 6:
-            return self.result_fresh  # Retry when the result is no longer fresh
-        owner = Owner.objects.get(id=owner_id)
-        cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
-
-        if len(errors) == 6:  # If does not respond for a minute
-            notify_user(owner, 'Cloud %s does not respond' % cloud.title,
-                        email_notify=False, cloud_id=cloud_id)
-
-        # Keep retrying every 30 secs for 10 minutes, then every 60 secs for
-        # 20 minutes and finally every 20 minutes
-        times = [30]*20 + [60]*20
-        index = len(errors) - 6
-        if index < len(times):
-            return times[index]
-        else: #
-            return 20*60
-
-
-class ProbeSSH(UserTask):
-    abstract = False
-    task_key = 'probe'
-    result_expires = 60 * 60 * 2
-    result_fresh = 60 * 2
-    polling = True
-    soft_time_limit = 60
-
-    def execute(self, owner_id, cloud_id, machine_id, host, machine_uuid):
-        owner = Owner.objects.get(id=owner_id)
-        from mist.api.methods import probe_ssh_only
-        res = probe_ssh_only(owner, cloud_id, machine_id, host)
-        return {'cloud_id': cloud_id,
-                'machine_id': machine_id,
-                'machine_uuid': machine_uuid,
-                'host': host,
-                'result': res}
-
-    def error_rerun_handler(self, exc, errors, *args, **kwargs):
-        # Retry in 2, 4, 8, 16, 32, 32, 32, 32, 32, 32 minutes
-        t = 60 * 2 ** len(errors)
-        return t if t < 60 * 32 else 60 * 32
-
-
-class Ping(UserTask):
-    abstract = False
-    task_key = 'ping'
-    result_expires = 60 * 60 * 2
-    result_fresh = 60 * 15
-    polling = True
-    soft_time_limit = 30
-
-    def execute(self, owner_id, cloud_id, machine_id, host):
-        from mist.api import methods
-        res = methods.ping(owner=Owner.objects.get(id=owner_id), host=host)
-        return {'cloud_id': cloud_id,
-                'machine_id': machine_id,
-                'host': host,
-                'result': res}
-
-    def error_rerun_handler(self, exc, errors, *args, **kwargs):
-        return self.result_fresh
-
-
 @app.task
 def deploy_collectd(owner_id, cloud_id, machine_id, extra_vars, job_id='',
                     job=None, plugins=None):
@@ -1114,9 +1007,11 @@ def create_machine_async(owner_id, cloud_id, key_id, machine_name, location_id,
 
 
 @app.task(bind=True, default_retry_delay=5, max_retries=3)
-def send_email(self, subject, body, recipients, sender=None, bcc=None):
+def send_email(self, subject, body, recipients, sender=None, bcc=None,
+               html_body=None):
     if not helper_send_email(subject, body, recipients,
-                             sender=sender, bcc=bcc, attempts=1):
+                             sender=sender, bcc=bcc, attempts=1,
+                             html_body=html_body):
         raise self.retry()
     return True
 
@@ -1509,3 +1404,13 @@ def update_poller(org_id):
                                                 interval=90, ttl=120)
             SSHProbeMachinePollingSchedule.add(machine=machine,
                                                interval=90, ttl=120)
+
+
+@app.task
+def async_session_update(owner, sections=None):
+    if sections is None:
+        sections = [
+            'org', 'user', 'keys', 'zones', 'clouds', 'stacks',
+            'scripts', 'schedules', 'templates', 'monitoring'
+        ]
+    trigger_session_update(owner, sections)

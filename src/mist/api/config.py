@@ -70,7 +70,11 @@ ENABLE_DEV_USERS = False
 MONGO_URI = "mongodb:27017"
 MONGO_DB = "mist2"
 
-ACTIVATE_POLLER = True
+GRAPHITE_URI = "http://graphite"
+
+# Alert service's authentication key
+CILIA_TRIGGER = False
+CILIA_SECRET_KEY = ""
 
 # number of api tokens user can have
 ACTIVE_APITOKEN_NUM = 20
@@ -211,12 +215,43 @@ CELERY_SETTINGS = {
     'CELERY_TASK_SERIALIZER': 'json',
     'CELERYD_LOG_FORMAT': PY_LOG_FORMAT,
     'CELERYD_TASK_LOG_FORMAT': PY_LOG_FORMAT,
-    'CELERYD_CONCURRENCY': 4,
+    'CELERYD_CONCURRENCY': 8,
     'CELERYD_MAX_TASKS_PER_CHILD': 32,
     'CELERYD_MAX_MEMORY_PER_CHILD': 204800,  # 20480 KiB - 200 MiB
     'CELERY_MONGODB_SCHEDULER_DB': 'mist2',
     'CELERY_MONGODB_SCHEDULER_COLLECTION': 'schedules',
     'CELERY_MONGODB_SCHEDULER_URL': MONGO_URI,
+    'CELERY_ROUTES': {
+
+        # Command queue
+        'mist.api.tasks.ssh_command': {'queue': 'command'},
+
+        # Machines queue
+        'mist.api.tasks.list_machines': {'queue': 'machines'},
+        'mist.api.poller.tasks.list_machines': {'queue': 'machines'},
+
+        # Scripts queue (handled by gevent)
+        'mist.api.tasks.group_run_script': {'queue': 'scripts'},
+        'mist.api.tasks.run_script': {'queue': 'scripts'},
+        'mist.api.tasks.group_machines_actions': {'queue': 'scripts'},
+        'mist.api.tasks.machine_action': {'queue': 'scripts'},
+
+        # SSH probe queue (handled by gevent)
+        'mist.api.tasks.probe_ssh': {'queue': 'probe'},
+        'mist.api.poller.tasks.ssh_probe': {'queue': 'probe'},
+
+        # Ping probe queue (handled by gevent)
+        'mist.api.tasks.ping': {'queue': 'ping'},
+        'mist.api.poller.tasks.ping_probe': {'queue': 'ping'},
+
+        # Rule evaluation queue (handled by gevent)
+        'mist.api.rules.tasks.evaluate': {'queue': 'rules'},
+
+        # Core tasks
+        'mist.core.insights.tasks.list_deployments': {'queue': 'deployments'},
+        'mist.core.rbac.tasks.update_mappings': {'queue': 'mappings'},
+        'mist.core.rbac.tasks.remove_mappings': {'queue': 'mappings'},
+    },
 }
 
 LANDING_CATEGORIES = [{
@@ -902,7 +937,7 @@ ALLOW_SIGNIN_GITHUB = False
 ENABLE_TUNNELS = False
 ENABLE_ORCHESTRATION = False
 ENABLE_INSIGHTS = False
-ENABLE_BILLING = False
+ENABLE_BILLING = STRIPE_PUBLIC_APIKEY = False
 ENABLE_RBAC = False
 ENABLE_AB = False
 ENABLE_MONITORING = False
@@ -1023,6 +1058,9 @@ HOMEPAGE_INPUTS = {
     'enable_ab': ENABLE_AB,
     'enable_monitoring': ENABLE_MONITORING
 }
+
+if ENABLE_BILLING and STRIPE_PUBLIC_APIKEY:
+    HOMEPAGE_INPUTS['stripe_public_apikey'] = STRIPE_PUBLIC_APIKEY
 ## DO NOT PUT REGULAR SETTINGS BELOW, PUT THEM ABOVE THIS SECTION
 
 

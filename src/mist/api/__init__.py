@@ -78,6 +78,9 @@ def main(global_config, **settings):
     json_renderer.add_adapter(object, string_adapter)
     configurator.add_renderer('json', json_renderer)
 
+    # Add CSV renderer
+    configurator.add_renderer('csv', 'mist.api.renderers.CSVRenderer')
+
     configurator.add_static_view('docs', path='../../../docs/build')
 
     # FIXME this should not be necessary
@@ -245,8 +248,11 @@ def add_routes(configurator):
     configurator.add_route('api_v1_key_association',
                            '/api/v1/machines/{machine_uuid}/keys/{key}')
 
+    # Rules.
     configurator.add_route('api_v1_rules', '/api/v1/rules')
     configurator.add_route('api_v1_rule', '/api/v1/rules/{rule}')
+    configurator.add_route('api_v1_rule_triggered', '/api/v1/rule-triggered')
+
     configurator.add_route('api_v1_check_auth', '/api/v1/auth')
 
     configurator.add_route('api_v1_zones',
@@ -305,6 +311,10 @@ def add_routes(configurator):
         '/api/v1/notifications/{notification_id}')
 
     configurator.add_route(
+        'api_v1_notification_override',
+        '/api/v1/notification-overrides/{notification_id}')
+
+    configurator.add_route(
         'api_v1_notification_overrides',
         '/api/v1/notification-overrides')
 
@@ -314,4 +324,6 @@ def add_routes(configurator):
 
     # DEV ENDPOINT
     configurator.add_route('api_v1_dev_register', '/api/v1/dev/register')
+    configurator.add_route('api_v1_add_dev_user_to_team',
+                           '/api/v1/dev/orgs/{org_id}/teams/{team_id}')
     configurator.add_route('api_v1_dev_users', '/api/v1/dev/users')

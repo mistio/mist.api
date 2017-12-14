@@ -2,11 +2,13 @@
 
 set -e
 
-QUEUES="${QUEUES:-celery,machines,scripts,command,ping,probe}"
+QUEUES="${QUEUES:-celery,machines,scripts,command,ping,probe,rules}"
 LOGLEVEL="INFO"
 TASKS="${TASKS:-mist.api.tasks}"
+CONCURRENCY=${CONCURRENCY:-8}
+POOL=${POOL:-prefork}
 
-USAGE="Usage: $0 [-h] [-q <QUEUES>] [-l <LOGLEVEL>] [-t <TASK_PATH>]
+USAGE="Usage: $0 [-h] [-q <QUEUES>] [-l <LOGLEVEL>] [-t <TASK_PATH>] [-P <POOL>]
 
 Start uwsgi
 
@@ -16,9 +18,11 @@ Options:
                     $QUEUES.
     -l <LOGLEVEL>   Log level. Defaults to $LOGLEVEL.
     -t <TASKS_PATH> Tasks file to import. Defaults to $TASKS.
+    -c <CONCURRENCY>Number of children processes. Defaults to $CONCURRENCY.
+    -P <POOL>       Celery pool. Defaults to $POOL.
 "
 
-while getopts "hq:l:t:" opt; do
+while getopts "hq:l:t:c:P:" opt; do
     case "$opt" in
         h)
             echo "$USAGE"
@@ -33,6 +37,12 @@ while getopts "hq:l:t:" opt; do
         t)
             TASKS=$OPTARG
             ;;
+        c)
+            CONCURRENCY=$OPTARG
+            ;;
+        P)
+            POOL=$OPTARG
+            ;;
         \?)
             echo "Invalid option: -$OPTARG" >&2
             echo "$USAGE" >&2
@@ -42,9 +52,13 @@ done
 
 set -x
 export C_FORCE_ROOT=1
-export CELERY_CONTEXT=1
+if [ "$POOL" = prefork ]; then
+    export CELERY_CONTEXT=1
+fi
 exec celery worker \
     -A $TASKS \
     -Q $QUEUES \
     -l $LOGLEVEL \
+    -c $CONCURRENCY \
+    -P $POOL \
     -Ofair

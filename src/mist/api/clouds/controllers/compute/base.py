@@ -22,6 +22,7 @@ import mongoengine as me
 from libcloud.common.types import InvalidCredsError
 from libcloud.compute.types import NodeState
 from libcloud.compute.base import NodeLocation, Node
+from libcloud.common.exceptions import BaseHTTPError
 
 from amqp.connection import Connection
 
@@ -1025,7 +1026,12 @@ class BaseComputeController(BaseController):
         Differnent cloud controllers should override this private method, which
         is called by the public method `destroy_machine`.
         """
-        machine_libcloud.destroy()
+        try:
+            machine_libcloud.destroy()
+        except BaseHTTPError:
+            raise ForbiddenError("Cannot destroy machine. Check the "
+                                 "termination protection setting on your "
+                                 "cloud provider.")
 
     def remove_machine(self, machine):
         raise BadRequestError("Machines on public clouds can't be removed."
