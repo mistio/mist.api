@@ -24,6 +24,8 @@ class NotificationOverride(me.EmbeddedDocument):
         required=False,
         default="")  # eg "InAppNotification"
 
+    # FIXME: Shouldn't be specific to machines. This should be replaced with a
+    # (resource_type, resource_uuid) combination.
     machine = me.GenericReferenceField(required=False)
     tag = me.GenericReferenceField(required=False)
     cloud = me.GenericReferenceField(required=False)
@@ -50,8 +52,36 @@ class UserNotificationPolicy(me.Document):
     user-organization pair, and containing a list of overrides.
     '''
     overrides = me.EmbeddedDocumentListField(NotificationOverride)
-    user = me.ReferenceField(User, required=True)
+    user = me.ReferenceField(User)
     organization = me.ReferenceField(Organization, required=True)
+
+    email = me.EmailField(required=True)
+
+    meta = {
+        'indexes': [
+            {
+                'fields': ['email', 'organization'],
+                'sparse': False,
+                'unique': True,
+                'cls': False,
+            },
+        ],
+    }
+
+    # NOTE The UserNotificationPolicy should be dynamic. What if an external
+    # user e-mail is provided, but the user afterwards joins the organization
+    # or an organization member decides to leave down the road? Wouldn't it be
+    # enough for a UserNotificationPolicy to map to an (organization, e-mail)
+    # combination and check on the fly whether the e-mail belongs to a member
+    # of the organization?
+    # @property
+    # def is_user_external(self):
+    #     try:
+    #         User.objects.get(email=self.email)
+    #     except User.DoesNotExist:
+    #         return True
+    #     else:
+    #         return False
 
     def notification_allowed(self, notification, default=True):
         '''
@@ -82,13 +112,17 @@ class UserNotificationPolicy(me.Document):
                 return True
         return default
 
+    # FIXME This is here just to auto-populate the `email` field.
+    def clean(self):
+        if not self.email and self.user:
+            self.email = self.user.email
+
 
 class Notification(me.Document):
     '''
     Represents a notification associated with a
     user-organization pair
     '''
-    meta = {'allow_inheritance': True}
 
     id = me.StringField(primary_key=True,
                         default=lambda: uuid4().hex)
@@ -96,7 +130,11 @@ class Notification(me.Document):
     created_date = me.DateTimeField(required=False)
     expiry_date = me.DateTimeField(required=False)
 
+    # FIXME: Should the user/e-mail be stored? Shouldn't a single notification
+    # exist per event? For instance, if an e-mail is sent to X members, should
+    # we persist X documents to mongodb? Isn't 1 enough?
     user = me.ReferenceField(User)
+    email = me.EmailField(required=True)
     organization = me.ReferenceField(Organization, required=True)
 
     # content fields
@@ -132,10 +170,13 @@ class Notification(me.Document):
             'POSITIVE'),
         default='NEUTRAL')
 
-    def __init__(self, *args, **kwargs):
-        super(Notification, self).__init__(*args, **kwargs)
-        if not self.created_date:
-            self.created_date = datetime.now()
+    meta = {
+        'strict': False,
+        'allow_inheritance': True,
+        'indexes': [
+            'organization'
+        ]
+    }
 
     def update_from(self, notification):
         self.created_date = notification.created_date
@@ -160,6 +201,12 @@ class Notification(me.Document):
         self.severity = notification.severity
         self.feedback = notification.feedback
 
+    def clean(self):
+        if not self.email and self.user:  # FIXME Remove alongside `self.user`.
+            self.email = self.user.email
+        if not self.created_date:
+            self.created_date = datetime.now()
+
 
 class EmailNotification(Notification):
     '''
@@ -169,9 +216,9 @@ class EmailNotification(Notification):
     sender_title = me.StringField(max_length=256, required=True)
 
     subject = me.StringField(max_length=256, required=False, default="")
-    email = me.EmailField(required=False)
     unsub_link = me.URLField(required=False)
 
+    # FIXME: Couldn't these just be regular class attributes instead of fields?
     def __init__(self, *args, **kwargs):
         super(EmailNotification, self).__init__(*args, **kwargs)
         if not self.sender_email:
@@ -192,6 +239,10 @@ class EmailAlert(EmailNotification):
     Represents a notification corresponding to
     an email alert
     '''
+
+    rule_id = me.StringField(required=True)
+    incident_id = me.StringField(required=True)
+    reminder_count = me.IntField(required=True, min_value=0, default=0)
 
     def __init__(self, *args, **kwargs):
         super(EmailNotification, self).__init__(*args, **kwargs)

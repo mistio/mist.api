@@ -55,13 +55,10 @@ class EmailNotificationsChannel(BaseChannel):
         in config, it uses Sendgrid to deliver the email. Otherwise, it
         uses plain SMTP through send_email()
         '''
-        user = notification.user
+        to = notification.email or notification.user.email
 
-        to = notification.email or user.email
-        full_name = user.get_nice_name()
-        first_name = user.first_name or user.get_nice_name()
-
-        if (hasattr(config, "SENDGRID_EMAIL_NOTIFICATIONS_KEY")):
+        if hasattr(config, "SENDGRID_EMAIL_NOTIFICATIONS_KEY") and \
+           config.SENDGRID_EMAIL_NOTIFICATIONS_KEY:
             from sendgrid.helpers.mail import (Email,
                                                Mail,
                                                Personalization,
@@ -69,22 +66,33 @@ class EmailNotificationsChannel(BaseChannel):
                                                Substitution)
             import sendgrid
 
+            try:
+                from mist.api.users.models import User
+                user = User.objects.get(email=notification.email)
+            except User.DoesNotExist:
+                full_name = first_name = ''
+            else:
+                full_name = user.get_nice_name()
+                first_name = user.first_name or full_name
+
             self.sg_instance = sendgrid.SendGridAPIClient(
                 apikey=config.SENDGRID_EMAIL_NOTIFICATIONS_KEY)
 
             mail = Mail()
             mail.from_email = Email(notification.sender_email,
                                     notification.sender_title)
+
             personalization = Personalization()
-            personalization.add_to(Email(to, full_name))
             personalization.subject = notification.subject
-            sub1 = Substitution("%name%", first_name)
-            personalization.add_substitution(sub1)
+            personalization.add_to(Email(to, full_name))
+            if first_name:
+                sub1 = Substitution("%name%", first_name)
+                personalization.add_substitution(sub1)
             if "unsub_link" in notification:
                 sub2 = Substitution("%nsub%", notification.unsub_link)
                 personalization.add_substitution(sub2)
-            mail.add_personalization(personalization)
 
+            mail.add_personalization(personalization)
             mail.add_content(Content("text/plain", notification.body))
             if "html_body" in notification:
                 mail.add_content(

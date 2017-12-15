@@ -89,14 +89,7 @@ class NotificationAction(BaseAlertAction):
 
     def run(self, machine, value, triggered, timestamp, incident_id, action='',
             notification_level=0):
-        if notification_level > 3:
-            # FIXME Prevents spam of notification e-mails. This shouldn't be
-            # taken care of here, but rather by the Notifications system.
-            log.warning('Notification level %d for %s', notification_level,
-                        self._instance)
-            return
         try:
-            # TODO Use the Notifications system.
             from mist.core.notifications.methods import send_alert_email
         except ImportError:
             pass
