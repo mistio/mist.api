@@ -37,9 +37,11 @@ OK = Response("OK", 200)
              request_method='GET', renderer='json')
 def list_machines(request):
     """
-    List machines of all clouds
+    Lists machines of all clouds
     Gets machines and their metadata from all clouds
     Check Permissions take place in filter_list_machines
+    READ permission required on cloud.
+    READ permission required on machine.
     """
     auth_context = auth_context_from_request(request)
     # to prevent iterate throw every cloud
@@ -61,9 +63,8 @@ def list_machines(request):
              request_method='GET', renderer='json')
 def list_cloud_machines(request):
     """
-    List machines on cloud
-    Gets machines and their metadata from a cloud
-    Check Permissions take place in filter_list_machines
+    Lists machines on cloud along with their metadata
+    Check Permissions takes place in filter_list_machines
     READ permission required on cloud.
     READ permission required on machine.
     ---
@@ -98,15 +99,13 @@ def list_cloud_machines(request):
              renderer='json')
 def create_machine(request):
     """
-    Create machine(s) on cloud
     Creates one or more machines on the specified cloud. If async is true, a
     jobId will be returned.
     READ permission required on cloud.
-    CREATE_RESOURCES permissn required on cloud.
+    CREATE_RESOURCES permission required on cloud.
     CREATE permission required on machine.
     RUN permission required on script.
     READ permission required on key.
-
     ---
     cloud:
       in: path
@@ -119,10 +118,6 @@ def create_machine(request):
       description: ' The number of machines that will be created, async only'
       type: integer
     azure_port_bindings:
-      type: string
-    cloud_id:
-      description: The Cloud ID
-      required: true
       type: string
     disk:
       description: ' Only required by Linode cloud'
@@ -417,11 +412,10 @@ def create_machine(request):
              request_method='POST', renderer='json')
 def machine_actions(request):
     """
-    Call an action on machine
-    Calls a machine action on cloud that support it
+    Calls a machine action on cloud that supports it
     READ permission required on cloud.
     ACTION permission required on machine(ACTION can be START,
-    STOP, DESTROY, REBOOT).
+    STOP, DESTROY, REBOOT or RESIZE, RENAME for some providers).
     ---
     machine_uuid:
       in: path
@@ -528,7 +522,7 @@ def machine_actions(request):
 def machine_rdp(request):
     """
     Rdp file for windows machines
-    Generate and return an rdp file for windows machines
+    Generates and returns an rdp file for windows machines
     READ permission required on cloud.
     READ permission required on machine.
     ---
