@@ -14,7 +14,6 @@ def add_override(notification, value='BLOCK'):
     using matching fields of the specified notification.
     Creates the policy if it does not exist.
     '''
-    user = notification.user
     org = notification.organization
     policy = get_policy(notification.email, org)
     source = notification.source
@@ -63,7 +62,6 @@ def remove_override(notification):
     for the specified notification type.
     Creates the policy if it does not exist.
     '''
-    user = notification.user
     org = notification.organization
     policy = get_policy(notification.email, org)
     source = type(notification).__name__
