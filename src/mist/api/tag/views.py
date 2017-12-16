@@ -144,7 +144,7 @@ def tag_resources(request):
 @view_config(route_name='cloud_tags', request_method='GET', renderer='json')
 def get_cloud_tags(request):
     """
-    List tags of a cloud
+    Lists tags of a cloud
     READ permission required on CLOUD
     ---
     cloud_id:
@@ -165,7 +165,7 @@ def get_cloud_tags(request):
              renderer='json')
 def get_machine_tags(request):
     """
-    List tags of a machine
+    Lists tags of a machine
     READ permission required on CLOUD
     READ permission required on MACHINE
     ---
@@ -194,7 +194,7 @@ def get_machine_tags(request):
 @view_config(route_name='script_tags', request_method='GET', renderer='json')
 def get_script_tags(request):
     """
-    List tags of a script
+    Lists tags of a script
     READ permission required on SCRIPT
     ---
     script_id:
@@ -213,6 +213,15 @@ def get_script_tags(request):
 
 @view_config(route_name='schedule_tags', request_method='GET', renderer='json')
 def get_schedule_tags(request):
+    """
+    Lists tags of a schedule
+    READ permission required on SCHEDULE
+    ---
+    schedule_id:
+      in: path
+      required: true
+      type: string
+    """
     auth_context = auth_context_from_request(request)
     schedule_id = request.matchdict["schedule_id"]
 
@@ -225,7 +234,7 @@ def get_schedule_tags(request):
 @view_config(route_name='key_tags', request_method='GET', renderer='json')
 def get_key_tags(request):
     """
-    List tags of an ssh keypair
+    Lists tags of an ssh keypair
     READ permission required on KEY
     ---
     key_id:
@@ -245,7 +254,7 @@ def get_key_tags(request):
 @view_config(route_name='network_tags', request_method='GET', renderer='json')
 def get_network_tags(request):
     """
-    List tags of a network
+    Lists tags of a network
     READ permission required on CLOUD
     READ permission required on NETWORK
     ---
@@ -306,8 +315,7 @@ def set_cloud_tags(request):
              renderer='json')
 def set_machine_tags(request):
     """
-    Set tags on a machine
-    Set tags for a machine, given the cloud and machine id.
+    Sets tags for a machine, given the cloud and machine id.
     READ permission required on cloud.
     EDIT_TAGS permission required on machine.
     ---
@@ -475,7 +483,6 @@ def set_key_tags(request):
 @view_config(route_name='network_tags', request_method='POST', renderer='json')
 def set_network_tags(request):
     """
-    Set tags on a machine
     Set tags for a machine, given the cloud and machine id.
     READ permission required on cloud.
     EDIT_TAGS permission required on machine.
