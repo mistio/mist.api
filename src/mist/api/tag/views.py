@@ -483,7 +483,7 @@ def set_key_tags(request):
 @view_config(route_name='network_tags', request_method='POST', renderer='json')
 def set_network_tags(request):
     """
-    Set tags for a machine, given the cloud and machine id.
+    Set tags for a network, given the cloud and network id.
     READ permission required on cloud.
     EDIT_TAGS permission required on machine.
     ---
@@ -491,7 +491,7 @@ def set_network_tags(request):
       in: path
       required: true
       type: string
-    machine_id:
+    network_id:
       in: path
       required: true
       type: string
