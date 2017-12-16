@@ -483,9 +483,9 @@ def set_key_tags(request):
 @view_config(route_name='network_tags', request_method='POST', renderer='json')
 def set_network_tags(request):
     """
-    Set tags for a network, given the cloud and network id.
+    Sets tags for a network, given the cloud and network id.
     READ permission required on cloud.
-    EDIT_TAGS permission required on machine.
+    EDIT_TAGS permission required on network.
     ---
     cloud_id:
       in: path
@@ -543,8 +543,7 @@ def delete_schedule_tag(request):
 @view_config(route_name='cloud_tag', request_method='DELETE', renderer='json')
 def delete_cloud_tag(request):
     """
-    Delete a tag
-    Delete tag in the db for specified resource_type.
+    Deletes tag in the db for specified resource_type.
     EDIT_TAGS permission required on cloud.
     ---
     tag_key:
@@ -573,8 +572,7 @@ def delete_cloud_tag(request):
              renderer='json')
 def delete_machine_tag(request):
     """
-    Delete a tag
-    Delete tag in the db for specified resource_type.
+    Deletes tag in the db for specified resource_type.
     READ permission required on cloud.
     EDIT_TAGS permission required on machine.
     ---
@@ -612,8 +610,7 @@ def delete_machine_tag(request):
 @view_config(route_name='script_tag', request_method='DELETE', renderer='json')
 def delete_script_tag(request):
     """
-    Delete a tag
-    Delete tag in the db for specified resource_type.
+    Deletes a tag in the db for specified resource_type.
     EDIT_TAGS permission required on script.
     ---
     tag_key:
@@ -641,8 +638,7 @@ def delete_script_tag(request):
 @view_config(route_name='key_tag', request_method='DELETE', renderer='json')
 def delete_key_tag(request):
     """
-    Delete a tag
-    Delete tag in the db for specified resource_type.
+    Deletes a tag in the db for specified resource_type.
     EDIT_TAGS permission required on key.
     ---
     tag_key:
@@ -671,7 +667,6 @@ def delete_key_tag(request):
              renderer='json')
 def delete_network_tag(request):
     """
-    Delete a tag
     Delete tag in the db for specified resource_type.
     READ permission required on cloud.
     EDIT_TAGS permission required on network.

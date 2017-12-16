@@ -351,7 +351,6 @@ def switch_org(request):
       description: The team's org id
       type: string
       required: true
-
     """
     org_id = request.matchdict.get('org_id')
     user = user_from_request(request)
@@ -878,7 +877,6 @@ def confirm_invitation(request):
       description: member's invitation token
       type: string
       required: true
-
     """
     try:
         auth_context = auth_context_from_request(request)
@@ -969,7 +967,6 @@ def list_specific_images(request):
     # FIXME: 1) i shouldn't exist, 2) i shouldn't be a post
     return list_images(request)
 
-# below here!
 
 @view_config(route_name='api_v1_images', request_method='GET', renderer='json')
 def list_images(request):
@@ -1301,8 +1298,7 @@ def check_monitoring(request):
 @view_config(route_name='api_v1_update_monitoring', request_method='POST', renderer='json')
 def update_monitoring(request):
     """
-    Enable monitoring
-    Enable monitoring for a machine.
+    Enables monitoring for a machine.
     ---
     cloud:
       in: path
@@ -1461,7 +1457,6 @@ def get_stats(request):
 @view_config(route_name='api_v1_metrics', request_method='GET', renderer='json')
 def find_metrics(request):
     """
-    Get metrics of a machine
     Get all metrics associated with specific machine
     READ permission required on cloud.
     READ permission required on machine.
@@ -1574,8 +1569,7 @@ def disassoc_metric(request):
 @view_config(route_name='api_v1_metric', request_method='PUT', renderer='json')
 def update_metric(request):
     """
-    Update a metric configuration
-    Update a metric configuration
+    Updates a metric configuration
     READ permission required on cloud.
     EDIT_CUSTOM_METRICS required on machine.
     ---
@@ -1630,8 +1624,7 @@ def update_metric(request):
 @view_config(route_name='api_v1_deploy_plugin', request_method='POST', renderer='json')
 def deploy_plugin(request):
     """
-    Deploy a plugin on a machine.
-    Deploy a plugin on the specific machine.
+    Deploys a plugin on the specific machine.
     READ permission required on cloud.
     EDIT_CUSTOM_METRICS required on machine.
     ---
@@ -1719,7 +1712,6 @@ def deploy_plugin(request):
              request_method='DELETE', renderer='json')
 def undeploy_plugin(request):
     """
-    Undeploy a plugin on a machine.
     Undeploy a plugin on the specific machine.
     READ permission required on cloud.
     EDIT_CUSTOM_METRICS required on machine.
@@ -1851,7 +1843,7 @@ def delete_rule(request):
 @view_config(route_name='api_v1_providers', request_method='GET', renderer='json')
 def list_supported_providers(request):
     """
-    List supported providers
+    Lists supported providers
     Return all of our SUPPORTED PROVIDERS
     ---
     api_version:
@@ -2763,7 +2755,6 @@ def delete_member_from_team(request):
 def add_dev_user_to_team(request):
     """
     Add user to team. This method is user by integration tests.
-
     It is enabled only if config.ENABLE_DEV_USERS is set to True (False by
     default).
     ---
@@ -2798,9 +2789,7 @@ def add_dev_user_to_team(request):
 def register_dev_user(request):
     """
     Automatically register users to be used by integration tests.
-
     It actually does what dbinit does but through the API.
-
     It is enabled only if config.ENABLE_DEV_USERS is set to True (False by
     default).
     ---
