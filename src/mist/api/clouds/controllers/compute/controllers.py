@@ -1419,16 +1419,14 @@ class OtherComputeController(BaseComputeController):
             machine.state = config.STATES[NodeState.UNKNOWN]
             machine.unreachable_since = datetime.datetime.now()
 
-    def _list_machines__enable_generic_machine_action(self, machine, action):
-        """Update an action for a bare metal machine.
+    def _list_machines__generic_machine_actions(self, machine):
+        """Update an action for a bare metal machine
+
         Bare metal machines only support remove, reboot and tag actions"""
 
-        if action == 'remove':
-            machine.actions.remove = True
-        elif action == 'reboot':
-            machine.actions.reboot = True
-        elif action == 'tag':
-            machine.actions.tag = True
+        super(OtherComputeController,
+              self)._list_machines__generic_machine_actions(machine)
+        machine.actions.remove = True
 
     def _get_machine_libcloud(self, machine):
         return None

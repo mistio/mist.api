@@ -419,19 +419,7 @@ class BaseComputeController(BaseController):
         for machine in self._list_machines__fetch_generic_machines():
             machine.last_seen = now
             self._list_machines__update_generic_machine_state(machine)
-            for action in ('start', 'stop', 'reboot', 'destroy', 'rename',
-                           'resume', 'suspend', 'undefine', 'remove'):
-                setattr(machine.actions, action, False)
-            machine.actions.tag = True
-
-            # allow reboot action for bare metal with key associated
-            if machine.key_associations:
-                self._list_machines__enable_generic_machine_action(machine,
-                                                                   'reboot')
-            self._list_machines__enable_generic_machine_action(machine,
-                                                               'remove')
-            machine.save()
-            machines.append(machine)
+            self._list_machines__generic_machine_actions(machine)
 
             # Set machine hostname
             if not machine.hostname:
@@ -478,16 +466,24 @@ class BaseComputeController(BaseController):
         return machines
 
     def _list_machines__update_generic_machine_state(self, machine):
-        """Helper method to update the machine state.
+        """Helper method to update the machine state
 
         This is only overriden by the OtherServer Controller.
-        It applies only to generic machines."""
-        pass
+        It applies only to generic machines.
+        """
+        machine.state = config.STATES[NodeState.UNKNOWN]
 
-    def _list_machines__enable_generic_machine_action(self, machine, action):
-        """Helper method to update machine action.
-        This is only overriden by the OtherServer Controller"""
-        pass
+    def _list_machines__generic_machine_actions(self, machine):
+        """Helper method to update available generic machine's actions
+
+        This is currently only overriden by the OtherServer Controller
+        """
+        for action in ('start', 'stop', 'reboot', 'destroy', 'rename',
+                       'resume', 'suspend', 'undefine', 'remove'):
+            setattr(machine.actions, action, False)
+        if machine.key_associations:
+            machine.actions.reboot = True
+        machine.actions.tag = True
 
     def _list_machines__fetch_machines(self):
         """Perform the actual libcloud call to get list of nodes"""
