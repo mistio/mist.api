@@ -48,7 +48,10 @@ def add_cloud_v_2(owner, title, provider, params):
     # Add the cloud.
     cloud = cloud_cls.add(owner, title, fail_on_error=fail_on_error,
                           fail_on_invalid_params=False, **params)
-    ret = {'cloud_id': cloud.id}
+    ret = {
+        'cloud_id': cloud.id,
+        'errors': cloud.errors,  # just an attribute, not a field
+    }
 
     # SEC
     # Update the RBAC mappings with the new Cloud and finally trigger

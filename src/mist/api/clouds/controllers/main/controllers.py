@@ -353,31 +353,32 @@ class OtherMainController(BaseMainController):
             raise CloudExistsError("Cloud with name %s already exists"
                                    % self.cloud.title)
 
-        # If we have been given a list of machines kwargs, create a machine
-        # for each one of them. The machines handled here are only bare metal
-        # and hence we only create the relevant object in the database, no
-        # remote calls to any provider is performed.
-        machine_errors = []
-        for machine_kwargs in kwargs['machines']:
-            # We need to extract the monitoring data from the machine params
-            # to use them later in enabling monitoring
-            monitoring = machine_kwargs.pop('monitoring', None)
-            errors = None
-            machine_name = machine_kwargs.pop('machine_name', '')
-            machine, errors = self.add_machine_wrapper(
-                machine_name, fail_on_error=fail_on_error,
-                fail_on_invalid_params=fail_on_invalid_params, **machine_kwargs
-            )
-            if machine and monitoring:
-                enable_monitoring(
-                    self.cloud.owner, self.cloud.id, machine.machine_id,
-                    no_ssh=not (machine.os_type == 'unix' and
-                                machine.key_associations)
-                )
-
-            machine_errors.append({'errors': errors})
-        self.cloud.machine_errors = machine_errors
+        if kwargs:
+            errors = []
+            if 'machines' in kwargs:  # new api: list of multitple machines
+                for machine_kwargs in kwargs['machines']:
+                    machine_name = machine_kwargs.pop('machine_name', '')
+                    try:
+                        self.add_machine_wrapper(
+                            machine_name, fail_on_error=fail_on_error,
+                            fail_on_invalid_params=fail_on_invalid_params,
+                            **machine_kwargs
+                        )
+                    except Exception as exc:
+                        errors.append(str(exc))
+            else:  # old api, single machine
+                try:
+                    self.add_machine_wrapper(
+                        self.cloud.title, fail_on_error=fail_on_error,
+                        fail_on_invalid_params=fail_on_invalid_params, **kwargs
+                    )
+                except Exception as exc:
+                    errors.append(str(exc))
+                    if fail_on_error:
+                        self.cloud.delete()
+                    raise
         self.cloud.save()
+        self.cloud.errors = errors  # just an attribute, not a field
 
     def update(self, fail_on_error=True, fail_on_invalid_params=True,
                **kwargs):
@@ -387,7 +388,8 @@ class OtherMainController(BaseMainController):
                               "machines themselves, not the cloud.")
 
     def add_machine_wrapper(self, name, fail_on_error=True,
-                            fail_on_invalid_params=True, **kwargs):
+                            fail_on_invalid_params=True, monitoring=False,
+                            **kwargs):
         """Wrapper around add_machine for kwargs backwards compatibity
 
         FIXME: This wrapper should be deprecated
@@ -424,18 +426,23 @@ class OtherMainController(BaseMainController):
 
         if errors:
             log.error("Invalid parameters %s." % errors.keys())
-            machine = None
-        else:
-            # Add the machine.
-            try:
-                machine = self.add_machine(name, fail_on_error=fail_on_error,
-                                           **kwargs)
-            except (CloudUnauthorizedError, MistError) as exc:
-                log.error("Failed to add machine due to: %s", exc)
-                machine = None
-                errors['addMachineError'] = exc
+            raise BadRequestError({
+                'msg': "Invalid parameters %s." % errors.keys(),
+                'errors': errors,
+            })
 
-        return machine, errors
+        # Add the machine.
+        machine = self.add_machine(name, fail_on_error=fail_on_error, **kwargs)
+
+        # Enable monitoring.
+        if monitoring:
+            enable_monitoring(
+                self.cloud.owner, self.cloud.id, machine.machine_id,
+                no_ssh=not (machine.os_type == 'unix' and
+                            machine.key_associations)
+            )
+
+        return machine
 
     def add_machine(self, name, host='',
                     ssh_user='root', ssh_port=22, ssh_key=None,

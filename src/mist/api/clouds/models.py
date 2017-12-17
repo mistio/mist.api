@@ -396,7 +396,6 @@ class OnAppCloud(Cloud):
 class OtherCloud(Cloud):
 
     _controller_cls = controllers.OtherMainController
-    machine_errors = me.ListField(me.DictField())
 
 
 _populate_clouds()
