@@ -1371,53 +1371,30 @@ class OtherComputeController(BaseComputeController):
         return []
 
     def _list_machines__update_generic_machine_state(self, machine):
-        """ THis method is used to update the machine state. It is only used
-        in generic machines.
-        We have the following combinations:
-        - state: unknown, unreachable_since = None
-        - state: running, unreachable_since = None
-        - state: running, unreachable_since = some value
-        - state: unknown, unreachable_since = some value
+        """Update generic machine state (based on ping/ssh probes)
 
-        The first state is when the machine is first added and we do not
-        know the state, and the unreachable_since value is empty.
-        The second state is when we have performed a successful ssh probe
-        which means that the machine is running and reachable from mist.
-        The third state is when we have not ssh_probed the machine for more
-        than 90 seconds (the period of time we check) but on our ping_probes
-        we do not have 100% packet loss meaning the machine is running and
-        responding to pings.
-        The last state is when we cannot ssh_probe the machine and we have
-        100% ping packet loss which means that for all intends and purposes
-        the machine is unreachable and in an unknown state.
-        This method only applies to generic machines"""
-        try:
-            ssh_probe_time = machine.ssh_probe.updated_at
-        except AttributeError:
-            # If we do not have ssh probe data we cannot update the state
-            # of the machine.
-            log.info('Ssh probe data do not exist.')
-            return
-        delta = datetime.datetime.now() - datetime.timedelta(seconds=90)
+        It is only used in generic machines.
+        """
 
-        # We perform an ssh_probe every 90 seconds with a TTL of 120. If the
-        # probe is successful then we update the state to running and set the
-        # unreachable_since field to none.
-        if ssh_probe_time >= delta:
+        # Defaults
+        machine.unreachable_since = None
+        machine.state = config.STATES[NodeState.UNKNOWN]
+
+        # If any of the probes has succeeded, then state is running
+        if (
+            machine.ssh_probe and not machine.ssh_probe.unreachable_since or
+            machine.ping_probe and not machine.ping_probe.unreachable_since
+        ):
             machine.state = config.STATES[NodeState.RUNNING]
-            machine.unreachable_since = None
-        # If the ssh_probe updated_at time is more than 90 seconds in the past
-        # it means we can no longer ssh into the machine. However if we have
-        # a packet_loss less than 100% from the ping_probe then it means that
-        # the machine is running, however it's unreachable.
-        elif machine.ping_probe.packets_loss < 100.0:
-            machine.state = config.STATES[NodeState.RUNNING]
-            machine.unreachable_since = datetime.datetime.now()
-        # If we have packet loss equal to 100% then that means that the
-        # machine cannot be reached and we don't know the state it is at
-        elif machine.state != config.STATES[NodeState.UNKNOWN]:
-            machine.state = config.STATES[NodeState.UNKNOWN]
-            machine.unreachable_since = datetime.datetime.now()
+
+        # If ssh probe failed, then unreachable since then
+        if machine.ssh_probe and machine.ssh_probe.unreachable_since:
+            machine.unreachable_since = machine.ssh_probe.unreachable_since
+        # Else if ssh probe has never succeeded and ping probe failed,
+        # then unreachable since then
+        elif (not machine.ssh_probe and
+              machine.ping_probe and machine.ping_probe.unreachable_since):
+            machine.unreachable_since = machine.ping_probe.unreachable_since
 
     def _list_machines__generic_machine_actions(self, machine):
         """Update an action for a bare metal machine

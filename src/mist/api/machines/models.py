@@ -125,20 +125,28 @@ class PingProbe(me.EmbeddedDocument):
     rtt_avg = me.FloatField()
     rtt_std = me.FloatField()
     updated_at = me.DateTimeField()
+    unreachable_since = me.DateTimeField()
     meta = {'strict': False}
 
     def update_from_dict(self, data):
         for key in data:
             setattr(self, key, data[key])
         self.updated_at = datetime.datetime.now()
+        if self.packets_loss == 100:
+            self.unreachable_since = datetime.datetime.now()
+        else:
+            self.unreachable_since = None
 
     def as_dict(self):
         data = {key: getattr(self, key) for key in (
             'packets_tx', 'packets_rx', 'packets_loss',
             'rtt_min', 'rtt_max', 'rtt_avg', 'rtt_std', 'updated_at',
+            'unreachable_since',
         )}
-        if data['updated_at']:
-            data['updated_at'] = str(data['updated_at'].replace(tzinfo=None))
+        # Handle datetime objects
+        for key in ('updated_at', 'unreachable_since'):
+            if data[key]:
+                data[key] = str(data[key].replace(tzinfo=None))
         return data
 
 
@@ -156,6 +164,7 @@ class SSHProbe(me.EmbeddedDocument):
     os_version = me.StringField()
     dirty_cow = me.BooleanField()
     updated_at = me.DateTimeField()
+    unreachable_since = me.DateTimeField()
     meta = {'strict': False}
 
     def update_from_dict(self, data):
@@ -200,15 +209,19 @@ class SSHProbe(me.EmbeddedDocument):
             setattr(self, str_attr, str(data.get(str_attr, '')))
 
         self.dirty_cow = bool(data.get('dirty_cow'))
+        self.unreachable_since = None
         self.updated_at = datetime.datetime.now()
 
     def as_dict(self):
         data = {key: getattr(self, key) for key in (
             'uptime', 'loadavg', 'cores', 'users', 'pub_ips', 'priv_ips', 'df',
-            'macs', 'kernel', 'os', 'os_version', 'dirty_cow', 'updated_at'
+            'macs', 'kernel', 'os', 'os_version', 'dirty_cow', 'updated_at',
+            'unreachable_since',
         )}
-        if data['updated_at']:
-            data['updated_at'] = str(data['updated_at'].replace(tzinfo=None))
+        # Handle datetime objects
+        for key in ('updated_at', 'unreachable_since'):
+            if data[key]:
+                data[key] = str(data[key].replace(tzinfo=None))
         return data
 
 
@@ -348,6 +361,9 @@ class Machine(me.Document):
                              if self.last_seen else ''),
             'missing_since': str(self.missing_since.replace(tzinfo=None)
                                  if self.missing_since else ''),
+            'unreachable_since': str(
+                self.unreachable_since.replace(tzinfo=None)
+                if self.unreachable_since else ''),
             'created': str(self.created.replace(tzinfo=None)
                            if self.created else ''),
             'machine_type': self.machine_type,
