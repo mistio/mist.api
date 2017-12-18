@@ -51,8 +51,6 @@ def ping_probe(schedule_id):
     try:
         sched.machine.ctl.ping_probe(persist=False)
     except Exception as exc:
-        sched.machine.unreachable_since = datetime.datetime.now()
-        sched.machine.save()
         log.error("Error while ping-probing %s: %r", sched.machine, exc)
 
 
@@ -67,6 +65,4 @@ def ssh_probe(schedule_id):
     try:
         sched.machine.ctl.ssh_probe(persist=False)
     except Exception as exc:
-        sched.machine.unreachable_since = datetime.datetime.now()
-        sched.machine.save()
         log.error("Error while ssh-probing %s: %r", sched.machine, exc)
