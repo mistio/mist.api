@@ -1,0 +1,2340 @@
+info:
+  title: MistIO API
+  version: 1.0.0
+openapi: 3.0.0
+paths:
+  /api/v1/avatars:
+    post:
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/avatars/{avatar}:
+    delete:
+      description: Deletes the requested avatar
+      parameters:
+      - description: Avatar Id
+        in: path
+        name: avatar
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Operation
+    get:
+      description: Returns the requested avatar
+      parameters:
+      - description: Avatar Id
+        in: path
+        name: avatar
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/clouds:
+    get:
+      description: Lists all added clouds. READ permission required on cloud.
+      responses:
+        '200':
+          description: Successful Operation
+    post:
+      description: Adds a new cloud and returns the cloud's id ADD permission required
+        on cloud.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                api_key:
+                  type: string
+                api_secret:
+                  type: string
+                apiurl:
+                  type: string
+                docker_port:
+                  type: string
+                machine_key:
+                  type: string
+                machine_port:
+                  type: string
+                machine_user:
+                  type: string
+                provider:
+                  description: The cloud provider.
+                  enum:
+                  - vcloud
+                  - bare_metal
+                  - docker
+                  - libvirt
+                  - openstack
+                  - vsphere
+                  - ec2
+                  - rackspace
+                  - nephoscale
+                  - digitalocean
+                  - softlayer
+                  - gce
+                  - azure
+                  - azure_arm
+                  - linode
+                  - onapp
+                  - hostvirtual
+                  - vultr
+                  type: string
+                remove_on_error:
+                  type: string
+                tenant_name:
+                  type: string
+                title:
+                  description: The human readable title of the cloud.
+                  type: string
+              required:
+              - provider
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/clouds/{cloud}:
+    delete:
+      description: Deletes a cloud with given cloud_id. REMOVE permission required
+        on cloud.
+      parameters:
+      - in: path
+        name: cloud
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Operation
+    patch:
+      description: Updates cloud with given cloud_id. EDIT permission required on
+        cloud. Not all fields need to be specified, only the ones being modified
+      parameters:
+      - in: path
+        name: cloud_id
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Operation
+    post:
+      description: Toggles cloud with given cloud id. EDIT permission required on
+        cloud.
+      parameters:
+      - in: path
+        name: cloud_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                new_state:
+                  enum:
+                  - '0'
+                  - '1'
+                  type: string
+              required:
+              - new_state
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+    put:
+      description: Renames cloud with given cloud_id. EDIT permission required on
+        cloud.
+      parameters:
+      - in: path
+        name: cloud
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                new_name:
+                  description: ' New name for the given cloud'
+                  type: string
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/clouds/{cloud}/dns/zones:
+    get:
+      description: Lists all DNS zones based on the given cloud id. READ permission
+        required on zone.
+      parameters:
+      - in: path
+        name: cloud
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Operation
+    post:
+      description: Creates a new DNS zone under the given cloud. CREATE_RESOURCES
+        permission required on cloud. ADD permission required on zone.
+      parameters:
+      - in: path
+        name: cloud
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/clouds/{cloud}/dns/zones/{zone}:
+    delete:
+      description: Deletes a specific DNS zone under a cloud. REMOVE permission required
+        on zone.
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/clouds/{cloud}/dns/zones/{zone}/records:
+    get:
+      description: Lists all DNS records for a particular zone. READ permission required
+        on zone and record.
+      parameters:
+      - in: path
+        name: cloud
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: zone
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Operation
+    post:
+      description: Creates a new record under a specific zone. CREATE_RESOURCES permission
+        required on cloud. CREATE_RECORDS permission required on zone
+      parameters:
+      - in: path
+        name: cloud
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: zone
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/clouds/{cloud}/dns/zones/{zone}/records/{record}:
+    delete:
+      description: Deletes a specific DNS record under a zone. REMOVE permission required
+        on zone.
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/clouds/{cloud}/images:
+    get:
+      description: List images of specified cloud List images from each cloud. Furthermore
+        if a search_term is provided, we loop through each cloud and search for that
+        term in the ids and the names of the community images READ permission required
+        on cloud.
+      parameters:
+      - in: path
+        name: cloud
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                search_term:
+                  type: string
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+    post:
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/clouds/{cloud}/images/{image}:
+    post:
+      description: Star/unstar an image Toggle image star (star/unstar) EDIT permission
+        required on cloud.
+      parameters:
+      - description: Id of image to be used with the creation
+        in: path
+        name: image
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: cloud
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/clouds/{cloud}/locations:
+    get:
+      description: List locations of cloud List locations from each cloud. Locations
+        mean different things in each cl- oud. e.g. EC2 uses it as a datacenter in
+        a given availability zone, where- as Linode lists availability zones. However
+        all responses share id, name and country even though in some cases might be
+        empty, e.g. Openstack. In E- C2 all locations by a provider have the same
+        name, so the availability zo- nes are listed instead of name. READ permission
+        required on cloud.
+      parameters:
+      - in: path
+        name: cloud
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/clouds/{cloud}/machines:
+    get:
+      description: Lists machines on cloud along with their metadata Check Permissions
+        takes place in filter_list_machines READ permission required on cloud. READ
+        permission required on machine.
+      parameters:
+      - in: path
+        name: cloud
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Operation
+    post:
+      description: Creates one or more machines on the specified cloud. If async is
+        true, a jobId will be returned. READ permission required on cloud. CREATE_RESOURCES
+        permission required on cloud. CREATE permission required on machine. RUN permission
+        required on script. READ permission required on key.
+      parameters:
+      - in: path
+        name: cloud
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                async:
+                  description: ' Create machines asynchronously, returning a jobId'
+                  type: boolean
+                azure_port_bindings:
+                  type: string
+                bare_metal:
+                  description: ' Needed only by SoftLayer cloud'
+                  type: string
+                billing:
+                  description: ' Needed only by SoftLayer cloud'
+                  type: string
+                disk:
+                  description: ' Only required by Linode cloud'
+                  type: string
+                docker_command:
+                  type: string
+                docker_env:
+                  items:
+                    type: string
+                  type: array
+                docker_exposed_ports:
+                  type: object
+                docker_port_bindings:
+                  type: object
+                hostname:
+                  type: string
+                image:
+                  description: ' Id of image to be used with the creation'
+                  type: string
+                image_extra:
+                  description: ' Needed only by Linode cloud'
+                  type: string
+                image_name:
+                  type: string
+                ips:
+                  type: string
+                job_id:
+                  type: string
+                key_id:
+                  description: ' Associate machine with this key_id'
+                  type: string
+                location_id:
+                  description: ' Id of the cloud''s location to create the machine'
+                  type: string
+                location_name:
+                  type: string
+                machine_name:
+                  type: string
+                monitoring:
+                  type: string
+                networks:
+                  items:
+                    type: string
+                  type: array
+                plugins:
+                  items:
+                    type: string
+                  type: array
+                post_script_id:
+                  type: string
+                post_script_params:
+                  type: string
+                project_id:
+                  description: ' Needed only by Packet.net cloud'
+                  type: string
+                quantity:
+                  description: ' The number of machines that will be created, async
+                    only'
+                  type: integer
+                schedule:
+                  type: object
+                script:
+                  type: string
+                script_id:
+                  type: string
+                script_params:
+                  type: string
+                size_id:
+                  description: ' Id of the size of the machine'
+                  type: string
+                size_name:
+                  type: string
+                softlayer_backend_vlan_id:
+                  description: Specify id of a backend(private) vlan
+                  type: integer
+                ssh_port:
+                  type: integer
+              required:
+              - machine_name
+              - image
+              - location_id
+              - size_id
+              - key_id
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/clouds/{cloud}/machines/{machine}:
+    post:
+      description: Calls a machine action on cloud that supports it READ permission
+        required on cloud. ACTION permission required on machine(ACTION can be START,
+        STOP, DESTROY, REBOOT or RESIZE, RENAME for some providers).
+      parameters:
+      - in: path
+        name: machine_uuid
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                action:
+                  enum:
+                  - start
+                  - stop
+                  - reboot
+                  - destroy
+                  - resize
+                  - rename
+                  type: string
+                name:
+                  description: The new name of the renamed machine
+                  type: string
+                size:
+                  description: The size id of the plan to resize
+                  type: string
+              required:
+              - action
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/clouds/{cloud}/machines/{machine}/keys/{key}:
+    delete:
+      description: Disassociates a key from a machine. If host is set it will also
+        attempt to actually remove it from the machine. READ permission required on
+        cloud. DISASSOCIATE_KEY permission required on machine.
+      parameters:
+      - in: path
+        name: machine
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: key
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Operation
+    put:
+      description: Associates a key with a machine. If host is set it will also attempt
+        to actually deploy it to the machine. To do that it requires another key (existing_key)
+        that can connect to the machine. READ permission required on cloud. READ_PRIVATE
+        permission required on key. ASSOCIATE_KEY permission required on machine.
+      parameters:
+      - in: path
+        name: machine
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: key
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                port:
+                  default: 22
+                  type: integer
+                user:
+                  description: The ssh user
+                  type: string
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/clouds/{cloud}/machines/{machine}/metrics:
+    delete:
+      description: Disassociate metric from machine Disassociate metric from specific
+        machine READ permission required on cloud. EDIT_GRAPHS permission required
+        on machine.
+      parameters:
+      - in: path
+        name: machine
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: cloud
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                metric_id:
+                  description: ' Metric_id '
+                  type: string
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+    get:
+      description: Get all metrics associated with specific machine READ permission
+        required on cloud. READ permission required on machine.
+      parameters:
+      - in: path
+        name: machine
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: cloud
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Operation
+    put:
+      description: Associate metric with machine Associate metric with specific machine
+        READ permission required on cloud. EDIT_GRAPHS permission required on machine.
+      parameters:
+      - in: path
+        name: machine
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: cloud
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                metric_id:
+                  description: ' Metric_id '
+                  type: string
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/clouds/{cloud}/machines/{machine}/monitoring:
+    post:
+      description: Enables monitoring for a machine.
+      parameters:
+      - in: path
+        name: machine
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: cloud
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                action:
+                  enum:
+                  - enable
+                  - disable
+                  type: string
+                dns_name:
+                  type: string
+                dry:
+                  default: false
+                  type: boolean
+                name:
+                  description: ' Name of the plugin'
+                  type: string
+                no_ssh:
+                  default: false
+                  type: boolean
+                public_ips:
+                  items:
+                    type: string
+                  type: array
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/clouds/{cloud}/machines/{machine}/plugins/{plugin}:
+    delete:
+      description: Undeploy a plugin on the specific machine. READ permission required
+        on cloud. EDIT_CUSTOM_METRICS required on machine.
+      parameters:
+      - in: path
+        name: machine
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: cloud
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: plugin
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                host:
+                  type: string
+                plugin_type:
+                  default: python
+                  enum:
+                  - python
+                  type: string
+              required:
+              - host
+              - plugin_type
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+    post:
+      description: Deploys a plugin on the specific machine. READ permission required
+        on cloud. EDIT_CUSTOM_METRICS required on machine.
+      parameters:
+      - in: path
+        name: plugin
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: machine
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: cloud
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                name:
+                  type: string
+                plugin_type:
+                  default: python
+                  enum:
+                  - python
+                  type: string
+                read_function:
+                  type: string
+                unit:
+                  type: string
+                value_type:
+                  default: gauge
+                  type: string
+              required:
+              - name
+              - read_function
+              - plugin_type
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/clouds/{cloud}/machines/{machine}/probe:
+    post:
+      description: Probe a machine Ping and SSH to machine and collect various metrics.
+        READ permission required on cloud. READ permission required on machine.
+      parameters:
+      - in: path
+        name: machine
+        required: true
+        schema:
+          type: string
+      - description: ' Optional. Give if you explicitly want a specific user'
+        in: query
+        name: ssh_user
+        required: false
+        schema:
+          default: ''
+          type: string
+      - in: path
+        name: cloud
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                host:
+                  type: string
+                key:
+                  type: string
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/clouds/{cloud}/machines/{machine}/rdp:
+    get:
+      description: Rdp file for windows machines Generates and returns an rdp file
+        for windows machines READ permission required on cloud. READ permission required
+        on machine.
+      parameters:
+      - in: path
+        name: machine
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: rdp_port
+        required: true
+        schema:
+          default: 3389
+          type: integer
+      - in: query
+        name: host
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: cloud
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/clouds/{cloud}/machines/{machine}/stats:
+    get:
+      description: Get monitor data for a machine Get all monitor data for this machine
+        READ permission required on cloud. READ permission required on machine.
+      parameters:
+      - in: query
+        name: metrics
+        required: false
+        schema:
+          default: ''
+          type: string
+      - description: Time formatted as integer, until when to fetch stats (default
+          +10 seconds)
+        in: query
+        name: stop
+        required: false
+        schema:
+          default: ''
+          type: string
+      - in: path
+        name: machine
+        required: true
+        schema:
+          type: string
+      - description: ' Time formatted as integer, from when to fetch stats (default
+          now)'
+        in: query
+        name: start
+        required: false
+        schema:
+          type: string
+      - description: ' Step to fetch stats (default 10 seconds)'
+        in: query
+        name: step
+        required: false
+        schema:
+          default: ''
+          type: string
+      - in: query
+        name: request_id
+        required: false
+        schema:
+          default: ''
+          type: string
+      - in: path
+        name: cloud
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/clouds/{cloud}/machines/{machine}/tags:
+    get:
+      description: Lists tags of a machine READ permission required on CLOUD READ
+        permission required on MACHINE
+      parameters:
+      - in: path
+        name: machine
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: cloud_id
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Operation
+    post:
+      description: Sets tags for a machine, given the cloud and machine id. READ permission
+        required on cloud. EDIT_TAGS permission required on machine.
+      parameters:
+      - in: path
+        name: machine_id
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: cloud_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                tags:
+                  items:
+                    type: object
+                  type: array
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/clouds/{cloud}/machines/{machine}/tags/{tag}:
+    delete:
+      description: Deletes tag in the db for specified resource_type. READ permission
+        required on cloud. EDIT_TAGS permission required on machine.
+      parameters:
+      - in: path
+        name: machine_id
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: cloud_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                tag_key:
+                  type: string
+              required:
+              - tag_key
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/clouds/{cloud}/networks:
+    get:
+      description: Lists networks of a cloud. Currently supports the EC2, GCE and
+        OpenStack providers. For other providers this returns an empty list. READ
+        permission required on cloud.
+      parameters:
+      - in: path
+        name: cloud
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Operation
+    post:
+      description: Creates a new network. If subnet dict is specified, after creating
+        the network it will use the new network's id to create a subnet. CREATE_RESOURCES
+        permission required on cloud.
+      parameters:
+      - description: The Cloud ID
+        in: path
+        name: cloud_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                network:
+                  type: object
+                subnet:
+                  type: object
+              required:
+              - network
+              type: object
+        description: Foo
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/clouds/{cloud}/networks/{network}:
+    delete:
+      description: Deletes a network. CREATE_RESOURCES permission required on cloud.
+      parameters:
+      - in: path
+        name: cloud_id
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: network_id
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Operation
+    post:
+      description: Associates ip with the specific network and machine READ permission
+        required on cloud. EDIT permission required on cloud.
+      parameters:
+      - in: path
+        name: cloud
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: network
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                assign:
+                  default: true
+                  type: boolean
+                ip:
+                  type: string
+                machine:
+                  type: string
+              required:
+              - ip
+              - machine
+              type: object
+        description: Foo
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/clouds/{cloud}/networks/{network}/subnets:
+    get:
+      description: List subnets of a cloud Currently supports the EC2, GCE and OpenStack
+        clouds. For other providers this returns an empty list. READ permission required
+        on cloud.
+      parameters:
+      - description: The DB ID of the network whose subnets will be returned
+        in: path
+        name: network_id
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: cloud
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Operation
+    post:
+      description: Create subnet on a given network on a cloud. CREATE_RESOURCES permission
+        required on cloud.
+      parameters:
+      - description: The ID of the Network that will contain the new subnet
+        in: path
+        name: network_id
+        required: true
+        schema:
+          type: string
+      - description: The Cloud ID
+        in: path
+        name: cloud_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                subnet:
+                  type: object
+              required:
+              - subnet
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/clouds/{cloud}/networks/{network}/subnets/{subnet}:
+    delete:
+      description: Delete a subnet. CREATE_RESOURCES permission required on cloud.
+      parameters:
+      - in: path
+        name: network_id
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: subnet_id
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: cloud_id
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/clouds/{cloud}/sizes:
+    get:
+      description: List sizes of a cloud List sizes (aka flavors) from each cloud.
+        READ permission required on cloud.
+      parameters:
+      - in: path
+        name: cloud
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/dev/orgs/{org_id}/teams/{team_id}:
+    post:
+      description: Add user to team. This method is user by integration tests. It
+        is enabled only if config.ENABLE_DEV_USERS is set to True (False by default).
+      parameters:
+      - in: path
+        name: org
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: team
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/dev/register:
+    post:
+      description: Automatically register users to be used by integration tests. It
+        actually does what dbinit does but through the API. It is enabled only if
+        config.ENABLE_DEV_USERS is set to True (False by default).
+      parameters:
+      - in: path
+        name: name
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: email
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/dev/users:
+    delete:
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/fetch:
+    get:
+      description: A generic API endpoint to perform actions in the absence of AuthContext.
+        The request's params are HMAC-verified and the action performed is based on
+        the context of the params provided
+      parameters:
+      - in: path
+        name: action
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/jobs/{job_id}:
+    delete:
+      description: Ends a running job. Closes/ends an open job. This is very similar
+        to the close_story API endpoint. However, this endpoint may be used to perform
+        additional actions upon closing an open story.
+      parameters:
+      - in: path
+        name: job_id
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Operation
+    get:
+      description: Fetch a story.
+      parameters:
+      - in: path
+        name: job_id
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/keys:
+    delete:
+      description: Deletes multiple keys. Provide a list of key ids to be deleted.
+        The method will try to delete all of them and then return a json that describes
+        for each key id whether or not it was deleted or not_found if the key id could
+        not be located. If no key id was found then a 404(Not Found) response will
+        be returned. REMOVE permission required on each key.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                key_ids:
+                  items:
+                    type: string
+                  type: array
+              required:
+              - key_ids
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+    get:
+      description: Lists all added keys READ permission required on key.
+      responses:
+        '200':
+          description: Successful Operation
+    post:
+      description: Generates key pair
+      responses:
+        '200':
+          description: Successful Operation
+    put:
+      description: Adds key ADD permission required on key.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                certificate:
+                  description: The signed public key, when using signed ssh keys
+                  type: string
+                name:
+                  description: The key's name
+                  type: string
+                priv:
+                  description: The private key
+                  type: string
+              required:
+              - name
+              - priv
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/keys/{key}:
+    delete:
+      description: Deletes a key. When a key gets deleted, it takes its associations
+        with it so just need to remove from the server too. If the default key gets
+        deleted, it sets the next one as default, provided that at least another key
+        exists. It returns the list of all keys after the deletion, excluding the
+        private keys (check also list_keys). REMOVE permission required on key.
+      parameters:
+      - in: path
+        name: key
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Operation
+    post:
+      description: Set default key Sets a new default key EDIT permission required
+        on key.
+      parameters:
+      - description: The key id
+        in: path
+        name: key
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Operation
+    put:
+      description: Edits a given key's name to new_name EDIT permission required on
+        key.
+      parameters:
+      - description: The key id
+        in: path
+        name: key_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                new_name:
+                  description: The new key name
+                  type: string
+              required:
+              - new_name
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/keys/{key}/private:
+    get:
+      description: Gets private key from key name. It is used in single key view when
+        the user clicks the display private key button. READ_PRIVATE permission required
+        on key.
+      parameters:
+      - description: The key id
+        in: path
+        name: key
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/keys/{key}/public:
+    get:
+      description: Gets public key from key name. READ permission required on key.
+      parameters:
+      - description: The key id
+        in: path
+        name: key
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/logs:
+    get:
+      description: Gets the latest logs.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                action:
+                  description: the action described by the log
+                  type: string
+                error:
+                  description: specify whether to fetch logs that contain an error
+                    message
+                  type: boolean
+                event_type:
+                  description: the type of the events to fetch - one of LOG_TYPES
+                    or None
+                  type: string
+                limit:
+                  description: limit the number of logs returned
+                  type: integer
+                newest:
+                  description: the sorting order
+                  type: boolean
+                start:
+                  description: the timestamp of the first log
+                  type: integer
+                stop:
+                  description: the timestamp of the last log in the sequence
+                  type: integer
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/machines:
+    get:
+      description: Lists machines of all clouds Gets machines and their metadata from
+        all clouds Check Permissions take place in filter_list_machines READ permission
+        required on cloud. READ permission required on machine.
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/machines/{machine_uuid}:
+    post:
+      description: Calls a machine action on cloud that supports it READ permission
+        required on cloud. ACTION permission required on machine(ACTION can be START,
+        STOP, DESTROY, REBOOT or RESIZE, RENAME for some providers).
+      parameters:
+      - in: path
+        name: machine_uuid
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                action:
+                  enum:
+                  - start
+                  - stop
+                  - reboot
+                  - destroy
+                  - resize
+                  - rename
+                  type: string
+                name:
+                  description: The new name of the renamed machine
+                  type: string
+                size:
+                  description: The size id of the plan to resize
+                  type: string
+              required:
+              - action
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/machines/{machine_uuid}/keys/{key}:
+    delete:
+      description: Disassociates a key from a machine. If host is set it will also
+        attempt to actually remove it from the machine. READ permission required on
+        cloud. DISASSOCIATE_KEY permission required on machine.
+      parameters:
+      - in: path
+        name: machine
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: key
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Operation
+    put:
+      description: Associates a key with a machine. If host is set it will also attempt
+        to actually deploy it to the machine. To do that it requires another key (existing_key)
+        that can connect to the machine. READ permission required on cloud. READ_PRIVATE
+        permission required on key. ASSOCIATE_KEY permission required on machine.
+      parameters:
+      - in: path
+        name: machine
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: key
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                port:
+                  default: 22
+                  type: integer
+                user:
+                  description: The ssh user
+                  type: string
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/machines/{machine_uuid}/probe:
+    post:
+      description: Probe a machine Ping and SSH to machine and collect various metrics.
+        READ permission required on cloud. READ permission required on machine.
+      parameters:
+      - in: path
+        name: machine
+        required: true
+        schema:
+          type: string
+      - description: ' Optional. Give if you explicitly want a specific user'
+        in: query
+        name: ssh_user
+        required: false
+        schema:
+          default: ''
+          type: string
+      - in: path
+        name: cloud
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                host:
+                  type: string
+                key:
+                  type: string
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/machines/{machine_uuid}/rdp:
+    get:
+      description: Rdp file for windows machines Generates and returns an rdp file
+        for windows machines READ permission required on cloud. READ permission required
+        on machine.
+      parameters:
+      - in: path
+        name: machine
+        required: true
+        schema:
+          type: string
+      - in: query
+        name: rdp_port
+        required: true
+        schema:
+          default: 3389
+          type: integer
+      - in: query
+        name: host
+        required: true
+        schema:
+          type: string
+      - in: path
+        name: cloud
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/metrics/{metric}:
+    put:
+      description: Updates a metric configuration READ permission required on cloud.
+        EDIT_CUSTOM_METRICS required on machine.
+      parameters:
+      - description: ' Metric_id (provided by self.get_stats() )'
+        in: path
+        name: metric
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                cloud_id:
+                  type: string
+                host:
+                  type: string
+                machine_id:
+                  type: string
+                name:
+                  description: Name of the plugin
+                  type: string
+                plugin_type:
+                  type: string
+                unit:
+                  description: ' Optional. If given the new plugin will be measured
+                    according to this unit'
+                  type: string
+              required:
+              - machine_id
+              - cloud_id
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/monitoring:
+    get:
+      description: Check monitoring Ask the mist.api service if monitoring is enabled
+        for this machine.
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/notification-overrides:
+    delete:
+      description: Deletes a notification override.
+      responses:
+        '200':
+          description: Successful Operation
+    get:
+      description: Get notification overrides for user, org policy
+      responses:
+        '200':
+          description: Successful Operation
+    put:
+      description: Sets notification overrides for user, org policy. Count of notification
+        overrides in request must match count of those stored.
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/notification-overrides/{notification_id}:
+    put:
+      description: Adds a notification override with the specified properties
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/notifications/{notification_id}:
+    delete:
+      description: Dismisses specified notification
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/org:
+    get:
+      description: Show user's organization. If user is organization owner then show
+        everything If user is just a member then show just himself as a team member
+        and the name of the organization, the name of the team,
+      responses:
+        '200':
+          description: Successful Operation
+    post:
+      description: Create organization. The user creating it will be assigned to the
+        owners team. For now owner has only org
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                name:
+                  description: The new org  name (id)
+                  type: string
+              required:
+              - name
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/org/{org_id}:
+    get:
+      description: Show organization. Details of org.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                org_id:
+                  description: The org id
+                  type: string
+              required:
+              - org_id
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+    put:
+      description: Edit an organization entry in the db Means rename. Only available
+        to organization owners.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                name:
+                  description: The team's name
+                  type: string
+                org_id:
+                  description: The org's org id
+                  type: string
+              required:
+              - org_id
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/org/{org_id}/teams:
+    delete:
+      description: Delete multiple teams. Provide a list of team ids to be deleted.
+        The method will try to delete all of them and then return a json that describes
+        for each team id whether or not it was deleted or the not_found if the team
+        id could not be located. If no team id was found then a 404(Not Found) response
+        will be returned. Only available to organization owners.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                team_ids:
+                  items:
+                    type: string
+                  type: array
+              required:
+              - team_ids
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+    get:
+      description: List teams of an org. Only available to organization owners.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                org_id:
+                  description: The teams' org id
+                  type: string
+              required:
+              - org_id
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+    post:
+      description: Create new team. Append it at org's teams list. Only available
+        to organization owners.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                name:
+                  description: The new team name
+                  type: string
+              required:
+              - name
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/org/{org_id}/teams/{team_id}:
+    delete:
+      description: Delete a team entry in the db. Only available to organization owners.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                org_id:
+                  description: The team's org id
+                  type: string
+                team_id:
+                  description: The team's id
+                  type: string
+              required:
+              - team_id
+              - org_id
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+    get:
+      description: Show team. Only available to organization owners.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                org_id:
+                  description: The team's org id
+                  type: string
+                team_id:
+                  description: The team's id
+                  type: string
+              required:
+              - org_id
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+    put:
+      description: Edit a team entry in the db Means rename. Only available to organization
+        owners.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                name:
+                  description: The team's name
+                  type: string
+                org_id:
+                  description: The org's org id
+                  type: string
+                team_id:
+                  description: The team's id
+                  type: string
+              required:
+              - team_id
+              - org_id
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/org/{org_id}/teams/{team_id}/members:
+    post:
+      description: 'Invite a member to team. For each user there can be one invitation
+        per organization, but each invitation could be for multiple teams. There are
+        three cases: 1) If user is not a member of the organization: a) If user is
+        registered in the service then an email will be sent with a link to confirm
+        the invitation b) If user is not registered then a new entry will be created
+        and an email will be sent inviting him to set a password and confirm his invitation
+        to the organization 2) User is already a member then add the user directly
+        to the organization and send an email notification about the change in status.
+        Only available to organization owners.'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                emails:
+                  description: The emails of the users to invite
+                  type: string
+                org_id:
+                  description: The team's org id
+                  type: string
+                team_id:
+                  description: The team's id
+                  type: string
+              required:
+              - team_id
+              - org_id
+              - emails
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/org/{org_id}/teams/{team_id}/members/{user_id}:
+    delete:
+      description: Delete a team's member entry from the db. It means remove member
+        from list and save org. Only available to organization owners.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                org_id:
+                  description: The team's org id
+                  type: string
+                team_id:
+                  description: The team's id
+                  type: string
+                user_id:
+                  description: The user's id
+                  type: string
+              required:
+              - org_id
+              - team_id
+              - user_id
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/orgs:
+    get:
+      description: List user's organizations List all the organizations where user
+        is a member
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/ping:
+    get:
+      description: Check that an api token is correct.
+      responses:
+        '200':
+          description: Successful Operation
+    post:
+      description: Check that an api token is correct.
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/providers:
+    get:
+      description: Lists supported providers Return all of our SUPPORTED PROVIDERS
+      parameters:
+      - in: header
+        name: api_version
+        schema:
+          enum:
+          - 1
+          - 2
+          type: integer
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/rule-triggered:
+    put:
+      description: Sets notification overrides for user, org policy. Count of notification
+        overrides in request must match count of those stored.
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/rules:
+    post:
+      description: Creates or updates a rule.
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/rules/{rule}:
+    delete:
+      description: Delete rule Deletes a rule.
+      parameters:
+      - description: ' Rule id '
+        in: path
+        name: rule
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/schedules:
+    get:
+      description: Lists user schedules entries, order by _id READ permission required
+        on schedules
+      responses:
+        '200':
+          description: Successful Operation
+    post:
+      description: Adds an entry to user schedules Add permission required on schedule.
+        RUN_SCRIPT permission required on machine. RUN permission required on script.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                action:
+                  type: string
+                expires:
+                  description: expiration date
+                  type: string
+                machines_tags:
+                  description: list of machines_tags
+                  type: array
+                machines_uuids:
+                  description: list of machines_uuids
+                  type: array
+                name:
+                  description: schedule name
+                  type: string
+                params:
+                  type: string
+                run_immediately:
+                  description: run immediately only  the first time
+                  type: boolean
+                schedule_entry:
+                  description: period of time
+                  type: object
+                schedule_type:
+                  description: three different types, interval, crontab, one_off
+                  type: string
+                script_id:
+                  type: string
+                task_enabled:
+                  description: schedule is ready to run
+                  type: boolean
+              required:
+              - machines_uuids
+              - machines_tags
+              - name
+              - schedule_type
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/schedules/{schedule_id}:
+    delete:
+      description: Deletes a schedule entry of a user REMOVE permission required on
+        schedule
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                schedule_id:
+                  type: string
+              required:
+              - schedule_id
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+    get:
+      description: Show details of schedule READ permission required on schedule
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                schedule_id:
+                  type: string
+              required:
+              - schedule_id
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+    patch:
+      description: Edit a schedule entry EDIT permission required on schedule RUN_SCRIPT
+        permission required on machine. RUN permission required on script.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                action:
+                  type: string
+                enabled:
+                  description: schedule is ready to run
+                  type: boolean
+                expires:
+                  description: expiration date
+                  type: string
+                machines_tags:
+                  description: list of machines_tags
+                  type: array
+                machines_uuids:
+                  description: list of machines_uuids
+                  type: array
+                name:
+                  description: schedule name
+                  type: string
+                params:
+                  type: string
+                run_immediately:
+                  description: run immediately only  the first time
+                  type: boolean
+                schedule_entry:
+                  description: period of time
+                  type: object
+                schedule_id:
+                  type: string
+                schedule_type:
+                  description: three different types, interval, crontab, one_off
+                  type: string
+                script_id:
+                  type: string
+              required:
+              - machines_uuids
+              - machines_tags
+              - name
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/scripts:
+    delete:
+      description: Deletes multiple scripts. Provide a list of script ids to be deleted.
+        The method will try to delete all of them and then return a json that describes
+        for each script id whether or not it was deleted or the not_found if the script
+        id could not be located. If no script id was found then a 404(Not Found) response
+        will be returned. REMOVE permission required on each script.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                script_ids:
+                  items:
+                    type: string
+                  type: array
+              required:
+              - script_ids
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+    get:
+      description: Lists user scripts READ permission required on each script.
+      responses:
+        '200':
+          description: Successful Operation
+    post:
+      description: Add script to user scripts ADD permission required on SCRIPT
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                entrypoint:
+                  type: string
+                exec_type:
+                  type: string
+                extra:
+                  type: object
+                location_type:
+                  type: string
+                name:
+                  type: string
+                script:
+                  type: string
+                script_github:
+                  type: string
+                script_inline:
+                  type: string
+                script_url:
+                  type: string
+              required:
+              - name
+              - exec_type
+              - location_type
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/scripts/{script_id}:
+    delete:
+      description: Deletes script REMOVE permission required on script.
+      parameters:
+      - in: path
+        name: script_id
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Operation
+    get:
+      description: Show script details and job history. READ permission required on
+        script.
+      parameters:
+      - in: path
+        name: script_id
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Operation
+    post:
+      description: Start a script job to run the script. READ permission required
+        on cloud. RUN_SCRIPT permission required on machine. RUN permission required
+        on script.
+      parameters:
+      - in: path
+        name: script_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                env:
+                  type: string
+                job_id:
+                  type: string
+                machine_uuid:
+                  type: string
+                params:
+                  type: string
+                su:
+                  type: boolean
+              required:
+              - machine_uuid
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+    put:
+      description: Edit script (rename only as for now) EDIT permission required on
+        script.
+      parameters:
+      - in: path
+        name: script_id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                new_description:
+                  type: string
+                new_name:
+                  type: string
+              required:
+              - new_name
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/scripts/{script_id}/file:
+    get:
+      description: Download script file or archive. READ permission required on script.
+      parameters:
+      - in: path
+        name: script_id
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/scripts/{script_id}/url:
+    get:
+      description: Returns to a mist authenticated user, a self-auth/signed url for
+        fetching a script's file. READ permission required on script.
+      parameters:
+      - in: path
+        name: script_id
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/sessions:
+    delete:
+      description: Revoke an active session
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                id:
+                  description: Session ID
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+    get:
+      description: Lists active sessions
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/stories/{story_id}:
+    delete:
+      description: Close an open story.
+      parameters:
+      - in: path
+        name: story_id
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/tags:
+    post:
+      description: Batch operation for adding/removing tags from a list of resources.
+        This api call provides the ability to modify the tags of a large number of
+        resources. For each resource a list of dicts is passed with a key, a value
+        and optionally an op field. The op field should be either '+' or '-' and defines
+        whether or not the tag should be added or removed from the resource. If no
+        op value is defined in the dict then '+' is assumed.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                resource:
+                  type: object
+                tags:
+                  type: array
+              required:
+              - resource
+              - tags
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/tokens:
+    delete:
+      description: Revokes api token
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                id:
+                  description: Api token ID
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+    get:
+      description: Lists user's api tokens
+      responses:
+        '200':
+          description: Successful Operation
+    post:
+      description: Creates a new api token Used so that a user can send his credentials
+        and produce a new api token. The api token itself will be returned in a json
+        document along with it's id and it's name. If user has used su then he should
+        provide his own credentials. However, the api token will authenticate the
+        user he is impersonating. If name is not sent then a random one with the format
+        api_token_xyz where xyz is a number will be produced. If the user provides
+        a name then there must be no other token for that user with the same name.
+        If the user has a cookie or sends an api token in the request headers then
+        the username and password must belong to him. Used by io to authenticate to
+        core (when running separately. Io sends user's email and password. We return
+        an access token that will be used to authenticate any further communications.
+        An anti-CSRF token is not needed to access this api call. If user is coming
+        from oauth then he will be able to create a new token without a password provided
+        he is authenticated somehow. If you are using the /auth route please switch
+        to /api_v1_tokens route. The /auth route is deprecated.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                email:
+                  description: User's email
+                  type: string
+                name:
+                  description: Api token name
+                  type: string
+                org_id:
+                  description: Org id if this token is to be used in organizational
+                    context
+                  type: string
+                password:
+                  description: User's password
+                  type: string
+                ttl:
+                  description: Time to live for the token
+                  type: integer
+              required:
+              - password
+              type: object
+        required: true
+      responses:
+        '200':
+          description: Successful Operation
+  /api/v1/whitelist:
+    post:
+      description: Whitelist IPs for specified user.
+      responses:
+        '200':
+          description: Successful Operation
