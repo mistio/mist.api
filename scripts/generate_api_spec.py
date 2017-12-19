@@ -1,39 +1,44 @@
-#!/usr/bin/env python
-
 import sys
 import yaml
 import re
 import os
+import logging
+import mist.api
+
+log = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 this_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(this_dir)
-paths = ['src','libcloud','celerybeat-mongo']
+paths = ['src', 'libcloud', 'celerybeat-mongo']
 for p in paths:
-    sys.path.append(os.path.join(parent_dir,p))
 
-import mist.api
+    sys.path.append(os.path.join(parent_dir, p))
+BASE_FILE_PATH = os.path.join(this_dir, 'base.yml')
+OAS_FILE_PATH = os.path.join(this_dir, 'spec.yml')
 
-BASE_FILE_PATH = os.path.join(this_dir,'base.yml')
-OAS_FILE_PATH = os.path.join(this_dir,'spec.yml')
 
 def patch_operation(operation):
     ret = {}
-    if 'responses' in operation.keys():
-        ret['responses'] = operation['responses']
+    if operation.keys():
+        if 'responses' in operation.keys():
+            ret['responses'] = operation['responses']
+        else:
+            ret['responses'] = {'200': {'description': 'Foo'}}
     else:
-        ret['responses'] = { '200': { 'description': 'Foo' } }
+        ret['responses'] = {'200': {'description': 'Foo'}}
 
     if 'parameters' in operation.keys():
         ret['parameters'] = operation['parameters']
     else:
         params = []
-        for key in list(set(operation.keys()) - {'parameters','requestBody','responses','description'}):
+        for key in list(set(operation.keys()) - {'parameters', 'requestBody', 'responses', 'description'}):
             if 'in' in operation[key].keys():
                 p = {}
                 p['name'] = key
                 p['schema'] = {}
                 for k in operation[key].keys():
-                    if k in ['type','enum','default']:
+                    if k in ['type', 'enum', 'default']:
                         p['schema'][k] = operation[key][k]
                     else:
                         p[k] = operation[key][k]
@@ -44,23 +49,21 @@ def patch_operation(operation):
     if 'requestBody' in operation.keys():
         ret['requestBody'] = operation['requestBody']
     else:
-        reqB = {\
-                 'description': 'Description',\
-                 'required': True,\
-                 'content': {\
-                    'application/json': {\
-                                    'schema': {\
-                                        'type': 'object',\
-                                        'properties': {},\
-                                              }\
-                                        }\
-                            }\
+        reqB = {'description': 'Description',
+                'required': True,
+                'content': {'application/json': {
+                                                 'schema': {
+                                                            'type': 'object',
+                                        'properties': {},
+                                              }
+                                        }
+                            }
                 }
         properties = {}
         required = []
-        for key in list(set(operation.keys()) - {'parameters','requestBody','responses','description'}):
+        for key in list(set(operation.keys()) - {'parameters', 'requestBody', 'responses', 'description'}):
             if not 'in' in operation[key].keys():
-                p = { key: {} }
+                p = {key: {}}
                 for k in operation[key].keys():
                     if k != 'required':
                         p[key][k] = operation[key][k]
@@ -75,6 +78,7 @@ def patch_operation(operation):
 
     return ret
 
+
 def docstring_to_object(docstring):
     if not docstring:
         return {}
@@ -85,9 +89,11 @@ def docstring_to_object(docstring):
         operation = yaml.safe_load(tokens[1]) or {}
 
     description = re.sub(r'\s+',r' ',tokens[0]).strip()
+
     operation['description'] = description
 
     return operation
+
 
 def main():
     routes = []
@@ -99,7 +105,10 @@ def main():
         if route_name:
             route_path = app.routes_mapper.get_route(route_name).path
             if route_path and route_name.startswith('api_v1_'):
-                operation = docstring_to_object(func.func_doc)
+                try:
+                    operation = docstring_to_object(func.func_doc)
+                except:
+                    log.info(operation)
                 if isinstance(request_method,tuple):
                     for method in request_method:
                         routes.append((route_path, method.lower(), operation))
@@ -111,6 +120,7 @@ def main():
             paths[path] = {}
         paths[path][method] = patch_operation(operation)
 
+    import ipdb; ipdb.set_trace()
     with open(BASE_FILE_PATH,'r') as f:
         openapi = yaml.safe_load(f.read())
         openapi['paths'] = paths
@@ -118,6 +128,7 @@ def main():
         noalias_dumper = yaml.dumper.SafeDumper
         noalias_dumper.ignore_aliases = lambda self, data: True
         yaml.dump(openapi,f,default_flow_style=False,Dumper=noalias_dumper)
+
 
 if __name__ == '__main__':
     main()
