@@ -2,11 +2,7 @@ import sys
 import yaml
 import re
 import os
-import logging
 import mist.api
-
-log = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
 
 this_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(this_dir)
@@ -20,13 +16,10 @@ OAS_FILE_PATH = os.path.join(this_dir, 'spec.yml')
 
 def patch_operation(operation):
     ret = {}
-    if operation.keys():
-        if 'responses' in operation.keys():
-            ret['responses'] = operation['responses']
-        else:
-            ret['responses'] = {'200': {'description': 'Foo'}}
+    if operation.keys() and 'responses' in operation.keys():
+        ret['responses'] = operation['responses']
     else:
-        ret['responses'] = {'200': {'description': 'Foo'}}
+            ret['responses'] = {'200': {'description': 'Successful Operation'}}
 
     if 'parameters' in operation.keys():
         ret['parameters'] = operation['parameters']
