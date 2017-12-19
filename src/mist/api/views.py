@@ -702,6 +702,8 @@ def reset_password(request):
 @view_config(route_name='request_whitelist_ip', request_method='POST')
 def request_whitelist_ip(request):
     """
+    Tags: ip_whitelisting
+    ---
     User logs in successfully but it's from a non-whitelisted ip.
     They click on a link 'whitelist current ip', which sends an email
     to their account.
@@ -743,6 +745,8 @@ def request_whitelist_ip(request):
 @view_config(route_name='confirm_whitelist', request_method=('GET'))
 def confirm_whitelist(request):
     """
+    Tags: ip_whitelisting
+    ---
     User tries to login successfully but from a non-whitelisted IP.
     They get a link to request whitelisting their current IP and an email
     with a link is sent to their email address.
@@ -947,6 +951,8 @@ def confirm_invitation(request):
 @view_config(route_name='api_v1_user_whitelist_ip', request_method='POST', renderer='json')
 def whitelist_ip(request):
     """
+    Tags: ip_whitelisting
+    ---
     Whitelist IPs for specified user.
     """
     auth_context = auth_context_from_request(request)
@@ -971,10 +977,12 @@ def list_specific_images(request):
 @view_config(route_name='api_v1_images', request_method='GET', renderer='json')
 def list_images(request):
     """
-    List images of specified cloud
+    Tags: images
+    ---
+    List images of specified cloud.
     List images from each cloud. Furthermore if a search_term is provided, we
     loop through each cloud and search for that term in the ids and the names
-    of the community images
+    of the community images.
     READ permission required on cloud.
     ---
     cloud:
@@ -1002,8 +1010,10 @@ def list_images(request):
 @view_config(route_name='api_v1_image', request_method='POST', renderer='json')
 def star_image(request):
     """
-    Star/unstar an image
-    Toggle image star (star/unstar)
+    Tags: images
+    ---
+    Star/unstar an image.
+    Toggle image star (star/unstar).
     EDIT permission required on cloud.
     ---
     cloud:
@@ -1026,7 +1036,8 @@ def star_image(request):
 @view_config(route_name='api_v1_sizes', request_method='GET', renderer='json')
 def list_sizes(request):
     """
-    List sizes of a cloud
+    Tags: sizes
+    ---
     List sizes (aka flavors) from each cloud.
     READ permission required on cloud.
     ---
@@ -1044,7 +1055,8 @@ def list_sizes(request):
 @view_config(route_name='api_v1_locations', request_method='GET', renderer='json')
 def list_locations(request):
     """
-    List locations of cloud
+    Tags: locations
+    ---
     List locations from each cloud. Locations mean different things in each cl-
     oud. e.g. EC2 uses it as a datacenter in a given availability zone, where-
     as Linode lists availability zones. However all responses share id, name
@@ -1067,7 +1079,9 @@ def list_locations(request):
 @view_config(route_name='api_v1_subnets', request_method='GET', renderer='json')
 def list_subnets(request):
     """
-    List subnets of a cloud
+    Tags: networks
+    ---
+    List subnets of a cloud.
     Currently supports the EC2, GCE and OpenStack clouds.
     For other providers this returns an empty list.
     READ permission required on cloud.
@@ -1106,6 +1120,8 @@ def list_subnets(request):
 @view_config(route_name='api_v1_subnets', request_method='POST', renderer='json')
 def create_subnet(request):
     """
+    Tags: networks
+    ---
     Create subnet on a given network on a cloud.
     CREATE_RESOURCES permission required on cloud.
     ---
@@ -1151,7 +1167,9 @@ def create_subnet(request):
 @view_config(route_name='api_v1_subnet', request_method='DELETE')
 def delete_subnet(request):
     """
-    Delete a subnet.
+    Tags: networks
+    ---
+    Deletes a subnet.
     CREATE_RESOURCES permission required on cloud.
     ---
     cloud_id:
@@ -1202,7 +1220,9 @@ def delete_subnet(request):
 @view_config(route_name='api_v1_probe', request_method='POST', renderer='json')
 def probe(request):
     """
-    Probe a machine
+    Tags: machines
+    ---
+    Probes a machine.
     Ping and SSH to machine and collect various metrics.
     READ permission required on cloud.
     READ permission required on machine.
@@ -1843,7 +1863,9 @@ def delete_rule(request):
 @view_config(route_name='api_v1_providers', request_method='GET', renderer='json')
 def list_supported_providers(request):
     """
-    Lists supported providers
+    Tags: providers
+    ---
+    Lists supported providers.
     Return all of our SUPPORTED PROVIDERS
     ---
     api_version:
@@ -1930,7 +1952,9 @@ def delete_avatar(request):
 @view_config(route_name='api_v1_orgs', request_method='GET', renderer='json')
 def list_user_organizations(request):
     """
-    List user's organizations
+    Tags: organizations
+    ---
+    List user's organizations.
     List all the organizations where user is a member
     """
     try:
@@ -1945,7 +1969,9 @@ def list_user_organizations(request):
 @view_config(route_name='api_v1_org', request_method='POST', renderer='json')
 def create_organization(request):
     """
-    Create organization.
+    Tags: organizations
+    ---
+    Creates organization.
     The user creating it will be assigned to the
     owners team. For now owner has only org
     ---
@@ -1994,6 +2020,8 @@ def create_organization(request):
 @view_config(route_name='api_v1_org', request_method='GET', renderer='json')
 def show_user_organization(request):
     """
+    Tags: organizations
+    ---
     Show user's organization.
     If user is organization owner then show everything
     If user is just a member then show just himself as a team member and the
@@ -2054,6 +2082,8 @@ def show_user_pending_invitations(request):
 @view_config(route_name='api_v1_org_info', request_method='GET', renderer='json')
 def show_organization(request):
     """
+    Tags: organizations
+    ---
     Show organization.
     Details of org.
     ---
@@ -2078,18 +2108,20 @@ def show_organization(request):
 @view_config(route_name='api_v1_org_info', request_method='PUT', renderer='json')
 def edit_organization(request):
     """
-        Edit an organization entry in the db
-        Means rename.
-        Only available to organization owners.
-        ---
-        org_id:
-          description: The org's org id
-          type: string
-          required: true
-        name:
-          description: The team's name
-          type: string
-        """
+    Tags: organizations
+    ---
+    Edit an organization entry in the db
+    Means rename.
+    Only available to organization owners.
+    ---
+    org_id:
+      description: The org's org id
+      type: string
+      required: true
+    name:
+      description: The team's name
+      type: string
+    """
     auth_context = auth_context_from_request(request)
 
     if not auth_context.is_owner():
@@ -2146,7 +2178,9 @@ def edit_organization(request):
 @view_config(route_name='api_v1_teams', request_method='POST', renderer='json')
 def add_team(request):
     """
-    Create new team.
+    Tags: teams
+    ---
+    Creates new team.
     Append it at org's teams list.
     Only available to organization owners.
     ---
@@ -2200,6 +2234,8 @@ def add_team(request):
 @view_config(route_name='api_v1_team', request_method='GET', renderer='json')
 def show_team(request):
     """
+    Tags: teams
+    ---
     Show team.
     Only available to organization owners.
     ---
@@ -2234,7 +2270,9 @@ def show_team(request):
 @view_config(route_name='api_v1_teams', request_method='GET', renderer='json')
 def list_teams(request):
     """
-    List teams of an org.
+    Tags: teams
+    ---
+    Lists teams of an org.
     Only available to organization owners.
     ---
     org_id:
@@ -2269,8 +2307,9 @@ def list_teams(request):
 @view_config(route_name='api_v1_team', request_method='PUT', renderer='json')
 def edit_team(request):
     """
-    Edit a team entry in the db
-    Means rename.
+    Tags: teams
+    ---
+    Renames a team entry in the db.
     Only available to organization owners.
     ---
     org_id:
@@ -2335,7 +2374,9 @@ def edit_team(request):
 @view_config(route_name='api_v1_team', request_method='DELETE', renderer='json')
 def delete_team(request):
     """
-    Delete a team entry in the db.
+    Tags: teams
+    ---
+    Deletes a team entry in the db.
     Only available to organization owners.
     ---
     org_id:
@@ -2385,7 +2426,9 @@ def delete_team(request):
 @view_config(route_name='api_v1_teams', request_method='DELETE', renderer='json')
 def delete_teams(request):
     """
-    Delete multiple teams.
+    Tags: teams
+    ---
+    Deletes multiple teams.
     Provide a list of team ids to be deleted. The method will try to delete
     all of them and then return a json that describes for each team id
     whether or not it was deleted or the not_found if the team id could not
@@ -2458,6 +2501,8 @@ def delete_teams(request):
 @view_config(route_name='api_v1_team_members', request_method='POST', renderer='json')
 def invite_member_to_team(request):
     """
+    Tags: teams
+    ---
     Invite a member to team.
     For each user there can be one invitation per organization, but each
     invitation could be for multiple teams.
@@ -2635,6 +2680,8 @@ def invite_member_to_team(request):
 @view_config(route_name='api_v1_team_member', request_method='DELETE', renderer='json')
 def delete_member_from_team(request):
     """
+    Tags: teams
+    ---
     Delete a team's member entry from the db.
     It means remove member from list and save org.
     Only available to organization owners.
