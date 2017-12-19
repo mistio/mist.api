@@ -29,6 +29,8 @@ OK = Response("OK", 200)
 @view_config(route_name='api_v1_tokens', request_method='GET', renderer='json')
 def list_tokens(request):
     """
+    Tags: api_tokens
+    ---
     Lists user's api tokens
     ---
     """
@@ -61,6 +63,8 @@ def list_tokens(request):
 @view_config(route_name='api_v1_tokens', request_method='POST', renderer='json')
 def create_token(request):
     """
+    Tags: api_tokens
+    ---
     Creates a new api token
     Used so that a user can send his credentials and produce a new api token.
     The api token itself will be returned in a json document along with it's
@@ -183,6 +187,8 @@ def create_token(request):
 @view_config(route_name='api_v1_sessions', request_method='GET', renderer='json')
 def list_sessions(request):
     """
+    Tags: sessions
+    ---
     Lists active sessions
     ---
     """
@@ -218,6 +224,8 @@ def list_sessions(request):
 @view_config(route_name='api_v1_tokens', request_method='DELETE')
 def revoke_token(request):
     """
+    Tags: api_tokens
+    ---
     Revokes api token
     ---
     id:
@@ -230,6 +238,8 @@ def revoke_token(request):
 @view_config(route_name='api_v1_sessions', request_method='DELETE')
 def revoke_session(request):
     """
+    Tags: sessions
+    ---
     Revoke an active session
     ---
     id:

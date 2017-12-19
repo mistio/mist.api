@@ -25,7 +25,9 @@ OK = Response("OK", 200)
 @view_config(route_name='api_v1_keys', request_method='GET', renderer='json')
 def list_keys(request):
     """
-    Lists all added keys
+    Tags: keys
+    ---
+    Lists all added keys.
     READ permission required on key.
     ---
     """
@@ -36,7 +38,9 @@ def list_keys(request):
 @view_config(route_name='api_v1_keys', request_method='PUT', renderer='json')
 def add_key(request):
     """
-    Adds key
+    Tags: keys
+    ---
+    Adds key.
     ADD permission required on key.
     ---
     name:
@@ -88,6 +92,8 @@ def add_key(request):
              renderer='json')
 def delete_key(request):
     """
+    Tags: keys
+    ---
     Deletes a key. When a key gets deleted, it takes its associations with it
     so just need to remove from the server too. If the default key gets
     deleted, it sets the next one as default, provided that at least another
@@ -120,6 +126,8 @@ def delete_key(request):
              request_method='DELETE', renderer='json')
 def delete_keys(request):
     """
+    Tags: keys
+    ---
     Deletes multiple keys.
     Provide a list of key ids to be deleted. The method will try to delete
     all of them and then return a json that describes for each key id
@@ -174,7 +182,9 @@ def delete_keys(request):
              renderer='json')
 def edit_key(request):
     """
-    Edits a given key's name to new_name
+    Tags: keys
+    ---
+    Edits a given key's name to new_name.
     EDIT permission required on key.
     ---
     new_name:
@@ -208,8 +218,9 @@ def edit_key(request):
 @view_config(route_name='api_v1_key_action', request_method='POST')
 def set_default_key(request):
     """
-    Set default key
-    Sets a new default key
+    Tags: keys
+    ---
+    Sets a new default key.
     EDIT permission required on key.
     ---
     key:
@@ -237,6 +248,8 @@ def set_default_key(request):
              renderer='json')
 def get_private_key(request):
     """
+    Tags: keys
+    ---
     Gets private key from key name.
     It is used in single key view when the user clicks the display private key
     button.
@@ -268,6 +281,8 @@ def get_private_key(request):
              renderer='json')
 def get_public_key(request):
     """
+    Tags: keys
+    ---
     Gets public key from key name.
     READ permission required on key.
     ---
@@ -295,6 +310,8 @@ def get_public_key(request):
 @view_config(route_name='api_v1_keys', request_method='POST', renderer='json')
 def generate_key(request):
     """
+    Tags: keys
+    ---
     Generates key pair
     ---
     """
@@ -309,6 +326,8 @@ def generate_key(request):
              renderer='json')
 def associate_key(request):
     """
+    Tags: keys
+    ---
     Associates a key with a machine. If host is set it will also attempt to
     actually deploy it to the machine. To do that it requires another key
     (existing_key) that can connect to the machine.
@@ -398,6 +417,8 @@ def associate_key(request):
              request_method='DELETE', renderer='json')
 def disassociate_key(request):
     """
+    Tags: keys
+    ---
     Disassociates a key from a machine. If host is set it will also attempt to
     actually remove it from the machine.
     READ permission required on cloud.

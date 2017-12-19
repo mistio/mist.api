@@ -29,6 +29,8 @@ OK = Response("OK", 200)
 @view_config(route_name='api_v1_clouds', request_method='GET', renderer='json')
 def list_clouds(request):
     """
+    Tags: clouds
+    ---
     Lists all added clouds.
     READ permission required on cloud.
     ---
@@ -43,7 +45,9 @@ def list_clouds(request):
              request_method='POST', renderer='json')
 def add_cloud(request):
     """
-    Adds a new cloud and returns the cloud's id
+    Tags: clouds
+    ---
+    Adds a new cloud and returns the cloud's id.
     ADD permission required on cloud.
     ---
     api_key:
@@ -135,6 +139,8 @@ def add_cloud(request):
 @view_config(route_name='api_v1_cloud_action', request_method='DELETE')
 def delete_cloud(request):
     """
+    Tags: clouds
+    ---
     Deletes a cloud with given cloud_id.
     REMOVE permission required on cloud.
     ---
@@ -157,6 +163,8 @@ def delete_cloud(request):
 @view_config(route_name='api_v1_cloud_action', request_method='PUT')
 def rename_cloud(request):
     """
+    Tags: clouds
+    ---
     Renames cloud with given cloud_id.
     EDIT permission required on cloud.
     ---
@@ -188,6 +196,8 @@ def rename_cloud(request):
 @view_config(route_name='api_v1_cloud_action', request_method='PATCH')
 def update_cloud(request):
     """
+    Tags: clouds
+    ---
     Updates cloud with given cloud_id.
     EDIT permission required on cloud.
     Not all fields need to be specified, only the ones being modified
@@ -238,6 +248,8 @@ def update_cloud(request):
 @view_config(route_name='api_v1_cloud_action', request_method='POST')
 def toggle_cloud(request):
     """
+    Tags: clouds
+    ---
     Toggles cloud with given cloud id.
     EDIT permission required on cloud.
     ---
