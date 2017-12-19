@@ -51,9 +51,7 @@ def patch_operation(operation):
     else:
         reqB = {'description': 'Description',
                 'required': True,
-                'content': {'application/json': {
-                                                 'schema': {
-                                                            'type': 'object',
+                'content': {'application/json': {'schema': {'type': 'object',
                                         'properties': {},
                                               }
                                         }
@@ -109,25 +107,24 @@ def main():
                     operation = docstring_to_object(func.func_doc)
                 except:
                     log.info(operation)
-                if isinstance(request_method,tuple):
+                if isinstance(request_method, tuple):
                     for method in request_method:
                         routes.append((route_path, method.lower(), operation))
                 else:
                     routes.append((route_path, request_method.lower(), operation))
 
     for path, method, operation in routes:
-        if not path in paths:
+        if path not in paths:
             paths[path] = {}
         paths[path][method] = patch_operation(operation)
 
-    import ipdb; ipdb.set_trace()
-    with open(BASE_FILE_PATH,'r') as f:
+    with open(BASE_FILE_PATH, 'r') as f:
         openapi = yaml.safe_load(f.read())
         openapi['paths'] = paths
-    with open(OAS_FILE_PATH,'w') as f:
+    with open(OAS_FILE_PATH, 'w') as f:
         noalias_dumper = yaml.dumper.SafeDumper
         noalias_dumper.ignore_aliases = lambda self, data: True
-        yaml.dump(openapi,f,default_flow_style=False,Dumper=noalias_dumper)
+        yaml.dump(openapi, f, default_flow_style=False, Dumper=noalias_dumper)
 
 
 if __name__ == '__main__':
