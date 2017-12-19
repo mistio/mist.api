@@ -13,9 +13,9 @@ BASE_FILE_PATH = os.path.join(this_dir, 'base.yml')
 OAS_FILE_PATH = os.path.join(this_dir, 'spec.yml')
 
 
-# cleanup
-
 # fix stupid thing that looks for 'in' to check params
+
+# cleanup
 
 # manual_check
 
@@ -24,7 +24,9 @@ OAS_FILE_PATH = os.path.join(this_dir, 'spec.yml')
 
 def extract_params_from_operation(operation):
     params = []
-    for key in list(set(operation.keys()) - {'parameters', 'requestBody', 'responses', 'description', 'tags'}):
+    for key in list(set(operation.keys()) - {'parameters', 'requestBody',
+                                             'responses', 'description',
+                                             'tags'}):
         if 'in' in operation[key].keys():
             p = {}
             p['name'] = key
@@ -61,7 +63,7 @@ def patch_operation(operation):
 
     if 'requestBody' in operation.keys():
         ret['requestBody'] = operation['requestBody']
-    
+
     return ret
 
 
@@ -98,7 +100,9 @@ def main():
     app = mist.api.main({}).app.app
     for v in app.registry.introspector.get_category('views'):
         vi = v['introspectable']
-        (route_name, request_method, func) = (vi['route_name'], vi['request_methods'], vi['callable'])
+        (route_name, request_method, func) = (vi['route_name'],
+                                              vi['request_methods'],
+                                              vi['callable'])
         if route_name:
             route_path = app.routes_mapper.get_route(route_name).path
             if route_path and route_name.startswith('api_v1_') and not\
@@ -111,7 +115,8 @@ def main():
                     for method in request_method:
                         routes.append((route_path, method.lower(), operation))
                 else:
-                    routes.append((route_path, request_method.lower(), operation))
+                    routes.append((route_path, request_method.lower(),
+                                   operation))
 
     for path, method, operation in routes:
         if path not in paths:
