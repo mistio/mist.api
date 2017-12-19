@@ -100,7 +100,7 @@ def main():
         (route_name, request_method, func) = (vi['route_name'], vi['request_methods'], vi['callable'])
         if route_name:
             route_path = app.routes_mapper.get_route(route_name).path
-            if route_path and route_name.startswith('api_v1_'):
+            if route_path and route_name.startswith('api_v1_') and not route_name.startswith('api_v1_dev'):
                 try:
                     operation = docstring_to_object(func.func_doc)
                 except:
