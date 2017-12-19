@@ -61,26 +61,7 @@ def patch_operation(operation):
 
     if 'requestBody' in operation.keys():
         ret['requestBody'] = operation['requestBody']
-    else:
-        requestBody = {'required': True,
-                       'content': {'application/json': {'schema': {'type': 'object', 'properties': {}}}}}
-        properties = {}
-        required = []
-        for key in list(set(operation.keys()) - {'parameters', 'requestBody', 'responses', 'description', 'tags'}):
-            if operation[key].keys() and 'in' not in operation[key].keys():
-                p = {key: {}}
-                for k in operation[key].keys():
-                    if k != 'required':
-                        p[key][k] = operation[key][k]
-                properties.update(p)
-                if 'required' in operation[key] and operation[key]['required']:
-                    required.append(key)
-        if properties:
-            requestBody['content']['application/json']['schema']['properties'] = properties
-            if required:
-                requestBody['content']['application/json']['schema']['required'] = required
-            ret['requestBody'] = requestBody
-
+    
     return ret
 
 
