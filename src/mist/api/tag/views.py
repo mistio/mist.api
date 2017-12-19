@@ -34,6 +34,8 @@ OK = Response("OK", 200)
 @view_config(route_name='api_v1_tags', request_method='POST', renderer='json')
 def tag_resources(request):
     """
+    Tags: tags
+    ---
     Batch operation for adding/removing tags from a list of resources.
     This api call provides the ability to modify the tags of a large number
     of resources. For each resource a list of dicts is passed with a key, a
@@ -144,7 +146,9 @@ def tag_resources(request):
 @view_config(route_name='cloud_tags', request_method='GET', renderer='json')
 def get_cloud_tags(request):
     """
-    Lists tags of a cloud
+    Tags: tags
+    ---
+    Lists tags of a cloud.
     READ permission required on CLOUD
     ---
     cloud_id:
@@ -165,8 +169,10 @@ def get_cloud_tags(request):
              renderer='json')
 def get_machine_tags(request):
     """
-    Lists tags of a machine
-    READ permission required on CLOUD
+    Tags: tags
+    ---
+    Lists tags of a machine.
+    READ permission required on CLOUD.
     READ permission required on MACHINE
     ---
     cloud_id:
@@ -194,7 +200,9 @@ def get_machine_tags(request):
 @view_config(route_name='script_tags', request_method='GET', renderer='json')
 def get_script_tags(request):
     """
-    Lists tags of a script
+    Tags: tags
+    ---
+    Lists tags of a script.
     READ permission required on SCRIPT
     ---
     script_id:
@@ -214,7 +222,9 @@ def get_script_tags(request):
 @view_config(route_name='schedule_tags', request_method='GET', renderer='json')
 def get_schedule_tags(request):
     """
-    Lists tags of a schedule
+    Tags: tags
+    ---
+    Lists tags of a schedule.
     READ permission required on SCHEDULE
     ---
     schedule_id:
@@ -234,7 +244,9 @@ def get_schedule_tags(request):
 @view_config(route_name='key_tags', request_method='GET', renderer='json')
 def get_key_tags(request):
     """
-    Lists tags of an ssh keypair
+    Tags: tags
+    ---
+    Lists tags of an ssh keypair.
     READ permission required on KEY
     ---
     key_id:
@@ -254,8 +266,10 @@ def get_key_tags(request):
 @view_config(route_name='network_tags', request_method='GET', renderer='json')
 def get_network_tags(request):
     """
-    Lists tags of a network
-    READ permission required on CLOUD
+    Tags: tags
+    ---
+    Lists tags of a network.
+    READ permission required on CLOUD.
     READ permission required on NETWORK
     ---
     cloud_id:
@@ -282,7 +296,9 @@ def get_network_tags(request):
 @view_config(route_name='cloud_tags', request_method='POST', renderer='json')
 def set_cloud_tags(request):
     """
-    Set tags to owner's cloud
+    Tags: tags
+    ---
+    Set tags to owner's cloud.
     EDIT_TAGS permission required on SCRIPT
     ---
     tags:
@@ -315,6 +331,8 @@ def set_cloud_tags(request):
              renderer='json')
 def set_machine_tags(request):
     """
+    Tags: tags
+    ---
     Sets tags for a machine, given the cloud and machine id.
     READ permission required on cloud.
     EDIT_TAGS permission required on machine.
@@ -378,7 +396,9 @@ def set_machine_tags(request):
              renderer='json')
 def set_schedule_tags(request):
     """
-    Set tags to owner's schedule
+    Tags: tags
+    ---
+    Set tags to owner's schedule.
     EDIT_TAGS permission required on schedule
     ---
     schedule:
@@ -412,7 +432,9 @@ def set_schedule_tags(request):
 @view_config(route_name='script_tags', request_method='POST', renderer='json')
 def set_script_tags(request):
     """
-    Set tags to owner's script
+    Tags: tags
+    ---
+    Set tags to owner's script.
     EDIT_TAGS permission required on SCRIPT
     ---
     script:
@@ -446,7 +468,9 @@ def set_script_tags(request):
 @view_config(route_name='key_tags', request_method='POST', renderer='json')
 def set_key_tags(request):
     """
-    Set tags to owner's key
+    Tags: tags
+    ---
+    Set tags to owner's key.
     EDIT_TAGS permission required on KEY
     ---
     key_id:
@@ -483,6 +507,8 @@ def set_key_tags(request):
 @view_config(route_name='network_tags', request_method='POST', renderer='json')
 def set_network_tags(request):
     """
+    Tags: tags
+    ---
     Sets tags for a network, given the cloud and network id.
     READ permission required on cloud.
     EDIT_TAGS permission required on network.
@@ -543,6 +569,8 @@ def delete_schedule_tag(request):
 @view_config(route_name='cloud_tag', request_method='DELETE', renderer='json')
 def delete_cloud_tag(request):
     """
+    Tags: tags
+    ---
     Deletes tag in the db for specified resource_type.
     EDIT_TAGS permission required on cloud.
     ---
@@ -572,6 +600,8 @@ def delete_cloud_tag(request):
              renderer='json')
 def delete_machine_tag(request):
     """
+    Tags: tags
+    ---
     Deletes tag in the db for specified resource_type.
     READ permission required on cloud.
     EDIT_TAGS permission required on machine.
@@ -610,6 +640,8 @@ def delete_machine_tag(request):
 @view_config(route_name='script_tag', request_method='DELETE', renderer='json')
 def delete_script_tag(request):
     """
+    Tags: tags
+    ---
     Deletes a tag in the db for specified resource_type.
     EDIT_TAGS permission required on script.
     ---
@@ -638,6 +670,8 @@ def delete_script_tag(request):
 @view_config(route_name='key_tag', request_method='DELETE', renderer='json')
 def delete_key_tag(request):
     """
+    Tags: tags
+    ---
     Deletes a tag in the db for specified resource_type.
     EDIT_TAGS permission required on key.
     ---
@@ -667,6 +701,8 @@ def delete_key_tag(request):
              renderer='json')
 def delete_network_tag(request):
     """
+    Tags: tags
+    ---
     Delete tag in the db for specified resource_type.
     READ permission required on cloud.
     EDIT_TAGS permission required on network.

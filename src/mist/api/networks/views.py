@@ -24,6 +24,8 @@ OK = Response("OK", 200)
              request_method='GET', renderer='json')
 def list_networks(request):
     """
+    Tags: networks
+    ---
     Lists networks of a cloud.
     Currently supports the EC2, GCE and OpenStack providers.
     For other providers this returns an empty list.
@@ -54,6 +56,8 @@ def list_networks(request):
              request_method='POST', renderer='json')
 def create_network(request):
     """
+    Tags: networks
+    ---
     Creates a new network. If subnet dict is specified,
     after creating the network it will use the new
     network's id to create a subnet.
@@ -123,6 +127,8 @@ def create_network(request):
 @view_config(route_name='api_v1_network', request_method='DELETE')
 def delete_network(request):
     """
+    Tags: networks
+    ---
     Deletes a network.
     CREATE_RESOURCES permission required on cloud.
     ---
@@ -164,7 +170,9 @@ def delete_network(request):
 @view_config(route_name='api_v1_network', request_method='POST')
 def associate_ip(request):
     """
-    Associates ip with the specific network and machine
+    Tags: networks
+    ---
+    Associates ip with the specific network and machine.
     READ permission required on cloud.
     EDIT permission required on cloud.
     ---

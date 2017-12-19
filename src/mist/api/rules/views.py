@@ -22,7 +22,10 @@ log = logging.getLogger(__name__)
 
 @view_config(route_name='api_v1_rule_triggered', request_method='PUT')
 def triggered(request):
-    """Processes a trigger sent by the alert service.
+    """
+    Tags: rules
+    ---
+    Processes a trigger sent by the alert service.
     Based on the parameters of the request, this method will initiate actions
     to mitigate the conditions that triggered the rule and notify the users.
     ---

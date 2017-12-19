@@ -25,7 +25,9 @@ OK = Response("OK", 200)
              renderer='json')
 def add_schedule_entry(request):
     """
-    Adds an entry to user schedules
+    Tags: schedules
+    ---
+    Adds an entry to user schedules.
     Add permission required on schedule.
     RUN_SCRIPT permission required on machine.
     RUN permission required on script.
@@ -90,7 +92,9 @@ def add_schedule_entry(request):
              renderer='json')
 def list_schedules_entries(request):
     """
-    Lists user schedules entries, order by _id
+    Tags: schedules
+    ---
+    Lists user schedules entries, order by _id.
     READ permission required on schedules
     ---
     """
@@ -105,7 +109,9 @@ def list_schedules_entries(request):
              renderer='json')
 def show_schedule_entry(request):
     """
-    Show details of schedule
+    Tags: schedules
+    ---
+    Show details of schedule.
     READ permission required on schedule
     ---
     schedule_id:
@@ -134,7 +140,9 @@ def show_schedule_entry(request):
              renderer='json')
 def delete_schedule(request):
     """
-    Deletes a schedule entry of a user
+    Tags: schedules
+    ---
+    Deletes a schedule entry of a user.
     REMOVE permission required on schedule
     ---
     schedule_id:
@@ -170,8 +178,10 @@ def delete_schedule(request):
              request_method='PATCH', renderer='json')
 def edit_schedule_entry(request):
     """
-    Edit a schedule entry
-    EDIT permission required on schedule
+    Tags: schedules
+    ---
+    Edit a schedule entry.
+    EDIT permission required on schedule.
     RUN_SCRIPT permission required on machine.
     RUN permission required on script.
     ---

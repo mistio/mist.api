@@ -37,9 +37,10 @@ OK = Response("OK", 200)
              request_method='GET', renderer='json')
 def list_machines(request):
     """
-    Lists machines of all clouds
-    Gets machines and their metadata from all clouds
-    Check Permissions take place in filter_list_machines
+    Tags: machines
+    ---
+    Gets machines and their metadata from all clouds.
+    Check Permissions take place in filter_list_machines.
     READ permission required on cloud.
     READ permission required on machine.
     """
@@ -63,8 +64,10 @@ def list_machines(request):
              request_method='GET', renderer='json')
 def list_cloud_machines(request):
     """
-    Lists machines on cloud along with their metadata
-    Check Permissions takes place in filter_list_machines
+    Tags: machines
+    ---
+    Lists machines on cloud along with their metadata.
+    Check Permissions takes place in filter_list_machines.
     READ permission required on cloud.
     READ permission required on machine.
     ---
@@ -99,6 +102,8 @@ def list_cloud_machines(request):
              renderer='json')
 def create_machine(request):
     """
+    Tags: machines
+    ---
     Creates one or more machines on the specified cloud. If async is true, a
     jobId will be returned.
     READ permission required on cloud.
@@ -412,7 +417,9 @@ def create_machine(request):
              request_method='POST', renderer='json')
 def machine_actions(request):
     """
-    Calls a machine action on cloud that supports it
+    Tags: machines
+    ---
+    Calls a machine action on cloud that supports it.
     READ permission required on cloud.
     ACTION permission required on machine(ACTION can be START,
     STOP, DESTROY, REBOOT or RESIZE, RENAME for some providers).
@@ -521,8 +528,10 @@ def machine_actions(request):
              request_method='GET', renderer='json')
 def machine_rdp(request):
     """
-    Rdp file for windows machines
-    Generates and returns an rdp file for windows machines
+    Tags: machines
+    ---
+    Rdp file for windows machines.
+    Generates and returns an rdp file for windows machines.
     READ permission required on cloud.
     READ permission required on machine.
     ---
