@@ -18,6 +18,17 @@ BASE_FILE_PATH = os.path.join(this_dir, 'base.yml')
 OAS_FILE_PATH = os.path.join(this_dir, 'spec.yml')
 
 
+# what if tags are an argument?
+
+# ta tags prepei na einai array
+
+# cleanup v1
+
+# add tags sta views.py
+
+# cleanup v2
+
+
 def patch_operation(operation):
     ret = {}
     if operation.keys() and 'responses' in operation.keys():
@@ -92,8 +103,10 @@ def docstring_to_object(docstring):
         operation = yaml.safe_load(tokens[2]) or {}
         description = re.sub(r'\s+',r' ',tokens[1]).strip()
         tags = re.sub(r'\s+',r' ',tokens[0]).strip().split()[1]
+        tags_array = []
+        tags_array.append(tags)
         operation['description'] = description
-        operation['tags'] = tags
+        operation['tags'] = tags_array
         return operation
 
     if len(tokens) == 2:
