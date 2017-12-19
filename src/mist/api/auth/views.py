@@ -65,7 +65,7 @@ def create_token(request):
     """
     Tags: api_tokens
     ---
-    Creates a new api token
+    Creates a new api token.
     Used so that a user can send his credentials and produce a new api token.
     The api token itself will be returned in a json document along with it's
     id and it's name.
