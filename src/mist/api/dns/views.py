@@ -160,8 +160,8 @@ def create_dns_record(request):
 def delete_dns_zone(request):
     """
     Deletes a specific DNS zone under a cloud.
-    ---
     REMOVE permission required on zone.
+    ---
     """
     auth_context = auth_context_from_request(request)
     cloud_id = request.matchdict['cloud']
