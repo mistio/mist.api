@@ -33,7 +33,8 @@ def list_networks(request):
     - name: cloud
       in: path
       required: true
-      type: string
+      schema:
+        type: string
     """
     cloud_id = request.matchdict['cloud']
     auth_context = auth_context_from_request(request)
