@@ -13,8 +13,6 @@ BASE_FILE_PATH = os.path.join(this_dir, 'base.yml')
 OAS_FILE_PATH = os.path.join(this_dir, 'spec.yml')
 
 
-# cleanup v1
-
 # what if tags are an argument?
 
 # pep8
@@ -25,29 +23,35 @@ OAS_FILE_PATH = os.path.join(this_dir, 'spec.yml')
 
 # docker image
 
+
+def extract_params_from_operation(operation):
+    params = []
+    for key in list(set(operation.keys()) - {'parameters', 'requestBody', 'responses', 'description', 'tags'}):
+        if 'in' in operation[key].keys():
+            p = {}
+            p['name'] = key
+            p['schema'] = {}
+            for k in operation[key].keys():
+                if k in ['type', 'enum', 'default']:
+                    p['schema'][k] = operation[key][k]
+                else:
+                    p[k] = operation[key][k]
+            params.append(p)
+
+    return params
+
+
 def patch_operation(operation):
     ret = {}
     if operation.keys() and 'responses' in operation.keys():
         ret['responses'] = operation['responses']
     else:
-            ret['responses'] = {'200': {'description': 'Successful Operation'}}
+        ret['responses'] = {'200': {'description': 'Successful Operation'}}
 
     if 'parameters' in operation.keys():
         ret['parameters'] = operation['parameters']
     else:
-        params = []
-        for key in list(set(operation.keys()) - {'parameters', 'requestBody', 'responses', 'description', 'tags'}):
-            if 'in' in operation[key].keys():
-                p = {}
-                p['name'] = key
-                p['schema'] = {}
-                for k in operation[key].keys():
-                    if k in ['type', 'enum', 'default']:
-                        p['schema'][k] = operation[key][k]
-                    else:
-                        p[k] = operation[key][k]
-                params.append(p)
-        if params:
+        if extract_params_from_operation(operation):
             ret['parameters'] = params
 
     if 'description' in operation.keys():
@@ -59,7 +63,7 @@ def patch_operation(operation):
     if 'requestBody' in operation.keys():
         ret['requestBody'] = operation['requestBody']
     else:
-        reqB = {'required': True,
+        requestBody = {'required': True,
                 'content': {'application/json': {'schema': {'type': 'object', 'properties': {}}
                                         }
                             }
@@ -76,10 +80,10 @@ def patch_operation(operation):
                 if 'required' in operation[key] and operation[key]['required']:
                     required.append(key)
         if properties:
-            reqB['content']['application/json']['schema']['properties'] = properties
+            requestBody['content']['application/json']['schema']['properties'] = properties
             if required:
-                reqB['content']['application/json']['schema']['required'] = required
-            ret['requestBody'] = reqB
+                requestBody['content']['application/json']['schema']['required'] = required
+            ret['requestBody'] = requestBody
 
     return ret
 
@@ -91,7 +95,7 @@ def docstring_to_object(docstring):
     operation = {}
     tokens = docstring.split('---')
 
-    if len(tokens) > 2:
+    if len(tokens) > 2: # tags, description, and arguments
         operation = yaml.safe_load(tokens[2]) or {}
         description = re.sub(r'\s+', r' ', tokens[1]).strip()
         tags = re.sub(r'\s+', r' ', tokens[0]).strip().split()[1]
