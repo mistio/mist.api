@@ -26,49 +26,47 @@ def triggered(request):
     Based on the parameters of the request, this method will initiate actions
     to mitigate the conditions that triggered the rule and notify the users.
     ---
-
-      value:
-        type: integer
-        required: true
-        description: >
-          the value that triggered the rule by exceeding the threshold
-      incident:
-        type: string
-        required: true
-        description: the incident's UUID
-      resource:
-        type: string
-        required: true
-        description: the UUID of the resource for which the rule got triggered
-      triggered:
-        type: integer
-        required: true
-        description: 0 if the specified incident got resolved/untriggered
-      triggered_now:
-        type: integer
-        required: true
-        description: |
-          0 in case this is not the first time the specified incident has
-          raised an alert
-      firing_since:
-        type: datetime
-        required: true
-        description: |
-          the time at which the rule raised an alert and sent a trigger to
-          this API endpoint
-      pending_since:
-        type: datetime
-        required: true
-        description: |
-          the time at which the rule evaluated to True and entered pending
-          state. A rule can remain in pending state if a TriggerOffset has
-          been configured
-      resolved_since:
-        type: datetime
-        required: true
-        description: >
-          the time at which the incident with the specified UUID resolved
-
+    value:
+     type: integer
+     required: true
+     description: >
+       the value that triggered the rule by exceeding the threshold
+    incident:
+     type: string
+     required: true
+     description: the incident's UUID
+   resource:
+     type: string
+     required: true
+     description: the UUID of the resource for which the rule got triggered
+   triggered:
+     type: integer
+     required: true
+     description: 0 if the specified incident got resolved/untriggered
+   triggered_now:
+     type: integer
+     required: true
+     description: |
+       0 in case this is not the first time the specified incident has
+       raised an alert
+   firing_since:
+     type: datetime
+     required: true
+     description: |
+       the time at which the rule raised an alert and sent a trigger to
+       this API endpoint
+   pending_since:
+     type: datetime
+     required: true
+     description: |
+       the time at which the rule evaluated to True and entered pending
+       state. A rule can remain in pending state if a TriggerOffset has
+       been configured
+   resolved_since:
+     type: datetime
+     required: true
+     description: >
+       the time at which the incident with the specified UUID resolved
     """
     # FIXME Remove alongside the old alert service.
     if not config.CILIA_TRIGGER:
