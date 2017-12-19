@@ -60,9 +60,7 @@ def patch_operation(operation):
         ret['requestBody'] = operation['requestBody']
     else:
         reqB = {'required': True,
-                'content': {'application/json': {'schema': {'type': 'object',
-                                        'properties': {},
-                                              }
+                'content': {'application/json': {'schema': {'type': 'object', 'properties': {}}
                                         }
                             }
                 }

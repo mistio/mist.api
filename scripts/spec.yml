@@ -39,8 +39,10 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - clouds
     post:
-      description: Adds a new cloud and returns the cloud's id ADD permission required
+      description: Adds a new cloud and returns the cloud's id. ADD permission required
         on cloud.
       requestBody:
         content:
@@ -97,6 +99,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - clouds
   /api/v1/clouds/{cloud}:
     delete:
       description: Deletes a cloud with given cloud_id. REMOVE permission required
@@ -110,6 +114,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - clouds
     patch:
       description: Updates cloud with given cloud_id. EDIT permission required on
         cloud. Not all fields need to be specified, only the ones being modified
@@ -122,6 +128,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - clouds
     post:
       description: Toggles cloud with given cloud id. EDIT permission required on
         cloud.
@@ -148,6 +156,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - clouds
     put:
       description: Renames cloud with given cloud_id. EDIT permission required on
         cloud.
@@ -170,6 +180,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - clouds
   /api/v1/clouds/{cloud}/dns/zones:
     get:
       description: Lists all DNS zones based on the given cloud id. READ permission
@@ -183,6 +195,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - zones
     post:
       description: Creates a new DNS zone under the given cloud. CREATE_RESOURCES
         permission required on cloud. ADD permission required on zone.
@@ -195,6 +209,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - zones
   /api/v1/clouds/{cloud}/dns/zones/{zone}:
     delete:
       description: Deletes a specific DNS zone under a cloud. REMOVE permission required
@@ -202,6 +218,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - zones
   /api/v1/clouds/{cloud}/dns/zones/{zone}/records:
     get:
       description: Lists all DNS records for a particular zone. READ permission required
@@ -220,6 +238,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - zones
     post:
       description: Creates a new record under a specific zone. CREATE_RESOURCES permission
         required on cloud. CREATE_RECORDS permission required on zone
@@ -237,6 +257,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - zones
   /api/v1/clouds/{cloud}/dns/zones/{zone}/records/{record}:
     delete:
       description: Deletes a specific DNS record under a zone. REMOVE permission required
@@ -244,11 +266,13 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - zones
   /api/v1/clouds/{cloud}/images:
     get:
-      description: List images of specified cloud List images from each cloud. Furthermore
+      description: List images of specified cloud. List images from each cloud. Furthermore
         if a search_term is provided, we loop through each cloud and search for that
-        term in the ids and the names of the community images READ permission required
+        term in the ids and the names of the community images. READ permission required
         on cloud.
       parameters:
       - in: path
@@ -268,13 +292,15 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - images
     post:
       responses:
         '200':
           description: Successful Operation
   /api/v1/clouds/{cloud}/images/{image}:
     post:
-      description: Star/unstar an image Toggle image star (star/unstar) EDIT permission
+      description: Star/unstar an image. Toggle image star (star/unstar). EDIT permission
         required on cloud.
       parameters:
       - description: Id of image to be used with the creation
@@ -291,15 +317,16 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - images
   /api/v1/clouds/{cloud}/locations:
     get:
-      description: List locations of cloud List locations from each cloud. Locations
-        mean different things in each cl- oud. e.g. EC2 uses it as a datacenter in
-        a given availability zone, where- as Linode lists availability zones. However
-        all responses share id, name and country even though in some cases might be
-        empty, e.g. Openstack. In E- C2 all locations by a provider have the same
-        name, so the availability zo- nes are listed instead of name. READ permission
-        required on cloud.
+      description: List locations from each cloud. Locations mean different things
+        in each cl- oud. e.g. EC2 uses it as a datacenter in a given availability
+        zone, where- as Linode lists availability zones. However all responses share
+        id, name and country even though in some cases might be empty, e.g. Openstack.
+        In E- C2 all locations by a provider have the same name, so the availability
+        zo- nes are listed instead of name. READ permission required on cloud.
       parameters:
       - in: path
         name: cloud
@@ -309,10 +336,12 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - locations
   /api/v1/clouds/{cloud}/machines:
     get:
-      description: Lists machines on cloud along with their metadata Check Permissions
-        takes place in filter_list_machines READ permission required on cloud. READ
+      description: Lists machines on cloud along with their metadata. Check Permissions
+        takes place in filter_list_machines. READ permission required on cloud. READ
         permission required on machine.
       parameters:
       - in: path
@@ -323,6 +352,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - machines
     post:
       description: Creates one or more machines on the specified cloud. If async is
         true, a jobId will be returned. READ permission required on cloud. CREATE_RESOURCES
@@ -437,9 +468,11 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - machines
   /api/v1/clouds/{cloud}/machines/{machine}:
     post:
-      description: Calls a machine action on cloud that supports it READ permission
+      description: Calls a machine action on cloud that supports it. READ permission
         required on cloud. ACTION permission required on machine(ACTION can be START,
         STOP, DESTROY, REBOOT or RESIZE, RENAME for some providers).
       parameters:
@@ -475,6 +508,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - machines
   /api/v1/clouds/{cloud}/machines/{machine}/keys/{key}:
     delete:
       description: Disassociates a key from a machine. If host is set it will also
@@ -494,6 +529,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - keys
     put:
       description: Associates a key with a machine. If host is set it will also attempt
         to actually deploy it to the machine. To do that it requires another key (existing_key)
@@ -526,6 +563,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - keys
   /api/v1/clouds/{cloud}/machines/{machine}/metrics:
     delete:
       description: Disassociate metric from machine Disassociate metric from specific
@@ -732,7 +771,7 @@ paths:
           description: Successful Operation
   /api/v1/clouds/{cloud}/machines/{machine}/probe:
     post:
-      description: Probe a machine Ping and SSH to machine and collect various metrics.
+      description: Probes a machine. Ping and SSH to machine and collect various metrics.
         READ permission required on cloud. READ permission required on machine.
       parameters:
       - in: path
@@ -766,10 +805,12 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - machines
   /api/v1/clouds/{cloud}/machines/{machine}/rdp:
     get:
-      description: Rdp file for windows machines Generates and returns an rdp file
-        for windows machines READ permission required on cloud. READ permission required
+      description: Rdp file for windows machines. Generates and returns an rdp file
+        for windows machines. READ permission required on cloud. READ permission required
         on machine.
       parameters:
       - in: path
@@ -796,6 +837,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - machines
   /api/v1/clouds/{cloud}/machines/{machine}/stats:
     get:
       description: Get monitor data for a machine Get all monitor data for this machine
@@ -850,7 +893,7 @@ paths:
           description: Successful Operation
   /api/v1/clouds/{cloud}/machines/{machine}/tags:
     get:
-      description: Lists tags of a machine READ permission required on CLOUD READ
+      description: Lists tags of a machine. READ permission required on CLOUD. READ
         permission required on MACHINE
       parameters:
       - in: path
@@ -866,6 +909,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - tags
     post:
       description: Sets tags for a machine, given the cloud and machine id. READ permission
         required on cloud. EDIT_TAGS permission required on machine.
@@ -880,20 +925,11 @@ paths:
         required: true
         schema:
           type: string
-      requestBody:
-        content:
-          application/json:
-            schema:
-              properties:
-                tags:
-                  items:
-                    type: object
-                  type: array
-              type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - tags
   /api/v1/clouds/{cloud}/machines/{machine}/tags/{tag}:
     delete:
       description: Deletes tag in the db for specified resource_type. READ permission
@@ -923,6 +959,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - tags
   /api/v1/clouds/{cloud}/networks:
     get:
       description: Lists networks of a cloud. Currently supports the EC2, GCE and
@@ -937,6 +975,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - networks
     post:
       description: Creates a new network. If subnet dict is specified, after creating
         the network it will use the new network's id to create a subnet. CREATE_RESOURCES
@@ -965,6 +1005,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - networks
   /api/v1/clouds/{cloud}/networks/{network}:
     delete:
       description: Deletes a network. CREATE_RESOURCES permission required on cloud.
@@ -982,8 +1024,10 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - networks
     post:
-      description: Associates ip with the specific network and machine READ permission
+      description: Associates ip with the specific network and machine. READ permission
         required on cloud. EDIT permission required on cloud.
       parameters:
       - in: path
@@ -1017,9 +1061,11 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - networks
   /api/v1/clouds/{cloud}/networks/{network}/subnets:
     get:
-      description: List subnets of a cloud Currently supports the EC2, GCE and OpenStack
+      description: List subnets of a cloud. Currently supports the EC2, GCE and OpenStack
         clouds. For other providers this returns an empty list. READ permission required
         on cloud.
       parameters:
@@ -1037,6 +1083,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - networks
     post:
       description: Create subnet on a given network on a cloud. CREATE_RESOURCES permission
         required on cloud.
@@ -1067,9 +1115,11 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - networks
   /api/v1/clouds/{cloud}/networks/{network}/subnets/{subnet}:
     delete:
-      description: Delete a subnet. CREATE_RESOURCES permission required on cloud.
+      description: Deletes a subnet. CREATE_RESOURCES permission required on cloud.
       parameters:
       - in: path
         name: network_id
@@ -1089,10 +1139,12 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - networks
   /api/v1/clouds/{cloud}/sizes:
     get:
-      description: List sizes of a cloud List sizes (aka flavors) from each cloud.
-        READ permission required on cloud.
+      description: List sizes (aka flavors) from each cloud. READ permission required
+        on cloud.
       parameters:
       - in: path
         name: cloud
@@ -1102,48 +1154,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
-  /api/v1/dev/orgs/{org_id}/teams/{team_id}:
-    post:
-      description: Add user to team. This method is user by integration tests. It
-        is enabled only if config.ENABLE_DEV_USERS is set to True (False by default).
-      parameters:
-      - in: path
-        name: org
-        required: true
-        schema:
-          type: string
-      - in: path
-        name: team
-        required: true
-        schema:
-          type: string
-      responses:
-        '200':
-          description: Successful Operation
-  /api/v1/dev/register:
-    post:
-      description: Automatically register users to be used by integration tests. It
-        actually does what dbinit does but through the API. It is enabled only if
-        config.ENABLE_DEV_USERS is set to True (False by default).
-      parameters:
-      - in: path
-        name: name
-        required: true
-        schema:
-          type: string
-      - in: path
-        name: email
-        required: true
-        schema:
-          type: string
-      responses:
-        '200':
-          description: Successful Operation
-  /api/v1/dev/users:
-    delete:
-      responses:
-        '200':
-          description: Successful Operation
+      tags:
+      - sizes
   /api/v1/fetch:
     get:
       description: A generic API endpoint to perform actions in the absence of AuthContext.
@@ -1206,18 +1218,24 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - keys
     get:
-      description: Lists all added keys READ permission required on key.
+      description: Lists all added keys. READ permission required on key.
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - keys
     post:
       description: Generates key pair
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - keys
     put:
-      description: Adds key ADD permission required on key.
+      description: Adds key. ADD permission required on key.
       requestBody:
         content:
           application/json:
@@ -1240,6 +1258,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - keys
   /api/v1/keys/{key}:
     delete:
       description: Deletes a key. When a key gets deleted, it takes its associations
@@ -1256,9 +1276,10 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - keys
     post:
-      description: Set default key Sets a new default key EDIT permission required
-        on key.
+      description: Sets a new default key. EDIT permission required on key.
       parameters:
       - description: The key id
         in: path
@@ -1269,9 +1290,11 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - keys
     put:
-      description: Edits a given key's name to new_name EDIT permission required on
-        key.
+      description: Edits a given key's name to new_name. EDIT permission required
+        on key.
       parameters:
       - description: The key id
         in: path
@@ -1294,6 +1317,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - keys
   /api/v1/keys/{key}/private:
     get:
       description: Gets private key from key name. It is used in single key view when
@@ -1309,6 +1334,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - keys
   /api/v1/keys/{key}/public:
     get:
       description: Gets public key from key name. READ permission required on key.
@@ -1322,6 +1349,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - keys
   /api/v1/logs:
     get:
       description: Gets the latest logs.
@@ -1360,15 +1389,23 @@ paths:
           description: Successful Operation
   /api/v1/machines:
     get:
-      description: Lists machines of all clouds Gets machines and their metadata from
-        all clouds Check Permissions take place in filter_list_machines READ permission
-        required on cloud. READ permission required on machine.
+      description: Lists machines on cloud along with their metadata. Check Permissions
+        takes place in filter_list_machines. READ permission required on cloud. READ
+        permission required on machine.
+      parameters:
+      - in: path
+        name: cloud
+        required: true
+        schema:
+          type: string
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - machines
   /api/v1/machines/{machine_uuid}:
     post:
-      description: Calls a machine action on cloud that supports it READ permission
+      description: Calls a machine action on cloud that supports it. READ permission
         required on cloud. ACTION permission required on machine(ACTION can be START,
         STOP, DESTROY, REBOOT or RESIZE, RENAME for some providers).
       parameters:
@@ -1404,6 +1441,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - machines
   /api/v1/machines/{machine_uuid}/keys/{key}:
     delete:
       description: Disassociates a key from a machine. If host is set it will also
@@ -1423,6 +1462,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - keys
     put:
       description: Associates a key with a machine. If host is set it will also attempt
         to actually deploy it to the machine. To do that it requires another key (existing_key)
@@ -1455,9 +1496,11 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - keys
   /api/v1/machines/{machine_uuid}/probe:
     post:
-      description: Probe a machine Ping and SSH to machine and collect various metrics.
+      description: Probes a machine. Ping and SSH to machine and collect various metrics.
         READ permission required on cloud. READ permission required on machine.
       parameters:
       - in: path
@@ -1491,10 +1534,12 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - machines
   /api/v1/machines/{machine_uuid}/rdp:
     get:
-      description: Rdp file for windows machines Generates and returns an rdp file
-        for windows machines READ permission required on cloud. READ permission required
+      description: Rdp file for windows machines. Generates and returns an rdp file
+        for windows machines. READ permission required on cloud. READ permission required
         on machine.
       parameters:
       - in: path
@@ -1521,6 +1566,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - machines
   /api/v1/metrics/{metric}:
     put:
       description: Updates a metric configuration READ permission required on cloud.
@@ -1573,40 +1620,65 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - notifications
     get:
       description: Get notification overrides for user, org policy
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - notifications
     put:
       description: Sets notification overrides for user, org policy. Count of notification
         overrides in request must match count of those stored.
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - notifications
   /api/v1/notification-overrides/{notification_id}:
     put:
       description: Adds a notification override with the specified properties
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - notifications
   /api/v1/notifications/{notification_id}:
     delete:
-      description: Dismisses specified notification
+      description: Dismisses specified notification.
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - notifications
   /api/v1/org:
     get:
-      description: Show user's organization. If user is organization owner then show
-        everything If user is just a member then show just himself as a team member
-        and the name of the organization, the name of the team,
+      description: Show team. Only available to organization owners.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                org_id:
+                  description: The team's org id
+                  type: string
+                team_id:
+                  description: The team's id
+                  type: string
+              required:
+              - org_id
+              type: object
+        required: true
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - teams
     post:
-      description: Create organization. The user creating it will be assigned to the
-        owners team. For now owner has only org
+      description: Creates organization. The user creating it will be assigned to
+        the owners team. For now owner has only org
       requestBody:
         content:
           application/json:
@@ -1622,6 +1694,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - organizations
   /api/v1/org/{org_id}:
     get:
       description: Show organization. Details of org.
@@ -1640,6 +1714,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - organizations
     put:
       description: Edit an organization entry in the db Means rename. Only available
         to organization owners.
@@ -1661,9 +1737,11 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - organizations
   /api/v1/org/{org_id}/teams:
     delete:
-      description: Delete multiple teams. Provide a list of team ids to be deleted.
+      description: Deletes multiple teams. Provide a list of team ids to be deleted.
         The method will try to delete all of them and then return a json that describes
         for each team id whether or not it was deleted or the not_found if the team
         id could not be located. If no team id was found then a 404(Not Found) response
@@ -1684,8 +1762,10 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - teams
     get:
-      description: List teams of an org. Only available to organization owners.
+      description: Lists teams of an org. Only available to organization owners.
       requestBody:
         content:
           application/json:
@@ -1701,8 +1781,10 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - teams
     post:
-      description: Create new team. Append it at org's teams list. Only available
+      description: Creates new team. Append it at org's teams list. Only available
         to organization owners.
       requestBody:
         content:
@@ -1719,9 +1801,12 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - teams
   /api/v1/org/{org_id}/teams/{team_id}:
     delete:
-      description: Delete a team entry in the db. Only available to organization owners.
+      description: Deletes a team entry in the db. Only available to organization
+        owners.
       requestBody:
         content:
           application/json:
@@ -1741,6 +1826,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - teams
     get:
       description: Show team. Only available to organization owners.
       requestBody:
@@ -1761,8 +1848,10 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - teams
     put:
-      description: Edit a team entry in the db Means rename. Only available to organization
+      description: Renames a team entry in the db. Only available to organization
         owners.
       requestBody:
         content:
@@ -1786,6 +1875,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - teams
   /api/v1/org/{org_id}/teams/{team_id}/members:
     post:
       description: 'Invite a member to team. For each user there can be one invitation
@@ -1820,6 +1911,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - teams
   /api/v1/org/{org_id}/teams/{team_id}/members/{user_id}:
     delete:
       description: Delete a team's member entry from the db. It means remove member
@@ -1847,13 +1940,28 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - teams
   /api/v1/orgs:
     get:
-      description: List user's organizations List all the organizations where user
-        is a member
+      description: Lists teams of an org. Only available to organization owners.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                org_id:
+                  description: The teams' org id
+                  type: string
+              required:
+              - org_id
+              type: object
+        required: true
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - teams
   /api/v1/ping:
     get:
       description: Check that an api token is correct.
@@ -1867,7 +1975,7 @@ paths:
           description: Successful Operation
   /api/v1/providers:
     get:
-      description: Lists supported providers Return all of our SUPPORTED PROVIDERS
+      description: Lists supported providers. Return all of our SUPPORTED PROVIDERS
       parameters:
       - in: header
         name: api_version
@@ -1879,6 +1987,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - providers
   /api/v1/rule-triggered:
     put:
       description: Sets notification overrides for user, org policy. Count of notification
@@ -1886,6 +1996,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - notifications
   /api/v1/rules:
     post:
       description: Creates or updates a rule.
@@ -1907,13 +2019,15 @@ paths:
           description: Successful Operation
   /api/v1/schedules:
     get:
-      description: Lists user schedules entries, order by _id READ permission required
+      description: Lists user schedules entries, order by _id. READ permission required
         on schedules
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - schedules
     post:
-      description: Adds an entry to user schedules Add permission required on schedule.
+      description: Adds an entry to user schedules. Add permission required on schedule.
         RUN_SCRIPT permission required on machine. RUN permission required on script.
       requestBody:
         content:
@@ -1960,10 +2074,12 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - schedules
   /api/v1/schedules/{schedule_id}:
     delete:
-      description: Deletes a schedule entry of a user REMOVE permission required on
-        schedule
+      description: Deletes a schedule entry of a user. REMOVE permission required
+        on schedule
       requestBody:
         content:
           application/json:
@@ -1978,8 +2094,10 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - schedules
     get:
-      description: Show details of schedule READ permission required on schedule
+      description: Show details of schedule. READ permission required on schedule
       requestBody:
         content:
           application/json:
@@ -1994,8 +2112,10 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - schedules
     patch:
-      description: Edit a schedule entry EDIT permission required on schedule RUN_SCRIPT
+      description: Edit a schedule entry. EDIT permission required on schedule. RUN_SCRIPT
         permission required on machine. RUN permission required on script.
       requestBody:
         content:
@@ -2043,6 +2163,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - schedules
   /api/v1/scripts:
     delete:
       description: Deletes multiple scripts. Provide a list of script ids to be deleted.
@@ -2066,13 +2188,17 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - scripts
     get:
-      description: Lists user scripts READ permission required on each script.
+      description: Lists user scripts. READ permission required on each script.
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - scripts
     post:
-      description: Add script to user scripts ADD permission required on SCRIPT
+      description: Add script to user scripts. ADD permission required on SCRIPT
       requestBody:
         content:
           application/json:
@@ -2105,9 +2231,11 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - scripts
   /api/v1/scripts/{script_id}:
     delete:
-      description: Deletes script REMOVE permission required on script.
+      description: Deletes script. REMOVE permission required on script.
       parameters:
       - in: path
         name: script_id
@@ -2117,6 +2245,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - scripts
     get:
       description: Show script details and job history. READ permission required on
         script.
@@ -2129,6 +2259,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - scripts
     post:
       description: Start a script job to run the script. READ permission required
         on cloud. RUN_SCRIPT permission required on machine. RUN permission required
@@ -2161,9 +2293,11 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - scripts
     put:
-      description: Edit script (rename only as for now) EDIT permission required on
-        script.
+      description: Edit script (rename only as for now). EDIT permission required
+        on script.
       parameters:
       - in: path
         name: script_id
@@ -2186,6 +2320,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - scripts
   /api/v1/scripts/{script_id}/file:
     get:
       description: Download script file or archive. READ permission required on script.
@@ -2198,6 +2334,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - scripts
   /api/v1/scripts/{script_id}/url:
     get:
       description: Returns to a mist authenticated user, a self-auth/signed url for
@@ -2211,6 +2349,8 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - scripts
   /api/v1/sessions:
     delete:
       description: Revoke an active session
@@ -2226,11 +2366,15 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - sessions
     get:
       description: Lists active sessions
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - sessions
   /api/v1/stories/{story_id}:
     delete:
       description: Close an open story.
@@ -2258,16 +2402,15 @@ paths:
               properties:
                 resource:
                   type: object
-                tags:
-                  type: array
               required:
               - resource
-              - tags
               type: object
         required: true
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - tags
   /api/v1/tokens:
     delete:
       description: Revokes api token
@@ -2283,11 +2426,15 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - api_tokens
     get:
       description: Lists user's api tokens
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - api_tokens
     post:
       description: Creates a new api token Used so that a user can send his credentials
         and produce a new api token. The api token itself will be returned in a json
@@ -2332,9 +2479,10 @@ paths:
       responses:
         '200':
           description: Successful Operation
+      tags:
+      - api_tokens
   /api/v1/whitelist:
     post:
-      description: Whitelist IPs for specified user.
       responses:
         '200':
           description: Successful Operation
