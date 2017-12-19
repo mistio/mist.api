@@ -29,7 +29,8 @@ def patch_operation(operation):
         ret['parameters'] = operation['parameters']
     else:
         params = []
-        for key in list(set(operation.keys()) - {'parameters', 'requestBody', 'responses', 'description'}):
+        for key in list(set(operation.keys()) - {'parameters', 'requestBody', 'responses', 'description', 'tags'}):
+            log.info(operation[key])
             if 'in' in operation[key].keys():
                 p = {}
                 p['name'] = key
@@ -46,6 +47,9 @@ def patch_operation(operation):
     if 'description' in operation.keys():
         ret['description'] = operation['description']
 
+    if 'tags' in operation.keys():
+        ret['tags'] = operation['tags']
+
     if 'requestBody' in operation.keys():
         ret['requestBody'] = operation['requestBody']
     else:
@@ -58,8 +62,8 @@ def patch_operation(operation):
                 }
         properties = {}
         required = []
-        for key in list(set(operation.keys()) - {'parameters', 'requestBody', 'responses', 'description'}):
-            if not 'in' in operation[key].keys():
+        for key in list(set(operation.keys()) - {'parameters', 'requestBody', 'responses', 'description', 'tags'}):
+            if operation[key].keys() and 'in' not in operation[key].keys():
                 p = {key: {}}
                 for k in operation[key].keys():
                     if k != 'required':
@@ -79,23 +83,28 @@ def patch_operation(operation):
 def docstring_to_object(docstring):
     if not docstring:
         return {}
+
     operation = {}
     tokens = docstring.split('---')
 
-    import ipdb; ipdb.set_trace()
-    if re.sub(r'\s+',r' ',tokens[0]).strip().startswith('Tags'):
-        tags = yaml.safe_load(tokens[0]).get('Tags')
-        description = yaml.safe_load(tokens[1])
+    if len(tokens) > 2:
+        import ipdb; ipdb.set_trace()
+        operation = yaml.safe_load(tokens[2]) or {}
+        description = re.sub(r'\s+',r' ',tokens[1]).strip()
+        tags = re.sub(r'\s+',r' ',tokens[0]).strip().split()[1]
+        operation['description'] = description
+        operation['tags'] = tags
+        return operation
 
-    if len(tokens) > 1:
+    if len(tokens) == 2:
         operation = yaml.safe_load(tokens[1]) or {}
 
-    import ipdb; ipdb.set_trace()
     description = re.sub(r'\s+',r' ',tokens[0]).strip()
 
     operation['description'] = description
 
     return operation
+
 
 
 def main():
@@ -107,11 +116,12 @@ def main():
         (route_name, request_method, func) = (vi['route_name'], vi['request_methods'], vi['callable'])
         if route_name:
             route_path = app.routes_mapper.get_route(route_name).path
-            if route_path and route_name.startswith('api_v1_') and not route_name.startswith('api_v1_de'):
+            if route_path and route_name.startswith('api_v1_') and not route_name.startswith('api_v1_dev'):
                 try:
                     operation = docstring_to_object(func.func_doc)
                 except:
-                    log.info(operation)
+                    pass
+                    #log.info(operation)
                 if isinstance(request_method, tuple):
                     for method in request_method:
                         routes.append((route_path, method.lower(), operation))
