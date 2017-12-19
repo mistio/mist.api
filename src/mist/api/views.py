@@ -2750,7 +2750,7 @@ def delete_member_from_team(request):
     return OK
 
 
-@view_config(route_name='api_v1_add_dev_user_to_team', request_method='POST',
+@view_config(route_name='api_v1_dev_add_user_to_team', request_method='POST',
              renderer='json')
 def add_dev_user_to_team(request):
     """
