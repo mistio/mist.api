@@ -81,9 +81,16 @@ def docstring_to_object(docstring):
         return {}
     operation = {}
     tokens = docstring.split('---')
+
+    import ipdb; ipdb.set_trace()
+    if re.sub(r'\s+',r' ',tokens[0]).strip().startswith('Tags'):
+        tags = yaml.safe_load(tokens[0]).get('Tags')
+        description = yaml.safe_load(tokens[1])
+
     if len(tokens) > 1:
         operation = yaml.safe_load(tokens[1]) or {}
 
+    import ipdb; ipdb.set_trace()
     description = re.sub(r'\s+',r' ',tokens[0]).strip()
 
     operation['description'] = description
@@ -100,7 +107,7 @@ def main():
         (route_name, request_method, func) = (vi['route_name'], vi['request_methods'], vi['callable'])
         if route_name:
             route_path = app.routes_mapper.get_route(route_name).path
-            if route_path and route_name.startswith('api_v1_') and not route_name.startswith('api_v1_dev'):
+            if route_path and route_name.startswith('api_v1_') and not route_name.startswith('api_v1_de'):
                 try:
                     operation = docstring_to_object(func.func_doc)
                 except:
