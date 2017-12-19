@@ -13,11 +13,9 @@ BASE_FILE_PATH = os.path.join(this_dir, 'base.yml')
 OAS_FILE_PATH = os.path.join(this_dir, 'spec.yml')
 
 
-# what if tags are an argument?
-
-# pep8
-
 # cleanup
+
+# fix stupid thing that looks for 'in' to check params
 
 # manual_check
 
@@ -51,7 +49,8 @@ def patch_operation(operation):
     if 'parameters' in operation.keys():
         ret['parameters'] = operation['parameters']
     else:
-        if extract_params_from_operation(operation):
+        params = extract_params_from_operation(operation)
+        if params:
             ret['parameters'] = params
 
     if 'description' in operation.keys():
@@ -64,10 +63,7 @@ def patch_operation(operation):
         ret['requestBody'] = operation['requestBody']
     else:
         requestBody = {'required': True,
-                'content': {'application/json': {'schema': {'type': 'object', 'properties': {}}
-                                        }
-                            }
-                }
+                       'content': {'application/json': {'schema': {'type': 'object', 'properties': {}}}}}
         properties = {}
         required = []
         for key in list(set(operation.keys()) - {'parameters', 'requestBody', 'responses', 'description', 'tags'}):
@@ -95,7 +91,7 @@ def docstring_to_object(docstring):
     operation = {}
     tokens = docstring.split('---')
 
-    if len(tokens) > 2: # tags, description, and arguments
+    if len(tokens) > 2:  # tags, description, and arguments
         operation = yaml.safe_load(tokens[2]) or {}
         description = re.sub(r'\s+', r' ', tokens[1]).strip()
         tags = re.sub(r'\s+', r' ', tokens[0]).strip().split()[1]
@@ -124,7 +120,8 @@ def main():
         (route_name, request_method, func) = (vi['route_name'], vi['request_methods'], vi['callable'])
         if route_name:
             route_path = app.routes_mapper.get_route(route_name).path
-            if route_path and route_name.startswith('api_v1_') and not route_name.startswith('api_v1_dev'):
+            if route_path and route_name.startswith('api_v1_') and not\
+               route_name.startswith('api_v1_dev'):
                 try:
                     operation = docstring_to_object(func.func_doc)
                 except:
