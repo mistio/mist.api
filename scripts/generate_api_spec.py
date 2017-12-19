@@ -2,32 +2,28 @@ import sys
 import yaml
 import re
 import os
-import logging
 import mist.api
-
-log = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
 
 this_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(this_dir)
 paths = ['src', 'libcloud', 'celerybeat-mongo']
 for p in paths:
-
     sys.path.append(os.path.join(parent_dir, p))
 BASE_FILE_PATH = os.path.join(this_dir, 'base.yml')
 OAS_FILE_PATH = os.path.join(this_dir, 'spec.yml')
 
 
-# what if tags are an argument?
-
-# ta tags prepei na einai array
-
 # cleanup v1
 
-# add tags sta views.py
+# what if tags are an argument?
 
-# cleanup v2
+# pep8
 
+# cleanup
+
+# manual_check
+
+# docker image
 
 def patch_operation(operation):
     ret = {}
@@ -41,7 +37,6 @@ def patch_operation(operation):
     else:
         params = []
         for key in list(set(operation.keys()) - {'parameters', 'requestBody', 'responses', 'description', 'tags'}):
-            log.info(operation[key])
             if 'in' in operation[key].keys():
                 p = {}
                 p['name'] = key
@@ -99,10 +94,9 @@ def docstring_to_object(docstring):
     tokens = docstring.split('---')
 
     if len(tokens) > 2:
-        import ipdb; ipdb.set_trace()
         operation = yaml.safe_load(tokens[2]) or {}
-        description = re.sub(r'\s+',r' ',tokens[1]).strip()
-        tags = re.sub(r'\s+',r' ',tokens[0]).strip().split()[1]
+        description = re.sub(r'\s+', r' ', tokens[1]).strip()
+        tags = re.sub(r'\s+', r' ', tokens[0]).strip().split()[1]
         tags_array = []
         tags_array.append(tags)
         operation['description'] = description
@@ -112,12 +106,11 @@ def docstring_to_object(docstring):
     if len(tokens) == 2:
         operation = yaml.safe_load(tokens[1]) or {}
 
-    description = re.sub(r'\s+',r' ',tokens[0]).strip()
+    description = re.sub(r'\s+', r' ', tokens[0]).strip()
 
     operation['description'] = description
 
     return operation
-
 
 
 def main():
@@ -134,7 +127,6 @@ def main():
                     operation = docstring_to_object(func.func_doc)
                 except:
                     pass
-                    #log.info(operation)
                 if isinstance(request_method, tuple):
                     for method in request_method:
                         routes.append((route_path, method.lower(), operation))
