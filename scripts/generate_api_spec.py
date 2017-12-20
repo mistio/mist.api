@@ -92,8 +92,9 @@ def patch_operation(operation):
             if _require:
                 schema['required'] = _require
 
-            ret['requestBody'] = {'content': {'application/json':
-                                                                {'schema': schema}}}
+            requestBody = {'content': {'application/json': {'schema': schema}}}
+
+            ret['requestBody'] = requestBody
 
     return ret
 
