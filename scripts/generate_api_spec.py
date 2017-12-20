@@ -12,14 +12,34 @@ for p in paths:
 BASE_FILE_PATH = os.path.join(this_dir, 'base.yml')
 OAS_FILE_PATH = os.path.join(this_dir, 'spec.yml')
 
-
-# fix stupid thing that looks for 'in' to check params
-
-# cleanup
-
-# manual_check
+# cleanup (operation --> docstring)
 
 # docker image
+
+
+#delete:
+#      description: Deletes the requested avatar
+#      parameters:
+#        - description: Avatar Id
+#          in: path
+#          name: avatar
+#          required: true
+#          schema:
+#            type: string
+#      responses:
+#        '200':
+#          description: Successful Operation
+#      requestBody:
+#        description: Optional description in *Markdown*
+#        required: true
+#        content:
+#          application/json:
+#            schema:
+#              type: object
+#              properties:
+#                id:
+#                  type: string
+#                  description: Test
 
 
 def extract_params_from_operation(operation):
@@ -31,6 +51,7 @@ def extract_params_from_operation(operation):
             p = {}
             p['name'] = key
             p['schema'] = {}
+
             for k in operation[key].keys():
                 if k in ['type', 'enum', 'default']:
                     p['schema'][k] = operation[key][k]
@@ -64,6 +85,31 @@ def patch_operation(operation):
     if 'requestBody' in operation.keys():
         ret['requestBody'] = operation['requestBody']
 
+    else:
+
+        properties = {}
+
+        for key in list(set(operation.keys()) - {'parameters', 'requestBody',
+                                                 'responses', 'description',
+                                                 'tags'}):
+
+                if 'in' not in operation[key].keys():
+                    properties[key] = {}
+
+                    for param in operation[key].keys():
+                        if param in ['type', 'description', 'required']:
+                            properties[key][param] = operation[key][param]
+
+        if properties:
+            reqB = {'content': {'application/json': {'schema': {'type': 'object',
+                                                                'properties': properties,
+                                                                }
+                                                    }
+                                }
+                    }
+
+            ret['requestBody'] = reqB
+
     return ret
 
 
@@ -88,7 +134,6 @@ def docstring_to_object(docstring):
         operation = yaml.safe_load(tokens[1]) or {}
 
     description = re.sub(r'\s+', r' ', tokens[0]).strip()
-
     operation['description'] = description
 
     return operation
