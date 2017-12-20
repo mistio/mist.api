@@ -19,31 +19,6 @@ OAS_FILE_PATH = os.path.join(this_dir, 'spec.yml')
 # docker image
 
 
-#delete:
-#      description: Deletes the requested avatar
-#      parameters:
-#        - description: Avatar Id
-#          in: path
-#          name: avatar
-#          required: true
-#          schema:
-#            type: string
-#      responses:
-#        '200':
-#          description: Successful Operation
-#      requestBody:
-#        description: Optional description in *Markdown*
-#        required: true
-#        content:
-#          application/json:
-#            schema:
-#              type: object
-#              properties:
-#                id:
-#                  type: string
-#                  description: Test
-
-
 def extract_params_from_operation(operation):
     params = []
     for key in list(set(operation.keys()) - {'parameters', 'requestBody',
@@ -117,10 +92,8 @@ def patch_operation(operation):
             if _require:
                 schema['required'] = _require
 
-            ret['requestBody'] = {'content': {'application/json': {'schema': schema
-                                                    }
-                                }
-                    }
+            ret['requestBody'] = {'content': {'application/json':
+                                                                {'schema': schema}}}
 
     return ret
 
