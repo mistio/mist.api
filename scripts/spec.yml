@@ -65,25 +65,6 @@ paths:
                   type: string
                 provider:
                   description: The cloud provider.
-                  enum:
-                  - vcloud
-                  - bare_metal
-                  - docker
-                  - libvirt
-                  - openstack
-                  - vsphere
-                  - ec2
-                  - rackspace
-                  - nephoscale
-                  - digitalocean
-                  - softlayer
-                  - gce
-                  - azure
-                  - azure_arm
-                  - linode
-                  - onapp
-                  - hostvirtual
-                  - vultr
                   type: string
                 remove_on_error:
                   type: string
@@ -95,7 +76,6 @@ paths:
               required:
               - provider
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -145,14 +125,10 @@ paths:
             schema:
               properties:
                 new_state:
-                  enum:
-                  - '0'
-                  - '1'
                   type: string
               required:
               - new_state
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -176,7 +152,6 @@ paths:
                   description: ' New name for the given cloud'
                   type: string
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -288,7 +263,6 @@ paths:
                 search_term:
                   type: string
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -387,8 +361,6 @@ paths:
                 docker_command:
                   type: string
                 docker_env:
-                  items:
-                    type: string
                   type: array
                 docker_exposed_ports:
                   type: object
@@ -421,12 +393,8 @@ paths:
                 monitoring:
                   type: string
                 networks:
-                  items:
-                    type: string
                   type: array
                 plugins:
-                  items:
-                    type: string
                   type: array
                 post_script_id:
                   type: string
@@ -464,7 +432,6 @@ paths:
               - size_id
               - key_id
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -487,13 +454,6 @@ paths:
             schema:
               properties:
                 action:
-                  enum:
-                  - start
-                  - stop
-                  - reboot
-                  - destroy
-                  - resize
-                  - rename
                   type: string
                 name:
                   description: The new name of the renamed machine
@@ -504,7 +464,6 @@ paths:
               required:
               - action
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -553,13 +512,11 @@ paths:
             schema:
               properties:
                 port:
-                  default: 22
                   type: integer
                 user:
                   description: The ssh user
                   type: string
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -590,7 +547,6 @@ paths:
                   description: ' Metric_id '
                   type: string
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -634,7 +590,6 @@ paths:
                   description: ' Metric_id '
                   type: string
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -658,27 +613,19 @@ paths:
             schema:
               properties:
                 action:
-                  enum:
-                  - enable
-                  - disable
                   type: string
                 dns_name:
                   type: string
                 dry:
-                  default: false
                   type: boolean
                 name:
                   description: ' Name of the plugin'
                   type: string
                 no_ssh:
-                  default: false
                   type: boolean
                 public_ips:
-                  items:
-                    type: string
                   type: array
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -710,15 +657,11 @@ paths:
                 host:
                   type: string
                 plugin_type:
-                  default: python
-                  enum:
-                  - python
                   type: string
               required:
               - host
               - plugin_type
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -749,23 +692,18 @@ paths:
                 name:
                   type: string
                 plugin_type:
-                  default: python
-                  enum:
-                  - python
                   type: string
                 read_function:
                   type: string
                 unit:
                   type: string
                 value_type:
-                  default: gauge
                   type: string
               required:
               - name
               - read_function
               - plugin_type
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -801,7 +739,6 @@ paths:
                 key:
                   type: string
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -955,7 +892,6 @@ paths:
               required:
               - tag_key
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -1111,7 +1047,6 @@ paths:
               required:
               - subnet
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -1208,13 +1143,10 @@ paths:
             schema:
               properties:
                 key_ids:
-                  items:
-                    type: string
                   type: array
               required:
               - key_ids
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -1254,7 +1186,6 @@ paths:
               - name
               - priv
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -1313,7 +1244,6 @@ paths:
               required:
               - new_name
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -1382,8 +1312,15 @@ paths:
                 stop:
                   description: the timestamp of the last log in the sequence
                   type: integer
+              required:
+              - newest
+              - event_type
+              - stop
+              - start
+              - limit
+              - error
+              - action
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -1420,13 +1357,6 @@ paths:
             schema:
               properties:
                 action:
-                  enum:
-                  - start
-                  - stop
-                  - reboot
-                  - destroy
-                  - resize
-                  - rename
                   type: string
                 name:
                   description: The new name of the renamed machine
@@ -1437,7 +1367,6 @@ paths:
               required:
               - action
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -1486,13 +1415,11 @@ paths:
             schema:
               properties:
                 port:
-                  default: 22
                   type: integer
                 user:
                   description: The ssh user
                   type: string
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -1530,7 +1457,6 @@ paths:
                 key:
                   type: string
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -1603,7 +1529,6 @@ paths:
               - machine_id
               - cloud_id
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -1670,7 +1595,6 @@ paths:
               required:
               - org_id
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -1690,7 +1614,6 @@ paths:
               required:
               - name
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -1710,7 +1633,6 @@ paths:
               required:
               - org_id
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -1733,7 +1655,6 @@ paths:
               required:
               - org_id
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -1752,13 +1673,10 @@ paths:
             schema:
               properties:
                 team_ids:
-                  items:
-                    type: string
                   type: array
               required:
               - team_ids
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -1777,7 +1695,6 @@ paths:
               required:
               - org_id
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -1797,7 +1714,6 @@ paths:
               required:
               - name
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -1822,7 +1738,6 @@ paths:
               - team_id
               - org_id
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -1844,7 +1759,6 @@ paths:
               required:
               - org_id
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -1871,7 +1785,6 @@ paths:
               - team_id
               - org_id
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -1907,7 +1820,6 @@ paths:
               - org_id
               - emails
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -1936,7 +1848,6 @@ paths:
               - team_id
               - user_id
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -1956,7 +1867,6 @@ paths:
               required:
               - org_id
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -2070,7 +1980,6 @@ paths:
               - name
               - schedule_type
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -2090,7 +1999,6 @@ paths:
               required:
               - schedule_id
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -2108,7 +2016,6 @@ paths:
               required:
               - schedule_id
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -2159,7 +2066,6 @@ paths:
               - machines_tags
               - name
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -2178,13 +2084,10 @@ paths:
             schema:
               properties:
                 script_ids:
-                  items:
-                    type: string
                   type: array
               required:
               - script_ids
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -2223,11 +2126,14 @@ paths:
                 script_url:
                   type: string
               required:
+              - script_github
               - name
+              - script_inline
+              - script
               - exec_type
+              - script_url
               - location_type
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -2289,7 +2195,6 @@ paths:
               required:
               - machine_uuid
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -2316,7 +2221,6 @@ paths:
               required:
               - new_name
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -2362,7 +2266,6 @@ paths:
                 id:
                   description: Session ID
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -2405,7 +2308,6 @@ paths:
               required:
               - resource
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -2422,7 +2324,6 @@ paths:
                 id:
                   description: Api token ID
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
@@ -2436,7 +2337,7 @@ paths:
       tags:
       - api_tokens
     post:
-      description: Creates a new api token Used so that a user can send his credentials
+      description: Creates a new api token. Used so that a user can send his credentials
         and produce a new api token. The api token itself will be returned in a json
         document along with it's id and it's name. If user has used su then he should
         provide his own credentials. However, the api token will authenticate the
@@ -2475,7 +2376,6 @@ paths:
               required:
               - password
               type: object
-        required: true
       responses:
         '200':
           description: Successful Operation
