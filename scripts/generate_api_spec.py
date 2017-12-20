@@ -4,6 +4,8 @@ import re
 import os
 import mist.api
 
+import json
+
 this_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(this_dir)
 paths = ['src', 'libcloud', 'celerybeat-mongo']
@@ -88,6 +90,7 @@ def patch_operation(operation):
     else:
 
         properties = {}
+        _require = []
 
         for key in list(set(operation.keys()) - {'parameters', 'requestBody',
                                                  'responses', 'description',
@@ -97,18 +100,27 @@ def patch_operation(operation):
                     properties[key] = {}
 
                     for param in operation[key].keys():
-                        if param in ['type', 'description', 'required']:
+                        if param in ['type', 'description']:
                             properties[key][param] = operation[key][param]
 
+                        if param in ['required']:
+                            _require.append(key)
+
         if properties:
-            reqB = {'content': {'application/json': {'schema': {'type': 'object',
-                                                                'properties': properties,
-                                                                }
+            properties = json.dumps(properties)
+            _properties = json.loads(properties)
+            schema = {}
+
+            schema['type'] = 'object'
+            schema['properties'] = _properties
+
+            if _require:
+                schema['required'] = _require
+
+            ret['requestBody'] = {'content': {'application/json': {'schema': schema
                                                     }
                                 }
                     }
-
-            ret['requestBody'] = reqB
 
     return ret
 
