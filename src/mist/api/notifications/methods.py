@@ -56,30 +56,6 @@ def add_override_channel(email, org, channel, value='BLOCK'):
     policy.save()
 
 
-def remove_override(notification):
-    '''
-    Removes a notification override to a user-org policy
-    for the specified notification type.
-    Creates the policy if it does not exist.
-    '''
-    org = notification.organization
-    policy = get_policy(notification.email, org)
-    source = type(notification).__name__
-    for override in policy.overrides:
-        if (override.tag and notification.tag and
-                override.tag != notification.tag):
-            continue
-        if (override.cloud and notification.cloud and
-                override.cloud != notification.cloud):
-            continue
-        if (override.machine and notification.machine and
-                override.machine != notification.machine):
-            continue
-        if override.source == source:
-            policy.overrides.remove(override)
-    policy.save()
-
-
 def get_policy(email, org, create=True):
     '''
     Accepts a user-org pair and returns the corresponding notification
