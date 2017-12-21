@@ -24,15 +24,13 @@ DEFAULT_RESPONSES = {'200': {'description': 'Successful Operation'},
                      '404': {'description': 'Not Found'}
                      }
 
-# create method: extract_request_body
-
-# group default methods
-
 # docker image locally
 
-# last manual check
+# check petstore -- sth in description?
 
 # cleanup
+
+# last manual check
 
 # docker image panw
 
@@ -53,6 +51,40 @@ def extract_params_from_operation(operation):
             params.append(p)
 
     return params
+
+
+def extract_request_body(operation, ret):
+    properties = {}
+    _require = []
+
+    for key in list(set(operation.keys()) - OPENAPI_KEYWORDS):
+
+        if 'in' not in operation[key].keys():
+            properties[key] = {}
+
+            for param in operation[key].keys():
+                if param in ['type', 'description']:
+                    properties[key][param] = operation[key][param]
+
+                if param in ['required']:
+                    _require.append(key)
+
+    if properties:
+        properties = json.dumps(properties)
+        _properties = json.loads(properties)
+        schema = {}
+
+        schema['type'] = 'object'
+        schema['properties'] = _properties
+
+        if _require:
+            schema['required'] = _require
+
+        requestBody = {'content': {'application/json': {'schema': schema}}}
+
+        ret['requestBody'] = requestBody
+
+    return ret
 
 
 def patch_operation(operation):
@@ -79,36 +111,7 @@ def patch_operation(operation):
         ret['requestBody'] = operation['requestBody']
 
     else:
-
-        properties = {}
-        _require = []
-
-        for key in list(set(operation.keys()) - OPENAPI_KEYWORDS):
-
-                if 'in' not in operation[key].keys():
-                    properties[key] = {}
-
-                    for param in operation[key].keys():
-                        if param in ['type', 'description']:
-                            properties[key][param] = operation[key][param]
-
-                        if param in ['required']:
-                            _require.append(key)
-
-        if properties:
-            properties = json.dumps(properties)
-            _properties = json.loads(properties)
-            schema = {}
-
-            schema['type'] = 'object'
-            schema['properties'] = _properties
-
-            if _require:
-                schema['required'] = _require
-
-            requestBody = {'content': {'application/json': {'schema': schema}}}
-
-            ret['requestBody'] = requestBody
+        ret = extract_request_body(operation, ret)
 
     return ret
 
