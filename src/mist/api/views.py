@@ -1304,7 +1304,9 @@ def ping(request):
 @view_config(route_name='api_v1_monitoring', request_method='GET', renderer='json')
 def check_monitoring(request):
     """
-    Check monitoring
+    Tags: machines
+    ---
+    Check monitoring.
     Ask the mist.api service if monitoring is enabled for this machine.
     ---
     """
@@ -1318,6 +1320,8 @@ def check_monitoring(request):
 @view_config(route_name='api_v1_update_monitoring', request_method='POST', renderer='json')
 def update_monitoring(request):
     """
+    Tags: machines
+    ---
     Enables monitoring for a machine.
     ---
     cloud:
@@ -1406,8 +1410,9 @@ def update_monitoring(request):
 @view_config(route_name='api_v1_stats', request_method='GET', renderer='json')
 def get_stats(request):
     """
-    Get monitor data for a machine
-    Get all monitor data for this machine
+    Tags: machines
+    ---
+    Get all monitor data for this machine.
     READ permission required on cloud.
     READ permission required on machine.
     ---
@@ -1477,7 +1482,9 @@ def get_stats(request):
 @view_config(route_name='api_v1_metrics', request_method='GET', renderer='json')
 def find_metrics(request):
     """
-    Get all metrics associated with specific machine
+    Tags: machines
+    ---
+    Get all metrics associated with specific machine.
     READ permission required on cloud.
     READ permission required on machine.
     ---
@@ -1508,8 +1515,9 @@ def find_metrics(request):
 @view_config(route_name='api_v1_metrics', request_method='PUT', renderer='json')
 def assoc_metric(request):
     """
-    Associate metric with machine
-    Associate metric with specific machine
+    Tags: machines
+    ---
+    Associate metric with specific machine.
     READ permission required on cloud.
     EDIT_GRAPHS permission required on machine.
     ---
@@ -1548,8 +1556,9 @@ def assoc_metric(request):
 @view_config(route_name='api_v1_metrics', request_method='DELETE', renderer='json')
 def disassoc_metric(request):
     """
-    Disassociate metric from machine
-    Disassociate metric from specific machine
+    Tags: machines
+    ---
+    Disassociate metric from specific machine.
     READ permission required on cloud.
     EDIT_GRAPHS permission required on machine.
     ---
@@ -1589,7 +1598,9 @@ def disassoc_metric(request):
 @view_config(route_name='api_v1_metric', request_method='PUT', renderer='json')
 def update_metric(request):
     """
-    Updates a metric configuration
+    Tags: machines
+    ---
+    Updates a metric configuration.
     READ permission required on cloud.
     EDIT_CUSTOM_METRICS required on machine.
     ---
@@ -1644,6 +1655,8 @@ def update_metric(request):
 @view_config(route_name='api_v1_deploy_plugin', request_method='POST', renderer='json')
 def deploy_plugin(request):
     """
+    Tags: machines
+    ---
     Deploys a plugin on the specific machine.
     READ permission required on cloud.
     EDIT_CUSTOM_METRICS required on machine.
