@@ -2,9 +2,9 @@ import sys
 import yaml
 import re
 import os
-import mist.api
-
 import json
+
+import mist.api
 
 this_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(this_dir)
@@ -18,13 +18,21 @@ OPENAPI_KEYWORDS = {'parameters', 'requestBody',
                     'responses', 'description',
                     'tags'}
 
-# (operation --> docstring)
+DEFAULT_RESPONSES = {'200': {'description': 'Successful Operation'},
+                     '403': {'description': 'You are not\
+                     authorized to perform this action'},
+                     '404': {'description': 'Not Found'}
+                     }
 
 # create method: extract_request_body
 
-# last manual check
+# group default methods
 
 # docker image locally
+
+# last manual check
+
+# cleanup
 
 # docker image panw
 
@@ -52,7 +60,7 @@ def patch_operation(operation):
     if operation.keys() and 'responses' in operation.keys():
         ret['responses'] = operation['responses']
     else:
-        ret['responses'] = {'200': {'description': 'Successful Operation'}}
+        ret['responses'] = DEFAULT_RESPONSES
 
     if 'parameters' in operation.keys():
         ret['parameters'] = operation['parameters']
