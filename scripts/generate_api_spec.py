@@ -14,16 +14,24 @@ for p in paths:
 BASE_FILE_PATH = os.path.join(this_dir, 'base.yml')
 OAS_FILE_PATH = os.path.join(this_dir, 'spec.yml')
 
-# cleanup (operation --> docstring)
+OPENAPI_KEYWORDS = {'parameters', 'requestBody',
+                    'responses', 'description',
+                    'tags'}
 
-# docker image
+# (operation --> docstring)
+
+# create method: extract_request_body
+
+# last manual check
+
+# docker image locally
+
+# docker image panw
 
 
 def extract_params_from_operation(operation):
     params = []
-    for key in list(set(operation.keys()) - {'parameters', 'requestBody',
-                                             'responses', 'description',
-                                             'tags'}):
+    for key in list(set(operation.keys()) - OPENAPI_KEYWORDS):
         if 'in' in operation[key].keys():
             p = {}
             p['name'] = key
@@ -67,9 +75,7 @@ def patch_operation(operation):
         properties = {}
         _require = []
 
-        for key in list(set(operation.keys()) - {'parameters', 'requestBody',
-                                                 'responses', 'description',
-                                                 'tags'}):
+        for key in list(set(operation.keys()) - OPENAPI_KEYWORDS):
 
                 if 'in' not in operation[key].keys():
                     properties[key] = {}
