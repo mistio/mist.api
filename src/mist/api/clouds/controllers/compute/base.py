@@ -318,8 +318,8 @@ class BaseComputeController(BaseController):
             machine.image_id = image_id
             machine.size = size
             machine.state = config.STATES[node.state]
-            machine.private_ips = node.private_ips
-            machine.public_ips = node.public_ips
+            machine.private_ips = list(set(node.private_ips))
+            machine.public_ips = list(set(node.public_ips))
 
             # Set machine extra dict.
             # Make sure we don't meet any surprises when we try to json encode
