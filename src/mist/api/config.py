@@ -325,8 +325,6 @@ MONITORING_METHODS = (
 )
 DEFAULT_MONITORING_METHOD = 'telegraf-influxdb'
 
-ACTIVATE_POLLER = True
-
 # number of api tokens user can have
 ACTIVE_APITOKEN_NUM = 20
 ALLOW_CONNECT_LOCALHOST = True
