@@ -238,8 +238,11 @@ def add_routes(configurator):
     configurator.add_route('api_v1_key_association',
                            '/api/v1/machines/{machine_uuid}/keys/{key}')
 
+    # Rules.
     configurator.add_route('api_v1_rules', '/api/v1/rules')
     configurator.add_route('api_v1_rule', '/api/v1/rules/{rule}')
+    configurator.add_route('api_v1_rule_triggered', '/api/v1/rule-triggered')
+
     configurator.add_route('api_v1_check_auth', '/api/v1/auth')
 
     configurator.add_route('api_v1_zones',
@@ -334,4 +337,6 @@ def add_routes(configurator):
 
     # DEV ENDPOINT
     configurator.add_route('api_v1_dev_register', '/api/v1/dev/register')
+    configurator.add_route('api_v1_add_dev_user_to_team',
+                           '/api/v1/dev/orgs/{org_id}/teams/{team_id}')
     configurator.add_route('api_v1_dev_users', '/api/v1/dev/users')

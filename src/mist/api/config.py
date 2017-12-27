@@ -325,6 +325,12 @@ MONITORING_METHODS = (
 )
 DEFAULT_MONITORING_METHOD = 'telegraf-influxdb'
 
+GRAPHITE_URI = "http://graphite"
+
+# Alert service's authentication key
+CILIA_TRIGGER = False
+CILIA_SECRET_KEY = ""
+
 # number of api tokens user can have
 ACTIVE_APITOKEN_NUM = 20
 ALLOW_CONNECT_LOCALHOST = True
@@ -492,6 +498,9 @@ CELERY_SETTINGS = {
         # Ping probe queue (handled by gevent)
         'mist.api.tasks.ping': {'queue': 'ping'},
         'mist.api.poller.tasks.ping_probe': {'queue': 'ping'},
+
+        # Rule evaluation queue (handled by gevent)
+        'mist.api.rules.tasks.evaluate': {'queue': 'rules'},
 
         # Core tasks
         'mist.core.insights.tasks.list_deployments': {'queue': 'deployments'},

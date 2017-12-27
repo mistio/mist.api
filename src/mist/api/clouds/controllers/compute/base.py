@@ -22,6 +22,7 @@ import mongoengine as me
 from libcloud.common.types import InvalidCredsError
 from libcloud.compute.types import NodeState
 from libcloud.compute.base import NodeLocation, Node
+from libcloud.common.exceptions import BaseHTTPError
 
 from amqp.connection import Connection
 
@@ -315,8 +316,8 @@ class BaseComputeController(BaseController):
             machine.image_id = image_id
             machine.size = size
             machine.state = config.STATES[node.state]
-            machine.private_ips = node.private_ips
-            machine.public_ips = node.public_ips
+            machine.private_ips = list(set(node.private_ips))
+            machine.public_ips = list(set(node.public_ips))
 
             # Set machine extra dict.
             # Make sure we don't meet any surprises when we try to json encode
@@ -1008,7 +1009,12 @@ class BaseComputeController(BaseController):
         Differnent cloud controllers should override this private method, which
         is called by the public method `destroy_machine`.
         """
-        machine_libcloud.destroy()
+        try:
+            machine_libcloud.destroy()
+        except BaseHTTPError:
+            raise ForbiddenError("Cannot destroy machine. Check the "
+                                 "termination protection setting on your "
+                                 "cloud provider.")
 
     # It isn't implemented in the ui
     def resize_machine(self, machine, plan_id, kwargs):

@@ -2,7 +2,7 @@
 
 set -e
 
-QUEUES="${QUEUES:-celery,machines,scripts,command,ping,probe}"
+QUEUES="${QUEUES:-celery,machines,scripts,command,ping,probe,rules}"
 LOGLEVEL="INFO"
 TASKS="${TASKS:-mist.api.tasks}"
 CONCURRENCY=${CONCURRENCY:-8}

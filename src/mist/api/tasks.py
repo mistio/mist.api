@@ -57,8 +57,7 @@ app.conf.update(**config.CELERY_SETTINGS)
 app.autodiscover_tasks(['mist.api.poller'])
 app.autodiscover_tasks(['mist.api.portal'])
 app.autodiscover_tasks(['mist.api.monitoring'])
-
-
+app.autodiscover_tasks(['mist.api.rules'])
 
 
 @app.task
