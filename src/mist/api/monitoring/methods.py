@@ -399,6 +399,14 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=''):
     if job_id:
         ret_dict['job_id'] = job_id
 
+    # Update monitoring information in db: set monitoring to off, remove rules
+    for rule in Rule.objects(owner_id=machine.owner.id):
+        if rule.cloud == cloud_id and rule.machine == machine_id:
+            rule.delete()
+    owner.save()
+    machine.monitoring.hasmonitoring = False
+    machine.save()
+
     # tell monitor server to no longer monitor this uuid
     try:
         if machine.monitoring.method == 'collectd-graphite':
@@ -420,17 +428,6 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=''):
     except Exception as exc:
         log.error("Exception %s while asking monitor server in "
                   "disable_monitoring", exc)
-
-    # Update monitoring information.
-    # since we successfully disabled in monitor server, update local database
-    # delete rules
-    for rule_id, rule in owner.rules.items():
-        if rule.cloud == cloud_id and rule.machine == machine_id:
-            owner.rules[rule_id].delete()
-            del owner.rules[rule_id]
-    owner.save()
-    machine.monitoring.hasmonitoring = False
-    machine.save()
 
     trigger_session_update(owner, ['monitoring'])
     return ret_dict
