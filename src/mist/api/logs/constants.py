@@ -30,10 +30,18 @@ FIELDS = (
 # Pairs indicating the actions that may start and close a single job. Jobs
 # may either be standalone stories or part of a broader story.
 JOBS = {
-    'run_script': 'script_finished',
-    'create_machine': 'post_deploy_finished',
-    'enable_monitoring': 'deploy_collectd_finished',
-    'disable_monitoring': 'undeploy_collectd_finished',
+    'run_script': (
+        'script_finished',
+    ),
+    'create_machine': (
+        'post_deploy_finished',
+    ),
+    'enable_monitoring': (
+        'deploy_collectd_finished', 'telegraf_deployment_finished',
+    ),
+    'disable_monitoring': (
+        'undeploy_collectd_finished', 'telegraf_undeployment_finished',
+    ),
 }
 
 # Following are actions that may open/close stories. The following tuples are
@@ -54,7 +62,8 @@ CLOSES_STORY = (
     'disconnect',
     'rule_untriggered',
     'workflow_finished',
-    'Schedule finished', ) + tuple(JOBS.values()) + ('end_job', )
+    'Schedule finished',
+) + tuple(a for v in JOBS.itervalues() for a in v) + ('end_job', )
 
 # Actions that can close an open incident.
 CLOSES_INCIDENT = (

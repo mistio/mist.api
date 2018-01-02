@@ -528,7 +528,7 @@ def associate_stories(event):
     action = 'updates'
     if event['error']:
         action = 'closes'
-    elif event['action'] in JOBS.itervalues():
+    elif event['action'] in (a for v in JOBS.itervalues() for a in v):
         if job in JOBS:
             action = 'closes'
     elif event['action'] in CLOSES_STORY:
