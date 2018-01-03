@@ -36,6 +36,7 @@ def _gen_machine_frontend_config(machine):
                 "X-Gocky-Tag-Cloud-Id": machine.cloud.id,
                 "X-Gocky-Tag-Machine-Id": machine.id,
                 "X-Gocky-Tag-Machine-External-Id": machine.machine_id,
+                "X-Gocky-Tag-Source-Type": machine.os_type,
             },
         },
         "entryPoints": [
