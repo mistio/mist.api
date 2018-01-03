@@ -55,7 +55,7 @@ def windows_install(machine):
           "$TELEGRAF_MACHINE | Set-Content .\\telegraf.conf;\n" \
           "C:\\'Program Files'\\Telegraf\\telegraf.exe --service install;\n" \
           "net start telegraf\n" % (machine.id,
-                                   config.TELEGRAF_TARGET,
-                                   machine.monitoring.collectd_password)
+                                    config.TELEGRAF_TARGET,
+                                    machine.monitoring.collectd_password)
 
     return cmd
