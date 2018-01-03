@@ -1,7 +1,6 @@
 import mist.api.clouds.models as cloud_models
 
 from mist.api.clouds.models import Cloud
-from mist.api.machines.models import Machine
 
 from mist.api.tasks import async_session_update
 from mist.api.helpers import trigger_session_update
@@ -12,10 +11,8 @@ from mist.api.exceptions import BadRequestError, NotFoundError
 from mist.api.poller.models import ListMachinesPollingSchedule
 
 try:
-    from mist.core.methods import enable_monitoring
     from mist.core.methods import disable_monitoring_cloud
 except ImportError:
-    from mist.api.dummy.methods import enable_monitoring
     from mist.api.dummy.methods import disable_monitoring_cloud
     HAS_CORE = False
 else:
@@ -38,7 +35,6 @@ def add_cloud_v_2(owner, title, provider, params):
     # FIXME: Some of these should be explicit arguments, others shouldn't exist
     fail_on_error = params.pop('fail_on_error',
                                params.pop('remove_on_error', True))
-    monitoring = params.pop('monitoring', False)
     params.pop('title', None)
     params.pop('provider', None)
     # Find proper Cloud subclass.
@@ -52,16 +48,11 @@ def add_cloud_v_2(owner, title, provider, params):
     # Add the cloud.
     cloud = cloud_cls.add(owner, title, fail_on_error=fail_on_error,
                           fail_on_invalid_params=False, **params)
-    ret = {'cloud_id': cloud.id}
-    if provider == 'bare_metal' and monitoring:
-        # Let's overload this a bit more by also combining monitoring.
-        machine = Machine.objects.get(cloud=cloud)
-
-        ret['monitoring'] = enable_monitoring(
-            owner, cloud.id, machine.machine_id,
-            no_ssh=not (machine.os_type == 'unix' and
-                        machine.key_associations)
-        )
+    ret = {
+        'cloud_id': cloud.id,
+        'errors': getattr(cloud,
+                          'errors', []),  # just an attribute, not a field
+    }
 
     # SEC
     # Update the RBAC mappings with the new Cloud and finally trigger

@@ -355,3 +355,11 @@ class BaseMainController(object):
 
     def disconnect(self):
         self.compute.disconnect()
+
+    def add_machine(self, **kwargs):
+        """
+        Add a machine in a bare metal cloud.
+        This is only supported on Other Server clouds.
+        """
+        raise BadRequestError("Adding machines is only supported in Bare"
+                              "Metal clouds.")

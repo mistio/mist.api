@@ -13,9 +13,12 @@ from mist.api import tasks
 
 from mist.api.auth.methods import auth_context_from_request
 from mist.api.helpers import view_config, params_from_request
+from mist.api.helpers import trigger_session_update
+
 
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import BadRequestError, NotFoundError
+from mist.api.exceptions import MachineCreationError
 from mist.api.exceptions import CloudUnauthorizedError, CloudUnavailableError
 
 from mist.api import config
@@ -24,6 +27,13 @@ try:
     from mist.core.vpn.methods import destination_nat as dnat
 except ImportError:
     from mist.api.dummy.methods import dnat
+
+try:
+    from mist.core.methods import enable_monitoring
+    from mist.core.methods import disable_monitoring
+except ImportError:
+    from mist.api.dummy.methods import enable_monitoring
+    from mist.api.dummy.methods import disable_monitoring
 
 logging.basicConfig(level=config.PY_LOG_LEVEL,
                     format=config.PY_LOG_FORMAT,
@@ -411,6 +421,85 @@ def create_machine(request):
     return ret
 
 
+@view_config(route_name='api_v1_machines', request_method='PUT',
+             renderer='json')
+def add_machine(request):
+    """
+    Add a machine to an OtherServer Cloud. This works for bare_metal clouds.
+    """
+    cloud_id = request.matchdict.get('cloud')
+    params = params_from_request(request)
+    machine_ip = params.get('machine_ip')
+    if not machine_ip:
+        raise RequiredParameterMissingError("machine_ip")
+
+    operating_system = params.get('operating_system', '')
+    machine_name = params.get('machine_name', '')
+    machine_key = params.get('machine_key', '')
+    machine_user = params.get('machine_user', '')
+    machine_port = params.get('machine_port', '')
+    remote_desktop_port = params.get('remote_desktop_port', '')
+    monitoring = params.get('monitoring', '')
+
+    job_id = params.get('job_id')
+    if not job_id:
+        job = 'add_machine'
+        job_id = uuid.uuid4().hex
+    else:
+        job = None
+
+    auth_context = auth_context_from_request(request)
+    auth_context.check_perm("cloud", "read", cloud_id)
+
+    if machine_key:
+        auth_context.check_perm("key", "read", machine_key)
+
+    try:
+        Cloud.objects.get(owner=auth_context.owner,
+                          id=cloud_id, deleted=None)
+    except Cloud.DoesNotExist:
+        raise NotFoundError('Cloud does not exist')
+
+    log.info('Adding bare metal machine %s on cloud %s'
+             % (machine_name, cloud_id))
+    cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
+                              deleted=None)
+
+    try:
+        machine = cloud.ctl.add_machine(machine_name, host=machine_ip,
+                                        ssh_user=machine_user,
+                                        ssh_port=machine_port,
+                                        ssh_key=machine_key,
+                                        os_type=operating_system,
+                                        rdp_port=remote_desktop_port,
+                                        fail_on_error=True)
+    except Exception as e:
+        raise MachineCreationError("OtherServer, got exception %r" % e,
+                                   exc=e)
+
+    # Enable monitoring
+    if monitoring:
+        monitor = enable_monitoring(
+            auth_context.owner, cloud.id, machine.machine_id,
+            no_ssh=not (machine.os_type == 'unix' and
+                        machine.key_associations)
+        )
+
+    ret = {'id': machine.id,
+           'name': machine.name,
+           'extra': {},
+           'public_ips': machine.public_ips,
+           'private_ips': machine.private_ips,
+           'job_id': job_id,
+           'job': job
+           }
+
+    if monitoring:
+        ret.update({'monitoring': monitor})
+
+    return ret
+
+
 @view_config(route_name='api_v1_cloud_machine',
              request_method='POST', renderer='json')
 @view_config(route_name='api_v1_machine',
@@ -490,7 +579,7 @@ def machine_actions(request):
     auth_context.check_perm("machine", action, machine.id)
 
     actions = ('start', 'stop', 'reboot', 'destroy', 'resize',
-               'rename', 'undefine', 'suspend', 'resume')
+               'rename', 'undefine', 'suspend', 'resume', 'remove')
 
     if action not in actions:
         raise BadRequestError("Action '%s' should be "
@@ -498,6 +587,31 @@ def machine_actions(request):
     if action == 'destroy':
         methods.destroy_machine(auth_context.owner, cloud_id,
                                 machine.machine_id)
+    elif action == 'remove':
+        log.info('Removing machine %s in cloud %s'
+                 % (machine.machine_id, cloud_id))
+
+        if not machine.monitoring.hasmonitoring:
+            machine.ctl.remove()
+            # Schedule a UI update
+            trigger_session_update(auth_context.owner, ['clouds'])
+            return
+
+        # if machine has monitoring, disable it. the way we disable depends on
+        # whether this is a standalone io installation or not
+        try:
+            # we don't actually bother to undeploy collectd
+            disable_monitoring(auth_context.owner, cloud_id, machine_id,
+                               no_ssh=True)
+        except Exception as exc:
+            log.warning("Didn't manage to disable monitoring, maybe the "
+                        "machine never had monitoring enabled. Error: %r", exc)
+
+        machine.ctl.remove()
+
+        # Schedule a UI update
+        trigger_session_update(auth_context.owner, ['clouds'])
+
     elif action in ('start', 'stop', 'reboot',
                     'undefine', 'suspend', 'resume'):
         getattr(machine.ctl, action)()
