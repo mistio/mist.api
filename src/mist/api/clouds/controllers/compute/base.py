@@ -416,16 +416,8 @@ class BaseComputeController(BaseController):
         # Append generic-type machines, which aren't handled by libcloud.
         for machine in self._list_machines__fetch_generic_machines():
             machine.last_seen = now
-            machine.missing_since = None
-            machine.state = config.STATES[NodeState.UNKNOWN]
-            for action in ('start', 'stop', 'reboot', 'destroy', 'rename',
-                           'resume', 'suspend', 'undefine'):
-                setattr(machine.actions, action, False)
-            machine.actions.tag = True
-
-            # allow reboot action for bare metal with key associated
-            if machine.key_associations:
-                machine.actions.reboot = True
+            self._list_machines__update_generic_machine_state(machine)
+            self._list_machines__generic_machine_actions(machine)
 
             # Set machine hostname
             if not machine.hostname:
@@ -469,8 +461,27 @@ class BaseComputeController(BaseController):
             self.disconnect()
         except Exception as exc:
             log.warning("Error while closing connection: %r", exc)
-
         return machines
+
+    def _list_machines__update_generic_machine_state(self, machine):
+        """Helper method to update the machine state
+
+        This is only overriden by the OtherServer Controller.
+        It applies only to generic machines.
+        """
+        machine.state = config.STATES[NodeState.UNKNOWN]
+
+    def _list_machines__generic_machine_actions(self, machine):
+        """Helper method to update available generic machine's actions
+
+        This is currently only overriden by the OtherServer Controller
+        """
+        for action in ('start', 'stop', 'reboot', 'destroy', 'rename',
+                       'resume', 'suspend', 'undefine', 'remove'):
+            setattr(machine.actions, action, False)
+        if machine.key_associations:
+            machine.actions.reboot = True
+        machine.actions.tag = True
 
     def _list_machines__fetch_machines(self):
         """Perform the actual libcloud call to get list of nodes"""
@@ -1015,6 +1026,10 @@ class BaseComputeController(BaseController):
             raise ForbiddenError("Cannot destroy machine. Check the "
                                  "termination protection setting on your "
                                  "cloud provider.")
+
+    def remove_machine(self, machine):
+        raise BadRequestError("Machines on public clouds can't be removed."
+                              "This is only supported in Bare Metal clouds.")
 
     # It isn't implemented in the ui
     def resize_machine(self, machine, plan_id, kwargs):

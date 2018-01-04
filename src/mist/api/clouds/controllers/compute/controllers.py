@@ -24,6 +24,7 @@ import re
 import copy
 import socket
 import logging
+import datetime
 import netaddr
 import tempfile
 import iso8601
@@ -1369,14 +1370,55 @@ class OtherComputeController(BaseComputeController):
     def _list_machines__fetch_machines(self):
         return []
 
+    def _list_machines__update_generic_machine_state(self, machine):
+        """Update generic machine state (based on ping/ssh probes)
+
+        It is only used in generic machines.
+        """
+
+        # Defaults
+        machine.unreachable_since = None
+        machine.state = config.STATES[NodeState.UNKNOWN]
+
+        # If any of the probes has succeeded, then state is running
+        if (
+            machine.ssh_probe and not machine.ssh_probe.unreachable_since or
+            machine.ping_probe and not machine.ping_probe.unreachable_since
+        ):
+            machine.state = config.STATES[NodeState.RUNNING]
+
+        # If ssh probe failed, then unreachable since then
+        if machine.ssh_probe and machine.ssh_probe.unreachable_since:
+            machine.unreachable_since = machine.ssh_probe.unreachable_since
+        # Else if ssh probe has never succeeded and ping probe failed,
+        # then unreachable since then
+        elif (not machine.ssh_probe and
+              machine.ping_probe and machine.ping_probe.unreachable_since):
+            machine.unreachable_since = machine.ping_probe.unreachable_since
+
+    def _list_machines__generic_machine_actions(self, machine):
+        """Update an action for a bare metal machine
+
+        Bare metal machines only support remove, reboot and tag actions"""
+
+        super(OtherComputeController,
+              self)._list_machines__generic_machine_actions(machine)
+        machine.actions.remove = True
+
     def _get_machine_libcloud(self, machine):
         return None
 
     def _list_machines__fetch_generic_machines(self):
-        return Machine.objects(cloud=self.cloud)
+        return Machine.objects(cloud=self.cloud, missing_since=None)
 
     def reboot_machine(self, machine):
         return self.reboot_machine_ssh(machine)
+
+    def remove_machine(self, machine):
+        while machine.key_associations:
+            machine.key_associations.pop()
+        machine.missing_since = datetime.datetime.now()
+        machine.save()
 
     def list_images(self, search=None):
         return []
