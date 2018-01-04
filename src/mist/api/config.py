@@ -233,6 +233,9 @@ CELERY_SETTINGS = {
         # Images queue
         'mist.api.poller.tasks.list_images': {'queue': 'images'},
 
+        # Zones queue
+        'mist.api.poller.tasks.list_zones': {'queue': 'zones'},
+
         # Scripts queue (handled by gevent)
         'mist.api.tasks.group_run_script': {'queue': 'scripts'},
         'mist.api.tasks.run_script': {'queue': 'scripts'},

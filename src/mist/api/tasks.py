@@ -1399,6 +1399,7 @@ def update_poller(org_id):
         log.info("Updating poller for cloud %s", cloud)
         ListMachinesPollingSchedule.add(cloud=cloud, interval=10, ttl=120)
         ListImagesPollingSchedule.add(cloud=cloud, interval=10, ttl=120)
+        ListZonesPollingSchedule.add(cloud=cloud, interval=10, ttl=120)
         for machine in cloud.ctl.compute.list_cached_machines():
             log.info("Updating poller for machine %s", machine)
             PingProbeMachinePollingSchedule.add(machine=machine,
