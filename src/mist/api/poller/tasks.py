@@ -40,6 +40,17 @@ def list_machines(schedule_id):
     sched.cloud.ctl.compute.list_machines(persist=False)
 
 
+@app.task(time_limit=60, soft_time_limit=55)
+def list_images(schedule_id):
+    """Perform list images. Cloud controller stores results in mongodb."""
+
+    # Fetch schedule and cloud from database.
+    # FIXME: resolve circular deps error
+    from mist.api.poller.models import ListImagesPollingSchedule
+    sched = ListImagesPollingSchedule.objects.get(id=schedule_id)
+    sched.cloud.ctl.compute.list_images(persist=False)
+
+
 @app.task(time_limit=45, soft_time_limit=40)
 def ping_probe(schedule_id):
     """Perform ping probe"""
