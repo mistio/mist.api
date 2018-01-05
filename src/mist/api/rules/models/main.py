@@ -325,7 +325,7 @@ class ResourceRule(Rule, ConditionalClassMixin):
     @property
     def enabled(self):
         return (super(ResourceRule, self).enabled and
-                self.get_resources().count())
+                bool(self.get_resources().count()))
 
     def as_dict(self):
         d = super(ResourceRule, self).as_dict()
