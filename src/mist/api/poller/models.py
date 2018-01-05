@@ -249,6 +249,11 @@ class ListZonesPollingSchedule(CloudPollingSchedule):
     task = 'mist.api.poller.tasks.list_zones'
 
 
+class ListNetworksPollingSchedule(CloudPollingSchedule):
+
+    task = 'mist.api.poller.tasks.list_networks'
+
+
 class ZonePollingSchedule(PollingSchedule):
 
     zone_id = me.StringField(required=True)

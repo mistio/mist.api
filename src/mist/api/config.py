@@ -233,6 +233,9 @@ CELERY_SETTINGS = {
         # Images queue
         'mist.api.poller.tasks.list_images': {'queue': 'images'},
 
+        # Networks queue
+        'mist.api.poller.tasks.list_networks': {'queue': 'networks'}
+
         # Zones queue
         'mist.api.poller.tasks.list_zones': {'queue': 'zones'},
 
