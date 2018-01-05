@@ -373,3 +373,4 @@ class Schedule(me.Document, ConditionalClassMixin):
 
 class UserScheduler(MongoScheduler):
     Model = Schedule
+    UPDATE_INTERVAL = datetime.timedelta(seconds=20)
