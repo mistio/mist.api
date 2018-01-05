@@ -8,6 +8,7 @@ import mongoengine as me
 
 from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
+from mist.api.zones.models import Zone
 
 
 log = logging.getLogger(__name__)
@@ -246,6 +247,61 @@ class ListImagesPollingSchedule(CloudPollingSchedule):
 class ListZonesPollingSchedule(CloudPollingSchedule):
 
     task = 'mist.api.poller.tasks.list_zones'
+
+
+class ZonePollingSchedule(PollingSchedule):
+
+    zone_id = me.StringField(required=True)
+
+    def get_name(self):
+        return '%s(%s)' % (super(ZonePollingSchedule, self).get_name(),
+                           self.zone_id)
+
+    @property
+    def zone(self):
+        return Zone.objects.get(id=self.zone_id)
+
+    @property
+    def enabled(self):
+        try:
+            return (super(ZonePollingSchedule, self).enabled and
+                    not self.zone_id.deleted)
+        except me.DoesNotExist:
+            log.error('Cannot get zone for polling schedule.')
+            return False
+
+    @property
+    def interval(self):
+        try:
+            if self.default_interval.every != self.zone_id.polling_interval:
+                log.warning("Schedule has different interval from zone, "
+                            "fixing")
+                self.default_interval.every = self.zone_id.polling_interval
+                self.save()
+            return super(ZonePollingSchedule, self).interval
+        except me.DoesNotExist:
+            log.error('Cannot get interval. Zone is missing')
+            return PollingInterval(every=0)
+
+    @classmethod
+    def add(cls, zone, interval=None, ttl=300):
+        try:
+            schedule = cls.objects.get(zone=zone)
+        except cls.DoesNotExist:
+            schedule = cls(zone=zone)
+            try:
+                schedule.save()
+            except me.NotUniqueError:
+                # Work around race condition where schedule was created since
+                # last time we checked.
+                schedule = cls.objects.get(zone=zone)
+        schedule.set_default_interval(zone.polling_interval)
+        if interval is not None:
+            schedule.add_interval(interval, ttl)
+        schedule.run_immediately = True
+        schedule.cleanup_expired_intervals()
+        schedule.save()
+        return schedule
 
 
 class MachinePollingSchedule(PollingSchedule):
