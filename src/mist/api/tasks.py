@@ -1400,9 +1400,9 @@ def update_poller(org_id):
     for cloud in Cloud.objects(owner=org, deleted=None, enabled=True):
         log.info("Updating poller for cloud %s", cloud)
         ListMachinesPollingSchedule.add(cloud=cloud, interval=10, ttl=120)
-        ListImagesPollingSchedule.add(cloud=cloud, interval=30, ttl=120)
-        ListZonesPollingSchedule.add(cloud=cloud, interval=30, ttl=120)
-        ListNetworksPollingSchedule.add(cloud=cloud, interval=30, ttl=120)
+        ListImagesPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
+        ListZonesPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
+        ListNetworksPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
         for machine in cloud.ctl.compute.list_cached_machines():
             log.info("Updating poller for machine %s", machine)
             PingProbeMachinePollingSchedule.add(machine=machine,
@@ -1412,7 +1412,7 @@ def update_poller(org_id):
         for zone in cloud.ctl.dns.list_zones():
             log.info("Updating poller for zone %s", zone)
             ListRecordsPollingSchedule.add(zone=zone,
-                                                interval=90, ttl=120)
+                                                interval=60, ttl=120)
 
 
 @app.task
