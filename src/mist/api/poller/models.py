@@ -304,6 +304,11 @@ class ZonePollingSchedule(PollingSchedule):
         return schedule
 
 
+class ListRecordsPollingSchedule(ZonePollingSchedule):
+
+    task = 'mist.api.poller.tasks.list_records'
+
+
 class MachinePollingSchedule(PollingSchedule):
 
     machine_id = me.StringField(required=True)
