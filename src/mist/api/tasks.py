@@ -348,16 +348,15 @@ def openstack_post_create_steps(self, owner_id, cloud_id, machine_id,
 
         else:
             try:
+                conn = connect_provider(cloud)
                 created_floating_ips = []
-                for network in networks['public']:
-                    created_floating_ips += [floating_ip for floating_ip
-                                             in network['floating_ips']]
+                floating_ips = conn.ex_list_floating_ips()
 
                 # From the already created floating ips try to find one
                 # that is not associated to a node
                 unassociated_floating_ip = None
-                for ip in created_floating_ips:
-                    if not ip['node_id']:
+                for ip in floating_ips:
+                    if ip.status == "DOWN":
                         unassociated_floating_ip = ip
                         break
 
@@ -375,7 +374,7 @@ def openstack_post_create_steps(self, owner_id, cloud_id, machine_id,
                     log.info("Associating floating "
                              "ip with machine: %s" % node.id)
                     ip = conn.ex_associate_floating_ip_to_node(
-                        unassociated_floating_ip['id'], machine_port_id)
+                        unassociated_floating_ip.id, machine_port_id)
                 else:
                     # Find the external network
                     log.info("Create and associating floating ip with "
