@@ -92,8 +92,7 @@ class TaggingCondition(BaseCondition):
             }
             if value:
                 query['value'] = value
-            ids |= set(tag.resource.id
-                       for tag in Tag.objects(**query).only('resource'))
+            ids |= set(tag.resource.id for tag in Tag.objects(**query))
         return me.Q(id__in=ids)
 
     def validate(self, clean=True):

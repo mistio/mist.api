@@ -454,7 +454,7 @@ class BaseComputeController(BaseController):
         self.cloud.owner.total_machine_count = sum(
             cloud.machine_count for cloud in Cloud.objects(
                 owner=self.cloud.owner, deleted=None
-            ).only('machine_count')
+            )
         )
         self.cloud.owner.save()
 
