@@ -312,14 +312,14 @@ class ParamikoShell(object):
                             continue
                     # we managed to connect successfully, return
                     # but first update key
-                    updated = False
+                    trigger_session_update_flag = False
                     for key_assoc in machine.key_associations:
                         if key_assoc.keypair == key:
-                            key_assoc.ssh_user = ssh_user
-                            updated = True
-                            trigger_session_update_flag = True
+                            if key_assoc.ssh_user != ssh_user:
+                                key_assoc.ssh_user = ssh_user
+                                trigger_session_update_flag = True
                             break
-                    if not updated:
+                    else:
                         trigger_session_update_flag = True
                         # in case of a private host do NOT update the key
                         # associations with the port allocated by the OpenVPN
@@ -330,7 +330,6 @@ class ParamikoShell(object):
                                                    sudo=self.check_sudo())
                         machine.key_associations.append(key_assoc)
                     machine.save()
-
                     if trigger_session_update_flag:
                         trigger_session_update(owner.id, ['keys'])
                     return key.name, ssh_user
