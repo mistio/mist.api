@@ -40,7 +40,7 @@ class ConditionalClassMixin(object):
     conditions = me.EmbeddedDocumentListField(BaseCondition)
 
     def owner_query(self):
-        return me.Q(owner=self.owner)
+        return me.Q(owner=self.owner_id)
 
     def get_resources(self):
         query = self.owner_query()
