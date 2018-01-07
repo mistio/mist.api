@@ -231,6 +231,7 @@ class Machine(me.Document):
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
 
     cloud = me.ReferenceField('Cloud', required=True)
+    image = me.ReferenceField('CloudImage', required=False)
     owner = me.ReferenceField('Organization', required=True)
     name = me.StringField()
 
