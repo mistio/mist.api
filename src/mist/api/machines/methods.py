@@ -348,8 +348,10 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
         # list_machines
         try:
 
-            image = CloudImage(image_id=image_id, cloud_provider=conn.type, name=image_name).save()
-            machine = Machine(cloud=cloud, machine_id=node.id, image=image).save()
+            image = CloudImage(image_id=image_id, cloud_provider=conn.type,
+                               name=image_name).save()
+            machine = Machine(cloud=cloud, machine_id=node.id,
+                              image=image).save()
             # Since this is the first time the new Machine object is persisted
             # to mongodb, we need to also update the mappings. We cannot rely
             # on list_machines, since the node will not be treated as seen for
