@@ -1412,7 +1412,7 @@ def update_poller(org_id):
         for zone in cloud.ctl.dns.list_zones():
             log.info("Updating poller for zone %s", zone)
             ListRecordsPollingSchedule.add(zone=zone,
-                                                interval=60, ttl=120)
+                                           interval=60, ttl=120)
 
 
 @app.task
