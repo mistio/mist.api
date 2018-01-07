@@ -37,6 +37,7 @@ from mist.api.poller.models import PingProbeMachinePollingSchedule
 from mist.api.poller.models import SSHProbeMachinePollingSchedule
 from mist.api.poller.models import ListRecordsPollingSchedule
 from mist.api.poller.models import ListNetworksPollingSchedule
+from mist.api.poller.models import ListZonesPollingSchedule
 
 celery_cfg = 'mist.core.celery_config'
 
