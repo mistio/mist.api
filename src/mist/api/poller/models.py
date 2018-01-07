@@ -8,7 +8,7 @@ import mongoengine as me
 
 from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
-from mist.api.zones.models import Zone
+from mist.api.dns.models import Zone
 
 
 log = logging.getLogger(__name__)
