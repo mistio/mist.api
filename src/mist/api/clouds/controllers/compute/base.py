@@ -778,7 +778,6 @@ class BaseComputeController(BaseController):
         fetched_locations = self._list_locations__fetch_locations()
         locations = []
 
-        import ipdb; ipdb.set_trace()
         for location in fetched_locations:
 
             try:
@@ -797,8 +796,9 @@ class BaseComputeController(BaseController):
                     raise BadRequestError({"msg": exc.message,
                                            "errors": exc.to_dict()})
 
-                new_locations.append(_location)
+                locations.append(_location)
 
+        import ipdb; ipdb.set_trace()
         return locations
 
     def _list_locations__fetch_locations(self):
