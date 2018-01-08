@@ -2,6 +2,16 @@
 import mongoengine as me
 
 
+class CloudLocation(me.Document):
+    """A base Cloud Location Model."""
+    cloud_provider = me.StringField(required=True)
+    location_id = me.StringField(required=True)
+    name = me.StringField()
+    country
+    extra
+
+
+
 class CloudImage(me.Document):
     """A base Cloud Image Model."""
     image_id = me.StringField(required=True)
