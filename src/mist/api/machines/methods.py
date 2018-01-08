@@ -18,7 +18,6 @@ from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 from mist.api.keys.models import Key
 from mist.api.networks.models import Network
-from mist.api.misc.cloud import CloudImage
 
 from mist.api.exceptions import PolicyUnauthorizedError
 from mist.api.exceptions import MachineNameValidationError
