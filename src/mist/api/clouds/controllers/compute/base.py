@@ -778,27 +778,28 @@ class BaseComputeController(BaseController):
         fetched_locations = self._list_locations__fetch_locations()
         locations = []
 
-        for location in fetched_locations:
+        for loc in fetched_locations:
 
             try:
-                _location = CloudLocation.objects.get(location_id=location.id,
-                                                     name=location.name)
+                _location = CloudLocation.objects.get(location_id=loc.id,
+                                                      name=loc.name)
                 locations.append(_location)
             except CloudLocation.DoesNotExist:
-                _location = CloudLocation(location_id=location.id, name=location.name)
-                _location.country = location.country
+                _location = CloudLocation(location_id=loc.id,
+                                          name=loc.name)
+                _location.country = loc.country
                 _location.provider = 'GCE'
 
                 try:
                     _location.save()
                 except me.ValidationError as exc:
-                    log.error("Error adding %s: %s", location.name, exc.to_dict())
+                    log.error("Error adding %s: %s", loc.name, exc.to_dict())
                     raise BadRequestError({"msg": exc.message,
                                            "errors": exc.to_dict()})
 
                 locations.append(_location)
 
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
         return locations
 
     def _list_locations__fetch_locations(self):
