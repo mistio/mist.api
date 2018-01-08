@@ -775,18 +775,20 @@ class BaseComputeController(BaseController):
         """
 
         # Fetch locations, usually from libcloud connection.
-        locations = self._list_locations__fetch_locations()
-        new_locations = []
+        fetched_locations = self._list_locations__fetch_locations()
+        locations = []
 
         import ipdb; ipdb.set_trace()
-        for location in locations:
+        for location in fetched_locations:
 
             try:
-                CloudLocation.objects.get(location_id=location.id,
+                _location = CloudLocation.objects.get(location_id=location.id,
                                                      name=location.name)
+                locations.append(_location)
             except CloudLocation.DoesNotExist:
                 _location = CloudLocation(location_id=location.id, name=location.name)
                 _location.country = location.country
+                _location.provider = 'GCE'
 
                 try:
                     _location.save()
@@ -797,11 +799,7 @@ class BaseComputeController(BaseController):
 
                 new_locations.append(_location)
 
-        # Format size information.
-        return [{'id': location.id,
-                 'name': location.name,
-                 'extra': location.extra,
-                 'country': location.country} for location in locations]
+        return locations
 
     def _list_locations__fetch_locations(self):
         """Fetch location listing in a libcloud compatible format
