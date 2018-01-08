@@ -56,6 +56,7 @@ from mist.api.clouds.controllers.base import BaseController
 from mist.api.tag.models import Tag
 
 from mist.api.machines.models import Machine
+from mist.api.misc.cloud import CloudLocation
 
 log = logging.getLogger(__name__)
 
@@ -775,6 +776,26 @@ class BaseComputeController(BaseController):
 
         # Fetch locations, usually from libcloud connection.
         locations = self._list_locations__fetch_locations()
+        new_locations = []
+
+        import ipdb; ipdb.set_trace()
+        for location in locations:
+
+            try:
+                CloudLocation.objects.get(location_id=location.id,
+                                                     name=location.name)
+            except CloudLocation.DoesNotExist:
+                _location = CloudLocation(location_id=location.id, name=location.name)
+                _location.country = location.country
+
+                try:
+                    _location.save()
+                except me.ValidationError as exc:
+                    log.error("Error adding %s: %s", location.name, exc.to_dict())
+                    raise BadRequestError({"msg": exc.message,
+                                           "errors": exc.to_dict()})
+
+                new_locations.append(_location)
 
         # Format size information.
         return [{'id': location.id,
