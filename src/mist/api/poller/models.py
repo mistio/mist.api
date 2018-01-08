@@ -239,6 +239,11 @@ class ListMachinesPollingSchedule(CloudPollingSchedule):
     task = 'mist.api.poller.tasks.list_machines'
 
 
+class ListLocationsPollingSchedule(CloudPollingSchedule):
+
+    task = 'mist.api.poller.tasks.list_locations'
+
+
 class ListImagesPollingSchedule(CloudPollingSchedule):
 
     task = 'mist.api.poller.tasks.list_images'
