@@ -7,8 +7,7 @@ class CloudLocation(me.Document):
     cloud_provider = me.StringField(required=True)
     location_id = me.StringField(required=True)
     name = me.StringField()
-    country
-    extra
+    country = me.StringField()
 
 
 
