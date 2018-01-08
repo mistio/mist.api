@@ -778,6 +778,8 @@ class BaseComputeController(BaseController):
         fetched_locations = self._list_locations__fetch_locations()
         locations = []
 
+        import ipdb; ipdb.set_trace()
+
         for loc in fetched_locations:
 
             try:
@@ -788,7 +790,7 @@ class BaseComputeController(BaseController):
                 _location = CloudLocation(location_id=loc.id,
                                           name=loc.name)
                 _location.country = loc.country
-                _location.provider = 'GCE'
+                _location.provider = self.provider
 
                 try:
                     _location.save()
