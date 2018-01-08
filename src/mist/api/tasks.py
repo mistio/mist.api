@@ -32,12 +32,13 @@ from mist.api.schedules.models import Schedule
 from mist.api.dns.models import Zone, Record, RECORDS
 
 from mist.api.poller.models import ListMachinesPollingSchedule
-from mist.api.poller.models import ListImagesPollingSchedule
+#from mist.api.poller.models import ListImagesPollingSchedule
 from mist.api.poller.models import PingProbeMachinePollingSchedule
 from mist.api.poller.models import SSHProbeMachinePollingSchedule
-from mist.api.poller.models import ListRecordsPollingSchedule
-from mist.api.poller.models import ListNetworksPollingSchedule
-from mist.api.poller.models import ListZonesPollingSchedule
+#from mist.api.poller.models import ListRecordsPollingSchedule
+#from mist.api.poller.models import ListNetworksPollingSchedule
+#from mist.api.poller.models import ListZonesPollingSchedule
+from mist.api.poller.models import ListLocationsPollingSchedule
 
 celery_cfg = 'mist.core.celery_config'
 
