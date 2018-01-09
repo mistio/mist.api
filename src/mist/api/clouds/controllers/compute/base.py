@@ -753,8 +753,8 @@ class BaseComputeController(BaseController):
     def list_locations(self, persist=True):
         """Return list of locations for cloud
 
-        A list of locations is fetched from libcloud, the data is processed, stored
-        on CloudLocation models, and a list of CloudLocation models is returned.
+        A list of locations is fetched from libcloud, data is processed, stored
+        on location models, and a list of location models is returned.
 
         Subclasses SHOULD NOT override or extend this method.
 
@@ -795,8 +795,6 @@ class BaseComputeController(BaseController):
                                             'patch': patch})
 
         return locations
-
-    #### UP!!!
 
     def _list_locations(self):
         """Return list of available locations for current cloud
