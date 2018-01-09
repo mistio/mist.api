@@ -353,11 +353,15 @@ class MainConnection(MistConnection):
             self.send('list_machines',
                       {'cloud_id': cloud.id, 'machines': machines})
 
+            locations = cloud.ctl.compute.list_cached_locations()
+            log.info("Emitting list_locations from poller's cache.")
+            self.send('list_locations',
+                      {'cloud_id': cloud.id, 'locations': locations})
+
         periodic_tasks.extend([('list_images', tasks.ListImages()),
                                ('list_sizes', tasks.ListSizes()),
                                ('list_networks', tasks.ListNetworks()),
                                ('list_zones', tasks.ListZones()),
-                               ('list_locations', tasks.ListLocations()),
                                ('list_resource_groups',
                                 tasks.ListResourceGroups()),
                                ('list_storage_accounts',
