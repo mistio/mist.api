@@ -750,7 +750,6 @@ class BaseComputeController(BaseController):
         """
         return self.connection.list_sizes()
 
-
     def list_locations(self, persist=True):
         """Return list of locations for cloud
 
@@ -797,6 +796,7 @@ class BaseComputeController(BaseController):
 
         return locations
 
+    #### UP!!!
 
     def _list_locations(self):
         """Return list of available locations for current cloud
@@ -853,13 +853,11 @@ class BaseComputeController(BaseController):
 
         return locations
 
-
     def list_cached_locations(self):
         """Return list of locations from database
         for a specific cloud
         """
         return CloudLocation.objects(cloud=self.cloud)
-
 
     def _list_locations__fetch_locations(self):
         """Fetch location listing in a libcloud compatible format
