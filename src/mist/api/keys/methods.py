@@ -52,6 +52,8 @@ def list_keys(owner):
     # FIXME: This must be taken care of in Keys.as_dict
     for key in keys:
         key_object = {}
+        # FIXME: Need to optimize this! It's potentially invoked per ssh probe.
+        # Can't we expose associations directly from Machine.key_associations?
         machines = Machine.objects(cloud__in=clouds,
                                    key_associations__keypair__exact=key)
         key_object["id"] = key.id
