@@ -561,6 +561,9 @@ EC2_IMAGES = {
         'ami-772aa961': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
         'ami-098e011e': 'CoreOS stable 1068.8.0 (PV)',
         'ami-368c0321': 'CoreOS stable 1068.8.0 (HVM)',
+        'ami-8fb03898': 'ClearOS 7.2.0',
+        'ami-0397f56a': 'ClearOS Community 6.4.0 ',
+        'ami-ff9af896': 'ClearOS Professional 6.4.0'
     },
     'us-east-2': {
         'ami-0932686c': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
