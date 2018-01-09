@@ -750,7 +750,71 @@ class BaseComputeController(BaseController):
         """
         return self.connection.list_sizes()
 
-    def list_locations(self):
+
+    def list_locations(self, persist=True):
+        """Return list of locations for cloud
+
+        A list of locations is fetched from libcloud, the data is processed, stored
+        on CloudLocation models, and a list of CloudLocation models is returned.
+
+        Subclasses SHOULD NOT override or extend this method.
+
+        This method wraps `_list_locations` which contains the core
+        implementation.
+
+        """
+
+        task_key = 'cloud:list_locations:%s' % self.cloud.id
+        task = PeriodicTaskInfo.get_or_add(task_key)
+        try:
+            with task.task_runner(persist=persist):
+                old_locations = self.list_cached_locations()
+                locations = self._list_locations()
+        except PeriodicTaskThresholdExceeded:
+            self.cloud.disable()
+            raise
+
+        # Initialize AMQP connection to reuse for multiple messages.
+        amqp_conn = Connection(config.AMQP_URI)
+
+        if amqp_owner_listening(self.cloud.owner.id):
+            if not config.MACHINE_PATCHES:
+                amqp_publish_user(self.cloud.owner.id,
+                                  routing_key='list_machines',
+                                  connection=amqp_conn,
+                                  data={'cloud_id': self.cloud.id,
+                                        'machines': [machine.as_dict()
+                                                     for machine in machines]})
+            else:
+                # Publish patches to rabbitmq.
+                new_machines = {'%s-%s' % (m.id, m.machine_id): m.as_dict()
+                                for m in machines}
+                # Exclude last seen and probe fields from patch.
+                for md in old_machines, new_machines:
+                    for m in md.values():
+                        m.pop('last_seen')
+                        m.pop('probe')
+                patch = jsonpatch.JsonPatch.from_diff(old_machines,
+                                                      new_machines).patch
+                if patch:
+                    amqp_publish_user(self.cloud.owner.id,
+                                      routing_key='patch_machines',
+                                      connection=amqp_conn,
+                                      data={'cloud_id': self.cloud.id,
+                                            'patch': patch})
+
+        # Push historic information for inventory and cost reporting.
+        for machine in machines:
+            data = {'owner_id': self.cloud.owner.id,
+                    'machine_id': machine.id,
+                    'cost_per_month': machine.cost.monthly}
+            amqp_publish(exchange='machines_inventory', routing_key='',
+                         auto_delete=False, data=data, connection=amqp_conn)
+
+        return machines
+
+
+    def _list_locations(self):
         """Return list of available locations for current cloud
 
         Locations mean different things in each cloud. e.g. EC2 uses it as a
@@ -804,6 +868,16 @@ class BaseComputeController(BaseController):
                                            "errors": exc.to_dict()})
 
         return locations
+
+
+    def list_cached_locations(self):
+        """Return list of locations from database
+        for a specific provider
+        """
+        return CloudLocation.objects(
+            cloud=self
+        )
+
 
     def _list_locations__fetch_locations(self):
         """Fetch location listing in a libcloud compatible format
