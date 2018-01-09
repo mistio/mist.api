@@ -872,11 +872,9 @@ class BaseComputeController(BaseController):
 
     def list_cached_locations(self):
         """Return list of locations from database
-        for a specific provider
+        for a specific cloud
         """
-        return CloudLocation.objects(
-            cloud=self
-        )
+        return CloudLocation.objects(cloud=self.cloud)
 
 
     def _list_locations__fetch_locations(self):
