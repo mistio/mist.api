@@ -697,21 +697,6 @@ class ListSizes(UserTask):
         return {'cloud_id': cloud_id, 'sizes': sizes}
 
 
-class ListLocations(UserTask):
-    abstract = False
-    task_key = 'list_locations'
-    result_expires = 60 * 60 * 24 * 7
-    result_fresh = 60 * 60
-    polling = False
-    soft_time_limit = 30
-
-    def execute(self, owner_id, cloud_id):
-        from mist.api import methods
-        owner = Owner.objects.get(id=owner_id)
-        locations = methods.list_locations(owner, cloud_id)
-        return {'cloud_id': cloud_id, 'locations': locations}
-
-
 class ListNetworks(UserTask):
     abstract = False
     task_key = 'list_networks'
