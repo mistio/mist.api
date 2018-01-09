@@ -5,6 +5,7 @@ import mongoengine as me
 class CloudLocation(me.Document):
     """A base Cloud Location Model."""
     provider = me.StringField(required=True)
+    cloud = me.ReferenceField('Cloud', required=True)
     location_id = me.StringField(required=True)
     name = me.StringField()
     country = me.StringField()
