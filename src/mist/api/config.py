@@ -35,12 +35,13 @@ print >> sys.stderr, "MIST_API_DIR is %s" % MIST_API_DIR
 # The following variables are common for both open.source and mist.core
 ###############################################################################
 
+PORTAL_NAME = "Mist.io"
 CORE_URI = "http://localhost"
 AMQP_URI = "rabbitmq:5672"
 MEMCACHED_HOST = ["memcached:11211"]
 BROKER_URL = "amqp://guest:guest@rabbitmq/"
 SSL_VERIFY = True
-
+THEME = ""
 VERSION_CHECK = True
 USAGE_SURVEY = False
 
@@ -714,55 +715,6 @@ The mist.io team
 Govern the clouds
 """
 
-PROMO_CONFIRMATION_EMAIL_BODY = \
-"""Hi %s,
-
-We are excited to invite you to the mist.io private beta!
-
-Please click on the following link to set your password and start using the service:
-
-    %s/confirm?key=%s
-
-We're looking forward to your feedback. Please send us an email at feedback@mist.io
-
-To see an overview of what you can do with mist.io, check out the screencast at:
-https://www.youtube.com/watch?v=NZbpz1_sNQ8
-
-Stay up to date by following us on https://twitter.com/mist_io
-
-Best regards,
-The mist.io team
-
---
-%s
-Govern the clouds
-"""
-
-INVITATION_EMAIL_SUBJECT = u"[mist.io] you are invited to join the private beta"
-
-INVITATION_EMAIL_BODY = \
-"""Hi %s,
-
-We are excited to invite you to the mist.io private beta!
-
-Please click on the following link to set your password and start using the service:
-
-    %s/confirm?key=%s
-
-We're looking forward to your feedback. Please send us an email at feedback@mist.io
-
-To see an overview of what you can do with mist.io, check out the screencast at:
-https://www.youtube.com/watch?v=NZbpz1_sNQ8
-
-Stay up to date by following us on https://twitter.com/mist_io
-
-Best regards,
-The mist.io team
---
-%s
-Govern the clouds
-"""
-
 RESET_PASSWORD_EMAIL_SUBJECT = "[mist.io] Password reset request"
 
 RESET_PASSWORD_EMAIL_BODY = \
@@ -959,7 +911,7 @@ else:
 FROM_ENV_STRINGS = [
     'AMQP_URI', 'BROKER_URL', 'CORE_URI', 'MONGO_URI', 'MONGO_DB', 'DOCKER_IP',
     'DOCKER_PORT', 'DOCKER_TLS_KEY', 'DOCKER_TLS_CERT', 'DOCKER_TLS_CA',
-    'UI_TEMPLATE_URL', 'LANDING_TEMPLATE_URL',
+    'UI_TEMPLATE_URL', 'LANDING_TEMPLATE_URL', 'THEME'
 ]
 FROM_ENV_INTS = [
 ]
@@ -989,19 +941,30 @@ for key in FROM_ENV_ARRAYS:
         locals()[key] = os.getenv(key).split(',')
 
 
+CONFIG_OVERRIDE_FILES = []
+
+# Load defaults file if defined
+DEFAULTS_FILE = os.getenv('DEFAULTS_FILE')
+if DEFAULTS_FILE:
+    CONFIG_OVERRIDE_FILES.append(os.path.abspath(DEFAULTS_FILE))
+
 # Get settings from settings file.
 SETTINGS_FILE = os.path.abspath(os.getenv('SETTINGS_FILE') or 'settings.py')
-if os.path.exists(SETTINGS_FILE):
-    print >> sys.stderr, "Reading local settings from %s" % SETTINGS_FILE
-    CONF = {}
-    execfile(SETTINGS_FILE, CONF)
-    for key in CONF:
-        if isinstance(locals().get(key), dict) and isinstance(CONF[key], dict):
-            locals()[key].update(CONF[key])
-        else:
-            locals()[key] = CONF[key]
-else:
-    print >> sys.stderr, "Couldn't find settings file in %s" % SETTINGS_FILE
+CONFIG_OVERRIDE_FILES.append(SETTINGS_FILE)
+
+# Load all config override files. SETTINGS_FILE should be the last one to load
+for override_file in CONFIG_OVERRIDE_FILES:
+    if os.path.exists(override_file):
+        print >> sys.stderr, "Reading settings from %s" % override_file
+        CONF = {}
+        execfile(override_file, CONF)
+        for key in CONF:
+            if isinstance(locals().get(key), dict) and isinstance(CONF[key], dict):
+                locals()[key].update(CONF[key])
+            else:
+                locals()[key] = CONF[key]
+    else:
+        print >> sys.stderr, "Couldn't find settings file in %s" % override_file
 
 
 # Update celery settings.
@@ -1038,6 +1001,8 @@ WHITELIST_CIDR = [
 ]
 
 HOMEPAGE_INPUTS = {
+    'portal_name': PORTAL_NAME,
+    'theme': THEME,
     'google_analytics_id': GOOGLE_ANALYTICS_ID,
     'mixpanel_id': MIXPANEL_ID,
     'fb_id': FB_ID,
@@ -1056,7 +1021,7 @@ HOMEPAGE_INPUTS = {
     'enable_insights': ENABLE_INSIGHTS,
     'enable_billing': ENABLE_BILLING,
     'enable_ab': ENABLE_AB,
-    'enable_monitoring': ENABLE_MONITORING
+    'enable_monitoring': ENABLE_MONITORING,
 }
 
 if ENABLE_BILLING and STRIPE_PUBLIC_APIKEY:
