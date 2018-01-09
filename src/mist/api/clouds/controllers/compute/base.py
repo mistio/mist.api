@@ -778,40 +778,24 @@ class BaseComputeController(BaseController):
         amqp_conn = Connection(config.AMQP_URI)
 
         if amqp_owner_listening(self.cloud.owner.id):
-            if not config.MACHINE_PATCHES:
+            if not config.LOCATION_PATCHES:
                 amqp_publish_user(self.cloud.owner.id,
-                                  routing_key='list_machines',
+                                  routing_key='list_locations',
                                   connection=amqp_conn,
                                   data={'cloud_id': self.cloud.id,
-                                        'machines': [machine.as_dict()
-                                                     for machine in machines]})
+                                        'locations': locations})
             else:
                 # Publish patches to rabbitmq.
-                new_machines = {'%s-%s' % (m.id, m.machine_id): m.as_dict()
-                                for m in machines}
-                # Exclude last seen and probe fields from patch.
-                for md in old_machines, new_machines:
-                    for m in md.values():
-                        m.pop('last_seen')
-                        m.pop('probe')
-                patch = jsonpatch.JsonPatch.from_diff(old_machines,
-                                                      new_machines).patch
+                patch = jsonpatch.JsonPatch.from_diff(old_locations,
+                                                      locations).patch
                 if patch:
                     amqp_publish_user(self.cloud.owner.id,
-                                      routing_key='patch_machines',
+                                      routing_key='patch_locations',
                                       connection=amqp_conn,
                                       data={'cloud_id': self.cloud.id,
                                             'patch': patch})
 
-        # Push historic information for inventory and cost reporting.
-        for machine in machines:
-            data = {'owner_id': self.cloud.owner.id,
-                    'machine_id': machine.id,
-                    'cost_per_month': machine.cost.monthly}
-            amqp_publish(exchange='machines_inventory', routing_key='',
-                         auto_delete=False, data=data, connection=amqp_conn)
-
-        return machines
+        return locations
 
 
     def _list_locations(self):
