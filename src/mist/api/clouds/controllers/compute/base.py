@@ -776,6 +776,10 @@ class BaseComputeController(BaseController):
 
         # Fetch locations, usually from libcloud connection.
         fetched_locations = self._list_locations__fetch_locations()
+
+        log.info("List locations returned %d results for %s.",
+                 len(fetched_locations), self.cloud)
+
         locations = []
 
         for loc in fetched_locations:
