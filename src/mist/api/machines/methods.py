@@ -346,7 +346,6 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
         # we did this change because there was race condition with
         # list_machines
         try:
-
             machine = Machine(cloud=cloud, machine_id=node.id).save()
             # Since this is the first time the new Machine object is persisted
             # to mongodb, we need to also update the mappings. We cannot rely
