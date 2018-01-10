@@ -244,21 +244,6 @@ class ListLocationsPollingSchedule(CloudPollingSchedule):
     task = 'mist.api.poller.tasks.list_locations'
 
 
-class ListImagesPollingSchedule(CloudPollingSchedule):
-
-    task = 'mist.api.poller.tasks.list_images'
-
-
-class ListZonesPollingSchedule(CloudPollingSchedule):
-
-    task = 'mist.api.poller.tasks.list_zones'
-
-
-class ListNetworksPollingSchedule(CloudPollingSchedule):
-
-    task = 'mist.api.poller.tasks.list_networks'
-
-
 class ZonePollingSchedule(PollingSchedule):
 
     zone_id = me.StringField(required=True)
@@ -312,11 +297,6 @@ class ZonePollingSchedule(PollingSchedule):
         schedule.cleanup_expired_intervals()
         schedule.save()
         return schedule
-
-
-class ListRecordsPollingSchedule(ZonePollingSchedule):
-
-    task = 'mist.api.poller.tasks.list_records'
 
 
 class MachinePollingSchedule(PollingSchedule):
