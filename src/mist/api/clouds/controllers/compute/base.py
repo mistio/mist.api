@@ -233,6 +233,7 @@ class BaseComputeController(BaseController):
                         m.pop('probe')
                 patch = jsonpatch.JsonPatch.from_diff(old_machines,
                                                       new_machines).patch
+                import ipdb; ipdb.set_trace()
                 if patch:
                     amqp_publish_user(self.cloud.owner.id,
                                       routing_key='patch_machines',
@@ -766,7 +767,8 @@ class BaseComputeController(BaseController):
         task = PeriodicTaskInfo.get_or_add(task_key)
         try:
             with task.task_runner(persist=persist):
-                old_locations = self.list_cached_locations()
+                cached_locations = {'%s' % l.id: l.as_dict()
+                                    for l in self.list_cached_locations()}
                 locations = self._list_locations()
         except PeriodicTaskThresholdExceeded:
             self.cloud.disable()
@@ -774,7 +776,7 @@ class BaseComputeController(BaseController):
 
         # Initialize AMQP connection to reuse for multiple messages.
         amqp_conn = Connection(config.AMQP_URI)
-
+        import ipdb; ipdb.set_trace()
         if amqp_owner_listening(self.cloud.owner.id):
             if not config.LOCATION_PATCHES:
                 amqp_publish_user(self.cloud.owner.id,
@@ -784,8 +786,10 @@ class BaseComputeController(BaseController):
                                         'locations': locations})
             else:
                 # Publish patches to rabbitmq.
-                patch = jsonpatch.JsonPatch.from_diff(old_locations,
-                                                      locations).patch
+                new_locations = {'%s' % l.id: l.as_dict()
+                                    for l in locations}
+                patch = jsonpatch.JsonPatch.from_diff(cached_locations,
+                                                      new_locations).patch
                 if patch:
                     amqp_publish_user(self.cloud.owner.id,
                                       routing_key='patch_locations',
