@@ -216,7 +216,7 @@ CELERY_SETTINGS = {
     'CELERY_TASK_SERIALIZER': 'json',
     'CELERYD_LOG_FORMAT': PY_LOG_FORMAT,
     'CELERYD_TASK_LOG_FORMAT': PY_LOG_FORMAT,
-    'CELERYD_CONCURRENCY': 9,
+    'CELERYD_CONCURRENCY': 8,
     'CELERYD_MAX_TASKS_PER_CHILD': 32,
     'CELERYD_MAX_MEMORY_PER_CHILD': 204800,  # 20480 KiB - 200 MiB
     'CELERY_MONGODB_SCHEDULER_DB': 'mist2',
@@ -230,9 +230,6 @@ CELERY_SETTINGS = {
         # Machines queue
         'mist.api.tasks.list_machines': {'queue': 'machines'},
         'mist.api.poller.tasks.list_machines': {'queue': 'machines'},
-
-        # Locations queue
-        'mist.api.poller.tasks.list_locations': {'queue': 'locations'},
 
         # Scripts queue (handled by gevent)
         'mist.api.tasks.group_run_script': {'queue': 'scripts'},
