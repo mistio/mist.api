@@ -831,12 +831,13 @@ class BaseComputeController(BaseController):
         for loc in fetched_locations:
 
             try:
-                _location = CloudLocation.objects.get(location_id=loc.id,
-                                                      provider=self.provider,
+                _location = CloudLocation.objects.get(cloud=self.cloud,
+                                                      location_id=loc.id,
                                                       name=loc.name)
                 locations.append(_location)
             except CloudLocation.DoesNotExist:
-                _location = CloudLocation(location_id=loc.id,
+                _location = CloudLocation(cloud=self.cloud,
+                                          location_id=loc.id,
                                           name=loc.name)
                 _location.country = loc.country
                 _location.provider = self.provider
