@@ -353,7 +353,8 @@ class MainConnection(MistConnection):
             self.send('list_machines',
                       {'cloud_id': cloud.id, 'machines': machines})
 
-            locations = cloud.ctl.compute.list_cached_locations()
+            cached_locations = cloud.ctl.compute.list_cached_locations()
+            locations = [location.as_dict() for location in cached_locations]
             log.info("Emitting list_locations from poller's cache.")
             self.send('list_locations',
                       {'cloud_id': cloud.id, 'locations': locations})
