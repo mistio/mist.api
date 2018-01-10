@@ -18,6 +18,7 @@ from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 from mist.api.keys.models import Key
 from mist.api.networks.models import Network
+from mist.api.misc.cloud import CloudLocation
 
 from mist.api.exceptions import PolicyUnauthorizedError
 from mist.api.exceptions import MachineNameValidationError
@@ -171,6 +172,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
     # post_script_params: extra params, for post_script_id
     log.info('Creating machine %s on cloud %s' % (machine_name, cloud_id))
     cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
+    cloud_location = CloudLocation.objects.get(cloud=cloud, location_id=location_id)
     conn = connect_provider(cloud)
 
     machine_name = machine_name_validator(conn.type, machine_name)
@@ -346,7 +348,8 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
         # we did this change because there was race condition with
         # list_machines
         try:
-            machine = Machine(cloud=cloud, machine_id=node.id).save()
+            machine = Machine(cloud=cloud, location=cloud_location,
+                              machine_id=node.id).save()
             # Since this is the first time the new Machine object is persisted
             # to mongodb, we need to also update the mappings. We cannot rely
             # on list_machines, since the node will not be treated as seen for
