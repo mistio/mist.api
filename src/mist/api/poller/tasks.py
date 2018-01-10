@@ -46,7 +46,7 @@ def list_locations(schedule_id):
 
     from mist.api.poller.models import ListLocationsPollingSchedule
     sched = ListLocationsPollingSchedule.objects.get(id=schedule_id)
-    sched.cloud.ctl.compute.list_locations()
+    sched.cloud.ctl.compute.list_locations(persist=False)
 
 
 @app.task(time_limit=60, soft_time_limit=55)
