@@ -785,7 +785,7 @@ class BaseComputeController(BaseController):
             else:
                 # Publish patches to rabbitmq.
                 new_locations = {'%s' % l.id: l.as_dict()
-                                    for l in locations}
+                                 for l in locations}
                 patch = jsonpatch.JsonPatch.from_diff(cached_locations,
                                                       new_locations).patch
                 if patch:
