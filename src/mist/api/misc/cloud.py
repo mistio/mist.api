@@ -1,9 +1,12 @@
 """Cloud related classes"""
+import uuid
+
 import mongoengine as me
 
 
 class CloudLocation(me.Document):
     """A base Cloud Location Model."""
+    id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
     provider = me.StringField(required=True)
     cloud = me.ReferenceField('Cloud', required=True)
     location_id = me.StringField(required=True)
@@ -16,6 +19,16 @@ class CloudLocation(me.Document):
     def __str__(self):
         name = "%s, %s (%s)" % (self.name, self.provider, self.location_id)
         return name
+
+    def as_dict(self):
+        return {
+            'id': self.id,
+            'cloud': self.cloud.id,
+            'provider': self.provider,
+            'location_id': self.location_id,
+            'name': self.name,
+            'country': self.country,
+    }
 
 
 class CloudImage(me.Document):
