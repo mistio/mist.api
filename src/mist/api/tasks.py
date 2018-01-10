@@ -32,12 +32,8 @@ from mist.api.schedules.models import Schedule
 from mist.api.dns.models import Zone, Record, RECORDS
 
 from mist.api.poller.models import ListMachinesPollingSchedule
-#from mist.api.poller.models import ListImagesPollingSchedule
 from mist.api.poller.models import PingProbeMachinePollingSchedule
 from mist.api.poller.models import SSHProbeMachinePollingSchedule
-#from mist.api.poller.models import ListRecordsPollingSchedule
-#from mist.api.poller.models import ListNetworksPollingSchedule
-#from mist.api.poller.models import ListZonesPollingSchedule
 from mist.api.poller.models import ListLocationsPollingSchedule
 
 celery_cfg = 'mist.core.celery_config'
@@ -1387,9 +1383,6 @@ def update_poller(org_id):
     for cloud in Cloud.objects(owner=org, deleted=None, enabled=True):
         log.info("Updating poller for cloud %s", cloud)
         ListMachinesPollingSchedule.add(cloud=cloud, interval=10, ttl=120)
-        #ListImagesPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
-        #ListZonesPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
-        #ListNetworksPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
         ListLocationsPollingSchedule.add(cloud=cloud, interval=10, ttl=120)
         for machine in cloud.ctl.compute.list_cached_machines():
             log.info("Updating poller for machine %s", machine)
@@ -1397,10 +1390,6 @@ def update_poller(org_id):
                                                 interval=90, ttl=120)
             SSHProbeMachinePollingSchedule.add(machine=machine,
                                                interval=90, ttl=120)
-        #for zone in cloud.ctl.dns.list_zones():
-        #    log.info("Updating poller for zone %s", zone)
-        #    ListRecordsPollingSchedule.add(zone=zone,
-        #                                   interval=60, ttl=120)
 
 
 @app.task
