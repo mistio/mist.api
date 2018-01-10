@@ -233,7 +233,6 @@ class BaseComputeController(BaseController):
                         m.pop('probe')
                 patch = jsonpatch.JsonPatch.from_diff(old_machines,
                                                       new_machines).patch
-                import ipdb; ipdb.set_trace()
                 if patch:
                     amqp_publish_user(self.cloud.owner.id,
                                       routing_key='patch_machines',
@@ -776,7 +775,6 @@ class BaseComputeController(BaseController):
 
         # Initialize AMQP connection to reuse for multiple messages.
         amqp_conn = Connection(config.AMQP_URI)
-        import ipdb; ipdb.set_trace()
         if amqp_owner_listening(self.cloud.owner.id):
             if not config.LOCATION_PATCHES:
                 amqp_publish_user(self.cloud.owner.id,
