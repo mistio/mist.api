@@ -28,7 +28,7 @@ class CloudLocation(me.Document):
             'location_id': self.location_id,
             'name': self.name,
             'country': self.country,
-    }
+        }
 
 
 class CloudImage(me.Document):
