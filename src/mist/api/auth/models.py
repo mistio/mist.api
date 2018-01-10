@@ -9,12 +9,10 @@ from datetime import datetime, timedelta
 from mist.api.users.models import User, Organization, SocialAuthUser
 from mist.api.exceptions import UserNotFoundError
 
-try:
+from mist.api import config
+
+if config.HAS_CORE:
     from mist.core.rbac.models import Policy
-except ImportError:
-    HAS_POLICY = False
-else:
-    HAS_POLICY = True
 
 
 def datetime_to_str(dt):
@@ -154,7 +152,7 @@ class AuthToken(me.Document):
 class ApiToken(AuthToken):
     name = me.StringField(required=True)
 
-    if HAS_POLICY:
+    if config.HAS_CORE:
         policy = me.EmbeddedDocumentField(Policy)
 
     def get_public_view(self):
@@ -164,7 +162,7 @@ class ApiToken(AuthToken):
             'ttl': self.ttl,
             'token': self.token[:4] + "...",
         })
-        if HAS_POLICY:
+        if config.HAS_CORE:
             view.update({
                 'policy': str(self.policy),
             })

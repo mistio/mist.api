@@ -72,12 +72,8 @@ from mist.api.exceptions import RequiredParameterMissingError
 
 from mist.api import config
 
-try:
+if config.HAS_CORE:
     from mist.core.rbac.tokens import SuperToken
-except ImportError:
-    SUPER_EXISTS = False
-else:
-    SUPER_EXISTS = True
 
 
 logging.basicConfig(level=config.PY_LOG_LEVEL,
@@ -732,6 +728,11 @@ def ts_to_str(timestamp):
         return None
 
 
+def iso_to_seconds(iso):
+    """Attempt to transform a time representation into seconds."""
+    return get_datetime(iso).strftime('%s')
+
+
 def encrypt(plaintext, key=config.SECRET, key_salt='', no_iv=False):
     """Encrypt shit the right way"""
 
@@ -893,7 +894,7 @@ def logging_view_decorator(func):
                 log_dict['token_expires'] = datetime_to_str(session.expires())
 
         # Log special Token.
-        if SUPER_EXISTS and isinstance(session, SuperToken):
+        if config.HAS_CORE and isinstance(session, SuperToken):
             log_dict['setuid'] = True
             log_dict['api_token_id'] = str(session.id)
             log_dict['api_token_name'] = session.name

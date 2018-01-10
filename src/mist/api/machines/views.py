@@ -21,19 +21,15 @@ from mist.api.exceptions import BadRequestError, NotFoundError
 from mist.api.exceptions import MachineCreationError
 from mist.api.exceptions import CloudUnauthorizedError, CloudUnavailableError
 
+from mist.api.monitoring.methods import enable_monitoring
+from mist.api.monitoring.methods import disable_monitoring
+
 from mist.api import config
 
-try:
+if config.HAS_CORE:
     from mist.core.vpn.methods import destination_nat as dnat
-except ImportError:
+else:
     from mist.api.dummy.methods import dnat
-
-try:
-    from mist.core.methods import enable_monitoring
-    from mist.core.methods import disable_monitoring
-except ImportError:
-    from mist.api.dummy.methods import enable_monitoring
-    from mist.api.dummy.methods import disable_monitoring
 
 logging.basicConfig(level=config.PY_LOG_LEVEL,
                     format=config.PY_LOG_FORMAT,

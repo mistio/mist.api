@@ -71,6 +71,261 @@ ENABLE_DEV_USERS = False
 MONGO_URI = "mongodb:27017"
 MONGO_DB = "mist2"
 
+# InfluxDB
+INFLUX = {
+    "host": "http://influxdb:8086", "db": "telegraf"
+}
+
+TELEGRAF_TARGET = "http://traefik"
+TRAEFIK_API = "http://traefik:8080"
+
+# Default, built-in metrics.
+INFLUXDB_BUILTIN_METRICS = {
+    'cpu.cpu=cpu-total.usage_user': {
+        'name': 'CPU',
+        'unit': '%',
+        'max_value': 100,
+        'min_value': 0,
+    },
+    'system.load1': {
+        'name': 'Load',
+        'unit': '',
+        'max_value': 64,
+        'min_value': 0,
+    },
+    'mem.used_percent': {
+        'name': 'RAM',
+        'unit': '%',
+        'max_value': 100,
+        'min_value': 0,
+    },
+    'disk.bytes_read': {
+        'name': 'Disks Read',
+        'unit': 'B/s',
+        'max_value': 750000000,  # 6Gbps (SATA3)
+        'min_value': 0,
+    },
+    'disk.bytes_write': {
+        'name': 'Disks Write',
+        'unit': 'B/s',
+        'max_value': 750000000,
+        'min_value': 0,
+    },
+    'net.bytes_recv': {
+        'name': 'Ifaces Rx',
+        'unit': 'B/s',
+        'max_value': 1250000000,  # 10Gbps (10G eth)
+        'min_value': 0,
+    },
+    'net.bytes_sent': {
+        'name': 'Ifaces Tx',
+        'unit': 'B/s',
+        'max_value': 1250000000,
+        'min_value': 0,
+    },
+}
+
+# Default Dashboards.
+HOME_DASHBOARD_DEFAULT = {
+    "meta": {},
+    "dashboard": {
+        "id": 1,
+        "refresh": "10sec",
+        "rows": [{
+            "panels": [{
+                "id": 0,
+                "title": "Load on all monitored machines",
+                "type": "graph",
+                "span": 12,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "A",
+                    "target": "load.shortterm"
+                }],
+                "x-axis": True,
+                "y-axis": True
+            }]
+        }],
+        "time": {
+            "from": "now-10m",
+            "to": "now"
+        },
+        "timepicker": {
+            "now": True,
+            "refresh_intervals": [],
+            "time_options": [
+                "10m",
+                "1h",
+                "6h",
+                "24h",
+                "7d",
+                "30d"
+            ]
+        },
+        "timezone": "browser"
+    }
+}
+
+INFLUXDB_MACHINE_DASHBOARD_DEFAULT = {
+    "meta": {},
+    "dashboard": {
+        "id": 1,
+        "refresh": "10sec",
+        "rows": [{
+            "panels": [{
+                "id": 0,
+                "title": "Load",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "A",
+                    "target": "system./load\d/"
+                }],
+                "x-axis": True,
+                "y-axis": True
+            }, {
+                "id": 1,
+                "title": "MEM",
+                "type": "graph",
+                "span": 6,
+                "stack": True,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "D",
+                    "target": "mem./^(free|used|cached|buffered)$/"
+                }],
+                "yaxes": [{
+                    "format": "B"
+                }]
+            }, {
+                "id": 2,
+                "title": "CPU total",
+                "type": "graph",
+                "span": 6,
+                "stack": True,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "C",
+                    "target": "cpu.cpu=cpu-total./usage_\w*/"
+                }],
+                "yaxes": [{
+                    "format": "%"
+                }]
+            }, {
+                "id": 3,
+                "title": "CPU idle per core",
+                "type": "graph",
+                "span": 6,
+                "stack": True,
+                "datasource": "mist.monitor",
+                "targets": [{
+                  "refId": "Z",
+                  "target": "cpu.cpu=/cpu\d/.usage_idle"
+                }],
+                "yaxes": [{
+                    "format": "%"
+                }]
+            }, {
+                "id": 4,
+                "title": "NET RX",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "G",
+                    "target": "net.bytes_recv"
+                }],
+                "yaxes": [{
+                    "format": "octets"
+                }]
+            }, {
+                "id": 5,
+                "title": "NET TX",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                  "refId": "H",
+                  "target": "net.bytes_sent"
+                }],
+                "yaxes": [{
+                    "format": "octets"
+                }]
+            }, {
+                "id": 6,
+                "title": "DISK READ",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                  "refId": "I",
+                  "target": "diskio.read_bytes"
+                }],
+                "x-axis": True,
+                "y-axis": True
+            }, {
+                "id": 7,
+                "title": "DISK WRITE",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                  "refId": "J",
+                  "target": "diskio.write_bytes"
+                }],
+                "yaxes": [{
+                    "format": "octets"
+                }]
+            }, {
+                "id": 8,
+                "title": "DF",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                  "refId": "D",
+                  "target": "disk.free"
+                }],
+                "yaxes": [{
+                    "format": "B"
+                }]
+            }],
+        }],
+        "time": {
+            "from": "now-10m",
+            "to": "now"
+        },
+        "timepicker": {
+            "now": True,
+            "refresh_intervals": [],
+            "time_options": [
+                "10m",
+                "1h",
+                "6h",
+                "24h",
+                "7d",
+                "30d"
+            ]
+        },
+        "timezone": "browser"
+    }
+}
+
+MONITORING_METHODS = (
+    'collectd-graphite',
+    'telegraf-influxdb',
+    'telegraf-graphite',
+)
+DEFAULT_MONITORING_METHOD = 'telegraf-influxdb'
+
 GRAPHITE_URI = "http://graphite"
 
 # Alert service's authentication key
@@ -895,7 +1150,7 @@ ENABLE_INSIGHTS = False
 ENABLE_BILLING = STRIPE_PUBLIC_APIKEY = False
 ENABLE_RBAC = False
 ENABLE_AB = False
-ENABLE_MONITORING = False
+ENABLE_MONITORING = True
 MACHINE_PATCHES = True
 
 ## DO NOT PUT ANYTHING BELOW HERE UNLESS YOU KNOW WHAT YOU ARE DOING
@@ -906,8 +1161,10 @@ CORE_CONFIG_PATH = os.path.join(dirname(MIST_API_DIR, 2),
 if os.path.exists(CORE_CONFIG_PATH):
     print >> sys.stderr, "Will load core config from %s" % CORE_CONFIG_PATH
     execfile(CORE_CONFIG_PATH)
+    HAS_CORE = True
 else:
     print >> sys.stderr, "Couldn't find core config in %s" % CORE_CONFIG_PATH
+    HAS_CORE = False
 
 
 # Get settings from environmental variables.

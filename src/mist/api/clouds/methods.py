@@ -10,13 +10,7 @@ from mist.api.exceptions import BadRequestError, NotFoundError
 
 from mist.api.poller.models import ListMachinesPollingSchedule
 
-try:
-    from mist.core.methods import disable_monitoring_cloud
-except ImportError:
-    from mist.api.dummy.methods import disable_monitoring_cloud
-    HAS_CORE = False
-else:
-    HAS_CORE = True
+from mist.api.monitoring.methods import disable_monitoring_cloud
 
 from mist.api import config
 
@@ -57,7 +51,7 @@ def add_cloud_v_2(owner, title, provider, params):
     # SEC
     # Update the RBAC mappings with the new Cloud and finally trigger
     # a session update by registering it as a chained task.
-    if HAS_CORE:
+    if config.HAS_CORE:
         owner.mapper.update(
             cloud,
             callback=async_session_update, args=(owner.id, ['clouds'], )
