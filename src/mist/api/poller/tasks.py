@@ -49,50 +49,6 @@ def list_locations(schedule_id):
     sched.cloud.ctl.compute.list_locations(persist=False)
 
 
-@app.task(time_limit=60, soft_time_limit=55)
-def list_images(schedule_id):
-    """Perform list images. Cloud controller stores results in mongodb."""
-
-    # Fetch schedule and cloud from database.
-    # FIXME: resolve circular deps error
-    from mist.api.poller.models import ListImagesPollingSchedule
-    sched = ListImagesPollingSchedule.objects.get(id=schedule_id)
-    sched.cloud.ctl.compute.list_images(persist=False)
-
-
-@app.task(time_limit=60, soft_time_limit=55)
-def list_networks(schedule_id):
-    """Perform list networks. Cloud controller stores results in mongodb."""
-
-    # Fetch schedule and cloud from database.
-    # FIXME: resolve circular deps error
-    from mist.api.poller.models import ListNetworksPollingSchedule
-    sched = ListNetworksPollingSchedule.objects.get(id=schedule_id)
-    sched.cloud.ctl.network.list_networks(persist=False)
-
-
-@app.task(time_limit=60, soft_time_limit=55)
-def list_zones(schedule_id):
-    """Perform list zones. Cloud controller stores results in mongodb."""
-
-    # Fetch schedule and cloud from database.
-    # FIXME: resolve circular deps error
-    from mist.api.poller.models import ListZonesPollingSchedule
-    sched = ListZonesPollingSchedule.objects.get(id=schedule_id)
-    sched.cloud.ctl.dns.list_zones(persist=False)
-
-
-@app.task(time_limit=60, soft_time_limit=55)
-def list_records(schedule_id):
-    """Perform list records. Dns controller stores results in mongodb."""
-
-    # Fetch schedule and zone from database.
-    # FIXME: resolve circular deps error
-    from mist.api.poller.models import ListRecordsPollingSchedule
-    sched = ListRecordsPollingSchedule.objects.get(id=schedule_id)
-    sched.cloud.ctl.dns.list_records(persist=False)
-
-
 @app.task(time_limit=45, soft_time_limit=40)
 def ping_probe(schedule_id):
     """Perform ping probe"""
