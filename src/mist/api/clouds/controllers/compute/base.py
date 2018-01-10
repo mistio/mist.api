@@ -762,7 +762,6 @@ class BaseComputeController(BaseController):
         implementation.
 
         """
-
         task_key = 'cloud:list_locations:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
         try:
