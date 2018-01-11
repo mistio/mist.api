@@ -1,5 +1,5 @@
 from mist.api.users.models import User
-from mist.api.notifications2.models import InAppRecommendation
+from mist.api.notifications.models import InAppRecommendation
 
 
 def dismiss_scale_notifications(machine, feedback='NEUTRAL'):

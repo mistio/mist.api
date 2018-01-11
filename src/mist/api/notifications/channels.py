@@ -53,7 +53,7 @@ class EmailNotificationChannel(BaseNotificationChannel):
 
     def send(self, users=None):
         # FIXME Imported here due to circular dependency issues.
-        from mist.api.notifications2.models import UserNotificationPolicy
+        from mist.api.notifications.models import UserNotificationPolicy
 
         if not users:
             users = self.ntf.owner.members
@@ -124,8 +124,8 @@ class InAppNotificationChannel(BaseNotificationChannel):
 
     def send(self, users=None, dismiss=False):
         # FIXME Imported here due to circular dependency issues.
-        from mist.api.notifications2.models import InAppNotification
-        from mist.api.notifications2.models import UserNotificationPolicy
+        from mist.api.notifications.models import InAppNotification
+        from mist.api.notifications.models import UserNotificationPolicy
 
         # Get the list of `InAppNotifications`s in the current context before
         # any update takes place.

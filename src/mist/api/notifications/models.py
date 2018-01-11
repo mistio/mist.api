@@ -11,7 +11,7 @@ from mist.api.helpers import mac_sign
 
 from mist.api.users.models import User
 
-import mist.api.notifications2.channels as cnls
+import mist.api.notifications.channels as cnls
 
 
 # TODO Move to config.py

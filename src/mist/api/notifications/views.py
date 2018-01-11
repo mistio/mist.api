@@ -10,10 +10,10 @@ from mist.api.exceptions import RequiredParameterMissingError
 
 from mist.api.auth.methods import auth_context_from_request
 
-from mist.api.notifications2.models import Notification
-from mist.api.notifications2.models import InAppNotification
-from mist.api.notifications2.models import NotificationOverride
-from mist.api.notifications2.models import UserNotificationPolicy
+from mist.api.notifications.models import Notification
+from mist.api.notifications.models import InAppNotification
+from mist.api.notifications.models import NotificationOverride
+from mist.api.notifications.models import UserNotificationPolicy
 
 
 @view_config(route_name='api_v1_dismiss_notification',
