@@ -10,6 +10,7 @@ from mist.api.helpers import encrypt
 from mist.api.helpers import mac_sign
 
 from mist.api.users.models import User
+from mist.api.machines.models import Machine
 
 import mist.api.notifications.channels as cnls
 
@@ -52,23 +53,20 @@ class NotificationOverride(me.EmbeddedDocument):
         if self.rtype:
             self.rtype = self.rtype.rstrip('s')
 
-    # FIXME For backwards compatibility.
+    # FIXME All following methods/properties are for backwards compatibility.
+
     @property
     def machine(self):
-        from mist.api.machines.models import Machine
         return Machine.objects.get(id=self.rid)
 
-    # FIXME For backwards compatibility.
     @property
     def cloud(self):
         return self.machine.cloud
 
-    # FIXME For backwards compatibility.
     @property
     def value(self):
         return "BLOCK"
 
-    # FIXME For backwards compatibility.
     def as_dict(self):
         machine = self.machine
         return {
@@ -184,7 +182,7 @@ class Notification(me.Document):
     @property
     def remind_in(self):
         """Return a timedelta until the next reminder since `created_at`."""
-        remind_in = self.REMINDER_SCHEDULE[self.reminder_count]
+        remind_in = self.reminder_schedule[self.reminder_count]
         return datetime.timedelta(seconds=remind_in)
 
     def due_in(self):
@@ -197,44 +195,42 @@ class Notification(me.Document):
             return False
         if self.reminder_count > len(self.reminder_schedule):
             return False
-        if self.due_in() > 0:
+        if self.due_in().total_seconds() > 0:
             return False
         return True
 
     def clean(self):
         # This makes sure to fast-forward the `reminder_count` in case we've
-        # failed to send past notifications to avoid spamming the users with
-        # back-to-back reminders.
+        # failed to send past notifications for periods of time that span
+        # reminder intervals. Thus we avoid spamming users with back-to-back
+        # reminders.
         schedule_size = len(self.reminder_schedule)
-        for c in xrange(schedule_size - 1, self.reminder_count - 1, -1):
-            if self.created_at + self.remind_in > datetime.datetime.utcnow():
+        for c in xrange(schedule_size - 1, self.reminder_count, -1):
+            timedelta = datetime.timedelta(seconds=self.reminder_schedule[c])
+            if self.created_at + timedelta < datetime.datetime.utcnow():
                 self.reminder_count = c
                 break
 
-    # FIXME For backwards compatibility.
+    # FIXME All following methods/properties are for backwards compatibility.
+
     @property
     def machine(self):
-        from mist.api.machines.models import Machine
         if self.rtype != 'machine':
             return None
         return Machine.objects.get(id=self.rid)
 
-    # FIXME For backwards compatibility.
     @property
     def cloud(self):
         return self.machine.cloud if self.rtype == 'machine' else None
 
-    # FIXME For backwards compatibility.
     @property
     def source(self):
         return self.channel.ctype
 
-    # FIXME For backwards compatibility.
     @property
     def created_at_int(self):
         return int(self.created_at.strftime('%s')) * 1000
 
-    # FIXME For backwards compatibility.
     def as_dict(self):
         machine = self.machine
         return {
