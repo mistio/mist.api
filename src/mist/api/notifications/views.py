@@ -58,10 +58,12 @@ def add_notification_override(request):
         override.channel = ntf.channel.ctype
         np.overrides.append(override)
         np.save()
+        # Dismiss relevant notifications in order to not show up again.
         InAppNotification.objects(
-            owner=auth_context.owner, dismissed_by__ne=auth_context.user.id,
-            rid=ntf.rid, rtype=ntf.rtype
-        ).update(add_to_set__dismissed_by=auth_context.user.id)
+            owner=auth_context.owner,
+            rid=ntf.rid, rtype=ntf.rtype,
+            dismissed_by__ne=auth_context.user.id
+        ).update(push__dismissed_by=auth_context.user.id)
     return Response('OK', 200)
 
 

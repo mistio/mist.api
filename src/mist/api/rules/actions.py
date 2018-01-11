@@ -97,7 +97,7 @@ class NotificationAction(BaseAlertAction):
             # TODO Shouldn't be specific to machines.
             assert isinstance(machine, Machine)
             assert machine.owner == self._instance.owner
-            send_alert_email(machine.owner, self._instance.title, value,
+            send_alert_email(machine.owner, self._instance.id, value,
                              triggered, timestamp, incident_id, action=action,
                              cloud_id=machine.cloud.id,
                              machine_id=machine.machine_id)
