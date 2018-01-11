@@ -315,7 +315,6 @@ class BaseComputeController(BaseController):
         # Process each machine in returned list.
         # Store previously unseen machines separately.
         new_machines = []
-        import ipdb; ipdb.set_trace()
         for node in nodes:
 
             # Fetch machine mongoengine model from db, or initialize one.
