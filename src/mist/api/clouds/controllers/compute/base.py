@@ -1018,7 +1018,6 @@ class BaseComputeController(BaseController):
                                  "termination protection setting on your "
                                  "cloud provider.")
 
-    # It isn't implemented in the ui
     def resize_machine(self, machine, plan_id, kwargs):
         """Resize machine
 
@@ -1036,7 +1035,6 @@ class BaseComputeController(BaseController):
         are resizeed, it should override `_resize_machine` method instead.
 
         """
-        # assert isinstance(machine.cloud, Machine)
         assert self.cloud == machine.cloud
         if not machine.actions.resize:
             raise ForbiddenError("Machine doesn't support resize.")
@@ -1045,7 +1043,9 @@ class BaseComputeController(BaseController):
         machine_libcloud = self._get_machine_libcloud(machine)
         try:
             self._resize_machine(machine, machine_libcloud, plan_id, kwargs)
-
+        except Exception as exc:
+            raise BadRequestError('Failed to resize node: %s' % exc)
+        try:
             # TODO: For better separation of concerns, maybe trigger below
             # using an event?
             from mist.api.notifications.methods import (
@@ -1053,7 +1053,7 @@ class BaseComputeController(BaseController):
             # TODO: Make sure user feedback is positive below!
             dismiss_scale_notifications(machine, feedback='POSITIVE')
         except Exception as exc:
-            raise BadRequestError('Failed to resize node: %s' % exc)
+            log.exception("Failed to dismiss scale recommendation: %r", exc)
 
     def _resize_machine(self, machine, machine_libcloud, plan_id, kwargs):
         """Private method to resize a given machine
