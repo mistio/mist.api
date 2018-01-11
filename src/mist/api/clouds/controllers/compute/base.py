@@ -105,6 +105,27 @@ def _decide_machine_cost(machine, tags=None, cost=(0, 0)):
     machine.cost.monthly = cpm
 
 
+def get_location_name(provider, node):
+    """Find location name from libcloud data
+    """
+    if provider == 'softlayer':
+        return node.extra.get('datacenter')
+    elif provider == 'vultr':
+        return node.extra.get('location')
+    elif provider == 'nephoscale':
+        return node.extra.get('zone')
+    elif provider == 'digitalocean':
+        return node.extra.get('region')
+    elif provider == 'gce':
+        return node.extra.get('zone').name
+    elif provider == 'ec2':
+        return node.extra.get('availability')
+    elif provider == 'packet':
+        return node.extra.get('facility')
+    else:
+        return ''
+
+
 class BaseComputeController(BaseController):
     """Abstract base class for every cloud/provider controller
 
@@ -294,6 +315,7 @@ class BaseComputeController(BaseController):
         # Process each machine in returned list.
         # Store previously unseen machines separately.
         new_machines = []
+        import ipdb; ipdb.set_trace()
         for node in nodes:
 
             # Fetch machine mongoengine model from db, or initialize one.
@@ -307,6 +329,13 @@ class BaseComputeController(BaseController):
             # Update machine_model's last_seen fields.
             machine.last_seen = now
             machine.missing_since = None
+
+            location_name = get_location_name(self.provider, node)
+
+            if location_name:
+                cloud_location = CloudLocation.objects.get(cloud=self.cloud,
+                                                           name=location_name)
+                machine.location = cloud_location
 
             # Get misc libcloud metadata.
             image_id = str(node.image or node.extra.get('imageId') or
