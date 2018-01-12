@@ -115,6 +115,24 @@ class CloudSize(me.Document):
         ],
     }
 
+    def __init__(self, *args, **kwargs):
+        super(CloudSize, self).__init__(*args, **kwargs)
+
     def __str__(self):
-        name = "%s, %s (%s)" % (self.name, self.size_id, self.cloud_provider)
+        name = "%s, %s (%s)" % (self.name, self.provider, self.size_id)
         return name
+
+    def as_dict(self):
+        return {
+            'id': self.location_id,
+            'cloud': self.cloud.id,
+            'provider': self.provider,
+            '_id': self.id,
+            'name': self.name,
+            'cpu': self.cpu,
+            'ram': self.ram,
+            'bandwidth': self.bandwidth,
+            'price': self.price,
+            'disk': self.disk,
+            #'cloud_region': self.cloud_region,
+        }
