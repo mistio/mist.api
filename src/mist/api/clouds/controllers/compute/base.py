@@ -332,8 +332,13 @@ class BaseComputeController(BaseController):
             location_name = get_location_name(self.provider, node)
 
             if location_name:
-                cloud_location = CloudLocation.objects.get(cloud=self.cloud,
+
+                try:
+                    cloud_location = CloudLocation.objects.get(cloud=self.cloud,
                                                            name=location_name)
+                except CloudLocation.DoesNotExist:
+                    cloud_location = CloudLocation(cloud=self.cloud,
+                                                   name=location_name)
                 machine.location = cloud_location
 
             # Get misc libcloud metadata.
