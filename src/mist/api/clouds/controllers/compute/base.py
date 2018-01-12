@@ -57,6 +57,7 @@ from mist.api.tag.models import Tag
 
 from mist.api.machines.models import Machine
 from mist.api.misc.cloud import CloudLocation
+from mist.api.misc.cloud import CloudSize
 
 log = logging.getLogger(__name__)
 
@@ -781,6 +782,12 @@ class BaseComputeController(BaseController):
 
         """
         return self.connection.list_sizes()
+
+    def list_cached_sizes(self):
+        """Return list of sizes from database
+        for a specific cloud
+        """
+        return CloudSize.objects(cloud=self.cloud)
 
     def list_locations(self, persist=True):
         """Return list of locations for cloud
