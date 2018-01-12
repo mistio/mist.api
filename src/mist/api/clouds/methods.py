@@ -78,6 +78,8 @@ def add_cloud_v_2(owner, title, provider, params):
     ListMachinesPollingSchedule.add(cloud=cloud)
     ListLocationsPollingSchedule.add(cloud=cloud)
 
+    cloud.ctl.compute.list_locations()
+
     return ret
 
 
