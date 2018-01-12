@@ -530,10 +530,6 @@ class AzureArmComputeController(BaseComputeController):
                 + str(size.disk) + 'GB SSD'
         return sizes
 
-    def _list_locations(self):
-        locations = self.connection.list_locations()
-        return locations
-
 
 class GoogleComputeController(BaseComputeController):
 
