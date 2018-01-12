@@ -92,7 +92,6 @@ def _decide_machine_cost(machine, tags=None, cost=(0, 0)):
         cph = parse_num(tags.get('cost_per_hour'))
         cpm = parse_num(tags.get('cost_per_month'))
         if not (cph or cpm) or cph > 100 or cpm > 100 * 24 * 31:
-            log.warning("Invalid cost tags for machine %s", machine)
             cph, cpm = map(parse_num, cost)
         if not cph:
             cph = float(cpm) / month_days / 24
@@ -110,8 +109,6 @@ def get_location_name(provider, node):
     """
     if provider == 'softlayer':
         return node.extra.get('datacenter')
-    elif provider == 'vultr':
-        return node.extra.get('location')
     elif provider == 'nephoscale':
         return node.extra.get('zone')
     elif provider == 'digitalocean':
@@ -122,6 +119,8 @@ def get_location_name(provider, node):
         return node.extra.get('availability')
     elif provider == 'packet':
         return node.extra.get('facility')
+    elif provider in ['vultr', 'azure_arm']:
+        return node.extra.get('location')
     else:
         return ''
 
