@@ -77,7 +77,7 @@ def get_notification_overrides(request):
                                                 user_id=auth_context.user.id)
     except UserNotificationPolicy.DoesNotExist:
         raise NotFoundError()
-    return json.dumps(np.overrides, default=lambda x: x.as_dict()) # FIXME
+    return json.dumps(np.overrides, default=lambda x: x.as_dict())  # FIXME
 
 
 @view_config(route_name='api_v1_notification_overrides',

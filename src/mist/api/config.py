@@ -73,7 +73,7 @@ MONGO_DB = "mist2"
 GRAPHITE_URI = "http://graphite"
 
 # Alert service's authentication key
-CILIA_TRIGGER = False
+CILIA_TRIGGER = False  # True
 CILIA_SECRET_KEY = ""
 
 # number of api tokens user can have
@@ -100,6 +100,12 @@ MAILER_SETTINGS = {
     'mail.password': "",
 }
 
+EMAIL_FROM = "Mist.io team <we@mist.io>"
+EMAIL_ALERTS = "alert@mist.io"
+EMAIL_REPORTS = "reports@mist.io"
+EMAIL_NOTIFICATIONS = "notifications@mist.io"
+EMAIL_ALERTS_BCC = ""
+
 GITHUB_BOT_TOKEN = ""
 
 NO_VERIFY_HOSTS = []
@@ -113,7 +119,6 @@ FAILED_LOGIN_RATE_LIMIT = {
     'max_logins_period': 60,    # in that many seconds
     'block_period': 60          # after that block for that many seconds
 }
-
 
 BANNED_EMAIL_PROVIDERS = [
     'mailinator.com',
@@ -189,7 +194,6 @@ BANNED_EMAIL_PROVIDERS = [
 
 SECRET = ""
 
-
 NOTIFICATION_EMAIL = {
     'all': "",
     'dev': "",
@@ -199,7 +203,8 @@ NOTIFICATION_EMAIL = {
     'support': "",
 }
 
-EMAIL_FROM = ""
+# Sendgrid
+SENDGRID_EMAIL_NOTIFICATIONS_KEY = ""
 
 # Monitoring Related
 COLLECTD_HOST = ""

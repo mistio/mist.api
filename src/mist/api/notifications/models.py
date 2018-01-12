@@ -155,6 +155,7 @@ class Notification(me.Document):
     rid = me.StringField(default="")
     rtype = me.StringField(default="")
 
+    # Reminder fields.
     reminder_count = me.IntField(required=True, min_value=0, default=0)
     reminder_enabled = me.BooleanField()
     reminder_schedule = me.ListField(default=DEFAULT_REMINDER_SCHEDULE)
