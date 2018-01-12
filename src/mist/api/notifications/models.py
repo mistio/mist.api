@@ -33,13 +33,13 @@ class NotificationOverride(me.EmbeddedDocument):
     rtype = me.StringField(default="")
     channel = me.StringField(default="")
 
-    def blocks_ntf(self, ntf):
-        """Return True if self blocks the given notification."""
-        if self.channel and self.channel != ntf.channel.ctype:
+    def blocks(self, channel, rtype="", rid=""):
+        """Return True if self blocks a notification with given properties."""
+        if self.channel and self.channel != channel:
             return False
-        if self.rtype and self.rtype != ntf.rtype:
+        if self.rtype and self.rtype != rtype:
             return False
-        if self.rid and self.rid != ntf.rid:
+        if self.rid and self.rid != rid:
             return False
         return True
 
@@ -113,7 +113,7 @@ class UserNotificationPolicy(me.Document):
     def has_overriden(self, ntf):
         """Return True if self includes an override that matches `ntf`."""
         for override in self.overrides:
-            if override.blocks_ntf(ntf):
+            if override.blocks(ntf.channel.ctype, ntf.rtype, ntf.rid):
                 return True
         return False
 
@@ -125,7 +125,7 @@ class UserNotificationPolicy(me.Document):
 
     def clean(self):
         if not (self.email or self.user_id):
-            raise me.ValidationError()
+            raise me.ValidationError('Neither a user ID nor email provided')
 
         # Get the user's id, if missing. Some notification policies may
         # belong to non-mist users (denoted by their e-mail).
@@ -134,6 +134,9 @@ class UserNotificationPolicy(me.Document):
             self.user_id = user.id if user else None
         elif not self.email:
             self.email = self.user.email
+
+    def __str__(self):
+        return 'Notification Policy of User %s' % self.email
 
 
 class Notification(me.Document):
@@ -201,6 +204,11 @@ class Notification(me.Document):
         return True
 
     def clean(self):
+        if self.rid and not self.rtype:
+            raise me.ValidationError('Resource ID provided without a type')
+        # Advance `reminder_count` to suppress reminders, if disabled.
+        if not self.reminder_enabled:
+            self.reminder_count = len(self.reminder_schedule)
         # This makes sure to fast-forward the `reminder_count` in case we've
         # failed to send past notifications for periods of time that span
         # reminder intervals. Thus we avoid spamming users with back-to-back
@@ -264,10 +272,14 @@ class EmailNotification(Notification):
             raise TypeError("%s requires the sender's email to be specified as"
                             " the sender_email class attribute" % self)
 
+    @property
+    def unsub_params(self):
+        return {'action': 'request_unsubscribe', 'channel': self.channel.ctype,
+                'org_id': self.owner.id, 'rtype': self.rtype, 'rid': self.rid}
+
     def get_unsub_link(self, user_id, email=None):
-        params = {'action': 'request_unsubscribe',
-                  'channel': self.channel.ctype, 'org_id': self.owner.id,
-                  'user_id': user_id, 'email': email}
+        params = self.unsub_params
+        params.update({'user_id': user_id, 'email': email})
         mac_sign(params)
         encrypted = {'token': encrypt(json.dumps(params))}
         return '%s/unsubscribe?%s' % (config.CORE_URI,
@@ -288,6 +300,11 @@ class EmailAlert(EmailNotification):
     # The ID associated with a specific incident.
     # Required in order to schedule alerts via e-mail notifications.
     incident_id = me.StringField(required=True)
+
+    def clean(self):
+        if self.rtype != 'rule' and not self.rid:
+            raise me.ValidationError('Resource type != "rule" or missing ID')
+        super(EmailAlert, self).clean()
 
 
 class InAppNotification(Notification):

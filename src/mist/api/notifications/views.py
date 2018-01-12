@@ -25,6 +25,7 @@ def dismiss_notification(request):
     if not ntf_id:
         raise RequiredParameterMissingError("notification_id")
     try:
+        # TODO Should we delete the notification instead?
         ntf = InAppNotification.objects.get(id=ntf_id,
                                             owner=auth_context.owner)
         ntf.channel.dismiss(auth_context.user)
