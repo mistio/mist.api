@@ -134,5 +134,5 @@ class CloudSize(me.Document):
             'bandwidth': self.bandwidth,
             'price': self.price,
             'disk': self.disk,
-            #'cloud_region': self.cloud_region,
+            # 'cloud_region': self.cloud_region,
         }
