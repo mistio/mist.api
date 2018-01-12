@@ -91,12 +91,17 @@ class CloudImage(me.Document):
 
 class CloudSize(me.Document):
     """A base Cloud Size Model."""
+    id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
+    provider = me.StringField(required=True)
+    cloud = me.ReferenceField('Cloud', required=True)
     size_id = me.StringField(required=True)
-    cloud_provider = me.StringField(required=True)
-    cloud_region = me.StringField()  # eg for RackSpace
     name = me.StringField()
+    cpu = me.IntField()
+    ram = me.IntField()
     price = me.StringField()
-    deprecated = me.BooleanField(default=False)
+    cloud_region = me.StringField()  # eg for RackSpace
+    disk = me.IntField()
+    bandwidth = me.IntField()
 
     meta = {
         'indexes': [
