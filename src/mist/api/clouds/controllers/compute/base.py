@@ -802,9 +802,6 @@ class BaseComputeController(BaseController):
 
         This is to be called exclusively by `self.list_sizes`.
 
-        Most subclasses that use a simple libcloud connection, shouldn't need
-        to override or extend this method.
-
         Subclasses MAY override this method.
 
         """
