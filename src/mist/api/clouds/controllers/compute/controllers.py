@@ -722,6 +722,24 @@ class GoogleComputeController(BaseComputeController):
             ret[_size.description] = _size
         return ret.values()
 
+    def get_node_size(self, node):
+        try:
+            _size = CloudSize.objects.get(cloud=self.cloud,name=node.size)
+        except CloudSize.DoesNotExist:
+            _size = CloudSize(cloud=self.cloud, name=node.size, disk=node.disk,
+                              provider=self.provider, ram=node.ram,
+                              bandwidth=node.bandwidth, price=node.price)
+            # check below!
+            _size.cpus = node.extra.get('guestCpus')
+
+            try:
+                _size.save()
+            except me.ValidationError as exc:
+                log.error("Error adding %s: %s", size.name, exc.to_dict())
+                raise BadRequestError({"msg": exc.message,
+                                       "errors": exc.to_dict()})
+        return _size
+
 
 class HostVirtualComputeController(BaseComputeController):
 
