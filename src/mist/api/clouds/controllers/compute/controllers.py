@@ -51,7 +51,7 @@ from mist.api.helpers import sanitize_host
 from mist.api.machines.models import Machine
 
 from mist.api.misc.cloud import CloudImage
-from mist.api.misc.cloud import CloudLocation
+from mist.api.misc.cloud import CloudSize
 
 from mist.api.clouds.controllers.main.base import BaseComputeController
 
