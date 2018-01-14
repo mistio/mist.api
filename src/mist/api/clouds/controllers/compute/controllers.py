@@ -51,6 +51,7 @@ from mist.api.helpers import sanitize_host
 from mist.api.machines.models import Machine
 
 from mist.api.misc.cloud import CloudImage
+from mist.api.misc.cloud import CloudLocation
 
 from mist.api.clouds.controllers.main.base import BaseComputeController
 
@@ -695,19 +696,30 @@ class GoogleComputeController(BaseComputeController):
     def _list_sizes__fetch_sizes(self):
         ret = {}
         sizes = self.connection.list_sizes()
-        # improve name shown on wizard, and show sizes only once
         # default list_sizes returns 500 sizes
         for size in sizes:
-            size.name = "%s (%s)" % (size.name, size.extra.get('description'))
-            zone = size.extra.pop('zone')
-            size.extra['zone'] = {
-                'id': zone.id,
-                'name': zone.name,
-                'status': zone.status,
-                'country': zone.country,
-            }
 
-            ret[size.name] = size
+            # create the object in db if it does not exist
+            try:
+                CloudSize.objects.get(cloud=self.cloud, size_id=size.id)
+            except CloudSize.DoesNotExist:
+                _size = CloudSize(cloud=self.cloud, size_id=size.id,
+                                  name=size.name, disk=size.disk,
+                                  provider=size.provider, ram=size.ram,
+                                  bandwidth=size.bandwidth)
+                _size.cpu = size.extra.get('guestCpus')
+                # improve name shown on wizard, and show sizes only once
+                desc = "%s (%s)" % (size.name, size.extra.get('description'))
+                _size.description = desc
+
+                try:
+                    _size.save()
+                except me.ValidationError as exc:
+                    log.error("Error adding %s: %s", size.name, exc.to_dict())
+                    raise BadRequestError({"msg": exc.message,
+                                           "errors": exc.to_dict()})
+
+            ret[size.description] = size
         return ret.values()
 
 
