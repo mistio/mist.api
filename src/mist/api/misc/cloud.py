@@ -95,6 +95,7 @@ class CloudSize(me.Document):
     provider = me.StringField(required=True)
     cloud = me.ReferenceField('Cloud', required=True)
     size_id = me.StringField(required=True)
+    description = me.StringField()
     name = me.StringField()
     cpu = me.IntField()
     ram = me.IntField()
@@ -102,18 +103,6 @@ class CloudSize(me.Document):
     cloud_region = me.StringField()  # eg for RackSpace
     disk = me.IntField()
     bandwidth = me.IntField()
-
-    meta = {
-        'indexes': [
-            'cloud_provider',
-            {
-                'fields': ['cloud_provider', 'cloud_region', 'size_id'],
-                'sparse': False,
-                'unique': True,
-                'cls': False,
-            },
-        ],
-    }
 
     def __init__(self, *args, **kwargs):
         super(CloudSize, self).__init__(*args, **kwargs)
@@ -132,6 +121,7 @@ class CloudSize(me.Document):
             'cpu': self.cpu,
             'ram': self.ram,
             'bandwidth': self.bandwidth,
+            'description': self.description,
             'price': self.price,
             'disk': self.disk,
             # 'cloud_region': self.cloud_region,
