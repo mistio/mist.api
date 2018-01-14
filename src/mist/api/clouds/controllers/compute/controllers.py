@@ -705,7 +705,7 @@ class GoogleComputeController(BaseComputeController):
             except CloudSize.DoesNotExist:
                 _size = CloudSize(cloud=self.cloud, size_id=size.id,
                                   name=size.name, disk=size.disk,
-                                  provider=size.provider, ram=size.ram,
+                                  provider=self.provider, ram=size.ram,
                                   bandwidth=size.bandwidth)
                 _size.cpu = size.extra.get('guestCpus')
                 # improve name shown on wizard, and show sizes only once
