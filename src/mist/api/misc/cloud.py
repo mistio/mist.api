@@ -99,7 +99,7 @@ class CloudSize(me.Document):
     name = me.StringField()
     cpus = me.IntField()
     ram = me.IntField()
-    price = me.StringField()
+    price = me.IntField()
     cloud_region = me.StringField()  # eg for RackSpace
     disk = me.IntField()
     bandwidth = me.IntField()
