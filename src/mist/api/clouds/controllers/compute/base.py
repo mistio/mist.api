@@ -813,6 +813,18 @@ class BaseComputeController(BaseController):
         """
         return CloudSize.objects(cloud=self.cloud)
 
+    def get_node_size(self):
+        """Return size from database for a
+        specific node
+
+        Subclasses MAY override this method.
+        """
+        try:
+            size = CloudSize.objects.get(cloud=self.cloud,name=self.size)
+        except CloudSize.DoesNotExist:
+            size = ''
+        return size
+
     def list_locations(self, persist=True):
         """Return list of locations for cloud
 
