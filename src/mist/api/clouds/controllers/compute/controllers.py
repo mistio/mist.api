@@ -701,13 +701,14 @@ class GoogleComputeController(BaseComputeController):
 
             # create the object in db if it does not exist
             try:
-                CloudSize.objects.get(cloud=self.cloud, size_id=size.id)
+                import ipdb; ipdb.set_trace()
+                _size = CloudSize.objects.get(cloud=self.cloud, size_id=size.id)
             except CloudSize.DoesNotExist:
                 _size = CloudSize(cloud=self.cloud, size_id=size.id,
                                   name=size.name, disk=size.disk,
                                   provider=self.provider, ram=size.ram,
-                                  bandwidth=size.bandwidth)
-                _size.cpu = size.extra.get('guestCpus')
+                                  bandwidth=size.bandwidth, price=size.price)
+                _size.cpus = size.extra.get('guestCpus')
                 # improve name shown on wizard, and show sizes only once
                 desc = "%s (%s)" % (size.name, size.extra.get('description'))
                 _size.description = desc
@@ -719,7 +720,7 @@ class GoogleComputeController(BaseComputeController):
                     raise BadRequestError({"msg": exc.message,
                                            "errors": exc.to_dict()})
 
-            ret[size.description] = size
+            ret[_size.description] = _size
         return ret.values()
 
 
