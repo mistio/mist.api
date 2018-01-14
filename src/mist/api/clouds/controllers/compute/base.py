@@ -738,7 +738,7 @@ class BaseComputeController(BaseController):
     def image_is_default(self, image_id):
         return True
 
-    def list_sizes(self):
+    def list_sizes(self, persist=True):
         """Return list of sizes for cloud
 
         A list of sizes is fetched from libcloud, data is processed, stored
