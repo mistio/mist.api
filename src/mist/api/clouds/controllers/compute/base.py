@@ -330,7 +330,7 @@ class BaseComputeController(BaseController):
             machine.missing_since = None
 
             location_name = get_location_name(self.provider, node)
-
+            import ipdb; ipdb.set_trace()
             if location_name:
 
                 try:
@@ -758,17 +758,11 @@ class BaseComputeController(BaseController):
         """
 
         # Fetch sizes, usually from libcloud connection.
+        import ipdb; ipdb.set_trace()
         sizes = self._list_sizes__fetch_sizes()
 
         # Format size information.
-        return [{'id': size.id,
-                 'name': size.name,
-                 'bandwidth': size.bandwidth,
-                 'disk': size.disk,
-                 'driver': size.driver.name,
-                 'price': size.price,
-                 'ram': size.ram,
-                 'extra': size.extra} for size in sizes]
+        return [size.as_dict() for size in sizes]
 
     def _list_sizes__fetch_sizes(self):
         """Fetch size listing in a libcloud compatible format
