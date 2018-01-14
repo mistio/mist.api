@@ -97,7 +97,7 @@ class CloudSize(me.Document):
     size_id = me.StringField(required=True)
     description = me.StringField()
     name = me.StringField()
-    cpu = me.IntField()
+    cpus = me.IntField()
     ram = me.IntField()
     price = me.StringField()
     cloud_region = me.StringField()  # eg for RackSpace
