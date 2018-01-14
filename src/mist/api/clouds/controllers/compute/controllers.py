@@ -701,7 +701,6 @@ class GoogleComputeController(BaseComputeController):
 
             # create the object in db if it does not exist
             try:
-                import ipdb; ipdb.set_trace()
                 _size = CloudSize.objects.get(cloud=self.cloud, size_id=size.id)
             except CloudSize.DoesNotExist:
                 _size = CloudSize(cloud=self.cloud, size_id=size.id,
