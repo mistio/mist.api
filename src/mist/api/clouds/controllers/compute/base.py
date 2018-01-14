@@ -766,7 +766,7 @@ class BaseComputeController(BaseController):
         try:
             with task.task_runner(persist=persist):
                 cached_sizes = {'%s' % s.size_id: s.as_dict()
-                                    for s in self.list_cached_sizes()}
+                                for s in self.list_cached_sizes()}
                 sizes = self._list_sizes__fetch_sizes()
         except PeriodicTaskThresholdExceeded:
             self.cloud.disable()
@@ -784,7 +784,7 @@ class BaseComputeController(BaseController):
             else:
                 # Publish patches to rabbitmq.
                 new_sizes = {'%s' % s.size_id: s.as_dict()
-                                 for s in sizes}
+                             for s in sizes}
                 patch = jsonpatch.JsonPatch.from_diff(cached_sizes,
                                                       new_sizes).patch
                 if patch:
@@ -820,7 +820,7 @@ class BaseComputeController(BaseController):
         Subclasses MAY override this method.
         """
         try:
-            size = CloudSize.objects.get(cloud=self.cloud,name=node.size)
+            size = CloudSize.objects.get(cloud=self.cloud, name=node.size)
         except CloudSize.DoesNotExist:
             size = ''
         return size
