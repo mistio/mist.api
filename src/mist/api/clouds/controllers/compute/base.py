@@ -741,8 +741,9 @@ class BaseComputeController(BaseController):
     def list_sizes(self):
         """Return list of sizes for cloud
 
-        This returns the results obtained from libcloud, after some processing,
-        formatting and injection of extra information in a sane format.
+        A list of sizes is fetched from libcloud, data is processed, stored
+        on size models, and a list of size models is returned in a sane
+        format.
 
         Subclasses SHOULD NOT override or extend this method.
 
@@ -759,10 +760,42 @@ class BaseComputeController(BaseController):
 
         # Fetch sizes, usually from libcloud connection.
         import ipdb; ipdb.set_trace()
-        sizes = self._list_sizes__fetch_sizes()
 
-        # Format size information.
-        return [size.as_dict() for size in sizes]
+        task_key = 'cloud:list_sizes:%s' % self.cloud.id
+        task = PeriodicTaskInfo.get_or_add(task_key)
+        try:
+            with task.task_runner(persist=persist):
+                cached_sizes = {'%s' % s.size_id: s.as_dict()
+                                    for s in self.list_cached_sizes()}
+                sizes = self._list_sizes__fetch_sizes()
+        except PeriodicTaskThresholdExceeded:
+            self.cloud.disable()
+            raise
+
+        # Initialize AMQP connection to reuse for multiple messages.
+        amqp_conn = Connection(config.AMQP_URI)
+        if amqp_owner_listening(self.cloud.owner.id):
+            if not config.SIZE_PATCHES:
+                amqp_publish_user(self.cloud.owner.id,
+                                  routing_key='list_sizes',
+                                  connection=amqp_conn,
+                                  data={'cloud_id': self.cloud.id,
+                                        'sizes': sizes})
+            else:
+                # Publish patches to rabbitmq.
+                new_sizes = {'%s' % s.size_id: s.as_dict()
+                                 for s in sizes}
+                patch = jsonpatch.JsonPatch.from_diff(cached_sizes,
+                                                      new_sizes).patch
+                if patch:
+                    amqp_publish_user(self.cloud.owner.id,
+                                      routing_key='patch_sizes',
+                                      connection=amqp_conn,
+                                      data={'cloud_id': self.cloud.id,
+                                            'patch': patch})
+
+                # Format size information.
+                return [size.as_dict() for size in sizes]
 
     def _list_sizes__fetch_sizes(self):
         """Fetch size listing in a libcloud compatible format
