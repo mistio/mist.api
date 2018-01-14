@@ -118,7 +118,7 @@ class CloudSize(me.Document):
             'provider': self.provider,
             '_id': self.id,
             'name': self.name,
-            'cpu': self.cpu,
+            'cpus': self.cpus,
             'ram': self.ram,
             'bandwidth': self.bandwidth,
             'description': self.description,
