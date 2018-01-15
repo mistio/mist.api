@@ -894,7 +894,7 @@ class BaseComputeController(BaseController):
         Subclasses MAY override this method.
 
         """
-            return ''
+        return ''
 
     def _get_machine_libcloud(self, machine, no_fail=False):
         """Return an instance of a libcloud node
