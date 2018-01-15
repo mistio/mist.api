@@ -4,7 +4,7 @@ import time
 import logging
 import mongoengine as me
 
-from mist.api.config import BANNED_EMAIL_PROVIDERS
+from mist.api import config
 from mist.api.methods import ssh_command
 from mist.api.logs.methods import log_event
 from mist.api.machines.models import Machine
@@ -34,7 +34,7 @@ def is_email_valid(email):
     # TODO Move this to mist.api.helpers.
     regex = '(^[\w\.-]+@[a-zA-Z0-9-]+(\.[a-zA-Z0-9-.]+)+$)'
     return (re.match(regex, email) and
-            email.split('@')[1] not in BANNED_EMAIL_PROVIDERS)
+            email.split('@')[1] not in config.BANNED_EMAIL_PROVIDERS)
 
 
 class BaseAlertAction(me.EmbeddedDocument):
@@ -173,11 +173,8 @@ class MachineAction(BaseAlertAction):
         assert machine.owner == self._instance.owner
         getattr(machine.ctl, self.action)()
         if self.action == 'destroy':  # If destroy, disable monitoring, too.
-            try:
+            if config.HAS_CORE:
                 from mist.core.methods import disable_monitoring
-            except ImportError:
-                pass
-            else:
                 # TODO Move this into machine.ctl.destroy method and
                 # deprecate mist.api.machines.methods:destroy_machine.
                 # Could also be implemented as new method inside the

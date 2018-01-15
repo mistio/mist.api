@@ -40,7 +40,7 @@ class ConditionalClassMixin(object):
     conditions = me.EmbeddedDocumentListField(BaseCondition)
 
     def owner_query(self):
-        return me.Q(owner=self.owner)
+        return me.Q(owner=self.owner_id)
 
     def get_resources(self):
         query = self.owner_query()
@@ -92,8 +92,7 @@ class TaggingCondition(BaseCondition):
             }
             if value:
                 query['value'] = value
-            ids |= set(tag.resource.id
-                       for tag in Tag.objects(**query).only('resource'))
+            ids |= set(tag.resource.id for tag in Tag.objects(**query))
         return me.Q(id__in=ids)
 
     def validate(self, clean=True):

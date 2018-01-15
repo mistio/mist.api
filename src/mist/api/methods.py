@@ -247,110 +247,6 @@ def delete_subnet(owner, subnet):
     trigger_session_update(owner, ['clouds'])
 
 
-def check_monitoring(user):
-    raise NotImplementedError()
-
-    """Ask the mist.api service if monitoring is enabled for this machine."""
-    try:
-        ret = requests.get(config.CORE_URI + '/monitoring',
-                           headers={'Authorization': get_auth_header(user)},
-                           verify=config.SSL_VERIFY)
-    except requests.exceptions.SSLError as exc:
-        log.error("%r", exc)
-        raise SSLError()
-    if ret.status_code == 200:
-        return ret.json()
-    elif ret.status_code in [400, 401]:
-        user.email = ""
-        user.mist_api_token = ""
-        user.save()
-    log.error("Error getting stats %d:%s", ret.status_code, ret.text)
-    raise ServiceUnavailableError()
-
-
-def enable_monitoring(user, cloud_id, machine_id,
-                      name='', dns_name='', public_ips=None,
-                      no_ssh=False, dry=False, deploy_async=True, **kwargs):
-    raise NotImplementedError()
-    """Enable monitoring for a machine."""
-    cloud = Cloud.objects.get(owner=user, id=cloud_id, deleted=None)
-    payload = {
-        'action': 'enable',
-        'no_ssh': True,
-        'dry': dry,
-        'name': name or cloud.title,
-        'public_ips': ",".join(public_ips or []),
-        'dns_name': dns_name,
-        'cloud_title': cloud.title,
-        'cloud_provider': cloud.provider,
-        'cloud_region': cloud.region,
-        'cloud_apikey': cloud.apikey,
-        'cloud_apisecret': cloud.apisecret,
-        'cloud_apiurl': cloud.apiurl,
-        'cloud_tenant_name': cloud.tenant_name,
-    }
-    url_scheme = "%s/clouds/%s/machines/%s/monitoring"
-    try:
-        resp = requests.post(
-            url_scheme % (config.CORE_URI, cloud_id, machine_id),
-            data=json.dumps(payload),
-            headers={'Authorization': get_auth_header(user)},
-            verify=config.SSL_VERIFY
-        )
-    except requests.exceptions.SSLError as exc:
-        log.error("%r", exc)
-        raise SSLError()
-    if not resp.ok:
-        if resp.status_code == 402:
-            raise PaymentRequiredError(resp.text.replace('Payment required: ', ''))
-        else:
-            raise ServiceUnavailableError()
-    ret_dict = resp.json()
-
-    if dry:
-        return ret_dict
-
-    if not no_ssh:
-        deploy = mist.api.tasks.deploy_collectd
-        if deploy_async:
-            deploy = deploy.delay
-        deploy(user.email, cloud_id, machine_id, ret_dict['extra_vars'])
-
-    trigger_session_update(user, ['monitoring'])
-
-    return ret_dict
-
-
-def disable_monitoring(user, cloud_id, machine_id, no_ssh=False):
-    """Disable monitoring for a machine."""
-    raise NotImplementedError()
-    payload = {
-        'action': 'disable',
-        'no_ssh': True
-    }
-    url_scheme = "%s/clouds/%s/machines/%s/monitoring"
-    try:
-        ret = requests.post(
-            url_scheme % (config.CORE_URI, cloud_id, machine_id),
-            params=payload,
-            headers={'Authorization': get_auth_header(user)},
-            verify=config.SSL_VERIFY
-        )
-    except requests.exceptions.SSLError as exc:
-        log.error("%r", exc)
-        raise SSLError()
-    if ret.status_code != 200:
-        raise ServiceUnavailableError()
-
-    ret_dict = json.loads(ret.content)
-    host = ret_dict.get('host')
-
-    if not no_ssh:
-        mist.api.tasks.undeploy_collectd.delay(user.email,
-                                              cloud_id, machine_id)
-    trigger_session_update(user, ['monitoring'])
-
-
 # TODO deprecate this!
 # We should decouple probe_ssh_only from ping.
 # Use them as two separate functions instead & through celery
@@ -465,12 +361,11 @@ def _ping_host(host, pkts=10):
 
 
 def ping(owner, host, pkts=10):
-    try:
+    if config.HAS_CORE:
         from mist.core.vpn.methods import super_ping
-    except ImportError:
-        result = _ping_host(host, pkts=pkts)
-    else:
         result = super_ping(owner=owner, host=host, pkts=pkts)
+    else:
+        result = _ping_host(host, pkts=pkts)
 
     # In both cases, the returned dict is formatted by pingparsing.
 
@@ -503,13 +398,9 @@ def find_public_ips(ips):
 
 def notify_admin(title, message="", team="all"):
     """ This will only work on a multi-user setup configured to send emails """
-    try:
-        from mist.api.helpers import send_email
-        send_email(title, message,
-                   config.NOTIFICATION_EMAIL.get(team,
-                                                 config.NOTIFICATION_EMAIL))
-    except ImportError:
-        pass
+    from mist.api.helpers import send_email
+    send_email(title, message,
+               config.NOTIFICATION_EMAIL.get(team, config.NOTIFICATION_EMAIL))
 
 
 def notify_user(owner, title, message="", email_notify=True, **kwargs):
@@ -567,101 +458,11 @@ def notify_user(owner, title, message="", email_notify=True, **kwargs):
     if 'output' in kwargs:
         body += "Output: %s\n" % kwargs['output'].decode('utf-8', 'ignore')
 
-    try:  # Send email in multi-user env
-        if email_notify:
-            from mist.api.helpers import send_email
-            email = owner.email if hasattr(owner, 'email') else owner.get_email()
-            send_email("[mist.io] %s" % title, body.encode('utf-8', 'ignore'),
-                       email)
-    except ImportError:
-        pass
-
-
-def find_metrics(user, cloud_id, machine_id):
-    raise NotImplementedError()
-
-    url = "%s/clouds/%s/machines/%s/metrics" % (config.CORE_URI,
-                                                cloud_id, machine_id)
-    headers = {'Authorization': get_auth_header(user)}
-    try:
-        resp = requests.get(url, headers=headers, verify=config.SSL_VERIFY)
-    except requests.exceptions.SSLError as exc:
-        raise SSLError()
-    except Exception as exc:
-        log.error("Exception requesting find_metrics: %r", exc)
-        raise ServiceUnavailableError(exc=exc)
-    if not resp.ok:
-        log.error("Error in find_metrics %d:%s", resp.status_code, resp.text)
-        raise ServiceUnavailableError(resp.text)
-    return resp.json()
-
-
-def assoc_metric(user, cloud_id, machine_id, metric_id):
-    raise NotImplementedError()
-
-    url = "%s/clouds/%s/machines/%s/metrics" % (config.CORE_URI,
-                                                cloud_id, machine_id)
-    try:
-        resp = requests.put(url,
-                            headers={'Authorization': get_auth_header(user)},
-                            params={'metric_id': metric_id},
-                            verify=config.SSL_VERIFY)
-    except requests.exceptions.SSLError as exc:
-        raise SSLError()
-    except Exception as exc:
-        log.error("Exception requesting assoc_metric: %r", exc)
-        raise ServiceUnavailableError(exc=exc)
-    if not resp.ok:
-        log.error("Error in assoc_metric %d:%s", resp.status_code, resp.text)
-        raise ServiceUnavailableError(resp.text)
-    trigger_session_update(user, [])
-
-
-def disassoc_metric(user, cloud_id, machine_id, metric_id):
-    raise NotImplementedError()
-
-    url = "%s/clouds/%s/machines/%s/metrics" % (config.CORE_URI,
-                                                cloud_id, machine_id)
-    try:
-        resp = requests.delete(url,
-                               headers={'Authorization': get_auth_header(user)},
-                               params={'metric_id': metric_id},
-                               verify=config.SSL_VERIFY)
-    except requests.exceptions.SSLError as exc:
-        raise SSLError()
-    except Exception as exc:
-        log.error("Exception requesting disassoc_metric: %r", exc)
-        raise ServiceUnavailableError(exc=exc)
-    if not resp.ok:
-        log.error("Error in disassoc_metric %d:%s", resp.status_code, resp.text)
-        raise ServiceUnavailableError(resp.text)
-    trigger_session_update(user, [])
-
-
-def update_metric(user, metric_id, name=None, unit=None,
-                  cloud_id=None, machine_id=None):
-    raise NotImplementedError()
-
-    url = "%s/metrics/%s" % (config.CORE_URI, metric_id)
-    headers = {'Authorization': get_auth_header(user)}
-    params = {
-        'name': name,
-        'unit': unit,
-        'cloud_id': cloud_id,
-        'machine_id': machine_id,
-    }
-    try:
-        resp = requests.put(url, headers=headers, params=params,
-                            verify=config.SSL_VERIFY)
-    except requests.exceptions.SSLError as exc:
-        raise SSLError()
-    except Exception as exc:
-        log.error("Exception updating metric: %r", exc)
-        raise ServiceUnavailableError(exc=exc)
-    if not resp.ok:
-        log.error("Error updating metric %d:%s", resp.status_code, resp.text)
-        raise BadRequestError(resp.text)
-    trigger_session_update(user, [])
+    if email_notify:
+        from mist.api.helpers import send_email
+        email = owner.email if hasattr(owner, 'email') else owner.get_email()
+        send_email("[mist.io] %s" % title, body.encode('utf-8', 'ignore'),
+                   email)
 
 
 def undeploy_python_plugin(owner, cloud_id, machine_id, plugin_id, host):
@@ -694,30 +495,6 @@ $sudo /opt/mistio-collectd/collectd.sh restart
     shell.disconnect()
 
     return {'metric_id': None, 'stdout': stdout}
-
-
-def get_stats(user, cloud_id, machine_id, start='', stop='', step='', metrics=''):
-    raise NotImplementedError()
-
-    try:
-        resp = requests.get(
-            "%s/clouds/%s/machines/%s/stats" % (config.CORE_URI,
-                                                cloud_id, machine_id),
-            params={'start': start, 'stop': stop, 'step': step},
-            headers={'Authorization': get_auth_header(user)},
-            verify=config.SSL_VERIFY
-        )
-    except requests.exceptions.SSLError as exc:
-        log.error("%r", exc)
-        raise SSLError()
-    if resp.status_code == 200:
-        ret = resp.json()
-        return ret
-    else:
-        log.error("Error getting stats %d:%s", resp.status_code, resp.text)
-        if resp.status_code == 400:
-            raise BadRequestError(resp.text.replace('Bad Request: ', ''))
-        raise ServiceUnavailableError(resp.text)
 
 
 def run_playbook(owner, cloud_id, machine_id, playbook_path, extra_vars=None,
