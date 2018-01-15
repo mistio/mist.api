@@ -38,6 +38,7 @@ class CloudImage(me.Document):
     cloud_region = me.StringField()  # eg for RackSpace
     name = me.StringField()
     os_type = me.StringField(default='linux')
+    deprecated = me.BooleanField(default=False)
 
     meta = {
         'indexes': [
