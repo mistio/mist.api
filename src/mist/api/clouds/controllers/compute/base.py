@@ -846,21 +846,20 @@ class BaseComputeController(BaseController):
                 _location = CloudLocation.objects.get(cloud=self.cloud,
                                                       location_id=loc.id,
                                                       name=loc.name)
-                locations.append(_location)
             except CloudLocation.DoesNotExist:
                 _location = CloudLocation(cloud=self.cloud,
                                           location_id=loc.id,
                                           name=loc.name)
-                _location.country = loc.country
-                _location.provider = self.provider
+            _location.country = loc.country
+            _location.provider = self.provider
 
-                try:
-                    _location.save()
-                    locations.append(_location)
-                except me.ValidationError as exc:
-                    log.error("Error adding %s: %s", loc.name, exc.to_dict())
-                    raise BadRequestError({"msg": exc.message,
-                                           "errors": exc.to_dict()})
+            try:
+                _location.save()
+                locations.append(_location)
+            except me.ValidationError as exc:
+                log.error("Error adding %s: %s", loc.name, exc.to_dict())
+                raise BadRequestError({"msg": exc.message,
+                                       "errors": exc.to_dict()})
 
         return locations
 
