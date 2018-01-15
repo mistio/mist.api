@@ -817,8 +817,15 @@ class BaseComputeController(BaseController):
                                   ram=size.ram, size_id=size.id,
                                   bandwidth=size.bandwidth, price=size.price
                                   )
-                _size.cpus = size.extra.get('vcpu_count')
-                _size.description = size.name
+                _size.cpus = self._list_sizes_get_cpu(size)
+                #_size.cpus = size.extra.get('vcpu_count')
+                _size.cpus = size.extra.get('guestCpus')
+
+                if self.provider == 'gce':
+                    desc = "%s (%s)" % (size.name, size.extra.get('description'))
+                    _size.description = desc
+                else:
+                    _size.description = size.name
 
                 try:
                     _size.save()
@@ -829,6 +836,9 @@ class BaseComputeController(BaseController):
 
         return sizes
 
+    def _list_sizes_get_cpu(self, size):
+        # TODO: change this to sth common!
+        return 1
 
     def list_cached_sizes(self):
         """Return list of sizes from database
