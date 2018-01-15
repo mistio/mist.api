@@ -706,9 +706,9 @@ class GoogleComputeController(BaseComputeController):
             except CloudSize.DoesNotExist:
                 _size = CloudSize(provider=self.provider,
                                   name=size.name, disk=size.disk,
-                                  provider=self.provider, ram=size.ram,
-                                  bandwidth=size.bandwidth, price=size.price,
-                                  size_id=size.id)
+                                  ram=size.ram, size_id=size.id,
+                                  bandwidth=size.bandwidth, price=size.price
+                                  )
                 _size.cpus = size.extra.get('guestCpus')
                 # improve name shown on wizard, and show sizes only once
                 desc = "%s (%s)" % (size.name, size.extra.get('description'))
@@ -774,6 +774,34 @@ class VultrComputeController(BaseComputeController):
 
     def _list_sizes__fetch_sizes(self):
         sizes = self.connection.list_sizes()
+        import ipdb; ipdb.set_trace()
+        for size in sizes:
+
+            # create the object in db if it does not exist
+            try:
+                _size = CloudSize.objects.get(provider=self.provider,
+                                              size_id=size.id)
+            except CloudSize.DoesNotExist:
+                _size = CloudSize(provider=self.provider,
+                                  name=size.name, disk=size.disk,
+                                  ram=size.ram, size_id=size.id,
+                                  bandwidth=size.bandwidth, price=size.price
+                                  )
+                _size.cpus = size.extra.get('guestCpus')
+                # improve name shown on wizard, and show sizes only once
+                desc = "%s (%s)" % (size.name, size.extra.get('description'))
+                _size.description = desc
+
+                try:
+                    _size.save()
+                except me.ValidationError as exc:
+                    log.error("Error adding %s: %s", size.name, exc.to_dict())
+                    raise BadRequestError({"msg": exc.message,
+                                           "errors": exc.to_dict()})
+
+            ret[_size.description] = _size
+        #return ret.values()
+
         return [size for size in sizes if not size.extra.get('deprecated')]
 
 
