@@ -809,7 +809,7 @@ class BaseComputeController(BaseController):
         """Return list of sizes from database
         for a specific cloud
         """
-        return CloudSize.objects(cloud=self.cloud)
+        return CloudSize.objects(provider=self.provider)
 
     def _list_machines_get_size(self, node):
         """Return size from database for a
@@ -818,7 +818,7 @@ class BaseComputeController(BaseController):
         Subclasses MAY override this method.
         """
         try:
-            size = CloudSize.objects.get(cloud=self.cloud, name=node.size)
+            size = CloudSize.objects.get(provider=self.provider, name=node.size)
         except CloudSize.DoesNotExist:
             size = ''
         return size
