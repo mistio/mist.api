@@ -91,8 +91,8 @@ class BaseBackendPlugin(object):
             self.rule.states = {
                 incident: state for
                 incident, state in self.rule.states.iteritems() if
-                state.resource in (set(self.rids) ^ remove_states)
-                and not state.expired()
+                state.resource in (set(self.rids) ^ remove_states) and not
+                state.expired()
             }
             self.rule.save()
 
