@@ -330,7 +330,6 @@ class BaseComputeController(BaseController):
             machine.missing_since = None
 
             location_name = get_location_name(self.provider, node)
-            import ipdb; ipdb.set_trace()
             if location_name:
 
                 try:
@@ -345,8 +344,8 @@ class BaseComputeController(BaseController):
             image_id = str(node.image or node.extra.get('imageId') or
                            node.extra.get('image_id') or
                            node.extra.get('image') or '')
-            size = (node.size or node.extra.get('flavorId') or
-                    node.extra.get('instancetype'))
+
+            size = self.get_node_size(node)
 
             machine.name = node.name
             machine.image_id = image_id
@@ -759,7 +758,6 @@ class BaseComputeController(BaseController):
         """
 
         # Fetch sizes, usually from libcloud connection.
-        import ipdb; ipdb.set_trace()
 
         task_key = 'cloud:list_sizes:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
