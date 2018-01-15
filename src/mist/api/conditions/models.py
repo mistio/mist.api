@@ -46,10 +46,14 @@ class ConditionalClassMixin(object):
         query = self.owner_query()
         for condition in self.conditions:
             query &= condition.q
+        if 'deleted' in self.condition_resource_cls._fields:
+            query &= me.Q(deleted=None)
+        if 'missing_since' in self.condition_resource_cls._fields:
+            query &= me.Q(missing_since=None)
         return self.condition_resource_cls.objects(query)
 
     def get_ids(self):
-        return [resource.id for resource in self.get_resources().only('id')]
+        return [resource.id for resource in self.get_resources()]
 
 
 class FieldCondition(BaseCondition):
