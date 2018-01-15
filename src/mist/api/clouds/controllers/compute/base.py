@@ -819,7 +819,6 @@ class BaseComputeController(BaseController):
                                   )
                 _size.cpus = self._list_sizes_get_cpu(size)
                 #_size.cpus = size.extra.get('vcpu_count')
-                _size.cpus = size.extra.get('guestCpus')
 
                 if self.provider == 'gce':
                     desc = "%s (%s)" % (size.name, size.extra.get('description'))
