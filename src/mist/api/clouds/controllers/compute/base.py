@@ -104,27 +104,6 @@ def _decide_machine_cost(machine, tags=None, cost=(0, 0)):
     machine.cost.monthly = cpm
 
 
-def get_location_name(provider, node):
-    """Find location name from libcloud data
-    """
-    if provider == 'softlayer':
-        return node.extra.get('datacenter')
-    elif provider == 'nephoscale':
-        return node.extra.get('zone')
-    elif provider == 'digitalocean':
-        return node.extra.get('region')
-    elif provider == 'gce':
-        return node.extra.get('zone').name
-    elif provider == 'ec2':
-        return node.extra.get('availability')
-    elif provider == 'packet':
-        return node.extra.get('facility')
-    elif provider in ['vultr', 'azure_arm']:
-        return node.extra.get('location')
-    else:
-        return ''
-
-
 class BaseComputeController(BaseController):
     """Abstract base class for every cloud/provider controller
 
@@ -328,7 +307,7 @@ class BaseComputeController(BaseController):
             machine.last_seen = now
             machine.missing_since = None
 
-            location_name = get_location_name(self.provider, node)
+            location_name = self._list_machines__get_location(node)
 
             if location_name:
 
@@ -907,6 +886,16 @@ class BaseComputeController(BaseController):
         except:
             return [NodeLocation('', name='default', country='',
                                  driver=self.connection)]
+
+    def _list_machines__get_location(self, node):
+        """Find location code name/identifier from libcloud data
+
+        This is to be called exclusively by `self._list_machines`.
+
+        Subclasses MAY override this method.
+
+        """
+            return ''
 
     def _get_machine_libcloud(self, machine, no_fail=False):
         """Return an instance of a libcloud node
