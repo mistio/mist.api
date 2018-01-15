@@ -1,4 +1,5 @@
 """Machine entity model."""
+import os
 import json
 import uuid
 import logging
@@ -66,6 +67,7 @@ class Actions(me.EmbeddedDocument):
     destroy = me.BooleanField(default=False)
     resize = me.BooleanField(default=False)
     rename = me.BooleanField(default=False)
+    remove = me.BooleanField(default=False)
     tag = me.BooleanField(default=False)
     resume = me.BooleanField(default=False)
     suspend = me.BooleanField(default=False)
@@ -76,33 +78,58 @@ class Monitoring(me.EmbeddedDocument):
     # Most of these will change with the new UI.
     hasmonitoring = me.BooleanField()
     monitor_server = me.StringField()  # Deprecated
-    collectd_password = me.StringField()
+    collectd_password = me.StringField(
+        default=lambda: os.urandom(32).encode('hex'))
     metrics = me.ListField()  # list of metric_id's
     installation_status = me.EmbeddedDocumentField(InstallationStatus)
+    method = me.StringField(default=config.DEFAULT_MONITORING_METHOD,
+                            choices=config.MONITORING_METHODS)
 
     def get_commands(self):
-        # FIXME: This is a hack.
-        from mist.api.methods import get_deploy_collectd_command_unix
-        from mist.api.methods import get_deploy_collectd_command_windows
-        from mist.api.methods import get_deploy_collectd_command_coreos
-        args = (self._instance.id, self.collectd_password,
-                config.COLLECTD_HOST, config.COLLECTD_PORT)
-        return {
-            'unix': get_deploy_collectd_command_unix(*args),
-            'coreos': get_deploy_collectd_command_coreos(*args),
-            'windows': get_deploy_collectd_command_windows(*args),
-        }
+        if self.method == 'collectd-graphite' and config.HAS_CORE:
+            from mist.api.methods import get_deploy_collectd_command_unix
+            from mist.api.methods import get_deploy_collectd_command_windows
+            from mist.api.methods import get_deploy_collectd_command_coreos
+            args = (self._instance.id, self.collectd_password,
+                    config.COLLECTD_HOST, config.COLLECTD_PORT)
+            return {
+                'unix': get_deploy_collectd_command_unix(*args),
+                'coreos': get_deploy_collectd_command_coreos(*args),
+                'windows': get_deploy_collectd_command_windows(*args),
+            }
+        elif self.method in ('telegraf-influxdb', 'telegraf-graphite'):
+            from mist.api.monitoring.commands import unix_install
+            from mist.api.monitoring.commands import coreos_install
+            from mist.api.monitoring.commands import windows_install
+            return {
+                'unix': unix_install(self._instance),
+                'coreos': coreos_install(self._instance),
+                'windows': windows_install(self._instance),
+            }
+        else:
+            raise Exception("Invalid monitoring method %s" % self.method)
+
+    def get_rules_dict(self):
+        m = self._instance
+        return {rid: rdict
+                for rid, rdict in m.cloud.owner.get_rules_dict().items()
+                if rdict['cloud'] == m.cloud.id and
+                rdict['machine'] == m.machine_id}
 
     def as_dict(self):
         status = self.installation_status
-
+        try:
+            commands = self.get_commands()
+        except:
+            commands = {}
         return {
             'hasmonitoring': self.hasmonitoring,
             'monitor_server': config.COLLECTD_HOST,
             'collectd_password': self.collectd_password,
             'metrics': self.metrics,
             'installation_status': status.as_dict() if status else '',
-            'commands': self.get_commands(),
+            'commands': commands,
+            'method': self.method,
         }
 
 
@@ -124,20 +151,28 @@ class PingProbe(me.EmbeddedDocument):
     rtt_avg = me.FloatField()
     rtt_std = me.FloatField()
     updated_at = me.DateTimeField()
+    unreachable_since = me.DateTimeField()
     meta = {'strict': False}
 
     def update_from_dict(self, data):
         for key in data:
             setattr(self, key, data[key])
         self.updated_at = datetime.datetime.now()
+        if self.packets_loss == 100:
+            self.unreachable_since = datetime.datetime.now()
+        else:
+            self.unreachable_since = None
 
     def as_dict(self):
         data = {key: getattr(self, key) for key in (
             'packets_tx', 'packets_rx', 'packets_loss',
             'rtt_min', 'rtt_max', 'rtt_avg', 'rtt_std', 'updated_at',
+            'unreachable_since',
         )}
-        if data['updated_at']:
-            data['updated_at'] = str(data['updated_at'].replace(tzinfo=None))
+        # Handle datetime objects
+        for key in ('updated_at', 'unreachable_since'):
+            if data[key]:
+                data[key] = str(data[key].replace(tzinfo=None))
         return data
 
 
@@ -155,6 +190,7 @@ class SSHProbe(me.EmbeddedDocument):
     os_version = me.StringField()
     dirty_cow = me.BooleanField()
     updated_at = me.DateTimeField()
+    unreachable_since = me.DateTimeField()
     meta = {'strict': False}
 
     def update_from_dict(self, data):
@@ -199,15 +235,19 @@ class SSHProbe(me.EmbeddedDocument):
             setattr(self, str_attr, str(data.get(str_attr, '')))
 
         self.dirty_cow = bool(data.get('dirty_cow'))
+        self.unreachable_since = None
         self.updated_at = datetime.datetime.now()
 
     def as_dict(self):
         data = {key: getattr(self, key) for key in (
             'uptime', 'loadavg', 'cores', 'users', 'pub_ips', 'priv_ips', 'df',
-            'macs', 'kernel', 'os', 'os_version', 'dirty_cow', 'updated_at'
+            'macs', 'kernel', 'os', 'os_version', 'dirty_cow', 'updated_at',
+            'unreachable_since',
         )}
-        if data['updated_at']:
-            data['updated_at'] = str(data['updated_at'].replace(tzinfo=None))
+        # Handle datetime objects
+        for key in ('updated_at', 'unreachable_since'):
+            if data[key]:
+                data[key] = str(data[key].replace(tzinfo=None))
         return data
 
 
@@ -252,6 +292,7 @@ class Machine(me.Document):
 
     last_seen = me.DateTimeField()
     missing_since = me.DateTimeField()
+    unreachable_since = me.DateTimeField()
     created = me.DateTimeField()
 
     monitoring = me.EmbeddedDocumentField(Monitoring,
@@ -346,6 +387,9 @@ class Machine(me.Document):
                              if self.last_seen else ''),
             'missing_since': str(self.missing_since.replace(tzinfo=None)
                                  if self.missing_since else ''),
+            'unreachable_since': str(
+                self.unreachable_since.replace(tzinfo=None)
+                if self.unreachable_since else ''),
             'created': str(self.created.replace(tzinfo=None)
                            if self.created else ''),
             'machine_type': self.machine_type,

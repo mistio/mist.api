@@ -4,7 +4,6 @@ from uuid import uuid4
 import celery.schedules
 import mongoengine as me
 from mist.api.tag.models import Tag
-from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 from mist.api.exceptions import BadRequestError
 from mist.api.users.models import Organization
@@ -219,8 +218,13 @@ class Schedule(me.Document, ConditionalClassMixin):
         super(Schedule, self).__init__(*args, **kwargs)
         self.ctl = mist.api.schedules.base.BaseController(self)
 
-    def owner_query(self):
-        return me.Q(cloud__in=Cloud.objects(owner=self.owner).only('id'))
+    @property
+    def owner_id(self):
+        # FIXME We should consider storing the owner id as a plain
+        # string, instead of using a ReferenceField, to minimize
+        # unintentional dereferencing. This is already happending
+        # in case of mist.api.rules.models.Rule.
+        return self.owner.id
 
     @classmethod
     def add(cls, auth_context, name, **kwargs):
@@ -368,3 +372,4 @@ class Schedule(me.Document, ConditionalClassMixin):
 
 class UserScheduler(MongoScheduler):
     Model = Schedule
+    UPDATE_INTERVAL = datetime.timedelta(seconds=20)
