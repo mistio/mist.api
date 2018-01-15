@@ -313,7 +313,7 @@ class BaseComputeController(BaseController):
             if location_name:
 
                 try:
-                    _location = CloudLocation.objects.get(cloud=self.cloud,
+                    _location = CloudLocation.objects.get(provider=self.provider,
                                                           name=location_name)
                     machine.location = _location
                 except CloudLocation.DoesNotExist:
@@ -843,15 +843,14 @@ class BaseComputeController(BaseController):
         for loc in fetched_locations:
 
             try:
-                _location = CloudLocation.objects.get(cloud=self.cloud,
+                _location = CloudLocation.objects.get(provider=self.provider,
                                                       location_id=loc.id,
                                                       name=loc.name)
             except CloudLocation.DoesNotExist:
-                _location = CloudLocation(cloud=self.cloud,
+                _location = CloudLocation(provider=self.provider,
                                           location_id=loc.id,
                                           name=loc.name)
             _location.country = loc.country
-            _location.provider = self.provider
 
             try:
                 _location.save()
@@ -867,7 +866,7 @@ class BaseComputeController(BaseController):
         """Return list of locations from database
         for a specific cloud
         """
-        return CloudLocation.objects(cloud=self.cloud)
+        return CloudLocation.objects(provider=self.provider)
 
     def _list_locations__fetch_locations(self):
         """Fetch location listing in a libcloud compatible format
