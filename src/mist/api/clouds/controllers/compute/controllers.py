@@ -787,10 +787,8 @@ class VultrComputeController(BaseComputeController):
                                   ram=size.ram, size_id=size.id,
                                   bandwidth=size.bandwidth, price=size.price
                                   )
-                _size.cpus = size.extra.get('guestCpus')
-                # improve name shown on wizard, and show sizes only once
-                desc = "%s (%s)" % (size.name, size.extra.get('description'))
-                _size.description = desc
+                _size.cpus = size.extra.get('vcpu_count')
+                _size.description = size.name
 
                 try:
                     _size.save()
@@ -799,10 +797,7 @@ class VultrComputeController(BaseComputeController):
                     raise BadRequestError({"msg": exc.message,
                                            "errors": exc.to_dict()})
 
-            ret[_size.description] = _size
-        #return ret.values()
-
-        return [size for size in sizes if not size.extra.get('deprecated')]
+        return sizes
 
 
 class VSphereComputeController(BaseComputeController):
