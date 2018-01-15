@@ -391,16 +391,39 @@ class NephoScaleComputeController(BaseComputeController):
         if 'windows' in str(machine_libcloud.extra.get('image', '')).lower():
             machine.extra['os_type'] = machine.os_type = 'windows'
 
-    def _list_sizes__fetch_sizes(self):
-        sizes = self.connection.list_sizes(baremetal=False)
-        sizes.extend(self.connection.list_sizes(baremetal=True))
-        return sizes
-
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         size = str(machine_libcloud.extra.get('size_id', ''))
         price = get_size_price(driver_type='compute', driver_name='nephoscale',
                                size_id=size)
         return price, 0
+
+    def _list_sizes__fetch_sizes(self):
+        sizes = self.connection.list_sizes(baremetal=False)
+        sizes.extend(self.connection.list_sizes(baremetal=True))
+        import ipdb; ipdb.set_trace()
+        for size in sizes:
+
+            # create the object in db if it does not exist
+            try:
+                _size = CloudSize.objects.get(provider=self.provider,
+                                              size_id=size.id)
+            except CloudSize.DoesNotExist:
+                _size = CloudSize(provider=self.provider,
+                                  name=size.name, disk=size.disk,
+                                  ram=size.ram, size_id=size.id,
+                                  bandwidth=size.bandwidth, price=size.price
+                                  )
+                _size.cpus = size.extra.get('vcpu_count')
+                _size.description = size.name
+
+                try:
+                    _size.save()
+                except me.ValidationError as exc:
+                    log.error("Error adding %s: %s", size.name, exc.to_dict())
+                    raise BadRequestError({"msg": exc.message,
+                                           "errors": exc.to_dict()})
+
+        return sizes
 
 
 class AzureComputeController(BaseComputeController):
