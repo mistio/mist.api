@@ -313,7 +313,8 @@ class BaseComputeController(BaseController):
             if location_name:
 
                 try:
-                    _location = CloudLocation.objects.get(provider=self.provider,
+                    provider = self.provider
+                    _location = CloudLocation.objects.get(provider=provider,
                                                           name=location_name)
                     machine.location = _location
                 except CloudLocation.DoesNotExist:
