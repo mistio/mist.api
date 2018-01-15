@@ -716,50 +716,8 @@ class GoogleComputeController(BaseComputeController):
         except:
             pass
 
-    def _list_sizes__fetch_sizes(self):
-        ret = {}
-        sizes = self.connection.list_sizes()
-        # default list_sizes returns 500 sizes
-        for size in sizes:
-
-            # create the object in db if it does not exist
-            try:
-                _size = CloudSize.objects.get(provider=self.provider,
-                                              size_id=size.id)
-            except CloudSize.DoesNotExist:
-                _size = CloudSize(provider=self.provider,
-                                  name=size.name, disk=size.disk,
-                                  ram=size.ram, size_id=size.id,
-                                  bandwidth=size.bandwidth, price=size.price
-                                  )
-                _size.cpus = size.extra.get('guestCpus')
-                # improve name shown on wizard, and show sizes only once
-                desc = "%s (%s)" % (size.name, size.extra.get('description'))
-                _size.description = desc
-
-                try:
-                    _size.save()
-                except me.ValidationError as exc:
-                    log.error("Error adding %s: %s", size.name, exc.to_dict())
-                    raise BadRequestError({"msg": exc.message,
-                                           "errors": exc.to_dict()})
-
-            ret[_size.description] = _size
-        return ret.values()
-
-    def get_node_size(self, node):
-        try:
-            _size = CloudSize.objects.get(provider=self.provider,
-                                          name=node.size)
-        except CloudSize.DoesNotExist:
-            _size = ''
-
-            # disk missin
-            # _size.ram = node.ram
-            # _size.bandwidth = node.bandwidth
-            # _size.price = node.price
-
-        return _size
+    def _list_sizes_get_cpu(self, size):
+        return size.extra.get('guestCpus')
 
 
 class HostVirtualComputeController(BaseComputeController):
