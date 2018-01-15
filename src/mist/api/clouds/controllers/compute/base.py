@@ -345,7 +345,7 @@ class BaseComputeController(BaseController):
                            node.extra.get('image_id') or
                            node.extra.get('image') or '')
 
-            size = self.get_node_size(node)
+            size = self._list_machines_get_size(node)
 
             machine.name = node.name
             machine.image_id = image_id
@@ -811,7 +811,7 @@ class BaseComputeController(BaseController):
         """
         return CloudSize.objects(cloud=self.cloud)
 
-    def get_node_size(self, node):
+    def _list_machines_get_size(self, node):
         """Return size from database for a
         specific node
 
