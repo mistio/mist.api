@@ -241,6 +241,9 @@ class DigitalOceanComputeController(BaseComputeController):
     def _stop_machine(self, machine, machine_libcloud):
         self.connection.ex_shutdown_node(machine_libcloud)
 
+    def _list_sizes_get_cpu(self, size):
+        return size.extra.get('vcpus')
+
 
 class LinodeComputeController(BaseComputeController):
 
