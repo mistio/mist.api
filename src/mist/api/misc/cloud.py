@@ -22,7 +22,6 @@ class CloudLocation(me.Document):
     def as_dict(self):
         return {
             'id': self.location_id,
-            'cloud': self.cloud.id,
             'provider': self.provider,
             '_id': self.id,
             'name': self.name,
