@@ -93,7 +93,6 @@ class CloudSize(me.Document):
     """A base Cloud Size Model."""
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
     provider = me.StringField(required=True)
-    cloud = me.ReferenceField('Cloud', required=True)
     size_id = me.StringField(required=True)
     description = me.StringField()
     name = me.StringField()
@@ -114,7 +113,6 @@ class CloudSize(me.Document):
     def as_dict(self):
         return {
             'id': self.size_id,
-            'cloud': self.cloud.id,
             'provider': self.provider,
             '_id': self.id,
             'name': self.name,
