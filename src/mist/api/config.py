@@ -1147,11 +1147,13 @@ ALLOW_SIGNIN_GITHUB = False
 ENABLE_TUNNELS = False
 ENABLE_ORCHESTRATION = False
 ENABLE_INSIGHTS = False
-ENABLE_BILLING = STRIPE_PUBLIC_APIKEY = False
+STRIPE_PUBLIC_APIKEY = False
 ENABLE_RBAC = False
 ENABLE_AB = False
 ENABLE_MONITORING = True
 MACHINE_PATCHES = True
+
+PLUGINS = []
 
 ## DO NOT PUT ANYTHING BELOW HERE UNLESS YOU KNOW WHAT YOU ARE DOING
 
@@ -1226,6 +1228,8 @@ for override_file in CONFIG_OVERRIDE_FILES:
     else:
         print >> sys.stderr, "Couldn't find settings file in %s" % override_file
 
+HAS_BILLING = 'billing' in PLUGINS
+
 
 # Update celery settings.
 CELERY_SETTINGS.update({
@@ -1279,12 +1283,12 @@ HOMEPAGE_INPUTS = {
     'enable_tunnels': ENABLE_TUNNELS,
     'enable_orchestration': ENABLE_ORCHESTRATION,
     'enable_insights': ENABLE_INSIGHTS,
-    'enable_billing': ENABLE_BILLING,
+    'enable_billing': HAS_BILLING,
     'enable_ab': ENABLE_AB,
     'enable_monitoring': ENABLE_MONITORING,
 }
 
-if ENABLE_BILLING and STRIPE_PUBLIC_APIKEY:
+if HAS_BILLING and STRIPE_PUBLIC_APIKEY:
     HOMEPAGE_INPUTS['stripe_public_apikey'] = STRIPE_PUBLIC_APIKEY
 ## DO NOT PUT REGULAR SETTINGS BELOW, PUT THEM ABOVE THIS SECTION
 
