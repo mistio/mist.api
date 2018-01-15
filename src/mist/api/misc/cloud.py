@@ -53,9 +53,6 @@ class CloudImage(me.Document):
         ],
     }
 
-    def __init__(self, *args, **kwargs):
-        super(CloudImage, self).__init__(*args, **kwargs)
-
     def __str__(self):
         name = "%s, %s (%s)" % (self.name, self.cloud_provider, self.image_id)
         return name
