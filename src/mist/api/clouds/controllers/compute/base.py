@@ -344,7 +344,7 @@ class BaseComputeController(BaseController):
             image_id = str(node.image or node.extra.get('imageId') or
                            node.extra.get('image_id') or
                            node.extra.get('image') or '')
-
+            import ipdb; ipdb.set_trace()
             size = self._list_machines_get_size(node)
 
             machine.name = node.name
@@ -803,7 +803,32 @@ class BaseComputeController(BaseController):
         Subclasses MAY override this method.
 
         """
-        return self.connection.list_sizes()
+        sizes = self.connection.list_sizes()
+        import ipdb; ipdb.set_trace()
+        for size in sizes:
+
+            # create the object in db if it does not exist
+            try:
+                _size = CloudSize.objects.get(provider=self.provider,
+                                              size_id=size.id)
+            except CloudSize.DoesNotExist:
+                _size = CloudSize(provider=self.provider,
+                                  name=size.name, disk=size.disk,
+                                  ram=size.ram, size_id=size.id,
+                                  bandwidth=size.bandwidth, price=size.price
+                                  )
+                _size.cpus = size.extra.get('vcpu_count')
+                _size.description = size.name
+
+                try:
+                    _size.save()
+                except me.ValidationError as exc:
+                    log.error("Error adding %s: %s", size.name, exc.to_dict())
+                    raise BadRequestError({"msg": exc.message,
+                                           "errors": exc.to_dict()})
+
+        return sizes
+
 
     def list_cached_sizes(self):
         """Return list of sizes from database
