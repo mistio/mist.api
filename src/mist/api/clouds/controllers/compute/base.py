@@ -314,10 +314,9 @@ class BaseComputeController(BaseController):
                 try:
                     _location = CloudLocation.objects.get(cloud=self.cloud,
                                                           name=location_name)
+                    machine.location = _location
                 except CloudLocation.DoesNotExist:
-                    _location = CloudLocation(cloud=self.cloud,
-                                              name=location_name)
-                machine.location = _location
+                    pass
 
             # Get misc libcloud metadata.
             image_id = str(node.image or node.extra.get('imageId') or
