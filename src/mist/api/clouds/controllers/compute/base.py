@@ -826,6 +826,9 @@ class BaseComputeController(BaseController):
                     _size.description = desc
                 elif self.provider == 'aws':
                     _size.description = '%s - %s' % (size.id, size.name)
+                elif self.provider == 'openstack':
+                    desc = size.name + ' ( %d cpus / %dM RAM)' %(_size.cpus, size.ram)
+                    _size.description = desc
                 else:
                     _size.description = size.name
 
