@@ -791,7 +791,7 @@ class BaseComputeController(BaseController):
                                             'patch': patch})
 
                 # Format size information.
-        #return [size.as_dict() for size in sizes]
+        # return [size.as_dict() for size in sizes]
         return sizes
 
     def _list_sizes__fetch_sizes(self):
