@@ -818,7 +818,8 @@ class BaseComputeController(BaseController):
                 _size.cpus = self._list_sizes_get_cpu(size)
 
                 if self.provider == 'gce':
-                    desc = "%s (%s)" % (size.name, size.extra.get('description'))
+                    desc = "%s (%s)" % (size.name,
+                                        size.extra.get('description'))
                     _size.description = desc
                 elif self.provider == 'aws':
                     _size.description = '%s - %s' % (size.id, size.name)
@@ -851,7 +852,8 @@ class BaseComputeController(BaseController):
         Subclasses MAY override this method.
         """
         try:
-            size = CloudSize.objects.get(provider=self.provider, name=node.size)
+            size = CloudSize.objects.get(provider=self.provider,
+                                         name=node.size)
         except CloudSize.DoesNotExist:
             size = ''
         return size
