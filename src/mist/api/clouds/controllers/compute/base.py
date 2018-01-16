@@ -803,6 +803,7 @@ class BaseComputeController(BaseController):
 
         """
         sizes = self.connection.list_sizes()
+        import ipdb; ipdb.set_trace()
         for size in sizes:
 
             # create the object in db if it does not exist
@@ -810,6 +811,8 @@ class BaseComputeController(BaseController):
                 _size = CloudSize.objects.get(provider=self.provider,
                                               size_id=size.id)
             except CloudSize.DoesNotExist:
+                if self.provider == 'packet':
+                    size.ram = size.ram.strip('GB')
                 _size = CloudSize(provider=self.provider,
                                   name=size.name, disk=size.disk,
                                   ram=size.ram, size_id=size.id,
