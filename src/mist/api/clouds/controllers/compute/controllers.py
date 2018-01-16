@@ -204,12 +204,6 @@ class AmazonComputeController(BaseComputeController):
                 pass
         return locations
 
-    def _list_sizes__fetch_sizes(self):
-        sizes = self.connection.list_sizes()
-        for size in sizes:
-            size.name = '%s - %s' % (size.id, size.name)
-        return sizes
-
 
 class DigitalOceanComputeController(BaseComputeController):
 
@@ -1225,6 +1219,9 @@ class LibvirtComputeController(BaseComputeController):
 
     def _undefine_machine(self, machine, machine_libcloud):
         self.connection.ex_undefine_node(machine_libcloud)
+
+    def _list_sizes_get_cpu(self, size):
+        return size.extra.get('cpu')
 
 
 class OnAppComputeController(BaseComputeController):
