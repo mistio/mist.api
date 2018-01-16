@@ -360,7 +360,6 @@ class MainConnection(MistConnection):
                       {'cloud_id': cloud.id, 'locations': locations})
 
         periodic_tasks.extend([('list_images', tasks.ListImages()),
-                               ('list_sizes', tasks.ListSizes()),
                                ('list_networks', tasks.ListNetworks()),
                                ('list_zones', tasks.ListZones()),
                                ('list_resource_groups',
