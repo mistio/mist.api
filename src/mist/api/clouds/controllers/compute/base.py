@@ -819,7 +819,10 @@ class BaseComputeController(BaseController):
                                   ram=size.ram, size_id=size.id,
                                   bandwidth=size.bandwidth, price=size.price
                                   )
-                _size.cpus = self._list_sizes_get_cpu(size)
+                cpus = self._list_sizes_get_cpu(size)
+                size.cpus = cpus
+                _size.description = self._list_sizes_set_description(size,
+                                                                     cpus)
 
                 if self.provider == 'gce':
                     desc = "%s (%s)" % (size.name,
@@ -851,6 +854,12 @@ class BaseComputeController(BaseController):
     def _list_sizes_get_cpu(self, size):
         # TODO: change this to sth common!
         return 1
+
+    def _list_sizes_set_description(self, size, cpu):
+        """Sets description for size, as it will be
+        shown to the end user
+        """
+        return size.name
 
     def list_cached_sizes(self):
         """Return list of sizes from database
