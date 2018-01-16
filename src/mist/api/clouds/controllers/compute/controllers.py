@@ -543,12 +543,34 @@ class AzureArmComputeController(BaseComputeController):
 
     def _list_sizes__fetch_sizes(self):
         # grab one location
+        import ipdb; ipdb.set_trace()
         location = self.connection.list_locations()[0]
         sizes = self.connection.list_sizes(location)
         for size in sizes:
-            size.name += ' ' + str(size.extra['numberOfCores']) \
-                + ' cpus/' + str(size.ram / 1024) + 'G RAM/ ' \
-                + str(size.disk) + 'GB SSD'
+
+            # create the object in db if it does not exist
+            try:
+                _size = CloudSize.objects.get(provider=self.provider,
+                                              size_id=size.id)
+            except CloudSize.DoesNotExist:
+                _size = CloudSize(provider=self.provider,
+                                  name=size.name, disk=size.disk,
+                                  ram=size.ram, size_id=size.id,
+                                  bandwidth=size.bandwidth, price=size.price
+                                  )
+                _size.cpus = size.extra.get('numberOfCores')
+
+                _size.description = size.name + str(size.extra['numberOfCores']) \
+                                        + ' cpus/' + str(size.ram / 1024) + 'G RAM/ ' \
+                                        + str(size.disk) + 'GB SSD'
+
+                try:
+                    _size.save()
+                except me.ValidationError as exc:
+                    log.error("Error adding %s: %s", size.name, exc.to_dict())
+                    raise BadRequestError({"msg": exc.message,
+                                           "errors": exc.to_dict()})
+
         return sizes
 
 
