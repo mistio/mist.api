@@ -560,7 +560,7 @@ class AzureArmComputeController(BaseComputeController):
                                   )
                 _size.cpus = size.extra.get('numberOfCores')
 
-                _size.description = size.name + ' ' + str(size.extra['numberOfCores']) \
+                _size.description = size.name + '/ ' + str(size.extra['numberOfCores']) \
                                         + ' cpus/' + str(size.ram / 1024) + 'G RAM/ ' \
                                         + str(size.disk) + 'GB SSD'
 
