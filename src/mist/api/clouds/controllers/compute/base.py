@@ -824,24 +824,6 @@ class BaseComputeController(BaseController):
                 _size.description = self._list_sizes_set_description(size,
                                                                      cpus)
 
-                if self.provider == 'gce':
-                    desc = "%s (%s)" % (size.name,
-                                        size.extra.get('description'))
-                    _size.description = desc
-                elif self.provider == 'aws':
-                    _size.description = '%s - %s' % (size.id, size.name)
-                elif self.provider == 'openstack':
-                    desc = size.name + ' ( %d cpus / %dM RAM)' \
-                                       % (_size.cpus, size.ram)
-                    _size.description = desc
-                elif self.provider == 'rackspace':
-                    desc = size.name + ' (%d cpus)' % _size.cpus
-                    _size.description = desc
-                elif self.provider == 'vultr':
-                    _size.description = size.name + ' (%d cpus)' % _size.cpus
-                else:
-                    _size.description = size.name
-
                 try:
                     _size.save()
                 except me.ValidationError as exc:
@@ -855,6 +837,8 @@ class BaseComputeController(BaseController):
         # TODO: change this to sth common!
         return 1
 
+
+    # providers to check: gce, aws, openstack, rackspace, vultr
     def _list_sizes_set_description(self, size, cpu):
         """Sets description for size, as it will be
         shown to the end user

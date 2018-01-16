@@ -204,6 +204,9 @@ class AmazonComputeController(BaseComputeController):
                 pass
         return locations
 
+    def _list_sizes_set_description(self, size, cpu):
+        return '%s - %s' % (size.id, size.name)
+
 
 class DigitalOceanComputeController(BaseComputeController):
 
@@ -322,6 +325,9 @@ class RackSpaceComputeController(BaseComputeController):
 
     def _list_sizes_get_cpu(self, size):
         return size.vcpus
+
+    def _list_sizes_set_description(self, size, cpu):
+        return size.name + ' (%d cpus)' % _size.cpus
 
 
 class SoftLayerComputeController(BaseComputeController):
@@ -740,6 +746,10 @@ class GoogleComputeController(BaseComputeController):
     def _list_sizes_get_cpu(self, size):
         return size.extra.get('guestCpus')
 
+    def _list_sizes_set_description(self, size, cpu):
+        return "%s (%s)" % (size.name,
+                            size.extra.get('description'))
+
 
 class HostVirtualComputeController(BaseComputeController):
 
@@ -777,6 +787,8 @@ class VultrComputeController(BaseComputeController):
     def _list_sizes_get_cpu(self, size):
         return size.extra.get('vcpu_count')
 
+    def _list_sizes_set_description(self, size, cpu):
+        return size.name + ' (%d cpus)' % _size.cpus
 
 class VSphereComputeController(BaseComputeController):
 
@@ -856,6 +868,10 @@ class OpenStackComputeController(BaseComputeController):
 
     def _list_sizes_get_cpu(self, size):
         return size.vcpus
+
+    def _list_sizes_set_description(self, size, cpu):
+        return size.name + ' ( %d cpus / %dM RAM)' \
+                           % (_size.cpus, size.ram)
 
 
 class DockerComputeController(BaseComputeController):
