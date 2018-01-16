@@ -320,6 +320,9 @@ class RackSpaceComputeController(BaseComputeController):
         except:
             machine.os_type = 'linux'
 
+    def _list_sizes_get_cpu(self, size):
+        return size.vcpus
+
 
 class SoftLayerComputeController(BaseComputeController):
 
