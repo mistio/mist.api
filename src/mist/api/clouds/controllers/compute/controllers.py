@@ -397,7 +397,6 @@ class NephoScaleComputeController(BaseComputeController):
     def _list_sizes__fetch_sizes(self):
         sizes = self.connection.list_sizes(baremetal=False)
         sizes.extend(self.connection.list_sizes(baremetal=True))
-        import ipdb; ipdb.set_trace()
         for size in sizes:
 
             # create the object in db if it does not exist
@@ -542,8 +541,6 @@ class AzureArmComputeController(BaseComputeController):
             machine.actions.start = True
 
     def _list_sizes__fetch_sizes(self):
-        # grab one location
-        import ipdb; ipdb.set_trace()
         location = self.connection.list_locations()[0]
         sizes = self.connection.list_sizes(location)
         for size in sizes:

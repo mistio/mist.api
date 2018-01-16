@@ -344,7 +344,6 @@ class BaseComputeController(BaseController):
             image_id = str(node.image or node.extra.get('imageId') or
                            node.extra.get('image_id') or
                            node.extra.get('image') or '')
-            import ipdb; ipdb.set_trace()
             size = self._list_machines_get_size(node)
 
             machine.name = node.name
@@ -804,7 +803,6 @@ class BaseComputeController(BaseController):
 
         """
         sizes = self.connection.list_sizes()
-        import ipdb; ipdb.set_trace()
         for size in sizes:
 
             # create the object in db if it does not exist
