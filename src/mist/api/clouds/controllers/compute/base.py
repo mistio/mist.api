@@ -818,11 +818,12 @@ class BaseComputeController(BaseController):
                                   bandwidth=size.bandwidth, price=size.price
                                   )
                 _size.cpus = self._list_sizes_get_cpu(size)
-                #_size.cpus = size.extra.get('vcpu_count')
 
                 if self.provider == 'gce':
                     desc = "%s (%s)" % (size.name, size.extra.get('description'))
                     _size.description = desc
+                elif self.provider == 'aws':
+                    _size.description = '%s - %s' % (size.id, size.name)
                 else:
                     _size.description = size.name
 
