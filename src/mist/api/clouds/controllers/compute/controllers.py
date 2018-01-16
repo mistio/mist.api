@@ -854,6 +854,9 @@ class OpenStackComputeController(BaseComputeController):
         machine.public_ips = public_ips
         machine.size = machine['extra'].get('flavorId')
 
+    def _list_sizes_get_cpu(self, size):
+        return size.vcpus
+    
 
 class DockerComputeController(BaseComputeController):
 
