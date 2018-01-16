@@ -856,7 +856,7 @@ class OpenStackComputeController(BaseComputeController):
 
     def _list_sizes_get_cpu(self, size):
         return size.vcpus
-    
+
 
 class DockerComputeController(BaseComputeController):
 
