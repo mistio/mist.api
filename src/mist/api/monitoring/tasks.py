@@ -47,6 +47,7 @@ def install_telegraf(owner_id, cloud_id, machine_id, job=None, job_id=None):
                 break
         else:
             raise MistError('Failed to determine hostname or IP address')
+    key = None
     try:
         shell = mist.api.shell.Shell(host)
         key, user = shell.autoconfigure(owner, cloud.id, machine.machine_id)
@@ -107,6 +108,7 @@ def uninstall_telegraf(owner_id, cloud_id, machine_id, job=None, job_id=None):
                 break
         else:
             raise MistError('Failed to determine hostname or IP address')
+    key = None
     try:
         shell = mist.api.shell.Shell(host)
         key, user = shell.autoconfigure(owner, cloud_id, machine_id)
