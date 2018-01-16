@@ -803,7 +803,7 @@ class BaseComputeController(BaseController):
 
         """
         sizes = self.connection.list_sizes()
-        import ipdb;
+        import ipdb
         ipdb.set_trace()
         for size in sizes:
 
@@ -828,13 +828,14 @@ class BaseComputeController(BaseController):
                 elif self.provider == 'aws':
                     _size.description = '%s - %s' % (size.id, size.name)
                 elif self.provider == 'openstack':
-                    desc = size.name + ' ( %d cpus / %dM RAM)' % (_size.cpus, size.ram)
+                    desc = size.name + ' ( %d cpus / %dM RAM)' \
+                                       % (_size.cpus, size.ram)
                     _size.description = desc
                 elif self.provider == 'rackspace':
                     desc = size.name + ' (%d cpus)' % _size.cpus
                     _size.description = desc
                 elif self.provider == 'vultr':
-                    _size.description = size.name + ' (%d cpus)' %_size.cpus
+                    _size.description = size.name + ' (%d cpus)' % _size.cpus
                 else:
                     _size.description = size.name
 
