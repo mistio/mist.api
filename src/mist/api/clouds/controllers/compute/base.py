@@ -220,7 +220,6 @@ class BaseComputeController(BaseController):
         implementation.
 
         """
-
         task_key = 'cloud:list_machines:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
         try:
@@ -792,7 +791,8 @@ class BaseComputeController(BaseController):
                                             'patch': patch})
 
                 # Format size information.
-                return [size.as_dict() for size in sizes]
+        #return [size.as_dict() for size in sizes]
+        return sizes
 
     def _list_sizes__fetch_sizes(self):
         """Fetch size listing in a libcloud compatible format
