@@ -31,6 +31,10 @@ from mist.api.scripts.models import Script
 from mist.api.schedules.models import Schedule
 from mist.api.dns.models import Zone, Record, RECORDS
 
+from mist.api.rules.models import NoDataRule
+
+from mist.api.poller.models import CloudPollingSchedule
+from mist.api.poller.models import MachinePollingSchedule
 from mist.api.poller.models import ListMachinesPollingSchedule
 from mist.api.poller.models import PingProbeMachinePollingSchedule
 from mist.api.poller.models import SSHProbeMachinePollingSchedule
@@ -1400,6 +1404,43 @@ def update_poller(org_id):
                                                 interval=90, ttl=120)
             SSHProbeMachinePollingSchedule.add(machine=machine,
                                                interval=90, ttl=120)
+
+
+@app.task
+def gc_schedulers():
+    """Delete disabled celerybeat schedules."""
+    # Remove ssh/ping probe schedules, whose machines are missing or
+    # corresponding clouds have been deleted.
+    for entry in MachinePollingSchedule.objects():
+        try:
+            if not entry.enabled or entry.machine.cloud.deleted:
+                log.warning('Removing %s', entry)
+                entry.delete()
+        except Exception as exc:
+            log.error(exc)
+            entry.delete()
+
+    # Remove disabled list_machines schedules. The update_poller task
+    # will periodically add missing schedules.
+    for entry in CloudPollingSchedule.objects():
+        try:
+            if not entry.enabled:
+                log.warning('Removing %s', entry)
+                entry.delete()
+        except Exception as exc:
+            log.error(exc)
+            entry.delete()
+
+    # Remove inactive no-data rules. They are added idempotently every
+    # time get_stats receives data for a newly monitored machine.
+    for entry in NoDataRule.objects():
+        try:
+            if not entry.enabled:
+                log.warning('Removing %s', entry)
+                entry.delete()
+        except Exception as exc:
+            log.error(exc)
+            entry.delete()
 
 
 @app.task
