@@ -803,8 +803,6 @@ class BaseComputeController(BaseController):
 
         """
         sizes = self.connection.list_sizes()
-        import ipdb
-        ipdb.set_trace()
         for size in sizes:
 
             # create the object in db if it does not exist
