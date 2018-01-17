@@ -116,8 +116,9 @@ class EmailNotificationChannel(BaseNotificationChannel):
                 except Exception as exc:
                     log.exception(repr(exc))
             else:
-                send_email(self.ntf.subject, self.ntf.text_body,
-                           [to], sender=self.ntf.sender_email)
+                body = self.ntf.text_body.replace("%nsub", unsub_link)
+                send_email(self.ntf.subject, body, [to],
+                           sender=self.ntf.sender_email)
 
 
 class InAppNotificationChannel(BaseNotificationChannel):
