@@ -327,7 +327,7 @@ class RackSpaceComputeController(BaseComputeController):
         return size.vcpus
 
     def _list_sizes_set_description(self, size, cpu):
-        return size.name + ' (%d cpus)' % _size.cpus
+        return size.name + ' (%d cpus)' % cpu
 
 
 class SoftLayerComputeController(BaseComputeController):
@@ -788,7 +788,8 @@ class VultrComputeController(BaseComputeController):
         return size.extra.get('vcpu_count')
 
     def _list_sizes_set_description(self, size, cpu):
-        return size.name + ' (%d cpus)' % _size.cpus
+        return size.name + ' (%d cpus)' % cpu
+
 
 class VSphereComputeController(BaseComputeController):
 
@@ -871,7 +872,7 @@ class OpenStackComputeController(BaseComputeController):
 
     def _list_sizes_set_description(self, size, cpu):
         return size.name + ' ( %d cpus / %dM RAM)' \
-                           % (_size.cpus, size.ram)
+                           % (cpu, size.ram)
 
 
 class DockerComputeController(BaseComputeController):

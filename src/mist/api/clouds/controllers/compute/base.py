@@ -835,7 +835,6 @@ class BaseComputeController(BaseController):
         # TODO: change this to sth common!
         return 1
 
-
     # providers to check: gce, aws, openstack, rackspace, vultr
     def _list_sizes_set_description(self, size, cpu):
         """Sets description for size, as it will be
