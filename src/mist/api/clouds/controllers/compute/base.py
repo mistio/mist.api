@@ -56,11 +56,6 @@ if config.HAS_CORE:
 else:
     from mist.api.dummy.methods import dnat
 
-if config.HAS_CORE:
-    from mist.core.vpn.methods import destination_nat as dnat
-else:
-    from mist.api.dummy.methods import dnat
-
 log = logging.getLogger(__name__)
 
 
