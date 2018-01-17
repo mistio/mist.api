@@ -93,6 +93,7 @@ def _decide_machine_cost(machine, tags=None, cost=(0, 0)):
         cph = parse_num(tags.get('cost_per_hour'))
         cpm = parse_num(tags.get('cost_per_month'))
         if not (cph or cpm) or cph > 100 or cpm > 100 * 24 * 31:
+            log.debug("Invalid cost tags for machine %s", machine)
             cph, cpm = map(parse_num, cost)
         if not cph:
             cph = float(cpm) / month_days / 24
@@ -103,27 +104,6 @@ def _decide_machine_cost(machine, tags=None, cost=(0, 0)):
 
     machine.cost.hourly = cph
     machine.cost.monthly = cpm
-
-
-def get_location_name(provider, node):
-    """Find location name from libcloud data
-    """
-    if provider == 'softlayer':
-        return node.extra.get('datacenter')
-    elif provider == 'nephoscale':
-        return node.extra.get('zone')
-    elif provider == 'digitalocean':
-        return node.extra.get('region')
-    elif provider == 'gce':
-        return node.extra.get('zone').name
-    elif provider == 'ec2':
-        return node.extra.get('availability')
-    elif provider == 'packet':
-        return node.extra.get('facility')
-    elif provider in ['vultr', 'azure_arm']:
-        return node.extra.get('location')
-    else:
-        return ''
 
 
 class BaseComputeController(BaseController):
@@ -328,16 +308,17 @@ class BaseComputeController(BaseController):
             machine.last_seen = now
             machine.missing_since = None
 
-            location_name = get_location_name(self.provider, node)
+            location_name = self._list_machines__get_location(node)
+
             if location_name:
 
                 try:
-                    _location = CloudLocation.objects.get(cloud=self.cloud,
+                    provider = self.provider
+                    _location = CloudLocation.objects.get(provider=provider,
                                                           name=location_name)
+                    machine.location = _location
                 except CloudLocation.DoesNotExist:
-                    _location = CloudLocation(cloud=self.cloud,
-                                              name=location_name)
-                machine.location = _location
+                    pass
 
             # Get misc libcloud metadata.
             image_id = str(node.image or node.extra.get('imageId') or
@@ -862,7 +843,7 @@ class BaseComputeController(BaseController):
         return size
 
     def list_locations(self, persist=True):
-        """Return list of locations for cloud
+        """Return list of locations for provider
 
         A list of locations is fetched from libcloud, data is processed, stored
         on location models, and a list of location models is returned.
@@ -909,7 +890,7 @@ class BaseComputeController(BaseController):
         return locations
 
     def _list_locations(self):
-        """Return list of available locations for current cloud
+        """Return list of available locations for current provider
 
         Locations mean different things in each cloud. e.g. EC2 uses it as a
         datacenter in a given availability zone, whereas Linode lists
@@ -943,32 +924,30 @@ class BaseComputeController(BaseController):
         for loc in fetched_locations:
 
             try:
-                _location = CloudLocation.objects.get(cloud=self.cloud,
+                _location = CloudLocation.objects.get(provider=self.provider,
                                                       location_id=loc.id,
                                                       name=loc.name)
-                locations.append(_location)
             except CloudLocation.DoesNotExist:
-                _location = CloudLocation(cloud=self.cloud,
+                _location = CloudLocation(provider=self.provider,
                                           location_id=loc.id,
                                           name=loc.name)
-                _location.country = loc.country
-                _location.provider = self.provider
+            _location.country = loc.country
 
-                try:
-                    _location.save()
-                    locations.append(_location)
-                except me.ValidationError as exc:
-                    log.error("Error adding %s: %s", loc.name, exc.to_dict())
-                    raise BadRequestError({"msg": exc.message,
-                                           "errors": exc.to_dict()})
+            try:
+                _location.save()
+                locations.append(_location)
+            except me.ValidationError as exc:
+                log.error("Error adding %s: %s", loc.name, exc.to_dict())
+                raise BadRequestError({"msg": exc.message,
+                                       "errors": exc.to_dict()})
 
         return locations
 
     def list_cached_locations(self):
         """Return list of locations from database
-        for a specific cloud
+        for a specific provider
         """
-        return CloudLocation.objects(cloud=self.cloud)
+        return CloudLocation.objects(provider=self.provider)
 
     def _list_locations__fetch_locations(self):
         """Fetch location listing in a libcloud compatible format
@@ -986,6 +965,16 @@ class BaseComputeController(BaseController):
         except:
             return [NodeLocation('', name='default', country='',
                                  driver=self.connection)]
+
+    def _list_machines__get_location(self, node):
+        """Find location code name/identifier from libcloud data
+
+        This is to be called exclusively by `self._list_machines`.
+
+        Subclasses MAY override this method.
+
+        """
+        return ''
 
     def _get_machine_libcloud(self, machine, no_fail=False):
         """Return an instance of a libcloud node

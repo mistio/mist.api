@@ -207,6 +207,9 @@ class AmazonComputeController(BaseComputeController):
     def _list_sizes_set_description(self, size, cpu):
         return '%s - %s' % (size.id, size.name)
 
+    def _list_machines__get_location(self, node):
+        return node.extra.get('availability')
+
 
 class DigitalOceanComputeController(BaseComputeController):
 
@@ -240,6 +243,9 @@ class DigitalOceanComputeController(BaseComputeController):
 
     def _list_sizes_get_cpu(self, size):
         return size.extra.get('vcpus')
+
+    def _list_machines__get_location(self, node):
+        return node.extra.get('region')
 
 
 class LinodeComputeController(BaseComputeController):
@@ -369,6 +375,9 @@ class SoftLayerComputeController(BaseComputeController):
 
             return cpu_fee + extra_fee, 0
 
+    def _list_machines__get_location(self, node):
+        return node.extra.get('datacenter')
+
     def _reboot_machine(self, machine, machine_libcloud):
         self.connection.reboot_node(machine_libcloud)
         return True
@@ -429,6 +438,9 @@ class NephoScaleComputeController(BaseComputeController):
                                            "errors": exc.to_dict()})
 
         return sizes
+
+    def _list_machines__get_location(self, node):
+        return node.extra.get('zone')
 
 
 class AzureComputeController(BaseComputeController):
@@ -580,6 +592,9 @@ class AzureArmComputeController(BaseComputeController):
                                            "errors": exc.to_dict()})
 
         return sizes
+
+    def _list_machines__get_location(self, node):
+        return node.extra.get('location')
 
 
 class GoogleComputeController(BaseComputeController):
@@ -750,6 +765,9 @@ class GoogleComputeController(BaseComputeController):
         return "%s (%s)" % (size.name,
                             size.extra.get('description'))
 
+    def _list_machines__get_location(self, node):
+        return node.extra.get('zone').name
+
 
 class HostVirtualComputeController(BaseComputeController):
 
@@ -772,6 +790,9 @@ class PacketComputeController(BaseComputeController):
                                size_id=size)
         return price or 0, 0
 
+    def _list_machines__get_location(self, node):
+        return node.extra.get('facility')
+
 
 class VultrComputeController(BaseComputeController):
 
@@ -789,6 +810,9 @@ class VultrComputeController(BaseComputeController):
 
     def _list_sizes_set_description(self, size, cpu):
         return size.name + ' (%d cpus)' % cpu
+
+    def _list_machines__get_location(self, node):
+        return node.extra.get('location')
 
 
 class VSphereComputeController(BaseComputeController):
