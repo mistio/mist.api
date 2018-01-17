@@ -760,7 +760,7 @@ class BaseComputeController(BaseController):
         return self.connection.list_sizes()
 
     def list_locations(self, persist=True):
-        """Return list of locations for provider
+        """Return list of locations for cloud
 
         A list of locations is fetched from libcloud, data is processed, stored
         on location models, and a list of location models is returned.
@@ -807,7 +807,7 @@ class BaseComputeController(BaseController):
         return locations
 
     def _list_locations(self):
-        """Return list of available locations for current provider
+        """Return list of available locations for current cloud
 
         Locations mean different things in each cloud. e.g. EC2 uses it as a
         datacenter in a given availability zone, whereas Linode lists
@@ -863,7 +863,7 @@ class BaseComputeController(BaseController):
 
     def list_cached_locations(self):
         """Return list of locations from database
-        for a specific provider
+        for a specific cloud
         """
         return CloudLocation.objects(cloud=self.cloud)
 
