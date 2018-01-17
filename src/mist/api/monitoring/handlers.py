@@ -204,7 +204,6 @@ class MainStatsHandler(BaseStatsHandler):
         activation timestamps, once monitoring data is available.
 
         """
-        owner = self.machine.owner
         istatus = self.machine.monitoring.installation_status
         if not istatus.activated_at:
             for value in results.itervalues():
@@ -215,6 +214,7 @@ class MainStatsHandler(BaseStatsHandler):
                         istatus.activated_at = time.time()
                         istatus.state = 'succeeded'
                         self.machine.save()
+                        owner = self.machine.owner
                         trigger_session_update(owner, ['monitoring'])
                         return
 
