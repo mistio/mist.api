@@ -29,7 +29,6 @@ from mist.api.monitoring.handlers import MultiLoadHandler
 from mist.api.monitoring import traefik
 
 from mist.api.rules.models import Rule
-from mist.api.rules.models.main import NoDataRule
 
 log = logging.getLogger(__name__)
 
