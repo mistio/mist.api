@@ -8,6 +8,7 @@ class CloudLocation(me.Document):
     """A base Cloud Location Model."""
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
     provider = me.StringField(required=True)
+    cloud = me.ReferenceField('Cloud', required=True)
     location_id = me.StringField(required=True)
     name = me.StringField()
     country = me.StringField()
@@ -16,7 +17,7 @@ class CloudLocation(me.Document):
         'collection': 'locations',
         'indexes': [
             {
-                'fields': ['provider', 'location_id'],
+                'fields': ['cloud', 'location_id'],
                 'sparse': False,
                 'unique': True,
                 'cls': False,
@@ -32,6 +33,7 @@ class CloudLocation(me.Document):
     def as_dict(self):
         return {
             'id': self.location_id,
+            'cloud': self.cloud.id,
             'provider': self.provider,
             '_id': self.id,
             'name': self.name,
