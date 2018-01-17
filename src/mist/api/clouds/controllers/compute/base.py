@@ -46,17 +46,15 @@ from mist.api.helpers import amqp_owner_listening
 from mist.api.concurrency.models import PeriodicTaskInfo
 from mist.api.concurrency.models import PeriodicTaskThresholdExceeded
 
-try:
-    from mist.core.vpn.methods import destination_nat as dnat
-except ImportError:
-    from mist.api.dummy.methods import dnat
-
 from mist.api.clouds.controllers.base import BaseController
-
 from mist.api.tag.models import Tag
-
 from mist.api.machines.models import Machine
 from mist.api.misc.cloud import CloudLocation
+
+if config.HAS_CORE:
+    from mist.core.vpn.methods import destination_nat as dnat
+else:
+    from mist.api.dummy.methods import dnat
 
 log = logging.getLogger(__name__)
 

@@ -14,7 +14,8 @@ from mist.api.exceptions import RequiredParameterMissingError
 try:
     from mist.core.methods import assoc_metric, update_metric
 except ImportError:
-    from mist.api.dummy.methods import assoc_metric, update_metric
+    def assoc_metric(*args, **kwargs): raise NotImplementedError()
+    def update_metric(*args, **kwargs): raise NotImplementedError()
 
 log = logging.getLogger(__name__)
 

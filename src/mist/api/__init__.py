@@ -204,16 +204,6 @@ def add_routes(configurator):
 
     configurator.add_route('api_v1_ping', '/api/v1/ping')
 
-    configurator.add_route('api_v1_monitoring', '/api/v1/monitoring')
-    configurator.add_route(
-        'api_v1_update_monitoring',
-        '/api/v1/clouds/{cloud}/machines/{machine}/monitoring'
-    )
-    configurator.add_route('api_v1_stats',
-                           '/api/v1/clouds/{cloud}/machines/{machine}/stats')
-    configurator.add_route('api_v1_metrics',
-                           '/api/v1/clouds/{cloud}/machines/{machine}/metrics')
-    configurator.add_route('api_v1_metric', '/api/v1/metrics/{metric}')
     configurator.add_route(
         'api_v1_deploy_plugin',
         '/api/v1/clouds/{cloud}/machines/{machine}/plugins/{plugin}'
@@ -305,6 +295,29 @@ def add_routes(configurator):
     configurator.add_route('api_v1_job', '/api/v1/jobs/{job_id}')
     configurator.add_route('api_v1_story', '/api/v1/stories/{story_id}')
 
+    # Monitoring API endpoints.
+    configurator.add_route('api_v1_home_dashboard', '/api/v1/dashboard')
+    configurator.add_route(
+        'api_v1_cloud_machine_dashboard',
+        '/api/v1/clouds/{cloud}/machines/{machine}/dashboard')
+    configurator.add_route('api_v1_machine_dashboard',
+                           '/api/v1/machines/{machine}/dashboard')
+    configurator.add_route('api_v1_monitoring', '/api/v1/monitoring')
+    configurator.add_route(
+        'api_v1_cloud_machine_monitoring',
+        '/api/v1/clouds/{cloud}/machines/{machine}/monitoring')
+    configurator.add_route('api_v1_machine_monitoring',
+                           '/api/v1/machines/{machine}/monitoring')
+    configurator.add_route(
+        'api_v1_cloud_metrics',
+        '/api/v1/clouds/{cloud}/machines/{machine}/metrics')
+    configurator.add_route('api_v1_metrics',
+                           '/api/v1/machines/{machine}/metrics')
+    configurator.add_route('api_v1_metric', '/api/v1/metrics/{metric}')
+    configurator.add_route(
+        'api_v1_cloud_stats',
+        '/api/v1/clouds/{cloud}/machines/{machine}/stats')
+    configurator.add_route('api_v1_stats', '/api/v1/machines/{machine}/stats')
     # Notifications
     configurator.add_route(
         'api_v1_dismiss_notification',
