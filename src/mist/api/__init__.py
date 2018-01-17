@@ -318,18 +318,21 @@ def add_routes(configurator):
         'api_v1_cloud_stats',
         '/api/v1/clouds/{cloud}/machines/{machine}/stats')
     configurator.add_route('api_v1_stats', '/api/v1/machines/{machine}/stats')
+
     # Notifications
     configurator.add_route(
         'api_v1_dismiss_notification',
         '/api/v1/notifications/{notification_id}')
-
     configurator.add_route(
         'api_v1_notification_override',
         '/api/v1/notification-overrides/{notification_id}')
-
     configurator.add_route(
         'api_v1_notification_overrides',
         '/api/v1/notification-overrides')
+
+    # Notifications - Unsubscribe
+    configurator.add_route('unsubscribe_page', '/unsubscribe')
+    configurator.add_route('unsubscribe', '/api/v1/unsubscribe')
 
     configurator.add_route('user_invitations', '/user_invitations')
 

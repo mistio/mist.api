@@ -89,18 +89,15 @@ class NotificationAction(BaseAlertAction):
 
     def run(self, machine, value, triggered, timestamp, incident_id, action='',
             notification_level=0):
-        try:
-            from mist.core.notifications.methods import send_alert_email
-        except ImportError:
-            pass
-        else:
-            # TODO Shouldn't be specific to machines.
-            assert isinstance(machine, Machine)
-            assert machine.owner == self._instance.owner
-            send_alert_email(machine.owner, self._instance.id, value,
-                             triggered, timestamp, incident_id, action=action,
-                             cloud_id=machine.cloud.id,
-                             machine_id=machine.machine_id)
+        # FIXME Imported here due to circular dependency issues.
+        from mist.api.notifications.methods import send_alert_email
+        # TODO Shouldn't be specific to machines.
+        assert isinstance(machine, Machine)
+        assert machine.owner == self._instance.owner
+        send_alert_email(machine.owner, self._instance.id, value,
+                         triggered, timestamp, incident_id, action=action,
+                         cloud_id=machine.cloud.id,
+                         machine_id=machine.machine_id)
 
     def clean(self):
         """Perform e-mail address validation."""
@@ -118,21 +115,18 @@ class NoDataAction(NotificationAction):
     atype = 'no_data'
 
     def run(self, machine, value, triggered, timestamp, incident_id, **kwargs):
-        if timestamp + 60 * 60 * 24 < time.time():  # 24 hours.
-            try:
-                from mist.core.methods import disable_monitoring
-            except ImportError:
-                pass
-            else:
-                # If NoData alerts are being triggered for over 24h, disable
-                # monitoring and log the action to close any open incidents.
-                disable_monitoring(machine.owner, machine.cloud.id,
-                                   machine.machine_id, no_ssh=True)
-                log_event(
-                    machine.owner.id, 'incident', 'disable_monitoring',
-                    cloud_id=machine.cloud.id, machine_id=machine.machine_id,
-                    incident_id=incident_id
-                )
+        if timestamp + 60 * 60 * 24 < time.time():
+            # FIXME Imported here due to circular dependency issues.
+            from mist.api.monitoring.methods import disable_monitoring
+            # If NoData alerts are being triggered for over 24h, disable
+            # monitoring and log the action to close any open incidents.
+            disable_monitoring(machine.owner, machine.cloud.id,
+                               machine.machine_id, no_ssh=True)
+            log_event(
+                machine.owner.id, 'incident', 'disable_monitoring',
+                cloud_id=machine.cloud.id, machine_id=machine.machine_id,
+                incident_id=incident_id
+            )
             action = 'Disable Monitoring'
             notification_level = 0
         else:
@@ -173,14 +167,14 @@ class MachineAction(BaseAlertAction):
         assert machine.owner == self._instance.owner
         getattr(machine.ctl, self.action)()
         if self.action == 'destroy':  # If destroy, disable monitoring, too.
-            if config.HAS_CORE:
-                from mist.core.methods import disable_monitoring
-                # TODO Move this into machine.ctl.destroy method and
-                # deprecate mist.api.machines.methods:destroy_machine.
-                # Could also be implemented as new method inside the
-                # MachineController.
-                disable_monitoring(machine.owner, machine.cloud.id,
-                                   machine.machine_id, no_ssh=True)
+            # FIXME Imported here due to circular dependency issues.
+            from mist.api.monitoring.methods import disable_monitoring
+            # TODO Move this into machine.ctl.destroy method and
+            # deprecate mist.api.machines.methods:destroy_machine.
+            # Could also be implemented as new method inside the
+            # MachineController.
+            disable_monitoring(machine.owner, machine.cloud.id,
+                               machine.machine_id, no_ssh=True)
 
     def as_dict(self):
         return {'type': self.atype, 'action': self.action}
