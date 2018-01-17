@@ -12,6 +12,19 @@ class CloudLocation(me.Document):
     name = me.StringField()
     country = me.StringField()
 
+    meta = {
+        'collection': 'locations',
+        'indexes': [
+            {
+                'fields': ['provider', 'location_id'],
+                'sparse': False,
+                'unique': True,
+                'cls': False,
+            },
+        ],
+        'strict': False,
+    }
+
     def __str__(self):
         name = "%s, %s (%s)" % (self.name, self.provider, self.location_id)
         return name
