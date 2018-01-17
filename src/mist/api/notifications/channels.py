@@ -81,7 +81,7 @@ class EmailNotificationChannel(BaseNotificationChannel):
                 if np.has_blocked(self.ntf):
                     continue
             except UserNotificationPolicy.DoesNotExist:
-                log.info('No UserNotificationPolicy found for %s', user)
+                log.debug('No UserNotificationPolicy found for %s', user)
 
             if config.SENDGRID_EMAIL_NOTIFICATIONS_KEY:
                 # Initialize SendGrid client.
@@ -116,7 +116,7 @@ class EmailNotificationChannel(BaseNotificationChannel):
                 except Exception as exc:
                     log.exception(repr(exc))
             else:
-                body = self.ntf.text_body.replace("%nsub", unsub_link)
+                body = self.ntf.text_body.replace("%nsub%", unsub_link)
                 send_email(self.ntf.subject, body, [to],
                            sender=self.ntf.sender_email)
 
@@ -162,7 +162,7 @@ class InAppNotificationChannel(BaseNotificationChannel):
             try:
                 np = UserNotificationPolicy.objects.get(user_id=user.id)
             except UserNotificationPolicy.DoesNotExist:
-                log.info('No UserNotificationPolicy found for %s', user)
+                log.debug('No UserNotificationPolicy found for %s', user)
                 user_old_ntfs = [ntf.as_dict() for ntf in owner_old_ntfs]
                 user_new_ntfs = [ntf.as_dict() for ntf in owner_new_ntfs]
             else:

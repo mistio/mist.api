@@ -329,7 +329,7 @@ DEFAULT_MONITORING_METHOD = 'telegraf-influxdb'
 GRAPHITE_URI = "http://graphite"
 
 # Alert service's authentication key
-CILIA_TRIGGER = False  # True
+CILIA_TRIGGER = False
 CILIA_SECRET_KEY = ""
 
 # number of api tokens user can have

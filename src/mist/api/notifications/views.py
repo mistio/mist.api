@@ -123,7 +123,7 @@ def delete_notification_override(request):
 
 
 @view_config(route_name='unsubscribe_page', request_method='GET')
-def confirm_unsubscribe_weekly_reports(request):
+def request_unsubscribtion(request):
     """Return an unsubscription request page
 
     Accepts a request, validates the unsubscribe token and returns a rendered
@@ -168,7 +168,8 @@ def confirm_unsubscribe_weekly_reports(request):
         raise InternalServerError(ERROR_MSG)
 
     # Get the user's notification policy.
-    qr = me.Q(owner=org) & (me.Q(user_id=user_id) | me.Q(email=email))
+    qr = me.Q(owner=org)
+    qr &= me.Q(user_id=user_id) if user_id else me.Q(email=email)
     np = UserNotificationPolicy.objects(qr).first()
 
     # Check if an override already exists.
@@ -198,7 +199,7 @@ def confirm_unsubscribe_weekly_reports(request):
 
 
 @view_config(route_name='unsubscribe', request_method='PUT', renderer='json')
-def do_unsubscribe_weekly_reports(request):
+def confirm_unsubscribtion(request):
     """Create a new notification override
 
     Accepts an override creation request and adds the corresponding override,
@@ -238,7 +239,8 @@ def do_unsubscribe_weekly_reports(request):
         log.critical("Got invalid/insufficient data: %s", decrypted_json)
         raise InternalServerError(ERROR_MSG)
 
-    qr = me.Q(owner=org) & (me.Q(user_id=user_id) | me.Q(email=email))
+    qr = me.Q(owner=org)
+    qr &= me.Q(user_id=user_id) if user_id else me.Q(email=email)
     np = UserNotificationPolicy.objects(qr).first()
     if not np:
         np = UserNotificationPolicy(owner=org, user_id=user_id, email=email)

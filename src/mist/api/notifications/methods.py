@@ -72,7 +72,7 @@ def send_alert_email(owner, rule_id, value, triggered, timestamp, incident_id,
 
     # Check whether an alert has to be sent in case of a (re)triggered rule.
     if triggered and not alert.is_due():
-        log.info('Alert for %s is due in %s', rule, alert.due_in())
+        log.debug('Alert for %s is due in %s', rule, alert.due_in())
         return
 
     # Create the e-mail body.
