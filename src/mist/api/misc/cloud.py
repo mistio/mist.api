@@ -12,9 +12,6 @@ class CloudLocation(me.Document):
     name = me.StringField()
     country = me.StringField()
 
-    def __init__(self, *args, **kwargs):
-        super(CloudLocation, self).__init__(*args, **kwargs)
-
     def __str__(self):
         name = "%s, %s (%s)" % (self.name, self.provider, self.location_id)
         return name
