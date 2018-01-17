@@ -86,6 +86,8 @@ class PollingSchedule(me.Document):
     def clean(self):
         """Automatically set value of name"""
         self.name = self.get_name()
+        # FIXME Avoid dereferencing everytime we save a polling schedule.
+        # self.name = self.name or self.get_name()
 
     @property
     def task(self):
@@ -188,7 +190,7 @@ class CloudPollingSchedule(PollingSchedule):
 
     def get_name(self):
         return '%s(%s)' % (super(CloudPollingSchedule, self).get_name(),
-                           self.cloud)
+                           self.cloud.id)
 
     @classmethod
     def add(cls, cloud, interval=None, ttl=300):
