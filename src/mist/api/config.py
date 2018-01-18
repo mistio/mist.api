@@ -8,6 +8,7 @@ import ssl
 import json
 import logging
 import datetime
+import urlparse
 
 import libcloud.security
 from libcloud.compute.types import Provider
@@ -76,7 +77,7 @@ INFLUX = {
     "host": "http://influxdb:8086", "db": "telegraf"
 }
 
-TELEGRAF_TARGET = "http://traefik"
+TELEGRAF_TARGET = ""
 TRAEFIK_API = "http://traefik:8080"
 
 # Default, built-in metrics.
@@ -1225,6 +1226,15 @@ for override_file in CONFIG_OVERRIDE_FILES:
                 locals()[key] = CONF[key]
     else:
         print >> sys.stderr, "Couldn't find settings file in %s" % override_file
+
+
+# Update TELEGRAF_TARGET.
+
+if not TELEGRAF_TARGET:
+    if urlparse.urlparse(CORE_URI).hostname in ('localhost', '127.0.0.1'):
+        TELEGRAF_TARGET = "http://traefik"
+    else:
+        TELEGRAF_TARGET = CORE_URI + '/ingress'
 
 
 # Update celery settings.
