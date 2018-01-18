@@ -7,14 +7,14 @@ import mongoengine as me
 class CloudLocation(me.Document):
     """A base Cloud Location Model."""
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
-    provider = me.StringField(required=True)
     cloud = me.ReferenceField('Cloud', required=True)
     location_id = me.StringField(required=True)
+    provider = me.StringField()
     name = me.StringField()
     country = me.StringField()
 
     meta = {
-        'collection': 'locations',
+        'collection': 'cloud_locations',
         'indexes': [
             {
                 'fields': ['cloud', 'location_id'],
