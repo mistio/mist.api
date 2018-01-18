@@ -12,8 +12,9 @@ import uuid
 import json
 import time
 import random
-import traceback
+import logging
 import datetime
+import traceback
 
 import tornado.gen
 
@@ -24,6 +25,7 @@ from mist.api.logs.methods import log_event
 from mist.api.logs.methods import get_stories
 
 from mist.api.clouds.models import Cloud
+from mist.api.machines.models import Machine
 
 from mist.api.auth.methods import auth_context_from_session_id
 
@@ -43,15 +45,19 @@ from mist.api.hub.tornado_shell_client import ShellHubClient
 
 from mist.api.notifications.models import InAppNotification
 
-try:
-    from mist.core.methods import get_stats, get_load, check_monitoring
+from mist.api.monitoring.methods import get_load
+from mist.api.monitoring.methods import get_stats
+from mist.api.monitoring.methods import check_monitoring
+
+from mist.api import config
+
+if config.HAS_CORE:
     from mist.core.methods import get_user_data, filter_list_tags
     from mist.core.methods import filter_list_vpn_tunnels
     from mist.core.rbac.methods import filter_org
     from mist.core.orchestration.methods import filter_list_templates
     from mist.core.orchestration.methods import filter_list_stacks
-except ImportError:
-    from mist.api.dummy.methods import get_stats, get_load, check_monitoring
+else:
     from mist.api.dummy.methods import filter_list_tags
     from mist.api.dummy.methods import filter_list_vpn_tunnels
     from mist.api.users.methods import filter_org
@@ -59,9 +65,6 @@ except ImportError:
     from mist.api.dummy.methods import filter_list_stacks
     from mist.api.users.methods import get_user_data
 
-from mist.api import config
-
-import logging
 logging.basicConfig(level=config.PY_LOG_LEVEL,
                     format=config.PY_LOG_FORMAT,
                     datefmt=config.PY_LOG_FORMAT_DATE)
@@ -395,9 +398,8 @@ class MainConnection(MistConnection):
         self.send('notifications', notifications_json)
 
     def check_monitoring(self):
-        func = check_monitoring
         try:
-            self.send('monitoring', func(self.owner))
+            self.send('monitoring', check_monitoring(self.owner))
         except Exception as exc:
             log.warning("Check monitoring failed with: %r", exc)
 
@@ -425,7 +427,20 @@ class MainConnection(MistConnection):
                 get_load(self.owner, start, stop, step,
                          tornado_callback=callback)
             else:
-                get_stats(self.owner, cloud_id, machine_id, start, stop, step,
+                try:
+                    cloud = Cloud.objects.get(owner=self.owner, id=cloud_id,
+                                              deleted=None)
+                except Cloud.DoesNotExist:
+                    raise MistError("Cloud %s does not exist" % cloud_id)
+                try:
+                    machine = Machine.objects.get(
+                        cloud=cloud,
+                        machine_id=machine_id,
+                        state__ne='terminated',
+                    )
+                except Machine.DoesNotExist:
+                    raise MistError("Machine %s doesn't exist" % machine_id)
+                get_stats(machine, start, stop, step,
                           metrics=metrics, callback=callback,
                           tornado_async=True)
         except MistError as exc:
@@ -551,6 +566,18 @@ class MainConnection(MistConnection):
             for line in patch:
                 line['path'] = '/clouds/%s/machines/%s' % (cloud_id,
                                                            line['path'])
+            if patch:
+                self.send('patch_model', patch)
+
+        elif routing_key == 'patch_locations':
+            cloud_id = result['cloud_id']
+            patch = result['patch']
+
+            # remove '/'
+            for line in patch:
+                location_id = line['path'][1:]
+                line['path'] = '/clouds/%s/locations/%s' % (cloud_id,
+                                                            location_id)
             if patch:
                 self.send('patch_model', patch)
 

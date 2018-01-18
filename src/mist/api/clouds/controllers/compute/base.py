@@ -46,18 +46,16 @@ from mist.api.helpers import amqp_owner_listening
 from mist.api.concurrency.models import PeriodicTaskInfo
 from mist.api.concurrency.models import PeriodicTaskThresholdExceeded
 
-try:
-    from mist.core.vpn.methods import destination_nat as dnat
-except ImportError:
-    from mist.api.dummy.methods import dnat
-
 from mist.api.clouds.controllers.base import BaseController
-
 from mist.api.tag.models import Tag
-
 from mist.api.machines.models import Machine
 from mist.api.misc.cloud import CloudLocation
 from mist.api.misc.cloud import CloudSize
+
+if config.HAS_CORE:
+    from mist.core.vpn.methods import destination_nat as dnat
+else:
+    from mist.api.dummy.methods import dnat
 
 log = logging.getLogger(__name__)
 
@@ -313,8 +311,7 @@ class BaseComputeController(BaseController):
             if location_name:
 
                 try:
-                    provider = self.provider
-                    _location = CloudLocation.objects.get(provider=provider,
+                    _location = CloudLocation.objects.get(cloud=self.cloud,
                                                           name=location_name)
                     machine.location = _location
                 except CloudLocation.DoesNotExist:
@@ -843,7 +840,7 @@ class BaseComputeController(BaseController):
         return size
 
     def list_locations(self, persist=True):
-        """Return list of locations for provider
+        """Return list of locations for cloud
 
         A list of locations is fetched from libcloud, data is processed, stored
         on location models, and a list of location models is returned.
@@ -858,8 +855,9 @@ class BaseComputeController(BaseController):
         task = PeriodicTaskInfo.get_or_add(task_key)
         try:
             with task.task_runner(persist=persist):
-                cached_locations = {'%s' % l.location_id: l.as_dict()
+                cached_locations = {'%s' % l.id: l.as_dict()
                                     for l in self.list_cached_locations()}
+
                 locations = self._list_locations()
         except PeriodicTaskThresholdExceeded:
             self.cloud.disable()
@@ -873,13 +871,16 @@ class BaseComputeController(BaseController):
                                   routing_key='list_locations',
                                   connection=amqp_conn,
                                   data={'cloud_id': self.cloud.id,
-                                        'locations': locations})
+                                        'locations': [loc.as_dict()
+                                                      for loc in locations]})
             else:
                 # Publish patches to rabbitmq.
-                new_locations = {'%s' % l.location_id: l.as_dict()
+                new_locations = {'%s' % l.id: l.as_dict()
                                  for l in locations}
+
                 patch = jsonpatch.JsonPatch.from_diff(cached_locations,
                                                       new_locations).patch
+
                 if patch:
                     amqp_publish_user(self.cloud.owner.id,
                                       routing_key='patch_locations',
@@ -890,7 +891,7 @@ class BaseComputeController(BaseController):
         return locations
 
     def _list_locations(self):
-        """Return list of available locations for current provider
+        """Return list of available locations for current cloud
 
         Locations mean different things in each cloud. e.g. EC2 uses it as a
         datacenter in a given availability zone, whereas Linode lists
@@ -924,14 +925,15 @@ class BaseComputeController(BaseController):
         for loc in fetched_locations:
 
             try:
-                _location = CloudLocation.objects.get(provider=self.provider,
+                _location = CloudLocation.objects.get(cloud=self.cloud,
                                                       location_id=loc.id,
                                                       name=loc.name)
             except CloudLocation.DoesNotExist:
-                _location = CloudLocation(provider=self.provider,
+                _location = CloudLocation(cloud=self.cloud,
                                           location_id=loc.id,
                                           name=loc.name)
             _location.country = loc.country
+            _location.provider = self.provider
 
             try:
                 _location.save()
@@ -945,9 +947,9 @@ class BaseComputeController(BaseController):
 
     def list_cached_locations(self):
         """Return list of locations from database
-        for a specific provider
+        for a specific cloud
         """
-        return CloudLocation.objects(provider=self.provider)
+        return CloudLocation.objects(cloud=self.cloud)
 
     def _list_locations__fetch_locations(self):
         """Fetch location listing in a libcloud compatible format

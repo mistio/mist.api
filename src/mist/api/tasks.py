@@ -57,6 +57,7 @@ app = Celery('tasks')
 app.conf.update(**config.CELERY_SETTINGS)
 app.autodiscover_tasks(['mist.api.poller'])
 app.autodiscover_tasks(['mist.api.portal'])
+app.autodiscover_tasks(['mist.api.monitoring'])
 app.autodiscover_tasks(['mist.api.rules'])
 
 
@@ -87,10 +88,7 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
     from mist.api.methods import connect_provider, probe_ssh_only
     from mist.api.methods import notify_user, notify_admin
 
-    try:
-        from mist.core.methods import enable_monitoring
-    except ImportError:
-        from mist.api.dummy.methods import enable_monitoring
+    from mist.api.monitoring.methods import enable_monitoring
 
     job_id = job_id or uuid.uuid4().hex
     owner = Owner.objects.get(id=owner_id)
@@ -146,9 +144,9 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                 'host': host,
                 'key_id': key_id,
             }
-            try:
+            if config.HAS_CORE:
                 from mist.core.rbac.methods import AuthContext
-            except ImportError:
+            else:
                 from mist.api.dummy.rbac import AuthContext
 
             try:
@@ -262,8 +260,7 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                 try:
                     enable_monitoring(
                         owner, cloud_id, node.id,
-                        name=node.name, dns_name=node.extra.get('dns_name', ''),
-                        public_ips=ips, no_ssh=False, dry=False, job_id=job_id,
+                        no_ssh=False, dry=False, job_id=job_id,
                         plugins=plugins, deploy_async=False,
                     )
                 except Exception as e:

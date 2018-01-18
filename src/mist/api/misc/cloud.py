@@ -7,13 +7,24 @@ import mongoengine as me
 class CloudLocation(me.Document):
     """A base Cloud Location Model."""
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
-    provider = me.StringField(required=True)
+    cloud = me.ReferenceField('Cloud', required=True)
     location_id = me.StringField(required=True)
+    provider = me.StringField()
     name = me.StringField()
     country = me.StringField()
 
-    def __init__(self, *args, **kwargs):
-        super(CloudLocation, self).__init__(*args, **kwargs)
+    meta = {
+        'collection': 'cloud_locations',
+        'indexes': [
+            {
+                'fields': ['cloud', 'location_id'],
+                'sparse': False,
+                'unique': True,
+                'cls': False,
+            },
+        ],
+        'strict': False,
+    }
 
     def __str__(self):
         name = "%s, %s (%s)" % (self.name, self.provider, self.location_id)
@@ -22,6 +33,7 @@ class CloudLocation(me.Document):
     def as_dict(self):
         return {
             'id': self.location_id,
+            'cloud': self.cloud.id,
             'provider': self.provider,
             '_id': self.id,
             'name': self.name,
