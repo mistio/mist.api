@@ -775,7 +775,7 @@ class BaseComputeController(BaseController):
         task = PeriodicTaskInfo.get_or_add(task_key)
         try:
             with task.task_runner(persist=persist):
-                cached_locations = {'%s' % l.id : l.as_dict()
+                cached_locations = {'%s' % l.id: l.as_dict()
                                     for l in self.list_cached_locations()}
 
                 locations = self._list_locations()
@@ -795,7 +795,7 @@ class BaseComputeController(BaseController):
                                                       for loc in locations]})
             else:
                 # Publish patches to rabbitmq.
-                new_locations = {'%s' % l.id : l.as_dict()
+                new_locations = {'%s' % l.id: l.as_dict()
                                  for l in locations}
 
                 patch = jsonpatch.JsonPatch.from_diff(cached_locations,

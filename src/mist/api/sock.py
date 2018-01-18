@@ -573,7 +573,6 @@ class MainConnection(MistConnection):
         elif routing_key == 'patch_locations':
             cloud_id = result['cloud_id']
             patch = result['patch']
-            location_ids = []
 
             # remove '/'
             for line in patch:
@@ -582,7 +581,6 @@ class MainConnection(MistConnection):
                                                             location_id)
             if patch:
                 self.send('patch_model', patch)
-
 
     def on_close(self, stale=False):
         if not self.closed:
