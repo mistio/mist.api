@@ -742,6 +742,7 @@ class BaseComputeController(BaseController):
                 cached_sizes = {'%s' % s.size_id: s.as_dict()
                                 for s in self.list_cached_sizes()}
                 sizes = self._list_sizes__fetch_sizes()
+                import ipdb; ipdb.set_trace()
         except PeriodicTaskThresholdExceeded:
             self.cloud.disable()
             raise
@@ -780,8 +781,15 @@ class BaseComputeController(BaseController):
         Subclasses MAY override this method.
 
         """
-        sizes = self.connection.list_sizes()
-        for size in sizes:
+        import ipdb; ipdb.set_trace()
+        fetched_sizes = self.connection.list_sizes()
+
+        log.info("List sizes returned %d results for %s.",
+                 len(fetched_sizes), self.cloud)
+
+        sizes = []
+
+        for size in fetched_sizes:
 
             # create the object in db if it does not exist
             try:
@@ -795,17 +803,17 @@ class BaseComputeController(BaseController):
                                   ram=size.ram, size_id=size.id,
                                   bandwidth=size.bandwidth, price=size.price
                                   )
-                cpus = self._list_sizes_get_cpu(size)
-                size.cpus = cpus
-                _size.description = self._list_sizes_set_description(size,
-                                                                     cpus)
-
-                try:
-                    _size.save()
-                except me.ValidationError as exc:
-                    log.error("Error adding %s: %s", size.name, exc.to_dict())
-                    raise BadRequestError({"msg": exc.message,
-                                           "errors": exc.to_dict()})
+            cpus = self._list_sizes_get_cpu(size)
+            size.cpus = cpus
+            _size.description = self._list_sizes_set_description(size,
+                                                                 cpus)
+            try:
+                _size.save()
+                sizes.append(_size)
+            except me.ValidationError as exc:
+                log.error("Error adding %s: %s", size.name, exc.to_dict())
+                raise BadRequestError({"msg": exc.message,
+                                       "errors": exc.to_dict()})
 
         return sizes
 
