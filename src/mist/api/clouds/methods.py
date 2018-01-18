@@ -72,6 +72,7 @@ def add_cloud_v_2(owner, title, provider, params):
     ListMachinesPollingSchedule.add(cloud=cloud)
     ListLocationsPollingSchedule.add(cloud=cloud)
 
+    # TODO: are these necessary?
     cloud.ctl.compute.list_locations()
     cloud.ctl.compute.list_sizes()
 
