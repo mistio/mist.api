@@ -742,7 +742,7 @@ class BaseComputeController(BaseController):
                 cached_sizes = {'%s' % s.size_id: s.as_dict()
                                 for s in self.list_cached_sizes()}
                 sizes = self._list_sizes__fetch_sizes()
-                import ipdb; ipdb.set_trace()
+                #import ipdb; ipdb.set_trace()
         except PeriodicTaskThresholdExceeded:
             self.cloud.disable()
             raise
@@ -781,7 +781,7 @@ class BaseComputeController(BaseController):
         Subclasses MAY override this method.
 
         """
-        import ipdb; ipdb.set_trace()
+        #import ipdb; ipdb.set_trace()
         fetched_sizes = self.connection.list_sizes()
 
         log.info("List sizes returned %d results for %s.",
@@ -793,12 +793,12 @@ class BaseComputeController(BaseController):
 
             # create the object in db if it does not exist
             try:
-                _size = CloudSize.objects.get(provider=self.provider,
+                _size = CloudSize.objects.get(cloud=self.cloud,
                                               size_id=size.id)
             except CloudSize.DoesNotExist:
                 if self.provider == 'packet':
                     size.ram = size.ram.strip('GB')
-                _size = CloudSize(provider=self.provider,
+                _size = CloudSize(cloud=self.cloud,
                                   name=size.name, disk=size.disk,
                                   ram=size.ram, size_id=size.id,
                                   bandwidth=size.bandwidth, price=size.price
@@ -832,7 +832,7 @@ class BaseComputeController(BaseController):
         """Return list of sizes from database
         for a specific cloud
         """
-        return CloudSize.objects(provider=self.provider)
+        return CloudSize.objects(cloud=self.cloud)
 
     def _list_machines_get_size(self, node):
         """Return size from database for a
@@ -841,7 +841,7 @@ class BaseComputeController(BaseController):
         Subclasses MAY override this method.
         """
         try:
-            size = CloudSize.objects.get(provider=self.provider,
+            size = CloudSize.objects.get(cloud=self.cloud,
                                          name=node.size)
         except CloudSize.DoesNotExist:
             size = ''

@@ -100,6 +100,7 @@ class CloudImage(me.Document):
 class CloudSize(me.Document):
     """A base Cloud Size Model."""
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
+    cloud = me.ReferenceField('Cloud', required=True)
     provider = me.StringField(required=True)
     size_id = me.StringField(required=True)
     description = me.StringField()
