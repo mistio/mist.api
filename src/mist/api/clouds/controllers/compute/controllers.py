@@ -248,8 +248,14 @@ class DigitalOceanComputeController(BaseComputeController):
         return node.extra.get('region')
 
     def _list_machines_get_size(self, node):
-        return node.extra.get('size_slug')
-
+        size_name = node.extra.get('size_slug')
+        try:
+            _size = CloudSize.objects.get(cloud=self.cloud,
+                                          name=size_name)
+            return _size
+        except CloudLocation.DoesNotExist:
+            pass
+            return ''
 
 class LinodeComputeController(BaseComputeController):
 
