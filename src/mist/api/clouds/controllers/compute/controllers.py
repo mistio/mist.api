@@ -210,6 +210,11 @@ class AmazonComputeController(BaseComputeController):
     def _list_machines__get_location(self, node):
         return node.extra.get('availability')
 
+    def _list_sizes_get_cpu(self, size):
+        if size.extra.get('cpu'):
+            return size.extra.get('cpu')
+        return 1
+
 
 class DigitalOceanComputeController(BaseComputeController):
 
@@ -420,36 +425,6 @@ class NephoScaleComputeController(BaseComputeController):
         price = get_size_price(driver_type='compute', driver_name='nephoscale',
                                size_id=size)
         return price, 0
-
-    def _list_sizes__fetch_sizes(self):
-        sizes = self.connection.list_sizes(baremetal=False)
-        sizes.extend(self.connection.list_sizes(baremetal=True))
-        _sizes = []
-        for size in sizes:
-
-            # import ipdb; ipdb.set_trace()
-            # create the object in db if it does not exist
-            try:
-                _size = CloudSize.objects.get(cloud=self.cloud,
-                                              size_id=size.id)
-            except CloudSize.DoesNotExist:
-                _size = CloudSize(cloud=self.cloud,
-                                  name=size.name, disk=size.disk,
-                                  ram=size.ram, size_id=size.id,
-                                  bandwidth=size.bandwidth, price=size.price
-                                  )
-            _size.cpus = size.extra.get('vcpu_count')
-            _size.description = size.name
-
-            try:
-                _size.save()
-                _sizes.append(_size)
-            except me.ValidationError as exc:
-                log.error("Error adding %s: %s", size.name, exc.to_dict())
-                raise BadRequestError({"msg": exc.message,
-                                       "errors": exc.to_dict()})
-
-        return _sizes
 
     def _list_machines__get_location(self, node):
         return node.extra.get('zone')
@@ -809,6 +784,9 @@ class PacketComputeController(BaseComputeController):
 
     def _list_machines__get_location(self, node):
         return node.extra.get('facility')
+
+    def _list_machines__fetch_machines(self):
+        return self.connection.list_nodes(self.cloud.project_id)
 
 
 class VultrComputeController(BaseComputeController):
