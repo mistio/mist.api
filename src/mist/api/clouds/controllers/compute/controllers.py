@@ -247,6 +247,9 @@ class DigitalOceanComputeController(BaseComputeController):
     def _list_machines__get_location(self, node):
         return node.extra.get('region')
 
+    def _list_machines_get_size(self, node):
+        return node.extra.get('size_slug')
+
 
 class LinodeComputeController(BaseComputeController):
 
@@ -415,29 +418,32 @@ class NephoScaleComputeController(BaseComputeController):
     def _list_sizes__fetch_sizes(self):
         sizes = self.connection.list_sizes(baremetal=False)
         sizes.extend(self.connection.list_sizes(baremetal=True))
+        _sizes=[]
         for size in sizes:
 
+            #import ipdb; ipdb.set_trace()
             # create the object in db if it does not exist
             try:
-                _size = CloudSize.objects.get(provider=self.provider,
+                _size = CloudSize.objects.get(cloud=self.cloud,
                                               size_id=size.id)
             except CloudSize.DoesNotExist:
-                _size = CloudSize(provider=self.provider,
+                _size = CloudSize(cloud=self.cloud,
                                   name=size.name, disk=size.disk,
                                   ram=size.ram, size_id=size.id,
                                   bandwidth=size.bandwidth, price=size.price
                                   )
-                _size.cpus = size.extra.get('vcpu_count')
-                _size.description = size.name
+            _size.cpus = size.extra.get('vcpu_count')
+            _size.description = size.name
 
-                try:
-                    _size.save()
-                except me.ValidationError as exc:
-                    log.error("Error adding %s: %s", size.name, exc.to_dict())
-                    raise BadRequestError({"msg": exc.message,
-                                           "errors": exc.to_dict()})
+            try:
+                _size.save()
+                _sizes.append(_size)
+            except me.ValidationError as exc:
+                log.error("Error adding %s: %s", size.name, exc.to_dict())
+                raise BadRequestError({"msg": exc.message,
+                                       "errors": exc.to_dict()})
 
-        return sizes
+        return _sizes
 
     def _list_machines__get_location(self, node):
         return node.extra.get('zone')
