@@ -817,6 +817,20 @@ class VultrComputeController(BaseComputeController):
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         return 0, machine_libcloud.extra.get('cost_per_month', 0)
 
+    def _list_machines_get_size(self, node):
+        cpus = node.extra.get('vcpu_count')
+        ram = [int(s) for s in node.extra.get('ram').split()
+               if s.isdigit()][0]
+        disk = [int(s) for s in node.extra.get('disk').split()
+               if s.isdigit()][0]
+        try:
+            _size = CloudSize.objects.get(cloud=self.cloud,
+                                          cpus=cpus,ram=ram,
+                                          disk=disk)
+            return _size
+        except CloudLocation.DoesNotExist:
+            return ''
+
     def _list_sizes_get_cpu(self, size):
         return size.extra.get('vcpu_count')
 
