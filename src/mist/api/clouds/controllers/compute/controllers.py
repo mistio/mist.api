@@ -576,34 +576,39 @@ class AzureArmComputeController(BaseComputeController):
     def _list_sizes__fetch_sizes(self):
         location = self.connection.list_locations()[0]
         sizes = self.connection.list_sizes(location)
+
+        _sizes = []
         for size in sizes:
 
             # create the object in db if it does not exist
             try:
-                _size = CloudSize.objects.get(provider=self.provider,
+                _size = CloudSize.objects.get(cloud=self.cloud,
+                                              provider=self.provider,
                                               size_id=size.id)
             except CloudSize.DoesNotExist:
-                _size = CloudSize(provider=self.provider,
+                _size = CloudSize(cloud=self.cloud,
+                                  provider=self.provider,
                                   name=size.name, disk=size.disk,
                                   ram=size.ram, size_id=size.id,
                                   bandwidth=size.bandwidth, price=size.price
                                   )
-                _size.cpus = size.extra.get('numberOfCores')
+            _size.cpus = size.extra.get('numberOfCores')
 
-                desc = size.name + '/ ' + str(size.extra['numberOfCores']) \
-                                        + ' cpus/' + str(size.ram / 1024) \
-                                        + 'G RAM/ ' + str(size.disk) + 'GB SSD'
+            desc = size.name + '/ ' + str(size.extra['numberOfCores']) \
+                                    + ' cpus/' + str(size.ram / 1024) \
+                                    + 'G RAM/ ' + str(size.disk) + 'GB SSD'
 
-                _size.description = desc
+            _size.description = desc
 
-                try:
-                    _size.save()
-                except me.ValidationError as exc:
-                    log.error("Error adding %s: %s", size.name, exc.to_dict())
-                    raise BadRequestError({"msg": exc.message,
-                                           "errors": exc.to_dict()})
+            try:
+                _size.save()
+                _sizes.append(_size)
+            except me.ValidationError as exc:
+                log.error("Error adding %s: %s", size.name, exc.to_dict())
+                raise BadRequestError({"msg": exc.message,
+                                       "errors": exc.to_dict()})
 
-        return sizes
+        return _sizes
 
     def _list_machines__get_location(self, node):
         return node.extra.get('location')
