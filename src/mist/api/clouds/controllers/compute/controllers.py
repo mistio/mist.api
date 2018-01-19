@@ -253,9 +253,9 @@ class DigitalOceanComputeController(BaseComputeController):
             _size = CloudSize.objects.get(cloud=self.cloud,
                                           name=size_name)
             return _size
-        except CloudLocation.DoesNotExist:
-            pass
+        except CloudSize.DoesNotExist:
             return ''
+
 
 class LinodeComputeController(BaseComputeController):
 
@@ -822,13 +822,13 @@ class VultrComputeController(BaseComputeController):
         ram = [int(s) for s in node.extra.get('ram').split()
                if s.isdigit()][0]
         disk = [int(s) for s in node.extra.get('disk').split()
-               if s.isdigit()][0]
+                if s.isdigit()][0]
         try:
             _size = CloudSize.objects.get(cloud=self.cloud,
-                                          cpus=cpus,ram=ram,
+                                          cpus=cpus, ram=ram,
                                           disk=disk)
             return _size
-        except CloudLocation.DoesNotExist:
+        except CloudSize.DoesNotExist:
             return ''
 
     def _list_sizes_get_cpu(self, size):
