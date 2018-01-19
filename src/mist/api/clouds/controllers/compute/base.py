@@ -270,7 +270,6 @@ class BaseComputeController(BaseController):
 
         """
         # Try to query list of machines from provider API.
-        # import ipdb; ipdb.set_trace()
         try:
             nodes = self._list_machines__fetch_machines()
             log.info("List nodes returned %d results for %s.",
@@ -322,7 +321,6 @@ class BaseComputeController(BaseController):
             image_id = str(node.image or node.extra.get('imageId') or
                            node.extra.get('image_id') or
                            node.extra.get('image') or '')
-            # import ipdb; ipdb.set_trace()
             size = self._list_machines_get_size(node)
 
             machine.name = node.name
@@ -743,9 +741,7 @@ class BaseComputeController(BaseController):
             with task.task_runner(persist=persist):
                 cached_sizes = {'%s' % s.size_id: s.as_dict()
                                 for s in self.list_cached_sizes()}
-                import ipdb; ipdb.set_trace()
                 sizes = self._list_sizes__fetch_sizes()
-                # import ipdb; ipdb.set_trace()
         except PeriodicTaskThresholdExceeded:
             self.cloud.disable()
             raise
@@ -784,12 +780,10 @@ class BaseComputeController(BaseController):
         Subclasses MAY override this method.
 
         """
-        # import ipdb; ipdb.set_trace()
         fetched_sizes = self.connection.list_sizes()
 
         log.info("List sizes returned %d results for %s.",
                  len(fetched_sizes), self.cloud)
-        import ipdb; ipdb.set_trace()
         sizes = []
 
         for size in fetched_sizes:
