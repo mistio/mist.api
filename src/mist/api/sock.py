@@ -361,6 +361,11 @@ class MainConnection(MistConnection):
             log.info("Emitting list_locations from poller's cache.")
             self.send('list_locations',
                       {'cloud_id': cloud.id, 'locations': locations})
+            cached_sizes = cloud.ctl.compute.list_cached_sizes()
+            sizes = [size.as_dict() for size in cached_sizes]
+            log.info("Emitting list_sizes from poller's cache.")
+            self.send('list_sizes',
+                     {'cloud_id': cloud.id, 'sizes': sizes})
 
         periodic_tasks.extend([('list_images', tasks.ListImages()),
                                ('list_networks', tasks.ListNetworks()),
