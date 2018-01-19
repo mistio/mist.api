@@ -418,10 +418,10 @@ class NephoScaleComputeController(BaseComputeController):
     def _list_sizes__fetch_sizes(self):
         sizes = self.connection.list_sizes(baremetal=False)
         sizes.extend(self.connection.list_sizes(baremetal=True))
-        _sizes=[]
+        _sizes = []
         for size in sizes:
 
-            #import ipdb; ipdb.set_trace()
+            # import ipdb; ipdb.set_trace()
             # create the object in db if it does not exist
             try:
                 _size = CloudSize.objects.get(cloud=self.cloud,
