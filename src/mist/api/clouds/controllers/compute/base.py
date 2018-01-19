@@ -743,6 +743,7 @@ class BaseComputeController(BaseController):
             with task.task_runner(persist=persist):
                 cached_sizes = {'%s' % s.size_id: s.as_dict()
                                 for s in self.list_cached_sizes()}
+                import ipdb; ipdb.set_trace()
                 sizes = self._list_sizes__fetch_sizes()
                 # import ipdb; ipdb.set_trace()
         except PeriodicTaskThresholdExceeded:
@@ -788,7 +789,7 @@ class BaseComputeController(BaseController):
 
         log.info("List sizes returned %d results for %s.",
                  len(fetched_sizes), self.cloud)
-
+        import ipdb; ipdb.set_trace()
         sizes = []
 
         for size in fetched_sizes:
@@ -821,8 +822,7 @@ class BaseComputeController(BaseController):
         return sizes
 
     def _list_sizes_get_cpu(self, size):
-        # TODO: change this to sth common!
-        return 1
+        return size.extra.get('cpus')
 
     # providers to check: gce, aws, openstack, rackspace, vultr
     def _list_sizes_set_description(self, size, cpu):
