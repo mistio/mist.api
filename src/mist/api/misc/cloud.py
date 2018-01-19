@@ -35,7 +35,7 @@ class CloudLocation(me.Document):
             'id': self.location_id,
             'cloud': self.cloud.id,
             'provider': self.provider,
-            '_id': self.id,
+            'location_id': self.id,
             'name': self.name,
             'country': self.country,
         }
