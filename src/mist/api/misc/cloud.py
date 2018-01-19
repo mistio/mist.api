@@ -101,13 +101,13 @@ class CloudSize(me.Document):
     """A base Cloud Size Model."""
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
     cloud = me.ReferenceField('Cloud', required=True)
-    provider = me.StringField(required=True)
+    provider = me.StringField()
     size_id = me.StringField(required=True)
     description = me.StringField()
     name = me.StringField()
     cpus = me.IntField()
     ram = me.IntField()
-    price = me.DecimalField()
+    price = me.FloatField()
     cloud_region = me.StringField()  # eg for RackSpace
     disk = me.IntField()
     bandwidth = me.IntField()
@@ -116,7 +116,7 @@ class CloudSize(me.Document):
         super(CloudSize, self).__init__(*args, **kwargs)
 
     def __str__(self):
-        name = "%s, %s (%s)" % (self.name, self.provider, self.size_id)
+        name = "%s, %s (%s)" % (self.name, self.cloud, self.size_id)
         return name
 
     def as_dict(self):
