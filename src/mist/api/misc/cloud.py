@@ -123,7 +123,7 @@ class CloudSize(me.Document):
         return {
             'id': self.size_id,
             'provider': self.provider,
-            '_id': self.id,
+            'size_id': self.id,
             'name': self.name,
             'cpus': self.cpus,
             'ram': self.ram,
