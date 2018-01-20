@@ -259,7 +259,7 @@ class Machine(me.Document):
     cloud = me.ReferenceField('Cloud', required=True)
     owner = me.ReferenceField('Organization', required=True)
     location = me.ReferenceField('CloudLocation', required=False)
-    size = me.ReferenceField('CloudSize', required=True)
+    size = me.ReferenceField('CloudSize', required=False)
     name = me.StringField()
 
     # Info gathered mostly by libcloud (or in some cases user input).
@@ -385,6 +385,7 @@ class Machine(me.Document):
             'key_associations': [ka.as_dict() for ka in self.key_associations],
             'cloud': self.cloud.id,
             'location': self.location.id if self.location else '',
+            'size': self.size.id if self.size else '',
             'cloud_title': self.cloud.title,
             'last_seen': str(self.last_seen.replace(tzinfo=None)
                              if self.last_seen else ''),
