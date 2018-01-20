@@ -10,6 +10,7 @@ from mist.api.exceptions import BadRequestError, NotFoundError
 
 from mist.api.poller.models import ListMachinesPollingSchedule
 from mist.api.poller.models import ListLocationsPollingSchedule
+from mist.api.poller.models import ListSizesPollingSchedule
 
 from mist.api.monitoring.methods import disable_monitoring_cloud
 
@@ -71,6 +72,7 @@ def add_cloud_v_2(owner, title, provider, params):
     cloud.save()
     ListMachinesPollingSchedule.add(cloud=cloud)
     ListLocationsPollingSchedule.add(cloud=cloud)
+    ListSizesPollingSchedule.add(cloud=cloud)
 
     # TODO: are these necessary?
     cloud.ctl.compute.list_locations()
