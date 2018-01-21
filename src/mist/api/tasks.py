@@ -36,6 +36,7 @@ from mist.api.poller.models import PingProbeMachinePollingSchedule
 from mist.api.poller.models import SSHProbeMachinePollingSchedule
 from mist.api.poller.models import ListLocationsPollingSchedule
 from mist.api.poller.models import ListSizesPollingSchedule
+from mist.api.poller.models import ListImagesPollingSchedule
 
 celery_cfg = 'mist.core.celery_config'
 
@@ -1368,6 +1369,7 @@ def update_poller(org_id):
         ListMachinesPollingSchedule.add(cloud=cloud, interval=10, ttl=120)
         ListLocationsPollingSchedule.add(cloud=cloud, interval=60*60*24, ttl=120)
         ListSizesPollingSchedule.add(cloud=cloud, interval=60*60*24, ttl=120)
+        ListImagesPollingSchedule.add(cloud=cloud, interval=60*60*24, ttl=120)
         for machine in cloud.ctl.compute.list_cached_machines():
             log.info("Updating poller for machine %s", machine)
             PingProbeMachinePollingSchedule.add(machine=machine,
