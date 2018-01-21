@@ -372,8 +372,7 @@ class MainConnection(MistConnection):
             self.send('list_images',
                       {'cloud_id': cloud.id, 'images': images})
 
-        periodic_tasks.extend([('list_images', tasks.ListImages()),
-                               ('list_networks', tasks.ListNetworks()),
+        periodic_tasks.extend([('list_networks', tasks.ListNetworks()),
                                ('list_zones', tasks.ListZones()),
                                ('list_resource_groups',
                                 tasks.ListResourceGroups()),
@@ -579,7 +578,7 @@ class MainConnection(MistConnection):
             if patch:
                 self.send('patch_model', patch)
 
-        elif routing_key in ['patch_locations', 'patch_sizes']:
+        elif routing_key in ['patch_locations', 'patch_sizes', 'patch_images']:
             cloud_id = result['cloud_id']
             patch = result['patch']
 
@@ -591,6 +590,9 @@ class MainConnection(MistConnection):
                                                                 _id)
                 elif routing_key == 'patch_sizes':
                     line['path'] = '/clouds/%s/sizes/%s' % (cloud_id,
+                                                            _id)
+                elif routing_key == 'patch_images':
+                    line['path'] = '/clouds/%s/images/%s' % (cloud_id,
                                                             _id)
             if patch:
                 self.send('patch_model', patch)
