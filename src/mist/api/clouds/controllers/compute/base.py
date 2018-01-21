@@ -636,6 +636,62 @@ class BaseComputeController(BaseController):
             pass
         return False
 
+    def list_images(self, persist=True):
+        """Return list of images for cloud
+
+        This returns the results obtained from libcloud, after some processing,
+        formatting and injection of extra information in a sane format.
+
+        Subclasses SHOULD NOT override or extend this method.
+
+        There are instead a number of methods that are called from this method,
+        to allow subclasses to modify the data according to the specific of
+        their cloud type. These methods currently are:
+
+            `self._list_images__fetch_images`
+
+        Subclasses that require special handling should override these, by
+        default, dummy methods.
+
+        """
+
+        task_key = 'cloud:list_images:%s' % self.cloud.id
+        task = PeriodicTaskInfo.get_or_add(task_key)
+        try:
+            with task.task_runner(persist=persist):
+                cached_images = {'%s' % im.id: s.as_dict()
+                                for im in self.list_cached_images()}
+                images = self._list_images__fetch_images()
+        except PeriodicTaskThresholdExceeded:
+            self.cloud.disable()
+            raise
+
+        # Initialize AMQP connection to reuse for multiple messages.
+        amqp_conn = Connection(config.AMQP_URI)
+        if amqp_owner_listening(self.cloud.owner.id):
+            if not config.IMAGE_PATCHES:
+                amqp_publish_user(self.cloud.owner.id,
+                                  routing_key='list_images',
+                                  connection=amqp_conn,
+                                  data={'cloud_id': self.cloud.id,
+                                        'images': images})
+            else:
+                # Publish patches to rabbitmq.
+                new_images = {'%s' % image.id: image.as_dict()
+                             for image in images}
+                patch = jsonpatch.JsonPatch.from_diff(cached_sizes,
+                                                      new_sizes).patch
+                if patch:
+                    amqp_publish_user(self.cloud.owner.id,
+                                      routing_key='patch_sizes',
+                                      connection=amqp_conn,
+                                      data={'cloud_id': self.cloud.id,
+                                            'patch': patch})
+
+                # Format size information.
+        # return [size.as_dict() for size in sizes]
+        return sizes
+
     def list_images(self, search=None):
         """Return list of images for cloud
 
@@ -738,6 +794,7 @@ class BaseComputeController(BaseController):
 
         task_key = 'cloud:list_sizes:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
+        import ipdb; ipdb.set_trace()
         try:
             with task.task_runner(persist=persist):
                 cached_sizes = {'%s' % s.id: s.as_dict()
