@@ -208,6 +208,12 @@ class AmazonComputeController(BaseComputeController):
         return node.extra.get('availability')
 
     def _list_sizes__fetch_sizes(self):
+        """List available sizes for EC2 cloud
+
+        In EC2 we currently do not store price, since it is
+        different for each os.
+
+        """
         fetched_sizes = self.connection.list_sizes()
 
         log.info("List sizes returned %d results for %s.",
