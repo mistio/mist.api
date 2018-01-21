@@ -112,6 +112,19 @@ class CloudSize(me.Document):
     disk = me.IntField()
     bandwidth = me.IntField()
 
+    meta = {
+        'collection': 'cloud_sizes',
+        'indexes': [
+            {
+                'fields': ['cloud', 'size_id'],
+                'sparse': False,
+                'unique': True,
+                'cls': False,
+            },
+        ],
+        'strict': False,
+    }
+
     def __init__(self, *args, **kwargs):
         super(CloudSize, self).__init__(*args, **kwargs)
 
