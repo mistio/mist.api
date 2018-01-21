@@ -325,7 +325,8 @@ class BaseComputeController(BaseController):
 
             machine.name = node.name
             machine.image_id = image_id
-            machine.size = size
+            # for now!
+            # machine.size = size
             machine.state = config.STATES[node.state]
             machine.private_ips = list(set(node.private_ips))
             machine.public_ips = list(set(node.public_ips))
@@ -739,7 +740,7 @@ class BaseComputeController(BaseController):
         task = PeriodicTaskInfo.get_or_add(task_key)
         try:
             with task.task_runner(persist=persist):
-                cached_sizes = {'%s' % s.size_id: s.as_dict()
+                cached_sizes = {'%s' % s.id: s.as_dict()
                                 for s in self.list_cached_sizes()}
                 sizes = self._list_sizes__fetch_sizes()
         except PeriodicTaskThresholdExceeded:
@@ -757,7 +758,7 @@ class BaseComputeController(BaseController):
                                         'sizes': sizes})
             else:
                 # Publish patches to rabbitmq.
-                new_sizes = {'%s' % s.size_id: s.as_dict()
+                new_sizes = {'%s' % s.id: s.as_dict()
                              for s in sizes}
                 patch = jsonpatch.JsonPatch.from_diff(cached_sizes,
                                                       new_sizes).patch
@@ -856,6 +857,7 @@ class BaseComputeController(BaseController):
         implementation.
 
         """
+        #import ipdb; ipdb.set_trace()
         task_key = 'cloud:list_locations:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
         try:
