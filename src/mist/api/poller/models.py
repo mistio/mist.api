@@ -248,6 +248,11 @@ class ListSizesPollingSchedule(CloudPollingSchedule):
     task = 'mist.api.poller.tasks.list_sizes'
 
 
+class ListImagesPollingSchedule(CloudPollingSchedule):
+
+    task = 'mist.api.poller.tasks.list_images'
+
+
 class MachinePollingSchedule(PollingSchedule):
 
     machine_id = me.StringField(required=True)
