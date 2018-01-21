@@ -636,7 +636,7 @@ class BaseComputeController(BaseController):
             pass
         return False
 
-    def list_images(self, persist=True):
+    def list_images(self, persist=True, search=None):
         """Return list of images for cloud
 
         This returns the results obtained from libcloud, after some processing,
@@ -679,40 +679,32 @@ class BaseComputeController(BaseController):
                 # Publish patches to rabbitmq.
                 new_images = {'%s' % image.id: image.as_dict()
                              for image in images}
-                patch = jsonpatch.JsonPatch.from_diff(cached_sizes,
-                                                      new_sizes).patch
+                patch = jsonpatch.JsonPatch.from_diff(cached_images,
+                                                      new_images).patch
                 if patch:
                     amqp_publish_user(self.cloud.owner.id,
-                                      routing_key='patch_sizes',
+                                      routing_key='patch_images',
                                       connection=amqp_conn,
                                       data={'cloud_id': self.cloud.id,
                                             'patch': patch})
 
-                # Format size information.
-        # return [size.as_dict() for size in sizes]
-        return sizes
+        return images
 
-    def list_images(self, search=None):
-        """Return list of images for cloud
 
-        This returns the results obtained from libcloud, after some processing,
-        formatting and injection of extra information in a sane format.
+    def _list_images__fetch_images(self, search=None):
+        """Fetch image listing in a libcloud compatible format
 
-        Subclasses SHOULD NOT override or extend this method.
+        This is to be called exclusively by `self.list_images`.
 
-        There are instead a number of methods that are called from this method,
-        to allow subclasses to modify the data according to the specific of
-        their cloud type. These methods currently are:
+        Most subclasses that use a simple libcloud connection, shouldn't need
+        to override or extend this method.
 
-            `self._list_images__fetch_images`
-
-        Subclasses that require special handling should override these, by
-        default, dummy methods.
+        Subclasses MAY override this method.
 
         """
 
         # Fetch images list, usually from libcloud connection.
-        images = self._list_images__fetch_images(search=search)
+        images = self.connection.list_images()
         if not isinstance(images, list):
             images = list(images)
 
@@ -747,19 +739,6 @@ class BaseComputeController(BaseController):
         images.sort(key=lambda image: (not image['star'], image['name']))
 
         return images
-
-    def _list_images__fetch_images(self, search=None):
-        """Fetch image listing in a libcloud compatible format
-
-        This is to be called exclusively by `self.list_images`.
-
-        Most subclasses that use a simple libcloud connection, shouldn't need
-        to override or extend this method.
-
-        Subclasses MAY override this method.
-
-        """
-        return self.connection.list_images()
 
     def image_is_starred(self, image_id):
         starred = image_id in self.cloud.starred
