@@ -43,19 +43,19 @@ class CloudLocation(me.Document):
 
 class CloudImage(me.Document):
     """A base Cloud Image Model."""
+    id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
+    cloud = me.ReferenceField('Cloud', required=True)
+    provider = me.StringField()
     image_id = me.StringField(required=True)
-    cloud_provider = me.StringField(required=True)
-    cloud_region = me.StringField()  # eg for RackSpace
+    description = me.StringField()
     name = me.StringField()
     os_type = me.StringField(default='linux')
-    deprecated = me.BooleanField(default=False)
 
     meta = {
+        'collection': 'cloud_images',
         'indexes': [
-            'cloud_provider',
-            'image_id',
             {
-                'fields': ['cloud_provider', 'cloud_region', 'image_id'],
+                'fields': ['cloud', 'image_id'],
                 'sparse': False,
                 'unique': True,
                 'cls': False,
@@ -64,7 +64,7 @@ class CloudImage(me.Document):
     }
 
     def __str__(self):
-        name = "%s, %s (%s)" % (self.name, self.cloud_provider, self.image_id)
+        name = "%s, %s (%s)" % (self.name, self.provider, self.image_id)
         return name
 
     def clean(self):
