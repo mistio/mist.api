@@ -584,16 +584,16 @@ class MainConnection(MistConnection):
 
             # remove '/'
             for line in patch:
-                _id = line['path'][1:]
+                resource_id = line['path'][1:]
                 if routing_key == 'patch_locations':
                     line['path'] = '/clouds/%s/locations/%s' % (cloud_id,
-                                                                _id)
+                                                                resource_id)
                 elif routing_key == 'patch_sizes':
                     line['path'] = '/clouds/%s/sizes/%s' % (cloud_id,
-                                                            _id)
+                                                            resource_id)
                 elif routing_key == 'patch_images':
                     line['path'] = '/clouds/%s/images/%s' % (cloud_id,
-                                                            _id)
+                                                             resource_id)
             if patch:
                 self.send('patch_model', patch)
 
