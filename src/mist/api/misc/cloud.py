@@ -96,6 +96,16 @@ class CloudImage(me.Document):
 
         super(CloudImage, self).clean()
 
+    def as_dict(self):
+        return {
+            'id': self.image_id,
+            'provider': self.provider,
+            'size_id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'os_type': self.os_type
+        }
+
 
 class CloudSize(me.Document):
     """A base Cloud Size Model."""
