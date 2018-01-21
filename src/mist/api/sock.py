@@ -586,7 +586,7 @@ class MainConnection(MistConnection):
                                                                 _id)
                 elif routing_key == 'patch_sizes':
                     line['path'] = '/clouds/%s/sizes/%s' % (cloud_id,
-                                                                _id)
+                                                            _id)
             if patch:
                 self.send('patch_model', patch)
 
