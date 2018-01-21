@@ -333,7 +333,7 @@ def probe_ssh_only(owner, cloud_id, machine_id, host, key_id='', ssh_user='',
 
     kernel_version = cmd_output[6].replace("\n", "")
     os_release = cmd_output[7]
-    os, os_version = parse_os_release(os_release)
+    os, os_version, distro = parse_os_release(os_release)
 
     return {
         'uptime': uptime,
@@ -348,6 +348,7 @@ def probe_ssh_only(owner, cloud_id, machine_id, host, key_id='', ssh_user='',
         'kernel': kernel_version,
         'os': os,
         'os_version': os_version,
+        'distro': distro,
         'dirty_cow': dirty_cow(os, os_version, kernel_version)
     }
 
