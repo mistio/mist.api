@@ -99,6 +99,11 @@ def main(global_config, **settings):
     configurator.include(add_routes)
     configurator.scan()
 
+    for plugin in config.PLUGINS:
+        log.info("Loading plugin mist.%s", plugin)
+        configurator.include('mist.%s.add_routes' % plugin)
+        configurator.scan('mist.%s' % plugin)
+
     return mist.api.auth.middleware.AuthMiddleware(
         mist.api.auth.middleware.CsrfMiddleware(
             configurator.make_wsgi_app()
