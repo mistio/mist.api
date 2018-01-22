@@ -389,6 +389,9 @@ class RackSpaceComputeController(BaseComputeController):
     def _list_sizes_set_description(self, size, cpu):
         return size.name + ' (%d cpus)' % cpu
 
+    def list_images_get_os(self,image):
+        return image.extra.get('metadata').get('os_type')
+
 
 class SoftLayerComputeController(BaseComputeController):
 
