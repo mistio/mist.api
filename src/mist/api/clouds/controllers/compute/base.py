@@ -734,6 +734,7 @@ class BaseComputeController(BaseController):
                  len(images), self.cloud)
         _images = []
 
+        # import ipdb; ipdb.set_trace()
         for image in images:
 
             # why the hell is this needed?
@@ -762,8 +763,7 @@ class BaseComputeController(BaseController):
 
         # Sort images: Starred first, then alphabetically.
         #images.sort(key=lambda image: (not image['star'], image['name']))
-
-        return _images
+        return [img.as_dict() for img in _images]
 
     def list_cached_images(self):
         """Return list of images from database
