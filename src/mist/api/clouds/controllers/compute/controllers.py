@@ -577,7 +577,36 @@ class AzureArmComputeController(BaseComputeController):
         images = [NodeImage(id=image, name=name,
                             driver=self.connection, extra={})
                   for image, name in config.AZURE_ARM_IMAGES.items()]
-        return images
+
+        log.info("List images returned %d results for %s.",
+                 len(images), self.cloud)
+        _images = []
+
+        for image in images:
+
+            # create the object in db if it does not exist
+            try:
+                _image = CloudImage.objects.get(cloud=self.cloud,
+                                                image_id=image.id)
+            except CloudImage.DoesNotExist:
+                _image = CloudImage(cloud=self.cloud,
+                                    name=image.name, image_id=image.id,
+                                    provider=self.provider
+                                  )
+            image.os_type = self.list_images_get_os(image)
+            # self.image_is_starred(img.id)}
+
+            try:
+                _image.save()
+                _images.append(_image)
+            except me.ValidationError as exc:
+                log.error("Error adding %s: %s", _image.name, exc.to_dict())
+                raise BadRequestError({"msg": exc.message,
+                                       "errors": exc.to_dict()})
+
+        #images.sort(key=lambda image: (not image['star'], image['name']))
+
+        return _images
 
     def _reboot_machine(self, machine, machine_libcloud):
         self.connection.reboot_node(machine_libcloud)
