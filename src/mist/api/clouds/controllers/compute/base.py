@@ -746,7 +746,7 @@ class BaseComputeController(BaseController):
                                     name=image.name, image_id=image.id,
                                     provider=self.provider
                                   )
-            image.os_type = self.list_images_set_os(image)
+            image.os_type = self.list_images_get_os(image)
 
             try:
                 _image.save()
@@ -774,8 +774,17 @@ class BaseComputeController(BaseController):
         """
         return CloudImage.objects(cloud=self.cloud)
 
-    def list_images_set_os(self,image):
-        return 'linux'
+    def list_images_get_os(self,image):
+        if 'coreos' in image.name.lower():
+            return 'coreos'
+        elif 'centos' in image.name.lower():
+            return 'centos'
+        elif 'window' in image.name.lower():
+            return 'windows'
+        elif 'gentoo' in image.name.lower():
+            return 'gentoo'
+        else:
+            return 'linux'
 
     def image_is_starred(self, image_id):
         starred = image_id in self.cloud.starred
