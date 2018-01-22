@@ -723,25 +723,6 @@ class ListZones(UserTask):
         return {'cloud_id': cloud_id, 'zones': ret}
 
 
-class ListImages(UserTask):
-    abstract = False
-    task_key = 'list_images'
-    result_expires = 60 * 60 * 24 * 7
-    result_fresh = 60 * 60
-    polling = False
-    soft_time_limit = 60*2
-
-    def execute(self, owner_id, cloud_id):
-        from mist.api import methods
-        owner = Owner.objects.get(id=owner_id)
-        log.warn('Running list images for user %s cloud %s',
-                 owner.id, cloud_id)
-        images = methods.list_images(owner, cloud_id)
-        log.warn('Returning list images for user %s cloud %s',
-                 owner.id, cloud_id)
-        return {'cloud_id': cloud_id, 'images': images}
-
-
 class ListProjects(UserTask):
     abstract = False
     task_key = 'list_projects'
