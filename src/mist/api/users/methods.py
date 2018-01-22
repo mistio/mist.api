@@ -1,3 +1,4 @@
+import copy
 import logging
 from time import time
 
@@ -103,11 +104,9 @@ def create_org_for_user(user, org_name='', promo_code=None, token=None,
 
     # assign promo if applicable
     if promo_code or token:
-        if config.HAS_CORE:
-            from mist.core.methods import assign_promo
-        else:
-            from mist.api.dummy.methods import assign_promo
-        assign_promo(org, promo_code, token)
+        if config.HAS_BILLING:
+            from mist.billing.methods import assign_promo
+            assign_promo(org, promo_code, token)
     return org
 
 
@@ -158,6 +157,13 @@ def get_user_data(auth_context):
     if user.role == 'Admin':
         upgrades = Portal.get_singleton().get_available_upgrades()
         ret['available_upgrades'] = upgrades
+    if config.HAS_BILLING:
+        from mist.billing.methods import get_all_user_plan_info
+        curr_plan, promos = get_all_user_plan_info(auth_context.org)
+        ret.update({
+            'current_plan': curr_plan,
+            'stripe_public_apikey': config.STRIPE_PUBLIC_APIKEY,
+        })
     return ret
 
 
@@ -181,6 +187,22 @@ def filter_org(auth_context):
                if auth_context.is_owner() or m['id'] in team_mates]
     org['teams'] = teams
     org['members'] = members
+
+    # Billing info
+    if config.HAS_BILLING:
+        from mist.billing.methods import get_subscription_history
+        from mist.billing.methods import get_all_user_plan_info
+        current_plan, promos = get_all_user_plan_info(auth_context.org)
+        available_plans = copy.deepcopy(config.PLANS)
+        # customize enterprise plan if one is assigned to user
+        if auth_context.org.enterprise_plan:
+            available_plans[-1] = auth_context.org.enterprise_plan
+            available_plans[-1]['visible'] = True
+        org['available_plans'] = available_plans
+        org['subscription_history'] = get_subscription_history(
+            auth_context.org)
+        org['current_plan'] = current_plan
+        org['promos'] = promos
 
     return org
 
