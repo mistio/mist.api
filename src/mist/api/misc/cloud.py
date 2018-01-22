@@ -99,7 +99,7 @@ class CloudImage(me.Document):
         return {
             'id': self.image_id,
             'provider': self.provider,
-            'size_id': self.id,
+            'image_id': self.id,
             'name': self.name,
             'os_type': self.os_type
         }
