@@ -71,8 +71,10 @@ def _alert_pretty_details(owner, rule_id, value, triggered, timestamp,
 
     state = "WARNING" if triggered else "OK"
     # calculate nice host label
-    ips = ", ".join(machine.public_ips) if machine.public_ips else ", ".join(machine.private_ips)
-    hostname = machine.hostname if (machine.hostname and machine.hostname != 'n/a') else ''
+    ips = ", ".join(machine.public_ips) if machine.public_ips \
+                                        else ", ".join(machine.private_ips)
+    hostname = machine.hostname if (
+        machine.hostname and machine.hostname != 'n/a') else ''
     if not hostname:
         host = ips
     else:

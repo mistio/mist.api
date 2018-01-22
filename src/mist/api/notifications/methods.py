@@ -1,21 +1,11 @@
 import os
-import json
-import time
-import urllib
 import logging
-import datetime
 
 from chameleon import PageTemplateFile
 
-from mist.api import config
-from mist.api.helpers import encrypt
-from mist.api.helpers import mac_sign
-
 from mist.api.rules.models import Rule
 from mist.api.users.models import User
-from mist.api.users.models import Organization
 
-from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 
 from mist.api.notifications.models import EmailAlert

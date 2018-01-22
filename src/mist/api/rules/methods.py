@@ -1,4 +1,5 @@
 import operator
+import logging
 
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import MachineNotFoundError
@@ -6,6 +7,9 @@ from mist.api.exceptions import MachineNotFoundError
 from mist.api.rules.tasks import run_action_by_id
 from mist.api.rules.models import Rule
 from mist.api.rules.actions import NotificationAction
+
+
+log = logging.getLogger(__name__)
 
 
 def run_chained_actions(rule_id, machine, value, triggered, timestamp,

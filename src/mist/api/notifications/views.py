@@ -26,10 +26,6 @@ from mist.api.notifications.models import InAppNotification
 from mist.api.notifications.models import NotificationOverride
 from mist.api.notifications.models import UserNotificationPolicy
 
-from mist.api.rules.models import Rule
-
-from mist.api.machines.models import Machine
-
 from mist.api import config
 
 
@@ -181,12 +177,17 @@ def request_unsubscription(request):
 
     unsubscribe_options = [{"id": "all", "title": "all mist.io emails"}]
     if channel == "EmailReports":
-        unsubscribe_options.insert(0, {"id": "channel", "title": "mist.io weekly reports"})
+        unsubscribe_options.insert(0, {
+            "id": "channel", "title": "mist.io weekly reports"
+        })
     else: # channel == "EmailAlert":
-        unsubscribe_options.insert(0, {"id": "channel", "title": "all mist.io email alerts"})
+        unsubscribe_options.insert(0, {
+            "id": "channel", "title": "all mist.io email alerts"
+        })
         if rtype == 'rule':
-            rule = Rule.objects.get(id=rid)
-            unsubscribe_options.insert(0, {"id": "rule", "title": "alerts about this rule"})
+            unsubscribe_options.insert(0, {
+                "id": "rule", "title": "alerts about this rule"
+            })
 
     inputs.update({
         'options': unsubscribe_options

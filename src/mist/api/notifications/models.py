@@ -75,8 +75,10 @@ class NotificationOverride(me.EmbeddedDocument):
             'rid': self.rid,
             'rtype': self.rtype,
             'channel': self.channel,
-            'machine': machine and {"_ref": {"$ref": "machines", "$id": machine.id}},
-            'cloud': machine and {"_ref": {"$ref": "clouds", "$id": machine.cloud.id}},
+            'machine': machine and {
+                "_ref": {"$ref": "machines", "$id": machine.id}},
+            'cloud': machine and {
+                "_ref": {"$ref": "clouds", "$id": machine.cloud.id}},
             'value': self.value,
         }
 
