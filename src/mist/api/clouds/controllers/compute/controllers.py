@@ -868,6 +868,9 @@ class VultrComputeController(BaseComputeController):
     def _list_machines__get_location(self, node):
         return node.extra.get('location')
 
+    def list_images_set_os(self,image):
+        return image.extra.get('family')
+
 
 class VSphereComputeController(BaseComputeController):
 
