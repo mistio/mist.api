@@ -1186,7 +1186,34 @@ class DockerComputeController(BaseComputeController):
             images += self.connection.ex_search_images(term=search)[:100]
         else:
             images += self.connection.list_images()
-        return images
+
+        log.info("List images returned %d results for %s.",
+                 len(images), self.cloud)
+        _images = []
+
+        for image in images:
+
+            # create the object in db if it does not exist
+            try:
+                _image = CloudImage.objects.get(cloud=self.cloud,
+                                                image_id=image.id)
+            except CloudImage.DoesNotExist:
+                _image = CloudImage(cloud=self.cloud,
+                                    name=image.name, image_id=image.id,
+                                    provider=self.provider
+                                  )
+            image.os_type = self.list_images_get_os(image)
+            # self.image_is_starred(img.id)}
+
+            try:
+                _image.save()
+                _images.append(_image)
+            except me.ValidationError as exc:
+                log.error("Error adding %s: %s", _image.name, exc.to_dict())
+                raise BadRequestError({"msg": exc.message,
+                                       "errors": exc.to_dict()})
+
+        return _images
 
     def image_is_default(self, image_id):
         return image_id in config.DOCKER_IMAGES
@@ -1307,7 +1334,6 @@ class LibvirtComputeController(BaseComputeController):
             machine.extra['xml_description'] = escape(xml_desc)
 
     def _list_images__fetch_images(self, search=None):
-        import ipdb; ipdb.set_trace()
         images = self.connection.list_images(location=self.cloud.images_location)
         log.info("List images returned %d results for %s.",
                  len(images), self.cloud)
