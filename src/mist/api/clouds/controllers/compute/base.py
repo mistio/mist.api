@@ -773,7 +773,7 @@ class BaseComputeController(BaseController):
         for a specific cloud
         """
         return CloudImage.objects(cloud=self.cloud)
-        
+
     def image_is_starred(self, image_id):
         starred = image_id in self.cloud.starred
         unstarred = image_id in self.cloud.unstarred
