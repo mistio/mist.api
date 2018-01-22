@@ -660,7 +660,7 @@ class BaseComputeController(BaseController):
         task = PeriodicTaskInfo.get_or_add(task_key)
         try:
             with task.task_runner(persist=persist):
-                cached_images = {'%s' % im.id: s.as_dict()
+                cached_images = {'%s' % im.id: im.as_dict()
                                 for im in self.list_cached_images()}
                 images = self._list_images__fetch_images()
         except PeriodicTaskThresholdExceeded:
@@ -705,6 +705,7 @@ class BaseComputeController(BaseController):
         """
 
         # Fetch images list, usually from libcloud connection.
+        import ipdb; ipdb.set_trace()
         images = self.connection.list_images()
         if not isinstance(images, list):
             images = list(images)
@@ -729,7 +730,7 @@ class BaseComputeController(BaseController):
         images = [img for img in images
                   if img.name and img.id[:3] not in ('aki', 'ari')]
 
-
+        import ipdb; ipdb.set_trace()
         log.info("List images returned %d results for %s.",
                  len(images), self.cloud)
         _images = []
@@ -740,13 +741,12 @@ class BaseComputeController(BaseController):
             try:
                 _image = CloudImage.objects.get(cloud=self.cloud,
                                                 image_id=image.id)
-            except CloudSize.DoesNotExist:
+            except CloudImage.DoesNotExist:
                 _image = CloudImage(cloud=self.cloud,
                                     name=image.name, image_id=image.id,
                                     provider=self.provider
                                   )
-            # image.os_type
-            #image.description
+            image.os_type = self.list_images_set_os(image)
 
             try:
                 _image.save()
@@ -773,6 +773,9 @@ class BaseComputeController(BaseController):
         for a specific cloud
         """
         return CloudImage.objects(cloud=self.cloud)
+
+    def list_images_set_os(self,image):
+        return 'linux'
 
     def image_is_starred(self, image_id):
         starred = image_id in self.cloud.starred
