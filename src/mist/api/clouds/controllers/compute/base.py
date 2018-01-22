@@ -325,7 +325,7 @@ class BaseComputeController(BaseController):
             size = self._list_machines_get_size(node)
 
             machine.name = node.name
-            machine.image_id = image_id
+            # machine.image_id = image_id
             # for now!
             # machine.size = size
             machine.state = config.STATES[node.state]
@@ -705,7 +705,7 @@ class BaseComputeController(BaseController):
         """
 
         # Fetch images list, usually from libcloud connection.
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
         images = self.connection.list_images()
         if not isinstance(images, list):
             images = list(images)
@@ -730,7 +730,7 @@ class BaseComputeController(BaseController):
         images = [img for img in images
                   if img.name and img.id[:3] not in ('aki', 'ari')]
 
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
         log.info("List images returned %d results for %s.",
                  len(images), self.cloud)
         _images = []
@@ -762,7 +762,7 @@ class BaseComputeController(BaseController):
                                        "errors": exc.to_dict()})
 
         # Sort images: Starred first, then alphabetically.
-        images.sort(key=lambda image: (not image['star'], image['name']))
+        #images.sort(key=lambda image: (not image['star'], image['name']))
 
         return _images
 
@@ -817,7 +817,7 @@ class BaseComputeController(BaseController):
 
         task_key = 'cloud:list_sizes:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
         try:
             with task.task_runner(persist=persist):
                 cached_sizes = {'%s' % s.id: s.as_dict()
