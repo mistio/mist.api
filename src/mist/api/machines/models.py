@@ -377,7 +377,8 @@ class Machine(me.Document):
                         for action in self.actions},
             'extra': self.extra,
             'cost': self.cost.as_dict(),
-            'image_id': self.image_id,
+            # TODO:migration needed first!
+            # 'image_id': self.image_id,
             'size': self.size,
             'state': self.state,
             'tags': tags,
