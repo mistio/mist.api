@@ -766,7 +766,7 @@ class BaseComputeController(BaseController):
 
         # Sort images: Starred first, then alphabetically.
         #images.sort(key=lambda image: (not image['star'], image['name']))
-        return [img.as_dict() for img in _images]
+        return _images
 
     def list_cached_images(self):
         """Return list of images from database
@@ -937,7 +937,7 @@ class BaseComputeController(BaseController):
                                            image_id=image_id)
         except CloudImage.DoesNotExist:
             image = ''
-        return image
+        return
 
     def list_locations(self, persist=True):
         """Return list of locations for cloud
