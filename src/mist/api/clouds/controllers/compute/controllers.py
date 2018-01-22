@@ -619,7 +619,7 @@ class AzureArmComputeController(BaseComputeController):
                 _image = CloudImage(cloud=self.cloud,
                                     name=image.name, image_id=image.id,
                                     provider=self.provider
-                                  )
+                                    )
             image.os_type = self.list_images_get_os(image)
             # self.image_is_starred(img.id)}
 
@@ -1257,7 +1257,7 @@ class DockerComputeController(BaseComputeController):
                 _image = CloudImage(cloud=self.cloud,
                                     name=image.name, image_id=image.id,
                                     provider=self.provider
-                                  )
+                                    )
             image.os_type = self.list_images_get_os(image)
             # self.image_is_starred(img.id)}
 
@@ -1406,7 +1406,7 @@ class LibvirtComputeController(BaseComputeController):
                 _image = CloudImage(cloud=self.cloud,
                                     name=image.name, image_id=image.id,
                                     provider=self.provider
-                                  )
+                                    )
             image.os_type = self.list_images_get_os(image)
 
             try:
