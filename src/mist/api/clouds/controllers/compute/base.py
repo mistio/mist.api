@@ -661,7 +661,7 @@ class BaseComputeController(BaseController):
         try:
             with task.task_runner(persist=persist):
                 cached_images = {'%s' % im.id: im.as_dict()
-                                for im in self.list_cached_images()}
+                                 for im in self.list_cached_images()}
                 images = self._list_images__fetch_images()
         except PeriodicTaskThresholdExceeded:
             self.cloud.disable()
@@ -679,7 +679,7 @@ class BaseComputeController(BaseController):
             else:
                 # Publish patches to rabbitmq.
                 new_images = {'%s' % image.id: image.as_dict()
-                             for image in images}
+                              for image in images}
                 patch = jsonpatch.JsonPatch.from_diff(cached_images,
                                                       new_images).patch
                 if patch:
@@ -690,7 +690,6 @@ class BaseComputeController(BaseController):
                                             'patch': patch})
 
         return images
-
 
     def _list_images__fetch_images(self, search=None):
         """Fetch image listing in a libcloud compatible format
@@ -749,7 +748,7 @@ class BaseComputeController(BaseController):
                 _image = CloudImage(cloud=self.cloud,
                                     name=image.name, image_id=image.id,
                                     provider=self.provider
-                                  )
+                                    )
             image.os_type = self.list_images_get_os(image)
             # self.image_is_starred(img.id)}
 
@@ -772,7 +771,7 @@ class BaseComputeController(BaseController):
         """
         return CloudImage.objects(cloud=self.cloud)
 
-    def list_images_get_os(self,image):
+    def list_images_get_os(self, image):
         if 'coreos' in image.name.lower():
             return 'coreos'
         elif 'centos' in image.name.lower():
@@ -817,7 +816,6 @@ class BaseComputeController(BaseController):
 
         task_key = 'cloud:list_sizes:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
-        # import ipdb; ipdb.set_trace()
         try:
             with task.task_runner(persist=persist):
                 cached_sizes = {'%s' % s.id: s.as_dict()
@@ -937,7 +935,6 @@ class BaseComputeController(BaseController):
         implementation.
 
         """
-        #import ipdb; ipdb.set_trace()
         task_key = 'cloud:list_locations:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
         try:

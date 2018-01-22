@@ -389,7 +389,7 @@ class RackSpaceComputeController(BaseComputeController):
     def _list_sizes_set_description(self, size, cpu):
         return size.name + ' (%d cpus)' % cpu
 
-    def list_images_get_os(self,image):
+    def list_images_get_os(self, image):
         return image.extra.get('metadata').get('os_type')
 
 
@@ -893,7 +893,7 @@ class VultrComputeController(BaseComputeController):
     def _list_machines__get_location(self, node):
         return node.extra.get('location')
 
-    def list_images_get_os(self,image):
+    def list_images_get_os(self, image):
         return image.extra.get('family')
 
 
@@ -1363,7 +1363,8 @@ class LibvirtComputeController(BaseComputeController):
             machine.extra['xml_description'] = escape(xml_desc)
 
     def _list_images__fetch_images(self, search=None):
-        images = self.connection.list_images(location=self.cloud.images_location)
+        location = self.cloud.images_location
+        images = self.connection.list_images(location=location)
         log.info("List images returned %d results for %s.",
                  len(images), self.cloud)
         _images = []
