@@ -737,6 +737,10 @@ class BaseComputeController(BaseController):
 
         for image in images:
 
+            # why the hell is this needed?
+            if self.provider == 'gce':
+                image.extra.pop('licenses', None)
+
             # create the object in db if it does not exist
             try:
                 _image = CloudImage.objects.get(cloud=self.cloud,
@@ -747,6 +751,7 @@ class BaseComputeController(BaseController):
                                     provider=self.provider
                                   )
             image.os_type = self.list_images_get_os(image)
+            # self.image_is_starred(img.id)}
 
             try:
                 _image.save()
@@ -755,13 +760,6 @@ class BaseComputeController(BaseController):
                 log.error("Error adding %s: %s", _image.name, exc.to_dict())
                 raise BadRequestError({"msg": exc.message,
                                        "errors": exc.to_dict()})
-
-        # Turn images to dict to return and star them.
-        images = [{'id': img.id,
-                   'name': img.name,
-                   'extra': img.extra,
-                   'star': self.image_is_starred(img.id)}
-                  for img in images]
 
         # Sort images: Starred first, then alphabetically.
         images.sort(key=lambda image: (not image['star'], image['name']))

@@ -717,39 +717,6 @@ class GoogleComputeController(BaseComputeController):
                           "for machine %s:%s for %s",
                           machine.id, machine.name, self.cloud)
 
-    def _list_images__fetch_images(self, search=None):
-        images = self.connection.list_images()
-        # GCE has some objects in extra so we make sure they are not passed.
-        for image in images:
-            image.extra.pop('licenses', None)
-
-        log.info("List images returned %d results for %s.",
-                 len(images), self.cloud)
-        _images = []
-
-        for image in images:
-
-            # create the object in db if it does not exist
-            try:
-                _image = CloudImage.objects.get(cloud=self.cloud,
-                                                image_id=image.id)
-            except CloudImage.DoesNotExist:
-                _image = CloudImage(cloud=self.cloud,
-                                    name=image.name, image_id=image.id,
-                                    provider=self.provider
-                                  )
-            image.os_type = self.list_images_get_os(image)
-
-            try:
-                _image.save()
-                _images.append(_image)
-            except me.ValidationError as exc:
-                log.error("Error adding %s: %s", _image.name, exc.to_dict())
-                raise BadRequestError({"msg": exc.message,
-                                       "errors": exc.to_dict()})
-
-        return _images
-
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         if machine_libcloud.state == NodeState.STOPPED:
             return 0, 0
