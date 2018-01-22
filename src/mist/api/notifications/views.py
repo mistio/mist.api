@@ -18,7 +18,6 @@ from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.auth.methods import get_csrf_token
 from mist.api.auth.methods import auth_context_from_request
 
-from mist.api.users.models import User
 from mist.api.users.models import Organization
 
 from mist.api.notifications.models import Notification
@@ -180,7 +179,7 @@ def request_unsubscription(request):
         unsubscribe_options.insert(0, {
             "id": "channel", "title": "mist.io weekly reports"
         })
-    else: # channel == "EmailAlert":
+    else:  # channel == "EmailAlert":
         unsubscribe_options.insert(0, {
             "id": "channel", "title": "all mist.io email alerts"
         })
