@@ -211,7 +211,7 @@ class AmazonComputeController(BaseComputeController):
                 raise BadRequestError({"msg": exc.message,
                                        "errors": exc.to_dict()})
 
-        return _images
+        return [img.as_dict() for img in _images]
 
     def image_is_default(self, image_id):
         return image_id in config.EC2_IMAGES[self.cloud.region]
@@ -633,7 +633,7 @@ class AzureArmComputeController(BaseComputeController):
 
         #images.sort(key=lambda image: (not image['star'], image['name']))
 
-        return _images
+        return [img.as_dict() for img in _images]
 
     def _reboot_machine(self, machine, machine_libcloud):
         self.connection.reboot_node(machine_libcloud)
@@ -1269,7 +1269,7 @@ class DockerComputeController(BaseComputeController):
                 raise BadRequestError({"msg": exc.message,
                                        "errors": exc.to_dict()})
 
-        return _images
+        return [img.as_dict() for img in _images]
 
     def image_is_default(self, image_id):
         return image_id in config.DOCKER_IMAGES
@@ -1417,7 +1417,7 @@ class LibvirtComputeController(BaseComputeController):
                 raise BadRequestError({"msg": exc.message,
                                        "errors": exc.to_dict()})
 
-        return _images
+        return [img.as_dict() for img in _images]
 
     def _reboot_machine(self, machine, machine_libcloud):
         hypervisor = machine_libcloud.extra.get('tags', {}).get('type', None)
