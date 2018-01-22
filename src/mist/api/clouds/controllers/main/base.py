@@ -336,10 +336,12 @@ class BaseMainController(object):
         from mist.api.poller.models import ListMachinesPollingSchedule
         from mist.api.poller.models import ListLocationsPollingSchedule
         from mist.api.poller.models import ListSizesPollingSchedule
+        from mist.api.poller.models import ListImagesPollingSchedule
 
         ListMachinesPollingSchedule.add(cloud=self.cloud)
         ListLocationsPollingSchedule.add(cloud=self.cloud)
         ListSizesPollingSchedule.add(cloud=self.cloud)
+        ListImagesPollingSchedule.add(cloud=self.cloud)
 
     def delete(self, expire=False):
         """Delete a Cloud.
