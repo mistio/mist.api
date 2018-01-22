@@ -72,6 +72,8 @@ ENABLE_DEV_USERS = False
 MONGO_URI = "mongodb:27017"
 MONGO_DB = "mist2"
 
+DOMAIN_VALIDATION_WHITELIST = []
+
 # InfluxDB
 INFLUX = {
     "host": "http://influxdb:8086", "db": "telegraf"

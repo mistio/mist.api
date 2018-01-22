@@ -1,123 +1,134 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
-	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-	<title>Confirm Unsubscribe</title>
-	<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-	<style>
-		body {font-family: Roboto, Noto, sans-serif; font-size: 14px;}
-		h5   {font-weight: normal; font-size: 16px;}
-		a {color: #0099cc; text-decoration: none;}
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <title>Confirm Unsubscribe</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 
-		.header, .content, .footer {
-			width: 600px;
-			margin: 0 auto;
-		}
+    <style>
+        body {font-family: Roboto, Noto, sans-serif; font-size: 14px;}
+        h5   {font-weight: normal; font-size: 16px;}
+        a {color: #0099cc; text-decoration: none;}
 
-		.header {
-			padding: 24px 0;
-			border-bottom: 1px solid #dfdfe1;
-		}
+        .header, .content, .footer {
+            width: 600px;
+            margin: 0 auto;
+        }
 
-		.logo {
-			width:160px;
-			height: auto;
-		}
+        .header {
+            padding: 24px 0;
+            border-bottom: 1px solid #dfdfe1;
+        }
 
-		.button {
-			cursor: pointer;
-			display: block; 
-			background-color: #0099cc; 
-			color: #fff; 
-			padding: 1.18rem 1.1rem 1.1rem 1.1rem; 
-			font-weight: 500; 
-			text-decoration: none; 
-			width: 220px; 
-			margin: 0 auto; 
-			text-align: center; 
-			text-transform: uppercase; 
-			border-radius: 4px;
-		}
+        .logo {
+            width:160px;
+            height: auto;
+        }
 
-		a.back {
-			display: block;
-			padding: 18px 0;
-		}
+        .button {
+            cursor: pointer;
+            display: block; 
+            background-color: #0099cc; 
+            color: #fff; 
+            padding: 1.18rem 1.1rem 1.1rem 1.1rem; 
+            font-weight: 500; 
+            text-decoration: none; 
+            width: 220px; 
+            margin: 0 auto; 
+            text-align: center; 
+            text-transform: uppercase; 
+            border-radius: 4px;
+        }
 
-		.footer {
-			padding: 24px 0;
-			border-top: 1px solid #dfdfe1;
-			text-align: center;
-		}
+        a.back {
+            display: block;
+            padding: 18px 0;
+        }
 
-		.hidden {
-			display: none;
-		}
+        .footer {
+            padding: 24px 0;
+            border-top: 1px solid #dfdfe1;
+            text-align: center;
+        }
 
-	</style>
+        .hidden {
+            display: none;
+        }
 
-	<script type="text/javascript">
-		function request_unsubscribe() {
-			var url = "/api/v1/unsubscribe";
+        select {
+            padding: 8px
+        }
 
-			var data = {
-				"token": "${token}"
-			};
-			var json = JSON.stringify(data);
+        div.option {
+            margin: 50px 25%;
+        }
 
-			var xhr = new XMLHttpRequest();
-			xhr.open("PUT", url, true);
-			xhr.setRequestHeader('Content-type','application/json; charset=utf-8');
-			xhr.setRequestHeader('Csrf-Token', '${csrf_token}');
-			xhr.onload = function () {
-				if (xhr.status == "200") {
-					var confirm_prompt = document.getElementById("confirm");
-					confirm_prompt.classList.add("hidden");
-					var complete_prompt = document.getElementById("complete");
-					complete_prompt.classList.remove("hidden");
-				} else {
-					var confirm_prompt = document.getElementById("confirm");
-					confirm_prompt.classList.add("hidden");
-					var error_prompt = document.getElementById("error");
-					error_prompt.classList.remove("hidden");
-				}
-				var button = document.getElementById("unsub_button");
-				button.classList.add("hidden");
-			}
-			xhr.send(json);
-		}
-		
-	</script>
+    </style>
+
+    <script type="text/javascript">
+        var unsubscribeOption = '';
+        function request_unsubscribe() {
+            var url = "/api/v1/unsubscribe";
+            unsubscribeOption = document.getElementById("unsubscribe-option").value;
+            var data = {
+                "token": "${token}",
+                "option": unsubscribeOption
+            };
+            var json = JSON.stringify(data);
+
+            var xhr = new XMLHttpRequest();
+            xhr.open("PUT", url, true);
+            xhr.setRequestHeader('Content-type','application/json; charset=utf-8');
+            xhr.setRequestHeader('Csrf-Token', '${csrf_token}');
+            xhr.onload = function () {
+                if (xhr.status == "200") {
+                    var confirm_prompt = document.getElementById("confirm");
+                    confirm_prompt.classList.add("hidden");
+                    var complete_prompt = document.getElementById("complete");
+                    complete_prompt.classList.remove("hidden");
+                } else {
+                    var confirm_prompt = document.getElementById("confirm");
+                    confirm_prompt.classList.add("hidden");
+                    var error_prompt = document.getElementById("error");
+                    error_prompt.classList.remove("hidden");
+                }
+                var button = document.getElementById("unsub_button");
+                button.classList.add("hidden");
+            }
+            xhr.send(json);
+        }
+        
+    </script>
 </head>
 <body>
 
 <div class="header">
-	<div class="menu">
-		<a href="${uri}"><img class="logo" src="landing/images/logo.svg"></a>
-	</div>
+    <div class="menu">
+        <a href="${uri}"><img class="logo" src="landing/images/logo.svg"></a>
+    </div>
 </div>
 
 <div class="content">
-	<h5 id="confirm">
-	Are you sure you want to unsubscribe from mist.io weekly reports?
-	</h5>
-	<h5 id="complete" class="hidden">
-	You have successfuly unsubscribed from the mist.io weekly reports.
-	</h5>
-	<h5 id="error" class="hidden">
-	An error occured.
-	</h5>
+    <div class="option" id="confirm">
+        <select id="unsubscribe-option"><option tal:repeat="option options" value="${option.id}">Unsubscribe from ${option.title}?</option></select>
+    </div>
+    <h5 id="complete" class="hidden">
+    You have successfuly unsubscribed.
+    </h5>
+    <h5 id="error" class="hidden">
+    An error occured.
+    </h5>
 
-	<div class="button-container">
-		<div id="unsub_button" class="button" onclick="request_unsubscribe()">Unsubscribe</div>
-	</div>
+    <div class="button-container">
+        <div id="unsub_button" class="button" onclick="request_unsubscribe()">Unsubscribe</div>
+    </div>
 
-	<a class="back" href="${uri}">Back to mist.io</a>
+    <a class="back" href="${uri}">Back to mist.io</a>
 </div>
 
 <div class="footer">
-	<a href="${uri}" style="text-decoration:none; color:#0099cc;">mist.io</a>, Inc  •  <a href="http://blog.mist.io" style="text-decoration:none; color:#0099cc;">Our Blog</a> <br>
-							620 Folsom St  •  San Francisco, CA  •  94107
+    <a href="${uri}" style="text-decoration:none; color:#0099cc;">mist.io</a>, Inc  •  <a href="http://blog.mist.io" style="text-decoration:none; color:#0099cc;">Our Blog</a> <br>
+                            620 Folsom St  •  San Francisco, CA  •  94107
 </div>
 
 </body>

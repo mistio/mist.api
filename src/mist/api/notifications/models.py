@@ -57,7 +57,8 @@ class NotificationOverride(me.EmbeddedDocument):
 
     @property
     def machine(self):
-        return Machine.objects.get(id=self.rid)
+        if self.rtype == 'machine':
+            return Machine.objects.get(id=self.rid)
 
     @property
     def cloud(self):
@@ -74,8 +75,8 @@ class NotificationOverride(me.EmbeddedDocument):
             'rid': self.rid,
             'rtype': self.rtype,
             'channel': self.channel,
-            'machine': {"_ref": {"$ref": "machines", "$id": machine.id}},
-            'cloud': {"_ref": {"$ref": "clouds", "$id": machine.cloud.id}},
+            'machine': machine and {"_ref": {"$ref": "machines", "$id": machine.id}},
+            'cloud': machine and {"_ref": {"$ref": "clouds", "$id": machine.cloud.id}},
             'value': self.value,
         }
 
@@ -84,7 +85,7 @@ class UserNotificationPolicy(me.Document):
     """A user's notification policy comprised of notification overrides."""
 
     owner = me.ReferenceField('Organization', required=True)
-    email = me.EmailField()
+    email = me.EmailField(domain_whitelist=config.DOMAIN_VALIDATION_WHITELIST)
     user_id = me.StringField()
 
     overrides = me.EmbeddedDocumentListField(NotificationOverride)
@@ -224,9 +225,8 @@ class Notification(me.Document):
 
     @property
     def machine(self):
-        if self.rtype != 'machine':
-            return None
-        return Machine.objects.get(id=self.rid)
+        if self.rtype == 'machine':
+            return Machine.objects.get(id=self.rid)
 
     @property
     def cloud(self):
@@ -241,18 +241,23 @@ class Notification(me.Document):
         return int(self.created_at.strftime('%s')) * 1000
 
     def as_dict(self):
-        machine = self.machine
-        return {
+        ret = {
             '_id': self.id,
             'source': self.source,
             'summary': self.subject,
             'subject': self.subject,
             'body': self.text_body,
             'html_body': self.html_body,
-            'machine': {"_ref": {"$ref": "machines", "$id": machine.id}},
-            'cloud': {"_ref": {"$ref": "clouds", "$id": machine.cloud.id}},
             'created_date': {"$date": self.created_at_int},
         }
+        if self.machine:
+            ret.update({
+                'machine': {
+                    "_ref": {"$ref": "machines", "$id": self.machine.id}},
+                'cloud': {
+                    "_ref": {"$ref": "clouds", "$id": self.machine.cloud.id}},
+            })
+        return ret
 
 
 class EmailNotification(Notification):

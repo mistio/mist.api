@@ -12,7 +12,6 @@ from mist.api.helpers import mac_sign, mac_verify
 
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import BadRequestError
-from mist.api.exceptions import InternalServerError
 from mist.api.exceptions import OrganizationNotFound
 from mist.api.exceptions import RequiredParameterMissingError
 
@@ -26,6 +25,10 @@ from mist.api.notifications.models import Notification
 from mist.api.notifications.models import InAppNotification
 from mist.api.notifications.models import NotificationOverride
 from mist.api.notifications.models import UserNotificationPolicy
+
+from mist.api.rules.models import Rule
+
+from mist.api.machines.models import Machine
 
 from mist.api import config
 
@@ -113,17 +116,19 @@ def delete_notification_override(request):
     override_id = params.get("override_id", {}).get("$oid")  # FIXME
     if not override_id:
         raise RequiredParameterMissingError("override_id")
+
     try:
         np = UserNotificationPolicy.objects.get(owner=auth_context.owner,
                                                 user_id=auth_context.user.id)
-        np.overrides.update(pull__id=override_id)
+        np.overrides = np.overrides.exclude(id=override_id)
+        np.save()
     except UserNotificationPolicy.DoesNotExist:
         raise NotFoundError("UserNotificationPolicy")
     return Response("OK", 200)
 
 
 @view_config(route_name='unsubscribe_page', request_method='GET')
-def request_unsubscribtion(request):
+def request_unsubscription(request):
     """Return an unsubscription request page
 
     Accepts a request, validates the unsubscribe token and returns a rendered
@@ -137,7 +142,7 @@ def request_unsubscribtion(request):
         decrypted_json = json.loads(decrypted_str)
     except Exception as exc:
         log.exception(repr(exc))
-        raise InternalServerError(ERROR_MSG)
+        raise BadRequestError(ERROR_MSG)
 
     # Verify HMAC.
     try:
@@ -149,7 +154,7 @@ def request_unsubscribtion(request):
         org_id = decrypted_json["org_id"]
     except KeyError as err:
         log.exception(repr(err))
-        raise InternalServerError(ERROR_MSG)
+        raise BadRequestError(ERROR_MSG)
 
     # Get Organization.
     try:
@@ -165,15 +170,33 @@ def request_unsubscribtion(request):
     channel = decrypted_json.get("channel")
     if not (email or user_id) and channel in CHANNELS:
         log.critical("Got invalid/insufficient data: %s", decrypted_json)
-        raise InternalServerError(ERROR_MSG)
+        raise BadRequestError(ERROR_MSG)
 
+    inputs = {"uri": config.CORE_URI,
+              "csrf_token": get_csrf_token(request),
+              "rid": rid,
+              "rype": rtype,
+              "channel": channel,
+              "org": org.id}
+
+    unsubscribe_options = [{"id": "all", "title": "all mist.io emails"}]
+    if channel == "EmailReports":
+        unsubscribe_options.insert(0, {"id": "channel", "title": "mist.io weekly reports"})
+    else: # channel == "EmailAlert":
+        unsubscribe_options.insert(0, {"id": "channel", "title": "all mist.io email alerts"})
+        if rtype == 'rule':
+            rule = Rule.objects.get(id=rid)
+            unsubscribe_options.insert(0, {"id": "rule", "title": "alerts about this rule"})
+
+    inputs.update({
+        'options': unsubscribe_options
+    })
     # Get the user's notification policy.
     qr = me.Q(owner=org)
     qr &= me.Q(user_id=user_id) if user_id else me.Q(email=email)
     np = UserNotificationPolicy.objects(qr).first()
 
     # Check if an override already exists.
-    inputs = {"uri": config.CORE_URI}
     if np:
         for override in np.overrides:
             if override.blocks(channel, rtype, rid):
@@ -193,26 +216,29 @@ def request_unsubscribtion(request):
         })
     except Exception as exc:
         log.exception(repr(exc))
-        raise InternalServerError(ERROR_MSG)
+        raise BadRequestError(ERROR_MSG)
 
     return render_to_response('templates/unsubscribe.pt', inputs)
 
 
 @view_config(route_name='unsubscribe', request_method='PUT', renderer='json')
-def confirm_unsubscribtion(request):
+def confirm_unsubscription(request):
     """Create a new notification override
 
     Accepts an override creation request and adds the corresponding override,
     creating a new override policy if it does not exist.
     """
     params = params_from_request(request)
-
     try:
         decrypted_str = decrypt(params["token"])
         decrypted_json = json.loads(decrypted_str)
     except Exception as exc:
         log.exception(repr(exc))
-        raise InternalServerError(ERROR_MSG)
+        raise BadRequestError(ERROR_MSG)
+
+    option = params.get("option")
+    if not option:
+        raise RequiredParameterMissingError("option")
 
     try:
         mac_verify(decrypted_json)
@@ -223,7 +249,7 @@ def confirm_unsubscribtion(request):
         org_id = decrypted_json["org_id"]
     except KeyError as err:
         log.exception(repr(err))
-        raise InternalServerError(ERROR_MSG)
+        raise BadRequestError(ERROR_MSG)
 
     try:
         org = Organization.objects.get(id=org_id)
@@ -237,7 +263,7 @@ def confirm_unsubscribtion(request):
     channel = decrypted_json.get("channel")
     if not (email or user_id) and channel in CHANNELS:
         log.critical("Got invalid/insufficient data: %s", decrypted_json)
-        raise InternalServerError(ERROR_MSG)
+        raise BadRequestError(ERROR_MSG)
 
     qr = me.Q(owner=org)
     qr &= me.Q(user_id=user_id) if user_id else me.Q(email=email)
@@ -248,13 +274,21 @@ def confirm_unsubscribtion(request):
         if override.blocks(channel, rtype, rid):
             return json.dumps({"response": "channel_blocked"})
     override = NotificationOverride()
-    override.channel = channel
-    override.rid = rid
-    override.rtype = rtype
+    if option == 'channel':
+        override.channel = channel
+    elif option == 'rule':
+        override.rid = rid
+        override.rtype = rtype
+        override.channel = channel
+    elif option == 'all':
+        pass
+    else:
+        raise BadRequestError("Invalid option '%s'" % option)
+
     np.overrides.append(override)
     try:
         np.save()
     except me.ValidationError as err:
         log.critical("Failed to save %s: %r", np, err)
-        raise InternalServerError(ERROR_MSG)
+        raise BadRequestError(ERROR_MSG)
     return json.dumps({"response": "override_added"})
