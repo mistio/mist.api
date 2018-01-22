@@ -51,6 +51,7 @@ from mist.api.tag.models import Tag
 from mist.api.machines.models import Machine
 from mist.api.misc.cloud import CloudLocation
 from mist.api.misc.cloud import CloudSize
+from mist.api.misc.cloud import CloudImage
 
 if config.HAS_CORE:
     from mist.core.vpn.methods import destination_nat as dnat
@@ -728,6 +729,33 @@ class BaseComputeController(BaseController):
         images = [img for img in images
                   if img.name and img.id[:3] not in ('aki', 'ari')]
 
+
+        log.info("List images returned %d results for %s.",
+                 len(images), self.cloud)
+        _images = []
+
+        for image in images:
+
+            # create the object in db if it does not exist
+            try:
+                _image = CloudImage.objects.get(cloud=self.cloud,
+                                                image_id=image.id)
+            except CloudSize.DoesNotExist:
+                _image = CloudImage(cloud=self.cloud,
+                                    name=image.name, image_id=image.id,
+                                    provider=self.provider
+                                  )
+            # image.os_type
+            #image.description
+
+            try:
+                _image.save()
+                _images.append(_image)
+            except me.ValidationError as exc:
+                log.error("Error adding %s: %s", _image.name, exc.to_dict())
+                raise BadRequestError({"msg": exc.message,
+                                       "errors": exc.to_dict()})
+
         # Turn images to dict to return and star them.
         images = [{'id': img.id,
                    'name': img.name,
@@ -738,8 +766,14 @@ class BaseComputeController(BaseController):
         # Sort images: Starred first, then alphabetically.
         images.sort(key=lambda image: (not image['star'], image['name']))
 
-        return images
+        return _images
 
+    def list_cached_images(self):
+        """Return list of images from database
+        for a specific cloud
+        """
+        return CloudImage.objects(cloud=self.cloud)
+        
     def image_is_starred(self, image_id):
         starred = image_id in self.cloud.starred
         unstarred = image_id in self.cloud.unstarred
