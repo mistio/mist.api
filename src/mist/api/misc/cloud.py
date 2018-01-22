@@ -47,7 +47,6 @@ class CloudImage(me.Document):
     cloud = me.ReferenceField('Cloud', required=True)
     provider = me.StringField()
     image_id = me.StringField(required=True)
-    description = me.StringField()
     name = me.StringField()
     os_type = me.StringField(default='linux')
 
@@ -69,7 +68,7 @@ class CloudImage(me.Document):
 
     def clean(self):
         # os_type is needed for the pricing per VM
-        if self.name and self.cloud_provider.startswith('ec2'):
+        if self.name and self.provider.startswith('ec2'):
             if 'suse linux enterprise' or 'sles' in self.name.lower():
                 self.os_type = 'sles'
             if 'red hat' or 'rhel' in self.name.lower():
@@ -82,7 +81,7 @@ class CloudImage(me.Document):
                         self.os_type = 'mswinSQLWeb'
             if 'vyatta' in self.name.lower():
                 self.os_type = 'vyatta'
-        if self.name and self.cloud_provider.startswith('rackspace'):
+        if self.name and self.provider.startswith('rackspace'):
             if 'red hat' in self.name.lower():
                 self.os_type = 'redhat'
             if 'windows server' in self.name.lower():
@@ -102,7 +101,6 @@ class CloudImage(me.Document):
             'provider': self.provider,
             'size_id': self.id,
             'name': self.name,
-            'description': self.description,
             'os_type': self.os_type
         }
 
