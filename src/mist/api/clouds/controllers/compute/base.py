@@ -322,10 +322,13 @@ class BaseComputeController(BaseController):
             image_id = str(node.image or node.extra.get('imageId') or
                            node.extra.get('image_id') or
                            node.extra.get('image') or '')
+
+            image = self._list_machines_get_image(image_id)
+
             size = self._list_machines_get_size(node)
 
             machine.name = node.name
-            # machine.image_id = image_id
+            # machine.image = image
             # for now!
             # machine.size = size
             machine.state = config.STATES[node.state]
@@ -922,6 +925,19 @@ class BaseComputeController(BaseController):
         except CloudSize.DoesNotExist:
             size = ''
         return size
+
+    def _list_machines_get_image(self, image_id):
+        """Return image from database for a
+        specific node
+
+        Subclasses MAY override this method.
+        """
+        try:
+            image = CloudImage.objects.get(cloud=self.cloud,
+                                           image_id=image_id)
+        except CloudImage.DoesNotExist:
+            image = ''
+        return image
 
     def list_locations(self, persist=True):
         """Return list of locations for cloud
