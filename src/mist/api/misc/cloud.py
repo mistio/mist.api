@@ -22,8 +22,7 @@ class CloudLocation(me.Document):
                 'unique': True,
                 'cls': False,
             },
-        ],
-        'strict': False,
+        ]
     }
 
     def __str__(self):
