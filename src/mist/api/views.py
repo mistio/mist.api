@@ -848,7 +848,8 @@ def set_password(request):
         reissue_cookie_session(request, user)
 
         ret = {'selectedPlan': selected_plan}
-        if user.promo_codes:
+        if config.HAS_BILLING and user.promo_codes:
+            from mist.billing.models import Promo
             promo_code = user.promo_codes[-1]
             promo = Promo.objects.get(code=promo_code)
             ret['hasPromo'] = True

@@ -47,7 +47,7 @@ def windows_install(machine):
           "RemoteSigned -Scope CurrentUser -Force;\n" \
           "(New-Object System.Net.WebClient).DownloadFile('" \
           "https://raw.githubusercontent.com/mistio/mist-telegraf/" \
-          "windows-monitoring/telegraf-windows.conf', " \
+          "master/telegraf-windows.conf', " \
           "'C:\Program Files\Telegraf\\telegraf.conf');\n" \
           "(Get-Content .\\telegraf.conf) -replace 'TELEGRAF_HOST', " \
           "$TELEGRAF_HOST | Set-Content .\\telegraf.conf;\n" \

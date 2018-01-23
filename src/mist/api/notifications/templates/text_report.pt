@@ -1,0 +1,25 @@
+Hi %name%,
+
+Last week your infrastructure spend totaled $${'{:,}'.format(round(inputs.last.total_cost, 2))}, that's <div tal:condition="inputs.diff.total_cost_diff > 0" tal:replace="string:${'$'+'{:,}'.format(abs(round(inputs.diff.total_cost_diff)))+' more than'}"/><div tal:condition="inputs.diff.total_cost_diff < 0" tal:replace="string:${'$'+'{:,}'.format(abs(round(inputs.diff.total_cost_diff)))+' less than'}"/><div tal:condition="inputs.diff.total_cost_diff == 0" tal:replace="string:the same as"/> the week before's $${'{:,}'.format(round(inputs.before.total_cost, 2))}, or a ${'{:,}'.format(round(inputs.diff.total_cost_percent, 2))}% change.
+
+In the table below you can see a limited breakdown of changes that drove your costs throughout last week.
+
+<div tal:condition="inputs.detail_stats.added_count" tal:replace="string:${inputs.detail_stats.added_count} new machines created ... + ${'$'+'{:,}'.format(round(inputs.detail_stats.added_cost, 2))}"/>
+<div tal:condition="inputs.detail_stats.deleted_count" tal:replace="string:${inputs.detail_stats.deleted_count} machines deleted ... - ${'$'+'{:,}'.format(round(inputs.detail_stats.deleted_cost, 2))}"/>
+<div tal:condition="inputs.detail_stats.total_cost > 0" tal:replace="string:Total ... + ${'$'+'{:,}'.format(abs(round(inputs.detail_stats.total_cost, 2)))}"/><div tal:condition="inputs.detail_stats.total_cost < 0" tal:replace="string:Total ... - ${'$'+'{:,}'.format(abs(round(inputs.detail_stats.total_cost, 2)))}"/><div tal:condition="inputs.detail_stats.total_cost == 0" tal:replace="string:Total ... $ 0.0"/>
+
+See complete cost report using the link below:
+https://mist.io/insights
+
+<div tal:condition="inputs.members_stats.new_members" tal:replace="string:Last week ${inputs.members_stats.new_members} new users were added to your organization, bringing the total up to ${inputs.members_stats.members} users."></div>
+
+--
+
+If you'd prefer not to receive these emails, you can unsubscribe using the link below:
+%nsub%
+
+Made by mist.io, Inc  |  620 Folsom St  |  San Francisco, CA  |  94107
+
+https://mist.io
+
+
