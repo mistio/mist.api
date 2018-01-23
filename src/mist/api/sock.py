@@ -386,12 +386,11 @@ class MainConnection(MistConnection):
                     self.send(key, cached)
 
     def update_notifications(self):
-        user = self.auth_context.user
-        org = self.auth_context.org
-        notifications_json = InAppNotification.objects(
-            user=user, organization=org, dismissed=False).to_json()
+        notifications = [ntf.as_dict() for ntf in InAppNotification.objects(
+                         owner=self.auth_context.org,
+                         dismissed_by__ne=self.auth_context.user.id)]
         log.info("Emitting notifications list")
-        self.send('notifications', notifications_json)
+        self.send('notifications', json.dumps(notifications))  # FIXME dump?
 
     def check_monitoring(self):
         try:
