@@ -762,9 +762,10 @@ class BaseComputeController(BaseController):
                 log.error("Error adding %s: %s", _image.name, exc.to_dict())
                 raise BadRequestError({"msg": exc.message,
                                        "errors": exc.to_dict()})
-
+        import ipdb; ipdb.set_trace()
         # Sort images: Starred first, then alphabetically.
-        #images.sort(key=lambda image: (not image['star'], image['name']))
+        # _images.sort(key=lambda image: (not image['star'], image['name']))
+        _images.sort(key=lambda image: (image['name']))
         return [img.as_dict() for img in _images]
 
     def list_cached_images(self):
