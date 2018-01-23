@@ -3,6 +3,7 @@ show-source = True
 statistics = True
 count = True
 ignore =
+    E722,  # bare except
 exclude =
     .git,
     __pycache__,

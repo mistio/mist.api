@@ -34,6 +34,7 @@ passlib
 pastedeploy  # Required for uwsgi paste logging, can probably be removed.
 pastescript  # Required for uwsgi paste logging, can probably be removed.
 pika
+pingparsing
 pretty
 pymongo
 # only tested with pyramid 1.4, possible incompatibilities with later versions
@@ -43,9 +44,9 @@ python-memcached
 python-openid
 pyvmomi==6.5
 requests
+sendgrid-python
 sockjs-tornado
 tornado
 tornado_profile
 uwsgidecorators
 websocket-client
-pingparsing
