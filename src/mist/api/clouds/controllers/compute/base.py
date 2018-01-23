@@ -306,7 +306,11 @@ class BaseComputeController(BaseController):
             machine.last_seen = now
             machine.missing_since = None
 
-            location_name = self._list_machines__get_location(node)
+            try:
+                location_name = self._list_machines__get_location(node)
+            except Exception as exc:
+                log.exception("Error while running list_nodes on %s", self.cloud)
+                raise CloudUnavailableError(exc=exc)
 
             if location_name:
 
