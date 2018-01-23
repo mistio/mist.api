@@ -17,7 +17,7 @@ class CloudLocation(me.Document):
         'collection': 'cloud_locations',
         'indexes': [
             {
-                'fields': ['cloud', 'location_id'],
+                'fields': ['cloud', 'name'],
                 'sparse': False,
                 'unique': True,
                 'cls': False,
