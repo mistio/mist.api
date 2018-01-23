@@ -17,7 +17,7 @@ class GraphiteBackendPlugin(base.BaseBackendPlugin):
         # No data ever reached Graphite? Is the whisper file missing?
         if not len(data):
             log.warning('Empty response for %s.%s', rid, query.target)
-            return None, None
+            raise methods.EmptyResponseReturnedError()
 
         # Check whether the query to Graphite returned multiple series. This
         # should never occur actually, since the query's target belongs to a
@@ -25,14 +25,14 @@ class GraphiteBackendPlugin(base.BaseBackendPlugin):
         # a single series.
         if len(data) > 1:
             log.warning('Got multiple series for %s.%s', rid, query.target)
-            return None, None
+            raise methods.MultipleSeriesReturnedError()
 
         # Ensure requested and returned targets match.
         data = data[0]
         target = data['_requested_target']
         if target != query.target:
             log.warning('Got %s while expecting %s', target, query.target)
-            return None, None
+            raise methods.RequestedTargetMismatchError()
 
         # Clean datapoints of None values.
         datapoints = [val for val, _ in data['datapoints'] if val is not None]
