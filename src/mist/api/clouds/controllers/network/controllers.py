@@ -169,6 +169,7 @@ class OpenStackNetworkController(BaseNetworkController):
     def _delete_subnet(self, subnet, libcloud_subnet):
         self.cloud.ctl.compute.connection.ex_delete_subnet(libcloud_subnet.id)
 
+
 class LibvirtNetworkController(BaseNetworkController):
 
     def _list_networks__postparse_network(self, network, libcloud_network):
