@@ -67,7 +67,7 @@ def add_cloud_v_2(owner, title, provider, params):
         owner.clouds_count = c_count
         owner.save()
 
-    cloud.polling_interval = 86400  # 24hrs * 60 min * 60 sec/min
+    cloud.polling_interval = 1800  # 30 min * 60 sec/min
     cloud.save()
     ListMachinesPollingSchedule.add(cloud=cloud)
     ListLocationsPollingSchedule.add(cloud=cloud)
