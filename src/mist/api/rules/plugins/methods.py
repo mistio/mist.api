@@ -11,6 +11,18 @@ class ResourceNotFoundError(Exception):
     pass
 
 
+class EmptyResponseReturnedError(Exception):
+    pass
+
+
+class MultipleSeriesReturnedError(Exception):
+    pass
+
+
+class RequestedTargetMismatchError(Exception):
+    pass
+
+
 def compute(operator, aggregate, values, threshold):
     """Compare the `values` against the specified `threshold`."""
     if aggregate == 'avg':  # Apply avg aggregator before the operator.
