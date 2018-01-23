@@ -658,7 +658,6 @@ class BaseComputeController(BaseController):
         default, dummy methods.
 
         """
-
         task_key = 'cloud:list_images:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
         try:
@@ -681,7 +680,7 @@ class BaseComputeController(BaseController):
                                         'images': images})
             else:
                 # Publish patches to rabbitmq.
-                new_images = {'%s' % image.id: image.as_dict()
+                new_images = {'%s' % image.get('image_id'): image
                               for image in images}
                 patch = jsonpatch.JsonPatch.from_diff(cached_images,
                                                       new_images).patch
