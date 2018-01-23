@@ -78,7 +78,7 @@ def log_event(owner_id, event_type, action, error=None, **kwargs):
             try:
                 event['email'] = User.objects.get(id=event['user_id']).email
             except User.DoesNotExist:
-                log.error('User %s does not exist', event['user_id'])
+                log.debug('User %s does not exist', event['user_id'])
 
         # Associate event with relevant stories.
         for key in ('job_id', 'shell_id', 'session_id', 'incident_id'):
