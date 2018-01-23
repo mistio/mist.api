@@ -850,7 +850,6 @@ class BaseComputeController(BaseController):
 
             try:
                 _location = CloudLocation.objects.get(cloud=self.cloud,
-                                                      location_id=loc.id,
                                                       name=loc.name)
             except CloudLocation.DoesNotExist:
                 _location = CloudLocation(cloud=self.cloud,
