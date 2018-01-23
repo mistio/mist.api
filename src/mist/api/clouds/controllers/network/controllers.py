@@ -173,8 +173,7 @@ class OpenStackNetworkController(BaseNetworkController):
 class LibvirtNetworkController(BaseNetworkController):
 
     def _list_networks__postparse_network(self, network, libcloud_network):
-        # import ipdb; ipdb.set_trace()
-        return []
+        return
 
     def _list_subnets__fetch_subnets(self, network):
         return []
