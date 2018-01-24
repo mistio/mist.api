@@ -5,7 +5,6 @@ import logging
 import mongoengine as me
 
 from mist.api import config
-from mist.api.methods import ssh_command
 from mist.api.logs.methods import log_event
 from mist.api.machines.models import Machine
 
@@ -146,6 +145,8 @@ class CommandAction(BaseAlertAction):
     command = me.StringField(required=True)
 
     def run(self, machine, *args, **kwargs):
+        # FIXME Imported here due to circular dependency issues.
+        from mist.api.methods import ssh_command
         assert isinstance(machine, Machine)
         assert machine.owner == self._instance.owner
         return ssh_command(machine.owner, machine.cloud.id, machine.machine_id,
