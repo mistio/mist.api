@@ -54,6 +54,8 @@ class PeriodicTaskInfo(me.Document):
     # Abort task if previous attempt was in less than this time before.
     min_interval = datetime.timedelta(seconds=5)
 
+    meta = {'indexes': ['key']}
+
     @classmethod
     def get_or_add(cls, key):
         try:
@@ -167,7 +169,6 @@ class PeriodicTaskInfo(me.Document):
         1. Takes care of using locks to prevent concurrent runs of the same
            task.
         2. Tracks last success, last failure, and failure count of this task.
-        3.
 
         """
 
