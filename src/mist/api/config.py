@@ -8,6 +8,7 @@ import ssl
 import json
 import logging
 import datetime
+import urlparse
 
 import libcloud.security
 from libcloud.compute.types import Provider
@@ -73,12 +74,14 @@ ENABLE_DEV_USERS = False
 MONGO_URI = "mongodb:27017"
 MONGO_DB = "mist2"
 
+DOMAIN_VALIDATION_WHITELIST = []
+
 # InfluxDB
 INFLUX = {
     "host": "http://influxdb:8086", "db": "telegraf"
 }
 
-TELEGRAF_TARGET = "http://traefik"
+TELEGRAF_TARGET = ""
 TRAEFIK_API = "http://traefik:8080"
 
 # Default, built-in metrics.
@@ -358,6 +361,12 @@ MAILER_SETTINGS = {
     'mail.password': "",
 }
 
+EMAIL_FROM = "Mist.io team <we@mist.io>"
+EMAIL_ALERTS = "alert@mist.io"
+EMAIL_REPORTS = "reports@mist.io"
+EMAIL_NOTIFICATIONS = "notifications@mist.io"
+EMAIL_ALERTS_BCC = ""
+
 GITHUB_BOT_TOKEN = ""
 
 NO_VERIFY_HOSTS = []
@@ -371,7 +380,6 @@ FAILED_LOGIN_RATE_LIMIT = {
     'max_logins_period': 60,    # in that many seconds
     'block_period': 60          # after that block for that many seconds
 }
-
 
 BANNED_EMAIL_PROVIDERS = [
     'mailinator.com',
@@ -447,7 +455,6 @@ BANNED_EMAIL_PROVIDERS = [
 
 SECRET = ""
 
-
 NOTIFICATION_EMAIL = {
     'all': "",
     'dev': "",
@@ -457,7 +464,8 @@ NOTIFICATION_EMAIL = {
     'support': "",
 }
 
-EMAIL_FROM = ""
+# Sendgrid
+SENDGRID_EMAIL_NOTIFICATIONS_KEY = ""
 
 # Monitoring Related
 COLLECTD_HOST = ""
@@ -1149,11 +1157,13 @@ ALLOW_SIGNIN_GITHUB = False
 ENABLE_TUNNELS = False
 ENABLE_ORCHESTRATION = False
 ENABLE_INSIGHTS = False
-ENABLE_BILLING = STRIPE_PUBLIC_APIKEY = False
+STRIPE_PUBLIC_APIKEY = False
 ENABLE_RBAC = False
 ENABLE_AB = False
 ENABLE_MONITORING = True
 MACHINE_PATCHES = True
+
+PLUGINS = []
 
 ## DO NOT PUT ANYTHING BELOW HERE UNLESS YOU KNOW WHAT YOU ARE DOING
 
@@ -1228,6 +1238,17 @@ for override_file in CONFIG_OVERRIDE_FILES:
     else:
         print >> sys.stderr, "Couldn't find settings file in %s" % override_file
 
+HAS_BILLING = 'billing' in PLUGINS
+
+
+# Update TELEGRAF_TARGET.
+
+if not TELEGRAF_TARGET:
+    if urlparse.urlparse(CORE_URI).hostname in ('localhost', '127.0.0.1'):
+        TELEGRAF_TARGET = "http://traefik"
+    else:
+        TELEGRAF_TARGET = CORE_URI + '/ingress'
+
 
 # Update celery settings.
 CELERY_SETTINGS.update({
@@ -1286,12 +1307,12 @@ HOMEPAGE_INPUTS = {
     'enable_tunnels': ENABLE_TUNNELS,
     'enable_orchestration': ENABLE_ORCHESTRATION,
     'enable_insights': ENABLE_INSIGHTS,
-    'enable_billing': ENABLE_BILLING,
+    'enable_billing': HAS_BILLING,
     'enable_ab': ENABLE_AB,
     'enable_monitoring': ENABLE_MONITORING,
 }
 
-if ENABLE_BILLING and STRIPE_PUBLIC_APIKEY:
+if HAS_BILLING and STRIPE_PUBLIC_APIKEY:
     HOMEPAGE_INPUTS['stripe_public_apikey'] = STRIPE_PUBLIC_APIKEY
 ## DO NOT PUT REGULAR SETTINGS BELOW, PUT THEM ABOVE THIS SECTION
 

@@ -1,0 +1,64 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+	<title>Mist.io Alerts</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+</head>
+<body style="margin: 0; padding: 0;">
+
+<table align="center" border="0" cellpadding="0" cellspacing="0" width="600">
+	<tr>
+		<td>
+			<table border="0" cellpadding="0" cellspacing="0" width="100%">
+				<tr>
+					<td align="left" style="padding: 8px 0 8px 18px; background-color: #f4f4f4;"  width="50%">
+			 			<img src="${inputs.uri}/landing/images/logo-email-440.png" alt="mist.io" width="216" height="97" style="display: block;" />
+					</td>
+					<td align="right" style="background-color: #f4f4f4; padding: 2px 18px 2px 0; font-family: Arial, sans-serif; font-size: 14px;"  width="50%">
+			 			<h4 style="margin: 6px 0 6px 0;">Alert for ${inputs.name}</h4>
+					</td>
+				</tr>
+			</table>
+		</td>
+	</tr>
+	<tr>
+		<td style="background-color: #ffffff;">
+			<div style="padding: 30px 0 20px 0; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.5em;">
+
+				<div>Machine name: ${inputs.name}</div>
+				<div>Host: ${inputs.host}</div>
+				<div>Condition: ${inputs.condition}</div>
+				<div>State: ${inputs.state}</div>
+				<div>Action: ${inputs.action}</div>
+				<div>Date: ${inputs.time}</div>
+
+			</div>
+			<div style="padding: 30px 0 20px 0; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.5em;">
+
+				<div>${inputs.state} - ${inputs.metric_name} is ${inputs.curr_value}</div>
+				<div>${inputs.since}</div>
+
+				<div>${inputs.machine_link}</div>
+
+			</div>
+		</td>
+	</tr>
+	<tr>
+		<td>
+			<table border="0" cellpadding="0" cellspacing="0" width="100%" style="padding: 20px 0 20px 0;">
+				<tr>
+					<td align="center" style="font-family: Arial, sans-serif; font-size: 11px; color: #888;">
+						If you'd prefer not to receive these emails, you can unsubscribe <a href="%nsub%" style="text-decoration:none; color:#0099cc;">here</a>.<br><br>
+						Made by <a href="${inputs.uri}" style="text-decoration:none; color:#0099cc;">mist.io</a>, Inc  •  <a href="http://blog.mist.io" style="text-decoration:none; color:#0099cc;">Our Blog</a> <br>
+						620 Folsom St  •  San Francisco, CA  •  94107
+					</td>
+				</tr>
+			</table>
+
+		</td>
+	</tr>
+</table>
+
+</body>
+</html>

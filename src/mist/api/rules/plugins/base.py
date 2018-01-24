@@ -86,12 +86,15 @@ class BaseBackendPlugin(object):
             if state:
                 active_states.update({incident: state})
 
+        # Clean states. Remove states that refer to missing/deleted resources
+        # or states that have expired.
         if update_state is True:
             self.rule.states.update(active_states)
             self.rule.states = {
                 incident: state for
-                incident, state in self.rule.states.iteritems() if not
-                (state.expired() or state['resource'] in remove_states)
+                incident, state in self.rule.states.iteritems() if
+                state.resource in (set(self.rids) ^ remove_states) and not
+                state.expired()
             }
             self.rule.save()
 

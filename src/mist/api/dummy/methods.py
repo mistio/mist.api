@@ -2,10 +2,6 @@
 core functions"""
 
 
-def assign_promo(org, promo_code='', promo_token='', force=False):
-    return None
-
-
 def dnat(owner, ip_addr, port=''):
     if port:
         return ip_addr, port
@@ -22,10 +18,6 @@ def filter_list_templates(auth_context):
 
 def filter_list_stacks(auth_context):
     return {}
-
-
-def get_user_data(auth_context):
-    return
 
 
 def filter_list_tags(auth_context, scripts=None, perm='read'):

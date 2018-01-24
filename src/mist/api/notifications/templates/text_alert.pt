@@ -1,0 +1,24 @@
+================== Mist.io Alert ===================
+
+Machine name: ${inputs.name}
+Host: ${inputs.host}
+Condition: ${inputs.condition}
+State: ${inputs.state}
+Action: ${inputs.action}
+Date: ${inputs.time}
+
+===================== Details ======================
+
+${inputs.state} - ${inputs.metric_name} is ${inputs.curr_value} since ${inputs.since}
+
+If you wish to access your machine, you can use the following link:
+${inputs.machine_link}
+
+====================================================
+
+If you'd prefer not to receive these emails, you can unsubscribe using the link below:
+%nsub%
+
+Made by mist.io, Inc  |  620 Folsom St  |  San Francisco, CA  |  94107
+
+Visit ${inputs.uri}
