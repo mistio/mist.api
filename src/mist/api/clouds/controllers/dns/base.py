@@ -72,7 +72,56 @@ class BaseDNSController(BaseController):
 
     """
 
-    def list_zones(self):
+    def list_zones(self, persist=True):
+        """Return list of zones for cloud
+
+        Subclasses SHOULD NOT override or extend this method.
+
+        This method wraps `_list_zones` which contains the core
+        implementation.
+
+        """
+        task_key = 'cloud:list_zones:%s' % self.cloud.id
+        task = PeriodicTaskInfo.get_or_add(task_key)
+        try:
+            with task.task_runner(persist=persist):
+                cached_zones = {'%s' % z.id: z.as_dict()
+                                for z in self.list_cached_zones()}
+
+                zones = self._list_zones()
+        except PeriodicTaskThresholdExceeded:
+            self.cloud.disable()
+            raise
+
+        # Initialize AMQP connection to reuse for multiple messages.
+        amqp_conn = Connection(config.AMQP_URI)
+        if amqp_owner_listening(self.cloud.owner.id):
+            if not config.ZONE_PATCHES:
+                amqp_publish_user(self.cloud.owner.id,
+                                  routing_key='list_zones',
+                                  connection=amqp_conn,
+                                  data={'cloud_id': self.cloud.id,
+                                        'zones': [z.as_dict()
+                                                  for z in zones]})
+            else:
+                # Publish patches to rabbitmq.
+                new_zones = {'%s' % z.id: z.as_dict()
+                                 for z in zones}
+
+                patch = jsonpatch.JsonPatch.from_diff(cached_zones,
+                                                      new_zones).patch
+
+                if patch:
+                    amqp_publish_user(self.cloud.owner.id,
+                                      routing_key='patch_zones',
+                                      connection=amqp_conn,
+                                      data={'cloud_id': self.cloud.id,
+                                            'patch': patch})
+
+        return zones
+
+
+    def _list_zones(self):
         """
         This is the public method to call when requesting all the DNS zones
         under a specific cloud.
