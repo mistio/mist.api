@@ -90,7 +90,7 @@ def _decide_machine_cost(machine, tags=None, cost=(0, 0)):
         cph = parse_num(tags.get('cost_per_hour'))
         cpm = parse_num(tags.get('cost_per_month'))
         if not (cph or cpm) or cph > 100 or cpm > 100 * 24 * 31:
-            log.warning("Invalid cost tags for machine %s", machine)
+            log.debug("Invalid cost tags for machine %s", machine)
             cph, cpm = map(parse_num, cost)
         if not cph:
             cph = float(cpm) / month_days / 24
@@ -305,6 +305,22 @@ class BaseComputeController(BaseController):
             # Update machine_model's last_seen fields.
             machine.last_seen = now
             machine.missing_since = None
+
+            try:
+                location_name = self._list_machines__get_location(node)
+            except Exception as exc:
+                log.exception("Error while running list_nodes on %s",
+                              self.cloud)
+                raise CloudUnavailableError(exc=exc)
+
+            if location_name:
+
+                try:
+                    _location = CloudLocation.objects.get(cloud=self.cloud,
+                                                          name=location_name)
+                    machine.location = _location
+                except CloudLocation.DoesNotExist:
+                    pass
 
             # Get misc libcloud metadata.
             image_id = str(node.image or node.extra.get('imageId') or
@@ -766,6 +782,7 @@ class BaseComputeController(BaseController):
             with task.task_runner(persist=persist):
                 cached_locations = {'%s' % l.id: l.as_dict()
                                     for l in self.list_cached_locations()}
+
                 locations = self._list_locations()
         except PeriodicTaskThresholdExceeded:
             self.cloud.disable()
@@ -779,13 +796,16 @@ class BaseComputeController(BaseController):
                                   routing_key='list_locations',
                                   connection=amqp_conn,
                                   data={'cloud_id': self.cloud.id,
-                                        'locations': locations})
+                                        'locations': [loc.as_dict()
+                                                      for loc in locations]})
             else:
                 # Publish patches to rabbitmq.
                 new_locations = {'%s' % l.id: l.as_dict()
                                  for l in locations}
+
                 patch = jsonpatch.JsonPatch.from_diff(cached_locations,
                                                       new_locations).patch
+
                 if patch:
                     amqp_publish_user(self.cloud.owner.id,
                                       routing_key='patch_locations',
@@ -831,23 +851,21 @@ class BaseComputeController(BaseController):
 
             try:
                 _location = CloudLocation.objects.get(cloud=self.cloud,
-                                                      location_id=loc.id,
                                                       name=loc.name)
-                locations.append(_location)
             except CloudLocation.DoesNotExist:
                 _location = CloudLocation(cloud=self.cloud,
                                           location_id=loc.id,
                                           name=loc.name)
-                _location.country = loc.country
-                _location.provider = self.provider
+            _location.country = loc.country
+            _location.provider = self.provider
 
-                try:
-                    _location.save()
-                    locations.append(_location)
-                except me.ValidationError as exc:
-                    log.error("Error adding %s: %s", loc.name, exc.to_dict())
-                    raise BadRequestError({"msg": exc.message,
-                                           "errors": exc.to_dict()})
+            try:
+                _location.save()
+                locations.append(_location)
+            except me.ValidationError as exc:
+                log.error("Error adding %s: %s", loc.name, exc.to_dict())
+                raise BadRequestError({"msg": exc.message,
+                                       "errors": exc.to_dict()})
 
         return locations
 
@@ -873,6 +891,16 @@ class BaseComputeController(BaseController):
         except:
             return [NodeLocation('', name='default', country='',
                                  driver=self.connection)]
+
+    def _list_machines__get_location(self, node):
+        """Find location code name/identifier from libcloud data
+
+        This is to be called exclusively by `self._list_machines`.
+
+        Subclasses MAY override this method.
+
+        """
+        return ''
 
     def _get_machine_libcloud(self, machine, no_fail=False):
         """Return an instance of a libcloud node

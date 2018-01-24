@@ -588,6 +588,18 @@ class MainConnection(MistConnection):
             if patch:
                 self.send('patch_model', patch)
 
+        elif routing_key == 'patch_locations':
+            cloud_id = result['cloud_id']
+            patch = result['patch']
+
+            # remove '/'
+            for line in patch:
+                location_id = line['path'][1:]
+                line['path'] = '/clouds/%s/locations/%s' % (cloud_id,
+                                                            location_id)
+            if patch:
+                self.send('patch_model', patch)
+
     def on_close(self, stale=False):
         if not self.closed:
             kwargs = {}
