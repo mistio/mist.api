@@ -489,6 +489,7 @@ class MainConnection(MistConnection):
                             continue
 
             elif routing_key == 'list_zones':
+                log.info('LISTING ZONES!!!!!!!!!!!')
                 zones = result['zones']
                 cloud_id = result['cloud_id']
                 filtered_zones = filter_list_zones(
@@ -539,6 +540,19 @@ class MainConnection(MistConnection):
         elif routing_key == 'patch_notifications':
             if json.loads(result).get('user') == self.user.id:
                 self.send('patch_notifications', result)
+
+        elif routing_key == 'patch_zones':
+            cloud_id = result['cloud_id']
+            patch = result['patch']
+
+            # remove '/'
+            for line in patch:
+                zone_id = line['path'][1:]
+                line['path'] = '/clouds/%s/zones/%s' % (cloud_id,
+                                                        zone_id)
+            log.info('PATCHING ZONES!!! Patch is %s', patch)
+            if patch:
+                self.send('patch_model', patch)
 
         elif routing_key == 'patch_machines':
             cloud_id = result['cloud_id']
