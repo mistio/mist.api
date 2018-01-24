@@ -14,7 +14,8 @@ from mist.api.exceptions import RequiredParameterMissingError
 try:
     from mist.core.methods import assoc_metric, update_metric
 except ImportError:
-    from mist.api.dummy.methods import assoc_metric, update_metric
+    def assoc_metric(*args, **kwargs): raise NotImplementedError()
+    def update_metric(*args, **kwargs): raise NotImplementedError()
 
 log = logging.getLogger(__name__)
 
@@ -29,8 +30,6 @@ class AnsibleScriptController(BaseScriptController):
                 raise ScriptFormatError()
 
     def run_script(self, shell, params=None, job_id=None):
-        if params:
-            params = '"%s"' % params.replace('"', r'\"')
         path, params, wparams = super(
             AnsibleScriptController, self).run_script(shell, params=params,
                                                       job_id=job_id)

@@ -49,12 +49,12 @@ from mist.api.clouds.controllers.compute import controllers as compute_ctls
 from mist.api.clouds.controllers.network import controllers as network_ctls
 from mist.api.clouds.controllers.dns import controllers as dns_ctls
 
-try:
+from mist.api import config
+
+if config.HAS_CORE:
     from mist.core.vpn.methods import to_tunnel
-    from mist.core.methods import enable_monitoring
-except ImportError:
+else:
     from mist.api.dummy.methods import to_tunnel
-    from mist.api.dummy.methods import enable_monitoring
 
 
 log = logging.getLogger(__name__)
@@ -258,6 +258,7 @@ class LibvirtMainController(BaseMainController):
 
     provider = 'libvirt'
     ComputeController = compute_ctls.LibvirtComputeController
+    NetworkController = network_ctls.LibvirtNetworkController
 
     def _add__preparse_kwargs(self, kwargs):
         rename_kwargs(kwargs, 'machine_hostname', 'host')
@@ -436,6 +437,7 @@ class OtherMainController(BaseMainController):
 
         # Enable monitoring.
         if monitoring:
+            from mist.api.monitoring.methods import enable_monitoring
             enable_monitoring(
                 self.cloud.owner, self.cloud.id, machine.machine_id,
                 no_ssh=not (machine.os_type == 'unix' and

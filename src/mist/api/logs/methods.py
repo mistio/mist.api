@@ -24,10 +24,10 @@ from mist.api.logs.constants import FIELDS, JOBS
 from mist.api.logs.constants import EXCLUDED_BUCKETS, TYPES
 from mist.api.logs.constants import STARTS_STORY, CLOSES_STORY, CLOSES_INCIDENT
 
-try:
+if config.HAS_CORE:
     from mist.core.rbac.methods import filter_logs
     from mist.core.experiments.helpers import cross_populate_session_data
-except ImportError:
+else:
     from mist.api.dummy.rbac import filter_logs
     from mist.api.dummy.methods import cross_populate_session_data
 
@@ -78,7 +78,7 @@ def log_event(owner_id, event_type, action, error=None, **kwargs):
             try:
                 event['email'] = User.objects.get(id=event['user_id']).email
             except User.DoesNotExist:
-                log.error('User %s does not exist', event['user_id'])
+                log.debug('User %s does not exist', event['user_id'])
 
         # Associate event with relevant stories.
         for key in ('job_id', 'shell_id', 'session_id', 'incident_id'):
@@ -528,7 +528,7 @@ def associate_stories(event):
     action = 'updates'
     if event['error']:
         action = 'closes'
-    elif event['action'] in JOBS.itervalues():
+    elif event['action'] in (a for v in JOBS.itervalues() for a in v):
         if job in JOBS:
             action = 'closes'
     elif event['action'] in CLOSES_STORY:

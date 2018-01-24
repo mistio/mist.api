@@ -8,6 +8,7 @@ import ssl
 import json
 import logging
 import datetime
+import urlparse
 
 import libcloud.security
 from libcloud.compute.types import Provider
@@ -42,6 +43,8 @@ MEMCACHED_HOST = ["memcached:11211"]
 BROKER_URL = "amqp://guest:guest@rabbitmq/"
 SSL_VERIFY = True
 THEME = ""
+
+GC_SCHEDULERS = True
 VERSION_CHECK = True
 USAGE_SURVEY = False
 
@@ -70,6 +73,263 @@ ENABLE_DEV_USERS = False
 
 MONGO_URI = "mongodb:27017"
 MONGO_DB = "mist2"
+
+DOMAIN_VALIDATION_WHITELIST = []
+
+# InfluxDB
+INFLUX = {
+    "host": "http://influxdb:8086", "db": "telegraf"
+}
+
+TELEGRAF_TARGET = ""
+TRAEFIK_API = "http://traefik:8080"
+
+# Default, built-in metrics.
+INFLUXDB_BUILTIN_METRICS = {
+    'cpu.cpu=cpu-total.usage_user': {
+        'name': 'CPU',
+        'unit': '%',
+        'max_value': 100,
+        'min_value': 0,
+    },
+    'system.load1': {
+        'name': 'Load',
+        'unit': '',
+        'max_value': 64,
+        'min_value': 0,
+    },
+    'mem.used_percent': {
+        'name': 'RAM',
+        'unit': '%',
+        'max_value': 100,
+        'min_value': 0,
+    },
+    'disk.bytes_read': {
+        'name': 'Disks Read',
+        'unit': 'B/s',
+        'max_value': 750000000,  # 6Gbps (SATA3)
+        'min_value': 0,
+    },
+    'disk.bytes_write': {
+        'name': 'Disks Write',
+        'unit': 'B/s',
+        'max_value': 750000000,
+        'min_value': 0,
+    },
+    'net.bytes_recv': {
+        'name': 'Ifaces Rx',
+        'unit': 'B/s',
+        'max_value': 1250000000,  # 10Gbps (10G eth)
+        'min_value': 0,
+    },
+    'net.bytes_sent': {
+        'name': 'Ifaces Tx',
+        'unit': 'B/s',
+        'max_value': 1250000000,
+        'min_value': 0,
+    },
+}
+
+# Default Dashboards.
+HOME_DASHBOARD_DEFAULT = {
+    "meta": {},
+    "dashboard": {
+        "id": 1,
+        "refresh": "10sec",
+        "rows": [{
+            "panels": [{
+                "id": 0,
+                "title": "Load on all monitored machines",
+                "type": "graph",
+                "span": 12,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "A",
+                    "target": "load.shortterm"
+                }],
+                "x-axis": True,
+                "y-axis": True
+            }]
+        }],
+        "time": {
+            "from": "now-10m",
+            "to": "now"
+        },
+        "timepicker": {
+            "now": True,
+            "refresh_intervals": [],
+            "time_options": [
+                "10m",
+                "1h",
+                "6h",
+                "24h",
+                "7d",
+                "30d"
+            ]
+        },
+        "timezone": "browser"
+    }
+}
+
+INFLUXDB_MACHINE_DASHBOARD_DEFAULT = {
+    "meta": {},
+    "dashboard": {
+        "id": 1,
+        "refresh": "10sec",
+        "rows": [{
+            "panels": [{
+                "id": 0,
+                "title": "Load",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "A",
+                    "target": "system./load\d/"
+                }],
+                "x-axis": True,
+                "y-axis": True
+            }, {
+                "id": 1,
+                "title": "MEM",
+                "type": "graph",
+                "span": 6,
+                "stack": True,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "D",
+                    "target": "mem./^(free|used|cached|buffered)$/"
+                }],
+                "yaxes": [{
+                    "format": "B"
+                }]
+            }, {
+                "id": 2,
+                "title": "CPU total",
+                "type": "graph",
+                "span": 6,
+                "stack": True,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "C",
+                    "target": "cpu.cpu=cpu-total./usage_\w*/"
+                }],
+                "yaxes": [{
+                    "format": "%"
+                }]
+            }, {
+                "id": 3,
+                "title": "CPU idle per core",
+                "type": "graph",
+                "span": 6,
+                "stack": True,
+                "datasource": "mist.monitor",
+                "targets": [{
+                  "refId": "Z",
+                  "target": "cpu.cpu=/cpu\d/.usage_idle"
+                }],
+                "yaxes": [{
+                    "format": "%"
+                }]
+            }, {
+                "id": 4,
+                "title": "NET RX",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "G",
+                    "target": "net.bytes_recv"
+                }],
+                "yaxes": [{
+                    "format": "octets"
+                }]
+            }, {
+                "id": 5,
+                "title": "NET TX",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                  "refId": "H",
+                  "target": "net.bytes_sent"
+                }],
+                "yaxes": [{
+                    "format": "octets"
+                }]
+            }, {
+                "id": 6,
+                "title": "DISK READ",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                  "refId": "I",
+                  "target": "diskio.read_bytes"
+                }],
+                "x-axis": True,
+                "y-axis": True
+            }, {
+                "id": 7,
+                "title": "DISK WRITE",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                  "refId": "J",
+                  "target": "diskio.write_bytes"
+                }],
+                "yaxes": [{
+                    "format": "octets"
+                }]
+            }, {
+                "id": 8,
+                "title": "DF",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                  "refId": "D",
+                  "target": "disk.free"
+                }],
+                "yaxes": [{
+                    "format": "B"
+                }]
+            }],
+        }],
+        "time": {
+            "from": "now-10m",
+            "to": "now"
+        },
+        "timepicker": {
+            "now": True,
+            "refresh_intervals": [],
+            "time_options": [
+                "10m",
+                "1h",
+                "6h",
+                "24h",
+                "7d",
+                "30d"
+            ]
+        },
+        "timezone": "browser"
+    }
+}
+
+MONITORING_METHODS = (
+    'collectd-graphite',
+    'telegraf-influxdb',
+    'telegraf-graphite',
+)
+DEFAULT_MONITORING_METHOD = 'telegraf-influxdb'
 
 GRAPHITE_URI = "http://graphite"
 
@@ -101,6 +361,12 @@ MAILER_SETTINGS = {
     'mail.password': "",
 }
 
+EMAIL_FROM = "Mist.io team <we@mist.io>"
+EMAIL_ALERTS = "alert@mist.io"
+EMAIL_REPORTS = "reports@mist.io"
+EMAIL_NOTIFICATIONS = "notifications@mist.io"
+EMAIL_ALERTS_BCC = ""
+
 GITHUB_BOT_TOKEN = ""
 
 NO_VERIFY_HOSTS = []
@@ -114,7 +380,6 @@ FAILED_LOGIN_RATE_LIMIT = {
     'max_logins_period': 60,    # in that many seconds
     'block_period': 60          # after that block for that many seconds
 }
-
 
 BANNED_EMAIL_PROVIDERS = [
     'mailinator.com',
@@ -190,7 +455,6 @@ BANNED_EMAIL_PROVIDERS = [
 
 SECRET = ""
 
-
 NOTIFICATION_EMAIL = {
     'all': "",
     'dev': "",
@@ -200,7 +464,8 @@ NOTIFICATION_EMAIL = {
     'support': "",
 }
 
-EMAIL_FROM = ""
+# Sendgrid
+SENDGRID_EMAIL_NOTIFICATIONS_KEY = ""
 
 # Monitoring Related
 COLLECTD_HOST = ""
@@ -892,13 +1157,15 @@ ALLOW_SIGNIN_GITHUB = False
 ENABLE_TUNNELS = False
 ENABLE_ORCHESTRATION = False
 ENABLE_INSIGHTS = False
-ENABLE_BILLING = STRIPE_PUBLIC_APIKEY = False
+STRIPE_PUBLIC_APIKEY = False
 ENABLE_RBAC = False
 ENABLE_AB = False
-ENABLE_MONITORING = False
+ENABLE_MONITORING = True
 MACHINE_PATCHES = True
 LOCATION_PATCHES = True
 ZONES_PATCHES = True
+
+PLUGINS = []
 
 ## DO NOT PUT ANYTHING BELOW HERE UNLESS YOU KNOW WHAT YOU ARE DOING
 
@@ -908,8 +1175,10 @@ CORE_CONFIG_PATH = os.path.join(dirname(MIST_API_DIR, 2),
 if os.path.exists(CORE_CONFIG_PATH):
     print >> sys.stderr, "Will load core config from %s" % CORE_CONFIG_PATH
     execfile(CORE_CONFIG_PATH)
+    HAS_CORE = True
 else:
     print >> sys.stderr, "Couldn't find core config in %s" % CORE_CONFIG_PATH
+    HAS_CORE = False
 
 
 # Get settings from environmental variables.
@@ -971,6 +1240,17 @@ for override_file in CONFIG_OVERRIDE_FILES:
     else:
         print >> sys.stderr, "Couldn't find settings file in %s" % override_file
 
+HAS_BILLING = 'billing' in PLUGINS
+
+
+# Update TELEGRAF_TARGET.
+
+if not TELEGRAF_TARGET:
+    if urlparse.urlparse(CORE_URI).hostname in ('localhost', '127.0.0.1'):
+        TELEGRAF_TARGET = "http://traefik"
+    else:
+        TELEGRAF_TARGET = CORE_URI + '/ingress'
+
 
 # Update celery settings.
 CELERY_SETTINGS.update({
@@ -991,6 +1271,11 @@ if USAGE_SURVEY:
         'task': 'mist.api.portal.tasks.usage_survey',
         'schedule': datetime.timedelta(hours=24),
         # 'args': ('https://mist.io/api/v1/usage-survey', ),
+    }
+if GC_SCHEDULERS:
+    _schedule['gc-schedulers'] = {
+        'task': 'mist.api.tasks.gc_schedulers',
+        'schedule': datetime.timedelta(hours=24),
     }
 if _schedule:
     CELERY_SETTINGS.update({'CELERYBEAT_SCHEDULE': _schedule})
@@ -1024,12 +1309,12 @@ HOMEPAGE_INPUTS = {
     'enable_tunnels': ENABLE_TUNNELS,
     'enable_orchestration': ENABLE_ORCHESTRATION,
     'enable_insights': ENABLE_INSIGHTS,
-    'enable_billing': ENABLE_BILLING,
+    'enable_billing': HAS_BILLING,
     'enable_ab': ENABLE_AB,
     'enable_monitoring': ENABLE_MONITORING,
 }
 
-if ENABLE_BILLING and STRIPE_PUBLIC_APIKEY:
+if HAS_BILLING and STRIPE_PUBLIC_APIKEY:
     HOMEPAGE_INPUTS['stripe_public_apikey'] = STRIPE_PUBLIC_APIKEY
 ## DO NOT PUT REGULAR SETTINGS BELOW, PUT THEM ABOVE THIS SECTION
 
