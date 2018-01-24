@@ -370,14 +370,22 @@ class Schedule(me.Document, ConditionalClassMixin):
         return sdict
 
 
-class NonDeletedSchedule(Schedule):
+class NonDeletedSchedule(object):
+    # NOTE This wrapper class is used by the UserScheduler. It allows to trick
+    # the scheduler by providing an interface similar to that of a mongoengine
+    # Document subclass in order to prevent schedules marked as deleted from
+    # being loaded. Similarly, we could have used a custom QuerySet manager to
+    # achieve this. However, subclasses of mongoengine models, which are not a
+    # direct subclass of the main `Document` class, do not fetch the documents
+    # of the corresponding superclass. In that case, we'd have to override the
+    # QuerySet class in a more exotic way, but there is no such need for now.
+    @classmethod
+    def objects(cls):
+        return Schedule.objects(deleted=None)
 
-    @me.queryset_manager
-    def objects(doc_cls, queryset):
-        # This subclass is used by the UserScheduler. The custom QuerySet
-        # manager prevents the scheduler from loading schedules marked as
-        # deleted.
-        return queryset.filter(deleted=None)
+    @classmethod
+    def _get_collection(cls):
+        return Schedule._get_collection()
 
 
 class UserScheduler(MongoScheduler):
