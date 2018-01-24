@@ -364,6 +364,12 @@ class BaseDNSController(BaseController):
             raise ZoneCreationError("Failed to create zone, "
                                     "got error: %s" % exc, exc)
 
+    def list_cached_zones(self):
+        """Return list of zones from database
+        for a specific cloud
+        """
+        return Zone.objects(cloud=self.cloud)
+
     def create_record(self, record, **kwargs):
         """
         This is the public method that is called to create a new DNS record
