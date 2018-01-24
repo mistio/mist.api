@@ -370,6 +370,16 @@ class Schedule(me.Document, ConditionalClassMixin):
         return sdict
 
 
+class NonDeletedSchedule(Schedule):
+
+    @me.queryset_manager
+    def objects(doc_cls, queryset):
+        # This subclass is used by the UserScheduler. The custom QuerySet
+        # manager prevents the scheduler from loading schedules marked as
+        # deleted.
+        return queryset.filter(deleted=None)
+
+
 class UserScheduler(MongoScheduler):
-    Model = Schedule
+    Model = NonDeletedSchedule
     UPDATE_INTERVAL = datetime.timedelta(seconds=20)
