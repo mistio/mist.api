@@ -43,6 +43,8 @@ MEMCACHED_HOST = ["memcached:11211"]
 BROKER_URL = "amqp://guest:guest@rabbitmq/"
 SSL_VERIFY = True
 THEME = ""
+
+GC_SCHEDULERS = True
 VERSION_CHECK = True
 USAGE_SURVEY = False
 
@@ -1267,6 +1269,11 @@ if USAGE_SURVEY:
         'task': 'mist.api.portal.tasks.usage_survey',
         'schedule': datetime.timedelta(hours=24),
         # 'args': ('https://mist.io/api/v1/usage-survey', ),
+    }
+if GC_SCHEDULERS:
+    _schedule['gc-schedulers'] = {
+        'task': 'mist.api.tasks.gc_schedulers',
+        'schedule': datetime.timedelta(hours=24),
     }
 if _schedule:
     CELERY_SETTINGS.update({'CELERYBEAT_SCHEDULE': _schedule})
