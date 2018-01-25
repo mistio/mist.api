@@ -9,9 +9,23 @@ import ssl
 import logging
 import datetime
 
+import jsonpatch
+
 import mongoengine as me
 
 from mist.api.clouds.controllers.base import BaseController
+
+from mist.api.helpers import get_datetime
+from mist.api.helpers import amqp_publish
+from mist.api.helpers import amqp_publish_user
+from mist.api.helpers import amqp_owner_listening
+
+from mist.api.concurrency.models import PeriodicTaskInfo
+from mist.api.concurrency.models import PeriodicTaskThresholdExceeded
+
+from amqp.connection import Connection
+
+from mist.api import config
 
 from libcloud.common.types import InvalidCredsError
 from libcloud.dns.types import ZoneDoesNotExistError, RecordDoesNotExistError
@@ -81,6 +95,7 @@ class BaseDNSController(BaseController):
         implementation.
 
         """
+        import ipdb; ipdb.set_trace()
         task_key = 'cloud:list_zones:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
         try:
@@ -95,31 +110,23 @@ class BaseDNSController(BaseController):
 
         # Initialize AMQP connection to reuse for multiple messages.
         amqp_conn = Connection(config.AMQP_URI)
-        if amqp_owner_listening(self.cloud.owner.id):
-            if not config.ZONE_PATCHES:
-                amqp_publish_user(self.cloud.owner.id,
-                                  routing_key='list_zones',
-                                  connection=amqp_conn,
-                                  data={'cloud_id': self.cloud.id,
-                                        'zones': [z.as_dict()
-                                                  for z in zones]})
-            else:
-                # Publish patches to rabbitmq.
-                new_zones = {'%s' % z.id: z.as_dict()
-                                 for z in zones}
 
-                patch = jsonpatch.JsonPatch.from_diff(cached_zones,
-                                                      new_zones).patch
+        # FOR NOW ! ! !
+        # Publish patches to rabbitmq.
+        new_zones = {'%s' % z.id: z.as_dict()
+                         for z in zones}
 
-                if patch:
-                    amqp_publish_user(self.cloud.owner.id,
-                                      routing_key='patch_zones',
-                                      connection=amqp_conn,
-                                      data={'cloud_id': self.cloud.id,
-                                            'patch': patch})
+        patch = jsonpatch.JsonPatch.from_diff(cached_zones,
+                                              new_zones).patch
+
+        if patch:
+            amqp_publish_user(self.cloud.owner.id,
+                              routing_key='patch_zones',
+                              connection=amqp_conn,
+                              data={'cloud_id': self.cloud.id,
+                                    'patch': patch})
 
         return zones
-
 
     def _list_zones(self):
         """
@@ -417,6 +424,7 @@ class BaseDNSController(BaseController):
         """Return list of zones from database
         for a specific cloud
         """
+        from mist.api.dns.models import Zone
         return Zone.objects(cloud=self.cloud)
 
     def create_record(self, record, **kwargs):
