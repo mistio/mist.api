@@ -1359,6 +1359,10 @@ def update_poller(org_id):
         log.info("Updating poller for cloud %s", cloud)
         ListMachinesPollingSchedule.add(cloud=cloud, interval=10, ttl=120)
         ListLocationsPollingSchedule.add(cloud=cloud, interval=30*60, ttl=120)
+        if cloud.ctl.provider in ['ec2', 'digitalocean', 'linode', 'rackspace',
+                                  'softlayer', 'gce', 'vultr']:
+            from mist.api.poller.models import ListZonesPollingSchedule
+            ListZonesPollingSchedule.add(cloud=cloud, interval=30*60, ttl=120)                      
         for machine in cloud.ctl.compute.list_cached_machines():
             log.info("Updating poller for machine %s", machine)
             PingProbeMachinePollingSchedule.add(machine=machine,
