@@ -213,7 +213,8 @@ class AmazonComputeController(BaseComputeController):
         return 1
 
     def _list_sizes_set_description(self, size, cpu):
-        return '%s - %s' % (size.id, size.name)
+        return '%s - %s(%sMB RAM/ %s cpus)' % (size.id, size.name,
+                                               size.ram, cpu)
 
     def _list_sizes__fetch_sizes(self):
         fetched_sizes = self.connection.list_sizes()
@@ -322,6 +323,12 @@ class LinodeComputeController(BaseComputeController):
         price = get_size_price(driver_type='compute', driver_name='linode',
                                size_id=size)
         return 0, price or 0
+
+    def _list_sizes_set_description(self, size, cpu):
+        """Sets description for size, as it will be
+        shown to the end user
+        """
+        return size.name + '(%d cpus)' %cpu
 
 
 class RackSpaceComputeController(BaseComputeController):
