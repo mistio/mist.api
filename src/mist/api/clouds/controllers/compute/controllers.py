@@ -825,6 +825,9 @@ class PacketComputeController(BaseComputeController):
     def _list_machines__fetch_machines(self):
         return self.connection.list_nodes(self.cloud.project_id)
 
+    def _list_sizes_set_description(self, size, cpu):
+        return size.name + ' (%d cpus)' % cpu
+
 
 class VultrComputeController(BaseComputeController):
 
