@@ -71,8 +71,11 @@ def add_cloud_v_2(owner, title, provider, params):
     cloud.polling_interval = 1800  # 30 min * 60 sec/min
     cloud.save()
     ListMachinesPollingSchedule.add(cloud=cloud)
-    ListZonesPollingSchedule.add(cloud=cloud)
     ListLocationsPollingSchedule.add(cloud=cloud)
+
+    if cloud.ctl.provider in ['ec2', 'digitalocean', 'linode', 'rackspace',
+                              'softlayer', 'gce', 'vultr']:
+            ListZonesPollingSchedule.add(cloud=self.cloud)
 
     return ret
 
