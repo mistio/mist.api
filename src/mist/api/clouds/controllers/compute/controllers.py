@@ -328,7 +328,7 @@ class LinodeComputeController(BaseComputeController):
         """Sets description for size, as it will be
         shown to the end user
         """
-        return size.name + '(%d cpus)' %cpu
+        return size.name + '(%d cpus)' % cpu
 
 
 class RackSpaceComputeController(BaseComputeController):

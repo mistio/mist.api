@@ -862,7 +862,6 @@ class BaseComputeController(BaseController):
         implementation.
 
         """
-        #import ipdb; ipdb.set_trace()
         task_key = 'cloud:list_locations:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
         try:
