@@ -789,27 +789,20 @@ class BaseComputeController(BaseController):
         # Initialize AMQP connection to reuse for multiple messages.
         amqp_conn = Connection(config.AMQP_URI)
         if amqp_owner_listening(self.cloud.owner.id):
-            if not config.LOCATION_PATCHES:
+
+            # Publish patches to rabbitmq.
+            new_locations = {'%s' % l.id: l.as_dict()
+                             for l in locations}
+
+            patch = jsonpatch.JsonPatch.from_diff(cached_locations,
+                                                  new_locations).patch
+
+            if patch:
                 amqp_publish_user(self.cloud.owner.id,
-                                  routing_key='list_locations',
+                                  routing_key='patch_locations',
                                   connection=amqp_conn,
                                   data={'cloud_id': self.cloud.id,
-                                        'locations': [loc.as_dict()
-                                                      for loc in locations]})
-            else:
-                # Publish patches to rabbitmq.
-                new_locations = {'%s' % l.id: l.as_dict()
-                                 for l in locations}
-
-                patch = jsonpatch.JsonPatch.from_diff(cached_locations,
-                                                      new_locations).patch
-
-                if patch:
-                    amqp_publish_user(self.cloud.owner.id,
-                                      routing_key='patch_locations',
-                                      connection=amqp_conn,
-                                      data={'cloud_id': self.cloud.id,
-                                            'patch': patch})
+                                        'patch': patch})
 
         return locations
 
