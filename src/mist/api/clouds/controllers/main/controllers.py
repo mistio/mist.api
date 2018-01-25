@@ -258,6 +258,7 @@ class LibvirtMainController(BaseMainController):
 
     provider = 'libvirt'
     ComputeController = compute_ctls.LibvirtComputeController
+    NetworkController = network_ctls.LibvirtNetworkController
 
     def _add__preparse_kwargs(self, kwargs):
         rename_kwargs(kwargs, 'machine_hostname', 'host')

@@ -3,6 +3,8 @@ import re
 import uuid
 import json
 import logging
+import mongoengine as me
+
 from time import time
 
 import paramiko
@@ -31,6 +33,9 @@ from mist.api.scripts.models import Script
 from mist.api.schedules.models import Schedule
 from mist.api.dns.models import Zone, Record, RECORDS
 
+from mist.api.rules.models import NoDataRule
+
+from mist.api.poller.models import PollingSchedule
 from mist.api.poller.models import ListMachinesPollingSchedule
 from mist.api.poller.models import PingProbeMachinePollingSchedule
 from mist.api.poller.models import SSHProbeMachinePollingSchedule
@@ -1366,8 +1371,8 @@ def update_poller(org_id):
     for cloud in Cloud.objects(owner=org, deleted=None, enabled=True):
         log.info("Updating poller for cloud %s", cloud)
         ListMachinesPollingSchedule.add(cloud=cloud, interval=10, ttl=120)
-        ListLocationsPollingSchedule.add(cloud=cloud, interval=60*60*24, ttl=120)
-        ListSizesPollingSchedule.add(cloud=cloud, interval=60*60*24, ttl=120)
+        ListLocationsPollingSchedule.add(cloud=cloud, interval=30*60, ttl=120)
+        ListSizesPollingSchedule.add(cloud=cloud, interval=30*60, ttl=120)
         for machine in cloud.ctl.compute.list_cached_machines():
             log.info("Updating poller for machine %s", machine)
             PingProbeMachinePollingSchedule.add(machine=machine,
@@ -1375,6 +1380,34 @@ def update_poller(org_id):
             SSHProbeMachinePollingSchedule.add(machine=machine,
                                                interval=90, ttl=120)
 
+
+@app.task
+def gc_schedulers():
+    """Delete disabled celerybeat schedules.
+
+    This takes care of:
+
+    1. Removing disabled list_machines polling schedules.
+    2. Removing ssh/ping probe schedules, whose machines are missing or
+       corresponding clouds have been deleted.
+    3. Removing inactive no-data rules. They are added idempotently the
+       first time get_stats receives data for a newly monitored machine.
+
+    Note that this task does not run GC on user-defined schedules. The
+    UserScheduler has its own mechanism for choosing which documents to
+    load.
+
+    """
+    for collection in (PollingSchedule, NoDataRule, ):
+        for entry in collection.objects():
+            try:
+                if not entry.enabled:
+                    log.warning('Removing %s', entry)
+                    entry.delete()
+            except me.DoesNotExist:
+                entry.delete()
+            except Exception as exc:
+                log.error(exc)
 
 @app.task
 def async_session_update(owner, sections=None):

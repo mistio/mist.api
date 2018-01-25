@@ -1,0 +1,179 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+	<title>Weekly Insights for ${inputs.org.name}</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+	<style type="text/css">
+		a, .a {
+			color: #0099cc !important;
+		}
+		a.white {
+			color: #ffffff !important;
+		}
+		.col250 {text-align: right;}
+		@media only screen and (max-device-width: 600px) {
+			.content {padding-top: 0; padding-bottom: 0;}
+		}
+		@media only screen and (min-device-width: 601px) {
+			.content {width: 600px !important; padding-top: 20px; padding-bottom: 20px;}
+			.col250 {width: 250px !important; text-align: left;}
+			body {padding: 0 !important;}
+		}
+	</style>
+</head>
+<body style="margin: 0; width: 100%; background-color: #dddddd;">
+<div style="padding: 0; width: 100%; width: 100%; max-width: 600px; margin: 0 auto; line-height: 1.8em;">
+<!--[if (gte mso 9)|(IE)]>
+<table width="600" align="center" cellpadding="0" cellspacing="0" border="0">
+    <tr>
+        <td>
+            <![endif]-->
+<table class="content" align="center" border="0" cellpadding="0" cellspacing="0" width="100%">
+	<tr>
+		<td>
+			<table border="0" cellpadding="0" cellspacing="0" width="100%">
+				<tr>
+					<!-- <td align="left" style="padding: 8px 0 8px 18px; background-color: #f4f4f4; border-radius: 8px 0 0 0;">
+			 			<img src="${inputs.uri}/landing/images/logo-email-440.png" alt="mist.io" width="216" height="97" style="display: block;" />
+					</td>
+					<td align="left" style="background-color: #f4f4f4; text-align: right; padding: 2px 18px 2px 0; font-family: Arial, sans-serif; font-size: 14px; width: 100%; max-width: 300px; color: #212121; border-radius: 0 8px 0 0;"  width="100%">
+			 			<h4 style="margin: 6px 0 6px 0;">Weekly Insights for ${inputs.org.name}</h4>
+			 			<h4 style="margin: 6px 0 6px 0;font-weight:normal;">${inputs.dates.last_week} – ${inputs.dates.today}</h4>
+					</td> -->
+					<td class="header" style="background-color: #f4f4f4; border-radius: 8px 8px 0 0;">
+						<table width="300" align="left" border="0" cellpadding="0" cellspacing="0">
+						    <tr>
+						        <td width="300" style="padding: 8px 0 8px 18px;">
+						            <img src="${inputs.uri}/landing/images/logo-email-440.png" alt="mist.io" width="216" height="97" style="display: block;" />
+						        </td>
+						    </tr>
+						</table>
+						<!--[if mso]>
+						   </td><td>
+						<![endif]-->
+						<!--[if (gte mso 9)|(IE)]>
+						<table width="250" align="left" cellpadding="0" cellspacing="0" border="0">
+						    <tr>
+						        <td>
+						        <![endif]-->
+			            <table class="col250" align="right" border="0" cellpadding="0" cellspacing="0" style="width: 100%; max-width: 250px;">
+			                <tr>
+			                    <td align="left" style="padding: 25px 10px 20px 18px; font-family: Arial, sans-serif; font-size: 14px; width: 100%; max-width: 250px; color: #212121;"  width="100%">
+						 			<h4 style="margin: 6px 0 6px 0;">Weekly Insights for ${inputs.org.name}</h4>
+						 			<h4 style="margin: 6px 0 6px 0;font-weight:normal;">${inputs.dates.last_week} – ${inputs.dates.today}</h4>
+								</td>
+			                </tr>
+			            </table>
+						        <!--[if (gte mso 9)|(IE)]>
+						        </td>
+						    </tr>
+						</table>
+						<![endif]-->
+					</td>
+				</tr>
+			</table>
+		</td>
+	</tr>
+	<tr>
+		<td style="background-color: #ffffff;">
+			<div style="padding: 30px 20px 20px 20px; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.8em; color: #424242;">
+			Hi <span class="a">%name%</span>,
+			</div>
+			<div style="padding: 0 20px 20px 20px; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.8em; color: #424242;">
+			Last week your infrastructure spend totaled <b>$${'{:,}'.format(round(inputs.last.total_cost, 2))}</b>, that's <div tal:condition="inputs.diff.total_cost_diff > 0" tal:replace="string:${'$'+'{:,}'.format(abs(round(inputs.diff.total_cost_diff)))+' more than'}"/><div tal:condition="inputs.diff.total_cost_diff < 0" tal:replace="string:${'$'+'{:,}'.format(abs(round(inputs.diff.total_cost_diff)))+' less than'}"/><div tal:condition="inputs.diff.total_cost_diff == 0" tal:replace="string:the same as"/> the <b>week before's $${'{:,}'.format(round(inputs.before.total_cost, 2))}</b>, or a <b>${round(inputs.diff.total_cost_percent, 1)}% change</b>. 
+			</div>
+			<div style="padding: 0 20px 20px 20px; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.8em; color: #424242;">
+				In the table below you can see a limited breakdown of changes that drove your costs throughout last week.
+			</div>
+		</td>
+	</tr>
+
+	<tr>
+		<td>
+			<table border="0" cellpadding="0" cellspacing="0" width="100%" style="padding: 20px 20px 15px 20px;background-color: #ffffff;">
+				<tr>
+					<td width="260" valign="top">
+						<table align="left" border="0" cellpadding="0" cellspacing="0" width="100%" style="font-family: Arial, sans-serif; font-size: 16px; line-height: 1.8em; border-bottom: 1px solid #ccc;">
+							<tr tal:condition="inputs.detail_stats.added_count" style="color: #424242;">
+								<td style="border-bottom: 1px solid #eeeeee;">
+									<div style="padding:5px 0 5px 0;"><b>${inputs.detail_stats.added_count}</b> new machine<span tal:condition="inputs.detail_stats.added_count>1">s</span> created</div>
+								</td>
+								<td align="right" style="padding:5px 0 5px 0; color: #D96557; border-bottom: 1px solid #eeeeee;">
+									<b>+ $${'{:,}'.format(round(inputs.detail_stats.added_cost, 2))}</b>
+								</td>
+							</tr>
+							<tr tal:condition="inputs.detail_stats.deleted_count" style="border-bottom: 1px solid #eeeeee; color: #424242;">
+								<td style="border-bottom: 1px solid #eeeeee;">
+									<div style="padding:5px 0 5px 0;"><b>${inputs.detail_stats.deleted_count}</b> machine<span tal:condition="inputs.detail_stats.deleted_count>1">s</span> deleted</div>
+								</td>
+								<td align="right" style="padding:5px 0 5px 0; color: #69B46C; border-bottom: 1px solid #eeeeee;">
+									<b>- $${'{:,}'.format(round(inputs.detail_stats.deleted_cost, 2))}</b>
+								</td>
+							</tr>
+							<tr style="color: #424242;">
+								<td>
+									<div style="padding:15px 0 5px 0;"><b>Total</b></div>
+								</td>
+								<td align="right" style="padding:15px 0 5px 0; color: #D96557">
+									<span style="color: #D96557" tal:condition="inputs.detail_stats.total_cost>0"><b>+ $${'{:,}'.format(abs(round(inputs.detail_stats.total_cost, 2)))}</b></span>
+									<span style="color: #69B46C" tal:condition="inputs.detail_stats.total_cost<0"><b>- $${'{:,}'.format(abs(round(inputs.detail_stats.total_cost, 2)))}</b></span>
+									<span style="color: #444" tal:condition="inputs.detail_stats.total_cost==0"><b>$$ 0.0</b></span>
+								</td>
+							</tr>
+						</table>
+						<table align="left" border="0" cellpadding="0" cellspacing="0" width="100%" style="font-family: Arial, sans-serif; font-size: 16px;">
+							<tr>
+								<td>
+									<div style="padding:15px 0 0 0;">
+									<a href="${inputs.uri}/insights" class="white" style="display: block; background-color: #0099cc; color: #ffffff; padding: 10px 24px 10px 24px; letter-spacing: .7px; font-weight: 400; text-decoration: none; width: 220px; margin: 0 auto; text-align: center; text-transform: uppercase; border-radius: 3px;">
+										See complete report</a>
+									</div>
+								</td>
+							</tr>
+						</table>
+					</td>
+				</tr>
+			</table>
+		</td>
+	</tr>
+	<tr tal:condition="inputs.members_stats.new_members">
+		<td style="background-color: #ffffff;">
+			<div style="padding:0 20px 30px 20px; color: #424242; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.8em;">
+				<div style="padding:20px 0 0 0; margin: 0;">
+					Moreover,<br/>
+					Last week <b>${inputs.members_stats.new_members} new user<span tal:condition="inputs.members_stats.new_members>1">s</span></b> were added to your organization, bringing the <b>total up to ${inputs.members_stats.members}</b> users.
+				</div>
+			</div>
+		</td>
+	</tr>
+	<!--<tr>
+		<td style="background-color: #ffffff;">
+			<div style="padding: 0 0 30px 0; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.5em; border-bottom: 4px solid #ddd;">
+			Want a coworker to automatically get this report weekly? <a href="" style="color: #0099cc; font-weight: bold; text-decoration: none;">Learn How.</a>
+			</div>
+		</td>
+	</tr>-->
+	<tr>
+		<td>
+			<table border="0" cellpadding="0" cellspacing="0" width="100%" style="padding: 20px 0 20px 0; background-color:#f3f3f3; border-radius: 0 0 8px 8px;">
+				<tr>
+					<td align="center" style="font-family: Arial, sans-serif; font-size: 11px; color: #888;">
+						If you'd prefer not to receive these emails, you can unsubscribe <a href="%nsub%" style="text-decoration:none; color:#0099cc;">here</a>.<br><br>
+						Made by <a href="${inputs.uri}" style="text-decoration:none; color:#0099cc;">mist.io</a>, Inc  •  <a href="http://blog.mist.io" style="text-decoration:none; color:#0099cc;">Our Blog</a> <br>
+						<span class="a">620 Folsom St  •  San Francisco, CA  •  94107</span>
+					</td>
+				</tr>
+			</table>
+
+		</td>
+	</tr>
+</table>
+<!--[if (gte mso 9)|(IE)]>
+        </td>
+    </tr>
+</table>
+<![endif]-->
+</div>
+</body>
+</html>

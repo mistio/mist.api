@@ -17,13 +17,12 @@ class CloudLocation(me.Document):
         'collection': 'cloud_locations',
         'indexes': [
             {
-                'fields': ['cloud', 'location_id'],
+                'fields': ['cloud', 'name'],
                 'sparse': False,
                 'unique': True,
                 'cls': False,
             },
-        ],
-        'strict': False,
+        ]
     }
 
     def __str__(self):
@@ -35,7 +34,7 @@ class CloudLocation(me.Document):
             'id': self.location_id,
             'cloud': self.cloud.id,
             'provider': self.provider,
-            '_id': self.id,
+            'location_id': self.id,
             'name': self.name,
             'country': self.country,
         }

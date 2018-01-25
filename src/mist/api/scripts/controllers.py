@@ -30,8 +30,6 @@ class AnsibleScriptController(BaseScriptController):
                 raise ScriptFormatError()
 
     def run_script(self, shell, params=None, job_id=None):
-        if params:
-            params = '"%s"' % params.replace('"', r'\"')
         path, params, wparams = super(
             AnsibleScriptController, self).run_script(shell, params=params,
                                                       job_id=job_id)

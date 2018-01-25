@@ -5,6 +5,7 @@ from pyramid.response import Response
 from mist.api.helpers import view_config
 from mist.api.helpers import get_datetime
 from mist.api.helpers import params_from_request
+from mist.api.methods import rule_triggered
 
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import BadRequestError
@@ -164,11 +165,6 @@ def triggered(request):
                                  rule.frequency.timedelta.total_seconds())
     # /
 
-    try:
-        from mist.core.methods import rule_triggered
-    except ImportError:
-        raise NotImplementedError()
-    else:
-        rule_triggered(machine, rule.title, value, triggered, timestamp,
-                       notification_level, incident_id=incident_id)
+    rule_triggered(machine, rule.title, value, triggered, timestamp,
+                   notification_level, incident_id=incident_id)
     return Response('OK', 200)

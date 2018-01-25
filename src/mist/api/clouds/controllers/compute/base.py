@@ -306,7 +306,12 @@ class BaseComputeController(BaseController):
             machine.last_seen = now
             machine.missing_since = None
 
-            location_name = self._list_machines__get_location(node)
+            try:
+                location_name = self._list_machines__get_location(node)
+            except Exception as exc:
+                log.exception("Error while running list_nodes on %s",
+                              self.cloud)
+                raise CloudUnavailableError(exc=exc)
 
             if location_name:
 
@@ -933,7 +938,6 @@ class BaseComputeController(BaseController):
 
             try:
                 _location = CloudLocation.objects.get(cloud=self.cloud,
-                                                      location_id=loc.id,
                                                       name=loc.name)
             except CloudLocation.DoesNotExist:
                 _location = CloudLocation(cloud=self.cloud,
@@ -1219,7 +1223,6 @@ class BaseComputeController(BaseController):
         raise BadRequestError("Machines on public clouds can't be removed."
                               "This is only supported in Bare Metal clouds.")
 
-    # It isn't implemented in the ui
     def resize_machine(self, machine, plan_id, kwargs):
         """Resize machine
 
@@ -1237,7 +1240,6 @@ class BaseComputeController(BaseController):
         are resizeed, it should override `_resize_machine` method instead.
 
         """
-        # assert isinstance(machine.cloud, Machine)
         assert self.cloud == machine.cloud
         if not machine.actions.resize:
             raise ForbiddenError("Machine doesn't support resize.")
@@ -1246,7 +1248,9 @@ class BaseComputeController(BaseController):
         machine_libcloud = self._get_machine_libcloud(machine)
         try:
             self._resize_machine(machine, machine_libcloud, plan_id, kwargs)
-
+        except Exception as exc:
+            raise BadRequestError('Failed to resize node: %s' % exc)
+        try:
             # TODO: For better separation of concerns, maybe trigger below
             # using an event?
             from mist.api.notifications.methods import (
@@ -1254,7 +1258,7 @@ class BaseComputeController(BaseController):
             # TODO: Make sure user feedback is positive below!
             dismiss_scale_notifications(machine, feedback='POSITIVE')
         except Exception as exc:
-            raise BadRequestError('Failed to resize node: %s' % exc)
+            log.exception("Failed to dismiss scale recommendation: %r", exc)
 
     def _resize_machine(self, machine, machine_libcloud, plan_id, kwargs):
         """Private method to resize a given machine
