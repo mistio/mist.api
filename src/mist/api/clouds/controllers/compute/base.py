@@ -854,7 +854,7 @@ class BaseComputeController(BaseController):
                                                       name=loc.name)
             except CloudLocation.DoesNotExist:
                 _location = CloudLocation(cloud=self.cloud,
-                                          location_id=loc.id,
+                                          external_id=loc.id,
                                           name=loc.name)
             _location.country = loc.country
             _location.provider = self.provider
