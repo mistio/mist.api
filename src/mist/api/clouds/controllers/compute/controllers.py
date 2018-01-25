@@ -294,7 +294,12 @@ class DigitalOceanComputeController(BaseComputeController):
                                           name=size_name)
             return _size
         except CloudSize.DoesNotExist:
+
             return ''
+
+    def _list_sizes_set_description(self, size, cpu):
+        return size.name + ' ( %d cpus / %dM RAM)' \
+                           % (cpu, size.ram)
 
 
 class LinodeComputeController(BaseComputeController):
