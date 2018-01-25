@@ -14,7 +14,7 @@ class CloudLocation(me.Document):
     country = me.StringField()
 
     meta = {
-        'collection': 'cloud_locations',
+        'collection': 'locations',
         'indexes': [
             {
                 'fields': ['cloud', 'name'],
