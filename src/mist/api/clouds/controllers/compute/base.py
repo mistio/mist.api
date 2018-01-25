@@ -309,9 +309,7 @@ class BaseComputeController(BaseController):
             try:
                 location_name = self._list_machines__get_location(node)
             except Exception as exc:
-                log.exception("Error while running list_nodes on %s",
-                              self.cloud)
-                raise CloudUnavailableError(exc=exc)
+                log.exception(repr(exc))
 
             if location_name:
 
