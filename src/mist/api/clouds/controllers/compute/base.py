@@ -309,9 +309,7 @@ class BaseComputeController(BaseController):
             try:
                 location_name = self._list_machines__get_location(node)
             except Exception as exc:
-                log.exception("Error while running list_nodes on %s",
-                              self.cloud)
-                raise CloudUnavailableError(exc=exc)
+                log.exception(repr(exc))
 
             if location_name:
 
@@ -877,27 +875,20 @@ class BaseComputeController(BaseController):
         # Initialize AMQP connection to reuse for multiple messages.
         amqp_conn = Connection(config.AMQP_URI)
         if amqp_owner_listening(self.cloud.owner.id):
-            if not config.LOCATION_PATCHES:
+
+            # Publish patches to rabbitmq.
+            new_locations = {'%s' % l.id: l.as_dict()
+                             for l in locations}
+
+            patch = jsonpatch.JsonPatch.from_diff(cached_locations,
+                                                  new_locations).patch
+
+            if patch:
                 amqp_publish_user(self.cloud.owner.id,
-                                  routing_key='list_locations',
+                                  routing_key='patch_locations',
                                   connection=amqp_conn,
                                   data={'cloud_id': self.cloud.id,
-                                        'locations': [loc.as_dict()
-                                                      for loc in locations]})
-            else:
-                # Publish patches to rabbitmq.
-                new_locations = {'%s' % l.id: l.as_dict()
-                                 for l in locations}
-
-                patch = jsonpatch.JsonPatch.from_diff(cached_locations,
-                                                      new_locations).patch
-
-                if patch:
-                    amqp_publish_user(self.cloud.owner.id,
-                                      routing_key='patch_locations',
-                                      connection=amqp_conn,
-                                      data={'cloud_id': self.cloud.id,
-                                            'patch': patch})
+                                        'patch': patch})
 
         return locations
 
@@ -940,7 +931,7 @@ class BaseComputeController(BaseController):
                                                       name=loc.name)
             except CloudLocation.DoesNotExist:
                 _location = CloudLocation(cloud=self.cloud,
-                                          location_id=loc.id,
+                                          external_id=loc.id,
                                           name=loc.name)
             _location.country = loc.country
             _location.provider = self.provider
