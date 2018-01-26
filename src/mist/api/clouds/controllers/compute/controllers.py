@@ -228,11 +228,11 @@ class AmazonComputeController(BaseComputeController):
             # create the object in db if it does not exist
             try:
                 _size = CloudSize.objects.get(cloud=self.cloud,
-                                              size_id=size.id)
+                                              external_id=size.id)
             except CloudSize.DoesNotExist:
                 _size = CloudSize(cloud=self.cloud,
                                   name=size.name, disk=size.disk,
-                                  ram=size.ram, size_id=size.id,
+                                  ram=size.ram, external_id=size.id,
                                   bandwidth=size.bandwidth
                                   )
             cpus = self._list_sizes_get_cpu(size)
@@ -608,12 +608,12 @@ class AzureArmComputeController(BaseComputeController):
             try:
                 _size = CloudSize.objects.get(cloud=self.cloud,
                                               provider=self.provider,
-                                              size_id=size.id)
+                                              external_id=size.id)
             except CloudSize.DoesNotExist:
                 _size = CloudSize(cloud=self.cloud,
                                   provider=self.provider,
                                   name=size.name, disk=size.disk,
-                                  ram=size.ram, size_id=size.id,
+                                  ram=size.ram, external_id=size.id,
                                   bandwidth=size.bandwidth, price=size.price
                                   )
             _size.cpus = size.extra.get('numberOfCores')

@@ -101,7 +101,7 @@ class CloudSize(me.Document):
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
     cloud = me.ReferenceField('Cloud', required=True)
     provider = me.StringField()
-    size_id = me.StringField(required=True)
+    external_id = me.StringField(required=True)
     description = me.StringField()
     name = me.StringField()
     cpus = me.IntField()
@@ -115,7 +115,7 @@ class CloudSize(me.Document):
         'collection': 'cloud_sizes',
         'indexes': [
             {
-                'fields': ['cloud', 'size_id'],
+                'fields': ['cloud', 'external_id'],
                 'sparse': False,
                 'unique': True,
                 'cls': False,
@@ -128,14 +128,14 @@ class CloudSize(me.Document):
         super(CloudSize, self).__init__(*args, **kwargs)
 
     def __str__(self):
-        name = "%s, %s (%s)" % (self.name, self.cloud, self.size_id)
+        name = "%s, %s (%s)" % (self.name, self.cloud, self.external_id)
         return name
 
     def as_dict(self):
         return {
-            'id': self.size_id,
+            'id': self.external_id,
             'provider': self.provider,
-            'size_id': self.id,
+            'external_id': self.id,
             'name': self.name,
             'cpus': self.cpus,
             'ram': self.ram,
