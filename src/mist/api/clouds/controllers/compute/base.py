@@ -753,24 +753,17 @@ class BaseComputeController(BaseController):
         # Initialize AMQP connection to reuse for multiple messages.
         amqp_conn = Connection(config.AMQP_URI)
         if amqp_owner_listening(self.cloud.owner.id):
-            if not config.SIZE_PATCHES:
+            # Publish patches to rabbitmq.
+            new_sizes = {'%s' % s.id: s.as_dict()
+                         for s in sizes}
+            patch = jsonpatch.JsonPatch.from_diff(cached_sizes,
+                                                  new_sizes).patch
+            if patch:
                 amqp_publish_user(self.cloud.owner.id,
-                                  routing_key='list_sizes',
+                                  routing_key='patch_sizes',
                                   connection=amqp_conn,
                                   data={'cloud_id': self.cloud.id,
-                                        'sizes': sizes})
-            else:
-                # Publish patches to rabbitmq.
-                new_sizes = {'%s' % s.id: s.as_dict()
-                             for s in sizes}
-                patch = jsonpatch.JsonPatch.from_diff(cached_sizes,
-                                                      new_sizes).patch
-                if patch:
-                    amqp_publish_user(self.cloud.owner.id,
-                                      routing_key='patch_sizes',
-                                      connection=amqp_conn,
-                                      data={'cloud_id': self.cloud.id,
-                                            'patch': patch})
+                                        'patch': patch})
 
                 # Format size information.
         # return [size.as_dict() for size in sizes]
