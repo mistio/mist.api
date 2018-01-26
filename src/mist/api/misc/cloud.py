@@ -1,5 +1,43 @@
 """Cloud related classes"""
+import uuid
+
 import mongoengine as me
+
+
+class CloudLocation(me.Document):
+    """A base Cloud Location Model."""
+    id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
+    cloud = me.ReferenceField('Cloud', required=True)
+    external_id = me.StringField(required=True)
+    provider = me.StringField()
+    name = me.StringField()
+    country = me.StringField()
+
+    meta = {
+        'collection': 'locations',
+        'indexes': [
+            {
+                'fields': ['cloud', 'name'],
+                'sparse': False,
+                'unique': True,
+                'cls': False,
+            },
+        ]
+    }
+
+    def __str__(self):
+        name = "%s, %s (%s)" % (self.name, self.provider, self.external_id)
+        return name
+
+    def as_dict(self):
+        return {
+            'id': self.id,
+            'cloud': self.cloud.id,
+            'provider': self.provider,
+            'external_id': self.external_id,
+            'name': self.name,
+            'country': self.country,
+        }
 
 
 class CloudImage(me.Document):
