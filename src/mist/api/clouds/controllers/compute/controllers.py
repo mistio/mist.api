@@ -216,40 +216,6 @@ class AmazonComputeController(BaseComputeController):
         return '%s - %s(%sMB RAM/ %s cpus)' % (size.id, size.name,
                                                size.ram, cpu)
 
-    def _list_sizes__fetch_sizes(self):
-        fetched_sizes = self.connection.list_sizes()
-
-        log.info("List sizes returned %d results for %s.",
-                 len(fetched_sizes), self.cloud)
-        sizes = []
-
-        for size in fetched_sizes:
-
-            # create the object in db if it does not exist
-            try:
-                _size = CloudSize.objects.get(cloud=self.cloud,
-                                              external_id=size.id)
-            except CloudSize.DoesNotExist:
-                _size = CloudSize(cloud=self.cloud,
-                                  name=size.name, disk=size.disk,
-                                  ram=size.ram, external_id=size.id,
-                                  bandwidth=size.bandwidth
-                                  )
-            cpus = self._list_sizes_get_cpu(size)
-            _size.cpus = cpus
-            _size.provider = self.provider
-            _size.description = self._list_sizes_set_description(size,
-                                                                 cpus)
-            try:
-                _size.save()
-                sizes.append(_size)
-            except me.ValidationError as exc:
-                log.error("Error adding %s: %s", size.name, exc.to_dict())
-                raise BadRequestError({"msg": exc.message,
-                                       "errors": exc.to_dict()})
-
-        return sizes
-
 
 class DigitalOceanComputeController(BaseComputeController):
 
