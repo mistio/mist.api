@@ -798,8 +798,12 @@ class BaseComputeController(BaseController):
                                                   new_locations).patch
 
             if patch:
+                if cached_locations:
+                    routing_key='patch_locations'
+                else:
+                    routing_key='list_locations'
                 amqp_publish_user(self.cloud.owner.id,
-                                  routing_key='patch_locations',
+                                  routing_key=routing_key,
                                   connection=amqp_conn,
                                   data={'cloud_id': self.cloud.id,
                                         'patch': patch})
