@@ -822,7 +822,6 @@ class BaseComputeController(BaseController):
     def _list_sizes_get_cpu(self, size):
         return size.extra.get('cpus')
 
-    # providers to check: gce, aws, openstack, rackspace, vultr
     def _list_sizes_set_description(self, size, cpu):
         """Sets description for size, as it will be
         shown to the end user
