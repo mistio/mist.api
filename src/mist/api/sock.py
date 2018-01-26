@@ -356,11 +356,16 @@ class MainConnection(MistConnection):
             self.send('list_machines',
                       {'cloud_id': cloud.id, 'machines': machines})
 
+            cached_locations = cloud.ctl.compute.list_cached_locations()
+            locations = [location.as_dict() for location in cached_locations]
+            log.info("Emitting list_locations from poller's cache.")
+            self.send('list_locations',
+                      {'cloud_id': cloud.id, 'locations': locations})
+
         periodic_tasks.extend([('list_images', tasks.ListImages()),
                                ('list_sizes', tasks.ListSizes()),
                                ('list_networks', tasks.ListNetworks()),
                                ('list_zones', tasks.ListZones()),
-                               ('list_locations', tasks.ListLocations()),
                                ('list_resource_groups',
                                 tasks.ListResourceGroups()),
                                ('list_storage_accounts',
@@ -561,6 +566,18 @@ class MainConnection(MistConnection):
             for line in patch:
                 line['path'] = '/clouds/%s/machines/%s' % (cloud_id,
                                                            line['path'])
+            if patch:
+                self.send('patch_model', patch)
+
+        elif routing_key == 'patch_locations':
+            cloud_id = result['cloud_id']
+            patch = result['patch']
+
+            # remove '/'
+            for line in patch:
+                location_id = line['path'][1:]
+                line['path'] = '/clouds/%s/locations/%s' % (cloud_id,
+                                                            location_id)
             if patch:
                 self.send('patch_model', patch)
 

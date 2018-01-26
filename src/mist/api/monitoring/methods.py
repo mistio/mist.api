@@ -29,7 +29,6 @@ from mist.api.monitoring.handlers import MultiLoadHandler
 from mist.api.monitoring import traefik
 
 from mist.api.rules.models import Rule
-from mist.api.rules.models.main import NoDataRule
 
 log = logging.getLogger(__name__)
 
@@ -349,13 +348,6 @@ def enable_monitoring(owner, cloud_id, machine_id,
 
     if job_id:
         ret_dict['job_id'] = job_id
-
-    # Check whether a NoDataRule has been set up for the current Organization.
-    try:
-        NoDataRule.objects.get(owner_id=owner.id, title='NoData')
-    except NoDataRule.DoesNotExist:
-        rule = NoDataRule(owner_id=owner.id)
-        rule.ctl.auto_setup()
 
     return ret_dict
 

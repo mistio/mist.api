@@ -49,6 +49,7 @@ from mist.api.concurrency.models import PeriodicTaskThresholdExceeded
 from mist.api.clouds.controllers.base import BaseController
 from mist.api.tag.models import Tag
 from mist.api.machines.models import Machine
+from mist.api.misc.cloud import CloudLocation
 
 if config.HAS_CORE:
     from mist.core.vpn.methods import destination_nat as dnat
@@ -89,7 +90,7 @@ def _decide_machine_cost(machine, tags=None, cost=(0, 0)):
         cph = parse_num(tags.get('cost_per_hour'))
         cpm = parse_num(tags.get('cost_per_month'))
         if not (cph or cpm) or cph > 100 or cpm > 100 * 24 * 31:
-            log.warning("Invalid cost tags for machine %s", machine)
+            log.debug("Invalid cost tags for machine %s", machine)
             cph, cpm = map(parse_num, cost)
         if not cph:
             cph = float(cpm) / month_days / 24
@@ -304,6 +305,20 @@ class BaseComputeController(BaseController):
             # Update machine_model's last_seen fields.
             machine.last_seen = now
             machine.missing_since = None
+
+            try:
+                location_name = self._list_machines__get_location(node)
+            except Exception as exc:
+                log.exception(repr(exc))
+
+            if location_name:
+
+                try:
+                    _location = CloudLocation.objects.get(cloud=self.cloud,
+                                                          name=location_name)
+                    machine.location = _location
+                except CloudLocation.DoesNotExist:
+                    pass
 
             # Get misc libcloud metadata.
             image_id = str(node.image or node.extra.get('imageId') or
@@ -747,7 +762,51 @@ class BaseComputeController(BaseController):
         """
         return self.connection.list_sizes()
 
-    def list_locations(self):
+    def list_locations(self, persist=True):
+        """Return list of locations for cloud
+
+        A list of locations is fetched from libcloud, data is processed, stored
+        on location models, and a list of location models is returned.
+
+        Subclasses SHOULD NOT override or extend this method.
+
+        This method wraps `_list_locations` which contains the core
+        implementation.
+
+        """
+        task_key = 'cloud:list_locations:%s' % self.cloud.id
+        task = PeriodicTaskInfo.get_or_add(task_key)
+        try:
+            with task.task_runner(persist=persist):
+                cached_locations = {'%s' % l.id: l.as_dict()
+                                    for l in self.list_cached_locations()}
+
+                locations = self._list_locations()
+        except PeriodicTaskThresholdExceeded:
+            self.cloud.disable()
+            raise
+
+        # Initialize AMQP connection to reuse for multiple messages.
+        amqp_conn = Connection(config.AMQP_URI)
+        if amqp_owner_listening(self.cloud.owner.id):
+
+            # Publish patches to rabbitmq.
+            new_locations = {'%s' % l.id: l.as_dict()
+                             for l in locations}
+
+            patch = jsonpatch.JsonPatch.from_diff(cached_locations,
+                                                  new_locations).patch
+
+            if patch:
+                amqp_publish_user(self.cloud.owner.id,
+                                  routing_key='patch_locations',
+                                  connection=amqp_conn,
+                                  data={'cloud_id': self.cloud.id,
+                                        'patch': patch})
+
+        return locations
+
+    def _list_locations(self):
         """Return list of available locations for current cloud
 
         Locations mean different things in each cloud. e.g. EC2 uses it as a
@@ -772,13 +831,40 @@ class BaseComputeController(BaseController):
         """
 
         # Fetch locations, usually from libcloud connection.
-        locations = self._list_locations__fetch_locations()
+        fetched_locations = self._list_locations__fetch_locations()
 
-        # Format size information.
-        return [{'id': location.id,
-                 'name': location.name,
-                 'extra': location.extra,
-                 'country': location.country} for location in locations]
+        log.info("List locations returned %d results for %s.",
+                 len(fetched_locations), self.cloud)
+
+        locations = []
+
+        for loc in fetched_locations:
+
+            try:
+                _location = CloudLocation.objects.get(cloud=self.cloud,
+                                                      name=loc.name)
+            except CloudLocation.DoesNotExist:
+                _location = CloudLocation(cloud=self.cloud,
+                                          external_id=loc.id,
+                                          name=loc.name)
+            _location.country = loc.country
+            _location.provider = self.provider
+
+            try:
+                _location.save()
+                locations.append(_location)
+            except me.ValidationError as exc:
+                log.error("Error adding %s: %s", loc.name, exc.to_dict())
+                raise BadRequestError({"msg": exc.message,
+                                       "errors": exc.to_dict()})
+
+        return locations
+
+    def list_cached_locations(self):
+        """Return list of locations from database
+        for a specific cloud
+        """
+        return CloudLocation.objects(cloud=self.cloud)
 
     def _list_locations__fetch_locations(self):
         """Fetch location listing in a libcloud compatible format
@@ -796,6 +882,16 @@ class BaseComputeController(BaseController):
         except:
             return [NodeLocation('', name='default', country='',
                                  driver=self.connection)]
+
+    def _list_machines__get_location(self, node):
+        """Find location code name/identifier from libcloud data
+
+        This is to be called exclusively by `self._list_machines`.
+
+        Subclasses MAY override this method.
+
+        """
+        return ''
 
     def _get_machine_libcloud(self, machine, no_fail=False):
         """Return an instance of a libcloud node
