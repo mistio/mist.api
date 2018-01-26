@@ -573,7 +573,6 @@ class AzureArmComputeController(BaseComputeController):
             # create the object in db if it does not exist
             try:
                 _size = CloudSize.objects.get(cloud=self.cloud,
-                                              provider=self.provider,
                                               external_id=size.id)
             except CloudSize.DoesNotExist:
                 _size = CloudSize(cloud=self.cloud,
