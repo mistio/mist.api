@@ -39,6 +39,7 @@ from mist.api.poller.models import PollingSchedule
 from mist.api.poller.models import ListMachinesPollingSchedule
 from mist.api.poller.models import PingProbeMachinePollingSchedule
 from mist.api.poller.models import SSHProbeMachinePollingSchedule
+from mist.api.poller.models import ListLocationsPollingSchedule
 
 celery_cfg = 'mist.core.celery_config'
 
@@ -692,21 +693,6 @@ class ListSizes(UserTask):
         owner = Owner.objects.get(id=owner_id)
         sizes = methods.list_sizes(owner, cloud_id)
         return {'cloud_id': cloud_id, 'sizes': sizes}
-
-
-class ListLocations(UserTask):
-    abstract = False
-    task_key = 'list_locations'
-    result_expires = 60 * 60 * 24 * 7
-    result_fresh = 60 * 60
-    polling = False
-    soft_time_limit = 30
-
-    def execute(self, owner_id, cloud_id):
-        from mist.api import methods
-        owner = Owner.objects.get(id=owner_id)
-        locations = methods.list_locations(owner, cloud_id)
-        return {'cloud_id': cloud_id, 'locations': locations}
 
 
 class ListNetworks(UserTask):
@@ -1399,6 +1385,7 @@ def update_poller(org_id):
     for cloud in Cloud.objects(owner=org, deleted=None, enabled=True):
         log.info("Updating poller for cloud %s", cloud)
         ListMachinesPollingSchedule.add(cloud=cloud, interval=10, ttl=120)
+        ListLocationsPollingSchedule.add(cloud=cloud)
         for machine in cloud.ctl.compute.list_cached_machines():
             log.info("Updating poller for machine %s", machine)
             PingProbeMachinePollingSchedule.add(machine=machine,

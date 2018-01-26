@@ -9,6 +9,7 @@ from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import BadRequestError, NotFoundError
 
 from mist.api.poller.models import ListMachinesPollingSchedule
+from mist.api.poller.models import ListLocationsPollingSchedule
 
 from mist.api.monitoring.methods import disable_monitoring_cloud
 
@@ -69,6 +70,7 @@ def add_cloud_v_2(owner, title, provider, params):
     cloud.polling_interval = 1800  # 30 min * 60 sec/min
     cloud.save()
     ListMachinesPollingSchedule.add(cloud=cloud)
+    ListLocationsPollingSchedule.add(cloud=cloud)
 
     return ret
 
