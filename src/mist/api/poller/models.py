@@ -244,7 +244,7 @@ class ListLocationsPollingSchedule(CloudPollingSchedule):
 
     @property
     def interval(self):
-        return super(PollingSchedule, self).interval
+        return super(CloudPollingSchedule, self).interval
 
 
 class MachinePollingSchedule(PollingSchedule):
