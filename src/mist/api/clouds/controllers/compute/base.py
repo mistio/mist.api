@@ -324,7 +324,10 @@ class BaseComputeController(BaseController):
             image_id = str(node.image or node.extra.get('imageId') or
                            node.extra.get('image_id') or
                            node.extra.get('image') or '')
-            size = self._list_machines_get_size(node)
+            try:
+                size = self._list_machines_get_size(node)
+            except Exception as exc:
+                log.exception(repr(exc))
 
             machine.name = node.name
             machine.image_id = image_id
@@ -797,7 +800,10 @@ class BaseComputeController(BaseController):
                                   ram=size.ram, external_id=size.id,
                                   bandwidth=size.bandwidth, price=size.price
                                   )
-            cpus = self._list_sizes_get_cpu(size)
+            try:
+                cpus = self._list_sizes_get_cpu(size)
+            except Exception as exc:
+                log.exception(repr(exc))
             _size.cpus = cpus
             _size.provider = self.provider
             _size.description = self._list_sizes_set_description(size,
