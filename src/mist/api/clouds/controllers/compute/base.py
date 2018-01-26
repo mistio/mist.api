@@ -794,19 +794,24 @@ class BaseComputeController(BaseController):
             new_locations = {'%s' % l.id: l.as_dict()
                              for l in locations}
 
-            patch = jsonpatch.JsonPatch.from_diff(cached_locations,
-                                                  new_locations).patch
-
-            if patch:
-                if cached_locations:
-                    routing_key = 'patch_locations'
-                else:
-                    routing_key = 'list_locations'
+            if not len(cached_locations) and len(new_locations):
                 amqp_publish_user(self.cloud.owner.id,
-                                  routing_key=routing_key,
+                                  routing_key='list_locations',
                                   connection=amqp_conn,
                                   data={'cloud_id': self.cloud.id,
-                                        'patch': patch})
+                                        'locations': new_locations})
+
+            else:
+
+                patch = jsonpatch.JsonPatch.from_diff(cached_locations,
+                                                      new_locations).patch
+
+                if patch:
+                    amqp_publish_user(self.cloud.owner.id,
+                                      routing_key='patch_locations',
+                                      connection=amqp_conn,
+                                      data={'cloud_id': self.cloud.id,
+                                            'patch': patch})
 
         return locations
 
