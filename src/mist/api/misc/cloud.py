@@ -115,7 +115,7 @@ class CloudSize(me.Document):
         'collection': 'sizes',
         'indexes': [
             {
-                'fields': ['cloud', 'name'],
+                'fields': ['cloud', 'external_id'],
                 'sparse': False,
                 'unique': True,
                 'cls': False,
