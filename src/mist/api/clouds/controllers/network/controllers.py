@@ -180,5 +180,8 @@ class LibvirtNetworkController(BaseNetworkController):
 
 
 class VSphereNetworkController(BaseNetworkController):
-    pass
+    def _list_networks__postparse_network(self, network, libcloud_network):
+        return
 
+    def _list_subnets__fetch_subnets(self, network):
+        return []
