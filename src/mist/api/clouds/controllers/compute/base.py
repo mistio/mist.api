@@ -865,7 +865,7 @@ class BaseComputeController(BaseController):
                 cached_locations = {'%s' % l.id: l.as_dict()
                                     for l in self.list_cached_locations()}
 
-                locations = self._list_locations()
+                locations = [l.as_dict() for l in self._list_locations()]
         except PeriodicTaskThresholdExceeded:
             self.cloud.disable()
             raise
@@ -873,21 +873,23 @@ class BaseComputeController(BaseController):
         # Initialize AMQP connection to reuse for multiple messages.
         amqp_conn = Connection(config.AMQP_URI)
         if amqp_owner_listening(self.cloud.owner.id):
-
-            # Publish patches to rabbitmq.
-            new_locations = {'%s' % l.id: l.as_dict()
-                             for l in locations}
-
-            patch = jsonpatch.JsonPatch.from_diff(cached_locations,
-                                                  new_locations).patch
-
-            if patch:
+            if cached_locations and locations:
+                # Publish patches to rabbitmq.
+                new_locations = {'%s' % l['id']: l for l in locations}
+                patch = jsonpatch.JsonPatch.from_diff(cached_locations,
+                                                      new_locations).patch
+                if patch:
+                    amqp_publish_user(self.cloud.owner.id,
+                                      routing_key='patch_locations',
+                                      connection=amqp_conn,
+                                      data={'cloud_id': self.cloud.id,
+                                            'patch': patch})
+            else:
                 amqp_publish_user(self.cloud.owner.id,
-                                  routing_key='patch_locations',
+                                  routing_key='list_locations',
                                   connection=amqp_conn,
                                   data={'cloud_id': self.cloud.id,
-                                        'patch': patch})
-
+                                        'locations': locations})
         return locations
 
     def _list_locations(self):

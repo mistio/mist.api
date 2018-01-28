@@ -242,6 +242,10 @@ class ListLocationsPollingSchedule(CloudPollingSchedule):
 
     task = 'mist.api.poller.tasks.list_locations'
 
+    @property
+    def interval(self):
+        return super(CloudPollingSchedule, self).interval
+
 
 class ListSizesPollingSchedule(CloudPollingSchedule):
 

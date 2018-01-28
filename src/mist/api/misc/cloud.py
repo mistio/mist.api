@@ -31,10 +31,10 @@ class CloudLocation(me.Document):
 
     def as_dict(self):
         return {
-            'id': self.external_id,
+            'id': self.id,
             'cloud': self.cloud.id,
             'provider': self.provider,
-            'external_id': self.id,
+            'external_id': self.external_id,
             'name': self.name,
             'country': self.country,
         }
