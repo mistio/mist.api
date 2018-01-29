@@ -936,6 +936,15 @@ class OpenStackComputeController(BaseComputeController):
         return size.name + ' ( %d cpus / %dM RAM)' \
                            % (cpu, size.ram)
 
+    def _list_machines_get_size(self, node):
+        plan_id = node.extra.get('flavorId')
+        try:
+            size = CloudSize.objects.get(cloud=self.cloud,
+                                         external_id=plan_id)
+            return size
+        except CloudSize.DoesNotExist:
+            return ''
+
 
 class DockerComputeController(BaseComputeController):
 
