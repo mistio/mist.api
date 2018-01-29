@@ -743,6 +743,7 @@ class BaseComputeController(BaseController):
         """
         task_key = 'cloud:list_sizes:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
+        import ipdb; ipdb.set_trace()
         try:
             with task.task_runner(persist=persist):
                 cached_sizes = {'%s' % s.id: s.as_dict()
@@ -800,8 +801,6 @@ class BaseComputeController(BaseController):
                 _size = CloudSize.objects.get(cloud=self.cloud,
                                               external_id=size.id)
             except CloudSize.DoesNotExist:
-                if self.provider == 'packet':
-                    size.ram = size.ram.strip('GB')
                 _size = CloudSize(cloud=self.cloud,
                                   name=size.name, disk=size.disk,
                                   ram=size.ram, external_id=size.id,

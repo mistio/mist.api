@@ -253,7 +253,7 @@ class DigitalOceanComputeController(BaseComputeController):
     def _list_machines__get_location(self, node):
         return node.extra.get('region')
 
-    def _list_machines_get_size(self, node):
+    def _list_machines__get_size(self, node):
         size_name = node.extra.get('size_slug')
         try:
             _size = CloudSize.objects.get(cloud=self.cloud,
@@ -301,7 +301,7 @@ class LinodeComputeController(BaseComputeController):
         """
         return size.name + '(%d cpus)' % cpu
 
-    def _list_machines_get_size(self, node):
+    def _list_machines__get_size(self, node):
         plan_id = node.extra.get('PLANID')
         try:
             size = CloudSize.objects.get(cloud=self.cloud,
@@ -449,7 +449,7 @@ class NephoScaleComputeController(BaseComputeController):
     def _list_machines__get_location(self, node):
         return node.extra.get('zone')
 
-    def _list_machines_get_size(self, node):
+    def _list_machines__get_size(self, node):
         plan_id = str(node.extra.get('size_id'))
         try:
             size = CloudSize.objects.get(cloud=self.cloud,
@@ -864,7 +864,7 @@ class PacketComputeController(BaseComputeController):
 
         return sizes
 
-    def _list_machines_get_size(self, node):
+    def _list_machines__get_size(self, node):
         plan = node.extra.get('plan')
         try:
             size = CloudSize.objects.get(cloud=self.cloud,
@@ -885,7 +885,7 @@ class VultrComputeController(BaseComputeController):
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         return 0, machine_libcloud.extra.get('cost_per_month', 0)
 
-    def _list_machines_get_size(self, node):
+    def _list_machines__get_size(self, node):
         plan_id = node.extra.get('VPSPLANID')
         try:
             size = CloudSize.objects.get(cloud=self.cloud,
@@ -987,7 +987,7 @@ class OpenStackComputeController(BaseComputeController):
         return size.name + ' ( %d cpus / %dM RAM)' \
                            % (cpu, size.ram)
 
-    def _list_machines_get_size(self, node):
+    def _list_machines__get_size(self, node):
         plan_id = node.extra.get('flavorId')
         try:
             size = CloudSize.objects.get(cloud=self.cloud,
