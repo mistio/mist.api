@@ -264,7 +264,7 @@ class DigitalOceanComputeController(BaseComputeController):
             return ''
 
     def _list_sizes_set_description(self, size, cpu):
-        return size.name + ' ( %d cpus / %dM RAM)' \
+        return size.name + ' (%d cpus / %dM RAM)' \
                            % (cpu, size.ram)
 
 
