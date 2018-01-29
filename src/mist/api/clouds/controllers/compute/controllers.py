@@ -449,6 +449,15 @@ class NephoScaleComputeController(BaseComputeController):
     def _list_machines__get_location(self, node):
         return node.extra.get('zone')
 
+    def _list_machines_get_size(self, node):
+        plan_id = str(node.extra.get('size_id'))
+        try:
+            size = CloudSize.objects.get(cloud=self.cloud,
+                                         external_id=plan_id)
+            return size
+        except CloudSize.DoesNotExist:
+            return ''
+
 
 class AzureComputeController(BaseComputeController):
 
