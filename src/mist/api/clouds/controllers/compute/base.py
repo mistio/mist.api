@@ -271,6 +271,7 @@ class BaseComputeController(BaseController):
         """
         # Try to query list of machines from provider API.
         try:
+            import ipdb; ipdb.set_trace()
             nodes = self._list_machines__fetch_machines()
             log.info("List nodes returned %d results for %s.",
                      len(nodes), self.cloud)
@@ -324,6 +325,7 @@ class BaseComputeController(BaseController):
             image_id = str(node.image or node.extra.get('imageId') or
                            node.extra.get('image_id') or
                            node.extra.get('image') or '')
+            import ipdb; ipdb.set_trace()
             try:
                 size = self._list_machines_get_size(node)
             except Exception as exc:
@@ -332,7 +334,7 @@ class BaseComputeController(BaseController):
             machine.name = node.name
             machine.image_id = image_id
             # for now!
-            # machine.size = size
+            machine.size = size
             machine.state = config.STATES[node.state]
             machine.private_ips = list(set(node.private_ips))
             machine.public_ips = list(set(node.public_ips))
@@ -739,16 +741,13 @@ class BaseComputeController(BaseController):
         default, dummy methods.
 
         """
-
-        # Fetch sizes, usually from libcloud connection.
-
         task_key = 'cloud:list_sizes:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
         try:
             with task.task_runner(persist=persist):
                 cached_sizes = {'%s' % s.id: s.as_dict()
                                 for s in self.list_cached_sizes()}
-                sizes = self._list_sizes__fetch_sizes()
+                sizes = [s.as_dict() for s in self._list_sizes__fetch_sizes()]
         except PeriodicTaskThresholdExceeded:
             self.cloud.disable()
             raise
@@ -756,17 +755,25 @@ class BaseComputeController(BaseController):
         # Initialize AMQP connection to reuse for multiple messages.
         amqp_conn = Connection(config.AMQP_URI)
         if amqp_owner_listening(self.cloud.owner.id):
-            # Publish patches to rabbitmq.
-            new_sizes = {'%s' % s.id: s.as_dict()
-                         for s in sizes}
-            patch = jsonpatch.JsonPatch.from_diff(cached_sizes,
-                                                  new_sizes).patch
-            if patch:
+
+            if cached_sizes and sizes:
+                # Publish patches to rabbitmq.
+                new_sizes = {'%s' % s['id']: s for s in sizes}
+                patch = jsonpatch.JsonPatch.from_diff(cached_sizes,
+                                                      new_sizes).patch
+                if patch:
+                    amqp_publish_user(self.cloud.owner.id,
+                                      routing_key='patch_sizes',
+                                      connection=amqp_conn,
+                                      data={'cloud_id': self.cloud.id,
+                                            'patch': patch})
+
+            else:
                 amqp_publish_user(self.cloud.owner.id,
-                                  routing_key='patch_sizes',
+                                  routing_key='list_sizes',
                                   connection=amqp_conn,
                                   data={'cloud_id': self.cloud.id,
-                                        'patch': patch})
+                                        'sizes': sizes})
 
                 # Format size information.
         # return [size.as_dict() for size in sizes]
