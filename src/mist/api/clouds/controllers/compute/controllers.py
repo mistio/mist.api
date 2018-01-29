@@ -1441,6 +1441,18 @@ class ClearCenterComputeController(BaseComputeController):
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
         return machine_libcloud.extra.get('created_timestamp')
 
+    def _list_machines__generic_machine_actions(self, machine):
+        """
+        Update an action for a clear center devices
+        """
+        super(OtherComputeController,
+              self)._list_machines__generic_machine_actions(machine)
+        machine.actions.remove = False
+        machine.actions.destroy = False
+        machine.actions.rename = False
+        machine.actions.reboot = False
+        machine.action.stop = False
+
     def list_images(self, search=None):
         return []
 

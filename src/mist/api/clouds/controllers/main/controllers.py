@@ -522,4 +522,4 @@ class OtherMainController(BaseMainController):
 class ClearCenterMainController(BaseMainController):
 
     provider = 'clearcenter'
-    ComputeController = compute_ctls.OtherComputeController
+    ComputeController = compute_ctls.ClearCenterComputeController
