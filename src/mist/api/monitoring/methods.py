@@ -293,13 +293,14 @@ def enable_monitoring(owner, cloud_id, machine_id,
 
     # Attempt to contact monitor server and enable monitoring for the machine
     try:
-        if machine.monitoring.method == 'collectd-graphite':
+        if machine.monitoring.method in ('collectd-graphite',
+                                         'telegraf-graphite'):
             if not config.HAS_CORE:
                 raise Exception()
             from mist.core.methods import _enable_monitoring_monitor
             _enable_monitoring_monitor(owner, cloud_id, machine_id)
-        elif machine.monitoring.method in ('telegraf-influxdb',
-                                           'telegraf-graphite'):
+        if machine.monitoring.method in ('telegraf-influxdb',
+                                         'telegraf-graphite'):
             traefik.reset_config()
         else:
             raise Exception("Invalid monitoring method")
@@ -409,7 +410,8 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=''):
 
     # tell monitor server to no longer monitor this uuid
     try:
-        if machine.monitoring.method == 'collectd-graphite':
+        if machine.monitoring.method in ('collectd-graphite',
+                                         'telegraf-graphite'):
             if not config.HAS_CORE:
                 raise Exception
             url = "%s/machines/%s" % (config.MONITOR_URI, machine.id)
@@ -422,8 +424,8 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=''):
                           ret.status_code, ret.text)
             else:
                 log.debug("Monitor server good response in disable_monitoring")
-        elif machine.monitoring.method in ('telegraf-influxdb',
-                                           'telegraf-graphite'):
+        if machine.monitoring.method in ('telegraf-influxdb',
+                                         'telegraf-graphite'):
             traefik.reset_config()
     except Exception as exc:
         log.error("Exception %s while asking monitor server in "
