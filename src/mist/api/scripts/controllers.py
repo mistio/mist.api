@@ -14,8 +14,12 @@ from mist.api.exceptions import RequiredParameterMissingError
 try:
     from mist.core.methods import assoc_metric, update_metric
 except ImportError:
-    def assoc_metric(*args, **kwargs): raise NotImplementedError()
-    def update_metric(*args, **kwargs): raise NotImplementedError()
+
+    def assoc_metric(*args, **kwargs):
+        raise NotImplementedError()
+
+    def update_metric(*args, **kwargs):
+        raise NotImplementedError()
 
 log = logging.getLogger(__name__)
 
@@ -113,14 +117,12 @@ class CollectdScriptController(BaseScriptController):
         sftp = shell.ssh.open_sftp()
 
         tmp_dir = "/tmp/mist-python-plugin-%d" % random.randrange(2 ** 20)
-        retval, stdout = shell.command(
-"""
+        retval, stdout = shell.command("""
 sudo=$(command -v sudo)
 mkdir -p %s
 cd /opt/mistio-collectd/
 $sudo mkdir -p plugins/mist-python/
-$sudo chown -R root plugins/mist-python/""" % tmp_dir
-        )
+$sudo chown -R root plugins/mist-python/""" % tmp_dir)
 
         # Test read function
         test_code = """
@@ -221,7 +223,7 @@ if ! grep '^ *Import %(plugin_id)s *$' plugins/mist-python/include.conf; then
 else
     echo "Plugin already imported in include.conf"
 fi
-$sudo rm -rf %(tmp_dir)s""" % {'plugin_id': plugin_id, 'tmp_dir': tmp_dir}
+$sudo rm -rf %(tmp_dir)s""" % {'plugin_id': plugin_id, 'tmp_dir': tmp_dir}  # noqa
 
         retval, cmd_out = shell.command(script)
         stdout += cmd_out
@@ -234,7 +236,6 @@ $sudo rm -rf %(tmp_dir)s""" % {'plugin_id': plugin_id, 'tmp_dir': tmp_dir}
         for part in plugin_id.split("."):
             if part != parts[-1]:
                 parts.append(part)
-        ## parts.append(value_type)  # not needed since MistPythonConverter in bucky
         metric_id = ".".join(parts)
 
         return {'metric_id': metric_id, 'stdout': stdout}
