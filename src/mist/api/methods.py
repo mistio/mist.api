@@ -754,6 +754,10 @@ def create_dns_a_record(owner, domain_name, ip_addr):
 # FIXME DEPRECATED
 def rule_triggered(machine, rule_id, value, triggered, timestamp,
                    notification_level, incident_id):
+    from mist.api.rules.models import NoDataRule
     from mist.api.rules.methods import run_chained_actions
+    if config.HAS_CORE and rule_id == 'nodata':
+        rule = NoDataRule.objects.get(owner_id=machine.owner.id, title='NoData')
+        rule_id = rule.title
     run_chained_actions(rule_id, machine, value, triggered, timestamp,
                         notification_level, incident_id)
