@@ -285,6 +285,7 @@ class BaseComputeController(BaseController):
             log.exception("Error while running list_nodes on %s", self.cloud)
             raise CloudUnavailableError(exc=exc)
 
+        import ipdb; ipdb.set_trace()
         machines = []
         now = datetime.datetime.utcnow()
 

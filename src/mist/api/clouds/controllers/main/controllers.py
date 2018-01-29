@@ -517,3 +517,9 @@ class OtherMainController(BaseMainController):
                     machine.delete()
                 raise
         return machine
+
+
+class ClearCenterMainController(BaseMainController):
+
+    provider = 'clearcenter'
+    ComputeController = compute_ctls.OtherComputeController
