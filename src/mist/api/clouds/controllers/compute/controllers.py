@@ -412,6 +412,15 @@ class SoftLayerComputeController(BaseComputeController):
     def _list_machines__get_location(self, node):
         return node.extra.get('datacenter')
 
+    def _list_machines__get_size(self, node):
+        size_id = str(node.extra.get('size'))
+        try:
+            size = CloudSize.objects.get(cloud=self.cloud,
+                                         external_id=size_id)
+            return size
+        except CloudSize.DoesNotExist:
+            return ''
+
     def _reboot_machine(self, machine, machine_libcloud):
         self.connection.reboot_node(machine_libcloud)
         return True
