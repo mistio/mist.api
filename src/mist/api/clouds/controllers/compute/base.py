@@ -271,7 +271,7 @@ class BaseComputeController(BaseController):
         """
         # Try to query list of machines from provider API.
         try:
-            import ipdb; ipdb.set_trace()
+            # import ipdb; ipdb.set_trace()
             nodes = self._list_machines__fetch_machines()
             log.info("List nodes returned %d results for %s.",
                      len(nodes), self.cloud)
@@ -325,7 +325,7 @@ class BaseComputeController(BaseController):
             image_id = str(node.image or node.extra.get('imageId') or
                            node.extra.get('image_id') or
                            node.extra.get('image') or '')
-            import ipdb; ipdb.set_trace()
+            # import ipdb; ipdb.set_trace()
             try:
                 size = self._list_machines_get_size(node)
             except Exception as exc:
@@ -743,7 +743,7 @@ class BaseComputeController(BaseController):
         """
         task_key = 'cloud:list_sizes:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
-        import ipdb; ipdb.set_trace()
+        # import ipdb; ipdb.set_trace()
         try:
             with task.task_runner(persist=persist):
                 cached_sizes = {'%s' % s.id: s.as_dict()
