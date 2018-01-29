@@ -5,12 +5,17 @@ count = True
 ignore =
     E722,  # bare except
 exclude =
-    .git,
-    __pycache__,
-    env,
-    libcloud,
-    paramiko,
-    run_script,
-    celerybeat-mongo,
+
+    # Automatically created directories we don't want to test.
+    .git/,
+    __pycache__/,
+    env/,
+
+    # Local settings files.
     settings.py,
-    tests/,
+
+    # Submodules we don't want to test.
+    ./libcloud/,
+    ./paramiko/,
+    ./run_script/,
+    ./celerybeat-mongo/,
