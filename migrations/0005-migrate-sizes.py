@@ -38,9 +38,10 @@ def remove_string_field_type():
         else:
             print 'OK'
             migrated += 1
-            print  'migrated: %d' % migrated
+            print 'migrated: %d' % migrated
 
     c.close()
+
 
 def list_size_objects():
     clouds = Cloud.objects()
@@ -56,6 +57,7 @@ def list_size_objects():
         size_objects += len(sizes)
 
     print 'Created %d CloudSize objects' % size_objects
+
 
 if __name__ == '__main__':
     remove_string_field_type()
