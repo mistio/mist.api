@@ -301,6 +301,14 @@ class LinodeComputeController(BaseComputeController):
         """
         return size.name + '(%d cpus)' % cpu
 
+    def _list_machines_get_size(self, node):
+        plan_id = node.extra.get('PLANID')
+        try:
+            size = CloudSize.objects.get(cloud=self.cloud,
+                                         external_id=plan_id)
+            return size
+        except CloudSize.DoesNotExist:
+            return ''
 
 class RackSpaceComputeController(BaseComputeController):
 
