@@ -1,4 +1,5 @@
-# Wrapper class for DNS actions
+"""Wrapper class for DNS actions"""
+
 
 class ZoneController(object):
 
