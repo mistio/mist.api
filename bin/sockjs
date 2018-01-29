@@ -35,6 +35,7 @@ def usr1_handler(sig, frame):
     for conn in list(mist.api.sock.CONNECTIONS):
         log.info(conn)
 
+
 def usr2_handler(sig, frame):
     import logging
     log = logging.getLogger(__name__)
@@ -42,6 +43,7 @@ def usr2_handler(sig, frame):
     for conn in list(mist.api.sock.CONNECTIONS):
         log.info(conn)
         conn.send('reload')
+
 
 def heartbeat():
     import logging
