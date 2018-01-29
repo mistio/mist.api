@@ -826,18 +826,11 @@ class VultrComputeController(BaseComputeController):
         return 0, machine_libcloud.extra.get('cost_per_month', 0)
 
     def _list_machines_get_size(self, node):
-        cpus = node.extra.get('vcpu_count')
-        if node.extra.get('ram'):
-            node.ram = [int(s) for s in node.extra.get('ram').split()
-                        if s.isdigit()][0]
-        if node.extra.get('disk'):
-            node.disk = [int(s) for s in node.extra.get('disk').split()
-                         if s.isdigit()][0]
+        plan_id = node.extra.get('VPSPLANID')
         try:
-            _size = CloudSize.objects.get(cloud=self.cloud,
-                                          cpus=cpus, ram=node.ram,
-                                          disk=node.disk)
-            return _size
+            size = CloudSize.objects.get(cloud=self.cloud,
+                                         external_id=plan_id)
+            return size
         except CloudSize.DoesNotExist:
             return ''
 
