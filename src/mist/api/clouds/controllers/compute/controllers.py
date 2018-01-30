@@ -369,6 +369,15 @@ class RackSpaceComputeController(BaseComputeController):
     def _list_sizes_set_description(self, size, cpu):
         return size.name + ' (%d cpus)' % cpu
 
+    def _list_machines__get_size(self, node):
+        plan_id = node.extra.get('flavorId')
+        try:
+            size = CloudSize.objects.get(cloud=self.cloud,
+                                         external_id=plan_id)
+            return size
+        except CloudSize.DoesNotExist:
+            return ''
+
 
 class SoftLayerComputeController(BaseComputeController):
 
