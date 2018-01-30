@@ -325,7 +325,7 @@ class BaseComputeController(BaseController):
             image_id = str(node.image or node.extra.get('imageId') or
                            node.extra.get('image_id') or
                            node.extra.get('image') or '')
-            import ipdb; ipdb.set_trace()
+            # import ipdb; ipdb.set_trace()
             try:
                 size = self._list_machines__get_size(node)
             except Exception as exc:
@@ -793,6 +793,7 @@ class BaseComputeController(BaseController):
         log.info("List sizes returned %d results for %s.",
                  len(fetched_sizes), self.cloud)
         sizes = []
+        # import ipdb; ipdb.set_trace()
 
         for size in fetched_sizes:
 
@@ -804,12 +805,15 @@ class BaseComputeController(BaseController):
                 _size = CloudSize(cloud=self.cloud,
                                   name=size.name, disk=size.disk,
                                   ram=size.ram, external_id=size.id,
-                                  bandwidth=size.bandwidth, price=size.price
+                                  bandwidth=size.bandwidth
                                   )
             try:
                 cpus = self._list_sizes_get_cpu(size)
             except Exception as exc:
                 log.exception(repr(exc))
+
+            if isinstance(size.price, float):
+                _size.price = size.price
             _size.cpus = cpus
             _size.provider = self.provider
             _size.description = self._list_sizes_set_description(size,
