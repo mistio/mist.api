@@ -1,8 +1,5 @@
 """Tests Cloud models and Controllers"""
 
-import os
-import uuid
-import json
 from deepdiff import DeepDiff
 from pprint import pprint
 
@@ -57,7 +54,7 @@ def test_list_machines(cloud, load_staging_l_machines):
 
         # Ignore value changes in some fields.
         for key in ('uuid', 'last_seen'):
-            if type(machine[key]) == type(ref[key]) or (
+            if type(machine[key]) == type(ref[key]) or (  # noqa
                 isinstance(machine[key], basestring) and
                 isinstance(ref[key], basestring)
             ):

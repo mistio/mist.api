@@ -191,7 +191,7 @@ class CloudPollingSchedule(PollingSchedule):
                            self.cloud)
 
     @classmethod
-    def add(cls, cloud, interval=None, ttl=300):
+    def add(cls, cloud, run_immediately=True, interval=None, ttl=300):
         try:
             schedule = cls.objects.get(cloud=cloud)
         except cls.DoesNotExist:
@@ -205,7 +205,7 @@ class CloudPollingSchedule(PollingSchedule):
         schedule.set_default_interval(cloud.polling_interval)
         if interval is not None:
             schedule.add_interval(interval, ttl)
-        schedule.run_immediately = True
+        schedule.run_immediately = run_immediately
         schedule.cleanup_expired_intervals()
         schedule.save()
         return schedule
