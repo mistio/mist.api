@@ -8,6 +8,8 @@ from mist.api.clouds.models import Cloud
 from mist.api.clouds.models import LibvirtCloud
 from mist.api.machines.models import Machine
 from mist.api.misc.cloud import CloudLocation
+from mist.api.misc.cloud import CloudSize
+
 from mist.api.clouds.methods import filter_list_clouds
 
 from mist.api import tasks
@@ -323,6 +325,15 @@ def create_machine(request):
             raise NotFoundError('Cloud location does not exist')
 
         location_id = loc.external_id
+
+    if size_id:
+        try:
+            s = CloudSize.objects.get(cloud=cl,
+                                      id=size_id)
+        except CloudSize.DoesNotExist:
+            raise NotFoundError('Cloud size does not exist')
+
+        size_id = s.external_id
 
     # compose schedule as a dict from relative parameters
     if not params.get('schedule_type'):
