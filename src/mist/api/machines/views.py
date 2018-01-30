@@ -315,13 +315,14 @@ def create_machine(request):
     except Cloud.DoesNotExist:
         raise NotFoundError('Cloud does not exist')
 
-    try:
-        loc = CloudLocation.objects.get(cloud=cl,
-                                        id=location_id)
-    except CloudLocation.DoesNotExist:
-        raise NotFoundError('Cloud location does not exist')
+    if location_id:
+        try:
+            loc = CloudLocation.objects.get(cloud=cl,
+                                            id=location_id)
+        except CloudLocation.DoesNotExist:
+            raise NotFoundError('Cloud location does not exist')
 
-    location_id = loc.external_id
+        location_id = loc.external_id
 
     # compose schedule as a dict from relative parameters
     if not params.get('schedule_type'):
