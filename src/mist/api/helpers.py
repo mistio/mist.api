@@ -14,12 +14,10 @@ could easily use in some other unrelated project.
 import os
 import re
 import sys
-import uuid
 import json
 import string
 import random
 import socket
-import shutil
 import smtplib
 import logging
 import datetime
@@ -34,9 +32,6 @@ from base64 import urlsafe_b64encode
 
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-
-from pymongo import MongoClient
-from bson.objectid import ObjectId
 
 from contextlib import contextmanager
 from email.utils import formatdate, make_msgid
@@ -65,7 +60,7 @@ from elasticsearch import Elasticsearch
 from elasticsearch_tornado import EsClient
 
 import mist.api.users.models
-from mist.api.auth.models import ApiToken, SessionToken, datetime_to_str
+from mist.api.auth.models import ApiToken, datetime_to_str
 
 from mist.api.exceptions import MistError, NotFoundError
 from mist.api.exceptions import RequiredParameterMissingError
@@ -215,7 +210,8 @@ def dirty_cow(os, os_version, kernel_version):
         },
     }
 
-    # If version is lower that min_patched_version it is most probably vulnerable
+    # If version is lower that min_patched_version it is most probably
+    # vulnerable
     if LooseVersion(kernel_version) < LooseVersion(min_patched_version):
         return True
 
@@ -254,7 +250,8 @@ def amqp_publish(exchange, routing_key, data,
         close = True
     channel = connection.channel()
     if ex_declare:
-        channel.exchange_declare(exchange=exchange, type=ex_type, auto_delete=auto_delete)
+        channel.exchange_declare(exchange=exchange, type=ex_type,
+                                 auto_delete=auto_delete)
     msg = Message(json.dumps(data))
     channel.basic_publish(msg, exchange=exchange, routing_key=routing_key)
     channel.close()
@@ -533,7 +530,7 @@ def get_datetime(timestamp):
     if isinstance(timestamp, datetime.datetime):
         # Timestamp is already a datetime object.
         return timestamp
-    if isinstance(timestamp, (int, float)):
+    elif isinstance(timestamp, (int, float)):
         try:
             # Handle Unix timestamps.
             return datetime.datetime.fromtimestamp(timestamp)
@@ -544,14 +541,14 @@ def get_datetime(timestamp):
             return datetime.datetime.fromtimestamp(timestamp / 1000)
         except ValueError:
             pass
-    if isinstance(timestamp, basestring):
+    elif isinstance(timestamp, basestring):
         try:
             timestamp = float(timestamp)
         except (ValueError, TypeError):
             pass
         else:
             # Timestamp is probably Unix timestamp given as string.
-            return parse_timestamp_to_datetime(timestamp)
+            return get_datetime(timestamp)
         try:
             # Try to parse as string date in common formats.
             return iso8601.parse_date(timestamp)
@@ -812,15 +809,14 @@ def logging_view_decorator(func):
         if not hasattr(request, 'real_view_name'):
             request.real_view_name = func.func_name
 
-
         # check if exception occurred
         try:
             response = func(context, request)
         except HTTPError as e:
             if request.path_info.startswith('/social_auth/complete'):
-                log.info("There was a bad error during SSO connection: %s, and "
-                         "request was %s" % (repr(e), request.__dict__))
-            raise e
+                log.info("There was a bad error during SSO connection: %s, "
+                         "and request was %s" % (repr(e), request.__dict__))
+            raise
         # check if exception occured
         exc_flag = (config.LOG_EXCEPTIONS and
                     isinstance(context, Exception) and
@@ -869,7 +865,7 @@ def logging_view_decorator(func):
                     log_dict['experiment'] = session.experiment
                 if session.choice:
                     log_dict['choice'] = session.choice
-            except AttributeError: # in case of ApiToken
+            except AttributeError:  # in case of ApiToken
                 pass
 
         # log user
@@ -887,7 +883,7 @@ def logging_view_decorator(func):
             log_dict['owner_id'] = None
 
         if isinstance(session, ApiToken):
-            if not 'dummy' in session.name:
+            if 'dummy' not in session.name:
                 log_dict['api_token_id'] = str(session.id)
                 log_dict['api_token_name'] = session.name
                 log_dict['api_token'] = session.token[:4] + '***CENSORED***'
@@ -924,9 +920,9 @@ def logging_view_decorator(func):
         if machine_id and not log_dict.get('machine_id'):
             log_dict['machine_id'] = request.environ.get('machine_id')
 
-        machine_uuid = request.matchdict.get('machine_uuid') or \
-                       params.get('machine_uuid') or \
-                       request.environ.get('machine_uuid')
+        machine_uuid = (request.matchdict.get('machine_uuid') or
+                        params.get('machine_uuid') or
+                        request.environ.get('machine_uuid'))
         if machine_uuid and not log_dict.get('machine_uuid'):
             log_dict['machine_uuid'] = machine_uuid
 
@@ -1009,7 +1005,8 @@ def logging_view_decorator(func):
         if not exc_flag:
             return response
 
-        # Publish traceback in rabbitmq, for heka to parse and forward to elastic
+        # Publish traceback in rabbitmq, for heka to parse and forward to
+        # elastic
         log.info("Bad exception occured, logging to rabbitmq")
         es_dict = log_dict.copy()
         es_dict.pop('_exc_type')
@@ -1152,7 +1149,7 @@ def mac_sign(kwargs=None, expires=None, key='', mac_len=0, mac_format='hex'):
         raise Exception('No message provided to be signed')
     if expires:
         kwargs['_expires'] = int(time() + expires)
-    parts = ["%s=%s" % (key, kwargs[key]) for key in sorted(kwargs.keys())]
+    parts = ["%s=%s" % (k, kwargs[k]) for k in sorted(kwargs.keys())]
     msg = "&".join(parts)
     hmac = HMAC(str(key), msg=str(msg), digestmod=SHA256Hash())
     if mac_format == 'b64':

@@ -1,8 +1,5 @@
 """ Test Dns Functionality """
 
-import os
-import uuid
-import json
 from deepdiff import DeepDiff
 from pprint import pprint
 
@@ -12,6 +9,7 @@ __zone_id__ = None
 __record_id__ = None
 __num_zones__ = None
 __num_records__ = None
+
 
 def unicode_to_str(data):
     if isinstance(data, dict):
@@ -72,7 +70,7 @@ def test_create_zone(cloud):
             break
 
     if __zone_id__:
-        if __num_zones__ == len(Zone.objects(cloud=cloud)) -1:
+        if __num_zones__ == len(Zone.objects(cloud=cloud)) - 1:
             print "**DNS zone created succesfully on the provider and the DB"
             __num_zones__ += 1
             print "__num_zones__: %d" % __num_zones__
@@ -114,7 +112,7 @@ def test_create_record(cloud):
     global __zone_id__
     global __record_id__
     global __num_records__
-    zone = Zone.objects.get(owner=cloud.owner, id=__zone_id__)
+    Zone.objects.get(owner=cloud.owner, id=__zone_id__)
 
     kwargs = {}
     kwargs['name'] = 'blog.test.io'

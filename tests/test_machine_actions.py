@@ -1,8 +1,6 @@
 """Tests Cloud models and Controllers"""
 
-import os
 import uuid
-import json
 import random
 import string
 from time import time
@@ -10,9 +8,9 @@ from time import sleep
 from mist.api.machines.methods import create_machine, destroy_machine
 
 
-def test_create_machine_list_machines(org, cloud, key, load_clouds_from_config):
+def test_create_machine_list_machines(org, cloud, key,
+                                      load_clouds_from_config):
     CLOUDS = load_clouds_from_config
-    CLOUD_NAMES = [cdict['name'] for cdict in CLOUDS]
 
     # create_machine_params
     for cdict in CLOUDS:
@@ -26,13 +24,13 @@ def test_create_machine_list_machines(org, cloud, key, load_clouds_from_config):
     cloud_id = cloud.id
     key_id = key.id
     random_word = ''.join(random.choice(string.lowercase) for i in range(6))
-    machine_name = 'karitest'+ random_word
+    machine_name = 'karitest' + random_word
 
     print ("****Create machine with name %s" % machine_name)
-    result= create_machine(user=org, cloud_id=cloud_id, key_id=key_id,
-                           machine_name=machine_name, ips=None,
-                           monitoring=False, ssh_port=22, job_id=job_id,
-                           **machine_args)
+    result = create_machine(user=org, cloud_id=cloud_id, key_id=key_id,
+                            machine_name=machine_name, ips=None,
+                            monitoring=False, ssh_port=22, job_id=job_id,
+                            **machine_args)
     # timeout = time() + 120
     # while time() < timeout:
     if result:
@@ -45,7 +43,7 @@ def test_create_machine_list_machines(org, cloud, key, load_clouds_from_config):
     # pare to id apo to result kai gamise to onoma
     # spase se 2 loup
     timeout = time() + 120
-    flag=False
+    flag = False
     while time() < timeout:
         machines = cloud.ctl.list_machines()
 
@@ -56,13 +54,13 @@ def test_create_machine_list_machines(org, cloud, key, load_clouds_from_config):
         for m in machines:
             if m['machine_id'] == machine_id:
                 print "****success, machine exists in list_machines"
-                flag=True
+                flag = True
                 break
         if flag:
             break
         sleep(5)
 
-    flag=False
+    flag = False
     timeout = time() + 200
     while time() < timeout:
         machines = cloud.ctl.list_machines()
@@ -70,7 +68,7 @@ def test_create_machine_list_machines(org, cloud, key, load_clouds_from_config):
         for m in machines:
             if m['machine_id'] == machine_id and m['state'] == 'running':
                 created_machine = m
-                flag=True
+                flag = True
                 break
         if flag:
             break
@@ -79,9 +77,9 @@ def test_create_machine_list_machines(org, cloud, key, load_clouds_from_config):
     assert created_machine.state != 'pending', 'take too long'
 
     print("****test all possible actions")
-    for action in ('start','stop','reboot','rename'):
+    for action in ('start', 'stop', 'reboot', 'rename'):
         if created_machine.actions[action]:
-            print('make action %s'% action)
+            print('make action %s' % action)
             if action == 'start':
                 created_machine.ctl.start()
             elif action == 'stop':
@@ -95,7 +93,7 @@ def test_create_machine_list_machines(org, cloud, key, load_clouds_from_config):
             elif action == 'resize':
                 created_machine.ctl.resize()
             elif action == 'rename':
-                created_machine.ctl.rename('karitestsecond'+random_word)
+                created_machine.ctl.rename('karitestsecond' + random_word)
             elif action == 'reboot':
                 created_machine.ctl.reboot()
 

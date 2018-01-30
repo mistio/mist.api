@@ -61,7 +61,7 @@ UI_TEMPLATE_URL = "http://ui"
 LANDING_TEMPLATE_URL = "http://landing"
 
 PY_LOG_LEVEL = logging.INFO
-PY_LOG_FORMAT = '%(asctime)s %(levelname)s %(threadName)s %(module)s - %(funcName)s: %(message)s'
+PY_LOG_FORMAT = '%(asctime)s %(levelname)s %(threadName)s %(module)s - %(funcName)s: %(message)s'  # noqa
 PY_LOG_FORMAT_DATE = "%Y-%m-%d %H:%M:%S"
 LOG_EXCEPTIONS = True
 
@@ -227,8 +227,8 @@ INFLUXDB_MACHINE_DASHBOARD_DEFAULT = {
                 "stack": True,
                 "datasource": "mist.monitor",
                 "targets": [{
-                  "refId": "Z",
-                  "target": "cpu.cpu=/cpu\d/.usage_idle"
+                    "refId": "Z",
+                    "target": "cpu.cpu=/cpu\d/.usage_idle"
                 }],
                 "yaxes": [{
                     "format": "%"
@@ -255,8 +255,8 @@ INFLUXDB_MACHINE_DASHBOARD_DEFAULT = {
                 "stack": False,
                 "datasource": "mist.monitor",
                 "targets": [{
-                  "refId": "H",
-                  "target": "net.bytes_sent"
+                    "refId": "H",
+                    "target": "net.bytes_sent"
                 }],
                 "yaxes": [{
                     "format": "octets"
@@ -269,8 +269,8 @@ INFLUXDB_MACHINE_DASHBOARD_DEFAULT = {
                 "stack": False,
                 "datasource": "mist.monitor",
                 "targets": [{
-                  "refId": "I",
-                  "target": "diskio.read_bytes"
+                    "refId": "I",
+                    "target": "diskio.read_bytes"
                 }],
                 "x-axis": True,
                 "y-axis": True
@@ -282,8 +282,8 @@ INFLUXDB_MACHINE_DASHBOARD_DEFAULT = {
                 "stack": False,
                 "datasource": "mist.monitor",
                 "targets": [{
-                  "refId": "J",
-                  "target": "diskio.write_bytes"
+                    "refId": "J",
+                    "target": "diskio.write_bytes"
                 }],
                 "yaxes": [{
                     "format": "octets"
@@ -296,8 +296,8 @@ INFLUXDB_MACHINE_DASHBOARD_DEFAULT = {
                 "stack": False,
                 "datasource": "mist.monitor",
                 "targets": [{
-                  "refId": "D",
-                  "target": "disk.free"
+                    "refId": "D",
+                    "target": "disk.free"
                 }],
                 "yaxes": [{
                     "format": "B"
@@ -527,12 +527,12 @@ LANDING_CATEGORIES = [{
     'title': 'Home',
     'items': {
         "fold": {
-            "copy" : "",
-            "subcopy" :
-                "Mist.io is a single dashboard to manage multi-cloud infrastructure",
-            "image" : "images/mockup-imac-n4.png",
-            "alt" : "Mist.io cloud management dashboard",
-            "cta" : "Get Started"
+            "copy": "",
+            "subcopy":
+                "Mist.io is a single dashboard to manage multi-cloud infrastructure",  # noqa
+            "image": "images/mockup-imac-n4.png",
+            "alt": "Mist.io cloud management dashboard",
+            "cta": "Get Started"
         }
     }
 }]
@@ -747,31 +747,31 @@ SUPPORTED_PROVIDERS_V_2 = [
     # libvirt
     {
         'title': 'KVM (via libvirt)',
-        'provider' : Provider.LIBVIRT,
+        'provider': Provider.LIBVIRT,
         'regions': []
     },
     # HostVirtual
     {
         'title': 'HostVirtual',
-        'provider' : Provider.HOSTVIRTUAL,
+        'provider': Provider.HOSTVIRTUAL,
         'regions': []
     },
     # Vultr
     {
         'title': 'Vultr',
-        'provider' : Provider.VULTR,
+        'provider': Provider.VULTR,
         'regions': []
     },
     # vSphere
     {
         'title': 'VMWare vSphere',
-        'provider' : Provider.VSPHERE,
+        'provider': Provider.VSPHERE,
         'regions': []
     },
     # Packet.net
     {
         'title': 'Packet.net',
-        'provider' : Provider.PACKET,
+        'provider': Provider.PACKET,
         'regions': []
     }
 ]
@@ -781,10 +781,10 @@ EC2_IMAGES = {
     'eu-central-1': {
         'ami-e4c63e8b': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
         'ami-060cde69': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
-        'ami-2eaeb342': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',
+        'ami-2eaeb342': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',  # noqa
         'ami-ba68bad5': 'Amazon Linux AMI 2017.03.0 (PV)',
         'ami-b968bad6': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
-        'ami-c425e4ab': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',
+        'ami-c425e4ab': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-25a97a4a': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
         'ami-e37b8e8c': 'CoreOS-stable-1068.8.0 (PV)',
         'ami-7b7a8f14': 'CoreOS-stable-1068.8.0 (HVM',
@@ -792,10 +792,10 @@ EC2_IMAGES = {
     'eu-west-1': {
         'ami-02ace471': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
         'ami-a8d2d7ce': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
-        'ami-fa7cdd89': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',
+        'ami-fa7cdd89': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',  # noqa
         'ami-d1c0c4b7': 'Amazon Linux AMI 2017.03.0 (PV)',
         'ami-01ccc867': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
-        'ami-9186a1e2': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',
+        'ami-9186a1e2': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-09447c6f': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
         'ami-cbb5d5b8': 'CoreOS stable 1068.8.0 (HVM)',
         'ami-b6b8d8c5': 'CoreOS stable 1068.8.0 (PV)',
@@ -805,24 +805,24 @@ EC2_IMAGES = {
         'ami-f1d7c395': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
         'ami-63342007': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
         'ami-b6daced2': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
-        'ami-a9eae0cd': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',
-        'ami-9fc7cdfb': 'SUSE Linux Enterprise Server 11 SP4 (HVM), SSD Volume Type',
+        'ami-a9eae0cd': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
+        'ami-9fc7cdfb': 'SUSE Linux Enterprise Server 11 SP4 (HVM), SSD Volume Type',  # noqa
     },
     'ca-central-1': {
         'ami-9062d0f4': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
         'ami-b3d965d7': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
         'ami-beea56da': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
         'ami-0bd66a6f': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
-        'ami-14368470': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',
-        'ami-1562d071': 'SUSE Linux Enterprise Server 11 SP4 (HVM), SSD Volume Type',
+        'ami-14368470': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
+        'ami-1562d071': 'SUSE Linux Enterprise Server 11 SP4 (HVM), SSD Volume Type',  # noqa
     },
     'us-east-1': {
         'ami-b63769a1': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
         'ami-80861296': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
-        'ami-70065467': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',
+        'ami-70065467': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',  # noqa
         'ami-668f1e70': 'Amazon Linux AMI 2017.03.0 (PV)',
         'ami-c58c1dd3': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
-        'ami-fde4ebea': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',
+        'ami-fde4ebea': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-772aa961': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
         'ami-098e011e': 'CoreOS stable 1068.8.0 (PV)',
         'ami-368c0321': 'CoreOS stable 1068.8.0 (HVM)',
@@ -835,16 +835,16 @@ EC2_IMAGES = {
         'ami-618fab04': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
         'ami-8fab8fea': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
         'ami-4191b524': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
-        'ami-61a7fd04': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',
-        'ami-4af2a92f': 'SUSE Linux Enterprise Server 11 SP4 (HVM), SSD Volume Type',
+        'ami-61a7fd04': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
+        'ami-4af2a92f': 'SUSE Linux Enterprise Server 11 SP4 (HVM), SSD Volume Type',  # noqa
     },
     'us-west-1': {
         'ami-2cade64c': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
         'ami-2afbde4a': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
-        'ami-e7a4cc87': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',
+        'ami-e7a4cc87': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',  # noqa
         'ami-0f85a06f': 'Amazon Linux AMI 2017.03.0 (PV)',
         'ami-7a85a01a': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
-        'ami-e09acc80': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',
+        'ami-e09acc80': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-1da8f27d': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
         'ami-ae2564ce': 'CoreOS stable 1068.8.0 (PV)',
         'ami-bc2465dc': 'CoreOS stable 1068.8.0 (HVM)',
@@ -852,10 +852,10 @@ EC2_IMAGES = {
     'us-west-2': {
         'ami-6f68cf0f': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
         'ami-efd0428f': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
-        'ami-baab0fda': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',
+        'ami-baab0fda': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',  # noqa
         'ami-c737a5a7': 'Amazon Linux AMI 2017.03.0 (PV)',
         'ami-4836a428': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
-        'ami-e4a30084': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',
+        'ami-e4a30084': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-7c22b41c': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
         'ami-cfef22af': 'CoreOS stable 1068.8.0 (HVM)',
         'ami-ecec218c': 'CoreOS stable 1068.8.0 (PV)',
@@ -863,10 +863,10 @@ EC2_IMAGES = {
     'ap-northeast-1': {
         'ami-5de0433c': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
         'ami-afb09dc8': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
-        'ami-27fed749': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',
+        'ami-27fed749': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',  # noqa
         'ami-30391657': 'Amazon Linux AMI 2017.03.0 (PV)',
         'ami-923d12f5': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
-        'ami-e21c7285': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',
+        'ami-e21c7285': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-d85e7fbf': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
         'ami-d0e21bb1': 'CoreOS stable 1068.8.0 (PV)',
         'ami-fcd9209d': 'CoreOS stable 1068.8.0 (HVM)',
@@ -875,7 +875,7 @@ EC2_IMAGES = {
         'ami-44db152a': 'Red Hat Enterprise Linux 7.2 (HVM), SSD Volume Type',
         'ami-66e33108': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
         'ami-9d15c7f3': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
-        'ami-5060b73e': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',
+        'ami-5060b73e': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-15d5077b': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
         'ami-91de14ff': 'CoreOS stable 1068.8.0 (HVM)',
         'ami-9edf15f0': 'CoreOS stable 1068.8.0 (PV)'
@@ -883,10 +883,10 @@ EC2_IMAGES = {
     'sa-east-1': {
         'ami-7de77b11': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
         'ami-4090f22c': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
-        'ami-029a1e6e': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',
+        'ami-029a1e6e': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',  # noqa
         'ami-36cfad5a': 'Amazon Linux AMI 2017.03.0 (PV)',
         'ami-37cfad5b': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
-        'ami-e1cd558d': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',
+        'ami-e1cd558d': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-8df695e1': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
         'ami-0317836f': 'CoreOS stable 1068.8.0 (PV)',
         'ami-ef43d783': 'CoreOS stable 1068.8.0 (HVM)',
@@ -894,10 +894,10 @@ EC2_IMAGES = {
     'ap-southeast-1': {
         'ami-2c95344f': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
         'ami-8fcc75ec': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
-        'ami-1a5f9f79': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',
+        'ami-1a5f9f79': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',  # noqa
         'ami-ab5ce5c8': 'Amazon Linux AMI 2017.03.0 (PV)',
         'ami-fc5ae39f': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
-        'ami-67b21d04': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',
+        'ami-67b21d04': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-0a19a669': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
         'ami-3203df51': 'CoreOS stable 1068.8.0 (PV)',
         'ami-9b00dcf8': 'CoreOS stable 1068.8.0 (HVM)',
@@ -905,10 +905,10 @@ EC2_IMAGES = {
     'ap-southeast-2': {
         'ami-39ac915a': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
         'ami-96666ff5': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
-        'ami-8ea3fbed': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',
+        'ami-8ea3fbed': 'SUSE Linux Enterprise Server 11 SP4 (PV), SSD Volume Type',  # noqa
         'ami-af2128cc': 'Amazon Linux AMI 2017.03.0 (PV)',
         'ami-162c2575': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
-        'ami-527b4031': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',
+        'ami-527b4031': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-807876e3': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
         'ami-e8e4ce8b': 'CoreOS stable 1068.8.0 (HVM)',
         'ami-ede4ce8e': 'CoreOS stable 1068.8.0 (PV)',
@@ -917,7 +917,7 @@ EC2_IMAGES = {
         'ami-cdbdd7a2': 'Red Hat Enterprise Linux 7.2 (HVM), SSD Volume Type',
         'ami-c2ee9dad': 'Ubuntu Server 16.04 LTS (HVM), SSD Volume Type',
         'ami-52c7b43d': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
-        'ami-8f8afde0': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',
+        'ami-8f8afde0': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-83a8dbec': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
     }
 }
@@ -930,13 +930,13 @@ DOCKER_IMAGES = {
 }
 
 AZURE_ARM_IMAGES = {
-    'MicrosoftWindowsServer:WindowsServer:2008-R2-SP1:2.127.20170918': 'MicrosoftWindowsServer WindowsServer 2008-R2-SP1 2.127.20170918',
-    'MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20170822': 'MicrosoftWindowsServer WindowsServer 2012-R2-Datacenter 4.127.20170822',
-    'MicrosoftWindowsServer:WindowsServer:2016-Datacenter:2016.127.20170918': 'MicrosoftWindowsServer WindowsServer 2016-Datacenter 2016.127.20170918',
+    'MicrosoftWindowsServer:WindowsServer:2008-R2-SP1:2.127.20170918': 'MicrosoftWindowsServer WindowsServer 2008-R2-SP1 2.127.20170918',  # noqa
+    'MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20170822': 'MicrosoftWindowsServer WindowsServer 2012-R2-Datacenter 4.127.20170822',  # noqa
+    'MicrosoftWindowsServer:WindowsServer:2016-Datacenter:2016.127.20170918': 'MicrosoftWindowsServer WindowsServer 2016-Datacenter 2016.127.20170918',  # noqa
     'SUSE:openSUSE-Leap:42.3:2017.07.26': 'SUSE openSUSE-Leap 42.3 2017.07.26',
-    'Canonical:UbuntuServer:16.04-LTS:16.04.201709190': 'Canonical UbuntuServer 16.04-LTS 16.04.201709190',
-    'Canonical:UbuntuServer:14.04.5-LTS:14.04.201708310': 'Canonical UbuntuServer 14.04.5-LTS 14.04.201708310',
-    'Canonical:UbuntuServer:17.04:17.04.201709220': 'Canonical UbuntuServer 17.04 17.04.201709220',
+    'Canonical:UbuntuServer:16.04-LTS:16.04.201709190': 'Canonical UbuntuServer 16.04-LTS 16.04.201709190',  # noqa
+    'Canonical:UbuntuServer:14.04.5-LTS:14.04.201708310': 'Canonical UbuntuServer 14.04.5-LTS 14.04.201708310',  # noqa
+    'Canonical:UbuntuServer:17.04:17.04.201709220': 'Canonical UbuntuServer 17.04 17.04.201709220',  # noqa
     'RedHat:RHEL:7.3:7.3.2017090723': 'RedHat RHEL 7.3 7.3.2017090723',
     'RedHat:RHEL:6.9:6.9.2017090105': 'RedHat RHEL 6.9 6.9.2017090105',
 }
@@ -953,16 +953,15 @@ GCE_IMAGES = ['debian-cloud',
               'ubuntu-os-cloud',
               'windows-cloud']
 
-RESET_PASSWORD_EXPIRATION_TIME = 60*60*24
+RESET_PASSWORD_EXPIRATION_TIME = 60 * 60 * 24
 
-WHITELIST_IP_EXPIRATION_TIME = 60*60*24
+WHITELIST_IP_EXPIRATION_TIME = 60 * 60 * 24
 
-## Email templates
+# Email templates
 
 CONFIRMATION_EMAIL_SUBJECT = "[mist.io] Confirm your registration"
 
-CONFIRMATION_EMAIL_BODY = \
-"""Hi %s,
+CONFIRMATION_EMAIL_BODY = """Hi %s,
 
 we received a registration request to mist.io from this email address.
 
@@ -985,8 +984,7 @@ Govern the clouds
 
 RESET_PASSWORD_EMAIL_SUBJECT = "[mist.io] Password reset request"
 
-RESET_PASSWORD_EMAIL_BODY = \
-"""Hi %s,
+RESET_PASSWORD_EMAIL_BODY = """Hi %s,
 
 We have received a request to change your password.
 Please click on the following link:
@@ -1008,8 +1006,7 @@ Govern the clouds
 
 WHITELIST_IP_EMAIL_SUBJECT = "[mist.io] Account IP whitelist request"
 
-WHITELIST_IP_EMAIL_BODY = \
-"""Hi %s,
+WHITELIST_IP_EMAIL_BODY = """Hi %s,
 
 We have received a request to whitelist the IP you just tried to login with.
 Please click on the following link to finish this action:
@@ -1045,13 +1042,12 @@ Time period of failed login attempts: %s
 Blocking period: %s
 """
 
-ORG_TEAM_STATUS_CHANGE_EMAIL_SUBJECT = "Your status in an organization has" \
-                                       " changed"
+ORG_TEAM_STATUS_CHANGE_EMAIL_SUBJECT = ("Your status in an organization has"
+                                        " changed")
 
 ORG_NOTIFICATION_EMAIL_SUBJECT = "[mist.io] Subscribed to team"
 
-USER_NOTIFY_ORG_TEAM_ADDITION = \
-"""Hi
+USER_NOTIFY_ORG_TEAM_ADDITION = """Hi
 
 You have been added to the team "%s" of organization %s.
 
@@ -1062,8 +1058,7 @@ The mist.io team
 %s
 """
 
-USER_CONFIRM_ORG_INVITATION_EMAIL_BODY = \
-"""Hi
+USER_CONFIRM_ORG_INVITATION_EMAIL_BODY = """Hi
 
 You have been invited by %s to join the %s organization
 as a member of the %s.
@@ -1085,8 +1080,7 @@ The mist.io team
 
 ORG_INVITATION_EMAIL_SUBJECT = "[mist.io] Confirm your invitation"
 
-REGISTRATION_AND_ORG_INVITATION_EMAIL_BODY = \
-"""Hi
+REGISTRATION_AND_ORG_INVITATION_EMAIL_BODY = """Hi
 
 You have been invited by %s to join the %s organization
 as a member of the %s.
@@ -1108,8 +1102,7 @@ The mist.io team
 %s
 """
 
-NOTIFY_REMOVED_FROM_TEAM = \
-"""Hi
+NOTIFY_REMOVED_FROM_TEAM = """Hi
 
 You have been removed from team %s of organization %s by the
 administrator %s.
@@ -1121,8 +1114,7 @@ The mist.io team
 %s
 """
 
-NOTIFY_REMOVED_FROM_ORG = \
-"""Hi
+NOTIFY_REMOVED_FROM_ORG = """Hi
 
 You are no longer a member of the organization %s.
 
@@ -1135,8 +1127,7 @@ The mist.io team
 
 NOTIFY_INVITATION_REVOKED_SUBJECT = "Invitation for organization revoked"
 
-NOTIFY_INVITATION_REVOKED = \
-"""Hi
+NOTIFY_INVITATION_REVOKED = """Hi
 
 Your invitation to the organization %s has been revoked.
 
@@ -1165,7 +1156,7 @@ MACHINE_PATCHES = True
 
 PLUGINS = []
 
-## DO NOT PUT ANYTHING BELOW HERE UNLESS YOU KNOW WHAT YOU ARE DOING
+# DO NOT PUT ANYTHING BELOW HERE UNLESS YOU KNOW WHAT YOU ARE DOING
 
 # Get settings from mist.core.
 CORE_CONFIG_PATH = os.path.join(dirname(MIST_API_DIR, 2),
@@ -1231,12 +1222,14 @@ for override_file in CONFIG_OVERRIDE_FILES:
         CONF = {}
         execfile(override_file, CONF)
         for key in CONF:
-            if isinstance(locals().get(key), dict) and isinstance(CONF[key], dict):
+            if isinstance(locals().get(key), dict) and isinstance(CONF[key],
+                                                                  dict):
                 locals()[key].update(CONF[key])
             else:
                 locals()[key] = CONF[key]
     else:
-        print >> sys.stderr, "Couldn't find settings file in %s" % override_file
+        print >> sys.stderr, ("Couldn't find settings file in %s" %
+                              override_file)
 
 HAS_BILLING = 'billing' in PLUGINS
 
@@ -1314,7 +1307,8 @@ HOMEPAGE_INPUTS = {
 
 if HAS_BILLING and STRIPE_PUBLIC_APIKEY:
     HOMEPAGE_INPUTS['stripe_public_apikey'] = STRIPE_PUBLIC_APIKEY
-## DO NOT PUT REGULAR SETTINGS BELOW, PUT THEM ABOVE THIS SECTION
+
+# DO NOT PUT REGULAR SETTINGS BELOW, PUT THEM ABOVE THIS SECTION
 
 
 # Read version info

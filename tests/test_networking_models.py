@@ -36,7 +36,8 @@ class TestNetworkModels(object):
         return True
 
     def test_ec2_cidr_validation(self):
-        network = mist.api.networks.models.AmazonNetwork(cloud=self.dummy_cloud)
+        network = mist.api.networks.models.AmazonNetwork(
+            cloud=self.dummy_cloud)
         network.cidr = '10.1.1.0/24'
         assert self.validates(network), 'Valid CIDR failed validate()'
 
@@ -50,7 +51,8 @@ class TestNetworkModels(object):
         assert not self.validates(network), 'Invalid CIDR passed validation'
 
     def test_ec2_tenancy_validation(self):
-        network = mist.api.networks.models.AmazonNetwork(cloud=self.dummy_cloud)
+        network = mist.api.networks.models.AmazonNetwork(
+            cloud=self.dummy_cloud)
         network.cidr = '10.1.1.0/24'
         network.instance_tenancy = 'default'
         assert self.validates(network), 'Valid tenancy failed validate()'
@@ -62,7 +64,8 @@ class TestNetworkModels(object):
         assert not self.validates(network), 'Invalid tenancy passed validation'
 
     def test_gce_mode_validation(self):
-        network = mist.api.networks.models.GoogleNetwork(cloud=self.dummy_cloud)
+        network = mist.api.networks.models.GoogleNetwork(
+            cloud=self.dummy_cloud)
         network.title = 'test'
         network.mode = 'legacy'
         network.cidr = '10.1.1.0/24'
@@ -107,7 +110,8 @@ class TestNetworkModels(object):
             'Invalid mode passed validate() '
 
     def test_gce_name_validation(self):
-        network = mist.api.networks.models.GoogleNetwork(cloud=self.dummy_cloud)
+        network = mist.api.networks.models.GoogleNetwork(
+            cloud=self.dummy_cloud)
         network.title = 'test'
         network.mode = 'auto'
         assert self.validates(network), 'GCE: valid name failed validate()'
@@ -175,7 +179,7 @@ class TestSubnetModels(object):
         subnet.cidr = '10.1.1.0/24'
 
         assert not self.validates(subnet), 'EC2 Subnet without a zone ' \
-                                            'passed validation'
+                                           'passed validation'
 
         subnet.availability_zone = 'us-west-1a'
         assert self.validates(subnet), 'Valid EC2 Subnet failed validation'
@@ -195,18 +199,13 @@ class TestSubnetModels(object):
 
         subnet.title = 'Test'
         assert not self.validates(subnet), 'GCE: invalid name passed ' \
-                                            'validate()'
+                                           'validate()'
         subnet.title = 'tesT'
         assert not self.validates(subnet), 'GCE: invalid name passed ' \
-                                            'validate()'
+                                           'validate()'
         subnet.title = '1test'
         assert not self.validates(subnet), 'GCE: invalid name passed ' \
-                                            'validate()'
+                                           'validate()'
         subnet.title = '-test-'
         assert not self.validates(subnet), 'GCE: invalid name passed ' \
-                                            'validate()'
-
-
-
-
-
+                                           'validate()'

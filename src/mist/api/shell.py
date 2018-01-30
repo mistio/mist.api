@@ -10,7 +10,7 @@ import socket
 import thread
 import ssl
 import tempfile
-import mongoengine as me
+import logging
 
 from time import sleep
 from StringIO import StringIO
@@ -33,7 +33,6 @@ if config.HAS_CORE:
 else:
     from mist.api.dummy.methods import dnat
 
-import logging
 
 logging.basicConfig(level=config.PY_LOG_LEVEL,
                     format=config.PY_LOG_FORMAT,
@@ -62,7 +61,8 @@ class ParamikoShell(object):
 
     """
 
-    def __init__(self, host, username=None, key=None, password=None, cert_file=None, port=22):
+    def __init__(self, host, username=None, key=None, password=None,
+                 cert_file=None, port=22):
         """Initialize a Shell instance
 
         Initializes a Shell instance for host. If username is provided, then
@@ -83,7 +83,8 @@ class ParamikoShell(object):
         if username:
             self.connect(username, key, password, cert_file, port)
 
-    def connect(self, username, key=None, password=None, cert_file=None, port=22):
+    def connect(self, username, key=None, password=None, cert_file=None,
+                port=22):
         """Initialize an SSH connection.
 
         Tries to connect and configure self. If only password is provided, it
@@ -255,7 +256,7 @@ class ParamikoShell(object):
         if not users:
             for name in ['root', 'ubuntu', 'ec2-user', 'user', 'azureuser',
                          'core', 'centos', 'cloud-user', 'fedora']:
-                if not name in users:
+                if name not in users:
                     users.append(name)
         if port != 22:
             ports = [port]
@@ -432,18 +433,19 @@ class DockerShell(DockerWebSocket):
                  cloud.id, kwargs['machine_id'])
 
         ssl_enabled = cloud.key_file and cloud.cert_file
-        self.uri = self.build_uri(kwargs['machine_id'], docker_port, cloud=cloud,
-                                  ssl_enabled=ssl_enabled)
+        self.uri = self.build_uri(kwargs['machine_id'], docker_port,
+                                  cloud=cloud, ssl_enabled=ssl_enabled)
 
     def logging_shell(self, owner, log_type='CFY', **kwargs):
         docker_port, container_id = \
-            self.get_docker_endpoint(owner, cloud_id=None, job_id=kwargs['job_id'])
-        log.info('Autoconfiguring DockerShell to stream %s logs from ' \
+            self.get_docker_endpoint(owner, cloud_id=None,
+                                     job_id=kwargs['job_id'])
+        log.info('Autoconfiguring DockerShell to stream %s logs from '
                  'container %s (User: %s)', log_type, container_id, owner.id)
 
         # TODO: SSL for CFY container
         self.uri = self.build_uri(container_id, docker_port, allow_logs=1,
-                                                             allow_stdin=0)
+                                  allow_stdin=0)
 
     def get_docker_endpoint(self, owner, cloud_id, job_id=None):
         if job_id:
@@ -456,8 +458,8 @@ class DockerShell(DockerWebSocket):
         self.host, docker_port = dnat(owner, self.host, cloud.port)
         return docker_port, cloud
 
-    def build_uri(self, container_id, docker_port, cloud=None, ssl_enabled=False,
-                  allow_logs=0, allow_stdin=1):
+    def build_uri(self, container_id, docker_port, cloud=None,
+                  ssl_enabled=False, allow_logs=0, allow_stdin=1):
         if ssl_enabled:
             self.protocol = 'wss'
             ssl_key, ssl_cert = self.ssl_credentials(cloud)
@@ -469,13 +471,15 @@ class DockerShell(DockerWebSocket):
             self.ws = websocket.WebSocket(sslopt=self.sslopt)
 
         if cloud and cloud.username and cloud.password:
-            uri = '%s://%s:%s@%s:%s/containers/%s/attach/ws?logs=%s&stream=1&stdin=%s&stdout=1&stderr=1' % \
-                   (self.protocol, cloud.username, cloud.password, self.host,
-                    docker_port, container_id, allow_logs, allow_stdin)
+            uri = '%s://%s:%s@%s:%s/containers/%s/attach/ws?logs=%s&stream=1&stdin=%s&stdout=1&stderr=1' % (  # noqa
+                self.protocol, cloud.username, cloud.password, self.host,
+                docker_port, container_id, allow_logs, allow_stdin
+            )
         else:
-            uri = '%s://%s:%s/containers/%s/attach/ws?logs=%s&stream=1&stdin=%s&stdout=1&stderr=1' % \
-                  (self.protocol, self.host, docker_port, container_id,
-                   allow_logs, allow_stdin)
+            uri = '%s://%s:%s/containers/%s/attach/ws?logs=%s&stream=1&stdin=%s&stdout=1&stderr=1' % (  # noqa
+                self.protocol, self.host, docker_port, container_id,
+                allow_logs, allow_stdin
+            )
 
         return uri
 
@@ -495,17 +499,18 @@ class DockerShell(DockerWebSocket):
 
 
 class Shell(object):
-    """
-    Proxy Shell Class to distinguish whether we are talking about Docker or Paramiko Shell
+    """Proxy Shell Class to distinguish between Docker or Paramiko Shell
     """
     def __init__(self, host, provider=None, username=None, key=None,
-                 password=None, cert_file=None, port=22, enforce_paramiko=False):
+                 password=None, cert_file=None, port=22,
+                 enforce_paramiko=False):
         """
 
         :param provider: If docker, then DockerShell
         :param host: Host of machine/docker
-        :param enforce_paramiko: If True, then Paramiko even for Docker containers. This is useful
-        if we want SSH Connection to Docker containers
+        :param enforce_paramiko: If True, then Paramiko even for Docker
+                                 containers. This is useful if we want SSH
+                                 Connection to Docker containers
         :return:
         """
 
@@ -518,7 +523,8 @@ class Shell(object):
             self._shell = DockerShell(host)
         else:
             self._shell = ParamikoShell(host, username=username, key=key,
-                                        password=password, cert_file=cert_file, port=port)
+                                        password=password, cert_file=cert_file,
+                                        port=port)
             self.ssh = self._shell.ssh
 
     def autoconfigure(self, owner, cloud_id, machine_id, key_id=None,
@@ -529,12 +535,14 @@ class Shell(object):
                 username=username, password=password, port=port
             )
         elif isinstance(self._shell, DockerShell):
-            return self._shell.autoconfigure(owner, cloud_id, machine_id, **kwargs)
+            return self._shell.autoconfigure(owner, cloud_id, machine_id,
+                                             **kwargs)
 
-    def connect(self, username, key=None, password=None, cert_file=None, port=22):
+    def connect(self, username, key=None, password=None, cert_file=None,
+                port=22):
         if isinstance(self._shell, ParamikoShell):
             self._shell.connect(username, key=key, password=password,
-                        cert_file=cert_file, port=port)
+                                cert_file=cert_file, port=port)
         elif isinstance(self._shell, DockerShell):
             self._shell.connect()
 
