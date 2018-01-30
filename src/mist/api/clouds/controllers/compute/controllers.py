@@ -216,6 +216,15 @@ class AmazonComputeController(BaseComputeController):
         return '%s - %s(%sMB RAM/ %s cpus)' % (size.id, size.name,
                                                size.ram, cpu)
 
+    def _list_machines__get_size(self, node):
+        plan_id = node.extra.get('instance_type')
+        try:
+            size = CloudSize.objects.get(cloud=self.cloud,
+                                         external_id=plan_id)
+        except CloudSize.DoesNotExist:
+            size = ''
+        return size
+
 
 class DigitalOceanComputeController(BaseComputeController):
 
