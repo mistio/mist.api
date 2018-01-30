@@ -7,6 +7,7 @@ import mist.api.machines.methods as methods
 from mist.api.clouds.models import Cloud
 from mist.api.clouds.models import LibvirtCloud
 from mist.api.machines.models import Machine
+from mist.api.misc.cloud import CloudLocation
 from mist.api.clouds.methods import filter_list_clouds
 
 from mist.api import tasks
