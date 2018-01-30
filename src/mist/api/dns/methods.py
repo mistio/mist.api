@@ -1,8 +1,5 @@
-from mist.api.dns.models import Zone
-from mist.api.users.models import User, Owner, Organization
 from mist.api.clouds.models import Cloud
 from mist.api.tag.methods import get_tags_for_resource
-from mist.api.auth.methods import auth_context_from_request
 
 from mist.api.exceptions import PolicyUnauthorizedError
 
@@ -36,6 +33,7 @@ def list_zones(owner, cloud_id):
     log.warn('Returning list zones for user %s, cloud %s', owner.id, cloud.id)
     return zones_ret
 
+
 def filter_list_zones(auth_context, cloud_id, zones=None, perm='read'):
     """List zone entries based on the permissions granted to the user."""
 
@@ -50,7 +48,8 @@ def filter_list_zones(auth_context, cloud_id, zones=None, perm='read'):
         except PolicyUnauthorizedError:
             return {'cloud_id': cloud_id, 'zones': []}
         allowed_zones = set(auth_context.get_allowed_resources(rtype='zones'))
-        allowed_records = set(auth_context.get_allowed_resources(rtype='records'))
+        allowed_records = set(
+            auth_context.get_allowed_resources(rtype='records'))
         for zone in zones:
             if zone['id'] in allowed_zones:
                 for idx in reversed(range(len(zone['records']))):
@@ -59,6 +58,7 @@ def filter_list_zones(auth_context, cloud_id, zones=None, perm='read'):
                 return_zones.append(zone)
         zones = return_zones
     return {'cloud_id': cloud_id, 'zones': zones}
+
 
 def list_records(owner, zone):
     """List records returning all records for an owner"""
@@ -72,19 +72,21 @@ def list_records(owner, zone):
     log.warn('Returning list records for user %s, zone %s', owner.id, zone.id)
     return recs
 
+
 def filter_list_records(auth_context, zone, records=None, perm='read'):
     """List record entries based on the permissions granted to the user."""
     recs = []
     if records is None:
         records = list_records(auth_context.owner, zone)
-    if not records:  # Exit early in case the cloud provider returned 0 records.
+    if not records:  # Exit early in case the cloud provider returned 0 records
         return recs
     if not auth_context.is_owner():
         try:
             auth_context.check_perm('zone', 'read', zone.id)
         except PolicyUnauthorizedError:
             return recs
-        allowed_records = set(auth_context.get_allowed_resources(rtype='records'))
+        allowed_records = set(
+            auth_context.get_allowed_resources(rtype='records'))
         for record in records:
             if record['id'] in allowed_records:
                 recs.append(record)

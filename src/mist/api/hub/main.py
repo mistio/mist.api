@@ -604,13 +604,13 @@ def prepare_argparse():
 
 
 def prepare_logging(verbosity=0):
-    logfmt = "[%(asctime)-15s][%(levelname)s] %(module)s - %(message)s"
     if verbosity > 1:
         loglvl = logging.DEBUG
     elif verbosity == 1:
         loglvl = logging.INFO
     else:
         loglvl = logging.WARNING
+    # logfmt = "[%(asctime)-15s][%(levelname)s] %(module)s - %(message)s"
     # handler = logging.StreamHandler()
     # handler.setFormatter(logging.Formatter(logfmt))
     # handler.setLevel(loglvl)

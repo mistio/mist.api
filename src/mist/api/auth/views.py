@@ -43,7 +43,8 @@ def list_tokens(request):
                 token_view['last_accessed_at'] = 'Never'
             tokens_list.append(token_view)
 
-    # If user is owner also include all active tokens in the current org context
+    # If user is owner also include all active tokens in the current org
+    # context
     if auth_context.is_owner():
         org_tokens = ApiToken.objects(org=auth_context.org, revoked=False)
         for token in org_tokens:
@@ -58,7 +59,8 @@ def list_tokens(request):
     return tokens_list
 
 
-@view_config(route_name='api_v1_tokens', request_method='POST', renderer='json')
+@view_config(route_name='api_v1_tokens', request_method='POST',
+             renderer='json')
 def create_token(request):
     """
     Create a new api token
@@ -107,7 +109,7 @@ def create_token(request):
     api_token_name = params.get('name', '')
     org_id = params.get('org_id', '')
     ttl = params.get('ttl', 60 * 60)
-    if (isinstance(ttl, str) or isinstance(ttl, unicode)) and not ttl.isdigit():
+    if isinstance(ttl, basestring) and not ttl.isdigit():
         raise BadRequestError('Ttl must be a number greater than 0')
     ttl = int(ttl)
     if ttl < 0:
@@ -181,7 +183,8 @@ def create_token(request):
     return token_view
 
 
-@view_config(route_name='api_v1_sessions', request_method='GET', renderer='json')
+@view_config(route_name='api_v1_sessions', request_method='GET',
+             renderer='json')
 def list_sessions(request):
     """
     List active sessions
@@ -190,7 +193,8 @@ def list_sessions(request):
     auth_context = auth_context_from_request(request)
     session = request.environ['session']
     # Get active sessions for the current user
-    session_tokens = SessionToken.objects(user_id=auth_context.user.id, revoked=False)
+    session_tokens = SessionToken.objects(user_id=auth_context.user.id,
+                                          revoked=False)
     sessions_list = []
     for token in session_tokens:
         if token.is_valid():
@@ -205,7 +209,8 @@ def list_sessions(request):
         for token in org_tokens:
             if token.is_valid():
                 public_view = token.get_public_view()
-                if isinstance(session, SessionToken) and session.id == token.id:
+                if isinstance(session, SessionToken) and \
+                   session.id == token.id:
                     public_view['active'] = True
                 try:
                     sessions_list.index(public_view)
@@ -249,9 +254,8 @@ def revoke_session(request):
             auth_token = AuthToken.objects.get(org=auth_context.org,
                                                id=auth_token_id)
         else:
-            auth_token = AuthToken.objects.get(user_id=
-                                               auth_context.user.get_id(),
-                                               id=auth_token_id)
+            auth_token = AuthToken.objects.get(
+                user_id=auth_context.user.get_id(), id=auth_token_id)
         if auth_token.is_valid():
             auth_token.invalidate()
             auth_token.save()

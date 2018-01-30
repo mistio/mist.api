@@ -19,7 +19,6 @@ from mist.api.tasks import revoke_token
 try:
     from mist.core.rbac.tokens import SuperToken
     from mist.core.rbac.methods import AuthContext
-    from mist.core.auth.social.models import OAuth2SessionToken
 except:
     from mist.api.dummy.rbac import AuthContext
     SUPER_EXISTS = False
@@ -103,7 +102,7 @@ def session_from_request(request):
             try:
                 if not api_token and SUPER_EXISTS:
                     api_token = SuperToken.objects.get(
-                                token=token_from_request)
+                        token=token_from_request)
             except DoesNotExist:
                 pass
             if api_token and api_token.is_valid():
@@ -247,7 +246,9 @@ def reissue_cookie_session(request, user_id='', su='', org=None, after=0,
 
         if not org:
             # If no org is provided then get the org from the last session
-            old_session = SessionToken.objects(user_id=user_for_session.id).first()
+            old_session = SessionToken.objects(
+                user_id=user_for_session.id
+            ).first()
             if old_session and old_session.org and \
                     user_for_session in old_session.org.members:
                 # if the old session has an organization and user is still a
@@ -292,6 +293,7 @@ def get_random_name_for_token(user):
             pass
     raise InternalServerError('Could not produce random api token name for '
                               'user %s' % user.email)
+
 
 def get_csrf_token(request):
     """

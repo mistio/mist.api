@@ -434,7 +434,7 @@ class CpuHandler(CustomHandler):
             core, kind = parts
             if core == "total":
                 if kind == "*":
-                    target = r'aliasSub(asPercent(sumSeriesWithWildcards(exclude(%(head)s.cpu.*.*,"idle"),3),sumSeries(%(head)s.cpu.*.*)), "^.*\.cpu\.([a-z]*),.*", "%(head)s.cpu.total.\1")'
+                    target = r'aliasSub(asPercent(sumSeriesWithWildcards(exclude(%(head)s.cpu.*.*,"idle"),3),sumSeries(%(head)s.cpu.*.*)), "^.*\.cpu\.([a-z]*),.*", "%(head)s.cpu.total.\1")'  # noqa
                     alias = target
                 else:
                     if kind != "nonidle":
@@ -645,7 +645,7 @@ class MultiHandler(GenericHandler):
                             break
                 if stop:
                     for i in range(len(item['datapoints'])):
-                        if item['datapoints'][-(i+1)][1] <= stop:
+                        if item['datapoints'][-(i + 1)][1] <= stop:
                             if i:
                                 item['datapoints'] = item['datapoints'][:-i]
                             break

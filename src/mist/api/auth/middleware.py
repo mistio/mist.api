@@ -24,6 +24,7 @@ log = logging.getLogger(__name__)
 
 CORS_ENABLED_PATHS = ['/api/v1/clouds', '/api/v1/stacks', '/api/v1/report']
 
+
 class AuthMiddleware(object):
     """ Authentication Middleware """
     def __init__(self, app):
@@ -51,22 +52,27 @@ class AuthMiddleware(object):
                 session.touch()
                 session.save()
             # CORS
-            if environ.get('HTTP_ORIGIN') and environ.get('PATH_INFO') in \
-                CORS_ENABLED_PATHS:
-                if 'OPTIONS' in environ['REQUEST_METHOD'] or \
-                    isinstance(session, ApiToken):
+            if (
+                environ.get('HTTP_ORIGIN') and
+                environ.get('PATH_INFO') in CORS_ENABLED_PATHS
+            ):
+                if (
+                    'OPTIONS' in environ['REQUEST_METHOD'] or
+                    isinstance(session, ApiToken)
+                ):
                     for header in [
-                            ('Access-Control-Allow-Origin',
-                             environ['HTTP_ORIGIN']),
-                            ('Access-Control-Allow-Methods', 'GET,OPTIONS'),
-                            ('Access-Control-Allow-Headers',
-                             'Origin, Content-Type, Accept, Authorization'),
-                            ('Access-Control-Allow-Credentials', 'true'),
-                            ('Access-Control-Max-Age', '1728000'),
+                        ('Access-Control-Allow-Origin',
+                         environ['HTTP_ORIGIN']),
+                        ('Access-Control-Allow-Methods', 'GET,OPTIONS'),
+                        ('Access-Control-Allow-Headers',
+                         'Origin, Content-Type, Accept, Authorization'),
+                        ('Access-Control-Allow-Credentials', 'true'),
+                        ('Access-Control-Max-Age', '1728000'),
                     ]:
                         headers.append(header)
                     if 'OPTIONS' in environ['REQUEST_METHOD']:
-                        return start_response('204 No Content', headers, exc_info)
+                        return start_response('204 No Content', headers,
+                                              exc_info)
 
             return start_response(status, headers, exc_info)
 
@@ -75,7 +81,8 @@ class AuthMiddleware(object):
         if session and user is not None and request.path != '/logout':
             current_user_ip = netaddr.IPAddress(ip_from_request(request))
             saved_wips = [netaddr.IPNetwork(ip.cidr) for ip in user.ips]
-            config_wips = [netaddr.IPNetwork(cidr) for cidr in config.WHITELIST_CIDR]
+            config_wips = [netaddr.IPNetwork(cidr)
+                           for cidr in config.WHITELIST_CIDR]
             wips = saved_wips + config_wips
             if len(saved_wips) > 0:
                 for ipnet in wips:
@@ -98,10 +105,12 @@ class AuthMiddleware(object):
                     # Do not logout if it's ApiToken
                     if isinstance(session, SessionToken):
                         reissue_cookie_session(request)
-                    start_response('403 Forbidden', [('Content-type', 'text/plain')])
-                    return ['Request sent from non-whitelisted IP.\n'\
-                            'You have been logged out from this account.\n'\
-                            'Please sign in to request whitelisting your current IP via email.']
+                    start_response('403 Forbidden',
+                                   [('Content-type', 'text/plain')])
+                    return ["Request sent from non-whitelisted IP.\n"
+                            "You have been logged out from this account.\n"
+                            "Please sign in to request whitelisting your "
+                            "current IP via email."]
 
         # Enforce read-only access.
         if config.HAS_CORE:
