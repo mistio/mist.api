@@ -309,10 +309,18 @@ def create_machine(request):
     auth_context = auth_context_from_request(request)
 
     try:
-        Cloud.objects.get(owner=auth_context.owner,
+        cl = Cloud.objects.get(owner=auth_context.owner,
                           id=cloud_id, deleted=None)
     except Cloud.DoesNotExist:
         raise NotFoundError('Cloud does not exist')
+
+    try:
+        loc = CloudLocation.objects.get(cloud=cl,
+                                        id=location_id)
+    except CloudLocation.DoesNotExist:
+        raise NotFoundError('Cloud location does not exist')
+
+    location_id = loc.external_id
 
     # compose schedule as a dict from relative parameters
     if not params.get('schedule_type'):
