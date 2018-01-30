@@ -325,16 +325,16 @@ class BaseComputeController(BaseController):
             image_id = str(node.image or node.extra.get('imageId') or
                            node.extra.get('image_id') or
                            node.extra.get('image') or '')
-            # import ipdb; ipdb.set_trace()
+            import ipdb; ipdb.set_trace()
             try:
-                size = self._list_machines_get_size(node)
+                size = self._list_machines__get_size(node)
             except Exception as exc:
                 log.exception(repr(exc))
 
             machine.name = node.name
             machine.image_id = image_id
             # for now!
-            machine.size = size
+            # machine.size = size
             machine.state = config.STATES[node.state]
             machine.private_ips = list(set(node.private_ips))
             machine.public_ips = list(set(node.public_ips))
@@ -839,7 +839,7 @@ class BaseComputeController(BaseController):
         """
         return CloudSize.objects(cloud=self.cloud)
 
-    def _list_machines_get_size(self, node):
+    def _list_machines__get_size(self, node):
         """Return size from database for a
         specific node
 
