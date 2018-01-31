@@ -271,7 +271,6 @@ class BaseComputeController(BaseController):
         """
         # Try to query list of machines from provider API.
         try:
-            import ipdb; ipdb.set_trace()
             nodes = self._list_machines__fetch_machines()
             log.info("List nodes returned %d results for %s.",
                      len(nodes), self.cloud)
@@ -835,7 +834,6 @@ class BaseComputeController(BaseController):
         """
 
         # Fetch locations, usually from libcloud connection.
-        import ipdb; ipdb.set_trace()
         fetched_locations = self._list_locations__fetch_locations()
 
         log.info("List locations returned %d results for %s.",
