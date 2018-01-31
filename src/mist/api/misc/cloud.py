@@ -7,7 +7,8 @@ import mongoengine as me
 class CloudLocation(me.Document):
     """A base Cloud Location Model."""
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
-    cloud = me.ReferenceField('Cloud', required=True)
+    cloud = me.ReferenceField(Cloud, required=True,
+                              reverse_delete_rule=me.CASCADE)
     external_id = me.StringField(required=True)
     provider = me.StringField()
     name = me.StringField()
