@@ -311,7 +311,7 @@ class BaseComputeController(BaseController):
             except Exception as exc:
                 log.exception(repr(exc))
 
-            if location_name:
+            else:
 
                 try:
                     _location = CloudLocation.objects.get(cloud=self.cloud,
