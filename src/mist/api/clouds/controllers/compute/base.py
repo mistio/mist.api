@@ -308,7 +308,7 @@ class BaseComputeController(BaseController):
             machine.missing_since = None
             # Discover location of machine.
             try:
-                location_id = self._list_machines__get_location(node)
+                loc_id = self._list_machines__get_location(node)
             except Exception as exc:
                 log.exception(repr(exc))
 
@@ -316,7 +316,7 @@ class BaseComputeController(BaseController):
 
                 try:
                     _location = CloudLocation.objects.get(cloud=self.cloud,
-                                                          external_id=location_id)
+                                                          external_id=loc_id)
                     machine.location = _location
                 except CloudLocation.DoesNotExist:
                     log.exception(repr(exc))
