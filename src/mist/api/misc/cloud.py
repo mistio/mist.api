@@ -12,6 +12,7 @@ class CloudLocation(me.Document):
     provider = me.StringField()
     name = me.StringField()
     country = me.StringField()
+    extra = me.DictField()
 
     meta = {
         'collection': 'locations',
@@ -37,6 +38,7 @@ class CloudLocation(me.Document):
             'external_id': self.external_id,
             'name': self.name,
             'country': self.country,
+            'extra': self.extra
         }
 
 
