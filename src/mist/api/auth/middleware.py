@@ -15,8 +15,8 @@ from mist.api import config
 
 from pyramid.request import Request
 
-if config.HAS_CORE:
-    from mist.core.rbac.tokens import ReadOnlyApiToken
+if config.HAS_RBAC:
+    from mist.rbac.tokens import ReadOnlyApiToken
 
 
 log = logging.getLogger(__name__)
@@ -113,7 +113,7 @@ class AuthMiddleware(object):
                             "current IP via email."]
 
         # Enforce read-only access.
-        if config.HAS_CORE:
+        if config.HAS_RBAC:
             if isinstance(session, ReadOnlyApiToken):
                 if request.method not in ('GET', 'HEAD', 'OPTIONS', ):
                     start_response('405 Method Not Allowed',

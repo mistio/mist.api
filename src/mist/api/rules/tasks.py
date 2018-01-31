@@ -1,6 +1,7 @@
 import logging
 
-from mist.api.tasks import app
+from mist.api.celery_app import app
+
 from mist.api.rules.models import Rule
 from mist.api.rules.models import NoDataRule
 from mist.api.machines.models import Machine
