@@ -411,7 +411,7 @@ class NephoScaleComputeController(BaseComputeController):
         return price, 0
 
     def _list_machines__get_location(self, node):
-        return node.extra.get('zone')
+        return str(node.extra.get('zone_data').get('id'))
 
 
 class AzureComputeController(BaseComputeController):
