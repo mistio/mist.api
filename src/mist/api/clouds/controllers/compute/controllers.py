@@ -274,6 +274,9 @@ class LinodeComputeController(BaseComputeController):
                                size_id=size)
         return 0, price or 0
 
+    def _list_machines__get_location(self, node):
+        return str(node.extra.get('DATACENTERID'))
+
 
 class RackSpaceComputeController(BaseComputeController):
 
