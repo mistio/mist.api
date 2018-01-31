@@ -3,6 +3,8 @@ import uuid
 
 import mongoengine as me
 
+from mist.api.clouds.models import Cloud
+
 
 class CloudLocation(me.Document):
     """A base Cloud Location Model."""
