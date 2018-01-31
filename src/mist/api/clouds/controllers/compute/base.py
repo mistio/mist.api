@@ -856,11 +856,11 @@ class BaseComputeController(BaseController):
 
             try:
                 _location.save()
-                locations.append(_location)
             except me.ValidationError as exc:
                 log.error("Error adding %s: %s", loc.name, exc.to_dict())
                 raise BadRequestError({"msg": exc.message,
                                        "errors": exc.to_dict()})
+            locations.append(_location)
 
         return locations
 
