@@ -852,6 +852,7 @@ class BaseComputeController(BaseController):
                                           name=loc.name)
             _location.country = loc.country
             _location.provider = self.provider
+            _location.extra = loc.extra
 
             try:
                 _location.save()
