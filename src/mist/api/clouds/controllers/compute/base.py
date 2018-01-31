@@ -271,6 +271,7 @@ class BaseComputeController(BaseController):
         """
         # Try to query list of machines from provider API.
         try:
+            import ipdb; ipdb.set_trace()
             nodes = self._list_machines__fetch_machines()
             log.info("List nodes returned %d results for %s.",
                      len(nodes), self.cloud)
@@ -307,7 +308,7 @@ class BaseComputeController(BaseController):
             machine.missing_since = None
             # Discover location of machine.
             try:
-                location_name = self._list_machines__get_location(node)
+                location_id = self._list_machines__get_location(node)
             except Exception as exc:
                 log.exception(repr(exc))
 
@@ -315,7 +316,7 @@ class BaseComputeController(BaseController):
 
                 try:
                     _location = CloudLocation.objects.get(cloud=self.cloud,
-                                                          name=location_name)
+                                                          external_id=location_id)
                     machine.location = _location
                 except CloudLocation.DoesNotExist:
                     log.exception(repr(exc))
@@ -834,6 +835,7 @@ class BaseComputeController(BaseController):
         """
 
         # Fetch locations, usually from libcloud connection.
+        import ipdb; ipdb.set_trace()
         fetched_locations = self._list_locations__fetch_locations()
 
         log.info("List locations returned %d results for %s.",
