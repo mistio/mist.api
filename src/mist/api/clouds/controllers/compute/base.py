@@ -318,6 +318,7 @@ class BaseComputeController(BaseController):
                                                           name=location_name)
                     machine.location = _location
                 except CloudLocation.DoesNotExist:
+                    log.exception(repr(exc))
                     pass
 
             # Get misc libcloud metadata.
