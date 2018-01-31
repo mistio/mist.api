@@ -38,7 +38,7 @@ def load_clouds_from_config():
         clouds = yaml.load(fobj)
     if not isinstance(clouds, list):
         raise TypeError("Configuration in '%s' is expected to be a list, "
-                        "not %s." % path, type(settings))
+                        "not %s." % (path, type(clouds)))
     for cdict in clouds:
         if not isinstance(cdict, dict):
             raise TypeError("Cloud configuration is not a dict: %r" % cdict)
@@ -57,7 +57,7 @@ def load_clouds_from_config():
 
 CLOUDS = load_clouds_from_config()
 CLOUD_NAMES = [cdict['name'] for cdict in CLOUDS]
-CREDS = {cdict['name']:cdict.get('creds') for cdict in CLOUDS}
+CREDS = {cdict['name']: cdict.get('creds') for cdict in CLOUDS}
 
 # TODO: Need to add the scripts.yaml file
 # @pytest.fixture

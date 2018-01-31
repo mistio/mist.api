@@ -56,7 +56,7 @@ class ShellHubWorker(mist.api.hub.main.HubWorker):
         except Exception as exc:
             if self.provider == 'docker':
                 self.shell = mist.api.shell.Shell(data['host'],
-                                                 provider='docker')
+                                                  provider='docker')
                 key_id, ssh_user = self.shell.autoconfigure(
                     self.owner, data['cloud_id'], data['machine_id'],
                     job_id=data['job_id'],
@@ -139,7 +139,10 @@ class LoggingShellHubWorker(ShellHubWorker):
     def on_ready(self, msg=''):
         super(LoggingShellHubWorker, self).on_ready(msg)
         # Don't log cfy container log views
-        if self.params.get('provider') != 'docker' or not self.params.get('job_id'):
+        if (
+            self.params.get('provider') != 'docker' or
+            not self.params.get('job_id')
+        ):
             mist.api.logs.methods.log_event(action='open', event_type='shell',
                                             shell_id=self.uuid, **self.params)
 
@@ -176,7 +179,10 @@ class LoggingShellHubWorker(ShellHubWorker):
                                    for tstamp, event, data in self.capture]
                 capture.save()
             # Don't log cfy container log views
-            if self.params.get('provider') != 'docker' or not self.params.get('job_id'):
+            if (
+                self.params.get('provider') != 'docker' or
+                not self.params.get('job_id')
+            ):
                 mist.api.logs.methods.log_event(action='close',
                                                 event_type='shell',
                                                 shell_id=self.uuid,
