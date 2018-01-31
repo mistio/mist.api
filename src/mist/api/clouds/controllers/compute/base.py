@@ -845,12 +845,12 @@ class BaseComputeController(BaseController):
 
             try:
                 _location = CloudLocation.objects.get(cloud=self.cloud,
-                                                      name=loc.name)
+                                                      external_id=loc.id)
             except CloudLocation.DoesNotExist:
                 _location = CloudLocation(cloud=self.cloud,
-                                          external_id=loc.id,
-                                          name=loc.name)
+                                          external_id=loc.id)
             _location.country = loc.country
+            _location.name = loc.name
             _location.provider = self.provider
 
             try:
