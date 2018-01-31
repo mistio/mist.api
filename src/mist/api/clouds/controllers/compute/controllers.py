@@ -795,6 +795,7 @@ class OpenStackComputeController(BaseComputeController):
         return get_driver(Provider.OPENSTACK)(
             self.cloud.username,
             self.cloud.password,
+            api_version='2.0',
             ex_force_auth_version='2.0_password',
             ex_force_auth_url=url,
             ex_tenant_name=self.cloud.tenant,
