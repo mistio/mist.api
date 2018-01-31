@@ -515,8 +515,8 @@ CELERY_SETTINGS = {
 
         # Core tasks
         'mist.core.insights.tasks.list_deployments': {'queue': 'deployments'},
-        'mist.core.rbac.tasks.update_mappings': {'queue': 'mappings'},
-        'mist.core.rbac.tasks.remove_mappings': {'queue': 'mappings'},
+        'mist.rbac.tasks.update_mappings': {'queue': 'mappings'},
+        'mist.rbac.tasks.remove_mappings': {'queue': 'mappings'},
     },
 }
 
@@ -1149,7 +1149,6 @@ ENABLE_TUNNELS = False
 ENABLE_ORCHESTRATION = False
 ENABLE_INSIGHTS = False
 STRIPE_PUBLIC_APIKEY = False
-ENABLE_RBAC = False
 ENABLE_AB = False
 ENABLE_MONITORING = True
 MACHINE_PATCHES = True
@@ -1232,6 +1231,7 @@ for override_file in CONFIG_OVERRIDE_FILES:
                               override_file)
 
 HAS_BILLING = 'billing' in PLUGINS
+HAS_RBAC = 'rbac' in PLUGINS
 
 
 # Update TELEGRAF_TARGET.
@@ -1296,7 +1296,7 @@ HOMEPAGE_INPUTS = {
     'allow_signin_email': ALLOW_SIGNIN_EMAIL,
     'allow_signin_google': ALLOW_SIGNIN_GOOGLE,
     'allow_signin_github': ALLOW_SIGNIN_GITHUB,
-    'enable_rbac': ENABLE_RBAC,
+    'enable_rbac': HAS_RBAC,
     'enable_tunnels': ENABLE_TUNNELS,
     'enable_orchestration': ENABLE_ORCHESTRATION,
     'enable_insights': ENABLE_INSIGHTS,

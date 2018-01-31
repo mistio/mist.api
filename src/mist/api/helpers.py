@@ -67,8 +67,8 @@ from mist.api.exceptions import RequiredParameterMissingError
 
 from mist.api import config
 
-if config.HAS_CORE:
-    from mist.core.rbac.tokens import SuperToken
+if config.HAS_RBAC:
+    from mist.rbac.tokens import SuperToken
 
 
 logging.basicConfig(level=config.PY_LOG_LEVEL,
@@ -890,7 +890,7 @@ def logging_view_decorator(func):
                 log_dict['token_expires'] = datetime_to_str(session.expires())
 
         # Log special Token.
-        if config.HAS_CORE and isinstance(session, SuperToken):
+        if config.HAS_RBAC and isinstance(session, SuperToken):
             log_dict['setuid'] = True
             log_dict['api_token_id'] = str(session.id)
             log_dict['api_token_name'] = session.name

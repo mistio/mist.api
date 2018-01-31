@@ -68,10 +68,6 @@ class AuthContext(object):
         return AuthContext(user, token)
 
 
-def validate_rule_rid(rule, owner):
-    return
-
-
 def filter_logs(auth_context, kwargs):
     log.warning('Call to dummy.filter_logs')
     return
