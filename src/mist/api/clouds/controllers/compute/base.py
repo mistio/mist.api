@@ -784,7 +784,6 @@ class BaseComputeController(BaseController):
 
                 locations = self._list_locations()
         except PeriodicTaskThresholdExceeded:
-            self.cloud.disable()
             raise
 
         # Initialize AMQP connection to reuse for multiple messages.
