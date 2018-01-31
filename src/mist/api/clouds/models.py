@@ -405,8 +405,8 @@ class OtherCloud(Cloud):
 
 class ClearCenterCloud(Cloud):
 
-    host = me.StringField(required=False,
-                          default='https://api.clearsdn.com/api/v5/devices')
+    uri = me.StringField(required=False,
+                         default='https://api.clearsdn.com')
     apikey = me.StringField(required=True)
     verify = me.BooleanField(default=True)
 

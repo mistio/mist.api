@@ -1434,7 +1434,7 @@ class ClearCenterComputeController(BaseComputeController):
 
     def _connect(self):
         return get_driver(Provider.CLEARCENTER)(key=self.cloud.apikey,
-                                                host=self.cloud.host,
+                                                uri=self.cloud.uri,
                                                 verify=self.cloud.verify)
 
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
