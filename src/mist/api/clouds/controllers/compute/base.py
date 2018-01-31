@@ -305,7 +305,7 @@ class BaseComputeController(BaseController):
             # Update machine_model's last_seen fields.
             machine.last_seen = now
             machine.missing_since = None
-
+            # Discover location of machine.
             try:
                 location_name = self._list_machines__get_location(node)
             except Exception as exc:
