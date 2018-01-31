@@ -318,7 +318,7 @@ class BaseComputeController(BaseController):
                     _location = CloudLocation.objects.get(cloud=self.cloud,
                                                           external_id=loc_id)
                     machine.location = _location
-                except CloudLocation.DoesNotExist:
+                except CloudLocation.DoesNotExist as exc:
                     log.exception(repr(exc))
                     pass
 
@@ -854,7 +854,6 @@ class BaseComputeController(BaseController):
                                           name=loc.name)
             _location.country = loc.country
             _location.provider = self.provider
-            _location.extra = loc.extra
 
             try:
                 _location.save()
