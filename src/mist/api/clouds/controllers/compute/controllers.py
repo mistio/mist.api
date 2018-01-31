@@ -770,7 +770,7 @@ class VultrComputeController(BaseComputeController):
         return [size for size in sizes if not size.extra.get('deprecated')]
 
     def _list_machines__get_location(self, node):
-        return node.extra.get('location')
+        return node.extra.get('DCID')
 
 
 class VSphereComputeController(BaseComputeController):
