@@ -25,11 +25,14 @@ from mist.api.logs.constants import EXCLUDED_BUCKETS, TYPES
 from mist.api.logs.constants import STARTS_STORY, CLOSES_STORY, CLOSES_INCIDENT
 
 if config.HAS_CORE:
-    from mist.core.rbac.methods import filter_logs
     from mist.core.experiments.helpers import cross_populate_session_data
 else:
-    from mist.api.dummy.rbac import filter_logs
     from mist.api.dummy.methods import cross_populate_session_data
+
+if config.HAS_RBAC:
+    from mist.rbac.methods import filter_logs
+else:
+    from mist.api.dummy.rbac import filter_logs
 
 
 logging.getLogger('elasticsearch').setLevel(logging.ERROR)

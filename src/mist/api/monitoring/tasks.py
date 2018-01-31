@@ -2,9 +2,10 @@ import uuid
 import time
 import logging
 
+from mist.api.celery_app import app
+
 import mist.api.shell
 
-from mist.api.tasks import app
 from mist.api.helpers import trigger_session_update
 from mist.api.exceptions import MistError
 from mist.api.logs.methods import log_event
