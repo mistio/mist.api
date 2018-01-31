@@ -726,7 +726,7 @@ class GoogleComputeController(BaseComputeController):
         return ret.values()
 
     def _list_machines__get_location(self, node):
-        return node.extra.get('zone').name
+        return node.extra.get('zone').id
 
 
 class HostVirtualComputeController(BaseComputeController):
