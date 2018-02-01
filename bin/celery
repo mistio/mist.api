@@ -4,7 +4,7 @@ set -e
 
 QUEUES="${QUEUES:-celery,machines,scripts,command,ping,probe,rules}"
 LOGLEVEL="INFO"
-TASKS="${TASKS:-mist.api.tasks}"
+TASKS="${TASKS:-mist.api.celery_app}"
 CONCURRENCY=${CONCURRENCY:-8}
 POOL=${POOL:-prefork}
 
