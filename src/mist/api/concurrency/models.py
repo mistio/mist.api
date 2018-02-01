@@ -120,7 +120,10 @@ class PeriodicTaskInfo(me.Document):
             last_run = self.get_last_run()
             if last_run:
                 if now - last_run < self.min_interval:
-                    raise Exception()
+                    log.error('Aborting task `%s` because last_run was %s '
+                              'seconds ago vs %d min_interval' % (
+                                  self.key, now - last_run,
+                                  self.min_interval))
 
     def acquire_lock(self, attempts=1, retry_sleep=1):
         """Acquire run lock"""
