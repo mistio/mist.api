@@ -52,7 +52,7 @@ from mist.api.exceptions import LoginThrottledError, TeamOperationError
 from mist.api.exceptions import MemberConflictError, MemberNotFound
 from mist.api.exceptions import OrganizationAuthorizationFailure
 from mist.api.exceptions import OrganizationNameExistsError
-from mist.api.exceptions import TeamForbidden, TeamNotFound
+from mist.api.exceptions import TeamForbidden
 from mist.api.exceptions import OrganizationOperationError
 from mist.api.exceptions import MethodNotAllowedError
 from mist.api.exceptions import WhitelistIPError
@@ -1876,10 +1876,7 @@ def show_team(request):
         raise OrganizationAuthorizationFailure()
 
     # Check if team entry exists
-    try:
-        team = auth_context.org.get_team_by_id(team_id)
-    except me.DoesNotExist:
-        raise TeamNotFound()
+    team = auth_context.org.get_team_by_id(team_id)
 
     return team.as_dict()
 
@@ -1959,10 +1956,7 @@ def edit_team(request):
         raise OrganizationAuthorizationFailure()
 
     # Check if team entry exists
-    try:
-        team = auth_context.org.get_team_by_id(team_id)
-    except me.DoesNotExist:
-        raise TeamNotFound()
+    team = auth_context.org.get_team_by_id(team_id)
 
     if team.name == 'Owners' and name != 'Owners':
         raise BadRequestError('The name of the Owners Teams may not be edited')
@@ -2156,10 +2150,7 @@ def invite_member_to_team(request):
         raise OrganizationAuthorizationFailure()
 
     # Check if team entry exists
-    try:
-        team = auth_context.org.get_team_by_id(team_id)
-    except me.DoesNotExist:
-        raise TeamNotFound()
+    team = auth_context.org.get_team_by_id(team_id)
 
     emails = params.get('emails', '').strip().lower().split('\n')
 
@@ -2323,10 +2314,7 @@ def delete_member_from_team(request):
         raise OrganizationAuthorizationFailure()
 
     # Check if team entry exists
-    try:
-        team = auth_context.org.get_team_by_id(team_id)
-    except me.DoesNotExist:
-        raise TeamNotFound()
+    team = auth_context.org.get_team_by_id(team_id)
 
     # check if user exists
     try:
