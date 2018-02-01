@@ -190,7 +190,6 @@ class VSphereMainController(BaseMainController):
     ComputeController = compute_ctls.VSphereComputeController
     NetworkController = network_ctls.VSphereNetworkController
 
-
     def _update__preparse_kwargs(self, kwargs):
         host = kwargs.get('host', self.cloud.host)
         if host:

@@ -133,7 +133,7 @@ class GoogleNetworkController(BaseNetworkController):
 class OpenStackNetworkController(BaseNetworkController):
 
     def _create_subnet__prepare_args(self, subnet, kwargs):
-        kwargs['network_id'] = subnet.network.network_idVSphereNetworkController
+        kwargs['network_id'] = subnet.network.network_id
 
     def _list_networks__postparse_network(self, network, libcloud_network):
         for field in network._network_specific_fields:

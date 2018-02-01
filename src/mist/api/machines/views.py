@@ -7,7 +7,6 @@ import mist.api.machines.methods as methods
 from mist.api.clouds.models import Cloud
 from mist.api.clouds.models import LibvirtCloud
 from mist.api.machines.models import Machine
-from mist.api.misc.cloud import CloudLocation
 from mist.api.clouds.methods import filter_list_clouds
 
 from mist.api import tasks
@@ -310,8 +309,8 @@ def create_machine(request):
     auth_context = auth_context_from_request(request)
 
     try:
-        cl = Cloud.objects.get(owner=auth_context.owner,
-                               id=cloud_id, deleted=None)
+        Cloud.objects.get(owner=auth_context.owner,
+                          id=cloud_id, deleted=None)
     except Cloud.DoesNotExist:
         raise NotFoundError('Cloud does not exist')
 
