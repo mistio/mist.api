@@ -50,6 +50,14 @@ def _get_transformed_params(auth_context, params):
         emails = [emails]
     emails = [e.strip() for e in emails if e.strip()]
 
+    # Get list of user/team IDs.
+    teams = params.get('users') or []
+    users = params.get('teams') or []
+    if not isinstance(teams, list):
+        raise BadRequestError('"teams" must be a list of Team UUIDs')
+    if not isinstance(users, list):
+        raise BadRequestError('"users" must be a list of User UUIDs')
+
     # Get metric.
     metric = params.get('metric')
     metric = {
@@ -91,6 +99,8 @@ def _get_transformed_params(auth_context, params):
             {
                 'type': 'notification',
                 'emails': emails,
+                'users': users,
+                'teams': teams,
             },
         ],
         'conditions': [

@@ -5,7 +5,10 @@ import logging
 import mongoengine as me
 
 from mist.api import config
+from mist.api.exceptions import TeamNotFound
+from mist.api.exceptions import UserNotFoundError
 from mist.api.logs.methods import log_event
+from mist.api.users.models import User
 from mist.api.machines.models import Machine
 
 
@@ -84,7 +87,26 @@ class NotificationAction(BaseAlertAction):
 
     atype = 'notification'
 
+    users = me.ListField(me.StringField(), default=lambda: [])
+    teams = me.ListField(me.StringField(), default=lambda: [])
     emails = me.ListField(me.StringField(), default=lambda: [])
+
+    def update(self, fail_on_error=True, **kwargs):
+        super(NotificationAction, self).update(fail_on_error, **kwargs)
+        # Verify that the specified users and/or teams do belong to the
+        # current Organization. We've added this check here, instead of
+        # the `clean` method, to avoid dereferencing User documents per
+        # save operation.
+        if self.users:
+            user_ids = [member.id for member in self._instance.owner.members]
+        for user_id in self.users:
+            if user_id not in user_ids:
+                raise UserNotFoundError(user_id)
+        for team_id in self.teams:
+            try:
+                self._instance.owner.teams.get(id=team_id)
+            except me.DoesNotExist:
+                raise TeamNotFound(team_id)
 
     def run(self, machine, value, triggered, timestamp, incident_id, action='',
             notification_level=0):
@@ -93,10 +115,22 @@ class NotificationAction(BaseAlertAction):
         # TODO Shouldn't be specific to machines.
         assert isinstance(machine, Machine)
         assert machine.owner == self._instance.owner
+        emails = set(self.emails)
+        if not (self.users or self.teams):
+            emails |= set(self._instance.owner.get_emails())
+            emails |= set(self._instance.owner.alerts_email)
+        for user in User.objects(id__in=self.users):
+            emails.add(user.email)
+        for team_id in self.teams:
+            try:
+                team = self._instance.owner.teams.get(id=team_id)
+                emails |= set([member.email for member in team.members])
+            except me.DoesNotExist:
+                continue
         send_alert_email(machine.owner, self._instance.id, value,
                          triggered, timestamp, incident_id, action=action,
                          cloud_id=machine.cloud.id,
-                         machine_id=machine.machine_id)
+                         machine_id=machine.machine_id, emails=emails)
 
     def clean(self):
         """Perform e-mail address validation."""
@@ -105,7 +139,8 @@ class NotificationAction(BaseAlertAction):
                 raise me.ValidationError('Invalid e-mail address: %s' % email)
 
     def as_dict(self):
-        return {'type': self.atype, 'emails': self.emails}
+        return {'type': self.atype, 'emails': self.emails,
+                'users': self.users, 'teams': self.teams}
 
 
 class NoDataAction(NotificationAction):
