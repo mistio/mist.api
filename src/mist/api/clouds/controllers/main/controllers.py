@@ -418,12 +418,12 @@ class OtherMainController(BaseMainController):
                 else:
                     log.warning(error)
                     kwargs.pop(key)
-        if not name:
-            errors['name'] = "Required parameter name missing"
-            log.error(errors['name'])
         if 'host' not in kwargs:
             errors['host'] = "Required parameter host missing"
             log.error(errors['host'])
+
+        if not name:
+            name = kwargs['host']
 
         if errors:
             log.error("Invalid parameters %s." % errors.keys())
