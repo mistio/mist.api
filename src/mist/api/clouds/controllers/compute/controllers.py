@@ -1428,3 +1428,32 @@ class OtherComputeController(BaseComputeController):
 
     def list_locations(self):
         return []
+
+
+class ClearCenterComputeController(BaseComputeController):
+
+    def _connect(self):
+        return get_driver(Provider.CLEARCENTER)(key=self.cloud.apikey,
+                                                uri=self.cloud.uri,
+                                                verify=self.cloud.verify)
+
+    def _list_machines__machine_creation_date(self, machine, machine_libcloud):
+        return machine_libcloud.extra.get('created_timestamp')
+
+    def _list_machines__machine_actions(self, machine, machine_libcloud):
+        super(ClearCenterComputeController,
+              self)._list_machines__machine_actions(machine, machine_libcloud)
+        machine.actions.remove = False
+        machine.actions.destroy = False
+        machine.actions.rename = False
+        machine.actions.reboot = False
+        machine.actions.stop = False
+
+    def list_images(self, search=None):
+        return []
+
+    def list_sizes(self):
+        return []
+
+    def list_locations(self):
+        return []
