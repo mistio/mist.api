@@ -24,8 +24,8 @@ from mist.api.rules.plugins import InfluxDBBackendPlugin
 from mist.api.conditions.models import FieldCondition
 from mist.api.conditions.models import MachinesCondition
 
-if config.HAS_CORE:
-    from mist.core.rbac.methods import AuthContext
+if config.HAS_RBAC:
+    from mist.rbac.methods import AuthContext
 else:
     from mist.api.dummy.rbac import AuthContext
 
