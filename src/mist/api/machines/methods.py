@@ -196,17 +196,17 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
     image = NodeImage(image_id, name=image_name, extra=image_extra,
                       driver=conn)
 
+    # transform location id to libcloud's NodeLocation object
     try:
         from mist.api.misc.cloud import CloudLocation
         cloud_location = CloudLocation.objects.get(id=location_id)
         location = NodeLocation(location_id, name=cloud_location.name,
                                 country=cloud_location.country, driver=conn)
-    except me.NotFoundError:
+    except me.DoesNotExist:
         location = NodeLocation(location_id, name=location_name, country='',
                                 driver=conn)
 
     if conn.type is Container_Provider.DOCKER:
-
         if public_key:
             node = _create_machine_docker(
                 conn, machine_name, image_id, '',
@@ -239,11 +239,6 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                                          machine_name, image, size, location,
                                          networks, cloud_init)
     elif conn.type is Provider.EC2 and private_key:
-        locations = conn.list_locations()
-        for loc in locations:
-            if loc.id == location_id:
-                location = loc
-                break
         node = _create_machine_ec2(conn, key_id, private_key, public_key,
                                    machine_name, image, size, location,
                                    cloud_init)
@@ -1311,7 +1306,7 @@ def _create_machine_vsphere(conn, machine_name, image,
     try:
         from mist.api.networks.models import VSphereNetwork
         network_name = VSphereNetwork.objects.get(id=network).name
-    except me.NotFoundError:
+    except me.DoesNotExist:
         network_name = None
 
     try:
