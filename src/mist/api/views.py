@@ -10,7 +10,6 @@ be performed inside the corresponding method functions.
 """
 
 import urllib
-import requests
 import json
 import netaddr
 import traceback
@@ -42,7 +41,7 @@ from mist.api import methods
 
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import NotFoundError, BadRequestError, ForbiddenError
-from mist.api.exceptions import SSLError, ServiceUnavailableError
+from mist.api.exceptions import ServiceUnavailableError
 from mist.api.exceptions import MistError
 from mist.api.exceptions import PolicyUnauthorizedError, UnauthorizedError
 from mist.api.exceptions import CloudNotFoundError
@@ -59,7 +58,7 @@ from mist.api.exceptions import MethodNotAllowedError
 from mist.api.exceptions import WhitelistIPError
 
 from mist.api.helpers import encrypt, decrypt
-from mist.api.helpers import get_auth_header, params_from_request
+from mist.api.helpers import params_from_request
 from mist.api.helpers import trigger_session_update
 from mist.api.helpers import view_config, ip_from_request
 from mist.api.helpers import send_email
