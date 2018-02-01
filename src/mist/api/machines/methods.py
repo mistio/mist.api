@@ -118,10 +118,12 @@ def list_machines(owner, cloud_id):
 
 
 def create_machine(owner, cloud_id, key_id, machine_name, location_id,
-                   image_id, size_id, image_extra, disk, image_name,
-                   size_name, location_name, ips, monitoring,
-                   ex_storage_account, machine_password, ex_resource_group,
-                   networks=[], docker_env=[], docker_command=None,
+                   image_id, size_id, image_extra=None, disk=None,
+                   image_name=None, size_name=None, location_name=None,
+                   ips=None, monitoring=False,
+                   ex_storage_account='', machine_password='',
+                   ex_resource_group='', networks=[], docker_env=[],
+                   docker_command=None,
                    ssh_port=22, script='', script_id='', script_params='',
                    job_id=None, job=None, docker_port_bindings={},
                    docker_exposed_ports={}, azure_port_bindings='',
@@ -193,8 +195,15 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                     bandwidth='', price='', driver=conn)
     image = NodeImage(image_id, name=image_name, extra=image_extra,
                       driver=conn)
-    location = NodeLocation(location_id, name=location_name, country='',
-                            driver=conn)
+
+    try:
+        from mist.api.misc.cloud import CloudLocation
+        cloud_location = CloudLocation.objects.get(id=location_id)
+        location = NodeLocation(location_id, name=cloud_location.name,
+                                country=cloud_location.country, driver=conn)
+    except me.NotFoundError:
+        location = NodeLocation(location_id, name=location_name, country='',
+                                driver=conn)
 
     if conn.type is Container_Provider.DOCKER:
 
@@ -295,6 +304,12 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
     elif conn.type in [Provider.VCLOUD]:
         node = _create_machine_vcloud(conn, machine_name, image,
                                       size, public_key, networks)
+    elif conn.type is Provider.VSPHERE:
+        size.ram = size_ram
+        size.extra['cpu'] = size_cpu
+        size.disk = size_disk_primary
+        node = _create_machine_vsphere(conn, machine_name, image,
+                                       size, location, networks)
     elif conn.type is Provider.LINODE and private_key:
         # FIXME: The orchestration UI does not provide all the necessary
         # parameters, thus we need to fetch the proper size and image objects.
@@ -1283,6 +1298,32 @@ def _create_machine_vcloud(conn, machine_name, image,
         )
     except Exception as e:
         raise MachineCreationError("vCloud, got exception %s" % e, e)
+
+    return node
+
+
+def _create_machine_vsphere(conn, machine_name, image,
+                            size, location, network):
+    """Create a machine in vSphere.
+
+    """
+
+    try:
+        from mist.api.networks.models import VSphereNetwork
+        network_name = VSphereNetwork.objects.get(id=network).name
+    except me.NotFoundError:
+        network_name = None
+
+    try:
+        node = conn.create_node(
+            name=machine_name,
+            image=image,
+            size=size,
+            location=location,
+            ex_network=network_name
+        )
+    except Exception as e:
+        raise MachineCreationError("vSphere, got exception %s" % e, e)
 
     return node
 
