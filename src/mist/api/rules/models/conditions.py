@@ -98,6 +98,10 @@ class BasePeriodType(me.EmbeddedDocument):
         return self.period[:-1]
 
     @property
+    def period_short(self):
+        return self.period[0]
+
+    @property
     def timedelta(self):
         raise NotImplementedError()
 

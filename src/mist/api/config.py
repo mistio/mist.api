@@ -333,9 +333,17 @@ DEFAULT_MONITORING_METHOD = 'telegraf-influxdb'
 
 GRAPHITE_URI = "http://graphite"
 
-# Alert service's authentication key
-CILIA_TRIGGER = False
+# Alert service's settings.
+CILIA_MULTI = False
+CILIA_TRIGGER = True
+CILIA_TRIGGER_API = "http://api"
 CILIA_SECRET_KEY = ""
+CILIA_GRAPHITE_NODATA_TARGETS = (
+    "load.shortterm", "load.midterm", "cpu.0.idle"
+)
+CILIA_INFLUXDB_NODATA_TARGETS = (
+    "system.load1", "system.n_cpus", "cpu.cpu=cpu0.usage_user"
+)
 
 # number of api tokens user can have
 ACTIVE_APITOKEN_NUM = 20
@@ -454,6 +462,7 @@ BANNED_EMAIL_PROVIDERS = [
 ###############################################################################
 
 SECRET = ""
+SIGN_KEY = "dummy"
 
 NOTIFICATION_EMAIL = {
     'all': "",
