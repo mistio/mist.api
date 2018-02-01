@@ -305,19 +305,20 @@ class BaseComputeController(BaseController):
             # Update machine_model's last_seen fields.
             machine.last_seen = now
             machine.missing_since = None
-
+            # Discover location of machine.
             try:
-                location_name = self._list_machines__get_location(node)
+                loc_id = self._list_machines__get_location(node)
             except Exception as exc:
                 log.exception(repr(exc))
 
-            if location_name:
+            else:
 
                 try:
                     _location = CloudLocation.objects.get(cloud=self.cloud,
-                                                          name=location_name)
+                                                          external_id=loc_id)
                     machine.location = _location
-                except CloudLocation.DoesNotExist:
+                except CloudLocation.DoesNotExist as exc:
+                    log.exception(repr(exc))
                     pass
 
             # Get misc libcloud metadata.
@@ -781,17 +782,17 @@ class BaseComputeController(BaseController):
                 cached_locations = {'%s' % l.id: l.as_dict()
                                     for l in self.list_cached_locations()}
 
-                locations = [l.as_dict() for l in self._list_locations()]
+                locations = self._list_locations()
         except PeriodicTaskThresholdExceeded:
-            self.cloud.disable()
             raise
 
         # Initialize AMQP connection to reuse for multiple messages.
         amqp_conn = Connection(config.AMQP_URI)
         if amqp_owner_listening(self.cloud.owner.id):
-            if cached_locations and locations:
+            locations_dict = [l.as_dict() for l in locations]
+            if cached_locations and locations_dict:
                 # Publish patches to rabbitmq.
-                new_locations = {'%s' % l['id']: l for l in locations}
+                new_locations = {'%s' % l['id']: l for l in locations_dict}
                 patch = jsonpatch.JsonPatch.from_diff(cached_locations,
                                                       new_locations).patch
                 if patch:
@@ -805,7 +806,7 @@ class BaseComputeController(BaseController):
                                   routing_key='list_locations',
                                   connection=amqp_conn,
                                   data={'cloud_id': self.cloud.id,
-                                        'locations': locations})
+                                        'locations': locations_dict})
         return locations
 
     def _list_locations(self):
@@ -844,21 +845,21 @@ class BaseComputeController(BaseController):
 
             try:
                 _location = CloudLocation.objects.get(cloud=self.cloud,
-                                                      name=loc.name)
+                                                      external_id=loc.id)
             except CloudLocation.DoesNotExist:
                 _location = CloudLocation(cloud=self.cloud,
-                                          external_id=loc.id,
-                                          name=loc.name)
+                                          external_id=loc.id)
             _location.country = loc.country
+            _location.name = loc.name
             _location.provider = self.provider
 
             try:
                 _location.save()
-                locations.append(_location)
             except me.ValidationError as exc:
                 log.error("Error adding %s: %s", loc.name, exc.to_dict())
                 raise BadRequestError({"msg": exc.message,
                                        "errors": exc.to_dict()})
+            locations.append(_location)
 
         return locations
 

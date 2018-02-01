@@ -191,7 +191,7 @@ class CloudPollingSchedule(PollingSchedule):
                            self.cloud)
 
     @classmethod
-    def add(cls, cloud, interval=None, ttl=300):
+    def add(cls, cloud, run_immediately=True, interval=None, ttl=300):
         try:
             schedule = cls.objects.get(cloud=cloud)
         except cls.DoesNotExist:
@@ -205,7 +205,9 @@ class CloudPollingSchedule(PollingSchedule):
         schedule.set_default_interval(cloud.polling_interval)
         if interval is not None:
             schedule.add_interval(interval, ttl)
-        schedule.run_immediately = True
+        if run_immediately:
+            schedule.run_immediately = True
+
         schedule.cleanup_expired_intervals()
         schedule.save()
         return schedule
@@ -219,6 +221,11 @@ class CloudPollingSchedule(PollingSchedule):
             log.error('Cannot get cloud for polling schedule.')
             return False
 
+
+class ListMachinesPollingSchedule(CloudPollingSchedule):
+
+    task = 'mist.api.poller.tasks.list_machines'
+
     @property
     def interval(self):
         try:
@@ -231,11 +238,6 @@ class CloudPollingSchedule(PollingSchedule):
         except me.DoesNotExist:
             log.error('Cannot get interval. Cloud is missing')
             return PollingInterval(every=0)
-
-
-class ListMachinesPollingSchedule(CloudPollingSchedule):
-
-    task = 'mist.api.poller.tasks.list_machines'
 
 
 class ListLocationsPollingSchedule(CloudPollingSchedule):
