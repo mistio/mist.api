@@ -110,8 +110,8 @@ class OpenIdMistStore(OpenIDStore):
         """
 
         try:
-            mist_associations = MistAssociation.objects(server_url=server_url,
-                                                        handle=handle.encode('hex'))
+            mist_associations = MistAssociation.objects(
+                server_url=server_url, handle=handle.encode('hex'))
         except me.DoesNotExist:
             return False
 
@@ -140,7 +140,9 @@ class OpenIdMistStore(OpenIDStore):
 
         if len(mist_nonces) == 0:
             print "Timestamp = %s" % timestamp
-            MistNonce(server_url=server_url, salt=salt, timestamp=timestamp).save()
+            MistNonce(
+                server_url=server_url, salt=salt, timestamp=timestamp
+            ).save()
             return True
 
         return False
@@ -161,9 +163,9 @@ class OpenIdMistStore(OpenIDStore):
             mist_nonces = []
 
         counter = 0
-        for nonce in mist_nonces:
-            if nonce.is_old():
-                nonce.delete()
+        for n in mist_nonces:
+            if n.is_old():
+                n.delete()
                 counter += 1
 
         return counter

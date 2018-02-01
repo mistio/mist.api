@@ -28,7 +28,7 @@ def test_log_event(load_logs):
         for log in load_logs[type]:
             try:
                 log_event(**log)
-            except Exception as exc:
+            except Exception:
                 traceback.print_exc()
                 assert False
             else:
@@ -227,8 +227,8 @@ def test_close_story(load_logs):
                   event_type='request',
                   story_id=story['story_id'])
 
-	# Wait for index refresh.
-	time.sleep(1)
+        # Wait for index refresh.
+        time.sleep(1)
 
         # Ensure there are no more pending stories.
         stories = get_stories(story_type, owner_id=owner_id,

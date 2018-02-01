@@ -1,16 +1,13 @@
 import os
 import re
-import json
 import shutil
 import tempfile
 import subprocess
 
-import requests
-
 import pingparsing
 
 
-from mongoengine import ValidationError, NotUniqueError, DoesNotExist
+from mongoengine import DoesNotExist
 
 from time import time
 
@@ -29,9 +26,8 @@ import ansible.constants
 
 from mist.api.shell import Shell
 
-from mist.api.helpers import get_auth_header
-
-from mist.api.exceptions import *
+from mist.api.exceptions import MistError
+from mist.api.exceptions import RequiredParameterMissingError
 
 from mist.api.helpers import trigger_session_update
 from mist.api.helpers import amqp_publish_user
@@ -43,7 +39,7 @@ import mist.api.tasks
 import mist.api.inventory
 
 from mist.api.clouds.models import Cloud
-from mist.api.networks.models import NETWORKS, SUBNETS, Network, Subnet
+from mist.api.networks.models import SUBNETS
 from mist.api.machines.models import Machine
 
 from mist.api import config
@@ -218,10 +214,12 @@ def list_storage_accounts(owner, cloud_id):
         conn.disconnect()
     return ret
 
+
 def create_subnet(owner, cloud, network, subnet_params):
     """
     Create a new subnet attached to the specified network ont he given cloud.
-    Subnet_params is a dict containing all the necessary values that describe a subnet.
+    Subnet_params is a dict containing all the necessary values that describe a
+    subnet.
     """
     if not hasattr(cloud.ctl, 'network'):
         raise NotImplementedError()
@@ -283,7 +281,7 @@ def probe_ssh_only(owner, cloud_id, machine_id, host, key_id='', ssh_user='',
         "uptime && "
         "echo -------- && "
         "if [ -f /proc/uptime ]; then cat /proc/uptime | cut -d' ' -f1; "
-        "else expr `date '+%s'` - `sysctl kern.boottime | sed -En 's/[^0-9]*([0-9]+).*/\\1/p'`;"
+        "else expr `date '+%s'` - `sysctl kern.boottime | sed -En 's/[^0-9]*([0-9]+).*/\\1/p'`;"  # noqa
         "fi; "
         "echo -------- && "
         "if [ -f /proc/cpuinfo ]; then grep -c processor /proc/cpuinfo;"
@@ -298,7 +296,7 @@ def probe_ssh_only(owner, cloud_id, machine_id, host, key_id='', ssh_user='',
         "echo -------- &&"
         "cat /etc/*release;"
         "echo --------"
-        "\"|sh"  # In case there is a default shell other than bash/sh (e.g. csh)
+        "\"|sh"  # In case there is a default shell other than bash/sh (ex csh)
     )
 
     if key_id:
@@ -333,7 +331,7 @@ def probe_ssh_only(owner, cloud_id, machine_id, host, key_id='', ssh_user='',
 
     kernel_version = cmd_output[6].replace("\n", "")
     os_release = cmd_output[7]
-    os, os_version = parse_os_release(os_release)
+    os, os_version, distro = parse_os_release(os_release)
 
     return {
         'uptime': uptime,
@@ -348,6 +346,7 @@ def probe_ssh_only(owner, cloud_id, machine_id, host, key_id='', ssh_user='',
         'kernel': kernel_version,
         'os': os,
         'os_version': os_version,
+        'distro': distro,
         'dirty_cow': dirty_cow(os, os_version, kernel_version)
     }
 
@@ -488,7 +487,7 @@ $sudo mv /tmp/include.conf plugins/mist-python/include.conf
 
 echo "Restarting collectd"
 $sudo /opt/mistio-collectd/collectd.sh restart
-""" % {'plugin_id': plugin_id}
+""" % {'plugin_id': plugin_id}  # noqa
 
     retval, stdout = shell.command(script)
 
@@ -511,7 +510,7 @@ def run_playbook(owner, cloud_id, machine_id, playbook_path, extra_vars=None,
         'stats': {},
     }
     inventory = mist.api.inventory.MistInventory(owner,
-                                                [(cloud_id, machine_id)])
+                                                 [(cloud_id, machine_id)])
     if len(inventory.hosts) != 1:
         log.error("Expected 1 host, found %s", inventory.hosts)
         ret_dict['error_msg'] = "Expected 1 host, found %s" % inventory.hosts
@@ -630,7 +629,8 @@ def undeploy_collectd(owner, cloud_id, machine_id):
 
 def get_deploy_collectd_command_unix(uuid, password, monitor, port=25826):
     url = "https://github.com/mistio/deploy_collectd/raw/master/local_run.py"
-    cmd = "wget -O mist_collectd.py %s && $(command -v sudo) python mist_collectd.py %s %s" % (url, uuid, password)
+    cmd = "wget -O mist_collectd.py %s && $(command -v sudo) python mist_collectd.py %s %s" % (  # noqa
+        url, uuid, password)
     if monitor != 'monitor1.mist.api':
         cmd += " -m %s" % monitor
     if str(port) != '25826':
@@ -639,17 +639,19 @@ def get_deploy_collectd_command_unix(uuid, password, monitor, port=25826):
 
 
 def get_deploy_collectd_command_windows(uuid, password, monitor, port=25826):
-    return 'Set-ExecutionPolicy -ExecutionPolicy RemoteSigned ' \
-           '-Scope CurrentUser -Force;(New-Object System.Net.WebClient).' \
-           'DownloadFile(\'https://raw.githubusercontent.com/mistio/' \
-           'deploy_collectm/master/collectm.remote.install.ps1\',' \
-           ' \'.\collectm.remote.install.ps1\');.\collectm.remote.install.ps1 ' \
-           '-SetupConfigFile -setupArgs \'-username "%s" -password "%s" ' \
-           '-servers @("%s:%s")\'' % (uuid, password, monitor, port)
+    return (
+        'Set-ExecutionPolicy -ExecutionPolicy RemoteSigned '
+        '-Scope CurrentUser -Force;(New-Object System.Net.WebClient).'
+        'DownloadFile(\'https://raw.githubusercontent.com/mistio/'
+        'deploy_collectm/master/collectm.remote.install.ps1\','
+        ' \'.\collectm.remote.install.ps1\');.\collectm.remote.install.ps1 '
+        '-SetupConfigFile -setupArgs \'-username "%s" -password "%s" '
+        '-servers @("%s:%s")\''
+    ) % (uuid, password, monitor, port)
 
 
 def get_deploy_collectd_command_coreos(uuid, password, monitor, port=25826):
-    return "sudo docker run -d -v /sys/fs/cgroup:/sys/fs/cgroup -e COLLECTD_USERNAME=%s -e COLLECTD_PASSWORD=%s -e MONITOR_SERVER=%s -e COLLECTD_PORT=%s mist/collectd" % (
+    return "sudo docker run -d -v /sys/fs/cgroup:/sys/fs/cgroup -e COLLECTD_USERNAME=%s -e COLLECTD_PASSWORD=%s -e MONITOR_SERVER=%s -e COLLECTD_PORT=%s mist/collectd" % (  # noqa
         uuid, password, monitor, port)
 
 
@@ -735,12 +737,6 @@ def create_dns_a_record(owner, domain_name, ip_addr):
     log.info("Will use name %s and zone %s in provider %s.",
              name, zone.domain, provider)
 
-    # debug
-    # log.debug("Will print all existing A records for zone '%s'.", zone.domain)
-    # for record in zone.list_records():
-    #    if record.type == 'A':
-    #        log.info("%s -> %s", record.name, record.data)
-
     msg = ("Creating A record with name %s for %s in zone %s in %s"
            % (name, ip_addr, zone.domain, provider))
     try:
@@ -754,6 +750,11 @@ def create_dns_a_record(owner, domain_name, ip_addr):
 # FIXME DEPRECATED
 def rule_triggered(machine, rule_id, value, triggered, timestamp,
                    notification_level, incident_id):
+    from mist.api.rules.models import NoDataRule
     from mist.api.rules.methods import run_chained_actions
+    if config.HAS_CORE and rule_id == 'nodata':
+        rule = NoDataRule.objects.get(owner_id=machine.owner.id,
+                                      title='NoData')
+        rule_id = rule.title
     run_chained_actions(rule_id, machine, value, triggered, timestamp,
                         notification_level, incident_id)
