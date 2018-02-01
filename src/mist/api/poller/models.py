@@ -205,7 +205,9 @@ class CloudPollingSchedule(PollingSchedule):
         schedule.set_default_interval(cloud.polling_interval)
         if interval is not None:
             schedule.add_interval(interval, ttl)
-        schedule.run_immediately = run_immediately
+        if run_immediately:
+            schedule.run_immediately = True
+
         schedule.cleanup_expired_intervals()
         schedule.save()
         return schedule
