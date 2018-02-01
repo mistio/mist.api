@@ -11,8 +11,8 @@ from mist.api.exceptions import UserNotFoundError
 
 from mist.api import config
 
-if config.HAS_CORE:
-    from mist.core.rbac.models import Policy
+if config.HAS_RBAC:
+    from mist.rbac.models import Policy
 
 
 def datetime_to_str(dt):
@@ -152,7 +152,7 @@ class AuthToken(me.Document):
 class ApiToken(AuthToken):
     name = me.StringField(required=True)
 
-    if config.HAS_CORE:
+    if config.HAS_RBAC:
         policy = me.EmbeddedDocumentField(Policy)
 
     def get_public_view(self):

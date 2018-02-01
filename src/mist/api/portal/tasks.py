@@ -2,9 +2,10 @@ import logging
 
 import requests
 
+from mist.api.celery_app import app
+
 from mist.api import config
 from mist.api.portal.models import Portal, AvailableUpgrade
-from mist.api.tasks import app
 
 
 log = logging.getLogger(__name__)
