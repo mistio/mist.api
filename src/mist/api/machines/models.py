@@ -188,6 +188,7 @@ class SSHProbe(me.EmbeddedDocument):
     kernel = me.StringField()
     os = me.StringField()
     os_version = me.StringField()
+    distro = me.StringField()
     dirty_cow = me.BooleanField()
     updated_at = me.DateTimeField()
     unreachable_since = me.DateTimeField()
@@ -231,7 +232,7 @@ class SSHProbe(me.EmbeddedDocument):
                 log.error("Invalid %s '%s': %r", strarr_attr, val, exc)
                 setattr(self, strarr_attr, [])
 
-        for str_attr in ('df', 'kernel', 'os', 'os_version'):
+        for str_attr in ('df', 'kernel', 'os', 'os_version', 'distro'):
             setattr(self, str_attr, str(data.get(str_attr, '')))
 
         self.dirty_cow = bool(data.get('dirty_cow'))
@@ -241,8 +242,8 @@ class SSHProbe(me.EmbeddedDocument):
     def as_dict(self):
         data = {key: getattr(self, key) for key in (
             'uptime', 'loadavg', 'cores', 'users', 'pub_ips', 'priv_ips', 'df',
-            'macs', 'kernel', 'os', 'os_version', 'dirty_cow', 'updated_at',
-            'unreachable_since',
+            'macs', 'kernel', 'os', 'os_version', 'distro', 'dirty_cow',
+            'updated_at', 'unreachable_since',
         )}
         # Handle datetime objects
         for key in ('updated_at', 'unreachable_since'):

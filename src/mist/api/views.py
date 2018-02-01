@@ -10,7 +10,6 @@ be performed inside the corresponding method functions.
 """
 
 import urllib
-import requests
 import json
 import netaddr
 import traceback
@@ -42,7 +41,7 @@ from mist.api import methods
 
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import NotFoundError, BadRequestError, ForbiddenError
-from mist.api.exceptions import SSLError, ServiceUnavailableError
+from mist.api.exceptions import ServiceUnavailableError
 from mist.api.exceptions import MistError
 from mist.api.exceptions import PolicyUnauthorizedError, UnauthorizedError
 from mist.api.exceptions import CloudNotFoundError
@@ -53,13 +52,13 @@ from mist.api.exceptions import LoginThrottledError, TeamOperationError
 from mist.api.exceptions import MemberConflictError, MemberNotFound
 from mist.api.exceptions import OrganizationAuthorizationFailure
 from mist.api.exceptions import OrganizationNameExistsError
-from mist.api.exceptions import TeamForbidden, TeamNotFound
+from mist.api.exceptions import TeamForbidden
 from mist.api.exceptions import OrganizationOperationError
 from mist.api.exceptions import MethodNotAllowedError
 from mist.api.exceptions import WhitelistIPError
 
 from mist.api.helpers import encrypt, decrypt
-from mist.api.helpers import get_auth_header, params_from_request
+from mist.api.helpers import params_from_request
 from mist.api.helpers import trigger_session_update
 from mist.api.helpers import view_config, ip_from_request
 from mist.api.helpers import send_email
@@ -1491,64 +1490,6 @@ def undeploy_plugin(request):
         raise BadRequestError("Invalid plugin_type: '%s'" % plugin_type)
 
 
-@view_config(route_name='api_v1_rules', request_method='POST', renderer='json')
-def update_rule(request):
-    """
-    Creates or updates a rule.
-    ---
-    """
-    raise NotImplementedError()
-
-    user = user_from_request(request)
-    params = params_from_request(request)
-    try:
-        ret = requests.post(
-            config.CORE_URI + request.path,
-            params=params,
-            headers={'Authorization': get_auth_header(user)},
-            verify=config.SSL_VERIFY
-        )
-    except requests.exceptions.SSLError as exc:
-        log.error("%r", exc)
-        raise SSLError()
-    if ret.status_code != 200:
-        log.error("Error updating rule %d:%s", ret.status_code, ret.text)
-        raise ServiceUnavailableError()
-    trigger_session_update(user, ['monitoring'])
-    return ret.json()
-
-
-@view_config(route_name='api_v1_rule', request_method='DELETE')
-def delete_rule(request):
-    """
-    Delete rule
-    Deletes a rule.
-    ---
-    rule:
-      description: ' Rule id '
-      in: path
-      required: true
-      type: string
-    """
-    raise NotImplementedError()
-
-    user = user_from_request(request)
-    try:
-        ret = requests.delete(
-            config.CORE_URI + request.path,
-            headers={'Authorization': get_auth_header(user)},
-            verify=config.SSL_VERIFY
-        )
-    except requests.exceptions.SSLError as exc:
-        log.error("%r", exc)
-        raise SSLError()
-    if ret.status_code != 200:
-        log.error("Error deleting rule %d:%s", ret.status_code, ret.text)
-        raise ServiceUnavailableError()
-    trigger_session_update(user, ['monitoring'])
-    return OK
-
-
 @view_config(route_name='api_v1_providers', request_method='GET',
              renderer='json')
 def list_supported_providers(request):
@@ -1935,10 +1876,7 @@ def show_team(request):
         raise OrganizationAuthorizationFailure()
 
     # Check if team entry exists
-    try:
-        team = auth_context.org.get_team_by_id(team_id)
-    except me.DoesNotExist:
-        raise TeamNotFound()
+    team = auth_context.org.get_team_by_id(team_id)
 
     return team.as_dict()
 
@@ -2018,10 +1956,7 @@ def edit_team(request):
         raise OrganizationAuthorizationFailure()
 
     # Check if team entry exists
-    try:
-        team = auth_context.org.get_team_by_id(team_id)
-    except me.DoesNotExist:
-        raise TeamNotFound()
+    team = auth_context.org.get_team_by_id(team_id)
 
     if team.name == 'Owners' and name != 'Owners':
         raise BadRequestError('The name of the Owners Teams may not be edited')
@@ -2215,10 +2150,7 @@ def invite_member_to_team(request):
         raise OrganizationAuthorizationFailure()
 
     # Check if team entry exists
-    try:
-        team = auth_context.org.get_team_by_id(team_id)
-    except me.DoesNotExist:
-        raise TeamNotFound()
+    team = auth_context.org.get_team_by_id(team_id)
 
     emails = params.get('emails', '').strip().lower().split('\n')
 
@@ -2382,10 +2314,7 @@ def delete_member_from_team(request):
         raise OrganizationAuthorizationFailure()
 
     # Check if team entry exists
-    try:
-        team = auth_context.org.get_team_by_id(team_id)
-    except me.DoesNotExist:
-        raise TeamNotFound()
+    team = auth_context.org.get_team_by_id(team_id)
 
     # check if user exists
     try:

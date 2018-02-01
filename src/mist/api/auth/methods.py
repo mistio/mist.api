@@ -14,19 +14,17 @@ from mist.api.exceptions import UserUnauthorizedError
 from mist.api.exceptions import AdminUnauthorizedError
 from mist.api.exceptions import InternalServerError
 
-from mist.api.tasks import revoke_token
-
-try:
-    from mist.core.rbac.tokens import SuperToken
-    from mist.core.rbac.methods import AuthContext
-except:
-    from mist.api.dummy.rbac import AuthContext
-    SUPER_EXISTS = False
-else:
-    SUPER_EXISTS = True
-
+from mist.api.auth.tasks import revoke_token
 from mist.api.auth.models import ApiToken
 from mist.api.auth.models import SessionToken
+
+from mist.api import config
+
+if config.HAS_RBAC:
+    from mist.rbac.tokens import SuperToken
+    from mist.rbac.methods import AuthContext
+else:
+    from mist.api.dummy.rbac import AuthContext
 
 
 def migrate_old_api_token(request):
@@ -100,7 +98,7 @@ def session_from_request(request):
             except DoesNotExist:
                 api_token = None
             try:
-                if not api_token and SUPER_EXISTS:
+                if not api_token and config.HAS_RBAC:
                     api_token = SuperToken.objects.get(
                         token=token_from_request)
             except DoesNotExist:

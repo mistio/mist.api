@@ -333,9 +333,17 @@ DEFAULT_MONITORING_METHOD = 'telegraf-influxdb'
 
 GRAPHITE_URI = "http://graphite"
 
-# Alert service's authentication key
-CILIA_TRIGGER = False
+# Alert service's settings.
+CILIA_MULTI = False
+CILIA_TRIGGER = True
+CILIA_TRIGGER_API = "http://api"
 CILIA_SECRET_KEY = ""
+CILIA_GRAPHITE_NODATA_TARGETS = (
+    "load.shortterm", "load.midterm", "cpu.0.idle"
+)
+CILIA_INFLUXDB_NODATA_TARGETS = (
+    "system.load1", "system.n_cpus", "cpu.cpu=cpu0.usage_user"
+)
 
 # number of api tokens user can have
 ACTIVE_APITOKEN_NUM = 20
@@ -454,6 +462,7 @@ BANNED_EMAIL_PROVIDERS = [
 ###############################################################################
 
 SECRET = ""
+SIGN_KEY = "dummy"
 
 NOTIFICATION_EMAIL = {
     'all': "",
@@ -515,8 +524,8 @@ CELERY_SETTINGS = {
 
         # Core tasks
         'mist.core.insights.tasks.list_deployments': {'queue': 'deployments'},
-        'mist.core.rbac.tasks.update_mappings': {'queue': 'mappings'},
-        'mist.core.rbac.tasks.remove_mappings': {'queue': 'mappings'},
+        'mist.rbac.tasks.update_mappings': {'queue': 'mappings'},
+        'mist.rbac.tasks.remove_mappings': {'queue': 'mappings'},
     },
 }
 
@@ -1149,7 +1158,6 @@ ENABLE_TUNNELS = False
 ENABLE_ORCHESTRATION = False
 ENABLE_INSIGHTS = False
 STRIPE_PUBLIC_APIKEY = False
-ENABLE_RBAC = False
 ENABLE_AB = False
 ENABLE_MONITORING = True
 MACHINE_PATCHES = True
@@ -1232,6 +1240,7 @@ for override_file in CONFIG_OVERRIDE_FILES:
                               override_file)
 
 HAS_BILLING = 'billing' in PLUGINS
+HAS_RBAC = 'rbac' in PLUGINS
 
 
 # Update TELEGRAF_TARGET.
@@ -1296,7 +1305,7 @@ HOMEPAGE_INPUTS = {
     'allow_signin_email': ALLOW_SIGNIN_EMAIL,
     'allow_signin_google': ALLOW_SIGNIN_GOOGLE,
     'allow_signin_github': ALLOW_SIGNIN_GITHUB,
-    'enable_rbac': ENABLE_RBAC,
+    'enable_rbac': HAS_RBAC,
     'enable_tunnels': ENABLE_TUNNELS,
     'enable_orchestration': ENABLE_ORCHESTRATION,
     'enable_insights': ENABLE_INSIGHTS,
