@@ -312,7 +312,6 @@ class BaseComputeController(BaseController):
                 log.exception(repr(exc))
 
             else:
-
                 try:
                     _location = CloudLocation.objects.get(cloud=self.cloud,
                                                           external_id=loc_id)
