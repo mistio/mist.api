@@ -317,8 +317,7 @@ class BaseComputeController(BaseController):
                                                           external_id=loc_id)
                     machine.location = _location
                 except CloudLocation.DoesNotExist as exc:
-                    log.exception(repr(exc))
-                    pass
+                    log.error("Couldn't find Location with external_id %s for cloud %s.", loc_id, self.cloud)
 
             # Get misc libcloud metadata.
             image_id = str(node.image or node.extra.get('imageId') or
