@@ -200,7 +200,8 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
     try:
         from mist.api.misc.cloud import CloudLocation
         cloud_location = CloudLocation.objects.get(id=location_id)
-        location = NodeLocation(location_id, name=cloud_location.name,
+        location = NodeLocation(cloud_location.external_id,
+                                name=cloud_location.name,
                                 country=cloud_location.country, driver=conn)
     except me.DoesNotExist:
         location = NodeLocation(location_id, name=location_name, country='',
