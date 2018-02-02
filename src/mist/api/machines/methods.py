@@ -240,8 +240,13 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                                          machine_name, image, size, location,
                                          networks, cloud_init)
     elif conn.type is Provider.EC2 and private_key:
+        locations = conn.list_locations()
+        for loc in locations:
+            if loc.id == location.id:
+                ec2_location = loc
+                break
         node = _create_machine_ec2(conn, key_id, private_key, public_key,
-                                   machine_name, image, size, location,
+                                   machine_name, image, size, ec2_location,
                                    cloud_init)
     elif conn.type is Provider.NEPHOSCALE:
         node = _create_machine_nephoscale(conn, key_id, private_key,
