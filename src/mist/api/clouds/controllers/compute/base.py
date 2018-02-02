@@ -873,7 +873,8 @@ class BaseComputeController(BaseController):
         """Return list of locations from database
         for a specific cloud
         """
-        return CloudLocation.objects(cloud=self.cloud)
+        return CloudLocation.objects(cloud=self.cloud,
+                                     missing_since=None)
 
     def _list_locations__fetch_locations(self):
         """Fetch location listing in a libcloud compatible format
