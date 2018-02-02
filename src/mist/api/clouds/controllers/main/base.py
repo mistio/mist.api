@@ -360,6 +360,12 @@ class BaseMainController(object):
                         missing_since=None).update(
             missing_since=datetime.datetime.utcnow()
         )
+        # FIXME: Circular dependency.
+        from mist.api.misc.cloud import CloudLocation
+        CloudLocation.objects(cloud=self.cloud,
+                              missing_since=None).update(
+            missing_since=datetime.datetime.utcnow()
+        )
         if expire:
             # FIXME: Set reverse_delete_rule=me.CASCADE?
             Machine.objects(cloud=self.cloud).delete()
