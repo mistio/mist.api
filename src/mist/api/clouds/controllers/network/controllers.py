@@ -177,3 +177,11 @@ class LibvirtNetworkController(BaseNetworkController):
 
     def _list_subnets__fetch_subnets(self, network):
         return []
+
+
+class VSphereNetworkController(BaseNetworkController):
+    def _list_networks__postparse_network(self, network, libcloud_network):
+        return
+
+    def _list_subnets__fetch_subnets(self, network):
+        return []

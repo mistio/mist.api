@@ -1449,7 +1449,7 @@ class OtherComputeController(BaseComputeController):
     def list_sizes(self):
         return []
 
-    def list_locations(self):
+    def list_locations(self, persist=False):
         return []
 
 
