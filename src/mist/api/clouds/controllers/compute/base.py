@@ -317,7 +317,7 @@ class BaseComputeController(BaseController):
                                                           external_id=loc_id)
                     machine.location = _location
                 except CloudLocation.DoesNotExist as exc:
-                    log.error("Couldn't find Location with id %s for cloud %s.",
+                    log.error("Couldn't find Location with id %s for cloud %s",
                               loc_id, self.cloud)
 
             # Get misc libcloud metadata.
@@ -801,7 +801,8 @@ class BaseComputeController(BaseController):
                                       data={'cloud_id': self.cloud.id,
                                             'patch': patch})
             else:
-                # TODO: remove this block, once location patches are implemented in the UI
+                # TODO: remove this block, once location patches
+                # are implemented in the UI
                 amqp_publish_user(self.cloud.owner.id,
                                   routing_key='list_locations',
                                   connection=amqp_conn,
