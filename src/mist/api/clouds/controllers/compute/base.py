@@ -312,14 +312,13 @@ class BaseComputeController(BaseController):
                 log.exception(repr(exc))
 
             else:
-
                 try:
                     _location = CloudLocation.objects.get(cloud=self.cloud,
                                                           external_id=loc_id)
                     machine.location = _location
                 except CloudLocation.DoesNotExist as exc:
-                    log.exception(repr(exc))
-                    pass
+                    log.error("Couldn't find Location with id %s for cloud %s",
+                              loc_id, self.cloud)
 
             # Get misc libcloud metadata.
             image_id = str(node.image or node.extra.get('imageId') or
@@ -802,6 +801,8 @@ class BaseComputeController(BaseController):
                                       data={'cloud_id': self.cloud.id,
                                             'patch': patch})
             else:
+                # TODO: remove this block, once location patches
+                # are implemented in the UI
                 amqp_publish_user(self.cloud.owner.id,
                                   routing_key='list_locations',
                                   connection=amqp_conn,
@@ -851,7 +852,6 @@ class BaseComputeController(BaseController):
                                           external_id=loc.id)
             _location.country = loc.country
             _location.name = loc.name
-            _location.provider = self.provider
 
             try:
                 _location.save()
