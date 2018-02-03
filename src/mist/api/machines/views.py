@@ -49,7 +49,7 @@ def list_machines(request):
     """
     auth_context = auth_context_from_request(request)
     params = params_from_request(request)
-    cached = not params.get('fresh', False) # return cached by default
+    cached = not params.get('fresh', False)  # return cached by default
 
     # to prevent iterate throw every cloud
     auth_context.check_perm("cloud", "read", None)
