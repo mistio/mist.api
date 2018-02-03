@@ -18,7 +18,6 @@ def trigger_list_locations():
         except Exception as exc:
             print 'Error: %s' % exc
             traceback.print_exc()
-            traceback.print_exc()
             failed += 1
             continue
 
