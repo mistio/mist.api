@@ -403,6 +403,12 @@ class BaseNetworkController(BaseController):
 
         return subnets
 
+    def list_cached_networks(self):
+        """Returns networks stored in database
+        for a specific cloud
+        """
+        return Network.objects(cloud=self.cloud)
+
     def _list_subnets__fetch_subnets(self, network):
         """Fetches a list of subnets.
 
