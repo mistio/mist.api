@@ -50,6 +50,15 @@ def list_locations(schedule_id):
     sched.cloud.ctl.compute.list_locations(persist=False)
 
 
+@app.task(time_limit=60, soft_time_limit=55)
+def list_networks(schedule_id):
+    """Perform list neworks. Cloud controller stores results in mongodb."""
+
+    from mist.api.poller.models import ListNetworksPollingSchedule
+    sched = ListNetworksPollingSchedule.objects.get(id=schedule_id)
+    sched.cloud.ctl.network.list_networks(persist=False)
+
+
 @app.task(time_limit=45, soft_time_limit=40)
 def ping_probe(schedule_id):
     """Perform ping probe"""
