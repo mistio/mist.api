@@ -14,7 +14,7 @@ def trigger_list_locations():
 
     for cloud in clouds:
         try:
-            locations = cloud.ctl.compute.list_locations()
+            cloud.ctl.compute.list_locations()
         except Exception as exc:
             print 'Error: %s' % exc
             traceback.print_exc()
@@ -22,7 +22,7 @@ def trigger_list_locations():
             failed += 1
             continue
 
-    print ' ********* Failures when running list_locations: %d *************' % failed
+    print ' ****** Failures when running list_locations: %d *********' % failed
 
 
 def trigger_list_machines():
@@ -44,7 +44,8 @@ def trigger_list_machines():
             failed += 1
             continue
 
-    print ' ********* Failures when running list_machines: %d *************' % failed
+    print ' ****** Failures when running list_machines: %d **********' % failed
+
 
 if __name__ == '__main__':
     trigger_list_locations()
