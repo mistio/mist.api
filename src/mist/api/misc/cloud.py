@@ -12,6 +12,7 @@ class CloudLocation(me.Document):
     name = me.StringField()
     country = me.StringField()
     missing_since = me.DateTimeField()
+    extra = me.DictField()
 
     meta = {
         'collection': 'locations',
