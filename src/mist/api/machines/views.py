@@ -418,7 +418,7 @@ def create_machine(request):
     return ret
 
 
-@view_config(route_name='api_v1_machines', request_method='PUT',
+@view_config(route_name='api_v1_cloud_machines', request_method='PUT',
              renderer='json')
 def add_machine(request):
     """
