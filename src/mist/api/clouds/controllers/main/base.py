@@ -339,8 +339,10 @@ class BaseMainController(object):
 
         # FIXME: Resolve circular import issues
         from mist.api.poller.models import ListMachinesPollingSchedule
+        from mist.api.poller.models import ListLocationsPollingSchedule
 
         ListMachinesPollingSchedule.add(cloud=self.cloud)
+        ListLocationsPollingSchedule.add(cloud=self.cloud)
 
     def delete(self, expire=False):
         """Delete a Cloud.
@@ -356,6 +358,12 @@ class BaseMainController(object):
         from mist.api.machines.models import Machine
         Machine.objects(cloud=self.cloud,
                         missing_since=None).update(
+            missing_since=datetime.datetime.utcnow()
+        )
+        # FIXME: Circular dependency.
+        from mist.api.misc.cloud import CloudLocation
+        CloudLocation.objects(cloud=self.cloud,
+                              missing_since=None).update(
             missing_since=datetime.datetime.utcnow()
         )
         if expire:
