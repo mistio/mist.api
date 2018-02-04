@@ -110,10 +110,13 @@ def machine_name_validator(provider, name):
     return name
 
 
-def list_machines(owner, cloud_id):
+def list_machines(owner, cloud_id, cached=False):
     """List all machines in this cloud via API call to the provider."""
-    machines = Cloud.objects.get(owner=owner, id=cloud_id,
-                                 deleted=None).ctl.compute.list_machines()
+    cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
+    if cached:
+        machines = cloud.ctl.compute.list_cached_machines()
+    else:
+        machines = cloud.ctl.compute.list_machines()
     return [machine.as_dict() for machine in machines]
 
 
@@ -1437,7 +1440,8 @@ def filter_machine_ids(auth_context, cloud_id, machine_ids):
 
 
 # SEC
-def filter_list_machines(auth_context, cloud_id, machines=None, perm='read'):
+def filter_list_machines(auth_context, cloud_id, machines=None, perm='read',
+                         cached=False):
     """Returns a list of machines.
 
     In case of non-Owners, the QuerySet only includes machines found in the
@@ -1446,7 +1450,7 @@ def filter_list_machines(auth_context, cloud_id, machines=None, perm='read'):
     assert cloud_id
 
     if machines is None:
-        machines = list_machines(auth_context.owner, cloud_id)
+        machines = list_machines(auth_context.owner, cloud_id, cached=cached)
     if not machines:  # Exit early in case the cloud provider returned 0 nodes.
         return []
     if auth_context.is_owner():
