@@ -624,7 +624,6 @@ class AzureArmComputeController(BaseComputeController):
                                               external_id=size.id)
             except CloudSize.DoesNotExist:
                 _size = CloudSize(cloud=self.cloud,
-                                  provider=self.provider,
                                   name=size.name, disk=size.disk,
                                   ram=size.ram, external_id=size.id,
                                   bandwidth=size.bandwidth, price=size.price
@@ -879,7 +878,6 @@ class PacketComputeController(BaseComputeController):
             except Exception as exc:
                 log.exception(repr(exc))
             _size.cpus = cpus
-            _size.provider = self.provider
             _size.description = self._list_sizes_set_description(size,
                                                                  cpus)
             # format the name to contain only the type of the size

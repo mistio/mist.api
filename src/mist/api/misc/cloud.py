@@ -102,14 +102,12 @@ class CloudSize(me.Document):
     """A base Cloud Size Model."""
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
     cloud = me.ReferenceField('Cloud', required=True)
-    provider = me.StringField()
     external_id = me.StringField(required=True)
     description = me.StringField()
     name = me.StringField()
     cpus = me.IntField()
     ram = me.IntField()
     price = me.FloatField()
-    cloud_region = me.StringField()  # eg for RackSpace
     disk = me.IntField()
     bandwidth = me.IntField()
 
@@ -135,7 +133,6 @@ class CloudSize(me.Document):
     def as_dict(self):
         return {
             'id': self.external_id,
-            'provider': self.provider,
             'external_id': self.id,
             'name': self.name,
             'cpus': self.cpus,
@@ -144,5 +141,4 @@ class CloudSize(me.Document):
             'description': self.description,
             'price': self.price,
             'disk': self.disk,
-            # 'cloud_region': self.cloud_region,
         }

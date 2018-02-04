@@ -819,7 +819,6 @@ class BaseComputeController(BaseController):
             if isinstance(size.price, float):
                 _size.price = size.price
             _size.cpus = cpus
-            _size.provider = self.provider
             _size.description = self._list_sizes_set_description(size,
                                                                  cpus)
             try:
