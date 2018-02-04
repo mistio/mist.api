@@ -110,6 +110,7 @@ class CloudSize(me.Document):
     price = me.FloatField()
     disk = me.IntField()
     bandwidth = me.IntField()
+    missing_since = me.DateTimeField()
 
     meta = {
         'collection': 'sizes',
@@ -141,4 +142,6 @@ class CloudSize(me.Document):
             'description': self.description,
             'price': self.price,
             'disk': self.disk,
+            'missing_since': str(self.missing_since.replace(tzinfo=None)
+                                 if self.missing_since else '')
         }
