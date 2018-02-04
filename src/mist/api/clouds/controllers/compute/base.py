@@ -780,7 +780,7 @@ class BaseComputeController(BaseController):
                                   routing_key='list_sizes',
                                   connection=amqp_conn,
                                   data={'cloud_id': self.cloud.id,
-                                        'sizes': sizes})
+                                        'sizes': sizes_dict})
         return sizes
 
     def _list_sizes__fetch_sizes(self):
