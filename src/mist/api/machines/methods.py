@@ -191,8 +191,6 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
     else:
         public_key = None
 
-    size = NodeSize(size_id, name=size_name, ram='', disk=disk,
-                    bandwidth='', price='', driver=conn)
     image = NodeImage(image_id, name=image_name, extra=image_extra,
                       driver=conn)
 
@@ -206,6 +204,20 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
     except me.DoesNotExist:
         location = NodeLocation(location_id, name=location_name, country='',
                                 driver=conn)
+
+    # transform size id to libcloud's NodeSize object
+    try:
+        from mist.api.misc.cloud import CloudSize
+        cloud_size = CloudSize.objects.get(id=size_id)
+        size = NodeSize(cloud_size.external_id,
+                        name=cloud_size.name,
+                        ram=cloud_size.ram,
+                        disk=cloud_size.disk
+                        bandwidth=cloud_size.bandwidth
+                        driver=conn)
+    except me.DoesNotExist:
+        size = NodeSize(size_id, name=size_name, ram='', disk=disk,
+                bandwidth='', price='', driver=conn)
 
     if conn.type is Container_Provider.DOCKER:
         if public_key:
