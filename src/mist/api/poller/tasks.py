@@ -1,8 +1,9 @@
 import logging
 import datetime
 
+from mist.api.celery_app import app
+
 from mist.api.methods import notify_user
-from mist.api.tasks import app
 
 
 log = logging.getLogger(__name__)

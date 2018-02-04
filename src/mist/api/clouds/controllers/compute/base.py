@@ -306,6 +306,26 @@ class BaseComputeController(BaseController):
             # Update machine_model's last_seen fields.
             machine.last_seen = now
             machine.missing_since = None
+            # Discover location of machine.
+            try:
+                loc_id = self._list_machines__get_location(node)
+            except Exception as exc:
+                log.exception(repr(exc))
+
+            else:
+                try:
+                    _location = CloudLocation.objects.get(cloud=self.cloud,
+                                                          external_id=loc_id)
+                    machine.location = _location
+                except CloudLocation.DoesNotExist:
+                    try:
+                        _location = CloudLocation.objects.get(
+                            cloud=self.cloud,
+                            name=loc_id)
+                        machine.location = _location
+                    except CloudLocation.DoesNotExist:
+                        log.error("Couldn't find Location with id %s "
+                                  "for cloud %s", loc_id, self.cloud)
 
             try:
                 location_name = self._list_machines__get_location(node)
@@ -902,6 +922,54 @@ class BaseComputeController(BaseController):
                                         'locations': locations})
         return locations
 
+    def list_locations(self, persist=True):
+        """Return list of locations for cloud
+
+        A list of locations is fetched from libcloud, data is processed, stored
+        on location models, and a list of location models is returned.
+
+        Subclasses SHOULD NOT override or extend this method.
+
+        This method wraps `_list_locations` which contains the core
+        implementation.
+
+        """
+        task_key = 'cloud:list_locations:%s' % self.cloud.id
+        task = PeriodicTaskInfo.get_or_add(task_key)
+        try:
+            with task.task_runner(persist=persist):
+                cached_locations = {'%s' % l.id: l.as_dict()
+                                    for l in self.list_cached_locations()}
+
+                locations = self._list_locations()
+        except PeriodicTaskThresholdExceeded:
+            raise
+
+        # Initialize AMQP connection to reuse for multiple messages.
+        amqp_conn = Connection(config.AMQP_URI)
+        if amqp_owner_listening(self.cloud.owner.id):
+            locations_dict = [l.as_dict() for l in locations]
+            if cached_locations and locations_dict:
+                # Publish patches to rabbitmq.
+                new_locations = {'%s' % l['id']: l for l in locations_dict}
+                patch = jsonpatch.JsonPatch.from_diff(cached_locations,
+                                                      new_locations).patch
+                if patch:
+                    amqp_publish_user(self.cloud.owner.id,
+                                      routing_key='patch_locations',
+                                      connection=amqp_conn,
+                                      data={'cloud_id': self.cloud.id,
+                                            'patch': patch})
+            else:
+                # TODO: remove this block, once location patches
+                # are implemented in the UI
+                amqp_publish_user(self.cloud.owner.id,
+                                  routing_key='list_locations',
+                                  connection=amqp_conn,
+                                  data={'cloud_id': self.cloud.id,
+                                        'locations': locations_dict})
+        return locations
+
     def _list_locations(self):
         """Return list of available locations for current cloud
 
@@ -938,21 +1006,21 @@ class BaseComputeController(BaseController):
 
             try:
                 _location = CloudLocation.objects.get(cloud=self.cloud,
-                                                      name=loc.name)
+                                                      external_id=loc.id)
             except CloudLocation.DoesNotExist:
                 _location = CloudLocation(cloud=self.cloud,
-                                          external_id=loc.id,
-                                          name=loc.name)
+                                          external_id=loc.id)
             _location.country = loc.country
-            _location.provider = self.provider
+            _location.name = loc.name
+            _location.extra = loc.extra
 
             try:
                 _location.save()
-                locations.append(_location)
             except me.ValidationError as exc:
                 log.error("Error adding %s: %s", loc.name, exc.to_dict())
                 raise BadRequestError({"msg": exc.message,
                                        "errors": exc.to_dict()})
+            locations.append(_location)
 
         return locations
 
@@ -960,7 +1028,8 @@ class BaseComputeController(BaseController):
         """Return list of locations from database
         for a specific cloud
         """
-        return CloudLocation.objects(cloud=self.cloud)
+        return CloudLocation.objects(cloud=self.cloud,
+                                     missing_since=None)
 
     def _list_locations__fetch_locations(self):
         """Fetch location listing in a libcloud compatible format

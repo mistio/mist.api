@@ -225,6 +225,9 @@ class AmazonComputeController(BaseComputeController):
             size = ''
         return size
 
+    def _list_machines__get_location(self, node):
+        return node.extra.get('availability')
+
 
 class DigitalOceanComputeController(BaseComputeController):
 
@@ -318,6 +321,10 @@ class LinodeComputeController(BaseComputeController):
             return size
         except CloudSize.DoesNotExist:
             return ''
+
+    def _list_machines__get_location(self, node):
+        return str(node.extra.get('DATACENTERID'))
+
 
 class RackSpaceComputeController(BaseComputeController):
 
@@ -474,7 +481,7 @@ class NephoScaleComputeController(BaseComputeController):
         return price, 0
 
     def _list_machines__get_location(self, node):
-        return node.extra.get('zone')
+        return str(node.extra.get('zone_data').get('id'))
 
     def _list_machines__get_size(self, node):
         plan_id = str(node.extra.get('size_id'))
@@ -818,6 +825,9 @@ class GoogleComputeController(BaseComputeController):
     def _list_machines__get_location(self, node):
         return node.extra.get('zone').name
 
+    def _list_machines__get_location(self, node):
+        return node.extra.get('zone').id
+
 
 class HostVirtualComputeController(BaseComputeController):
 
@@ -929,6 +939,9 @@ class VultrComputeController(BaseComputeController):
 
     def _list_machines__get_location(self, node):
         return node.extra.get('location')
+
+    def _list_machines__get_location(self, node):
+        return node.extra.get('DCID')
 
 
 class VSphereComputeController(BaseComputeController):
@@ -1616,6 +1629,35 @@ class OtherComputeController(BaseComputeController):
             machine.key_associations.pop()
         machine.missing_since = datetime.datetime.now()
         machine.save()
+
+    def list_images(self, search=None):
+        return []
+
+    def list_sizes(self):
+        return []
+
+    def list_locations(self, persist=False):
+        return []
+
+
+class ClearCenterComputeController(BaseComputeController):
+
+    def _connect(self):
+        return get_driver(Provider.CLEARCENTER)(key=self.cloud.apikey,
+                                                uri=self.cloud.uri,
+                                                verify=self.cloud.verify)
+
+    def _list_machines__machine_creation_date(self, machine, machine_libcloud):
+        return machine_libcloud.extra.get('created_timestamp')
+
+    def _list_machines__machine_actions(self, machine, machine_libcloud):
+        super(ClearCenterComputeController,
+              self)._list_machines__machine_actions(machine, machine_libcloud)
+        machine.actions.remove = False
+        machine.actions.destroy = False
+        machine.actions.rename = False
+        machine.actions.reboot = False
+        machine.actions.stop = False
 
     def list_images(self, search=None):
         return []

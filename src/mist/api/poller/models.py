@@ -205,7 +205,10 @@ class CloudPollingSchedule(PollingSchedule):
         schedule.set_default_interval(cloud.polling_interval)
         if interval is not None:
             schedule.add_interval(interval, ttl)
-        schedule.run_immediately = run_immediately
+
+        if run_immediately:
+            schedule.run_immediately = True
+
         schedule.cleanup_expired_intervals()
         schedule.save()
         return schedule
@@ -218,6 +221,11 @@ class CloudPollingSchedule(PollingSchedule):
         except me.DoesNotExist:
             log.error('Cannot get cloud for polling schedule.')
             return False
+
+
+class ListMachinesPollingSchedule(CloudPollingSchedule):
+
+    task = 'mist.api.poller.tasks.list_machines'
 
     @property
     def interval(self):
@@ -233,9 +241,9 @@ class CloudPollingSchedule(PollingSchedule):
             return PollingInterval(every=0)
 
 
-class ListMachinesPollingSchedule(CloudPollingSchedule):
+class ListLocationsPollingSchedule(CloudPollingSchedule):
 
-    task = 'mist.api.poller.tasks.list_machines'
+    task = 'mist.api.poller.tasks.list_locations'
 
     @property
     def interval(self):

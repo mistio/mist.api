@@ -67,8 +67,8 @@ from mist.api.exceptions import RequiredParameterMissingError
 
 from mist.api import config
 
-if config.HAS_CORE:
-    from mist.core.rbac.tokens import SuperToken
+if config.HAS_RBAC:
+    from mist.rbac.tokens import SuperToken
 
 
 logging.basicConfig(level=config.PY_LOG_LEVEL,
@@ -156,7 +156,19 @@ def parse_os_release(os_release):
     os = ''
     os_version = ''
     os_release = os_release.replace('"', '')
+    distro = ''
     lines = os_release.split("\n")
+
+    # ClearOS specific
+    # Needs a general update. We should find the whole distro string and
+    # extract more specific information like os = linux, os_family = red_hat
+    # etc.
+    for line in lines:
+        if 'clearos' in line.lower():
+            distro = line
+            os = 'clearos'
+            os_version = line.partition(" ")[-1]
+            return os, os_version, distro
 
     # Find ID which corresponds to the OS's name
     re_id = r'^ID=(.*)'
@@ -172,7 +184,7 @@ def parse_os_release(os_release):
         if match_version:
             os_version = match_version.group(1)
 
-    return os, os_version
+    return os, os_version, distro
 
 
 def dirty_cow(os, os_version, kernel_version):
@@ -890,7 +902,7 @@ def logging_view_decorator(func):
                 log_dict['token_expires'] = datetime_to_str(session.expires())
 
         # Log special Token.
-        if config.HAS_CORE and isinstance(session, SuperToken):
+        if config.HAS_RBAC and isinstance(session, SuperToken):
             log_dict['setuid'] = True
             log_dict['api_token_id'] = str(session.id)
             log_dict['api_token_name'] = session.name

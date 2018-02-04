@@ -331,7 +331,7 @@ def probe_ssh_only(owner, cloud_id, machine_id, host, key_id='', ssh_user='',
 
     kernel_version = cmd_output[6].replace("\n", "")
     os_release = cmd_output[7]
-    os, os_version = parse_os_release(os_release)
+    os, os_version, distro = parse_os_release(os_release)
 
     return {
         'uptime': uptime,
@@ -346,6 +346,7 @@ def probe_ssh_only(owner, cloud_id, machine_id, host, key_id='', ssh_user='',
         'kernel': kernel_version,
         'os': os,
         'os_version': os_version,
+        'distro': distro,
         'dirty_cow': dirty_cow(os, os_version, kernel_version)
     }
 
@@ -749,6 +750,11 @@ def create_dns_a_record(owner, domain_name, ip_addr):
 # FIXME DEPRECATED
 def rule_triggered(machine, rule_id, value, triggered, timestamp,
                    notification_level, incident_id):
+    from mist.api.rules.models import NoDataRule
     from mist.api.rules.methods import run_chained_actions
+    if config.HAS_CORE and rule_id == 'nodata':
+        rule = NoDataRule.objects.get(owner_id=machine.owner.id,
+                                      title='NoData')
+        rule_id = rule.title
     run_chained_actions(rule_id, machine, value, triggered, timestamp,
                         notification_level, incident_id)

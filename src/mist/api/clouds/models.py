@@ -403,4 +403,15 @@ class OtherCloud(Cloud):
     _controller_cls = controllers.OtherMainController
 
 
+class ClearCenterCloud(Cloud):
+
+    uri = me.StringField(required=False,
+                         default='https://api.clearsdn.com')
+    apikey = me.StringField(required=True)
+    verify = me.BooleanField(default=True)
+
+    _private_fields = ('apikey', )
+    _controller_cls = controllers.ClearCenterMainController
+
+
 _populate_clouds()

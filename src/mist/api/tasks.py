@@ -17,7 +17,7 @@ from base64 import b64encode
 from memcache import Client as MemcacheClient
 
 from celery import group
-from celery import Celery, Task
+from celery import Task
 from celery.exceptions import SoftTimeLimitExceeded
 
 from paramiko.ssh_exception import SSHException
@@ -49,21 +49,19 @@ from mist.api.helpers import amqp_owner_listening
 from mist.api.helpers import amqp_log
 from mist.api.helpers import trigger_session_update
 
+from mist.api.auth.methods import AuthContext
+
 from mist.api.logs.methods import log_event
 
 from mist.api import config
+
+from mist.api.celery_app import app
+
 
 logging.basicConfig(level=config.PY_LOG_LEVEL,
                     format=config.PY_LOG_FORMAT,
                     datefmt=config.PY_LOG_FORMAT_DATE)
 log = logging.getLogger(__name__)
-
-app = Celery('tasks')
-app.conf.update(**config.CELERY_SETTINGS)
-app.autodiscover_tasks(['mist.api.poller'])
-app.autodiscover_tasks(['mist.api.portal'])
-app.autodiscover_tasks(['mist.api.monitoring'])
-app.autodiscover_tasks(['mist.api.rules'])
 
 
 @app.task
@@ -152,10 +150,6 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                 'host': host,
                 'key_id': key_id,
             }
-            if config.HAS_CORE:
-                from mist.core.rbac.methods import AuthContext
-            else:
-                from mist.api.dummy.rbac import AuthContext
 
             try:
                 name = (schedule.get('action') + '-' + schedule.pop('name') +
@@ -689,6 +683,21 @@ class UserTask(Task):
             return 120  # Retry in 120sec after the second error
         if len(errors) == 3:
             return 60 * 10  # Retry in 10mins after the third error
+
+
+class ListSizes(UserTask):
+    abstract = False
+    task_key = 'list_sizes'
+    result_expires = 60 * 60 * 24 * 7
+    result_fresh = 60 * 60
+    polling = False
+    soft_time_limit = 30
+
+    def execute(self, owner_id, cloud_id):
+        from mist.api import methods
+        owner = Owner.objects.get(id=owner_id)
+        sizes = methods.list_sizes(owner, cloud_id)
+        return {'cloud_id': cloud_id, 'sizes': sizes}
 
 
 class ListNetworks(UserTask):
@@ -1371,14 +1380,6 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
             title, "%s\n\n%s" % (ret['stdout'], ret['error']), team='dev'
         )
     return ret
-
-
-@app.task
-def revoke_token(token):
-    from mist.api.auth.models import AuthToken
-    auth_token = AuthToken.objects.get(token=token)
-    auth_token.invalidate()
-    auth_token.save()
 
 
 @app.task

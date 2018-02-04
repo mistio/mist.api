@@ -23,12 +23,7 @@ from mist.api.conditions.models import TaggingCondition, MachinesAgeCondition
 
 import mist.api.schedules.models as schedules
 
-from mist.api import config
-
-if config.HAS_CORE:
-    from mist.core.rbac.methods import AuthContext
-else:
-    from mist.api.dummy.rbac import AuthContext
+from mist.api.auth.methods import AuthContext
 
 
 log = logging.getLogger(__name__)

@@ -2,9 +2,10 @@ import uuid
 import time
 import logging
 
+from mist.api.celery_app import app
+
 import mist.api.shell
 
-from mist.api.tasks import app
 from mist.api.helpers import trigger_session_update
 from mist.api.exceptions import MistError
 from mist.api.logs.methods import log_event
@@ -14,6 +15,7 @@ from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 
 from mist.api.monitoring.commands import unix_install, unix_uninstall
+from mist.api.monitoring.traefik import reset_config
 
 
 log = logging.getLogger(__name__)
@@ -139,3 +141,8 @@ def uninstall_telegraf(owner_id, cloud_id, machine_id, job=None, job_id=None):
         })
         log_event(action='telegraf_undeployment_finished',
                   event_type='job', error=err, **_log)
+
+
+@app.task
+def reset_traefik_config():
+    reset_config()
