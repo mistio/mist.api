@@ -49,6 +49,9 @@ def list_machines(request):
     Check Permissions take place in filter_list_machines
     """
     auth_context = auth_context_from_request(request)
+    params = params_from_request(request)
+    cached = not params.get('fresh', False)  # return cached by default
+
     # to prevent iterate throw every cloud
     auth_context.check_perm("cloud", "read", None)
     clouds = filter_list_clouds(auth_context)
@@ -57,7 +60,7 @@ def list_machines(request):
         if cloud.get('enabled'):
             try:
                 cloud_machines = methods.filter_list_machines(
-                    auth_context, cloud.get('id'))
+                    auth_context, cloud.get('id'), cached=cached)
                 machines.extend(cloud_machines)
             except (CloudUnavailableError, CloudUnauthorizedError):
                 pass
@@ -81,22 +84,17 @@ def list_cloud_machines(request):
     """
     auth_context = auth_context_from_request(request)
     cloud_id = request.matchdict['cloud']
+    params = params_from_request(request)
+    cached = bool(params.get('cached', False))
+
     # SEC get filtered resources based on auth_context
     try:
-        cloud = Cloud.objects.get(owner=auth_context.owner,
-                                  id=cloud_id, deleted=None)
+        Cloud.objects.get(owner=auth_context.owner, id=cloud_id, deleted=None)
     except Cloud.DoesNotExist:
         raise NotFoundError('Cloud does not exist')
 
-    machines = methods.filter_list_machines(auth_context, cloud_id)
-
-    if cloud.machine_count != len(machines):
-        try:
-            tasks.update_machine_count.delay(
-                auth_context.owner.id, cloud_id, len(machines))
-        except Exception as e:
-            log.error('Cannot update machine count for user %s: %r' %
-                      (auth_context.owner.id, e))
+    machines = methods.filter_list_machines(auth_context, cloud_id,
+                                            cached=cached)
 
     return machines
 
