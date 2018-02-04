@@ -215,8 +215,8 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
         size = NodeSize(cloud_size.external_id,
                         name=cloud_size.name,
                         ram=cloud_size.ram,
-                        disk=cloud_size.disk
-                        bandwidth=cloud_size.bandwidth
+                        disk=cloud_size.disk,
+                        bandwidth=cloud_size.bandwidth,
                         driver=conn)
     except me.DoesNotExist:
         size = NodeSize(size_id, name=size_name, ram='', disk=disk,
