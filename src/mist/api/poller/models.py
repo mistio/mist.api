@@ -205,7 +205,6 @@ class CloudPollingSchedule(PollingSchedule):
         schedule.set_default_interval(cloud.polling_interval)
         if interval is not None:
             schedule.add_interval(interval, ttl)
-
         if run_immediately:
             schedule.run_immediately = True
 
@@ -244,10 +243,6 @@ class ListMachinesPollingSchedule(CloudPollingSchedule):
 class ListLocationsPollingSchedule(CloudPollingSchedule):
 
     task = 'mist.api.poller.tasks.list_locations'
-
-    @property
-    def interval(self):
-        return super(CloudPollingSchedule, self).interval
 
 
 class ListSizesPollingSchedule(CloudPollingSchedule):

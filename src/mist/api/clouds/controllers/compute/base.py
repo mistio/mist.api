@@ -327,25 +327,10 @@ class BaseComputeController(BaseController):
                         log.error("Couldn't find Location with id %s "
                                   "for cloud %s", loc_id, self.cloud)
 
-            try:
-                location_name = self._list_machines__get_location(node)
-            except Exception as exc:
-                log.exception(repr(exc))
-
-            if location_name:
-
-                try:
-                    _location = CloudLocation.objects.get(cloud=self.cloud,
-                                                          name=location_name)
-                    machine.location = _location
-                except CloudLocation.DoesNotExist:
-                    pass
-
             # Get misc libcloud metadata.
             image_id = str(node.image or node.extra.get('imageId') or
                            node.extra.get('image_id') or
                            node.extra.get('image') or '')
-            # import ipdb; ipdb.set_trace()
             try:
                 size = self._list_machines__get_size(node)
             except Exception as exc:
@@ -763,7 +748,6 @@ class BaseComputeController(BaseController):
         """
         task_key = 'cloud:list_sizes:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
-        # import ipdb; ipdb.set_trace()
         try:
             with task.task_runner(persist=persist):
                 cached_sizes = {'%s' % s.id: s.as_dict()
