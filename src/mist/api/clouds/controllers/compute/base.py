@@ -844,7 +844,8 @@ class BaseComputeController(BaseController):
         """Return list of sizes from database
         for a specific cloud
         """
-        return CloudSize.objects(cloud=self.cloud)
+        return CloudSize.objects(cloud=self.cloud,
+                                 missing_since=None)
 
     def _list_machines__get_size(self, node):
         """Return size from database for a
