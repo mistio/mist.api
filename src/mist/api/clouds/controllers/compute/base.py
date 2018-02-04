@@ -752,7 +752,7 @@ class BaseComputeController(BaseController):
             with task.task_runner(persist=persist):
                 cached_sizes = {'%s' % s.id: s.as_dict()
                                 for s in self.list_cached_sizes()}
-                sizes = [s.as_dict() for s in self._list_sizes__fetch_sizes()]
+                sizes = self._list_sizes__fetch_sizes()
         except PeriodicTaskThresholdExceeded:
             self.cloud.disable()
             raise
@@ -760,10 +760,10 @@ class BaseComputeController(BaseController):
         # Initialize AMQP connection to reuse for multiple messages.
         amqp_conn = Connection(config.AMQP_URI)
         if amqp_owner_listening(self.cloud.owner.id):
-
-            if cached_sizes and sizes:
+            sizes_dict = [s.as_dict() for s in sizes]
+            if cached_sizes and sizes_dict:
                 # Publish patches to rabbitmq.
-                new_sizes = {'%s' % s['id']: s for s in sizes}
+                new_sizes = {'%s' % s['id']: s for s in sizes_dict}
                 patch = jsonpatch.JsonPatch.from_diff(cached_sizes,
                                                       new_sizes).patch
                 if patch:
@@ -774,14 +774,13 @@ class BaseComputeController(BaseController):
                                             'patch': patch})
 
             else:
+                # TODO: remove this block, once location patches
+                # are implemented in the UI
                 amqp_publish_user(self.cloud.owner.id,
                                   routing_key='list_sizes',
                                   connection=amqp_conn,
                                   data={'cloud_id': self.cloud.id,
                                         'sizes': sizes})
-
-                # Format size information.
-        # return [size.as_dict() for size in sizes]
         return sizes
 
     def _list_sizes__fetch_sizes(self):
