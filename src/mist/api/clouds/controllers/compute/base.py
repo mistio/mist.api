@@ -895,52 +895,6 @@ class BaseComputeController(BaseController):
                 cached_locations = {'%s' % l.id: l.as_dict()
                                     for l in self.list_cached_locations()}
 
-                locations = [l.as_dict() for l in self._list_locations()]
-        except PeriodicTaskThresholdExceeded:
-            self.cloud.disable()
-            raise
-
-        # Initialize AMQP connection to reuse for multiple messages.
-        amqp_conn = Connection(config.AMQP_URI)
-        if amqp_owner_listening(self.cloud.owner.id):
-            if cached_locations and locations:
-                # Publish patches to rabbitmq.
-                new_locations = {'%s' % l['id']: l for l in locations}
-                patch = jsonpatch.JsonPatch.from_diff(cached_locations,
-                                                      new_locations).patch
-                if patch:
-                    amqp_publish_user(self.cloud.owner.id,
-                                      routing_key='patch_locations',
-                                      connection=amqp_conn,
-                                      data={'cloud_id': self.cloud.id,
-                                            'patch': patch})
-            else:
-                amqp_publish_user(self.cloud.owner.id,
-                                  routing_key='list_locations',
-                                  connection=amqp_conn,
-                                  data={'cloud_id': self.cloud.id,
-                                        'locations': locations})
-        return locations
-
-    def list_locations(self, persist=True):
-        """Return list of locations for cloud
-
-        A list of locations is fetched from libcloud, data is processed, stored
-        on location models, and a list of location models is returned.
-
-        Subclasses SHOULD NOT override or extend this method.
-
-        This method wraps `_list_locations` which contains the core
-        implementation.
-
-        """
-        task_key = 'cloud:list_locations:%s' % self.cloud.id
-        task = PeriodicTaskInfo.get_or_add(task_key)
-        try:
-            with task.task_runner(persist=persist):
-                cached_locations = {'%s' % l.id: l.as_dict()
-                                    for l in self.list_cached_locations()}
-
                 locations = self._list_locations()
         except PeriodicTaskThresholdExceeded:
             raise

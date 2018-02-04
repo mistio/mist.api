@@ -225,9 +225,6 @@ class AmazonComputeController(BaseComputeController):
             size = ''
         return size
 
-    def _list_machines__get_location(self, node):
-        return node.extra.get('availability')
-
 
 class DigitalOceanComputeController(BaseComputeController):
 
@@ -823,9 +820,6 @@ class GoogleComputeController(BaseComputeController):
                             size.extra.get('description'))
 
     def _list_machines__get_location(self, node):
-        return node.extra.get('zone').name
-
-    def _list_machines__get_location(self, node):
         return node.extra.get('zone').id
 
 
@@ -936,9 +930,6 @@ class VultrComputeController(BaseComputeController):
 
     def _list_sizes_set_description(self, size, cpu):
         return size.name + ' (%d cpus)' % cpu
-
-    def _list_machines__get_location(self, node):
-        return node.extra.get('location')
 
     def _list_machines__get_location(self, node):
         return node.extra.get('DCID')
