@@ -83,9 +83,6 @@ class AmazonComputeController(BaseComputeController):
                                         self.cloud.apisecret,
                                         region=self.cloud.region)
 
-    def _list_machines__machine_creation_date(self, machine, machine_libcloud):
-        return machine_libcloud.created_at  # datetime
-
     def _list_machines__machine_actions(self, machine, machine_libcloud):
         super(AmazonComputeController, self)._list_machines__machine_actions(
             machine, machine_libcloud)
@@ -792,6 +789,9 @@ class VSphereComputeController(BaseComputeController):
 
         """
         self.connect()
+
+    def _list_machines__get_location(self, node):
+        return node.extra.get('host')
 
 
 class VCloudComputeController(BaseComputeController):
