@@ -217,10 +217,11 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                         ram=cloud_size.ram,
                         disk=cloud_size.disk,
                         bandwidth=cloud_size.bandwidth,
+                        price=cloud_size.price,
                         driver=conn)
     except me.DoesNotExist:
         size = NodeSize(size_id, name=size_name, ram='', disk=disk,
-                bandwidth='', price='', driver=conn)
+                        bandwidth='', price='', driver=conn)
 
     if conn.type is Container_Provider.DOCKER:
         if public_key:
