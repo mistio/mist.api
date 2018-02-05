@@ -510,9 +510,6 @@ class AzureArmComputeController(BaseComputeController):
             return 0, 0
         return machine_libcloud.extra.get('cost_per_hour', 0), 0
 
-    def _list_machines__machine_creation_date(self, machine, machine_libcloud):
-        return machine_libcloud.created_at  # datetime
-
     def _list_images__fetch_images(self, search=None):
         # Fetch mist's recommended images
         images = [NodeImage(id=image, name=name,
