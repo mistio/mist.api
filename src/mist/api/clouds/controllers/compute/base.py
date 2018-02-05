@@ -521,7 +521,7 @@ class BaseComputeController(BaseController):
         return copy.copy(machine_libcloud.extra)
 
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
-        return
+        return machine_libcloud.created_at
 
     def _list_machines__machine_actions(self, machine, machine_libcloud):
         """Add metadata on the machine dict on the allowed actions

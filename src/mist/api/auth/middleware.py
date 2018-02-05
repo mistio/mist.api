@@ -146,6 +146,8 @@ class CsrfMiddleware(object):
            isinstance(session, SessionToken) and \
            request.method in ('POST', 'PUT', 'PATCH', 'DELETE'):
             csrf_token = request.headers.get('Csrf-Token', '').lower()
+            if not csrf_token:
+                csrf_token = request.params.get('Csrf-Token', '').lower()
             if csrf_token != session.csrf_token:
                 log.error("Bad CSRF token '%s'", csrf_token)
                 user = session.get_user()
