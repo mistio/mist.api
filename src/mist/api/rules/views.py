@@ -51,8 +51,8 @@ def _get_transformed_params(auth_context, params):
     emails = [e.strip() for e in emails if e.strip()]
 
     # Get list of user/team IDs.
-    teams = params.get('users') or []
-    users = params.get('teams') or []
+    teams = params.get('teams') or []
+    users = params.get('users') or []
     if not isinstance(teams, list):
         raise BadRequestError('"teams" must be a list of Team UUIDs')
     if not isinstance(users, list):
