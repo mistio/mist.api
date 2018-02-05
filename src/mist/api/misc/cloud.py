@@ -1,6 +1,4 @@
 """Cloud related classes"""
-import uuid
-
 import mongoengine as me
 
 
