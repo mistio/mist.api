@@ -3,6 +3,7 @@ import traceback
 from mist.api.clouds.models import Cloud
 from mist.api.poller.models import ListLocationsPollingSchedule
 
+
 def trigger_location_polling_schedules():
     clouds = Cloud.objects()
 
