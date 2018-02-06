@@ -3,6 +3,8 @@ import mongoengine as me
 
 from mist.api import config
 
+from mist.api.helpers import trigger_session_update
+
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import UnauthorizedError
@@ -22,6 +24,7 @@ from mist.api.rules.plugins import InfluxDBNoDataPlugin
 from mist.api.rules.plugins import InfluxDBBackendPlugin
 
 from mist.api.conditions.models import FieldCondition
+from mist.api.conditions.models import TaggingCondition
 from mist.api.conditions.models import MachinesCondition
 
 if config.HAS_RBAC:
@@ -34,8 +37,7 @@ log = logging.getLogger(__name__)
 
 
 CONDITIONS = {
-    # 'tags': TaggingCondition,
-    # 'field': FieldCondition,
+    'tags': TaggingCondition,
     'machines': MachinesCondition,
 }
 
@@ -200,6 +202,27 @@ class BaseController(object):
             log.error('Error updating %s: %s', self.rule.title, err)
             raise BadRequestError('Rule "%s" already exists' % self.rule.title)
 
+        # Trigger a UI session update.
+        trigger_session_update(self.rule.owner, ['monitoring'])
+
+    def rename(self, title):
+        """Rename an existing Rule."""
+        self.rule.title = title
+        self.rule.save()
+        trigger_session_update(self.rule.owner, ['monitoring'])
+
+    def enable(self):
+        """Enable a Rule that has been previously disabled."""
+        self.rule.disabled = False
+        self.rule.save()
+        trigger_session_update(self.rule.owner, ['monitoring'])
+
+    def disable(self):
+        """Disable a Rule's evaluation."""
+        self.rule.disabled = True
+        self.rule.save()
+        trigger_session_update(self.rule.owner, ['monitoring'])
+
     def delete(self):
         """Delete an existing Rule.
 
@@ -209,14 +232,8 @@ class BaseController(object):
 
         """
         self.check_auth_context()
-        # FIXME Remove alongside the old alert service.
-        if config.HAS_CORE:
-            from mist.core.methods import delete_rule
-            delete_rule(self.rule.owner, self.rule.title)
-        else:
-            from mist.api.helpers import trigger_session_update
-            self.rule.delete()
-            trigger_session_update(self.rule.owner, ['monitoring'])
+        self.rule.delete()
+        trigger_session_update(self.rule.owner, ['monitoring'])
 
     def evaluate(self, update_state=False, trigger_actions=False):
         """Evaluate a Rule.
@@ -233,6 +250,36 @@ class BaseController(object):
 
         """
         self.rule.plugin.run(update_state, trigger_actions)
+
+    def maybe_remove(self, resource):
+        """Disassociate a `resource` from a Rule.
+
+        Resources, which rules explicitly refer to by ID, can be removed from
+        the reference list. This is not always possible, since rules may also
+        refer to arbitrary data or a dynamically, constantly changing list of
+        resources.
+
+        Subclasses of `BaseController`, such as the `ResourceRuleController`,
+        that may explicitly refer resources given their UUID, may overwrite
+        this method in order to make a best effort to disassociate a given
+        resource from the list of referenced resources.
+
+        By default, this method does not make any attempt to disassociate the
+        given resource in order to account for rules on arbitrary data, which
+        are not bound to a known resource.
+
+        """
+        return
+
+    def includes_only(self, resource):
+        """Return True if a Rule includes solely the given resource.
+
+        This method is meant to return True if and only if `resource` is the
+        only resource a rule refers to. The rule must refer to the resource
+        explicitly using its UUID.
+
+        """
+        return False
 
 
 class ArbitraryRuleController(BaseController):
@@ -284,12 +331,56 @@ class ResourceRuleController(BaseController):
             super(ResourceRuleController, self).evaluate(update_state,
                                                          trigger_actions)
 
+    def maybe_remove(self, resource):
+        # The rule does not refer to resources of the given type.
+        if not isinstance(resource, self.rule.condition_resource_cls):
+            return
+
+        # Attempt to remove `resource` from any of the rule's conditions,
+        # if `resource` is explicitly specified by its UUID.
+        for condition in self.rule.conditions:
+            if isinstance(condition, MachinesCondition):
+                for i, rid in enumerate(condition.ids):
+                    if rid == resource.id:
+                        log.info('Removing %s from %s', resource, self.rule)
+                        condition.ids.pop(i)
+                        break
+
+        self.rule.save()
+
+    def includes_only(self, resource):
+        # The rule does not refer to resources of the given type.
+        if not isinstance(resource, self.rule.condition_resource_cls):
+            return False
+
+        # The rule contains multiple conditions.
+        if len(self.rule.conditions) is not 1:
+            return False
+
+        # The rule does not refer to resources by their UUID.
+        if not isinstance(self.rule.conditions[0], MachinesCondition):
+            return False
+
+        # The rule refers to multiple resources.
+        if len(self.rule.conditions[0].ids) is not 1:
+            return False
+
+        # The rule's single resource does not match `resource`.
+        if self.rule.conditions[0].ids[0] != resource.id:
+            return False
+
+        # The rule refers to just `resource` by its UUID.
+        return True
+
     def check_auth_context(self):
-        if not self.rule.conditions and not self.auth_context.is_owner():
+        if self.auth_context.is_owner():
+            return
+        if not self.rule.conditions:
             raise UnauthorizedError('Only Owners may edit global rules')
         for condition in self.rule.conditions:
-            # TODO Check if condition on ids or tags.
             # TODO Permissions checking shouldn't be limited to machines.
+            if not isinstance(condition, MachinesCondition):
+                raise UnauthorizedError('Only Owners may edit rules on tags')
             for mid in condition.ids:
                 try:
                     Model = self.rule.condition_resource_cls
@@ -312,6 +403,12 @@ class NoDataRuleController(ResourceRuleController):
 
     def delete(self):
         raise BadRequestError('NoData rules may not be deleted')
+
+    def rename(self, title):
+        raise BadRequestError('NoData rules may not be renamed')
+
+    def disable(self):
+        raise BadRequestError('NoData rules may not be disabled')
 
     def auto_setup(self, backend='graphite'):
         """Idempotently setup a NoDataRule."""
