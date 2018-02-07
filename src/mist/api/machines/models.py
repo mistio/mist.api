@@ -379,7 +379,7 @@ class Machine(me.Document):
             'extra': self.extra,
             'cost': self.cost.as_dict(),
             'image_id': self.image_id,
-            'size': self.size,
+            'size': self.size.id if self.size else '',
             'state': self.state,
             'tags': tags,
             'monitoring': self.monitoring.as_dict() if self.monitoring else '',

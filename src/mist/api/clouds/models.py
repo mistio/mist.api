@@ -277,7 +277,7 @@ class CloudSize(me.Document):
         super(CloudSize, self).__init__(*args, **kwargs)
 
     def __str__(self):
-        name = "%s, %s (%s)" % (self.name, self.cloud, self.external_id)
+        name = "%s, %s (%s)" % (self.name, self.cloud.id, self.external_id)
         return name
 
     def as_dict(self):
