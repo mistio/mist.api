@@ -6,8 +6,6 @@ from mist.api.config import MONGO_URI
 from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 
-from mist.api.misc.cloud import CloudSize
-
 
 def remove_string_field_type():
     c = MongoClient(MONGO_URI)
@@ -17,7 +15,7 @@ def remove_string_field_type():
     machines = Machine.objects()
 
     print
-    print 'Removing StringField size field from %d migrated machines...' % db_machines.count()
+    print 'Removing size field from %d migrated machines' % db_machines.count()
     print
 
     failed = migrated = 0
