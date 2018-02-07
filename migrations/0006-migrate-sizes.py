@@ -83,4 +83,4 @@ def list_size_objects():
 if __name__ == '__main__':
     trigger_size_polling_schedules()
     remove_string_field_type()
-    #list_size_objects()
+    # list_size_objects()

@@ -819,7 +819,7 @@ class BaseComputeController(BaseController):
             if isinstance(size.price, float):
                 _size.price = size.price
             _size.cpus = cpus
-            _size.name = self._list_sizes_set_name(size,cpus)
+            _size.name = self._list_sizes_set_name(size, cpus)
             try:
                 _size.save()
                 sizes.append(_size)
