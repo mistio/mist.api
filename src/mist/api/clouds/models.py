@@ -247,6 +247,54 @@ class CloudLocation(me.Document):
         }
 
 
+class CloudSize(me.Document):
+    """A base Cloud Size Model."""
+    id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
+    cloud = me.ReferenceField('Cloud', required=True,
+                              reverse_delete_rule=me.CASCADE)
+    external_id = me.StringField(required=True)
+    name = me.StringField()
+    cpus = me.IntField()
+    ram = me.IntField()
+    price = me.FloatField()
+    disk = me.IntField()
+    bandwidth = me.IntField()
+    missing_since = me.DateTimeField()
+
+    meta = {
+        'collection': 'sizes',
+        'indexes': [
+            {
+                'fields': ['cloud', 'external_id'],
+                'sparse': False,
+                'unique': True,
+                'cls': False,
+            },
+        ]
+    }
+
+    def __init__(self, *args, **kwargs):
+        super(CloudSize, self).__init__(*args, **kwargs)
+
+    def __str__(self):
+        name = "%s, %s (%s)" % (self.name, self.cloud, self.external_id)
+        return name
+
+    def as_dict(self):
+        return {
+            'id': self.id,
+            'external_id': self.external_id,
+            'name': self.name,
+            'cpus': self.cpus,
+            'ram': self.ram,
+            'bandwidth': self.bandwidth,
+            'price': self.price,
+            'disk': self.disk,
+            'missing_since': str(self.missing_since.replace(tzinfo=None)
+                                 if self.missing_since else '')
+        }
+
+
 class AmazonCloud(Cloud):
 
     apikey = me.StringField(required=True)

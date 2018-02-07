@@ -210,7 +210,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
 
     # transform size id to libcloud's NodeSize object
     try:
-        from mist.api.misc.cloud import CloudSize
+        from mist.api.clouds.models import CloudSize
         cloud_size = CloudSize.objects.get(id=size_id)
         size = NodeSize(cloud_size.external_id,
                         name=cloud_size.name,
