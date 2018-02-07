@@ -872,7 +872,7 @@ class PacketComputeController(BaseComputeController):
             except Exception as exc:
                 log.exception(repr(exc))
             _size.cpus = cpus
-            _size.name = self._list_sizes_set_name(size,cpus)
+            _size.name = self._list_sizes_set_name(size, cpus)
             # format the name to contain only the type of the size
             # since it is needed in list_machines__get_size
             _size.name = size.name.split(' -')[0]
