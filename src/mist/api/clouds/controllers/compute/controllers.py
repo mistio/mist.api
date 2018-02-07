@@ -51,7 +51,6 @@ from mist.api.helpers import sanitize_host
 from mist.api.machines.models import Machine
 
 from mist.api.misc.cloud import CloudImage
-from mist.api.misc.cloud import CloudSize
 
 from mist.api.clouds.controllers.main.base import BaseComputeController
 
@@ -215,6 +214,7 @@ class AmazonComputeController(BaseComputeController):
 
     def _list_machines__get_size(self, node):
         plan_id = node.extra.get('instance_type')
+        from mist.api.clouds.models import CloudSize
         try:
             size = CloudSize.objects.get(cloud=self.cloud,
                                          external_id=plan_id)
@@ -261,6 +261,7 @@ class DigitalOceanComputeController(BaseComputeController):
 
     def _list_machines__get_size(self, node):
         size_name = node.extra.get('size_slug')
+        from mist.api.clouds.models import CloudSize
         try:
             _size = CloudSize.objects.get(cloud=self.cloud,
                                           name=size_name)
@@ -309,6 +310,7 @@ class LinodeComputeController(BaseComputeController):
 
     def _list_machines__get_size(self, node):
         plan_id = node.extra.get('PLANID')
+        from mist.api.clouds.models import CloudSize
         try:
             size = CloudSize.objects.get(cloud=self.cloud,
                                          external_id=plan_id)
@@ -381,6 +383,7 @@ class RackSpaceComputeController(BaseComputeController):
 
     def _list_machines__get_size(self, node):
         plan_id = node.extra.get('flavorId')
+        from mist.api.clouds.models import CloudSize
         try:
             size = CloudSize.objects.get(cloud=self.cloud,
                                          external_id=plan_id)
@@ -433,6 +436,7 @@ class SoftLayerComputeController(BaseComputeController):
 
     def _list_machines__get_size(self, node):
         size_id = str(node.extra.get('size'))
+        from mist.api.clouds.models import CloudSize
         try:
             size = CloudSize.objects.get(cloud=self.cloud,
                                          external_id=size_id)
@@ -479,6 +483,7 @@ class NephoScaleComputeController(BaseComputeController):
 
     def _list_machines__get_size(self, node):
         plan_id = str(node.extra.get('size_id'))
+        from mist.api.clouds.models import CloudSize
         try:
             size = CloudSize.objects.get(cloud=self.cloud,
                                          external_id=plan_id)
@@ -613,6 +618,7 @@ class AzureArmComputeController(BaseComputeController):
         for size in sizes:
 
             # create the object in db if it does not exist
+            from mist.api.clouds.models import CloudSize
             try:
                 _size = CloudSize.objects.get(cloud=self.cloud,
                                               external_id=size.id)
@@ -857,6 +863,7 @@ class PacketComputeController(BaseComputeController):
 
         for size in fetched_sizes:
             # create the object in db if it does not exist
+            from mist.api.clouds.models import CloudSize
             try:
                 _size = CloudSize.objects.get(cloud=self.cloud,
                                               external_id=size.id)
@@ -889,6 +896,7 @@ class PacketComputeController(BaseComputeController):
 
     def _list_machines__get_size(self, node):
         plan = node.extra.get('plan')
+        from mist.api.clouds.models import CloudSize
         try:
             size = CloudSize.objects.get(cloud=self.cloud,
                                          name=plan)
@@ -910,6 +918,7 @@ class VultrComputeController(BaseComputeController):
 
     def _list_machines__get_size(self, node):
         plan_id = node.extra.get('VPSPLANID')
+        from mist.api.clouds.models import CloudSize
         try:
             size = CloudSize.objects.get(cloud=self.cloud,
                                          external_id=plan_id)
@@ -1015,6 +1024,7 @@ class OpenStackComputeController(BaseComputeController):
 
     def _list_machines__get_size(self, node):
         plan_id = node.extra.get('flavorId')
+        from mist.api.clouds.models import CloudSize
         try:
             size = CloudSize.objects.get(cloud=self.cloud,
                                          external_id=plan_id)

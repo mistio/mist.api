@@ -801,6 +801,8 @@ class BaseComputeController(BaseController):
         for size in fetched_sizes:
 
             # create the object in db if it does not exist
+            # FIXME: resolve circular import issues
+            from mist.api.clouds.models import CloudSize
             try:
                 _size = CloudSize.objects.get(cloud=self.cloud,
                                               external_id=size.id)
@@ -843,6 +845,8 @@ class BaseComputeController(BaseController):
         """Return list of sizes from database
         for a specific cloud
         """
+        # FIXME: resolve circular import issues
+        from mist.api.clouds.models import CloudSize
         return CloudSize.objects(cloud=self.cloud,
                                  missing_since=None)
 
@@ -852,6 +856,8 @@ class BaseComputeController(BaseController):
 
         Subclasses MAY override this method.
         """
+        # FIXME: resolve circular import issues
+        from mist.api.clouds.models import CloudSize
         try:
             size = CloudSize.objects.get(cloud=self.cloud,
                                          name=node.size)
