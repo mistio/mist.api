@@ -218,7 +218,7 @@ class AmazonComputeController(BaseComputeController):
             size = CloudSize.objects.get(cloud=self.cloud,
                                          external_id=plan_id)
         except CloudSize.DoesNotExist:
-            size = ''
+            size = None
         return size
 
 
@@ -263,8 +263,7 @@ class DigitalOceanComputeController(BaseComputeController):
                                           external_id=size_name)
             return _size
         except CloudSize.DoesNotExist:
-
-            return ''
+            return None
 
     def _list_sizes_set_name(self, size, cpu):
         return size.name + ' (%d cpus / %dM RAM)' \
@@ -309,7 +308,7 @@ class LinodeComputeController(BaseComputeController):
                                          external_id=plan_id)
             return size
         except CloudSize.DoesNotExist:
-            return ''
+            return None
 
     def _list_machines__get_location(self, node):
         return str(node.extra.get('DATACENTERID'))
@@ -382,7 +381,7 @@ class RackSpaceComputeController(BaseComputeController):
                                          external_id=plan_id)
             return size
         except CloudSize.DoesNotExist:
-            return ''
+            return None
 
 
 class SoftLayerComputeController(BaseComputeController):
@@ -435,7 +434,7 @@ class SoftLayerComputeController(BaseComputeController):
                                          external_id=size_id)
             return size
         except CloudSize.DoesNotExist:
-            return ''
+            return None
 
     def _reboot_machine(self, machine, machine_libcloud):
         self.connection.reboot_node(machine_libcloud)
@@ -482,7 +481,7 @@ class NephoScaleComputeController(BaseComputeController):
                                          external_id=plan_id)
             return size
         except CloudSize.DoesNotExist:
-            return ''
+            return None
 
 
 class AzureComputeController(BaseComputeController):
@@ -894,7 +893,7 @@ class PacketComputeController(BaseComputeController):
                                          name=plan)
             return size
         except CloudSize.DoesNotExist:
-            return ''
+            return None
 
 
 class VultrComputeController(BaseComputeController):
@@ -916,7 +915,7 @@ class VultrComputeController(BaseComputeController):
                                          external_id=plan_id)
             return size
         except CloudSize.DoesNotExist:
-            return ''
+            return None
 
     def _list_sizes_get_cpu(self, size):
         return size.extra.get('vcpu_count')
@@ -1021,7 +1020,7 @@ class OpenStackComputeController(BaseComputeController):
                                          external_id=plan_id)
             return size
         except CloudSize.DoesNotExist:
-            return ''
+            return None
 
 
 class DockerComputeController(BaseComputeController):
