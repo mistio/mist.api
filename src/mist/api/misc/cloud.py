@@ -103,7 +103,6 @@ class CloudSize(me.Document):
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
     cloud = me.ReferenceField('Cloud', required=True)
     external_id = me.StringField(required=True)
-    description = me.StringField()
     name = me.StringField()
     cpus = me.IntField()
     ram = me.IntField()
@@ -139,7 +138,6 @@ class CloudSize(me.Document):
             'cpus': self.cpus,
             'ram': self.ram,
             'bandwidth': self.bandwidth,
-            'description': self.description,
             'price': self.price,
             'disk': self.disk,
             'missing_since': str(self.missing_since.replace(tzinfo=None)

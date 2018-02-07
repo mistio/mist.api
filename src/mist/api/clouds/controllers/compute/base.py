@@ -818,7 +818,7 @@ class BaseComputeController(BaseController):
             if isinstance(size.price, float):
                 _size.price = size.price
             _size.cpus = cpus
-            _size.description = self._list_sizes_set_description(size,
+            _size.name = self._list_sizes_set_name(size,
                                                                  cpus)
             try:
                 _size.save()
@@ -833,8 +833,8 @@ class BaseComputeController(BaseController):
     def _list_sizes_get_cpu(self, size):
         return size.extra.get('cpus')
 
-    def _list_sizes_set_description(self, size, cpu):
-        """Sets description for size, as it will be
+    def _list_sizes_set_name(self, size, cpu):
+        """Sets name for size, as it will be
         shown to the end user
         """
         return size.name

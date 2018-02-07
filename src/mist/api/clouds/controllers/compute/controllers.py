@@ -209,7 +209,7 @@ class AmazonComputeController(BaseComputeController):
             return size.extra.get('cpu')
         return 1
 
-    def _list_sizes_set_description(self, size, cpu):
+    def _list_sizes_set_name(self, size, cpu):
         return '%s - %s(%sMB RAM/ %s cpus)' % (size.id, size.name,
                                                size.ram, cpu)
 
@@ -269,7 +269,7 @@ class DigitalOceanComputeController(BaseComputeController):
 
             return ''
 
-    def _list_sizes_set_description(self, size, cpu):
+    def _list_sizes_set_name(self, size, cpu):
         return size.name + ' (%d cpus / %dM RAM)' \
                            % (cpu, size.ram)
 
@@ -301,8 +301,8 @@ class LinodeComputeController(BaseComputeController):
                                size_id=size)
         return 0, price or 0
 
-    def _list_sizes_set_description(self, size, cpu):
-        """Sets description for size, as it will be
+    def _list_sizes_set_name(self, size, cpu):
+        """Sets name for size, as it will be
         shown to the end user
         """
         return size.name + '(%d cpus)' % cpu
@@ -376,7 +376,7 @@ class RackSpaceComputeController(BaseComputeController):
     def _list_sizes_get_cpu(self, size):
         return size.vcpus
 
-    def _list_sizes_set_description(self, size, cpu):
+    def _list_sizes_set_name(self, size, cpu):
         return size.name + ' (%d cpus)' % cpu
 
     def _list_machines__get_size(self, node):
@@ -628,7 +628,7 @@ class AzureArmComputeController(BaseComputeController):
                                     + ' cpus/' + str(size.ram / 1024) \
                                     + 'G RAM/ ' + str(size.disk) + 'GB SSD'
 
-            _size.description = desc
+            _size.name = desc
 
             try:
                 _size.save()
@@ -808,7 +808,7 @@ class GoogleComputeController(BaseComputeController):
     def _list_sizes_get_cpu(self, size):
         return size.extra.get('guestCpus')
 
-    def _list_sizes_set_description(self, size, cpu):
+    def _list_sizes_set_name(self, size, cpu):
         return "%s (%s)" % (size.name,
                             size.extra.get('description'))
 
@@ -843,7 +843,7 @@ class PacketComputeController(BaseComputeController):
     def _list_machines__fetch_machines(self):
         return self.connection.list_nodes(self.cloud.project_id)
 
-    def _list_sizes_set_description(self, size, cpu):
+    def _list_sizes_set_name(self, size, cpu):
         if cpu:
             return size.name + ' (%d cpus)' % cpu
         else:
@@ -863,16 +863,16 @@ class PacketComputeController(BaseComputeController):
             except CloudSize.DoesNotExist:
                 size.ram = size.ram.strip('GB')
                 _size = CloudSize(cloud=self.cloud,
-                                  name=size.name, disk=size.disk,
+                                  disk=size.disk, price=size.price,
                                   ram=size.ram, external_id=size.id,
-                                  bandwidth=size.bandwidth, price=size.price
+                                  bandwidth=size.bandwidth
                                   )
             try:
                 cpus = self._list_sizes_get_cpu(size)
             except Exception as exc:
                 log.exception(repr(exc))
             _size.cpus = cpus
-            _size.description = self._list_sizes_set_description(size,
+            _size.name = self._list_sizes_set_name(size,
                                                                  cpus)
             # format the name to contain only the type of the size
             # since it is needed in list_machines__get_size
@@ -920,7 +920,7 @@ class VultrComputeController(BaseComputeController):
     def _list_sizes_get_cpu(self, size):
         return size.extra.get('vcpu_count')
 
-    def _list_sizes_set_description(self, size, cpu):
+    def _list_sizes_set_name(self, size, cpu):
         return size.name + ' (%d cpus)' % cpu
 
     def _list_machines__get_location(self, node):
@@ -1009,7 +1009,7 @@ class OpenStackComputeController(BaseComputeController):
     def _list_sizes_get_cpu(self, size):
         return size.vcpus
 
-    def _list_sizes_set_description(self, size, cpu):
+    def _list_sizes_set_name(self, size, cpu):
         return size.name + ' ( %d cpus / %dM RAM)' \
                            % (cpu, size.ram)
 
