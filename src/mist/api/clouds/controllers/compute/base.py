@@ -338,8 +338,7 @@ class BaseComputeController(BaseController):
 
             machine.name = node.name
             machine.image_id = image_id
-            # for now!
-            # machine.size = size
+            machine.size = size
             machine.state = config.STATES[node.state]
             machine.private_ips = list(set(node.private_ips))
             machine.public_ips = list(set(node.public_ips))

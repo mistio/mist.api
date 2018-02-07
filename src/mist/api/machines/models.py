@@ -260,7 +260,7 @@ class Machine(me.Document):
     cloud = me.ReferenceField('Cloud', required=True)
     owner = me.ReferenceField('Organization', required=True)
     location = me.ReferenceField('CloudLocation', required=False)
-    #size = me.ReferenceField('CloudSize', required=False)
+    size = me.ReferenceField('CloudSize', required=False)
     name = me.StringField()
 
     # Info gathered mostly by libcloud (or in some cases user input).
