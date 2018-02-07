@@ -64,23 +64,6 @@ def remove_string_field_type():
     c.close()
 
 
-def list_size_objects():
-    clouds = Cloud.objects()
-
-    print
-    print 'Creating and storing in databse CloudSize objects'
-    print
-
-    size_objects = 0
-
-    for cloud in clouds:
-        sizes = cloud.ctl.compute.list_sizes()
-        size_objects += len(sizes)
-
-    print 'Created %d CloudSize objects' % size_objects
-
-
 if __name__ == '__main__':
     trigger_size_polling_schedules()
     remove_string_field_type()
-    # list_size_objects()
