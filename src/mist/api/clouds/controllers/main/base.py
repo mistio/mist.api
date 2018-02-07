@@ -363,7 +363,7 @@ class BaseMainController(object):
             missing_since=datetime.datetime.utcnow()
         )
         # FIXME: Circular dependency.
-        from mist.api.misc.cloud import CloudLocation
+        from mist.api.clouds.models import CloudLocation
         CloudLocation.objects(cloud=self.cloud,
                               missing_since=None).update(
             missing_since=datetime.datetime.utcnow()

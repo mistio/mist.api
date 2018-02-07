@@ -49,8 +49,6 @@ from mist.api.concurrency.models import PeriodicTaskThresholdExceeded
 from mist.api.clouds.controllers.base import BaseController
 from mist.api.tag.models import Tag
 from mist.api.machines.models import Machine
-from mist.api.misc.cloud import CloudLocation
-from mist.api.misc.cloud import CloudSize
 
 if config.HAS_CORE:
     from mist.core.vpn.methods import destination_nat as dnat
@@ -314,6 +312,8 @@ class BaseComputeController(BaseController):
 
             else:
                 try:
+                    # FIXME: resolve circular import issues
+                    from mist.api.clouds.models import CloudLocation
                     _location = CloudLocation.objects.get(cloud=self.cloud,
                                                           external_id=loc_id)
                     machine.location = _location
@@ -942,6 +942,8 @@ class BaseComputeController(BaseController):
         for loc in fetched_locations:
 
             try:
+                # FIXME: resolve circular import issues
+                from mist.api.clouds.models import CloudLocation
                 _location = CloudLocation.objects.get(cloud=self.cloud,
                                                       external_id=loc.id)
             except CloudLocation.DoesNotExist:
@@ -965,6 +967,8 @@ class BaseComputeController(BaseController):
         """Return list of locations from database
         for a specific cloud
         """
+        # FIXME: resolve circular import issues
+        from mist.api.clouds.models import CloudLocation
         return CloudLocation.objects(cloud=self.cloud,
                                      missing_since=None)
 

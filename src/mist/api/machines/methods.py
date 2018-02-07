@@ -199,7 +199,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
 
     # transform location id to libcloud's NodeLocation object
     try:
-        from mist.api.misc.cloud import CloudLocation
+        from mist.api.clouds.models import CloudLocation
         cloud_location = CloudLocation.objects.get(id=location_id)
         location = NodeLocation(cloud_location.external_id,
                                 name=cloud_location.name,
