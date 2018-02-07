@@ -278,7 +278,7 @@ class Machine(me.Document):
     extra = me.DictField()
     cost = me.EmbeddedDocumentField(Cost, default=lambda: Cost())
     image_id = me.StringField()
-    size = me.StringField()
+    # size = me.StringField()
     # libcloud.compute.types.NodeState
     state = me.StringField(default='unknown',
                            choices=('running', 'starting', 'rebooting',

@@ -104,7 +104,6 @@ class AmazonComputeController(BaseComputeController):
             raise BadRequestError('Failed to resize node: %s' % exc)
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        machine.size = machine['extra'].get('instance_type')
         # Find os_type.
         try:
             machine.os_type = CloudImage.objects.get(
@@ -228,9 +227,6 @@ class DigitalOceanComputeController(BaseComputeController):
     def _connect(self):
         return get_driver(Provider.DIGITAL_OCEAN)(self.cloud.token)
 
-    def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        machine.size = machine['extra'].get('size_slug')
-
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
         return machine_libcloud.extra.get('created_at')  # iso8601 string
 
@@ -264,7 +260,7 @@ class DigitalOceanComputeController(BaseComputeController):
         from mist.api.clouds.models import CloudSize
         try:
             _size = CloudSize.objects.get(cloud=self.cloud,
-                                          name=size_name)
+                                          external_id=size_name)
             return _size
         except CloudSize.DoesNotExist:
 
@@ -282,9 +278,6 @@ class LinodeComputeController(BaseComputeController):
 
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
         return machine_libcloud.extra.get('CREATE_DT')  # iso8601 string
-
-    def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        machine.size = machine['extra'].get('PLANID')
 
     def _list_machines__machine_actions(self, machine, machine_libcloud):
         super(LinodeComputeController, self)._list_machines__machine_actions(
@@ -1012,7 +1005,6 @@ class OpenStackComputeController(BaseComputeController):
             if ip and ':' not in ip:
                 public_ips.append(ip)
         machine.public_ips = public_ips
-        machine.size = machine['extra'].get('flavorId')
 
     def _list_sizes_get_cpu(self, size):
         return size.vcpus
