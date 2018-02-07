@@ -13,16 +13,22 @@ from mist.api import tasks
 
 from mist.api.auth.methods import auth_context_from_request
 from mist.api.helpers import view_config, params_from_request
+from mist.api.helpers import trigger_session_update
+
 
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import BadRequestError, NotFoundError
+from mist.api.exceptions import MachineCreationError, RedirectError
 from mist.api.exceptions import CloudUnauthorizedError, CloudUnavailableError
+
+from mist.api.monitoring.methods import enable_monitoring
+from mist.api.monitoring.methods import disable_monitoring
 
 from mist.api import config
 
-try:
+if config.HAS_CORE:
     from mist.core.vpn.methods import destination_nat as dnat
-except ImportError:
+else:
     from mist.api.dummy.methods import dnat
 
 logging.basicConfig(level=config.PY_LOG_LEVEL,
@@ -45,6 +51,9 @@ def list_machines(request):
     READ permission required on machine.
     """
     auth_context = auth_context_from_request(request)
+    params = params_from_request(request)
+    cached = not params.get('fresh', False)  # return cached by default
+
     # to prevent iterate throw every cloud
     auth_context.check_perm("cloud", "read", None)
     clouds = filter_list_clouds(auth_context)
@@ -53,7 +62,7 @@ def list_machines(request):
         if cloud.get('enabled'):
             try:
                 cloud_machines = methods.filter_list_machines(
-                    auth_context, cloud.get('id'))
+                    auth_context, cloud.get('id'), cached=cached)
                 machines.extend(cloud_machines)
             except (CloudUnavailableError, CloudUnauthorizedError):
                 pass
@@ -78,22 +87,17 @@ def list_cloud_machines(request):
     """
     auth_context = auth_context_from_request(request)
     cloud_id = request.matchdict['cloud']
+    params = params_from_request(request)
+    cached = bool(params.get('cached', False))
+
     # SEC get filtered resources based on auth_context
     try:
-        cloud = Cloud.objects.get(owner=auth_context.owner,
-                                  id=cloud_id, deleted=None)
+        Cloud.objects.get(owner=auth_context.owner, id=cloud_id, deleted=None)
     except Cloud.DoesNotExist:
         raise NotFoundError('Cloud does not exist')
 
-    machines = methods.filter_list_machines(auth_context, cloud_id)
-
-    if cloud.machine_count != len(machines):
-        try:
-            tasks.update_machine_count.delay(
-                auth_context.owner.id, cloud_id, len(machines))
-        except Exception as e:
-            log.error('Cannot update machine count for user %s: %r' %
-                      (auth_context.owner.id, e))
+    machines = methods.filter_list_machines(auth_context, cloud_id,
+                                            cached=cached)
 
     return machines
 
@@ -400,6 +404,7 @@ def create_machine(request):
               'port_speed': port_speed,
               'hypervisor_group_id': hypervisor_group_id,
               'machine_username': machine_username}
+
     if not async:
         ret = methods.create_machine(auth_context.owner, *args, **kwargs)
     else:
@@ -408,6 +413,85 @@ def create_machine(request):
         tasks.create_machine_async.apply_async(args, kwargs, countdown=2)
         ret = {'job_id': job_id}
     ret.update({'job': job})
+    return ret
+
+
+@view_config(route_name='api_v1_cloud_machines', request_method='PUT',
+             renderer='json')
+def add_machine(request):
+    """
+    Add a machine to an OtherServer Cloud. This works for bare_metal clouds.
+    """
+    cloud_id = request.matchdict.get('cloud')
+    params = params_from_request(request)
+    machine_ip = params.get('machine_ip')
+    if not machine_ip:
+        raise RequiredParameterMissingError("machine_ip")
+
+    operating_system = params.get('operating_system', '')
+    machine_name = params.get('machine_name', '')
+    machine_key = params.get('machine_key', '')
+    machine_user = params.get('machine_user', '')
+    machine_port = params.get('machine_port', '')
+    remote_desktop_port = params.get('remote_desktop_port', '')
+    monitoring = params.get('monitoring', '')
+
+    job_id = params.get('job_id')
+    if not job_id:
+        job = 'add_machine'
+        job_id = uuid.uuid4().hex
+    else:
+        job = None
+
+    auth_context = auth_context_from_request(request)
+    auth_context.check_perm("cloud", "read", cloud_id)
+
+    if machine_key:
+        auth_context.check_perm("key", "read", machine_key)
+
+    try:
+        Cloud.objects.get(owner=auth_context.owner,
+                          id=cloud_id, deleted=None)
+    except Cloud.DoesNotExist:
+        raise NotFoundError('Cloud does not exist')
+
+    log.info('Adding bare metal machine %s on cloud %s'
+             % (machine_name, cloud_id))
+    cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
+                              deleted=None)
+
+    try:
+        machine = cloud.ctl.add_machine(machine_name, host=machine_ip,
+                                        ssh_user=machine_user,
+                                        ssh_port=machine_port,
+                                        ssh_key=machine_key,
+                                        os_type=operating_system,
+                                        rdp_port=remote_desktop_port,
+                                        fail_on_error=True)
+    except Exception as e:
+        raise MachineCreationError("OtherServer, got exception %r" % e,
+                                   exc=e)
+
+    # Enable monitoring
+    if monitoring:
+        monitor = enable_monitoring(
+            auth_context.owner, cloud.id, machine.machine_id,
+            no_ssh=not (machine.os_type == 'unix' and
+                        machine.key_associations)
+        )
+
+    ret = {'id': machine.id,
+           'name': machine.name,
+           'extra': {},
+           'public_ips': machine.public_ips,
+           'private_ips': machine.private_ips,
+           'job_id': job_id,
+           'job': job
+           }
+
+    if monitoring:
+        ret.update({'monitoring': monitor})
+
     return ret
 
 
@@ -475,7 +559,9 @@ def machine_actions(request):
             # VMs in libvirt can be started no matter if they are terminated
             if machine.state == 'terminated' and not isinstance(machine.cloud,
                                                                 LibvirtCloud):
-                raise
+                raise NotFoundError(
+                    "Machine %s has been terminated" % machine_uuid
+                )
             # used by logging_view_decorator
             request.environ['machine_id'] = machine.machine_id
             request.environ['cloud_id'] = machine.cloud.id
@@ -491,7 +577,7 @@ def machine_actions(request):
     auth_context.check_perm("machine", action, machine.id)
 
     actions = ('start', 'stop', 'reboot', 'destroy', 'resize',
-               'rename', 'undefine', 'suspend', 'resume')
+               'rename', 'undefine', 'suspend', 'resume', 'remove')
 
     if action not in actions:
         raise BadRequestError("Action '%s' should be "
@@ -499,6 +585,31 @@ def machine_actions(request):
     if action == 'destroy':
         methods.destroy_machine(auth_context.owner, cloud_id,
                                 machine.machine_id)
+    elif action == 'remove':
+        log.info('Removing machine %s in cloud %s'
+                 % (machine.machine_id, cloud_id))
+
+        if not machine.monitoring.hasmonitoring:
+            machine.ctl.remove()
+            # Schedule a UI update
+            trigger_session_update(auth_context.owner, ['clouds'])
+            return
+
+        # if machine has monitoring, disable it. the way we disable depends on
+        # whether this is a standalone io installation or not
+        try:
+            # we don't actually bother to undeploy collectd
+            disable_monitoring(auth_context.owner, cloud_id, machine_id,
+                               no_ssh=True)
+        except Exception as exc:
+            log.warning("Didn't manage to disable monitoring, maybe the "
+                        "machine never had monitoring enabled. Error: %r", exc)
+
+        machine.ctl.remove()
+
+        # Schedule a UI update
+        trigger_session_update(auth_context.owner, ['clouds'])
+
     elif action in ('start', 'stop', 'reboot',
                     'undefine', 'suspend', 'resume'):
         getattr(machine.ctl, action)()
@@ -558,7 +669,6 @@ def machine_rdp(request):
     auth_context = auth_context_from_request(request)
 
     if cloud_id:
-        # this is depracated, keep it for backwards compatibility
         machine_id = request.matchdict['machine']
         auth_context.check_perm("cloud", "read", cloud_id)
         try:
@@ -603,3 +713,73 @@ def machine_rdp(request):
                     charset='utf8',
                     pragma='no-cache',
                     body=rdp_content)
+
+
+@view_config(route_name='api_v1_cloud_machine_console',
+             request_method='POST', renderer='json')
+@view_config(route_name='api_v1_machine_console',
+             request_method='POST', renderer='json')
+def machine_console(request):
+    """
+    Open VNC console
+    Generate and return an URI to open a VNC console to target machine
+    READ permission required on cloud.
+    READ permission required on machine.
+    ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    machine:
+      in: path
+      required: true
+      type: string
+    rdp_port:
+      default: 3389
+      in: query
+      required: true
+      type: integer
+    host:
+      in: query
+      required: true
+      type: string
+    """
+    cloud_id = request.matchdict.get('cloud')
+
+    auth_context = auth_context_from_request(request)
+
+    if cloud_id:
+        machine_id = request.matchdict['machine']
+        auth_context.check_perm("cloud", "read", cloud_id)
+        try:
+            machine = Machine.objects.get(cloud=cloud_id,
+                                          machine_id=machine_id,
+                                          state__ne='terminated')
+            # used by logging_view_decorator
+            request.environ['machine_uuid'] = machine.id
+        except Machine.DoesNotExist:
+            raise NotFoundError("Machine %s doesn't exist" % machine_id)
+    else:
+        machine_uuid = request.matchdict['machine_uuid']
+        try:
+            machine = Machine.objects.get(id=machine_uuid,
+                                          state__ne='terminated')
+            # used by logging_view_decorator
+            request.environ['machine_id'] = machine.machine_id
+            request.environ['cloud_id'] = machine.cloud.id
+        except Machine.DoesNotExist:
+            raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
+
+        cloud_id = machine.cloud.id
+        auth_context.check_perm("cloud", "read", cloud_id)
+
+    auth_context.check_perm("machine", "read", machine.id)
+
+    if machine.cloud.ctl.provider != 'vsphere':
+        raise NotImplementedError("VNC console only supported for vSphere")
+
+    console_uri = machine.cloud.ctl.compute.connection.ex_open_console(
+        machine.machine_id
+    )
+
+    raise RedirectError(console_uri)

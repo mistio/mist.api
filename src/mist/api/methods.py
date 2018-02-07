@@ -1,16 +1,13 @@
 import os
 import re
-import json
 import shutil
 import tempfile
 import subprocess
 
-import requests
-
 import pingparsing
 
 
-from mongoengine import ValidationError, NotUniqueError, DoesNotExist
+from mongoengine import DoesNotExist
 
 from time import time
 
@@ -29,9 +26,8 @@ import ansible.constants
 
 from mist.api.shell import Shell
 
-from mist.api.helpers import get_auth_header
-
-from mist.api.exceptions import *
+from mist.api.exceptions import MistError
+from mist.api.exceptions import RequiredParameterMissingError
 
 from mist.api.helpers import trigger_session_update
 from mist.api.helpers import amqp_publish_user
@@ -43,7 +39,7 @@ import mist.api.tasks
 import mist.api.inventory
 
 from mist.api.clouds.models import Cloud
-from mist.api.networks.models import NETWORKS, SUBNETS, Network, Subnet
+from mist.api.networks.models import SUBNETS
 from mist.api.machines.models import Machine
 
 from mist.api import config
@@ -218,10 +214,12 @@ def list_storage_accounts(owner, cloud_id):
         conn.disconnect()
     return ret
 
+
 def create_subnet(owner, cloud, network, subnet_params):
     """
     Create a new subnet attached to the specified network ont he given cloud.
-    Subnet_params is a dict containing all the necessary values that describe a subnet.
+    Subnet_params is a dict containing all the necessary values that describe a
+    subnet.
     """
     if not hasattr(cloud.ctl, 'network'):
         raise NotImplementedError()
@@ -245,110 +243,6 @@ def delete_subnet(owner, subnet):
 
     # Schedule a UI update
     trigger_session_update(owner, ['clouds'])
-
-
-def check_monitoring(user):
-    raise NotImplementedError()
-
-    """Ask the mist.api service if monitoring is enabled for this machine."""
-    try:
-        ret = requests.get(config.CORE_URI + '/monitoring',
-                           headers={'Authorization': get_auth_header(user)},
-                           verify=config.SSL_VERIFY)
-    except requests.exceptions.SSLError as exc:
-        log.error("%r", exc)
-        raise SSLError()
-    if ret.status_code == 200:
-        return ret.json()
-    elif ret.status_code in [400, 401]:
-        user.email = ""
-        user.mist_api_token = ""
-        user.save()
-    log.error("Error getting stats %d:%s", ret.status_code, ret.text)
-    raise ServiceUnavailableError()
-
-
-def enable_monitoring(user, cloud_id, machine_id,
-                      name='', dns_name='', public_ips=None,
-                      no_ssh=False, dry=False, deploy_async=True, **kwargs):
-    raise NotImplementedError()
-    """Enable monitoring for a machine."""
-    cloud = Cloud.objects.get(owner=user, id=cloud_id, deleted=None)
-    payload = {
-        'action': 'enable',
-        'no_ssh': True,
-        'dry': dry,
-        'name': name or cloud.title,
-        'public_ips': ",".join(public_ips or []),
-        'dns_name': dns_name,
-        'cloud_title': cloud.title,
-        'cloud_provider': cloud.provider,
-        'cloud_region': cloud.region,
-        'cloud_apikey': cloud.apikey,
-        'cloud_apisecret': cloud.apisecret,
-        'cloud_apiurl': cloud.apiurl,
-        'cloud_tenant_name': cloud.tenant_name,
-    }
-    url_scheme = "%s/clouds/%s/machines/%s/monitoring"
-    try:
-        resp = requests.post(
-            url_scheme % (config.CORE_URI, cloud_id, machine_id),
-            data=json.dumps(payload),
-            headers={'Authorization': get_auth_header(user)},
-            verify=config.SSL_VERIFY
-        )
-    except requests.exceptions.SSLError as exc:
-        log.error("%r", exc)
-        raise SSLError()
-    if not resp.ok:
-        if resp.status_code == 402:
-            raise PaymentRequiredError(resp.text.replace('Payment required: ', ''))
-        else:
-            raise ServiceUnavailableError()
-    ret_dict = resp.json()
-
-    if dry:
-        return ret_dict
-
-    if not no_ssh:
-        deploy = mist.api.tasks.deploy_collectd
-        if deploy_async:
-            deploy = deploy.delay
-        deploy(user.email, cloud_id, machine_id, ret_dict['extra_vars'])
-
-    trigger_session_update(user, ['monitoring'])
-
-    return ret_dict
-
-
-def disable_monitoring(user, cloud_id, machine_id, no_ssh=False):
-    """Disable monitoring for a machine."""
-    raise NotImplementedError()
-    payload = {
-        'action': 'disable',
-        'no_ssh': True
-    }
-    url_scheme = "%s/clouds/%s/machines/%s/monitoring"
-    try:
-        ret = requests.post(
-            url_scheme % (config.CORE_URI, cloud_id, machine_id),
-            params=payload,
-            headers={'Authorization': get_auth_header(user)},
-            verify=config.SSL_VERIFY
-        )
-    except requests.exceptions.SSLError as exc:
-        log.error("%r", exc)
-        raise SSLError()
-    if ret.status_code != 200:
-        raise ServiceUnavailableError()
-
-    ret_dict = json.loads(ret.content)
-    host = ret_dict.get('host')
-
-    if not no_ssh:
-        mist.api.tasks.undeploy_collectd.delay(user.email,
-                                              cloud_id, machine_id)
-    trigger_session_update(user, ['monitoring'])
 
 
 # TODO deprecate this!
@@ -387,7 +281,7 @@ def probe_ssh_only(owner, cloud_id, machine_id, host, key_id='', ssh_user='',
         "uptime && "
         "echo -------- && "
         "if [ -f /proc/uptime ]; then cat /proc/uptime | cut -d' ' -f1; "
-        "else expr `date '+%s'` - `sysctl kern.boottime | sed -En 's/[^0-9]*([0-9]+).*/\\1/p'`;"
+        "else expr `date '+%s'` - `sysctl kern.boottime | sed -En 's/[^0-9]*([0-9]+).*/\\1/p'`;"  # noqa
         "fi; "
         "echo -------- && "
         "if [ -f /proc/cpuinfo ]; then grep -c processor /proc/cpuinfo;"
@@ -402,7 +296,7 @@ def probe_ssh_only(owner, cloud_id, machine_id, host, key_id='', ssh_user='',
         "echo -------- &&"
         "cat /etc/*release;"
         "echo --------"
-        "\"|sh"  # In case there is a default shell other than bash/sh (e.g. csh)
+        "\"|sh"  # In case there is a default shell other than bash/sh (ex csh)
     )
 
     if key_id:
@@ -437,7 +331,7 @@ def probe_ssh_only(owner, cloud_id, machine_id, host, key_id='', ssh_user='',
 
     kernel_version = cmd_output[6].replace("\n", "")
     os_release = cmd_output[7]
-    os, os_version = parse_os_release(os_release)
+    os, os_version, distro = parse_os_release(os_release)
 
     return {
         'uptime': uptime,
@@ -452,6 +346,7 @@ def probe_ssh_only(owner, cloud_id, machine_id, host, key_id='', ssh_user='',
         'kernel': kernel_version,
         'os': os,
         'os_version': os_version,
+        'distro': distro,
         'dirty_cow': dirty_cow(os, os_version, kernel_version)
     }
 
@@ -465,12 +360,11 @@ def _ping_host(host, pkts=10):
 
 
 def ping(owner, host, pkts=10):
-    try:
+    if config.HAS_CORE:
         from mist.core.vpn.methods import super_ping
-    except ImportError:
-        result = _ping_host(host, pkts=pkts)
-    else:
         result = super_ping(owner=owner, host=host, pkts=pkts)
+    else:
+        result = _ping_host(host, pkts=pkts)
 
     # In both cases, the returned dict is formatted by pingparsing.
 
@@ -503,13 +397,9 @@ def find_public_ips(ips):
 
 def notify_admin(title, message="", team="all"):
     """ This will only work on a multi-user setup configured to send emails """
-    try:
-        from mist.api.helpers import send_email
-        send_email(title, message,
-                   config.NOTIFICATION_EMAIL.get(team,
-                                                 config.NOTIFICATION_EMAIL))
-    except ImportError:
-        pass
+    from mist.api.helpers import send_email
+    send_email(title, message,
+               config.NOTIFICATION_EMAIL.get(team, config.NOTIFICATION_EMAIL))
 
 
 def notify_user(owner, title, message="", email_notify=True, **kwargs):
@@ -567,101 +457,11 @@ def notify_user(owner, title, message="", email_notify=True, **kwargs):
     if 'output' in kwargs:
         body += "Output: %s\n" % kwargs['output'].decode('utf-8', 'ignore')
 
-    try:  # Send email in multi-user env
-        if email_notify:
-            from mist.api.helpers import send_email
-            email = owner.email if hasattr(owner, 'email') else owner.get_email()
-            send_email("[mist.io] %s" % title, body.encode('utf-8', 'ignore'),
-                       email)
-    except ImportError:
-        pass
-
-
-def find_metrics(user, cloud_id, machine_id):
-    raise NotImplementedError()
-
-    url = "%s/clouds/%s/machines/%s/metrics" % (config.CORE_URI,
-                                                cloud_id, machine_id)
-    headers = {'Authorization': get_auth_header(user)}
-    try:
-        resp = requests.get(url, headers=headers, verify=config.SSL_VERIFY)
-    except requests.exceptions.SSLError as exc:
-        raise SSLError()
-    except Exception as exc:
-        log.error("Exception requesting find_metrics: %r", exc)
-        raise ServiceUnavailableError(exc=exc)
-    if not resp.ok:
-        log.error("Error in find_metrics %d:%s", resp.status_code, resp.text)
-        raise ServiceUnavailableError(resp.text)
-    return resp.json()
-
-
-def assoc_metric(user, cloud_id, machine_id, metric_id):
-    raise NotImplementedError()
-
-    url = "%s/clouds/%s/machines/%s/metrics" % (config.CORE_URI,
-                                                cloud_id, machine_id)
-    try:
-        resp = requests.put(url,
-                            headers={'Authorization': get_auth_header(user)},
-                            params={'metric_id': metric_id},
-                            verify=config.SSL_VERIFY)
-    except requests.exceptions.SSLError as exc:
-        raise SSLError()
-    except Exception as exc:
-        log.error("Exception requesting assoc_metric: %r", exc)
-        raise ServiceUnavailableError(exc=exc)
-    if not resp.ok:
-        log.error("Error in assoc_metric %d:%s", resp.status_code, resp.text)
-        raise ServiceUnavailableError(resp.text)
-    trigger_session_update(user, [])
-
-
-def disassoc_metric(user, cloud_id, machine_id, metric_id):
-    raise NotImplementedError()
-
-    url = "%s/clouds/%s/machines/%s/metrics" % (config.CORE_URI,
-                                                cloud_id, machine_id)
-    try:
-        resp = requests.delete(url,
-                               headers={'Authorization': get_auth_header(user)},
-                               params={'metric_id': metric_id},
-                               verify=config.SSL_VERIFY)
-    except requests.exceptions.SSLError as exc:
-        raise SSLError()
-    except Exception as exc:
-        log.error("Exception requesting disassoc_metric: %r", exc)
-        raise ServiceUnavailableError(exc=exc)
-    if not resp.ok:
-        log.error("Error in disassoc_metric %d:%s", resp.status_code, resp.text)
-        raise ServiceUnavailableError(resp.text)
-    trigger_session_update(user, [])
-
-
-def update_metric(user, metric_id, name=None, unit=None,
-                  cloud_id=None, machine_id=None):
-    raise NotImplementedError()
-
-    url = "%s/metrics/%s" % (config.CORE_URI, metric_id)
-    headers = {'Authorization': get_auth_header(user)}
-    params = {
-        'name': name,
-        'unit': unit,
-        'cloud_id': cloud_id,
-        'machine_id': machine_id,
-    }
-    try:
-        resp = requests.put(url, headers=headers, params=params,
-                            verify=config.SSL_VERIFY)
-    except requests.exceptions.SSLError as exc:
-        raise SSLError()
-    except Exception as exc:
-        log.error("Exception updating metric: %r", exc)
-        raise ServiceUnavailableError(exc=exc)
-    if not resp.ok:
-        log.error("Error updating metric %d:%s", resp.status_code, resp.text)
-        raise BadRequestError(resp.text)
-    trigger_session_update(user, [])
+    if email_notify:
+        from mist.api.helpers import send_email
+        email = owner.email if hasattr(owner, 'email') else owner.get_email()
+        send_email("[mist.io] %s" % title, body.encode('utf-8', 'ignore'),
+                   email)
 
 
 def undeploy_python_plugin(owner, cloud_id, machine_id, plugin_id, host):
@@ -687,37 +487,13 @@ $sudo mv /tmp/include.conf plugins/mist-python/include.conf
 
 echo "Restarting collectd"
 $sudo /opt/mistio-collectd/collectd.sh restart
-""" % {'plugin_id': plugin_id}
+""" % {'plugin_id': plugin_id}  # noqa
 
     retval, stdout = shell.command(script)
 
     shell.disconnect()
 
     return {'metric_id': None, 'stdout': stdout}
-
-
-def get_stats(user, cloud_id, machine_id, start='', stop='', step='', metrics=''):
-    raise NotImplementedError()
-
-    try:
-        resp = requests.get(
-            "%s/clouds/%s/machines/%s/stats" % (config.CORE_URI,
-                                                cloud_id, machine_id),
-            params={'start': start, 'stop': stop, 'step': step},
-            headers={'Authorization': get_auth_header(user)},
-            verify=config.SSL_VERIFY
-        )
-    except requests.exceptions.SSLError as exc:
-        log.error("%r", exc)
-        raise SSLError()
-    if resp.status_code == 200:
-        ret = resp.json()
-        return ret
-    else:
-        log.error("Error getting stats %d:%s", resp.status_code, resp.text)
-        if resp.status_code == 400:
-            raise BadRequestError(resp.text.replace('Bad Request: ', ''))
-        raise ServiceUnavailableError(resp.text)
 
 
 def run_playbook(owner, cloud_id, machine_id, playbook_path, extra_vars=None,
@@ -734,7 +510,7 @@ def run_playbook(owner, cloud_id, machine_id, playbook_path, extra_vars=None,
         'stats': {},
     }
     inventory = mist.api.inventory.MistInventory(owner,
-                                                [(cloud_id, machine_id)])
+                                                 [(cloud_id, machine_id)])
     if len(inventory.hosts) != 1:
         log.error("Expected 1 host, found %s", inventory.hosts)
         ret_dict['error_msg'] = "Expected 1 host, found %s" % inventory.hosts
@@ -853,7 +629,8 @@ def undeploy_collectd(owner, cloud_id, machine_id):
 
 def get_deploy_collectd_command_unix(uuid, password, monitor, port=25826):
     url = "https://github.com/mistio/deploy_collectd/raw/master/local_run.py"
-    cmd = "wget -O mist_collectd.py %s && $(command -v sudo) python mist_collectd.py %s %s" % (url, uuid, password)
+    cmd = "wget -O mist_collectd.py %s && $(command -v sudo) python mist_collectd.py %s %s" % (  # noqa
+        url, uuid, password)
     if monitor != 'monitor1.mist.api':
         cmd += " -m %s" % monitor
     if str(port) != '25826':
@@ -862,17 +639,19 @@ def get_deploy_collectd_command_unix(uuid, password, monitor, port=25826):
 
 
 def get_deploy_collectd_command_windows(uuid, password, monitor, port=25826):
-    return 'Set-ExecutionPolicy -ExecutionPolicy RemoteSigned ' \
-           '-Scope CurrentUser -Force;(New-Object System.Net.WebClient).' \
-           'DownloadFile(\'https://raw.githubusercontent.com/mistio/' \
-           'deploy_collectm/master/collectm.remote.install.ps1\',' \
-           ' \'.\collectm.remote.install.ps1\');.\collectm.remote.install.ps1 ' \
-           '-SetupConfigFile -setupArgs \'-username "%s" -password "%s" ' \
-           '-servers @("%s:%s")\'' % (uuid, password, monitor, port)
+    return (
+        'Set-ExecutionPolicy -ExecutionPolicy RemoteSigned '
+        '-Scope CurrentUser -Force;(New-Object System.Net.WebClient).'
+        'DownloadFile(\'https://raw.githubusercontent.com/mistio/'
+        'deploy_collectm/master/collectm.remote.install.ps1\','
+        ' \'.\collectm.remote.install.ps1\');.\collectm.remote.install.ps1 '
+        '-SetupConfigFile -setupArgs \'-username "%s" -password "%s" '
+        '-servers @("%s:%s")\''
+    ) % (uuid, password, monitor, port)
 
 
 def get_deploy_collectd_command_coreos(uuid, password, monitor, port=25826):
-    return "sudo docker run -d -v /sys/fs/cgroup:/sys/fs/cgroup -e COLLECTD_USERNAME=%s -e COLLECTD_PASSWORD=%s -e MONITOR_SERVER=%s -e COLLECTD_PORT=%s mist/collectd" % (
+    return "sudo docker run -d -v /sys/fs/cgroup:/sys/fs/cgroup -e COLLECTD_USERNAME=%s -e COLLECTD_PASSWORD=%s -e MONITOR_SERVER=%s -e COLLECTD_PORT=%s mist/collectd" % (  # noqa
         uuid, password, monitor, port)
 
 
@@ -958,12 +737,6 @@ def create_dns_a_record(owner, domain_name, ip_addr):
     log.info("Will use name %s and zone %s in provider %s.",
              name, zone.domain, provider)
 
-    # debug
-    # log.debug("Will print all existing A records for zone '%s'.", zone.domain)
-    # for record in zone.list_records():
-    #    if record.type == 'A':
-    #        log.info("%s -> %s", record.name, record.data)
-
     msg = ("Creating A record with name %s for %s in zone %s in %s"
            % (name, ip_addr, zone.domain, provider))
     try:
@@ -972,3 +745,16 @@ def create_dns_a_record(owner, domain_name, ip_addr):
         raise MistError(msg + " failed: %r" % repr(exc))
     log.info(msg + " succeeded.")
     return record
+
+
+# FIXME DEPRECATED
+def rule_triggered(machine, rule_id, value, triggered, timestamp,
+                   notification_level, incident_id):
+    from mist.api.rules.models import NoDataRule
+    from mist.api.rules.methods import run_chained_actions
+    if config.HAS_CORE and rule_id == 'nodata':
+        rule = NoDataRule.objects.get(owner_id=machine.owner.id,
+                                      title='NoData')
+        rule_id = rule.title
+    run_chained_actions(rule_id, machine, value, triggered, timestamp,
+                        notification_level, incident_id)

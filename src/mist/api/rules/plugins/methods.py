@@ -11,6 +11,18 @@ class ResourceNotFoundError(Exception):
     pass
 
 
+class EmptyResponseReturnedError(Exception):
+    pass
+
+
+class MultipleSeriesReturnedError(Exception):
+    pass
+
+
+class RequestedTargetMismatchError(Exception):
+    pass
+
+
 def compute(operator, aggregate, values, threshold):
     """Compare the `values` against the specified `threshold`."""
     if aggregate == 'avg':  # Apply avg aggregator before the operator.
@@ -40,7 +52,7 @@ def send_trigger(rule_id, params):
     """Trigger the rule with id `rule_id` and the provided params over HTTP."""
     params.update({'rule_id': rule_id})  # TODO This should be part of the URL.
     resp = requests.put(
-        '%s/api/v1/rule-triggered' % config.CORE_URI,
+        '%s/api/v1/rule-triggered' % config.CILIA_TRIGGER_API,
         headers={'Cilia-Secret-Key': config.CILIA_SECRET_KEY}, params=params
     )
     if not resp.ok:

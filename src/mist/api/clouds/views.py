@@ -85,6 +85,7 @@ def add_cloud(request):
       - onapp
       - hostvirtual
       - vultr
+      - clearcenter
       required: true
       type: string
     remove_on_error:

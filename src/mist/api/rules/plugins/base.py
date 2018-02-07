@@ -29,7 +29,7 @@ class BaseBackendPlugin(object):
 
     """
 
-    def __init__(self, rule):
+    def __init__(self, rule, rids=None):
         """Initialize the plugin given a Rule instance.
 
         Upon initialization plugins are meant to extract the list of resource
@@ -41,7 +41,9 @@ class BaseBackendPlugin(object):
 
         """
         self.rule = rule
-        self.rids = rule.get_ids() if not rule.is_arbitrary() else [None]
+        self.rids = rids
+        if self.rids is None:
+            self.rids = rule.get_ids() if not rule.is_arbitrary() else [None]
 
     def run(self, update_state=False, trigger_actions=False):
         """Run a single evaluation cycle.
@@ -86,12 +88,15 @@ class BaseBackendPlugin(object):
             if state:
                 active_states.update({incident: state})
 
+        # Clean states. Remove states that refer to missing/deleted resources
+        # or states that have expired.
         if update_state is True:
             self.rule.states.update(active_states)
             self.rule.states = {
                 incident: state for
-                incident, state in self.rule.states.iteritems() if not
-                (state.expired() or state['resource'] in remove_states)
+                incident, state in self.rule.states.iteritems() if
+                state.resource in (set(self.rids) ^ remove_states) and not
+                state.expired()
             }
             self.rule.save()
 

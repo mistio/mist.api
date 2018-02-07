@@ -46,16 +46,15 @@ from mist.api.helpers import amqp_owner_listening
 from mist.api.concurrency.models import PeriodicTaskInfo
 from mist.api.concurrency.models import PeriodicTaskThresholdExceeded
 
-try:
-    from mist.core.vpn.methods import destination_nat as dnat
-except ImportError:
-    from mist.api.dummy.methods import dnat
-
 from mist.api.clouds.controllers.base import BaseController
-
 from mist.api.tag.models import Tag
-
 from mist.api.machines.models import Machine
+from mist.api.misc.cloud import CloudLocation
+
+if config.HAS_CORE:
+    from mist.core.vpn.methods import destination_nat as dnat
+else:
+    from mist.api.dummy.methods import dnat
 
 log = logging.getLogger(__name__)
 
@@ -91,7 +90,7 @@ def _decide_machine_cost(machine, tags=None, cost=(0, 0)):
         cph = parse_num(tags.get('cost_per_hour'))
         cpm = parse_num(tags.get('cost_per_month'))
         if not (cph or cpm) or cph > 100 or cpm > 100 * 24 * 31:
-            log.warning("Invalid cost tags for machine %s", machine)
+            log.debug("Invalid cost tags for machine %s", machine)
             cph, cpm = map(parse_num, cost)
         if not cph:
             cph = float(cpm) / month_days / 24
@@ -306,6 +305,26 @@ class BaseComputeController(BaseController):
             # Update machine_model's last_seen fields.
             machine.last_seen = now
             machine.missing_since = None
+            # Discover location of machine.
+            try:
+                loc_id = self._list_machines__get_location(node)
+            except Exception as exc:
+                log.exception(repr(exc))
+
+            else:
+                try:
+                    _location = CloudLocation.objects.get(cloud=self.cloud,
+                                                          external_id=loc_id)
+                    machine.location = _location
+                except CloudLocation.DoesNotExist:
+                    try:
+                        _location = CloudLocation.objects.get(
+                            cloud=self.cloud,
+                            name=loc_id)
+                        machine.location = _location
+                    except CloudLocation.DoesNotExist:
+                        log.error("Couldn't find Location with id %s "
+                                  "for cloud %s", loc_id, self.cloud)
 
             # Get misc libcloud metadata.
             image_id = str(node.image or node.extra.get('imageId') or
@@ -318,8 +337,8 @@ class BaseComputeController(BaseController):
             machine.image_id = image_id
             machine.size = size
             machine.state = config.STATES[node.state]
-            machine.private_ips = node.private_ips
-            machine.public_ips = node.public_ips
+            machine.private_ips = list(set(node.private_ips))
+            machine.public_ips = list(set(node.public_ips))
 
             # Set machine extra dict.
             # Make sure we don't meet any surprises when we try to json encode
@@ -418,16 +437,8 @@ class BaseComputeController(BaseController):
         # Append generic-type machines, which aren't handled by libcloud.
         for machine in self._list_machines__fetch_generic_machines():
             machine.last_seen = now
-            machine.missing_since = None
-            machine.state = config.STATES[NodeState.UNKNOWN]
-            for action in ('start', 'stop', 'reboot', 'destroy', 'rename',
-                           'resume', 'suspend', 'undefine'):
-                setattr(machine.actions, action, False)
-            machine.actions.tag = True
-
-            # allow reboot action for bare metal with key associated
-            if machine.key_associations:
-                machine.actions.reboot = True
+            self._list_machines__update_generic_machine_state(machine)
+            self._list_machines__generic_machine_actions(machine)
 
             # Set machine hostname
             if not machine.hostname:
@@ -462,7 +473,7 @@ class BaseComputeController(BaseController):
         self.cloud.owner.total_machine_count = sum(
             cloud.machine_count for cloud in Cloud.objects(
                 owner=self.cloud.owner, deleted=None
-            ).only('machine_count')
+            )
         )
         self.cloud.owner.save()
 
@@ -471,8 +482,27 @@ class BaseComputeController(BaseController):
             self.disconnect()
         except Exception as exc:
             log.warning("Error while closing connection: %r", exc)
-
         return machines
+
+    def _list_machines__update_generic_machine_state(self, machine):
+        """Helper method to update the machine state
+
+        This is only overriden by the OtherServer Controller.
+        It applies only to generic machines.
+        """
+        machine.state = config.STATES[NodeState.UNKNOWN]
+
+    def _list_machines__generic_machine_actions(self, machine):
+        """Helper method to update available generic machine's actions
+
+        This is currently only overriden by the OtherServer Controller
+        """
+        for action in ('start', 'stop', 'reboot', 'destroy', 'rename',
+                       'resume', 'suspend', 'undefine', 'remove'):
+            setattr(machine.actions, action, False)
+        if machine.key_associations:
+            machine.actions.reboot = True
+        machine.actions.tag = True
 
     def _list_machines__fetch_machines(self):
         """Perform the actual libcloud call to get list of nodes"""
@@ -487,7 +517,7 @@ class BaseComputeController(BaseController):
         return copy.copy(machine_libcloud.extra)
 
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
-        return
+        return machine_libcloud.created_at
 
     def _list_machines__machine_actions(self, machine, machine_libcloud):
         """Add metadata on the machine dict on the allowed actions
@@ -738,7 +768,55 @@ class BaseComputeController(BaseController):
         """
         return self.connection.list_sizes()
 
-    def list_locations(self):
+    def list_locations(self, persist=True):
+        """Return list of locations for cloud
+
+        A list of locations is fetched from libcloud, data is processed, stored
+        on location models, and a list of location models is returned.
+
+        Subclasses SHOULD NOT override or extend this method.
+
+        This method wraps `_list_locations` which contains the core
+        implementation.
+
+        """
+        task_key = 'cloud:list_locations:%s' % self.cloud.id
+        task = PeriodicTaskInfo.get_or_add(task_key)
+        try:
+            with task.task_runner(persist=persist):
+                cached_locations = {'%s' % l.id: l.as_dict()
+                                    for l in self.list_cached_locations()}
+
+                locations = self._list_locations()
+        except PeriodicTaskThresholdExceeded:
+            raise
+
+        # Initialize AMQP connection to reuse for multiple messages.
+        amqp_conn = Connection(config.AMQP_URI)
+        if amqp_owner_listening(self.cloud.owner.id):
+            locations_dict = [l.as_dict() for l in locations]
+            if cached_locations and locations_dict:
+                # Publish patches to rabbitmq.
+                new_locations = {'%s' % l['id']: l for l in locations_dict}
+                patch = jsonpatch.JsonPatch.from_diff(cached_locations,
+                                                      new_locations).patch
+                if patch:
+                    amqp_publish_user(self.cloud.owner.id,
+                                      routing_key='patch_locations',
+                                      connection=amqp_conn,
+                                      data={'cloud_id': self.cloud.id,
+                                            'patch': patch})
+            else:
+                # TODO: remove this block, once location patches
+                # are implemented in the UI
+                amqp_publish_user(self.cloud.owner.id,
+                                  routing_key='list_locations',
+                                  connection=amqp_conn,
+                                  data={'cloud_id': self.cloud.id,
+                                        'locations': locations_dict})
+        return locations
+
+    def _list_locations(self):
         """Return list of available locations for current cloud
 
         Locations mean different things in each cloud. e.g. EC2 uses it as a
@@ -763,13 +841,41 @@ class BaseComputeController(BaseController):
         """
 
         # Fetch locations, usually from libcloud connection.
-        locations = self._list_locations__fetch_locations()
+        fetched_locations = self._list_locations__fetch_locations()
 
-        # Format size information.
-        return [{'id': location.id,
-                 'name': location.name,
-                 'extra': location.extra,
-                 'country': location.country} for location in locations]
+        log.info("List locations returned %d results for %s.",
+                 len(fetched_locations), self.cloud)
+
+        locations = []
+
+        for loc in fetched_locations:
+
+            try:
+                _location = CloudLocation.objects.get(cloud=self.cloud,
+                                                      external_id=loc.id)
+            except CloudLocation.DoesNotExist:
+                _location = CloudLocation(cloud=self.cloud,
+                                          external_id=loc.id)
+            _location.country = loc.country
+            _location.name = loc.name
+            _location.extra = loc.extra
+
+            try:
+                _location.save()
+            except me.ValidationError as exc:
+                log.error("Error adding %s: %s", loc.name, exc.to_dict())
+                raise BadRequestError({"msg": exc.message,
+                                       "errors": exc.to_dict()})
+            locations.append(_location)
+
+        return locations
+
+    def list_cached_locations(self):
+        """Return list of locations from database
+        for a specific cloud
+        """
+        return CloudLocation.objects(cloud=self.cloud,
+                                     missing_since=None)
 
     def _list_locations__fetch_locations(self):
         """Fetch location listing in a libcloud compatible format
@@ -787,6 +893,16 @@ class BaseComputeController(BaseController):
         except:
             return [NodeLocation('', name='default', country='',
                                  driver=self.connection)]
+
+    def _list_machines__get_location(self, node):
+        """Find location code name/identifier from libcloud data
+
+        This is to be called exclusively by `self._list_machines`.
+
+        Subclasses MAY override this method.
+
+        """
+        return ''
 
     def _get_machine_libcloud(self, machine, no_fail=False):
         """Return an instance of a libcloud node
@@ -1018,7 +1134,10 @@ class BaseComputeController(BaseController):
                                  "termination protection setting on your "
                                  "cloud provider.")
 
-    # It isn't implemented in the ui
+    def remove_machine(self, machine):
+        raise BadRequestError("Machines on public clouds can't be removed."
+                              "This is only supported in Bare Metal clouds.")
+
     def resize_machine(self, machine, plan_id, kwargs):
         """Resize machine
 
@@ -1036,7 +1155,6 @@ class BaseComputeController(BaseController):
         are resizeed, it should override `_resize_machine` method instead.
 
         """
-        # assert isinstance(machine.cloud, Machine)
         assert self.cloud == machine.cloud
         if not machine.actions.resize:
             raise ForbiddenError("Machine doesn't support resize.")
@@ -1045,7 +1163,9 @@ class BaseComputeController(BaseController):
         machine_libcloud = self._get_machine_libcloud(machine)
         try:
             self._resize_machine(machine, machine_libcloud, plan_id, kwargs)
-
+        except Exception as exc:
+            raise BadRequestError('Failed to resize node: %s' % exc)
+        try:
             # TODO: For better separation of concerns, maybe trigger below
             # using an event?
             from mist.api.notifications.methods import (
@@ -1053,7 +1173,7 @@ class BaseComputeController(BaseController):
             # TODO: Make sure user feedback is positive below!
             dismiss_scale_notifications(machine, feedback='POSITIVE')
         except Exception as exc:
-            raise BadRequestError('Failed to resize node: %s' % exc)
+            log.exception("Failed to dismiss scale recommendation: %r", exc)
 
     def _resize_machine(self, machine, machine_libcloud, plan_id, kwargs):
         """Private method to resize a given machine

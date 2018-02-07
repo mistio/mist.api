@@ -30,10 +30,7 @@ from mist.api.methods import connect_provider
 from mist.api.networks.methods import list_networks
 from mist.api.tag.methods import resolve_id_and_set_tags
 
-try:
-    from mist.core.methods import disable_monitoring
-except ImportError:
-    from mist.api.dummy.methods import disable_monitoring
+from mist.api.monitoring.methods import disable_monitoring
 
 from mist.api import config
 
@@ -113,18 +110,23 @@ def machine_name_validator(provider, name):
     return name
 
 
-def list_machines(owner, cloud_id):
+def list_machines(owner, cloud_id, cached=False):
     """List all machines in this cloud via API call to the provider."""
-    machines = Cloud.objects.get(owner=owner, id=cloud_id,
-                                 deleted=None).ctl.compute.list_machines()
+    cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
+    if cached:
+        machines = cloud.ctl.compute.list_cached_machines()
+    else:
+        machines = cloud.ctl.compute.list_machines()
     return [machine.as_dict() for machine in machines]
 
 
 def create_machine(owner, cloud_id, key_id, machine_name, location_id,
-                   image_id, size_id, image_extra, disk, image_name,
-                   size_name, location_name, ips, monitoring,
-                   ex_storage_account, machine_password, ex_resource_group,
-                   networks=[], docker_env=[], docker_command=None,
+                   image_id, size_id, image_extra=None, disk=None,
+                   image_name=None, size_name=None, location_name=None,
+                   ips=None, monitoring=False,
+                   ex_storage_account='', machine_password='',
+                   ex_resource_group='', networks=[], docker_env=[],
+                   docker_command=None,
                    ssh_port=22, script='', script_id='', script_params='',
                    job_id=None, job=None, docker_port_bindings={},
                    docker_exposed_ports={}, azure_port_bindings='',
@@ -196,11 +198,19 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                     bandwidth='', price='', driver=conn)
     image = NodeImage(image_id, name=image_name, extra=image_extra,
                       driver=conn)
-    location = NodeLocation(location_id, name=location_name, country='',
-                            driver=conn)
+
+    # transform location id to libcloud's NodeLocation object
+    try:
+        from mist.api.misc.cloud import CloudLocation
+        cloud_location = CloudLocation.objects.get(id=location_id)
+        location = NodeLocation(cloud_location.external_id,
+                                name=cloud_location.name,
+                                country=cloud_location.country, driver=conn)
+    except me.DoesNotExist:
+        location = NodeLocation(location_id, name=location_name, country='',
+                                driver=conn)
 
     if conn.type is Container_Provider.DOCKER:
-
         if public_key:
             node = _create_machine_docker(
                 conn, machine_name, image_id, '',
@@ -235,11 +245,11 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
     elif conn.type is Provider.EC2 and private_key:
         locations = conn.list_locations()
         for loc in locations:
-            if loc.id == location_id:
-                location = loc
+            if loc.id == location.id:
+                ec2_location = loc
                 break
         node = _create_machine_ec2(conn, key_id, private_key, public_key,
-                                   machine_name, image, size, location,
+                                   machine_name, image, size, ec2_location,
                                    cloud_init)
     elif conn.type is Provider.NEPHOSCALE:
         node = _create_machine_nephoscale(conn, key_id, private_key,
@@ -298,6 +308,12 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
     elif conn.type in [Provider.VCLOUD]:
         node = _create_machine_vcloud(conn, machine_name, image,
                                       size, public_key, networks)
+    elif conn.type is Provider.VSPHERE:
+        size.ram = size_ram
+        size.extra['cpu'] = size_cpu
+        size.disk = size_disk_primary
+        node = _create_machine_vsphere(conn, machine_name, image,
+                                       size, location, networks)
     elif conn.type is Provider.LINODE and private_key:
         # FIXME: The orchestration UI does not provide all the necessary
         # parameters, thus we need to fetch the proper size and image objects.
@@ -1290,6 +1306,32 @@ def _create_machine_vcloud(conn, machine_name, image,
     return node
 
 
+def _create_machine_vsphere(conn, machine_name, image,
+                            size, location, network):
+    """Create a machine in vSphere.
+
+    """
+
+    try:
+        from mist.api.networks.models import VSphereNetwork
+        network_name = VSphereNetwork.objects.get(id=network).name
+    except me.DoesNotExist:
+        network_name = None
+
+    try:
+        node = conn.create_node(
+            name=machine_name,
+            image=image,
+            size=size,
+            location=location,
+            ex_network=network_name
+        )
+    except Exception as e:
+        raise MachineCreationError("vSphere, got exception %s" % e, e)
+
+    return node
+
+
 def _create_machine_gce(conn, key_name, private_key, public_key, machine_name,
                         image, size, location, cloud_init):
     """Create a machine in GCE.
@@ -1398,7 +1440,8 @@ def filter_machine_ids(auth_context, cloud_id, machine_ids):
 
 
 # SEC
-def filter_list_machines(auth_context, cloud_id, machines=None, perm='read'):
+def filter_list_machines(auth_context, cloud_id, machines=None, perm='read',
+                         cached=False):
     """Returns a list of machines.
 
     In case of non-Owners, the QuerySet only includes machines found in the
@@ -1407,7 +1450,7 @@ def filter_list_machines(auth_context, cloud_id, machines=None, perm='read'):
     assert cloud_id
 
     if machines is None:
-        machines = list_machines(auth_context.owner, cloud_id)
+        machines = list_machines(auth_context.owner, cloud_id, cached=cached)
     if not machines:  # Exit early in case the cloud provider returned 0 nodes.
         return []
     if auth_context.is_owner():

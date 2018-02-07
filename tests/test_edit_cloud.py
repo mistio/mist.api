@@ -20,7 +20,8 @@ def test_update_cloud(cloud):
     if not kwargs:
         print 'no creds provided'
         return
-    print '* for cloud %s, update these creds %s' % (cloud.title, kwargs.keys())
+    print '* for cloud %s, update these creds %s' % (cloud.title,
+                                                     kwargs.keys())
     cloud.ctl.update(**kwargs)
 
     assert cloud == pre_updated_cloud
@@ -28,15 +29,15 @@ def test_update_cloud(cloud):
 
     valid_kwargs = kwargs
 
-    kwargs = dict((k+'a', v) for k, v in valid_kwargs.items())
+    kwargs = dict((k + 'a', v) for k, v in valid_kwargs.items())
     print '* test invalid creds keys %s ' % kwargs.keys()
     print '- expected to raise BadRequestError'
     with pytest.raises(BadRequestError):
         cloud.ctl.update(fail_on_error=True,
-                         fail_on_invalid_params=True,**kwargs)
+                         fail_on_invalid_params=True, **kwargs)
 
     print '* test invalid credentials values'
-    kwargs = dict((k,'aa'+v) for k,v in valid_kwargs.items())
+    kwargs = dict((k, 'aa' + v) for k, v in valid_kwargs.items())
 
     if cloud.title in ['packet']:
         print '- expected to raise CloudUnauthorizedError'

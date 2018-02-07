@@ -15,6 +15,8 @@ from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import CloudExistsError
 from mist.api.exceptions import RequiredParameterMissingError
 
+from mist.api import config
+
 
 # This is a map from provider name to provider class, eg:
 # 'linode': LinodeCloud
@@ -88,6 +90,9 @@ class Cloud(me.Document):
     polling_interval = me.IntField(default=0)  # in seconds
 
     dns_enabled = me.BooleanField(default=False)
+
+    default_monitoring_method = me.StringField(
+        choices=config.MONITORING_METHODS)
 
     deleted = me.DateTimeField()
 
@@ -396,6 +401,17 @@ class OnAppCloud(Cloud):
 class OtherCloud(Cloud):
 
     _controller_cls = controllers.OtherMainController
+
+
+class ClearCenterCloud(Cloud):
+
+    uri = me.StringField(required=False,
+                         default='https://api.clearsdn.com')
+    apikey = me.StringField(required=True)
+    verify = me.BooleanField(default=True)
+
+    _private_fields = ('apikey', )
+    _controller_cls = controllers.ClearCenterMainController
 
 
 _populate_clouds()

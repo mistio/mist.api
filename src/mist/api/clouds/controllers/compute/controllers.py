@@ -24,6 +24,7 @@ import re
 import copy
 import socket
 import logging
+import datetime
 import netaddr
 import tempfile
 import iso8601
@@ -55,9 +56,9 @@ from mist.api.clouds.controllers.main.base import BaseComputeController
 
 from mist.api import config
 
-try:
+if config.HAS_CORE:
     from mist.core.vpn.methods import destination_nat as dnat
-except ImportError:
+else:
     from mist.api.dummy.methods import dnat
 
 
@@ -81,9 +82,6 @@ class AmazonComputeController(BaseComputeController):
         return get_driver(Provider.EC2)(self.cloud.apikey,
                                         self.cloud.apisecret,
                                         region=self.cloud.region)
-
-    def _list_machines__machine_creation_date(self, machine, machine_libcloud):
-        return machine_libcloud.created_at  # datetime
 
     def _list_machines__machine_actions(self, machine, machine_libcloud):
         super(AmazonComputeController, self)._list_machines__machine_actions(
@@ -208,6 +206,9 @@ class AmazonComputeController(BaseComputeController):
             size.name = '%s - %s' % (size.id, size.name)
         return sizes
 
+    def _list_machines__get_location(self, node):
+        return node.extra.get('availability')
+
 
 class DigitalOceanComputeController(BaseComputeController):
 
@@ -239,6 +240,9 @@ class DigitalOceanComputeController(BaseComputeController):
     def _stop_machine(self, machine, machine_libcloud):
         self.connection.ex_shutdown_node(machine_libcloud)
 
+    def _list_machines__get_location(self, node):
+        return node.extra.get('region')
+
 
 class LinodeComputeController(BaseComputeController):
 
@@ -266,6 +270,9 @@ class LinodeComputeController(BaseComputeController):
         price = get_size_price(driver_type='compute', driver_name='linode',
                                size_id=size)
         return 0, price or 0
+
+    def _list_machines__get_location(self, node):
+        return str(node.extra.get('DATACENTERID'))
 
 
 class RackSpaceComputeController(BaseComputeController):
@@ -361,6 +368,9 @@ class SoftLayerComputeController(BaseComputeController):
 
             return cpu_fee + extra_fee, 0
 
+    def _list_machines__get_location(self, node):
+        return node.extra.get('datacenter')
+
     def _reboot_machine(self, machine, machine_libcloud):
         self.connection.reboot_node(machine_libcloud)
         return True
@@ -399,6 +409,9 @@ class NephoScaleComputeController(BaseComputeController):
         price = get_size_price(driver_type='compute', driver_name='nephoscale',
                                size_id=size)
         return price, 0
+
+    def _list_machines__get_location(self, node):
+        return str(node.extra.get('zone_data').get('id'))
 
 
 class AzureComputeController(BaseComputeController):
@@ -497,9 +510,6 @@ class AzureArmComputeController(BaseComputeController):
             return 0, 0
         return machine_libcloud.extra.get('cost_per_hour', 0), 0
 
-    def _list_machines__machine_creation_date(self, machine, machine_libcloud):
-        return machine_libcloud.created_at  # datetime
-
     def _list_images__fetch_images(self, search=None):
         # Fetch mist's recommended images
         images = [NodeImage(id=image, name=name,
@@ -529,9 +539,8 @@ class AzureArmComputeController(BaseComputeController):
                 + str(size.disk) + 'GB SSD'
         return sizes
 
-    def _list_locations(self):
-        locations = self.connection.list_locations()
-        return locations
+    def _list_machines__get_location(self, node):
+        return node.extra.get('location')
 
 
 class GoogleComputeController(BaseComputeController):
@@ -713,6 +722,9 @@ class GoogleComputeController(BaseComputeController):
             ret[size.name] = size
         return ret.values()
 
+    def _list_machines__get_location(self, node):
+        return node.extra.get('zone').id
+
 
 class HostVirtualComputeController(BaseComputeController):
 
@@ -735,6 +747,9 @@ class PacketComputeController(BaseComputeController):
                                size_id=size)
         return price or 0, 0
 
+    def _list_machines__get_location(self, node):
+        return node.extra.get('facility')
+
 
 class VultrComputeController(BaseComputeController):
 
@@ -750,6 +765,9 @@ class VultrComputeController(BaseComputeController):
     def _list_sizes__fetch_sizes(self):
         sizes = self.connection.list_sizes()
         return [size for size in sizes if not size.extra.get('deprecated')]
+
+    def _list_machines__get_location(self, node):
+        return node.extra.get('DCID')
 
 
 class VSphereComputeController(BaseComputeController):
@@ -768,6 +786,9 @@ class VSphereComputeController(BaseComputeController):
 
         """
         self.connect()
+
+    def _list_machines__get_location(self, node):
+        return node.extra.get('host')
 
 
 class VCloudComputeController(BaseComputeController):
@@ -1369,14 +1390,84 @@ class OtherComputeController(BaseComputeController):
     def _list_machines__fetch_machines(self):
         return []
 
+    def _list_machines__update_generic_machine_state(self, machine):
+        """Update generic machine state (based on ping/ssh probes)
+
+        It is only used in generic machines.
+        """
+
+        # Defaults
+        machine.unreachable_since = None
+        machine.state = config.STATES[NodeState.UNKNOWN]
+
+        # If any of the probes has succeeded, then state is running
+        if (
+            machine.ssh_probe and not machine.ssh_probe.unreachable_since or
+            machine.ping_probe and not machine.ping_probe.unreachable_since
+        ):
+            machine.state = config.STATES[NodeState.RUNNING]
+
+        # If ssh probe failed, then unreachable since then
+        if machine.ssh_probe and machine.ssh_probe.unreachable_since:
+            machine.unreachable_since = machine.ssh_probe.unreachable_since
+        # Else if ssh probe has never succeeded and ping probe failed,
+        # then unreachable since then
+        elif (not machine.ssh_probe and
+              machine.ping_probe and machine.ping_probe.unreachable_since):
+            machine.unreachable_since = machine.ping_probe.unreachable_since
+
+    def _list_machines__generic_machine_actions(self, machine):
+        """Update an action for a bare metal machine
+
+        Bare metal machines only support remove, reboot and tag actions"""
+
+        super(OtherComputeController,
+              self)._list_machines__generic_machine_actions(machine)
+        machine.actions.remove = True
+
     def _get_machine_libcloud(self, machine):
         return None
 
     def _list_machines__fetch_generic_machines(self):
-        return Machine.objects(cloud=self.cloud)
+        return Machine.objects(cloud=self.cloud, missing_since=None)
 
     def reboot_machine(self, machine):
         return self.reboot_machine_ssh(machine)
+
+    def remove_machine(self, machine):
+        while machine.key_associations:
+            machine.key_associations.pop()
+        machine.missing_since = datetime.datetime.now()
+        machine.save()
+
+    def list_images(self, search=None):
+        return []
+
+    def list_sizes(self):
+        return []
+
+    def list_locations(self, persist=False):
+        return []
+
+
+class ClearCenterComputeController(BaseComputeController):
+
+    def _connect(self):
+        return get_driver(Provider.CLEARCENTER)(key=self.cloud.apikey,
+                                                uri=self.cloud.uri,
+                                                verify=self.cloud.verify)
+
+    def _list_machines__machine_creation_date(self, machine, machine_libcloud):
+        return machine_libcloud.extra.get('created_timestamp')
+
+    def _list_machines__machine_actions(self, machine, machine_libcloud):
+        super(ClearCenterComputeController,
+              self)._list_machines__machine_actions(machine, machine_libcloud)
+        machine.actions.remove = False
+        machine.actions.destroy = False
+        machine.actions.rename = False
+        machine.actions.reboot = False
+        machine.actions.stop = False
 
     def list_images(self, search=None):
         return []

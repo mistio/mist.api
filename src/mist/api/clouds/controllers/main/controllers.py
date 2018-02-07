@@ -49,9 +49,11 @@ from mist.api.clouds.controllers.compute import controllers as compute_ctls
 from mist.api.clouds.controllers.network import controllers as network_ctls
 from mist.api.clouds.controllers.dns import controllers as dns_ctls
 
-try:
+from mist.api import config
+
+if config.HAS_CORE:
     from mist.core.vpn.methods import to_tunnel
-except ImportError:
+else:
     from mist.api.dummy.methods import to_tunnel
 
 
@@ -186,6 +188,7 @@ class VSphereMainController(BaseMainController):
 
     provider = 'vsphere'
     ComputeController = compute_ctls.VSphereComputeController
+    NetworkController = network_ctls.VSphereNetworkController
 
     def _update__preparse_kwargs(self, kwargs):
         host = kwargs.get('host', self.cloud.host)
@@ -256,6 +259,7 @@ class LibvirtMainController(BaseMainController):
 
     provider = 'libvirt'
     ComputeController = compute_ctls.LibvirtComputeController
+    NetworkController = network_ctls.LibvirtNetworkController
 
     def _add__preparse_kwargs(self, kwargs):
         rename_kwargs(kwargs, 'machine_hostname', 'host')
@@ -315,6 +319,18 @@ class OtherMainController(BaseMainController):
     provider = 'bare_metal'
     ComputeController = compute_ctls.OtherComputeController
 
+    def disable(self):
+        """ For OtherServer clouds we do not want to set the missing_since
+        on the cloud machines when we disable the cloud because we are using
+        the missing_since field to remove them.
+
+        Setting the cloud enabled field to False is enough to not return
+        them during listing machine actions because we are not using
+        the cloud on listings.
+        """
+        self.cloud.enabled = False
+        self.cloud.save()
+
     def add(self, fail_on_error=True, fail_on_invalid_params=True, **kwargs):
         """Add new Cloud to the database
 
@@ -326,7 +342,7 @@ class OtherMainController(BaseMainController):
         `self.cloud`. The `self.cloud` model is not yet saved.
 
         If appropriate kwargs are passed, this can currently also act as a
-        shortcut to also add the first machine on this dummy cloud.
+        shortcut to also add machines on this cloud.
 
         """
         # Attempt to save.
@@ -339,17 +355,32 @@ class OtherMainController(BaseMainController):
             raise CloudExistsError("Cloud with name %s already exists"
                                    % self.cloud.title)
 
-        # Add machine.
         if kwargs:
-            try:
-                self.add_machine_wrapper(
-                    self.cloud.title, fail_on_error=fail_on_error,
-                    fail_on_invalid_params=fail_on_invalid_params, **kwargs
-                )
-            except Exception as exc:
-                if fail_on_error:
-                    self.cloud.delete()
-                raise
+            errors = []
+            if 'machines' in kwargs:  # new api: list of multitple machines
+                for machine_kwargs in kwargs['machines']:
+                    machine_name = machine_kwargs.pop('machine_name', '')
+                    try:
+                        self.add_machine_wrapper(
+                            machine_name, fail_on_error=fail_on_error,
+                            fail_on_invalid_params=fail_on_invalid_params,
+                            **machine_kwargs
+                        )
+                    except Exception as exc:
+                        errors.append(str(exc))
+            else:  # old api, single machine
+                try:
+                    self.add_machine_wrapper(
+                        self.cloud.title, fail_on_error=fail_on_error,
+                        fail_on_invalid_params=fail_on_invalid_params, **kwargs
+                    )
+                except Exception as exc:
+                    errors.append(str(exc))
+                    if fail_on_error:
+                        self.cloud.delete()
+                    raise
+        self.cloud.save()
+        self.cloud.errors = errors  # just an attribute, not a field
 
     def update(self, fail_on_error=True, fail_on_invalid_params=True,
                **kwargs):
@@ -359,12 +390,14 @@ class OtherMainController(BaseMainController):
                               "machines themselves, not the cloud.")
 
     def add_machine_wrapper(self, name, fail_on_error=True,
-                            fail_on_invalid_params=True, **kwargs):
+                            fail_on_invalid_params=True, monitoring=False,
+                            **kwargs):
         """Wrapper around add_machine for kwargs backwards compatibity
 
         FIXME: This wrapper should be deprecated
 
         """
+
         # Sanitize params.
         rename_kwargs(kwargs, 'machine_ip', 'host')
         rename_kwargs(kwargs, 'machine_user', 'ssh_user')
@@ -386,15 +419,33 @@ class OtherMainController(BaseMainController):
                 else:
                     log.warning(error)
                     kwargs.pop(key)
+        if 'host' not in kwargs:
+            errors['host'] = "Required parameter host missing"
+            log.error(errors['host'])
+
+        if not name:
+            name = kwargs['host']
+
         if errors:
+            log.error("Invalid parameters %s." % errors.keys())
             raise BadRequestError({
                 'msg': "Invalid parameters %s." % errors.keys(),
                 'errors': errors,
             })
 
-        # Add machine.
-        return self.add_machine(name, fail_on_error=fail_on_error,
-                                **kwargs)
+        # Add the machine.
+        machine = self.add_machine(name, fail_on_error=fail_on_error, **kwargs)
+
+        # Enable monitoring.
+        if monitoring:
+            from mist.api.monitoring.methods import enable_monitoring
+            enable_monitoring(
+                self.cloud.owner, self.cloud.id, machine.machine_id,
+                no_ssh=not (machine.os_type == 'unix' and
+                            machine.key_associations)
+            )
+
+        return machine
 
     def add_machine(self, name, host='',
                     ssh_user='root', ssh_port=22, ssh_key=None,
@@ -466,5 +517,10 @@ class OtherMainController(BaseMainController):
                 if fail_on_error:
                     machine.delete()
                 raise
-
         return machine
+
+
+class ClearCenterMainController(BaseMainController):
+
+    provider = 'clearcenter'
+    ComputeController = compute_ctls.ClearCenterComputeController

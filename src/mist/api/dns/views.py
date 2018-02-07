@@ -44,7 +44,8 @@ def list_dns_zones(request):
     return zones
 
 
-@view_config(route_name='api_v1_records', request_method='GET', renderer='json')
+@view_config(route_name='api_v1_records', request_method='GET',
+             renderer='json')
 def list_dns_records(request):
     """
     Tags: zones
@@ -114,7 +115,8 @@ def create_dns_zone(request):
     return new_zone
 
 
-@view_config(route_name='api_v1_records', request_method='POST', renderer='json')
+@view_config(route_name='api_v1_records', request_method='POST',
+             renderer='json')
 def create_dns_record(request):
     """
     Tags: zones
@@ -138,11 +140,12 @@ def create_dns_record(request):
     try:
         cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id)
     except me.DoesNotExist:
-        raise CloudNotFoundError
+        raise CloudNotFoundError()
 
     zone_id = request.matchdict['zone']
     try:
-        zone = Zone.objects.get(owner=auth_context.owner, id=zone_id)
+        zone = Zone.objects.get(owner=auth_context.owner, id=zone_id,
+                                cloud=cloud)
     except Zone.DoesNotExist:
         raise NotFoundError('Zone does not exist')
 
@@ -164,7 +167,8 @@ def create_dns_record(request):
     return rec
 
 
-@view_config(route_name='api_v1_zone', request_method='DELETE', renderer='json')
+@view_config(route_name='api_v1_zone', request_method='DELETE',
+             renderer='json')
 def delete_dns_zone(request):
     """
     Tags: zones
@@ -180,9 +184,10 @@ def delete_dns_zone(request):
     try:
         cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id)
     except me.DoesNotExist:
-        raise CloudNotFoundError
+        raise CloudNotFoundError()
     try:
-        zone = Zone.objects.get(owner=auth_context.owner, id=zone_id)
+        zone = Zone.objects.get(owner=auth_context.owner, id=zone_id,
+                                cloud=cloud)
     except Zone.DoesNotExist:
         raise NotFoundError('Zone does not exist')
 
@@ -194,7 +199,8 @@ def delete_dns_zone(request):
     return OK
 
 
-@view_config(route_name='api_v1_record', request_method='DELETE', renderer='json')
+@view_config(route_name='api_v1_record', request_method='DELETE',
+             renderer='json')
 def delete_dns_record(request):
     """
     Tags: zones
@@ -210,9 +216,10 @@ def delete_dns_record(request):
     try:
         cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id)
     except me.DoesNotExist:
-        raise CloudNotFoundError
+        raise CloudNotFoundError()
     try:
-        zone = Zone.objects.get(owner=auth_context.owner, id=zone_id)
+        zone = Zone.objects.get(owner=auth_context.owner, id=zone_id,
+                                cloud=cloud)
     except Zone.DoesNotExist:
         raise NotFoundError('Zone does not exist')
     try:

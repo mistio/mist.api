@@ -13,6 +13,8 @@ from mist.api.logs.methods import get_story
 from mist.api.logs.methods import get_events
 from mist.api.auth.methods import auth_context_from_request
 
+from mist.api import config
+
 
 FIELDS = list(_FIELDS) + ['action', 'filter']
 FIELDS.remove('owner_id')  # SEC
@@ -159,10 +161,10 @@ def end_job(request):
     auth_context = auth_context_from_request(request)
     params = params_from_request(request)
 
-    try:
+    if config.HAS_CORE:
         from mist.core.orchestration.models import Stack
         from mist.core.orchestration.methods import finish_workflow
-    except ImportError:
+    else:
         raise NotImplementedError()
 
     job_id = request.matchdict['job_id']

@@ -305,6 +305,11 @@ class BaseMainController(object):
         self.cloud.enabled = True
         self.cloud.save()
 
+        # FIXME: Resolve circular import issues
+        from mist.api.poller.models import ListMachinesPollingSchedule
+        # Ensure polling schedule is in place in case the cloud is re-enabled.
+        ListMachinesPollingSchedule.add(cloud=self.cloud)
+
     def disable(self):
         self.cloud.enabled = False
         self.cloud.save()
@@ -334,8 +339,10 @@ class BaseMainController(object):
 
         # FIXME: Resolve circular import issues
         from mist.api.poller.models import ListMachinesPollingSchedule
+        from mist.api.poller.models import ListLocationsPollingSchedule
 
         ListMachinesPollingSchedule.add(cloud=self.cloud)
+        ListLocationsPollingSchedule.add(cloud=self.cloud)
 
     def delete(self, expire=False):
         """Delete a Cloud.
@@ -347,11 +354,30 @@ class BaseMainController(object):
         """
         self.cloud.deleted = datetime.datetime.utcnow()
         self.cloud.save()
+        # FIXME: Circular dependency.
+        from mist.api.machines.models import Machine
+        Machine.objects(cloud=self.cloud,
+                        missing_since=None).update(
+            missing_since=datetime.datetime.utcnow()
+        )
+        # FIXME: Circular dependency.
+        from mist.api.misc.cloud import CloudLocation
+        CloudLocation.objects(cloud=self.cloud,
+                              missing_since=None).update(
+            missing_since=datetime.datetime.utcnow()
+        )
         if expire:
-            # FIXME: Circular dependency.
-            from mist.api.machines.models import Machine
+            # FIXME: Set reverse_delete_rule=me.CASCADE?
             Machine.objects(cloud=self.cloud).delete()
             self.cloud.delete()
 
     def disconnect(self):
         self.compute.disconnect()
+
+    def add_machine(self, **kwargs):
+        """
+        Add a machine in a bare metal cloud.
+        This is only supported on Other Server clouds.
+        """
+        raise BadRequestError("Adding machines is only supported in Bare"
+                              "Metal clouds.")

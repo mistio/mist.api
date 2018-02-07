@@ -2,7 +2,8 @@ import uuid
 import celery
 import mongoengine as me
 
-from mist.api.exceptions import NotFoundError
+from mist.api import config
+
 from mist.api.exceptions import BadRequestError
 
 from mist.api.users.models import Organization
@@ -22,6 +23,8 @@ from mist.api.rules.actions import NotificationAction
 
 from mist.api.rules.plugins import GraphiteNoDataPlugin
 from mist.api.rules.plugins import GraphiteBackendPlugin
+from mist.api.rules.plugins import InfluxDBNoDataPlugin
+from mist.api.rules.plugins import InfluxDBBackendPlugin
 
 
 class Rule(me.Document):
@@ -141,7 +144,7 @@ class Rule(me.Document):
         self.ctl = self._controller_cls(self)
 
     @classmethod
-    def add(cls, owner_id, title=None, **kwargs):
+    def add(cls, auth_context, title=None, **kwargs):
         """Add a new Rule.
 
         New rules should be added by invoking this class method on a Rule
@@ -156,16 +159,13 @@ class Rule(me.Document):
 
         """
         try:
-            Organization.objects.get(id=owner_id)
-        except Organization.DoesNotExist:
-            raise NotFoundError('Organization %s does not exist' % owner_id)
-        try:
-            cls.objects.get(owner_id=owner_id, title=title)
+            cls.objects.get(owner_id=auth_context.owner.id, title=title)
         except cls.DoesNotExist:
-            rule = cls(owner_id=owner_id, title=title)
+            rule = cls(owner_id=auth_context.owner.id, title=title)
+            rule.ctl.set_auth_context(auth_context)
+            rule.ctl.add(**kwargs)
         else:
             raise BadRequestError('Title "%s" is already in use' % title)
-        rule.ctl.add(**kwargs)
         return rule
 
     @property
@@ -325,7 +325,7 @@ class ResourceRule(Rule, ConditionalClassMixin):
     @property
     def enabled(self):
         return (super(ResourceRule, self).enabled and
-                self.get_resources().count())
+                bool(self.get_resources().count()))
 
     def as_dict(self):
         d = super(ResourceRule, self).as_dict()
@@ -419,13 +419,21 @@ class ResourceRule(Rule, ConditionalClassMixin):
 class MachineMetricRule(ResourceRule):
 
     condition_resource_cls = Machine
-    _backend_plugin = GraphiteBackendPlugin
+
+    @property
+    def _backend_plugin(self):
+        return (GraphiteBackendPlugin if config.HAS_CORE else
+                InfluxDBBackendPlugin)
 
 
 class NoDataRule(MachineMetricRule):
 
     _controller_cls = NoDataRuleController
-    _backend_plugin = GraphiteNoDataPlugin
+
+    @property
+    def _backend_plugin(self):
+        return (GraphiteNoDataPlugin if config.HAS_CORE else
+                InfluxDBNoDataPlugin)
 
     # FIXME All following properties are for backwards compatibility.
     # However, this rule is not meant to match any queries, but to be
