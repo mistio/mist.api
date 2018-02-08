@@ -420,7 +420,14 @@ def create_machine(request):
              renderer='json')
 def add_machine(request):
     """
+    Tags: machines
+    ---
     Add a machine to an OtherServer Cloud. This works for bare_metal clouds.
+    ---
+    cloud:
+      in: path
+      required: true
+      type: string
     """
     cloud_id = request.matchdict.get('cloud')
     params = params_from_request(request)
@@ -721,6 +728,8 @@ def machine_rdp(request):
              request_method='POST', renderer='json')
 def machine_console(request):
     """
+    Tags: machines
+    ---
     Open VNC console
     Generate and return an URI to open a VNC console to target machine
     READ permission required on cloud.

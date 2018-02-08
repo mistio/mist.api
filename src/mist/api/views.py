@@ -982,6 +982,21 @@ def whitelist_ip(request):
              renderer='json')
 def list_specific_images(request):
     # FIXME: 1) i shouldn't exist, 2) i shouldn't be a post
+    """
+    Tags: images
+    ---
+    List images from each cloud. Furthermore if a search_term is provided, we
+    loop through each cloud and search for that term in the ids and the names
+    of the community images.
+    READ permission required on cloud.
+    ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    search_term:
+      type: string
+    """
     return list_images(request)
 
 
@@ -1459,7 +1474,9 @@ def deploy_plugin(request):
              request_method='DELETE', renderer='json')
 def undeploy_plugin(request):
     """
-    Undeploy a plugin on the specific machine.
+    Tags: machines
+    ---
+    Undeploy a plugin from the specific machine.
     READ permission required on cloud.
     EDIT_CUSTOM_METRICS required on machine.
     ---
