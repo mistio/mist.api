@@ -28,6 +28,11 @@ def _alert_pretty_details(owner, rule_id, value, triggered, timestamp,
     cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
     machine = Machine.objects.get(cloud=cloud, machine_id=machine_id)
 
+    if machine.monitoring.method.endswith('graphite'):
+        metrics = config.GRAPHITE_BUILTIN_METRICS
+    if machine.monitoring.method.endswith('influxdb'):
+        metrics = config.INFLUXDB_BUILTIN_METRICS
+
     if isinstance(rule, NoDataRule):
         # no data alert
         condition = "Monitoring data unavailable"
@@ -37,8 +42,8 @@ def _alert_pretty_details(owner, rule_id, value, triggered, timestamp,
         # regular alert
         if not action:
             action = rule.action
-        if rule.metric in config.GRAPHITE_BUILTIN_METRICS:
-            mdict = config.GRAPHITE_BUILTIN_METRICS[rule.metric]
+        if rule.metric in metrics:
+            mdict = metrics[rule.metric]
             metric = Metric(metric_id=rule.metric, name=mdict['name'],
                             unit=mdict['unit'])
         else:

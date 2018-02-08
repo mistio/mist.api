@@ -188,6 +188,7 @@ class SSHProbe(me.EmbeddedDocument):
     kernel = me.StringField()
     os = me.StringField()
     os_version = me.StringField()
+    distro = me.StringField()
     dirty_cow = me.BooleanField()
     updated_at = me.DateTimeField()
     unreachable_since = me.DateTimeField()
@@ -231,7 +232,7 @@ class SSHProbe(me.EmbeddedDocument):
                 log.error("Invalid %s '%s': %r", strarr_attr, val, exc)
                 setattr(self, strarr_attr, [])
 
-        for str_attr in ('df', 'kernel', 'os', 'os_version'):
+        for str_attr in ('df', 'kernel', 'os', 'os_version', 'distro'):
             setattr(self, str_attr, str(data.get(str_attr, '')))
 
         self.dirty_cow = bool(data.get('dirty_cow'))
@@ -241,8 +242,8 @@ class SSHProbe(me.EmbeddedDocument):
     def as_dict(self):
         data = {key: getattr(self, key) for key in (
             'uptime', 'loadavg', 'cores', 'users', 'pub_ips', 'priv_ips', 'df',
-            'macs', 'kernel', 'os', 'os_version', 'dirty_cow', 'updated_at',
-            'unreachable_since',
+            'macs', 'kernel', 'os', 'os_version', 'distro', 'dirty_cow',
+            'updated_at', 'unreachable_since',
         )}
         # Handle datetime objects
         for key in ('updated_at', 'unreachable_since'):
@@ -258,6 +259,7 @@ class Machine(me.Document):
 
     cloud = me.ReferenceField('Cloud', required=True)
     owner = me.ReferenceField('Organization', required=True)
+    location = me.ReferenceField('CloudLocation', required=False)
     name = me.StringField()
 
     # Info gathered mostly by libcloud (or in some cases user input).
@@ -382,6 +384,7 @@ class Machine(me.Document):
             'monitoring': self.monitoring.as_dict() if self.monitoring else '',
             'key_associations': [ka.as_dict() for ka in self.key_associations],
             'cloud': self.cloud.id,
+            'location': self.location.id if self.location else '',
             'cloud_title': self.cloud.title,
             'last_seen': str(self.last_seen.replace(tzinfo=None)
                              if self.last_seen else ''),

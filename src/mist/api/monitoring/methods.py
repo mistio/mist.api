@@ -210,7 +210,8 @@ def check_monitoring(owner):
             # Keep for backwards compatibility
             'builtin_metrics': config.GRAPHITE_BUILTIN_METRICS,
             'builtin_metrics_graphite': config.GRAPHITE_BUILTIN_METRICS,
-            'builtin_metrics_influxdb': config.INFLUXDB_BUILTIN_METRICS,
+            # FIXME
+            # 'builtin_metrics_influxdb': config.INFLUXDB_BUILTIN_METRICS,
         })
     else:
         ret.update({
@@ -293,16 +294,15 @@ def enable_monitoring(owner, cloud_id, machine_id,
 
     # Attempt to contact monitor server and enable monitoring for the machine
     try:
-        if machine.monitoring.method == 'collectd-graphite':
+        if machine.monitoring.method in ('collectd-graphite',
+                                         'telegraf-graphite'):
             if not config.HAS_CORE:
                 raise Exception()
             from mist.core.methods import _enable_monitoring_monitor
             _enable_monitoring_monitor(owner, cloud_id, machine_id)
-        elif machine.monitoring.method in ('telegraf-influxdb',
-                                           'telegraf-graphite'):
+        if machine.monitoring.method in ('telegraf-influxdb',
+                                         'telegraf-graphite'):
             traefik.reset_config()
-        else:
-            raise Exception("Invalid monitoring method")
     except Exception as exc:
         machine.monitoring.installation_status.state = 'failed'
         machine.monitoring.installation_status.error_msg = repr(exc)
@@ -409,7 +409,8 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=''):
 
     # tell monitor server to no longer monitor this uuid
     try:
-        if machine.monitoring.method == 'collectd-graphite':
+        if machine.monitoring.method in ('collectd-graphite',
+                                         'telegraf-graphite'):
             if not config.HAS_CORE:
                 raise Exception
             url = "%s/machines/%s" % (config.MONITOR_URI, machine.id)
@@ -422,8 +423,8 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=''):
                           ret.status_code, ret.text)
             else:
                 log.debug("Monitor server good response in disable_monitoring")
-        elif machine.monitoring.method in ('telegraf-influxdb',
-                                           'telegraf-graphite'):
+        if machine.monitoring.method in ('telegraf-influxdb',
+                                         'telegraf-graphite'):
             traefik.reset_config()
     except Exception as exc:
         log.error("Exception %s while asking monitor server in "

@@ -188,6 +188,7 @@ class VSphereMainController(BaseMainController):
 
     provider = 'vsphere'
     ComputeController = compute_ctls.VSphereComputeController
+    NetworkController = network_ctls.VSphereNetworkController
 
     def _update__preparse_kwargs(self, kwargs):
         host = kwargs.get('host', self.cloud.host)
@@ -418,12 +419,12 @@ class OtherMainController(BaseMainController):
                 else:
                     log.warning(error)
                     kwargs.pop(key)
-        if not name:
-            errors['name'] = "Required parameter name missing"
-            log.error(errors['name'])
         if 'host' not in kwargs:
             errors['host'] = "Required parameter host missing"
             log.error(errors['host'])
+
+        if not name:
+            name = kwargs['host']
 
         if errors:
             log.error("Invalid parameters %s." % errors.keys())
@@ -517,3 +518,9 @@ class OtherMainController(BaseMainController):
                     machine.delete()
                 raise
         return machine
+
+
+class ClearCenterMainController(BaseMainController):
+
+    provider = 'clearcenter'
+    ComputeController = compute_ctls.ClearCenterComputeController

@@ -18,7 +18,7 @@ from mist.api.helpers import trigger_session_update
 
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import BadRequestError, NotFoundError
-from mist.api.exceptions import MachineCreationError
+from mist.api.exceptions import MachineCreationError, RedirectError
 from mist.api.exceptions import CloudUnauthorizedError, CloudUnavailableError
 
 from mist.api.monitoring.methods import enable_monitoring
@@ -48,6 +48,9 @@ def list_machines(request):
     Check Permissions take place in filter_list_machines
     """
     auth_context = auth_context_from_request(request)
+    params = params_from_request(request)
+    cached = not params.get('fresh', False)  # return cached by default
+
     # to prevent iterate throw every cloud
     auth_context.check_perm("cloud", "read", None)
     clouds = filter_list_clouds(auth_context)
@@ -56,7 +59,7 @@ def list_machines(request):
         if cloud.get('enabled'):
             try:
                 cloud_machines = methods.filter_list_machines(
-                    auth_context, cloud.get('id'))
+                    auth_context, cloud.get('id'), cached=cached)
                 machines.extend(cloud_machines)
             except (CloudUnavailableError, CloudUnauthorizedError):
                 pass
@@ -80,22 +83,17 @@ def list_cloud_machines(request):
     """
     auth_context = auth_context_from_request(request)
     cloud_id = request.matchdict['cloud']
+    params = params_from_request(request)
+    cached = bool(params.get('cached', False))
+
     # SEC get filtered resources based on auth_context
     try:
-        cloud = Cloud.objects.get(owner=auth_context.owner,
-                                  id=cloud_id, deleted=None)
+        Cloud.objects.get(owner=auth_context.owner, id=cloud_id, deleted=None)
     except Cloud.DoesNotExist:
         raise NotFoundError('Cloud does not exist')
 
-    machines = methods.filter_list_machines(auth_context, cloud_id)
-
-    if cloud.machine_count != len(machines):
-        try:
-            tasks.update_machine_count.delay(
-                auth_context.owner.id, cloud_id, len(machines))
-        except Exception as e:
-            log.error('Cannot update machine count for user %s: %r' %
-                      (auth_context.owner.id, e))
+    machines = methods.filter_list_machines(auth_context, cloud_id,
+                                            cached=cached)
 
     return machines
 
@@ -406,6 +404,7 @@ def create_machine(request):
               'port_speed': port_speed,
               'hypervisor_group_id': hypervisor_group_id,
               'machine_username': machine_username}
+
     if not async:
         ret = methods.create_machine(auth_context.owner, *args, **kwargs)
     else:
@@ -417,7 +416,7 @@ def create_machine(request):
     return ret
 
 
-@view_config(route_name='api_v1_machines', request_method='PUT',
+@view_config(route_name='api_v1_cloud_machines', request_method='PUT',
              renderer='json')
 def add_machine(request):
     """
@@ -559,7 +558,9 @@ def machine_actions(request):
             # VMs in libvirt can be started no matter if they are terminated
             if machine.state == 'terminated' and not isinstance(machine.cloud,
                                                                 LibvirtCloud):
-                raise
+                raise NotFoundError(
+                    "Machine %s has been terminated" % machine_uuid
+                )
             # used by logging_view_decorator
             request.environ['machine_id'] = machine.machine_id
             request.environ['cloud_id'] = machine.cloud.id
@@ -665,7 +666,6 @@ def machine_rdp(request):
     auth_context = auth_context_from_request(request)
 
     if cloud_id:
-        # this is depracated, keep it for backwards compatibility
         machine_id = request.matchdict['machine']
         auth_context.check_perm("cloud", "read", cloud_id)
         try:
@@ -710,3 +710,73 @@ def machine_rdp(request):
                     charset='utf8',
                     pragma='no-cache',
                     body=rdp_content)
+
+
+@view_config(route_name='api_v1_cloud_machine_console',
+             request_method='POST', renderer='json')
+@view_config(route_name='api_v1_machine_console',
+             request_method='POST', renderer='json')
+def machine_console(request):
+    """
+    Open VNC console
+    Generate and return an URI to open a VNC console to target machine
+    READ permission required on cloud.
+    READ permission required on machine.
+    ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    machine:
+      in: path
+      required: true
+      type: string
+    rdp_port:
+      default: 3389
+      in: query
+      required: true
+      type: integer
+    host:
+      in: query
+      required: true
+      type: string
+    """
+    cloud_id = request.matchdict.get('cloud')
+
+    auth_context = auth_context_from_request(request)
+
+    if cloud_id:
+        machine_id = request.matchdict['machine']
+        auth_context.check_perm("cloud", "read", cloud_id)
+        try:
+            machine = Machine.objects.get(cloud=cloud_id,
+                                          machine_id=machine_id,
+                                          state__ne='terminated')
+            # used by logging_view_decorator
+            request.environ['machine_uuid'] = machine.id
+        except Machine.DoesNotExist:
+            raise NotFoundError("Machine %s doesn't exist" % machine_id)
+    else:
+        machine_uuid = request.matchdict['machine_uuid']
+        try:
+            machine = Machine.objects.get(id=machine_uuid,
+                                          state__ne='terminated')
+            # used by logging_view_decorator
+            request.environ['machine_id'] = machine.machine_id
+            request.environ['cloud_id'] = machine.cloud.id
+        except Machine.DoesNotExist:
+            raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
+
+        cloud_id = machine.cloud.id
+        auth_context.check_perm("cloud", "read", cloud_id)
+
+    auth_context.check_perm("machine", "read", machine.id)
+
+    if machine.cloud.ctl.provider != 'vsphere':
+        raise NotImplementedError("VNC console only supported for vSphere")
+
+    console_uri = machine.cloud.ctl.compute.connection.ex_open_console(
+        machine.machine_id
+    )
+
+    raise RedirectError(console_uri)
