@@ -1047,7 +1047,7 @@ def star_image(request):
 @view_config(route_name='api_v1_sizes', request_method='GET', renderer='json')
 def list_sizes(request):
     """
-    Tags: sizes
+    Tags: clouds
     ---
     List sizes (aka flavors) from each cloud.
     READ permission required on cloud.
@@ -1067,7 +1067,7 @@ def list_sizes(request):
              renderer='json')
 def list_locations(request):
     """
-    Tags: locations
+    Tags: clouds
     ---
     List locations from each cloud. Locations mean different things in each cl-
     oud. e.g. EC2 uses it as a datacenter in a given availability zone, where-
@@ -1513,8 +1513,6 @@ def undeploy_plugin(request):
              renderer='json')
 def list_supported_providers(request):
     """
-    Tags: providers
-    ---
     Lists supported providers.
     Return all of our SUPPORTED PROVIDERS
     ---
@@ -1550,6 +1548,8 @@ def upload_avatar(request):
 @view_config(route_name='api_v1_avatar', request_method='GET')
 def get_avatar(request):
     """
+    Tags: avatars
+    ---
     Returns the requested avatar
     ---
     avatar:
@@ -1572,6 +1572,8 @@ def get_avatar(request):
 @view_config(route_name='api_v1_avatar', request_method='DELETE')
 def delete_avatar(request):
     """
+    Tags: avatars
+    ---
     Deletes the requested avatar
     ---
     avatar:

@@ -22,7 +22,7 @@ OK = Response("OK", 200)
 @view_config(route_name='api_v1_zones', request_method='GET', renderer='json')
 def list_dns_zones(request):
     """
-    Tags: zones
+    Tags: dns
     ---
     Lists all DNS zones based on the given cloud id.
     READ permission required on zone.
@@ -48,7 +48,7 @@ def list_dns_zones(request):
              renderer='json')
 def list_dns_records(request):
     """
-    Tags: zones
+    Tags: dns
     ---
     Lists all DNS records for a particular zone.
     READ permission required on zone and record.
@@ -81,7 +81,7 @@ def list_dns_records(request):
 @view_config(route_name='api_v1_zones', request_method='POST', renderer='json')
 def create_dns_zone(request):
     """
-    Tags: zones
+    Tags: dns
     ---
     Creates a new DNS zone under the given cloud.
     CREATE_RESOURCES permission required on cloud.
@@ -119,7 +119,7 @@ def create_dns_zone(request):
              renderer='json')
 def create_dns_record(request):
     """
-    Tags: zones
+    Tags: dns
     ---
     Creates a new record under a specific zone.
     CREATE_RESOURCES permission required on cloud.
@@ -171,7 +171,7 @@ def create_dns_record(request):
              renderer='json')
 def delete_dns_zone(request):
     """
-    Tags: zones
+    Tags: dns
     ---
     Deletes a specific DNS zone under a cloud.
     REMOVE permission required on zone.
@@ -203,7 +203,7 @@ def delete_dns_zone(request):
              renderer='json')
 def delete_dns_record(request):
     """
-    Tags: zones
+    Tags: dns
     ---
     Deletes a specific DNS record under a zone.
     REMOVE permission required on zone.

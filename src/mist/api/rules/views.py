@@ -111,11 +111,12 @@ def _get_transformed_params(auth_context, params):
 
 @view_config(route_name='api_v1_rules', request_method='POST', renderer='json')
 def add_rule(request):
-    """Add a new rule
-
-    READ permission required on cloud
-    EDIT_RULES permission required on machine
-
+    """
+    Tags: rules
+    ---
+    Adds a new rule.
+    READ permission required on cloud.
+    EDIT_RULES permission required on machine.
     DEPRECATION WARNING This API endpoint is deprecated. A new JSON schema
     will soon be put in use in order to add new rules. Also, a discrete API
     endpoint will be introduced for updating existing rules.
@@ -164,19 +165,18 @@ def add_rule(request):
 
 @view_config(route_name='api_v1_rule', request_method='DELETE')
 def delete_rule(request):
-    """Delete a rule given its UUID
-
-    READ permission required on Cloud
-    EDIT_RULES permission required on Machine
-
+    """
+    Tags: rules
     ---
-
+    Delete a rule given its UUID.
+    READ permission required on Cloud.
+    EDIT_RULES permission required on Machine
+    ---
     rule:
       in: path
       type: string
       required: true
       description: the unique identifier of the rule to be deleted
-
     """
     auth_context = auth_context_from_request(request)
     rule_id = request.matchdict.get('rule')  # FIXME uuid, not title!
@@ -191,8 +191,10 @@ def delete_rule(request):
 
 @view_config(route_name='api_v1_rule_triggered', request_method='PUT')
 def triggered(request):
-    """Process a trigger sent by the alert service
-
+    """
+    Tags: rules
+    ---
+    Process a trigger sent by the alert service.
     Based on the parameters of the request, this method will initiate actions
     to mitigate the conditions that triggered the rule and notify the users.
     ---
