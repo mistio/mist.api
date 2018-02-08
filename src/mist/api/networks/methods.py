@@ -40,6 +40,7 @@ def delete_network(owner, network):
     # Schedule a UI update
     trigger_session_update(owner, ['clouds'])
 
+
 def create_subnet(owner, cloud, network, subnet_params):
     """
     Create a new subnet attached to the specified network ont he given cloud.
@@ -58,6 +59,7 @@ def create_subnet(owner, cloud, network, subnet_params):
     trigger_session_update(owner, ['clouds'])
 
     return new_subnet
+
 
 def list_networks(owner, cloud_id):
     """List networks from each cloud.
