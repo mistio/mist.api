@@ -102,7 +102,7 @@ def create_token(request):
       description: Time to live for the token
       type: integer
     org_id:
-      description: Org id if this token is to be used in organizational context
+      description: Org id if the token is to be used in organizational context
       type: string
     """
 
@@ -125,8 +125,8 @@ def create_token(request):
         user, org = auth_context.user, auth_context.org
     except UserUnauthorizedError:
         # The following should apply, but currently it can't due to tests.
-        #if not org_id:
-            #raise RequiredParameterMissingError("No org_id provided")
+        # if not org_id:
+            # raise RequiredParameterMissingError("No org_id provided")
         if not email:
             raise RequiredParameterMissingError("No email provided")
         org = None

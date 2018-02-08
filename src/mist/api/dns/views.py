@@ -36,7 +36,7 @@ def list_dns_zones(request):
     cloud_id = request.matchdict['cloud']
 
     try:
-        cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id)
+        Cloud.objects.get(owner=auth_context.owner, id=cloud_id)
     except me.DoesNotExist:
         raise CloudNotFoundError
 
