@@ -37,10 +37,11 @@ class AuthMiddleware(object):
 
         def session_start_response(status, headers, exc_info=None):
             session = environ['session']  # reload in case it was reissued
-            if isinstance(session, SessionToken):
-                if not session.last_accessed_at:
-                    cookie = 'session.id=%s; Path=/;' % session.token
-                    headers.append(('Set-Cookie', cookie))
+            if isinstance(session, SessionToken) and \
+                    not getattr(session, 'internal', False) and \
+                    not session.last_accessed_at:
+                cookie = 'session.id=%s; Path=/;' % session.token
+                headers.append(('Set-Cookie', cookie))
 
             # ApiTokens with 'dummy' in name are handed out by session from
             # request function when the api token is not correct, to prevent
@@ -48,7 +49,8 @@ class AuthMiddleware(object):
             # that don't require authentication. When the response is sent out
             # they are to be thrown away, not saved.
             if not (isinstance(session, ApiToken) and
-                    'dummy' in session.name):
+                    'dummy' in session.name or
+                    getattr(session, 'internal', False)):
                 session.touch()
                 session.save()
             # CORS
@@ -78,7 +80,8 @@ class AuthMiddleware(object):
 
         user = session.get_user()
         # Check whether the request IP is in the user whitelisted ones.
-        if session and user is not None and request.path != '/logout':
+        if session and user is not None and request.path != '/logout' and \
+                not getattr(session, 'internal', False):
             current_user_ip = netaddr.IPAddress(ip_from_request(request))
             saved_wips = [netaddr.IPNetwork(ip.cidr) for ip in user.ips]
             config_wips = [netaddr.IPNetwork(cidr)
@@ -144,6 +147,7 @@ class CsrfMiddleware(object):
         # which has been produced by default
         if request.path not in self.exempt and \
            isinstance(session, SessionToken) and \
+           not getattr(session, 'internal', False) and \
            request.method in ('POST', 'PUT', 'PATCH', 'DELETE'):
             csrf_token = request.headers.get('Csrf-Token', '').lower()
             if not csrf_token:
