@@ -94,7 +94,6 @@ def create_network(request):
 
     # Bundling Subnet creation in this call because it is required
     #  for backwards compatibility with the current UI
-    import ipdb; ipdb.set_trace()
     if subnet_params:
         try:
             subnet = methods.create_subnet(auth_context.owner, cloud,
