@@ -52,20 +52,90 @@ def add_cloud(request):
     ---
     api_key:
       type: string
+      description: Required for Clearcenter
     api_secret:
       type: string
+    apikey:
+      type: string
+      description: Required for Ec2, Hostvirtual, Linode, Packet, Rackspace, OnApp, SoftLayer, Vultr
+    apisecret:
+      type: string
+      description: Required for Ec2
     apiurl:
       type: string
+    auth_password:
+      description: Optional for Docker
+      type: string
+    auth_url:
+      type: string
+      description: Required for OpenStack
+    auth_user:
+      description: Optional for Docker
+      type: string
+    authentication:
+      description: Required for Docker
+      enum:
+      - tls
+      - basic
+    ca_cert_file:
+      type: string
+      description: Optional for Docker
+    cert_file:
+      type: string
+      description: Optional for Docker
+    certificate:
+      type: string
+      description: Required for Azure
+    compute_endpoint:
+      type: string
+      description: Optional for OpenStack
+    dns_enabled:
+      type: boolean
+    docker_host:
+      description: Required for Docker
     docker_port:
       type: string
+    host:
+      type: string
+      description: Required for OnApp, Vcloud, vSphere
+    images_location:
+      type: string
+      description: Required for KVM
+    key:
+      type: string
+      description: Required for Azure_arm
+    key_file:
+      type: string
+      description: Optional for Docker
+    machine_hostname:
+      type: string
+      description: Required for KVM
     machine_key:
       type: string
+      description: Id of the key. Required for KVM
     machine_port:
       type: string
     machine_user:
       type: string
+      description: Required for KVM
+    organization:
+      type: string
+      description: Required for Vcloud
+    password:
+      type: string
+      description: Required for Nephoscale, OpenStack, Vcloud, vSphere
+    port:
+      type: integer
+      description: Required for Vcloud
+    private_key:
+      type: string
+      description: Required for GCE
+    project_id:
+      type: string
+      description: Required for GCE. Optional for Packet
     provider:
       description: The cloud provider.
+      required: True
       enum:
       - vcloud
       - bare_metal
@@ -88,13 +158,36 @@ def add_cloud(request):
       - clearcenter
       required: true
       type: string
+    region:
+      type: string
+      description: Required for Ec2, Rackspace. Optional for Openstack
     remove_on_error:
       type: string
+    secret:
+      type: string
+      description: Required for Azure_arm
+    ssh_port:
+      type: integer
+      description: Required for KVM
+    subscription_id:
+      type: string
+      description: Required for Azure, Azure_arm
+    tenant_id:
+      type: string
+      description: Required for Azure_arm
     tenant_name:
       type: string
+      description: Required for OpenStack
     title:
       description: The human readable title of the cloud.
       type: string
+      required: True
+    token:
+      type: string
+      description: Required for Digitalocean
+    username:
+      type: string
+      description: Required for Nephoscale, Rackspace, OnApp, SoftLayer, OpenStack, Vcloud, vSphere
     """
     auth_context = auth_context_from_request(request)
     cloud_tags = auth_context.check_perm("cloud", "add", None)
