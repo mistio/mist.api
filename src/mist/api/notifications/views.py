@@ -111,7 +111,10 @@ def add_notification_override(request):
              request_method='GET', renderer='json')
 def get_notification_overrides(request):
     """
+    Tags: notifications
+    ---
     Get notification overrides for user, org policy
+    ---
     """
     auth_context = auth_context_from_request(request)
     try:

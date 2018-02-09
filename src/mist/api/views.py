@@ -1314,6 +1314,8 @@ def probe(request):
              renderer='json')
 def ping(request):
     """
+    Tags: api_tokens
+    ---
     Check that an api token is correct.
     ---
     """
@@ -1552,6 +1554,12 @@ def list_supported_providers(request):
 @view_config(route_name='api_v1_avatars',
              request_method='POST', renderer='json')
 def upload_avatar(request):
+    """
+    Tags: avatars
+    ---
+    Upload an avatar
+    ---
+    """
     user = user_from_request(request)
     body = request.POST['file'].file.read()
     if len(body) > 256 * 1024:
