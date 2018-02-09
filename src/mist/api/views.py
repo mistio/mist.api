@@ -1530,6 +1530,8 @@ def undeploy_plugin(request):
              renderer='json')
 def list_supported_providers(request):
     """
+    Tags: providers
+    ---
     Lists supported providers.
     Return all of our SUPPORTED PROVIDERS
     ---

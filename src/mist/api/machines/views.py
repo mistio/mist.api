@@ -730,7 +730,7 @@ def machine_console(request):
     """
     Tags: machines
     ---
-    Open VNC console
+    Open VNC console.
     Generate and return an URI to open a VNC console to target machine
     READ permission required on cloud.
     READ permission required on machine.
