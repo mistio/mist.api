@@ -130,11 +130,17 @@ def create_machine(request):
       type: string
       description: Required for Azure
     bare_metal:
-      description: ' Needed only by SoftLayer cloud'
+      description: Needed only by SoftLayer cloud
       type: string
     billing:
-      description: ' Needed only by SoftLayer cloud'
+      description: Needed only by SoftLayer cloud
       type: string
+    boot:
+      description: Required for OnApp
+      type: boolean
+    build:
+      description: Required for OnApp
+      type: boolean
     create_network:
       type: boolean
       description: Required for Azure_arm
@@ -440,6 +446,23 @@ def add_machine(request):
       in: path
       required: true
       type: string
+    machine_ip:
+      type: string
+      required: true
+    operating_system:
+      type: string
+    machine_name:
+      type: string
+    machine_key:
+      type: string
+    machine_user:
+      type: string
+    machine_port:
+      type: string
+    remote_desktop_port:
+      type: string
+    monitoring:
+      type: boolean
     """
     cloud_id = request.matchdict.get('cloud')
     params = params_from_request(request)
