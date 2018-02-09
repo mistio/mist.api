@@ -382,16 +382,16 @@ class MainConnection(MistConnection):
             self.internal_request(
                 'api/v1/clouds/%s/machines' % cloud.id,
                 params={'cached': True},
-                callback=lambda machines: self.send(
+                callback=lambda machines, cloud_id=cloud.id: self.send(
                     'list_machines',
-                    {'cloud_id': cloud.id, 'machines': machines}
+                    {'cloud_id': cloud_id, 'machines': machines}
                 ),
             )
             self.internal_request(
                 'api/v1/clouds/%s/locations' % cloud.id,
-                callback=lambda locations: self.send(
+                callback=lambda locations, cloud_id=cloud.id: self.send(
                     'list_locations',
-                    {'cloud_id': cloud.id, 'locations': locations}
+                    {'cloud_id': cloud_id, 'locations': locations}
                 ),
             )
 
