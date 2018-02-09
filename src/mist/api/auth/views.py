@@ -71,7 +71,7 @@ def create_token(request):
     Used so that a user can send his credentials and produce a new api token.
     The api token itself will be returned in a json document along with it's
     id and it's name.
-    If user has used su then he should provide his own credentials. However, the
+    If user has used su then he should provide his own credentials.However, the
     api token will authenticate the user he is impersonating.
     If name is not sent then a random one with the format api_token_xyz where
     xyz is a number will be produced.
