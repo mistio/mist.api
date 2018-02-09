@@ -120,7 +120,7 @@ def add_rule(request):
     DEPRECATION WARNING This API endpoint is deprecated. A new JSON schema
     will soon be put in use in order to add new rules. Also, a discrete API
     endpoint will be introduced for updating existing rules.
-
+    ---
     """
     auth_context = auth_context_from_request(request)
     params = params_from_request(request)
@@ -168,7 +168,7 @@ def delete_rule(request):
     """
     Tags: rules
     ---
-    Delete a rule given its UUID.
+    Deletes a rule given its UUID.
     READ permission required on Cloud.
     EDIT_RULES permission required on Machine
     ---
@@ -207,34 +207,34 @@ def triggered(request):
      type: string
      required: true
      description: the incident's UUID
-   resource:
+    resource:
      type: string
      required: true
      description: the UUID of the resource for which the rule got triggered
-   triggered:
+    triggered:
      type: integer
      required: true
      description: 0 if the specified incident got resolved/untriggered
-   triggered_now:
+    triggered_now:
      type: integer
      required: true
-     description: |
+     description:
        0 in case this is not the first time the specified incident has
        raised an alert
-   firing_since:
+    firing_since:
      type: datetime
      required: true
      description: |
        the time at which the rule raised an alert and sent a trigger to
        this API endpoint
-   pending_since:
+    pending_since:
      type: datetime
      required: true
      description: |
        the time at which the rule evaluated to True and entered pending
        state. A rule can remain in pending state if a TriggerOffset has
        been configured
-   resolved_since:
+    resolved_since:
      type: datetime
      required: true
      description: >
