@@ -35,10 +35,7 @@ from mist.api.exceptions import PolicyUnauthorizedError
 from mist.api.amqp_tornado import Consumer
 
 from mist.api.clouds.methods import filter_list_clouds
-from mist.api.keys.methods import filter_list_keys
 from mist.api.machines.methods import filter_list_machines, filter_machine_ids
-from mist.api.scripts.methods import filter_list_scripts
-from mist.api.schedules.methods import filter_list_schedules
 from mist.api.dns.methods import filter_list_zones
 
 from mist.api import tasks
@@ -59,14 +56,8 @@ from mist.api import config
 
 if config.HAS_CORE:
     from mist.core.methods import filter_list_tags
-    from mist.core.methods import filter_list_vpn_tunnels
-    from mist.core.orchestration.methods import filter_list_templates
-    from mist.core.orchestration.methods import filter_list_stacks
 else:
     from mist.api.dummy.methods import filter_list_tags
-    from mist.api.dummy.methods import filter_list_vpn_tunnels
-    from mist.api.dummy.methods import filter_list_templates
-    from mist.api.dummy.methods import filter_list_stacks
 
 logging.basicConfig(level=config.PY_LOG_LEVEL,
                     format=config.PY_LOG_FORMAT,
@@ -355,22 +346,46 @@ class MainConnection(MistConnection):
         self.send('list_tags', filter_list_tags(self.auth_context))
 
     def list_keys(self):
-        self.send('list_keys', filter_list_keys(self.auth_context))
+        self.internal_request(
+            'api/v1/keys',
+            callback=lambda keys: self.send('list_keys', keys),
+        )
 
     def list_scripts(self):
-        self.send('list_scripts', filter_list_scripts(self.auth_context))
+        self.internal_request(
+            'api/v1/scripts',
+            callback=lambda scripts: self.send('list_scripts', scripts),
+        )
 
     def list_schedules(self):
-        self.send('list_schedules', filter_list_schedules(self.auth_context))
+        self.internal_request(
+            'api/v1/schedules',
+            callback=lambda schedules: self.send('list_schedules', schedules),
+        )
 
     def list_templates(self):
-        self.send('list_templates', filter_list_templates(self.auth_context))
+        if not config.HAS_CORE:
+            return
+        self.internal_request(
+            'api/v1/templates',
+            callback=lambda templates: self.send('list_templates', templates),
+        )
 
     def list_stacks(self):
-        self.send('list_stacks', filter_list_stacks(self.auth_context))
+        if not config.HAS_CORE:
+            return
+        self.internal_request(
+            'api/v1/stacks',
+            callback=lambda stacks: self.send('list_stacks', stacks),
+        )
 
     def list_tunnels(self):
-        self.send('list_tunnels', filter_list_vpn_tunnels(self.auth_context))
+        if not config.HAS_CORE:
+            return
+        self.internal_request(
+            'api/v1/tunnels',
+            callback=lambda tunnels: self.send('list_tunnels', tunnels),
+        )
 
     def list_clouds(self):
         self.update_poller()
