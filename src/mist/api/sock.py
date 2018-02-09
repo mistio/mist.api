@@ -17,6 +17,7 @@ import datetime
 import traceback
 
 import tornado.gen
+import tornado.httpclient
 
 from sockjs.tornado import SockJSConnection, SockJSRouter
 from mist.api.sockjs_mux import MultiplexConnection
@@ -51,6 +52,8 @@ from mist.api.monitoring.methods import check_monitoring
 
 from mist.api.users.methods import filter_org
 from mist.api.users.methods import get_user_data
+
+from mist.api.portal.models import Portal
 
 from mist.api import config
 
@@ -96,13 +99,15 @@ class MistConnection(SockJSConnection):
 
     def on_open(self, conn_info):
         log.info("%s: Initializing", self.__class__.__name__)
-        self.ip, self.user_agent, session_id = get_conn_info(conn_info)
+        self.ip, self.user_agent, self.cookie_session_id = get_conn_info(
+            conn_info)
         log.info("Got connection info: %s %s %s",
-                 self.ip, self.user_agent, session_id)
+                 self.ip, self.user_agent, self.cookie_session_id)
         try:
-            self.auth_context = auth_context_from_session_id(session_id)
+            self.auth_context = auth_context_from_session_id(
+                self.cookie_session_id)
             log.info("Got auth context %s for session %s",
-                     self.auth_context.owner.id, session_id)
+                     self.auth_context.owner.id, self.cookie_session_id)
         except UnauthorizedError:
             log.error("%s: Unauthorized session_id", self.__class__.__name__)
             self.send('logout')
@@ -138,6 +143,33 @@ class MistConnection(SockJSConnection):
             'closed': self.is_closed,
             'session_id': self.session_id,
         }
+
+    def internal_request(self, path, params=None, callback=None):
+        if path.startswith('/'):
+            path = path[1:]
+        if params:
+            path += '?' + '&'.join('%s=%s' % item
+                                   for item in params.iteritems())
+
+        def response_callback(resp):
+            if resp.code == 200:
+                data = json.loads(resp.body)
+                if callback is None:
+                    print data
+                else:
+                    callback(data)
+            else:
+                log.error("Error requesting %s from internal API: (%s) %s",
+                          path, resp.code, resp.body)
+
+        headers = {'Authorization': 'internal %s %s' % (
+            Portal.get_singleton().internal_api_key, self.cookie_session_id)}
+
+        tornado.httpclient.AsyncHTTPClient().fetch(
+            'http://api/%s' % path,
+            headers=headers,
+            callback=response_callback,
+        )
 
     def __repr__(self):
         conn_dict = self.get_dict()
@@ -347,20 +379,21 @@ class MainConnection(MistConnection):
         log.info(clouds)
         periodic_tasks = []
         for cloud in clouds:
-            machines = cloud.ctl.compute.list_cached_machines()
-            machines = filter_list_machines(
-                self.auth_context, cloud_id=cloud.id,
-                machines=[machine.as_dict() for machine in machines]
+            self.internal_request(
+                'api/v1/clouds/%s/machines' % cloud.id,
+                params={'cached': True},
+                callback=lambda machines, cloud_id=cloud.id: self.send(
+                    'list_machines',
+                    {'cloud_id': cloud_id, 'machines': machines}
+                ),
             )
-            log.info("Emitting list_machines from poller's cache.")
-            self.send('list_machines',
-                      {'cloud_id': cloud.id, 'machines': machines})
-
-            cached_locations = cloud.ctl.compute.list_cached_locations()
-            locations = [location.as_dict() for location in cached_locations]
-            log.info("Emitting list_locations from poller's cache.")
-            self.send('list_locations',
-                      {'cloud_id': cloud.id, 'locations': locations})
+            self.internal_request(
+                'api/v1/clouds/%s/locations' % cloud.id,
+                callback=lambda locations, cloud_id=cloud.id: self.send(
+                    'list_locations',
+                    {'cloud_id': cloud_id, 'locations': locations}
+                ),
+            )
 
         periodic_tasks.extend([('list_images', tasks.ListImages()),
                                ('list_sizes', tasks.ListSizes()),
