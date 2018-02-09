@@ -20,7 +20,7 @@ OPENAPI_KEYWORDS = {'parameters', 'requestBody',
 
 DEFAULT_RESPONSES = {'200': {'description': 'Successful Operation'},
                      '401': {'description': 'Unauthorized', "headers": {
-					"Access-Control-Allow-Origin": {
+					 "Access-Control-Allow-Origin": {
 						"type": "string"
 					}
 				}},
@@ -29,24 +29,6 @@ DEFAULT_RESPONSES = {'200': {'description': 'Successful Operation'},
                      '404': {'description': 'Not Found'}
                      }
 
-# palia pws epaize?
-
-# ena call mono me api token?
-
-# h get clouds px, ti dinei pera apo ta args?
-
-# docker-compose locally (automate)
-
-# cleanup (do not tag api tokens)
-
-# 401 when I am logged in
-
-# last manual check
-
-# docker image panw
-
-############################################################
-# Type Error: Failed to fetch -- (server response not shown)
 
 def extract_params_from_operation(operation):
     params = []
@@ -116,6 +98,7 @@ def patch_operation(operation):
 
     if 'description' in operation.keys():
         ret['description'] = operation['description']
+        ret['summary'] = operation['description'].split('.')[0]
 
     if 'tags' in operation.keys():
         ret['tags'] = operation['tags']
