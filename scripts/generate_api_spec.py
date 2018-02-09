@@ -19,11 +19,7 @@ OPENAPI_KEYWORDS = {'parameters', 'requestBody',
                     'tags'}
 
 DEFAULT_RESPONSES = {'200': {'description': 'Successful Operation'},
-                     '401': {'description': 'Unauthorized', "headers": {
-					 "Access-Control-Allow-Origin": {
-						"type": "string"
-					}
-				}},
+                     '401': {'description': 'Unauthorized'},
                      '403': {'description': 'You are not\
                      authorized to perform this action'},
                      '404': {'description': 'Not Found'}
