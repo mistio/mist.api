@@ -120,17 +120,30 @@ def create_machine(request):
       in: path
       required: true
       type: string
+    associate_floating_ip:
+      type: string
+      description: Required for Openstack. Either 'true' or 'false'
     async:
-      description: ' Create machines asynchronously, returning a jobId'
+      description: Create machine asynchronously, returning a jobId
       type: boolean
-    quantity:
-      description: ' The number of machines that will be created, async only'
-      type: integer
     azure_port_bindings:
       type: string
-    disk:
-      description: ' Only required by Linode cloud'
+      description: Required for Azure
+    bare_metal:
+      description: ' Needed only by SoftLayer cloud'
       type: string
+    billing:
+      description: ' Needed only by SoftLayer cloud'
+      type: string
+    create_network:
+      type: boolean
+      description: Required for Azure_arm
+    create_resource_group:
+      type: boolean
+      description: Required for Azure_arm
+    create_storage_account:
+      type: boolean
+      description: Required for Azure_arm
     docker_command:
       type: string
     docker_env:
@@ -141,40 +154,48 @@ def create_machine(request):
       type: object
     docker_port_bindings:
       type: object
-    hostname:
+    ex_storage_account:
       type: string
-    image_extra:
-      description: ' Needed only by Linode cloud'
+      description: Required for Azure_arm if not create_storage_account
+    ex_resource_group:
       type: string
+      description: Required for Azure_arm if not create_resource_group
     image:
-      description: ' Id of image to be used with the creation'
+      description: Provider's image id to be used on creation
       required: true
       type: string
-    image_name:
+    key:
+      description: Associate machine with this key. Mist internal key id
       type: string
-    ips:
+    location:
       type: string
-    job_id:
+      description: Mist internal location id
+    machine_password:
       type: string
-    key_id:
-      description: ' Associate machine with this key_id'
-      required: true
+      description: Required for Azure_arm
+    machine_username:
       type: string
-    location_id:
-      description: ' Id of the cloud''s location to create the machine'
-      required: true
-      type: string
-    location_name:
-      type: string
-    machine_name:
-      required: true
-      type: string
+      description: Required for Azure_arm
     monitoring:
+      type: boolean
+      description: Enable monitoring on the machine
+    name:
       type: string
+      description: Name of the machine
+      required: true
     networks:
       items:
         type: string
       type: array
+    new_network:
+      type: string
+      description: Required for Azure_arm if create_storage_account
+    new_storage_account:
+      type: string
+      description: Required for Azure_arm if create_storage_account
+    new_resource_group:
+      type: string
+      description: Required for Azure_arm if create_resource_group
     plugins:
       items:
         type: string
@@ -183,32 +204,23 @@ def create_machine(request):
       type: string
     post_script_params:
       type: string
+    project_id:
+      description: ' Needed only by Packet cloud'
+      type: string
     script:
       type: string
     script_id:
       type: string
     script_params:
       type: string
-    size_id:
-      description: ' Id of the size of the machine'
-      required: true
+    size:
       type: string
-    size_name:
-      type: string
-    ssh_port:
-      type: integer
+      description: Provider's size id to be used on creation
     softlayer_backend_vlan_id:
       description: 'Specify id of a backend(private) vlan'
       type: integer
-    project_id:
-      description: ' Needed only by Packet.net cloud'
-      type: string
-    billing:
-      description: ' Needed only by SoftLayer cloud'
-      type: string
-    bare_metal:
-      description: ' Needed only by SoftLayer cloud'
-      type: string
+    ssh_port:
+      type: integer
     schedule:
       type: object
     """
