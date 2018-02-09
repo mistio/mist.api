@@ -57,7 +57,8 @@ def add_cloud(request):
       type: string
     apikey:
       type: string
-      description: Required for Ec2, Hostvirtual, Linode, Packet, Rackspace, OnApp, SoftLayer, Vultr
+      description: Required for Ec2, Hostvirtual, Linode, \
+      Packet, Rackspace, OnApp, SoftLayer, Vultr
     apisecret:
       type: string
       description: Required for Ec2
@@ -166,6 +167,9 @@ def add_cloud(request):
     secret:
       type: string
       description: Required for Azure_arm
+    show_all:
+      type: boolean
+      description: Show stopped containers. Required for Docker.
     ssh_port:
       type: integer
       description: Required for KVM
@@ -187,7 +191,8 @@ def add_cloud(request):
       description: Required for Digitalocean
     username:
       type: string
-      description: Required for Nephoscale, Rackspace, OnApp, SoftLayer, OpenStack, Vcloud, vSphere
+      description: Required for Nephoscale, Rackspace, OnApp, \
+      SoftLayer, OpenStack, Vcloud, vSphere
     """
     auth_context = auth_context_from_request(request)
     cloud_tags = auth_context.check_perm("cloud", "add", None)

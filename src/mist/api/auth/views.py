@@ -91,10 +91,11 @@ def create_token(request):
     email:
       description: User's email
       type: string
+      required: true
     password:
       description: User's password
-      required: true
       type: string
+      required: true
     name:
       description: Api token name
       type: string
@@ -102,7 +103,7 @@ def create_token(request):
       description: Time to live for the token
       type: integer
     org_id:
-      description: Org id if the token is to be used in organizational context
+      description: Org id if the token will be used in organizational context
       type: string
     """
 
@@ -235,6 +236,8 @@ def revoke_token(request):
     ---
     id:
       description: Api token ID
+      type: string
+      required: true
     """
     return revoke_session(request)
 
