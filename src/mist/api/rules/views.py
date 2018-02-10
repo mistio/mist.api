@@ -222,23 +222,23 @@ def triggered(request):
        0 in case this is not the first time the specified incident has
        raised an alert
     firing_since:
-     type: datetime
+     type: string
      required: true
      description: |
        the time at which the rule raised an alert and sent a trigger to
        this API endpoint
     pending_since:
-     type: datetime
+     type: string
      required: true
      description: |
        the time at which the rule evaluated to True and entered pending
        state. A rule can remain in pending state if a TriggerOffset has
-       been configured
+       been configured. Datetime needed
     resolved_since:
-     type: datetime
+     type: string
      required: true
      description: >
-       the time at which the incident with the specified UUID resolved
+       the time at which the incident with the specified UUID resolved. Datetime needed
     """
     # FIXME Remove alongside the old alert service.
     if not config.CILIA_TRIGGER:
