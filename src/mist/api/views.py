@@ -1498,11 +1498,10 @@ def undeploy_plugin(request):
       required: true
       type: string
     plugin_type:
-      default: python
+      type: string
       enum:
       - python
       required: true
-      type: string
     """
     raise NotImplementedError()
 

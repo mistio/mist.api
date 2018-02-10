@@ -552,6 +552,12 @@ def set_network_tags(request):
 @view_config(route_name='schedule_tag', request_method='DELETE',
              renderer='json')
 def delete_schedule_tag(request):
+    """
+    Tags: tags
+    ---
+    Deletes tag in the db for specified resource_type.
+    ---
+    """
     auth_context = auth_context_from_request(request)
     params = params_from_request(request)
     schedule_id = request.matchdict["schedule_id"]
