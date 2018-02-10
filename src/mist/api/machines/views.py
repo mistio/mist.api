@@ -141,6 +141,9 @@ def create_machine(request):
     build:
       description: Required for OnApp
       type: boolean
+    cloud_init:
+      description: Cloud Init script
+      type: string
     create_network:
       type: boolean
       description: Required for Azure_arm
@@ -153,9 +156,9 @@ def create_machine(request):
     docker_command:
       type: string
     docker_env:
+      type: array
       items:
         type: string
-      type: array
     docker_exposed_ports:
       type: object
     docker_port_bindings:
@@ -190,9 +193,9 @@ def create_machine(request):
       description: Name of the machine
       required: true
     networks:
+      type: array
       items:
         type: string
-      type: array
     new_network:
       type: string
       description: Required for Azure_arm if create_storage_account
@@ -203,9 +206,9 @@ def create_machine(request):
       type: string
       description: Required for Azure_arm if create_resource_group
     plugins:
+      type: array
       items:
         type: string
-      type: array
     post_script_id:
       type: string
     post_script_params:
