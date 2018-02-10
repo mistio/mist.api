@@ -71,7 +71,10 @@ def install_telegraf(owner_id, cloud_id, machine_id, job=None, job_id=None):
             machine.monitoring.installation_status.state = 'succeeded'
         machine.monitoring.installation_status.finished_at = time.time()
         machine.monitoring.installation_status.stdout = stdout
-        machine.monitoring.installation_status.error_msg = str(err)
+        if err:
+            machine.monitoring.installation_status.error_msg = str(err)
+        else:
+            machine.monitoring.installation_status.error_msg = ''
         machine.save()
 
         # Trigger UI update.

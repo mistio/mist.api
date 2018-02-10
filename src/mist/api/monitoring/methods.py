@@ -6,10 +6,10 @@ import logging
 import requests
 import mongoengine as me
 
+
+
 import mist.api.config as config
 import mist.api.monitoring.tasks
-
-from mist.api.helpers import trigger_session_update
 
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import BadRequestError
@@ -22,6 +22,7 @@ from mist.api.machines.models import InstallationStatus
 
 from mist.api.monitoring.helpers import show_fields
 from mist.api.monitoring.helpers import show_measurements
+from mist.api.monitoring.helpers import notify_machine_monitoring
 
 from mist.api.monitoring.handlers import HANDLERS
 from mist.api.monitoring.handlers import MainStatsHandler
@@ -224,7 +225,6 @@ def check_monitoring(owner):
             ret[key][id]['id'] = id
     return ret
 
-
 # FIXME: Method arguments are left unchanged for backwards compatibility.
 def enable_monitoring(owner, cloud_id, machine_id,
                       no_ssh=False,
@@ -290,7 +290,7 @@ def enable_monitoring(owner, cloud_id, machine_id,
     machine.monitoring.hasmonitoring = True
 
     machine.save()
-    trigger_session_update(owner, ['monitoring'])
+    notify_machine_monitoring(machine)
 
     # Attempt to contact monitor server and enable monitoring for the machine
     try:
@@ -309,7 +309,7 @@ def enable_monitoring(owner, cloud_id, machine_id,
         machine.monitoring.installation_status.finished_at = time.time()
         machine.monitoring.hasmonitoring = False
         machine.save()
-        trigger_session_update(owner, ['monitoring'])
+        notify_machine_monitoring(machine)
         raise
 
     # Update installation status
@@ -318,7 +318,7 @@ def enable_monitoring(owner, cloud_id, machine_id,
     else:
         machine.monitoring.installation_status.state = 'pending'
     machine.save()
-    trigger_session_update(owner, ['monitoring'])
+    notify_machine_monitoring(machine)
 
     if not no_ssh:
         if job_id:
@@ -406,6 +406,7 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=''):
     owner.save()
     machine.monitoring.hasmonitoring = False
     machine.save()
+    notify_machine_monitoring(machine)
 
     # tell monitor server to no longer monitor this uuid
     try:
@@ -430,7 +431,8 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=''):
         log.error("Exception %s while asking monitor server in "
                   "disable_monitoring", exc)
 
-    trigger_session_update(owner, ['monitoring'])
+    notify_machine_monitoring(machine)
+
     return ret_dict
 
 
@@ -478,7 +480,7 @@ def associate_metric(machine, metric_id, name='', unit=''):
     if metric_id not in machine.monitoring.metrics:
         machine.monitoring.metrics.append(metric_id)
         machine.save()
-    trigger_session_update(machine.owner, ['monitoring'])
+    notify_machine_monitoring(machine)
     return metric
 
 
@@ -500,7 +502,7 @@ def disassociate_metric(machine, metric_id):
                     delete_rule(machine.owner, rule.rule_id)
     machine.monitoring.metrics.remove(metric_id)
     machine.save()
-    trigger_session_update(machine.owner, ['monitoring'])
+    notify_machine_monitoring(machine)
 
 
 def update_metric(owner, metric_id, name='', unit=''):
@@ -514,5 +516,4 @@ def update_metric(owner, metric_id, name='', unit=''):
     if unit:
         metric.unit = unit
     metric.save()
-    trigger_session_update(owner, ['monitoring'])
     return metric
