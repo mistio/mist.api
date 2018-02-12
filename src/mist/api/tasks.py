@@ -380,7 +380,7 @@ def openstack_post_create_steps(self, owner_id, cloud_id, machine_id,
                     # Find the external network
                     log.info("Create and associating floating ip with "
                              "machine: %s" % node.id)
-                    ext_net_id = networks['public'][0]['id']
+                    ext_net_id = networks['public'][0]['network_id']
                     conn.ex_create_floating_ip(ext_net_id, machine_port_id)
 
                 post_deploy_steps.delay(

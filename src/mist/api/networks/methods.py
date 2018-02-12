@@ -1,5 +1,5 @@
 from mist.api.clouds.models import Cloud
-from mist.api.networks.models import NETWORKS
+from mist.api.networks.models import NETWORKS, SUBNETS
 
 from mist.api.exceptions import CloudNotFoundError
 from mist.api.helpers import trigger_session_update
@@ -39,6 +39,26 @@ def delete_network(owner, network):
 
     # Schedule a UI update
     trigger_session_update(owner, ['clouds'])
+
+
+def create_subnet(owner, cloud, network, subnet_params):
+    """
+    Create a new subnet attached to the specified network ont he given cloud.
+    Subnet_params is a dict containing all the necessary values that describe a
+    subnet.
+    """
+    if not hasattr(cloud.ctl, 'network'):
+        raise NotImplementedError()
+
+    # Create a DB document for the new subnet and call libcloud
+    #  to declare it on the cloud provider
+    new_subnet = SUBNETS[cloud.ctl.provider].add(network=network,
+                                                 **subnet_params)
+
+    # Schedule a UI update
+    trigger_session_update(owner, ['clouds'])
+
+    return new_subnet
 
 
 def list_networks(owner, cloud_id):

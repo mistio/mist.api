@@ -15,8 +15,6 @@ from mist.api.exceptions import PolicyUnauthorizedError, NetworkNotFoundError
 
 from mist.api.helpers import params_from_request, view_config
 
-from mist.api.methods import create_subnet
-
 OK = Response("OK", 200)
 
 
@@ -112,8 +110,8 @@ def create_network(request):
     #  for backwards compatibility with the current UI
     if subnet_params:
         try:
-            subnet = create_subnet(auth_context.owner, cloud,
-                                   network, subnet_params)
+            subnet = methods.create_subnet(auth_context.owner, cloud,
+                                           network, subnet_params)
         except Exception as exc:
             # Cleaning up the network object in case subnet creation
             #  fails for any reason

@@ -117,12 +117,6 @@ def list_sizes(owner, cloud_id):
                              deleted=None).ctl.compute.list_sizes()
 
 
-def list_locations(owner, cloud_id):
-    """List locations from each cloud"""
-    return Cloud.objects.get(owner=owner, id=cloud_id,
-                             deleted=None).ctl.compute.list_locations()
-
-
 def list_subnets(cloud, network):
     """List subnets for a particular network on a given cloud.
     Currently EC2, Openstack and GCE clouds are supported. For other providers

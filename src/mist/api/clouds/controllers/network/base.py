@@ -286,10 +286,11 @@ class BaseNetworkController(BaseController):
 
             networks.append(network)
 
-            # Delete existing networks not returned by libcloud. All associated
-            # Subnets will also be deleted.
-            Network.objects(cloud=self.cloud,
-                            id__nin=[n.id for n in networks]).delete()
+        # Delete existing networks not returned by libcloud. All associated
+        # Subnets will also be deleted.
+        Network.objects(cloud=self.cloud,
+                        network_id__nin=[n.network_id
+                                         for n in networks]).delete()
 
         return networks
 

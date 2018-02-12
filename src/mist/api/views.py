@@ -1099,8 +1099,16 @@ def list_locations(request):
     """
     cloud_id = request.matchdict['cloud']
     auth_context = auth_context_from_request(request)
+    cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
+                              deleted=None)
     auth_context.check_perm("cloud", "read", cloud_id)
-    return methods.list_locations(auth_context.owner, cloud_id)
+    params = params_from_request(request)
+    cached = bool(params.get('cached', False))
+    if cached:
+        locations = cloud.ctl.compute.list_cached_locations()
+    else:
+        locations = cloud.ctl.compute.list_locations()
+    return [location.as_dict() for location in locations]
 
 
 @view_config(route_name='api_v1_subnets', request_method='GET',
