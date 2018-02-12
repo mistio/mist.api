@@ -147,7 +147,8 @@ def main():
             route_path = app.routes_mapper.get_route(route_name).path
             if route_path and (route_name.startswith('api_v1_') or
                route_name.endswith('tags') or route_name.endswith('tag'))\
-               and not route_name.startswith('api_v1_dev'):
+               and not route_name.startswith('api_v1_dev') and\
+               ('whitelist' not in route_name):
                 try:
                     operation = docstring_to_object(func.func_doc)
                 except:
