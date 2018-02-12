@@ -410,12 +410,14 @@ class MainConnection(MistConnection):
                     {'cloud_id': cloud_id, 'locations': locations}
                 ),
             )
-
-            cached_sizes = cloud.ctl.compute.list_cached_sizes()
-            sizes = [size.as_dict() for size in cached_sizes]
-            log.info("Emitting list_sizes from poller's cache.")
-            self.send('list_sizes',
-                      {'cloud_id': cloud.id, 'sizes': sizes})
+            self.internal_request(
+                'api/v1/clouds/%s/sizes' % cloud.id,
+                params={'cached': True},
+                callback=lambda sizes, cloud_id=cloud.id: self.send(
+                    'list_sizes',
+                    {'cloud_id': cloud_id, 'sizes': sizes}
+                ),
+            )
 
         periodic_tasks.extend([('list_images', tasks.ListImages()),
                                ('list_networks', tasks.ListNetworks()),
