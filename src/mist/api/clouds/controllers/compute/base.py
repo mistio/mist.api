@@ -329,7 +329,7 @@ class BaseComputeController(BaseController):
             # Get misc libcloud metadata.
             image_id = ''
             if isinstance(node.extra.get('image'), dict):
-                image_id = node.extra.get('image').get('id')
+                image_id = str(node.extra.get('image').get('id'))
 
             if not image_id:
                 image_id = str(node.image or node.extra.get('imageId') or
