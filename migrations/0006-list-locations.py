@@ -5,7 +5,7 @@ from mist.api.poller.models import ListLocationsPollingSchedule
 
 
 def trigger_location_polling_schedules():
-    clouds = Cloud.objects()
+    clouds = Cloud.objects(deleted=None)
 
     print
     print 'Creating and storing in database ListLocationsPollingSchedules'
