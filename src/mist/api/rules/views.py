@@ -238,7 +238,8 @@ def triggered(request):
      type: string
      required: true
      description: >
-       the time at which the incident with the specified UUID resolved. Datetime needed
+       the time at which the incident with the specified UUID resolved.\
+       Datetime needed
     """
     # FIXME Remove alongside the old alert service.
     if not config.CILIA_TRIGGER:
