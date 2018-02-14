@@ -49,7 +49,6 @@ from mist.api.concurrency.models import PeriodicTaskThresholdExceeded
 from mist.api.clouds.controllers.base import BaseController
 from mist.api.tag.models import Tag
 from mist.api.machines.models import Machine
-from mist.api.misc.cloud import CloudLocation
 
 if config.HAS_CORE:
     from mist.core.vpn.methods import destination_nat as dnat
@@ -288,6 +287,10 @@ class BaseComputeController(BaseController):
 
         machines = []
         now = datetime.datetime.utcnow()
+
+        # FIXME Imported here due to circular dependency issues. Perhaps one
+        # way to solve this would be to move CloudLocation under its own dir.
+        from mist.api.clouds.models import CloudLocation
 
         # This is a map of locations' external IDs and names to CloudLocation
         # mongoengine objects. It is used to lookup cached locations based on
@@ -853,6 +856,8 @@ class BaseComputeController(BaseController):
         for loc in fetched_locations:
 
             try:
+                # FIXME: resolve circular import issues
+                from mist.api.clouds.models import CloudLocation
                 _location = CloudLocation.objects.get(cloud=self.cloud,
                                                       external_id=loc.id)
             except CloudLocation.DoesNotExist:
@@ -874,6 +879,9 @@ class BaseComputeController(BaseController):
 
     def list_cached_locations(self):
         """Return list of locations from database for a specific cloud"""
+        # FIXME Imported here due to circular dependency issues. Perhaps one
+        # way to solve this would be to move CloudLocation under its own dir.
+        from mist.api.clouds.models import CloudLocation
         return CloudLocation.objects(cloud=self.cloud, missing_since=None)
 
     def _list_locations__fetch_locations(self):
