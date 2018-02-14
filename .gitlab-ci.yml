@@ -33,6 +33,7 @@ generate_api_spec:
     - cd /mist.api
   script:
     - python openapi/generate_api_spec.py
+    - ls -l openapi
 
 
 #################### TEST STAGE ####################
