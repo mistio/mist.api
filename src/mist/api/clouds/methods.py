@@ -69,8 +69,16 @@ def add_cloud_v_2(owner, title, provider, params):
 
     cloud.polling_interval = 1800  # 30 min * 60 sec/min
     cloud.save()
+
+    # Add machines' polling schedule.
     ListMachinesPollingSchedule.add(cloud=cloud)
-    ListLocationsPollingSchedule.add(cloud=cloud)
+
+    # Add extra cloud-level polling schedules with lower frequency. Such
+    # schedules poll resource that should hardly ever change. Thus, we
+    # add the schedules, increase their interval, and forget about them.
+    schedule = ListLocationsPollingSchedule.add(cloud=cloud)
+    schedule.set_default_interval(60 * 60 * 24)
+    schedule.save()
 
     return ret
 

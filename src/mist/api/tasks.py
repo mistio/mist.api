@@ -40,7 +40,6 @@ from mist.api.poller.models import PollingSchedule
 from mist.api.poller.models import ListMachinesPollingSchedule
 from mist.api.poller.models import PingProbeMachinePollingSchedule
 from mist.api.poller.models import SSHProbeMachinePollingSchedule
-from mist.api.poller.models import ListLocationsPollingSchedule
 
 from mist.api.helpers import send_email as helper_send_email
 from mist.api.helpers import amqp_publish_user
@@ -1388,11 +1387,6 @@ def update_poller(org_id):
     for cloud in Cloud.objects(owner=org, deleted=None, enabled=True):
         log.info("Updating poller for cloud %s", cloud)
         ListMachinesPollingSchedule.add(cloud=cloud, interval=10, ttl=120)
-        sched = ListLocationsPollingSchedule.add(cloud=cloud,
-                                                 run_immediately=False)
-        sched.set_default_interval(60 * 60 * 24)
-        sched.save()
-
         for machine in cloud.ctl.compute.list_cached_machines():
             log.info("Updating poller for machine %s", machine)
             PingProbeMachinePollingSchedule.add(machine=machine,
