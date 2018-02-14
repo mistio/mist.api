@@ -25,7 +25,7 @@ class PeriodicTaskInfo(me.Document):
         created_at = me.DateTimeField(default=datetime.datetime.now())
 
     # Unique task identifier.
-    key = me.StringField(primary=True, unique=True)
+    key = me.StringField(primary_key=True)
 
     # Track successes/failures for autodisabling.
     last_success = me.DateTimeField()
