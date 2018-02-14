@@ -28,8 +28,10 @@ build_mist_image:
 #################### GENERATE_API_SPEC STAGE ####################
 generate_api_spec:
   stage: generate_api_spec
+  before_script:
+    - cd /mist.api
   script:
-    - bash -c "python openapi/generate_api_spec.py"
+    - python openapi/generate_api_spec.py
 
 
 #################### TEST STAGE ####################
