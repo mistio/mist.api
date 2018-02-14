@@ -289,6 +289,14 @@ class BaseComputeController(BaseController):
         machines = []
         now = datetime.datetime.utcnow()
 
+        # This is a map of locations' external IDs and names to CloudLocation
+        # mongoengine objects. It is used to lookup cached locations based on
+        # a node's metadata in order to associate VM instances to their region.
+        locations_map = {}
+        for location in CloudLocation.objects(cloud=self.cloud):
+            locations_map[location.external_id] = location
+            locations_map[location.name] = location
+
         # Process each machine in returned list.
         # Store previously unseen machines separately.
         new_machines = []
@@ -305,26 +313,14 @@ class BaseComputeController(BaseController):
             # Update machine_model's last_seen fields.
             machine.last_seen = now
             machine.missing_since = None
+
             # Discover location of machine.
             try:
-                loc_id = self._list_machines__get_location(node)
+                location_id = self._list_machines__get_location(node)
             except Exception as exc:
-                log.exception(repr(exc))
-
+                log.error("Error getting location of %s: %r", machine, exc)
             else:
-                try:
-                    _location = CloudLocation.objects.get(cloud=self.cloud,
-                                                          external_id=loc_id)
-                    machine.location = _location
-                except CloudLocation.DoesNotExist:
-                    try:
-                        _location = CloudLocation.objects.get(
-                            cloud=self.cloud,
-                            name=loc_id)
-                        machine.location = _location
-                    except CloudLocation.DoesNotExist:
-                        log.error("Couldn't find Location with id %s "
-                                  "for cloud %s", loc_id, self.cloud)
+                machine.location = locations_map.get(location_id)
 
             # Get misc libcloud metadata.
             image_id = ''
@@ -877,11 +873,8 @@ class BaseComputeController(BaseController):
         return locations
 
     def list_cached_locations(self):
-        """Return list of locations from database
-        for a specific cloud
-        """
-        return CloudLocation.objects(cloud=self.cloud,
-                                     missing_since=None)
+        """Return list of locations from database for a specific cloud"""
+        return CloudLocation.objects(cloud=self.cloud, missing_since=None)
 
     def _list_locations__fetch_locations(self):
         """Fetch location listing in a libcloud compatible format
