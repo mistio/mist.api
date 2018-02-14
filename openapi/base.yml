@@ -1,9 +1,9 @@
 info:
   title: MistIO API
-  version: 1.0.0
+  version: 2.0.0
 openapi: 3.0.0
 servers:
-  - url: http://172.17.0.1
+  - url: http://localhost
 produces:
 - application/json
 components:
