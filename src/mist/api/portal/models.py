@@ -1,3 +1,4 @@
+import os
 import uuid
 import logging
 import datetime
@@ -21,6 +22,10 @@ class AvailableUpgrade(me.EmbeddedDocument):
         }
 
 
+def _generate_secret_key():
+    return os.urandom(32).encode('hex')
+
+
 class Portal(me.Document):
     """Holds metadata about the mist.io installation itself
 
@@ -33,6 +38,9 @@ class Portal(me.Document):
 
     # Newer available mist.io versions
     available_upgrades = me.EmbeddedDocumentListField(AvailableUpgrade)
+
+    # Keys & settings unique per portal
+    internal_api_key = me.StringField()
 
     # This field has a uniqueness constraint and always has the same value.
     # This is an extra check to ensure that we'll not end up with multiple
@@ -49,10 +57,15 @@ class Portal(me.Document):
         try:
             portal = cls.objects.get()
             log.debug("Loaded portal info from db.")
+            if not portal.internal_api_key:
+                log.info("Generating internal api key.")
+                portal.internal_api_key = _generate_secret_key()
+                portal.save()
         except me.DoesNotExist:
             log.info("No portal info found in db, will try to initialize.")
             try:
                 portal = cls()
+                portal.internal_api_key = _generate_secret_key()
                 portal.save()
                 log.info("Initialized portal info.")
             except me.NotUniqueError:

@@ -178,6 +178,10 @@ class LibvirtNetwork(Network):
     pass
 
 
+class VSphereNetwork(Network):
+    pass
+
+
 class Subnet(me.Document):
     """The basic Subnet model.
 

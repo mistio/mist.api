@@ -12,19 +12,7 @@ def to_tunnel(owner, host):
     return
 
 
-def filter_list_templates(auth_context):
-    return {}
-
-
-def filter_list_stacks(auth_context):
-    return {}
-
-
 def filter_list_tags(auth_context, scripts=None, perm='read'):
-    return {}
-
-
-def filter_list_vpn_tunnels(auth_context, perm='read'):
     return {}
 
 
