@@ -29,6 +29,8 @@ COPY . /mist.api/
 
 RUN pip install -e src/
 
+RUN ipython /mist.api/openapi/generate_api_spec.py
+
 # This file gets overwritten when mounting code, which lets us know code has
 # been mounted.
 RUN touch clean
