@@ -819,7 +819,7 @@ class BaseComputeController(BaseController):
             try:
                 cpus = self._list_sizes_get_cpu(size)
             except Exception as exc:
-                log.exception(repr(exc))
+                log.error(repr(exc))
 
             if isinstance(size.price, float):
                 _size.price = size.price

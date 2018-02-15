@@ -10,7 +10,7 @@ from mist.api.poller.models import ListSizesPollingSchedule
 
 
 def trigger_size_polling_schedules():
-    clouds = Cloud.objects()
+    clouds = Cloud.objects(deleted=None)
 
     print
     print 'Creating and storing in database ListSizesPollingSchedule'
@@ -20,7 +20,10 @@ def trigger_size_polling_schedules():
 
     for cloud in clouds:
         try:
-            ListSizesPollingSchedule.add(cloud)
+            schedule = ListSizesPollingSchedule.add(cloud)
+            schedule.set_default_interval(60 * 60 * 24)
+            schedule.save()
+
         except Exception as exc:
             print 'Error: %s' % exc
             traceback.print_exc()
@@ -51,8 +54,6 @@ def remove_string_field_type():
                 {'$unset': {'size': ''}}
             )
         except Exception as exc:
-            print 'Error: %s' % exc
-            traceback.print_exc()
             traceback.print_exc()
             failed += 1
             continue

@@ -208,7 +208,7 @@ class AmazonComputeController(BaseComputeController):
         return 1
 
     def _list_sizes_set_name(self, size, cpu):
-        return '%s - %s(%sMB RAM/ %s cpus)' % (size.id, size.name,
+        return '%s - %s(%sMB RAM/ %s CPUs)' % (size.id, size.name,
                                                size.ram, cpu)
 
     def _list_machines__get_size(self, node):

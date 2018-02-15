@@ -273,9 +273,6 @@ class CloudSize(me.Document):
         ]
     }
 
-    def __init__(self, *args, **kwargs):
-        super(CloudSize, self).__init__(*args, **kwargs)
-
     def __str__(self):
         name = "%s, %s (%s)" % (self.name, self.cloud.id, self.external_id)
         return name
