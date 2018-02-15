@@ -247,9 +247,6 @@ class DigitalOceanComputeController(BaseComputeController):
     def _stop_machine(self, machine, machine_libcloud):
         self.connection.ex_shutdown_node(machine_libcloud)
 
-    def _list_sizes__get_cpu(self, size):
-        return size.extra.get('vcpus')
-
     def _list_machines__get_location(self, node):
         return node.extra.get('region')
 
@@ -264,8 +261,11 @@ class DigitalOceanComputeController(BaseComputeController):
             return None
 
     def _list_sizes__get_name(self, size, cpu):
-        return size.name + ' (%d cpus / %dM RAM)' \
-                           % (cpu, size.ram)
+        return size.name + ' (%d cpus / %dM RAM)' % (cpu,
+                             size.ram)
+
+    def _list_sizes__get_cpu(self, size):
+        return size.extra.get('vcpus')
 
 
 class LinodeComputeController(BaseComputeController):
@@ -292,12 +292,6 @@ class LinodeComputeController(BaseComputeController):
                                size_id=size)
         return 0, price or 0
 
-    def _list_sizes__get_name(self, size, cpu):
-        """Sets name for size, as it will be
-        shown to the end user
-        """
-        return size.name + '(%d cpus)' % cpu
-
     def _list_machines__get_size(self, node):
         plan_id = node.extra.get('PLANID')
         from mist.api.clouds.models import CloudSize
@@ -310,6 +304,12 @@ class LinodeComputeController(BaseComputeController):
 
     def _list_machines__get_location(self, node):
         return str(node.extra.get('DATACENTERID'))
+
+    def _list_sizes__get_name(self, size, cpu):
+        """Sets name for size, as it will be
+        shown to the end user
+        """
+        return size.name + '(%d cpus)' % cpu
 
 
 class RackSpaceComputeController(BaseComputeController):
@@ -365,12 +365,6 @@ class RackSpaceComputeController(BaseComputeController):
         except:
             machine.os_type = 'linux'
 
-    def _list_sizes__get_cpu(self, size):
-        return size.vcpus
-
-    def _list_sizes__get_name(self, size, cpu):
-        return size.name + ' (%d cpus)' % cpu
-
     def _list_machines__get_size(self, node):
         plan_id = node.extra.get('flavorId')
         from mist.api.clouds.models import CloudSize
@@ -380,6 +374,12 @@ class RackSpaceComputeController(BaseComputeController):
             return size
         except CloudSize.DoesNotExist:
             return None
+
+    def _list_sizes__get_cpu(self, size):
+        return size.vcpus
+
+    def _list_sizes__get_name(self, size, cpu):
+        return size.name + ' (%d cpus)' % cpu
 
 
 class SoftLayerComputeController(BaseComputeController):
@@ -597,6 +597,9 @@ class AzureArmComputeController(BaseComputeController):
         if machine_libcloud.state is NodeState.PAUSED:
             machine.actions.start = True
 
+    def _list_machines__get_location(self, node):
+        return node.extra.get('location')
+
     def _list_sizes__fetch_sizes(self):
         location = self.connection.list_locations()[0]
         sizes = self.connection.list_sizes(location)
@@ -635,9 +638,6 @@ class AzureArmComputeController(BaseComputeController):
                                        "errors": exc.to_dict()})
 
         return _sizes
-
-    def _list_machines__get_location(self, node):
-        return node.extra.get('location')
 
 
 class GoogleComputeController(BaseComputeController):
@@ -801,15 +801,15 @@ class GoogleComputeController(BaseComputeController):
         except:
             pass
 
+    def _list_machines__get_location(self, node):
+        return node.extra.get('zone').id
+
     def _list_sizes__get_cpu(self, size):
         return size.extra.get('guestCpus')
 
     def _list_sizes__get_name(self, size, cpu):
         return "%s (%s)" % (size.name,
                             size.extra.get('description'))
-
-    def _list_machines__get_location(self, node):
-        return node.extra.get('zone').id
 
 
 class HostVirtualComputeController(BaseComputeController):
@@ -838,6 +838,16 @@ class PacketComputeController(BaseComputeController):
 
     def _list_machines__fetch_machines(self):
         return self.connection.list_nodes(self.cloud.project_id)
+
+    def _list_machines__get_size(self, node):
+        plan = node.extra.get('plan')
+        from mist.api.clouds.models import CloudSize
+        try:
+            size = CloudSize.objects.get(cloud=self.cloud,
+                                         name=plan)
+            return size
+        except CloudSize.DoesNotExist:
+            return None
 
     def _list_sizes__get_name(self, size, cpu):
         if cpu:
@@ -883,16 +893,6 @@ class PacketComputeController(BaseComputeController):
 
         return sizes
 
-    def _list_machines__get_size(self, node):
-        plan = node.extra.get('plan')
-        from mist.api.clouds.models import CloudSize
-        try:
-            size = CloudSize.objects.get(cloud=self.cloud,
-                                         name=plan)
-            return size
-        except CloudSize.DoesNotExist:
-            return None
-
 
 class VultrComputeController(BaseComputeController):
 
@@ -915,14 +915,14 @@ class VultrComputeController(BaseComputeController):
         except CloudSize.DoesNotExist:
             return None
 
+    def _list_machines__get_location(self, node):
+        return node.extra.get('DCID')
+
     def _list_sizes__get_cpu(self, size):
         return size.extra.get('vcpu_count')
 
     def _list_sizes__get_name(self, size, cpu):
         return size.name + ' (%d cpus)' % cpu
-
-    def _list_machines__get_location(self, node):
-        return node.extra.get('DCID')
 
 
 class VSphereComputeController(BaseComputeController):
