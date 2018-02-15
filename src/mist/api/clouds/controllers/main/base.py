@@ -307,8 +307,13 @@ class BaseMainController(object):
 
         # FIXME: Resolve circular import issues
         from mist.api.poller.models import ListMachinesPollingSchedule
+        from mist.api.poller.models import ListLocationsPollingSchedule
         # Ensure polling schedule is in place in case the cloud is re-enabled.
         ListMachinesPollingSchedule.add(cloud=self.cloud)
+        # Ensure additional polling schedules with lower frequency.
+        schedule = ListLocationsPollingSchedule.add(cloud=self.cloud)
+        schedule.set_default_interval(60 * 60 * 24)
+        schedule.save()
 
     def disable(self):
         self.cloud.enabled = False
@@ -363,6 +368,8 @@ class BaseMainController(object):
             missing_since=datetime.datetime.utcnow()
         )
         # FIXME: Circular dependency.
+        # FIXME: Is this necessary? Can't we just delete the documents? If not,
+        # the following should take place in `self.disable`, too.
         from mist.api.clouds.models import CloudLocation
         CloudLocation.objects(cloud=self.cloud,
                               missing_since=None).update(
