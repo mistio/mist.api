@@ -38,7 +38,7 @@ def remove_string_field_type():
     db = c.get_database('mist2')
     db_machines = db['machines']
 
-    machines = Machine.objects()
+    machines = Machine.objects().only('id')
 
     print
     print 'Removing size field from %d migrated machines' % db_machines.count()
