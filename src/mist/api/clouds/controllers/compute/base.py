@@ -759,7 +759,6 @@ class BaseComputeController(BaseController):
                                 for s in self.list_cached_sizes()}
                 sizes = self._list_sizes__fetch_sizes()
         except PeriodicTaskThresholdExceeded:
-            self.cloud.disable()
             raise
 
         # Initialize AMQP connection to reuse for multiple messages.
