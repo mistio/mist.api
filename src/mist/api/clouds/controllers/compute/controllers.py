@@ -851,9 +851,12 @@ class PacketComputeController(BaseComputeController):
 
     def _list_sizes__get_name(self, size, cpu):
         if cpu:
-            return size.name + ' (%d cpus)' % cpu
+            name = size.name + ' (%d cpus)' % cpu
         else:
-            return size.name
+            name = size.name
+        # format the name to contain only the type of the size
+        # since it is needed in list_machines__get_size
+        return name.split(' -')[0]
 
     def _list_sizes__fetch_sizes(self):
         fetched_sizes = self.connection.list_sizes()
@@ -880,9 +883,7 @@ class PacketComputeController(BaseComputeController):
                 log.exception(repr(exc))
             _size.cpus = cpus
             _size.name = self._list_sizes__get_name(size, cpus)
-            # format the name to contain only the type of the size
-            # since it is needed in list_machines__get_size
-            _size.name = size.name.split(' -')[0]
+
             try:
                 _size.save()
                 sizes.append(_size)
