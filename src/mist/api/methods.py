@@ -111,12 +111,6 @@ def star_image(owner, cloud_id, image_id):
     return not star
 
 
-def list_sizes(owner, cloud_id):
-    """List sizes (aka flavors) from each cloud"""
-    return Cloud.objects.get(owner=owner, id=cloud_id,
-                             deleted=None).ctl.compute.list_sizes()
-
-
 def list_subnets(cloud, network):
     """List subnets for a particular network on a given cloud.
     Currently EC2, Openstack and GCE clouds are supported. For other providers
