@@ -819,7 +819,6 @@ class BaseComputeController(BaseController):
         sizes = []
 
         for size in fetched_sizes:
-            import ipdb; ipdb.set_trace()
             # create the object in db if it does not exist
             # FIXME: resolve circular import issues
             from mist.api.clouds.models import CloudSize
