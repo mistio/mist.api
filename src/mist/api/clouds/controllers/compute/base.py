@@ -808,7 +808,7 @@ class BaseComputeController(BaseController):
 
         """
         try:
-            fetched_sizes = self.connection.list_sizes()
+            fetched_sizes = self._list_sizes__filter_sizes(self.connection.list_sizes())
 
             log.info("List sizes returned %d results for %s.",
                      len(fetched_sizes), self.cloud)
@@ -819,7 +819,7 @@ class BaseComputeController(BaseController):
         sizes = []
 
         for size in fetched_sizes:
-
+            import ipdb; ipdb.set_trace()
             # create the object in db if it does not exist
             # FIXME: resolve circular import issues
             from mist.api.clouds.models import CloudSize
@@ -854,6 +854,14 @@ class BaseComputeController(BaseController):
                 raise BadRequestError({"msg": exc.message,
                                        "errors": exc.to_dict()})
 
+        return sizes
+
+    def _list_sizes__filter_sizes(self, sizes):
+        """Applies any possible filtering required
+        by the provider. e.g. Vultr also returns deprecated
+        sizes, that need to be excluded from list_sizes
+        returned array
+        """
         return sizes
 
     def _list_sizes__get_cpu(self, size):
