@@ -810,19 +810,22 @@ class BaseComputeController(BaseController):
                 _size = CloudSize.objects.get(cloud=self.cloud,
                                               external_id=size.id)
             except CloudSize.DoesNotExist:
-                _size = CloudSize(cloud=self.cloud,
-                                  name=size.name, disk=size.disk,
-                                  ram=size.ram, external_id=size.id,
-                                  bandwidth=size.bandwidth
-                                  )
+                _size = CloudSize(cloud=self.cloud, external_id=size.id)
+
+            _size.name = size.name
+            _size.disk = size.disk
+            _size.ram = size.ram
+            _size.bandwidth = size.bandwidth
+
             try:
-                cpus = self._list_sizes_get_cpu(size)
+                cpus = self._list_sizes__get_cpu(size)
+                _size.cpus = cpus
             except Exception as exc:
                 log.error(repr(exc))
 
             if isinstance(size.price, float):
                 _size.price = size.price
-            _size.cpus = cpus
+
             _size.name = self._list_sizes_set_name(size, cpus)
             try:
                 _size.save()
@@ -834,7 +837,7 @@ class BaseComputeController(BaseController):
 
         return sizes
 
-    def _list_sizes_get_cpu(self, size):
+    def _list_sizes__get_cpu(self, size):
         return size.extra.get('cpus')
 
     def _list_sizes_set_name(self, size, cpu):

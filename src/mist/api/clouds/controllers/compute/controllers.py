@@ -202,7 +202,7 @@ class AmazonComputeController(BaseComputeController):
     def _list_machines__get_location(self, node):
         return node.extra.get('availability')
 
-    def _list_sizes_get_cpu(self, size):
+    def _list_sizes__get_cpu(self, size):
         if size.extra.get('cpu'):
             return size.extra.get('cpu')
         return 1
@@ -249,7 +249,7 @@ class DigitalOceanComputeController(BaseComputeController):
     def _stop_machine(self, machine, machine_libcloud):
         self.connection.ex_shutdown_node(machine_libcloud)
 
-    def _list_sizes_get_cpu(self, size):
+    def _list_sizes__get_cpu(self, size):
         return size.extra.get('vcpus')
 
     def _list_machines__get_location(self, node):
@@ -367,7 +367,7 @@ class RackSpaceComputeController(BaseComputeController):
         except:
             machine.os_type = 'linux'
 
-    def _list_sizes_get_cpu(self, size):
+    def _list_sizes__get_cpu(self, size):
         return size.vcpus
 
     def _list_sizes_set_name(self, size, cpu):
@@ -803,7 +803,7 @@ class GoogleComputeController(BaseComputeController):
         except:
             pass
 
-    def _list_sizes_get_cpu(self, size):
+    def _list_sizes__get_cpu(self, size):
         return size.extra.get('guestCpus')
 
     def _list_sizes_set_name(self, size, cpu):
@@ -867,7 +867,7 @@ class PacketComputeController(BaseComputeController):
                                   bandwidth=size.bandwidth
                                   )
             try:
-                cpus = self._list_sizes_get_cpu(size)
+                cpus = self._list_sizes__get_cpu(size)
             except Exception as exc:
                 log.exception(repr(exc))
             _size.cpus = cpus
@@ -917,7 +917,7 @@ class VultrComputeController(BaseComputeController):
         except CloudSize.DoesNotExist:
             return None
 
-    def _list_sizes_get_cpu(self, size):
+    def _list_sizes__get_cpu(self, size):
         return size.extra.get('vcpu_count')
 
     def _list_sizes_set_name(self, size, cpu):
@@ -1006,7 +1006,7 @@ class OpenStackComputeController(BaseComputeController):
                 public_ips.append(ip)
         machine.public_ips = public_ips
 
-    def _list_sizes_get_cpu(self, size):
+    def _list_sizes__get_cpu(self, size):
         return size.vcpus
 
     def _list_sizes_set_name(self, size, cpu):
@@ -1413,7 +1413,7 @@ class LibvirtComputeController(BaseComputeController):
     def _undefine_machine(self, machine, machine_libcloud):
         self.connection.ex_undefine_node(machine_libcloud)
 
-    def _list_sizes_get_cpu(self, size):
+    def _list_sizes__get_cpu(self, size):
         return size.extra.get('cpu')
 
 

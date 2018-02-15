@@ -5,7 +5,7 @@ from mist.api.poller.models import ListLocationsPollingSchedule
 
 
 def trigger_location_polling_schedules():
-    clouds = Cloud.objects()
+    clouds = Cloud.objects(deleted=None)
 
     print
     print 'Creating and storing in database ListLocationsPollingSchedules'
@@ -15,7 +15,9 @@ def trigger_location_polling_schedules():
 
     for cloud in clouds:
         try:
-            ListLocationsPollingSchedule.add(cloud)
+            schedule = ListLocationsPollingSchedule.add(cloud)
+            schedule.set_default_interval(60 * 60 * 24)
+            schedule.save()
         except Exception as exc:
             print 'Error: %s' % exc
             traceback.print_exc()
