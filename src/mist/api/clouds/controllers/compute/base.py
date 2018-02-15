@@ -845,7 +845,7 @@ class BaseComputeController(BaseController):
         return sizes
 
     def _list_sizes__get_cpu(self, size):
-        return size.extra.get('cpus')
+        return int(size.extra.get('cpus') or 1)
 
     def _list_sizes__get_name(self, size, cpu):
         """Sets name for size, as it will be
