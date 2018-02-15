@@ -92,13 +92,9 @@ class MistConnection(SockJSConnection):
         log.info("%s: Initializing", self.__class__.__name__)
         self.ip, self.user_agent, self.cookie_session_id = get_conn_info(
             conn_info)
-        log.info("Got connection info: %s %s %s",
-                 self.ip, self.user_agent, self.cookie_session_id)
         try:
             self.auth_context = auth_context_from_session_id(
                 self.cookie_session_id)
-            log.info("Got auth context %s for session %s",
-                     self.auth_context.owner.id, self.cookie_session_id)
         except UnauthorizedError:
             log.error("%s: Unauthorized session_id", self.__class__.__name__)
             self.send('logout')
@@ -291,9 +287,7 @@ class MainConnection(MistConnection):
         }
         if self.auth_context.token.su:
             self.log_kwargs['su'] = self.auth_context.token.su
-        log.info('About to log open event %s', self.auth_context.owner.id)
         log_event(action='connect', **self.log_kwargs)
-        log.info('Done %s', self.auth_context.owner.id)
 
     def on_ready(self):
         log.info("************** Ready to go! %s", self.auth_context.owner.id)
@@ -391,7 +385,6 @@ class MainConnection(MistConnection):
         self.update_poller()
         self.send('list_clouds', filter_list_clouds(self.auth_context))
         clouds = Cloud.objects(owner=self.owner, enabled=True, deleted=None)
-        log.info(clouds)
         periodic_tasks = []
         for cloud in clouds:
             self.internal_request(

@@ -4,8 +4,6 @@ import time
 import logging
 import elasticsearch.exceptions as eexc
 
-from pymongo import MongoClient
-
 from mist.api import config
 
 from mist.api.helpers import es_client as es
@@ -112,12 +110,6 @@ def log_event(owner_id, event_type, action, error=None, **kwargs):
     except Exception as exc:
         log.error('Failed to log event %s: %s', event, exc)
     else:
-        # FIXME: Deprecate
-        conn = MongoClient(config.MONGO_URI)
-        coll = conn['mist'].logging
-        coll.save(event.copy())
-        conn.close()
-
         # Construct RabbitMQ routing key.
         keys = [str(owner_id), str(event_type), str(action)]
         keys.append('true' if error else 'false')
