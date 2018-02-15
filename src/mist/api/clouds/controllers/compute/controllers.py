@@ -1330,6 +1330,10 @@ class DockerComputeController(BaseComputeController):
             self.connection.stop_container(machine_libcloud)
         self.connection.destroy_container(machine_libcloud)
 
+    # this method should never be called
+    def _list_sizes__get_cpu(self, size):
+        return 0
+
 
 class LibvirtComputeController(BaseComputeController):
 
