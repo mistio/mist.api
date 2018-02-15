@@ -871,7 +871,7 @@ class PacketComputeController(BaseComputeController):
                 _size = CloudSize.objects.get(cloud=self.cloud,
                                               external_id=size.id)
             except CloudSize.DoesNotExist:
-                size.ram = size.ram.strip('GB')
+                size.ram = int(size.ram.strip('GB'))
                 _size = CloudSize(cloud=self.cloud,
                                   disk=size.disk, price=size.price,
                                   ram=size.ram, external_id=size.id,
