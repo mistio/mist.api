@@ -53,7 +53,7 @@ def remove_string_field_type():
                 {'_id': machine['id']},
                 {'$unset': {'size': ''}}
             )
-        except Exception as exc:
+        except Exception:
             traceback.print_exc()
             failed += 1
             continue
