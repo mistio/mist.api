@@ -299,6 +299,18 @@ class BaseComputeController(BaseController):
             locations_map[location.external_id] = location
             locations_map[location.name] = location
 
+        # FIXME Imported here due to circular dependency issues. Perhaps one
+        # way to solve this would be to move CloudSize under its own dir.
+        from mist.api.clouds.models import CloudSize
+
+        # This is a map of sizes' external IDs and names to CloudSize
+        # mongoengine objects. It is used to lookup cached sizes based on
+        # a node's metadata in order to associate VM instances to their size.
+        sizes_map = {}
+        for size in CloudSize.objects(cloud=self.cloud):
+            sizes_map[size.external_id] = size
+            sizes_map[size.name] = size
+
         # Process each machine in returned list.
         # Store previously unseen machines separately.
         new_machines = []
@@ -338,7 +350,9 @@ class BaseComputeController(BaseController):
             try:
                 size = self._list_machines__get_size(node)
             except Exception as exc:
-                log.exception(repr(exc))
+                log.error("Error getting size of %s: %r", machine, exc)
+            else:
+                machine.size = sizes_map.get(size)
 
             machine.name = node.name
             machine.image_id = image_id
