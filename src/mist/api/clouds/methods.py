@@ -72,7 +72,10 @@ def add_cloud_v_2(owner, title, provider, params):
     cloud.save()
     ListMachinesPollingSchedule.add(cloud=cloud)
     ListLocationsPollingSchedule.add(cloud=cloud)
-    ListSizesPollingSchedule.add(cloud=cloud)
+
+    schedule = ListSizesPollingSchedule.add(cloud=cloud)
+    schedule.set_default_interval(60 * 60 * 24)
+    schedule.save()
 
     return ret
 

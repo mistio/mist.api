@@ -795,10 +795,15 @@ class BaseComputeController(BaseController):
         Subclasses MAY override this method.
 
         """
-        fetched_sizes = self.connection.list_sizes()
+        try:
+            fetched_sizes = self.connection.list_sizes()
 
-        log.info("List sizes returned %d results for %s.",
-                 len(fetched_sizes), self.cloud)
+            log.info("List sizes returned %d results for %s.",
+                     len(fetched_sizes), self.cloud)
+        except Exception as exc:
+            log.exception("Error while running list_sizes on %s", self.cloud)
+            raise CloudUnavailableError(exc=exc)
+
         sizes = []
 
         for size in fetched_sizes:
@@ -826,7 +831,7 @@ class BaseComputeController(BaseController):
             if isinstance(size.price, float):
                 _size.price = size.price
 
-            _size.name = self._list_sizes_set_name(size, cpus)
+            _size.name = self._list_sizes__get_name(size, cpus)
             try:
                 _size.save()
                 sizes.append(_size)
@@ -840,7 +845,7 @@ class BaseComputeController(BaseController):
     def _list_sizes__get_cpu(self, size):
         return size.extra.get('cpus')
 
-    def _list_sizes_set_name(self, size, cpu):
+    def _list_sizes__get_name(self, size, cpu):
         """Sets name for size, as it will be
         shown to the end user
         """
