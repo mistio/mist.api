@@ -757,7 +757,7 @@ class BaseComputeController(BaseController):
         to allow subclasses to modify the data according to the specific of
         their cloud type. These methods currently are:
 
-            `self._list_sizes__fetch_sizes`
+            `self._list_sizes`
 
         Subclasses that require special handling should override these, by
         default, dummy methods.
@@ -769,7 +769,7 @@ class BaseComputeController(BaseController):
             with task.task_runner(persist=persist):
                 cached_sizes = {'%s' % s.id: s.as_dict()
                                 for s in self.list_cached_sizes()}
-                sizes = self._list_sizes__fetch_sizes()
+                sizes = self._list_sizes()
         except PeriodicTaskThresholdExceeded:
             raise
 
@@ -799,7 +799,7 @@ class BaseComputeController(BaseController):
                                         'sizes': sizes_dict})
         return sizes
 
-    def _list_sizes__fetch_sizes(self):
+    def _list_sizes(self):
         """Fetch size listing in a libcloud compatible format
 
         This is to be called exclusively by `self.list_sizes`.
@@ -808,7 +808,7 @@ class BaseComputeController(BaseController):
 
         """
         try:
-            fetched_sizes = self._list_sizes__filter_sizes(self.connection.list_sizes())
+            fetched_sizes = self._list_sizes__filter_sizes(self._list_sizes__fetch_sizes())
 
             log.info("List sizes returned %d results for %s.",
                      len(fetched_sizes), self.cloud)
@@ -855,6 +855,18 @@ class BaseComputeController(BaseController):
 
         return sizes
 
+    def _list_sizes__fetch_sizes(self):
+        """Fetch size listing in a libcloud compatible format
+
+        This is to be called exclusively by `self._list_sizes`.
+
+        Most subclasses that use a simple libcloud connection, shouldn't need
+        to override or extend this method.
+
+        Subclasses MAY override this method.
+        """
+        return self.connection.list_sizes()
+
     def _list_sizes__filter_sizes(self, sizes):
         """Applies any possible filtering required
         by the provider. e.g. Vultr also returns deprecated
@@ -871,6 +883,12 @@ class BaseComputeController(BaseController):
         shown to the end user
         """
         return size.name
+
+    def _list_sizes__get_ram(self, size):
+        """Returns ram of size, as it will be
+        shown to the end user
+        """
+        return int(size.ram)
 
     def list_cached_sizes(self):
         """Return list of sizes from database
