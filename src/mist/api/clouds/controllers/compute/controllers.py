@@ -814,9 +814,6 @@ class PacketComputeController(BaseComputeController):
     def _list_machines__get_location(self, node):
         return node.extra.get('facility')
 
-    def _list_machines__fetch_machines(self):
-        return self.connection.list_nodes(self.cloud.project_id)
-
     def _list_machines__get_size(self, node):
         plan = node.extra.get('plan')
         from mist.api.clouds.models import CloudSize
