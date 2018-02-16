@@ -839,10 +839,8 @@ class BaseComputeController(BaseController):
             except Exception as exc:
                 log.error(repr(exc))
 
-            try:
-                _size.price = float(size.price or 0)
-            except ValueError:
-                log.warning("Can't parse %r as float.", size.price)
+            if isinstance(size.price, (float, basestring)):
+                _size.price = float(size.price)
 
             _size.name = self._list_sizes__get_name(size, cpus)
             try:
