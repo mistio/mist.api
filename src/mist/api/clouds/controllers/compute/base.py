@@ -878,7 +878,7 @@ class BaseComputeController(BaseController):
         """Returns ram of size, as it will be
         shown to the end user
         """
-        return int(size.ram)
+        return int(size.ram) if size.ram else None
 
     def list_cached_sizes(self):
         """Return list of sizes from database
