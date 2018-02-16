@@ -208,42 +208,15 @@ class Script(me.Document):
         mist.api.tag.models.Tag.objects(resource=self).delete()
         self.owner.mapper.remove(self)
 
-    def as_dict_old(self):
-        """Data representation for api calls.
-           Use this for backwards compatibility"""
-
-        if self.location.type == 'inline':
-            entrypoint = ''
-        else:
-            entrypoint = self.location.entrypoint or ''
-
-        sdict = {
-            'id': str(self.id),
-            'name': self.name,
-            'description': self.description,
-            'location_type': self.location.type,
-            'entrypoint': entrypoint,
-            'script': self.script,
-            'exec_type': self.exec_type,
-        }
-
-        sdict.update({key: getattr(self, key)
-                      for key in self._script_specific_fields})
-
-        return sdict
-
     def as_dict(self):
         """Data representation for api calls."""
-
-        sdict = {
+        return {
             'id': str(self.id),
             'name': self.name,
             'description': self.description,
             'exec_type': self.exec_type,
             'location': self.location.as_dict(),
         }
-
-        return sdict
 
     def __str__(self):
         return 'Script %s (%s) of %s' % (self.name, self.id, self.owner)
@@ -270,3 +243,17 @@ class CollectdScript(Script):
     extra = me.DictField()
 
     _controller_cls = controllers.CollectdScriptController
+
+
+class TelegrafScript(Script):
+
+    exec_type = 'executable'
+
+    # ex. a dict of tags to be optionally associated with the computed metric.
+    tags = me.DictField()
+    # ex. a dict with value_type='gauge', value_unit=''
+    extra = me.DictField()
+    # Distinguishes between python and sh scripts.
+    evaluate_as = me.StringField(default='python', choices=('python', 'sh'))
+
+    _controller_cls = controllers.TelegrafScriptController

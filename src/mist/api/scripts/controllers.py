@@ -1,3 +1,4 @@
+import os
 import re
 import yaml
 import random
@@ -11,15 +12,9 @@ from yaml.parser import ParserError as YamlParserError
 from yaml.scanner import ScannerError as YamlScannerError
 from mist.api.exceptions import RequiredParameterMissingError
 
-try:
-    from mist.core.methods import assoc_metric, update_metric
-except ImportError:
+from mist.api.monitoring.methods import update_metric
+from mist.api.monitoring.methods import associate_metric
 
-    def assoc_metric(*args, **kwargs):
-        raise NotImplementedError()
-
-    def update_metric(*args, **kwargs):
-        raise NotImplementedError()
 
 log = logging.getLogger(__name__)
 
@@ -62,7 +57,7 @@ class CollectdScriptController(BaseScriptController):
             # wrap collectd python plugin so that it can run as script
             source_code = self.script.location.source_code
             hashbang = '#!/usr/bin/env python\n\n'
-            if not source_code.startswith('!#'):
+            if not source_code.startswith('#!'):
                 self.script.location.source_code = hashbang + source_code
             self.script.location.source_code += '\n\nprint read()\n'
 
@@ -73,6 +68,9 @@ class CollectdScriptController(BaseScriptController):
         return path, params, wparams
 
     def deploy_python_plugin(self, machine):
+        if machine.monitoring.method != 'collectd-graphite':
+            raise BadRequestError('%s is not using collectd' % machine)
+
         # Construct plugin_id from script name
         plugin_id = self.script.name.lower()
         plugin_id = re.sub('[^a-z0-9_]+', '_', plugin_id)
@@ -243,12 +241,177 @@ $sudo rm -rf %(tmp_dir)s""" % {'plugin_id': plugin_id, 'tmp_dir': tmp_dir}  # no
     def deploy_and_assoc_python_plugin_from_script(self, machine):
         # FIXME this works only for inline source_code
         # else we must_download the source from url or github
-
         ret = self.deploy_python_plugin(machine)
-        metric_id = ret['metric_id']
-        update_metric(self.script.owner, metric_id=metric_id,
-                      name=self.script.name,
-                      unit=self.script.extra.get('value_unit', ''))
-        assoc_metric(self.script.owner, machine.cloud.id, machine.machine_id,
-                     metric_id)
+        associate_metric(machine, ret['metric_id'],
+                         name=self.script.name,
+                         unit=self.script.extra.get('value_unit', ''))
+        return ret
+
+
+class TelegrafScriptController(BaseScriptController):
+
+    def run_script(self, shell, params=None, job_id=None):
+        # Prepend shebang to inline scripts.
+        if self.script.location.type == 'inline':
+            source_code = self.script.location.source_code
+            if not source_code.startswith('#!'):
+                if self.script.evaluate_as == 'sh':
+                    shebang = '#!/bin/sh\n\n'
+                if self.script.evaluate_as == 'python':
+                    shebang = '#!/usr/bin/env python\n\n'
+                self.script.location.source_code = shebang + source_code
+        # Run.
+        path, params, wparams = super(CollectdScriptController,
+                                      self).run_script(shell,
+                                                       params=params,
+                                                       job_id=job_id)
+        return path, params, wparams
+
+    # FIXME Rename method, since it can be used to deploy executables, not
+    # just python scripts.
+    # TODO  Allow scripts to return multiple values.
+    def deploy_python_plugin(self, machine):
+        # Construct plugin_id from script's name. Restrict measurement names
+        # to alphanumeric characters and underscores only.
+        plugin_id = self.script.name.lower()
+        plugin_id = re.sub('[^a-z0-9_]+', '_', plugin_id)
+        plugin_id = re.sub('_+', '_', plugin_id)
+        plugin_id = re.sub('^_', '', plugin_id)
+        plugin_id = re.sub('_$', '', plugin_id)
+        if not re.match('^[\w]+$', plugin_id):
+            raise BadRequestError('Measurement names may contain alphanumeric '
+                                  'characters and underscores only')
+
+        # Set metric_id.
+        # 1. In case of InfluxDB, we also have to specify the column, which
+        #    is constant at this point, since we allow a single field only for
+        #    backwards compatibility with the Graphite-based system.
+        # 2. In case of Graphite, we keep the old convention for `metric_id`s,
+        #    for backwards compatibility with bucky.
+        if machine.monitoring.method == 'collectd-graphite':
+            raise BadRequestError('%s is not using Telegraf' % machine)
+        if machine.monitoring.method == 'telegraf-graphite':
+            parts = ['mist', self.script.evaluate_as]  # defaults to "python"
+            for part in plugin_id.split('.'):
+                if part != parts[-1]:
+                    parts.append(part)
+            metric_id = measurement = '.'.join(parts)
+        if machine.monitoring.method == 'telegraf-influxdb':
+            metric_id = plugin_id + '.value'
+            measurement = plugin_id
+
+        # Check metric type.
+        value_type = self.script.extra.get('value_type', 'gauge')
+        if value_type not in ('gauge', 'derive'):
+            raise BadRequestError('Invalid value_type "%s". Must be '
+                                  '"gauge" or "derive"' % value_type)
+
+        # FIXME Allow derivates.
+        if value_type == 'derive':
+            raise BadRequestError('Derivate custom metrics not yet supported')
+
+        # Choose wrapper script.
+        if self.script.evaluate_as == 'sh':
+            plugin = """#!/bin/sh
+
+# Generated by mist.io
+
+%(function)s
+
+echo %(measurement_and_tags)s value="$(read)"
+"""
+        if self.script.evaluate_as == 'python':
+            plugin = """#!/usr/bin/env python
+
+# Generated by mist.io
+
+%(function)s
+
+print '%(measurement_and_tags)s value=' + str(read())
+"""
+
+        # Construct measurement and tags string.
+        tags = ['%s=%s' % (k, v) for k, v in self.script.tags.iteritems()]
+        measurement_and_tags = ','.join([measurement] + tags)
+
+        # Create plugin script.
+        plugin = plugin % {'function': self.script.location.source_code,
+                           'measurement_and_tags': measurement_and_tags}
+
+        # Paths for testing and deployment.
+        conf_dir = '/opt/mistio/mist-telegraf/custom'
+        test_dir = '/tmp/mist-telegraf-plugin-%d' % random.randrange(2 ** 20)
+        test_plugin = os.path.join(test_dir, plugin_id)
+
+        # Test configuration to ensure telegraf can load the executable.
+        test_conf = """
+[[inputs.exec]]
+  commands = ['%s']
+  data_format = 'influx'
+""" % (test_plugin)
+
+        # Code to run in order to test the script's execution. Firstly, the
+        # script is run by itself to make sure it does not throw any errors
+        # and then it's loaded by telegraf alongside the main config file
+        # at /opt/mistio/mist-telegraf/ to verify the computed series can
+        # be parsed.
+        test_code = """
+$(command -v sudo) chmod +x %s && %s && /opt/mistio/telegraf/usr/bin/telegraf \
+    -test \
+    -config /opt/mistio/mist-telegraf/telegraf.conf \
+    -config-directory %s
+""" % (test_plugin, test_plugin, test_dir)
+
+        # Initialize SSH connection.
+        shell = mist.api.shell.Shell(machine.ctl.get_host())
+        key_id, ssh_user = shell.autoconfigure(self.script.owner,
+                                               machine.cloud.id,
+                                               machine.machine_id)
+        sftp = shell.ssh.open_sftp()
+
+        # Create the test directory and cd to mist-telegraf just to make sure
+        # that the directory exists.
+        retval, stdout = shell.command(
+            'mkdir -p %s && cd /opt/mistio/mist-telegraf/custom' % test_dir
+        )
+        if retval:
+            raise BadRequestError('Failed to init working dir: %s' % stdout)
+
+        # Deploy the test configuration and the plugin.
+        sftp.putfo(StringIO(test_conf), "%s/exec.conf" % test_dir)
+        sftp.putfo(StringIO(plugin), test_plugin)
+
+        # Run the test code to verify the plugin is working.
+        retval, test_out, test_err = shell.command(test_code, pty=False)
+        stdout += test_out
+        if test_err:
+            raise BadRequestError('Test of read() failed: %s' % test_err)
+
+        # Copy the plugin to the proper directory in order to be picked up by
+        # telegraf.
+        retval, stdout = shell.command('$(command -v sudo) '
+                                       'cp %s %s' % (test_plugin, conf_dir))
+        if retval:
+            raise BadRequestError('Failed to deploy plugin: %s' % stdout)
+
+        # Clean up working tmp dir.
+        retval, stdout = shell.command('$(command -v sudo) '
+                                       'rm -rf %s' % test_dir)
+        if retval:
+            log.error('Failed to clean up working dir: %s', stdout)
+
+        # Close SSH connection.
+        shell.disconnect()
+
+        return {'metric_id': metric_id, 'stdout': stdout}
+
+    # FIXME Rename method, since it can be used to deploy executables, not
+    # just python scripts.
+    # FIXME This works only for inline source_code else we must download
+    # the source.
+    def deploy_and_assoc_python_plugin_from_script(self, machine):
+        ret = self.deploy_python_plugin(machine)
+        associate_metric(machine, ret['metric_id'],
+                         name=self.script.name,
+                         unit=self.script.extra.get('value_unit', ''))
         return ret
