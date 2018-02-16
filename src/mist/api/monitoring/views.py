@@ -6,9 +6,7 @@ import mist.api.monitoring.methods
 
 from mist.api.helpers import view_config
 from mist.api.helpers import params_from_request
-from mist.api.helpers import trigger_session_update
 
-from mist.api.exceptions import MistError
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import ForbiddenError
 from mist.api.exceptions import BadRequestError
@@ -443,7 +441,7 @@ def update_metric(request):
             machine = Machine.objects.get(cloud=cloud_id,
                                           machine_id=machine_id)
             machine_uuid = machine.id
-        except me.DoesNotExist:
+        except Machine.DoesNotExist:
             machine_uuid = ''
         # Check permissions.
         auth_context.check_perm('cloud', 'read', cloud_id)

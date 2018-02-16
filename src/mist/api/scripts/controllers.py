@@ -12,7 +12,6 @@ from yaml.parser import ParserError as YamlParserError
 from yaml.scanner import ScannerError as YamlScannerError
 from mist.api.exceptions import RequiredParameterMissingError
 
-from mist.api.monitoring.methods import update_metric
 from mist.api.monitoring.methods import associate_metric
 
 
