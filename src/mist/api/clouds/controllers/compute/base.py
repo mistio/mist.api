@@ -797,7 +797,7 @@ class BaseComputeController(BaseController):
                                   connection=amqp_conn,
                                   data={'cloud_id': self.cloud.id,
                                         'sizes': sizes_dict})
-        return sizes
+        return [size for size in sizes if size.missing_since is None]
 
     def _list_sizes(self):
         """Fetch size listing in a libcloud compatible format
@@ -830,7 +830,7 @@ class BaseComputeController(BaseController):
 
             _size.name = size.name
             _size.disk = size.disk
-            _size.ram = size.ram
+            _size.ram = self._list_sizes__get_ram(size)
             _size.bandwidth = size.bandwidth
 
             try:
@@ -950,7 +950,8 @@ class BaseComputeController(BaseController):
                                   connection=amqp_conn,
                                   data={'cloud_id': self.cloud.id,
                                         'locations': locations_dict})
-        return locations
+        return [location for location in locations
+                if location.missing_since is None]
 
     def _list_locations(self):
         """Return list of available locations for current cloud
