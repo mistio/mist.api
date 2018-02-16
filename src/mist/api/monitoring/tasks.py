@@ -22,7 +22,8 @@ log = logging.getLogger(__name__)
 
 
 @app.task(soft_time_limit=480, time_limit=600)
-def install_telegraf(owner_id, cloud_id, machine_id, job=None, job_id=None):
+def install_telegraf(owner_id, cloud_id, machine_id, job=None, job_id=None,
+                     plugins=None):
     """Deploy Telegraf over SSH."""
     owner = Organization.objects.get(id=owner_id)
     cloud = Cloud.objects.get(owner=owner, id=cloud_id)
@@ -64,26 +65,46 @@ def install_telegraf(owner_id, cloud_id, machine_id, job=None, job_id=None):
         # Close the SSH connection.
         shell.disconnect()
 
-        # Update Machine's InstallationStatus.
-        if exit_code:
-            machine.monitoring.installation_status.state = 'failed'
-        else:
-            machine.monitoring.installation_status.state = 'succeeded'
-        machine.monitoring.installation_status.finished_at = time.time()
-        machine.monitoring.installation_status.stdout = stdout
-        machine.monitoring.installation_status.error_msg = str(err)
-        machine.save()
+    # Update Machine's InstallationStatus.
+    if exit_code:
+        machine.monitoring.installation_status.state = 'failed'
+    else:
+        machine.monitoring.installation_status.state = 'succeeded'
+    machine.monitoring.installation_status.finished_at = time.time()
+    machine.monitoring.installation_status.stdout = stdout
+    machine.monitoring.installation_status.error_msg = str(err)
+    machine.save()
 
-        # Trigger UI update.
-        trigger_session_update(owner, ['monitoring'])
+    # Deploy custom scripts for metrics' collection.
+    if not err and plugins:
+        failed = []
+        # FIXME Imported here due to circular dependency issues.
+        from mist.api.scripts.models import Script
+        for script_id in plugins:
+            try:
+                s = Script.objects.get(owner=owner, id=script_id, deleted=None)
+                ret = s.ctl.deploy_and_assoc_python_plugin_from_script(machine)
+            except Exception as exc:
+                failed.append(script_id)
+                log_event(action='deploy_telegraf_script', script_id=script_id,
+                          error=str(exc), **_log)
+            else:
+                log_event(action='deploy_telegraf_script', script_id=script_id,
+                          metric_id=ret['metric_id'], stdout=ret['stdout'],
+                          **_log)
+        if not err and failed:
+            err = 'Deployment of scripts with IDs %s failed' % ','.join(failed)
 
-        # Log deployment's outcome.
-        _log.update({
-            'key_id': key,
-            'ssh_user': user,
-            'exit_code': exit_code, 'stdout': stdout,
-        })
-        log_event(action='telegraf_deployment_finished', error=err, **_log)
+    # Log deployment's outcome.
+    _log.update({
+        'key_id': key,
+        'ssh_user': user,
+        'exit_code': exit_code, 'stdout': stdout,
+    })
+    log_event(action='telegraf_deployment_finished', error=err, **_log)
+
+    # Trigger UI update.
+    trigger_session_update(owner, ['monitoring'])
 
 
 @app.task(soft_time_limit=480, time_limit=600)

@@ -242,10 +242,8 @@ def update_monitoring_options(owner, emails):
     return {'alerts_email': owner.alerts_email}
 
 
-# FIXME: Method arguments are left unchanged for backwards compatibility.
-def enable_monitoring(owner, cloud_id, machine_id,
-                      no_ssh=False,
-                      dry=False, job_id='', deploy_async=True, plugins=None):
+def enable_monitoring(owner, cloud_id, machine_id, no_ssh=False, dry=False,
+                      job_id='', deploy_async=True, plugins=None):
     """Enable monitoring for a machine.
 
     If `no_ssh` is False, then the monitoring agent will be deployed over SSH.
@@ -359,7 +357,8 @@ def enable_monitoring(owner, cloud_id, machine_id,
             func = mist.api.monitoring.tasks.install_telegraf
             if deploy_async:
                 func = func.delay
-            func(owner.id, machine.cloud.id, machine.machine_id, job, job_id)
+            func(owner.id, machine.cloud.id, machine.machine_id, job, job_id,
+                 plugins)
         else:
             raise Exception("Invalid monitoring method")
 
