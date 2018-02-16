@@ -267,6 +267,11 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                                           public_key, machine_name, image,
                                           size, location, ips)
     elif conn.type is Provider.GCE:
+        sizes = conn.list_sizes(location=location_name)
+        for size in sizes:
+            if size.id == cloud_size.external_id:
+                size = size
+                break
         node = _create_machine_gce(conn, key_id, private_key, public_key,
                                    machine_name, image, size, location,
                                    cloud_init)
