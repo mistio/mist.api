@@ -6,8 +6,11 @@ import mist.api.monitoring.methods
 
 from mist.api.helpers import view_config
 from mist.api.helpers import params_from_request
+from mist.api.helpers import trigger_session_update
 
+from mist.api.exceptions import MistError
 from mist.api.exceptions import NotFoundError
+from mist.api.exceptions import ForbiddenError
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import UnauthorizedError
 from mist.api.exceptions import MethodNotAllowedError
@@ -16,6 +19,8 @@ from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.auth.methods import auth_context_from_request
 
 from mist.api.clouds.models import Cloud
+from mist.api.scripts.models import CollectdScript
+from mist.api.scripts.models import TelegrafScript
 from mist.api.machines.models import Machine
 
 
@@ -42,7 +47,7 @@ def _machine_from_matchdict(request):
             raise NotFoundError("Machine %s doesn't exist" %
                                 request.matchdict['machine'])
     else:
-        clouds = Cloud.objects(owner=auth_context.owner)
+        clouds = Cloud.objects(owner=auth_context.owner, deleted=None)
         try:
             machine = Machine.objects.get(
                 cloud__in=clouds,
@@ -191,6 +196,26 @@ def update_monitoring(request):
         raise BadRequestError('Action must be one of (enable, disable)')
 
 
+@view_config(route_name='api_v1_monitoring',
+             request_method='POST', renderer='json')
+def update_monitoring_options(request):
+    """Set global email alerts' recipients
+
+    ---
+
+    alerts_email:
+      type: string
+      description: One or more comma-separated e-mail addresses
+
+    """
+    auth_context = auth_context_from_request(request)
+    emails = params_from_request(request).get('alerts_email', '')
+    if not auth_context.is_owner():
+        raise UnauthorizedError()
+    return mist.api.monitoring.methods.update_monitoring_options(
+        auth_context.owner, emails)
+
+
 @view_config(route_name='api_v1_cloud_metrics',
              request_method='GET', renderer='json')
 @view_config(route_name='api_v1_metrics',
@@ -199,13 +224,17 @@ def find_metrics(request):
     """Get metrics associated with a machine
 
     Get all metrics associated with specific machine.
+
     READ permission required on cloud.
     READ permission required on machine.
+
     ---
+
     machine:
       in: path
       required: true
       type: string
+
     """
     auth_context = auth_context_from_request(request)
     machine = _machine_from_matchdict(request)
@@ -214,6 +243,224 @@ def find_metrics(request):
     auth_context.check_perm("machine", "read", machine.id)
 
     return mist.api.monitoring.methods.find_metrics(machine)
+
+
+# SEC FIXME: (Un)deploying a plugin isn't the same as editing a custom metric.
+# It actually deploys and runs code on the server, thus it should have its own
+# permission that should work a bit like it does with scripts.
+@view_config(route_name='api_v1_cloud_deploy_plugin',
+             request_method='POST', renderer='json')
+@view_config(route_name='api_v1_deploy_plugin',
+             request_method='POST', renderer='json')
+def deploy_plugin(request):
+    """Deploy a custom plugin on a machine
+
+    Adds a scripts, which is then deployed on the specified machine to collect
+    custom metrics.
+
+    READ permission required on cloud.
+    EDIT_CUSTOM_METRICS permission required on machine.
+
+    ---
+
+    machine:
+      in: path
+      type: string
+      required: true
+      description: the UUID of the machine on which to deploy the custom script
+    plugin:
+      in: path
+      type: string
+      required: true
+      description: the name of the custom plugin/script
+    plugin_type:
+      in: query
+      type: string
+      required: true
+      description: the plugin's type, e.g. "python" for python scripts
+    read_function:
+      in: query
+      type: string
+      required: false
+      description: the source code of the custom plugin/script
+    value_type:
+      in: query
+      type: string
+      default: gauge
+      required: false
+      description: the type of the computed value
+    name:
+      in: query
+      type: string
+      required: false
+      description: the name of the resulted associated metric
+    unit:
+      in: query
+      type: string
+      required: false
+      description: the unit of the resulted associated metric, e.g. "bytes"
+
+    """
+    auth_context = auth_context_from_request(request)
+    machine = _machine_from_matchdict(request)
+    params = params_from_request(request)
+
+    name = request.matchdict['plugin']
+
+    # SEC check permission EDIT_CUSTOM_METRICS on machine
+    auth_context.check_perm('machine', 'edit_custom_metrics', machine.id)
+
+    if not machine.monitoring.hasmonitoring:
+        raise ForbiddenError("Machine doesn't seem to have monitoring enabled")
+
+    # Prepare params
+    extra = {'value_type': params.get('value_type', 'gauge'), 'value_unit': ''}
+    kwargs = {
+        'location_type': 'inline',
+        'extra': extra,
+        'script': params.get('read_function'),
+        'description': 'python plugin'
+    }
+
+    # Get script class based on monitoring system
+    if machine.monitoring.method == 'collectd-graphite':
+        script_cls = CollectdScript
+    else:
+        script_cls = TelegrafScript
+
+    # FIXME Telegraf can load any sort of executable, not just python scripts.
+    if params.get('plugin_type') == 'python':
+        # Add the script.
+        script = script_cls.add(auth_context.owner, name, **kwargs)
+        # Deploy it.
+        ret = script.ctl.deploy_python_plugin(machine)
+        # This will create/update the metric and associate it with the machine.
+        mist.api.monitoring.methods.associate_metric(
+            machine,
+            ret['metric_id'],
+            name=params.get('name', ''),
+            unit=params.get('unit', ''),
+        )
+        return ret
+    raise BadRequestError('Invalid plugin_type')
+
+
+# SEC FIXME: (Un)deploying a plugin isn't the same as editing a custom metric.
+# It actually deploys and runs code on the server, thus it should have its own
+# permission that should work a bit like it does with scripts.
+@view_config(route_name='api_v1_cloud_deploy_plugin',
+             request_method='DELETE', renderer='json')
+@view_config(route_name='api_v1_deploy_plugin',
+             request_method='DELETE', renderer='json')
+def undeploy_plugin(request):
+    """Undeploy a custom plugin/script from a machine
+
+    READ permission required on cloud
+    EDIT_CUSTOM_METRICS permission required on machine
+
+    ---
+
+    machine:
+      in: path
+      type: string
+      required: true
+      description: the UUID of the machine to undeploy the custom script from
+    plugin:
+      in: path
+      type: string
+      required: true
+      description: the name of the custom plugin/script
+    plugin_type:
+      in: query
+      type: string
+      required: true
+      description: the plugin's type, e.g. "python" for python scripts
+
+    """
+    auth_context = auth_context_from_request(request)
+    machine = _machine_from_matchdict(request)
+    params = params_from_request(request)
+
+    plugin_id = request.matchdict['plugin']
+
+    # SEC check permission EDIT_CUSTOM_METRICS on machine
+    auth_context.check_perm('machine', 'edit_custom_metrics', machine.id)
+
+    if not machine.monitoring.hasmonitoring:
+        raise ForbiddenError("Machine doesn't seem to have monitoring enabled")
+
+    # Undeploy executable.
+    # FIXME Is the following check really necessary?
+    if params.get('plugin_type') == 'python':
+        return mist.api.monitoring.methods.undeploy_python_plugin(machine,
+                                                                  plugin_id)
+    raise BadRequestError('Invalid plugin_type')
+
+
+@view_config(route_name='api_v1_metric', request_method='PUT', renderer='json')
+def update_metric(request):
+    """Update a metric configuration
+
+    READ permission required on cloud
+    EDIT_CUSTOM_METRICS permission required on machine
+
+    ---
+
+    metric:
+      in: path
+      type: string
+      required: true
+    cloud_id:
+      in: query
+      type: string
+    machine_id:
+      in: query
+      type: string
+    name:
+      in: query
+      type: string
+    unit:
+      in: query
+      type: string
+
+    """
+    auth_context = auth_context_from_request(request)
+
+    metric_id = request.matchdict['metric']
+
+    params = params_from_request(request)
+    name = params.get('name')
+    unit = params.get('unit')
+    cloud_id = params.get('cloud_id')
+    machine_id = params.get('machine_id')
+
+    # FIXME This doesn't seem right. Perhaps we should always `update_metric`
+    # and optionally `associate_metric` if machine_id and cloud_id have been
+    # provided. However, we already have a discrete `associate_metric` API
+    # endpoint.
+    if cloud_id and machine_id:
+        try:
+            machine = Machine.objects.get(cloud=cloud_id,
+                                          machine_id=machine_id)
+            machine_uuid = machine.id
+        except me.DoesNotExist:
+            machine_uuid = ''
+        # Check permissions.
+        auth_context.check_perm('cloud', 'read', cloud_id)
+        auth_context.check_perm('machine', 'edit_custom_metrics', machine_uuid)
+        # Associate metric.
+        mist.api.monitoring.methods.associate_metric(
+            auth_context.owner, cloud_id, machine_id, metric_id
+        )
+    else:
+        # FIXME Shouldn't be restricted to Owners.
+        if not auth_context.is_owner():
+            raise UnauthorizedError()
+        # Update metric information.
+        mist.api.monitoring.methods.update_metric(
+            auth_context.owner, metric_id, name=name, unit=unit
+        )
+    return {}
 
 
 @view_config(route_name='api_v1_cloud_metrics',

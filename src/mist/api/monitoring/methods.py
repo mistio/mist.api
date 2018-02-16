@@ -1,3 +1,4 @@
+import os
 import re
 import uuid
 import time
@@ -6,6 +7,7 @@ import logging
 import requests
 import mongoengine as me
 
+import mist.api.shell
 import mist.api.config as config
 import mist.api.monitoring.tasks
 
@@ -210,7 +212,7 @@ def check_monitoring(owner):
             # Keep for backwards compatibility
             'builtin_metrics': config.GRAPHITE_BUILTIN_METRICS,
             'builtin_metrics_graphite': config.GRAPHITE_BUILTIN_METRICS,
-            # FIXME
+            # FIXME Uncomment when InfluxDB is included in docker-compose.ee
             # 'builtin_metrics_influxdb': config.INFLUXDB_BUILTIN_METRICS,
         })
     else:
@@ -223,6 +225,21 @@ def check_monitoring(owner):
         for id in ret[key]:
             ret[key][id]['id'] = id
     return ret
+
+
+def update_monitoring_options(owner, emails):
+    """Set `emails` as global e-mail alert's recipients."""
+    from mist.api.rules.actions import is_email_valid
+    # FIXME Send e-mails as a list, instead of string?
+    emails = emails.replace(' ', '')
+    emails = emails.replace('\n', ',')
+    emails = emails.replace('\r', ',')
+    owner.alerts_email = [
+        email for email in emails.split(',') if is_email_valid(email)
+    ]
+    owner.save()
+    trigger_session_update(owner, ['monitoring'])
+    return {'alerts_email': owner.alerts_email}
 
 
 # FIXME: Method arguments are left unchanged for backwards compatibility.
@@ -516,3 +533,38 @@ def update_metric(owner, metric_id, name='', unit=''):
     metric.save()
     trigger_session_update(owner, ['monitoring'])
     return metric
+
+
+# FIXME The `plugin_id` is the name of the plugin/script as it exists in the
+# monitoring agent's configuration, and not an ID stored in our database to
+# which we can easily refer.
+def undeploy_python_plugin(machine, plugin_id):
+    """Undeploy a custom plugin from a machine."""
+    if machine.monitoring.method == 'collectd-graphite':
+        # Edit the collectd.conf.
+        script = """
+sudo=$(command -v sudo)
+cd /opt/mistio-collectd/
+
+echo "Removing Include line for plugin conf from plugins/mist-python/include.conf"
+$sudo grep -v 'Import %(plugin_id)s$' plugins/mist-python/include.conf > /tmp/include.conf
+$sudo mv /tmp/include.conf plugins/mist-python/include.conf
+
+echo "Restarting collectd"
+$sudo /opt/mistio-collectd/collectd.sh restart
+""" % {'plugin_id': plugin_id}  # noqa
+    else:
+        # Just remove the executable.
+        plugin = os.path.join('/opt/mistio/mist-telegraf/custom', plugin_id)
+        script = '$(command -v sudo) rm %s' % plugin
+
+    # Run the command over SSH.
+    shell = mist.api.shell.Shell(machine.ctl.get_host())
+    key_id, ssh_user = shell.autoconfigure(machine.owner, machine.cloud.id,
+                                           machine.machine_id)
+    retval, stdout = shell.command(script)
+    shell.disconnect()
+
+    # TODO Shouldn't we also `disassociate_metric` and remove relevant Rules?
+
+    return {'metric_id': None, 'stdout': stdout}
