@@ -481,8 +481,8 @@ class NephoScaleComputeController(BaseComputeController):
         except CloudSize.DoesNotExist:
             return None
 
-    def _list_sizes__filter_sizes(self, sizes):
-        # default baremetal arg for list_sizes is False
+    def _list_sizes__fetch_sizes(self):
+        sizes = self.connection.list_sizes(baremetal=False)
         sizes.extend(self.connection.list_sizes(baremetal=True))
         return sizes
 
@@ -870,7 +870,7 @@ class VultrComputeController(BaseComputeController):
     def _list_sizes__get_name(self, size, cpu):
         return size.name + ' (%d cpus)' % cpu
 
-    def _list_sizes__filter_sizes(self, sizes):
+    def _list_sizes__fetch_sizes(self):
         return [size for size in sizes if not size.extra.get('deprecated')]
 
 

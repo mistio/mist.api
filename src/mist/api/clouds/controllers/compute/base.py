@@ -808,7 +808,7 @@ class BaseComputeController(BaseController):
 
         """
         try:
-            fetched_sizes = self._list_sizes__filter_sizes(self._list_sizes__fetch_sizes())
+            fetched_sizes = self._list_sizes__fetch_sizes()
 
             log.info("List sizes returned %d results for %s.",
                      len(fetched_sizes), self.cloud)
@@ -866,14 +866,6 @@ class BaseComputeController(BaseController):
         Subclasses MAY override this method.
         """
         return self.connection.list_sizes()
-
-    def _list_sizes__filter_sizes(self, sizes):
-        """Applies any possible filtering required
-        by the provider. e.g. Vultr also returns deprecated
-        sizes, that need to be excluded from list_sizes
-        returned array
-        """
-        return sizes
 
     def _list_sizes__get_cpu(self, size):
         return int(size.extra.get('cpus') or 1)
