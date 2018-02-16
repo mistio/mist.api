@@ -267,11 +267,6 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                                           public_key, machine_name, image,
                                           size, location, ips)
     elif conn.type is Provider.GCE:
-        sizes = conn.list_sizes(location=location_name)
-        for size in sizes:
-            if size.id == size_id:
-                size = size
-                break
         node = _create_machine_gce(conn, key_id, private_key, public_key,
                                    machine_name, image, size, location,
                                    cloud_init)
@@ -329,11 +324,6 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
         # FIXME: The orchestration UI does not provide all the necessary
         # parameters, thus we need to fetch the proper size and image objects.
         # This should be properly fixed when migrated to the controllers.
-        if not disk:
-            for size in conn.list_sizes():
-                if int(size.id) == int(size_id):
-                    size = size
-                    break
         if not image_extra:  # Missing: {'64bit': 1, 'pvops': 1}
             for image in conn.list_images():
                 if int(image.id) == int(image_id):
@@ -352,8 +342,8 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
     elif conn.type is Provider.LIBVIRT:
         try:
             # size_id should have a format cpu:ram, eg 1:2048
-            cpu = size_id.split(':')[0]
-            ram = size_id.split(':')[1]
+            cpu = cloud_size.external_id.split(':')[0]
+            ram = cloud_size.external_id.split(':')[1]
         except:
             ram = 512
             cpu = 1
