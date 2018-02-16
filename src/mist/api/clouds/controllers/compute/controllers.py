@@ -262,7 +262,7 @@ class DigitalOceanComputeController(BaseComputeController):
 
     def _list_sizes__get_name(self, size, cpu):
         return size.name + ' (%d cpus / %dM RAM)' % (cpu,
-                             size.ram)
+                                                     size.ram)
 
     def _list_sizes__get_cpu(self, size):
         return size.extra.get('vcpus')
@@ -607,42 +607,15 @@ class AzureArmComputeController(BaseComputeController):
 
     def _list_sizes__fetch_sizes(self):
         location = self.connection.list_locations()[0]
-        sizes = self.connection.list_sizes(location)
+        return self.connection.list_sizes(location)
 
-        log.info("List sizes returned %d results for %s.",
-                 len(sizes), self.cloud)
+    def _list_sizes__get_cpu(self, size):
+        return size.extra.get('numberOfCores')
 
-        _sizes = []
-        for size in sizes:
-
-            # create the object in db if it does not exist
-            from mist.api.clouds.models import CloudSize
-            try:
-                _size = CloudSize.objects.get(cloud=self.cloud,
-                                              external_id=size.id)
-            except CloudSize.DoesNotExist:
-                _size = CloudSize(cloud=self.cloud,
-                                  name=size.name, disk=size.disk,
-                                  ram=size.ram, external_id=size.id,
-                                  bandwidth=size.bandwidth, price=size.price
-                                  )
-            _size.cpus = size.extra.get('numberOfCores')
-
-            desc = size.name + '/ ' + str(size.extra['numberOfCores']) \
-                                    + ' cpus/' + str(size.ram / 1024) \
-                                    + 'G RAM/ ' + str(size.disk) + 'GB SSD'
-
-            _size.name = desc
-
-            try:
-                _size.save()
-                _sizes.append(_size)
-            except me.ValidationError as exc:
-                log.error("Error adding %s: %s", size.name, exc.to_dict())
-                raise BadRequestError({"msg": exc.message,
-                                       "errors": exc.to_dict()})
-
-        return _sizes
+    def _list_sizes__get_name(self, size, cpu):
+        return size.name + '/ ' + str(size.extra['numberOfCores']) \
+                                + ' cpus/' + str(size.ram / 1024) \
+                                + 'G RAM/ ' + str(size.disk) + 'GB SSD'
 
 
 class GoogleComputeController(BaseComputeController):
@@ -863,41 +836,8 @@ class PacketComputeController(BaseComputeController):
         # since it is needed in list_machines__get_size
         return name.split(' -')[0]
 
-    def _list_sizes__fetch_sizes(self):
-        fetched_sizes = self.connection.list_sizes()
-        log.info("List sizes returned %d results for %s.",
-                 len(fetched_sizes), self.cloud)
-        sizes = []
-
-        for size in fetched_sizes:
-            # create the object in db if it does not exist
-            from mist.api.clouds.models import CloudSize
-            try:
-                _size = CloudSize.objects.get(cloud=self.cloud,
-                                              external_id=size.id)
-            except CloudSize.DoesNotExist:
-                size.ram = int(size.ram.strip('GB'))
-                _size = CloudSize(cloud=self.cloud,
-                                  disk=size.disk, price=size.price,
-                                  ram=size.ram, external_id=size.id,
-                                  bandwidth=size.bandwidth
-                                  )
-            try:
-                cpus = self._list_sizes__get_cpu(size)
-            except Exception as exc:
-                log.exception(repr(exc))
-            _size.cpus = cpus
-            _size.name = self._list_sizes__get_name(size, cpus)
-
-            try:
-                _size.save()
-                sizes.append(_size)
-            except me.ValidationError as exc:
-                log.error("Error adding %s: %s", size.name, exc.to_dict())
-                raise BadRequestError({"msg": exc.message,
-                                       "errors": exc.to_dict()})
-
-        return sizes
+    def _list_sizes__get_ram(self, size):
+        return int(size.ram.strip('GB'))
 
 
 class VultrComputeController(BaseComputeController):
