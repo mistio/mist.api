@@ -357,8 +357,7 @@ def enable_monitoring(owner, cloud_id, machine_id, no_ssh=False, dry=False,
             func = mist.api.monitoring.tasks.install_telegraf
             if deploy_async:
                 func = func.delay
-            func(owner.id, machine.cloud.id, machine.machine_id, job, job_id,
-                 plugins)
+            func(machine.id, job, job_id, plugins)
         else:
             raise Exception("Invalid monitoring method")
 
@@ -409,9 +408,8 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=''):
         elif machine.monitoring.method in ('telegraf-influxdb',
                                            'telegraf-graphite'):
             # Schedule undeployment of Telegraf.
-            mist.api.monitoring.tasks.uninstall_telegraf.delay(
-                owner.id, machine.cloud.id, machine.machine_id, job, job_id)
-
+            mist.api.monitoring.tasks.uninstall_telegraf.delay(machine.id,
+                                                               job, job_id)
     if job_id:
         ret_dict['job_id'] = job_id
 

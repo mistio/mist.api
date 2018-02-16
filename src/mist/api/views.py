@@ -24,7 +24,6 @@ from pyramid.httpexceptions import HTTPFound
 from pyramid.view import notfound_view_config
 
 import mist.api.tasks as tasks
-from mist.api.scripts.models import CollectdScript
 from mist.api.scripts.views import fetch_script
 from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
