@@ -871,6 +871,7 @@ class VultrComputeController(BaseComputeController):
         return size.name + ' (%d cpus)' % cpu
 
     def _list_sizes__fetch_sizes(self):
+        sizes = self.connection.list_sizes()
         return [size for size in sizes if not size.extra.get('deprecated')]
 
 
