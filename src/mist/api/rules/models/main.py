@@ -365,14 +365,14 @@ class ResourceRule(Rule, ConditionalClassMixin):
     @property
     def machine(self):
         machines = self.get_resources()
-        assert machines.count() is 1
-        return machines.first().machine_id
+        assert machines.count() < 2
+        return machines.first().machine_id if machines else None
 
     @property
     def cloud(self):
         machines = self.get_resources()
-        assert machines.count() is 1
-        return machines.first().cloud.id
+        assert machines.count() < 2
+        return machines.first().cloud.id if machines else None
 
     @property
     def action(self):

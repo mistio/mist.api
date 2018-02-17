@@ -15,7 +15,7 @@ from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 
 from mist.api.monitoring.commands import unix_install, unix_uninstall
-from mist.api.monitoring.traefik import reset_config
+from mist.api.monitoring.traefik import reset_config, _get_config
 
 
 log = logging.getLogger(__name__)
@@ -145,4 +145,8 @@ def uninstall_telegraf(owner_id, cloud_id, machine_id, job=None, job_id=None):
 
 @app.task
 def reset_traefik_config():
-    reset_config()
+    try:
+        _get_config()
+    except Exception as exc:
+        log.error(exc)
+        reset_config()
