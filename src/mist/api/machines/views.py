@@ -120,15 +120,88 @@ def create_machine(request):
       in: path
       required: true
       type: string
-    associate_floating_ip:
+    name:
       type: string
-      description: Required for Openstack. Either 'true' or 'false'
+      description: Name of the machine
+      required: true
+    image:
+      description: Provider's image id to be used on creation
+      required: true
+      type: string
+    size:
+      type: string
+      description: Provider's size id to be used on creation
+    location:
+      type: string
+      description: Mist internal location id
+    key:
+      description: Associate machine with this key. Mist internal key id
+      type: string
+    monitoring:
+      type: boolean
+      description: Enable monitoring on the machine
     async:
       description: Create machine asynchronously, returning a jobId
       type: boolean
+    cloud_init:
+      description: Cloud Init script
+      type: string
+    networks:
+      type: array
+      items:
+        type: string
+    schedule:
+      type: object
+    script:
+      type: string
+    script_id:
+      type: string
+    script_params:
+      type: string
+    plugins:
+      type: array
+      items:
+        type: string
+    post_script_id:
+      type: string
+    post_script_params:
+      type: string
+    associate_floating_ip:
+      type: string
+      description: Required for Openstack. Either 'true' or 'false'
     azure_port_bindings:
       type: string
       description: Required for Azure
+    create_network:
+      type: boolean
+      description: Required for Azure_arm
+    create_resource_group:
+      type: boolean
+      description: Required for Azure_arm
+    create_storage_account:
+      type: boolean
+      description: Required for Azure_arm
+    ex_storage_account:
+      type: string
+      description: Required for Azure_arm if not create_storage_account
+    ex_resource_group:
+      type: string
+      description: Required for Azure_arm if not create_resource_group
+    machine_password:
+      type: string
+      description: Required for Azure_arm
+    machine_username:
+      type: string
+      description: Required for Azure_arm
+    new_network:
+      type: string
+      description: Required for Azure_arm if create_storage_account
+    new_storage_account:
+      type: string
+      description: Required for Azure_arm if create_storage_account
+    new_resource_group:
+      type: string
+      description: Required for Azure_arm if create_resource_group
     bare_metal:
       description: Needed only by SoftLayer cloud
       type: string
@@ -141,18 +214,6 @@ def create_machine(request):
     build:
       description: Required for OnApp
       type: boolean
-    cloud_init:
-      description: Cloud Init script
-      type: string
-    create_network:
-      type: boolean
-      description: Required for Azure_arm
-    create_resource_group:
-      type: boolean
-      description: Required for Azure_arm
-    create_storage_account:
-      type: boolean
-      description: Required for Azure_arm
     docker_command:
       type: string
     docker_env:
@@ -163,75 +224,14 @@ def create_machine(request):
       type: object
     docker_port_bindings:
       type: object
-    ex_storage_account:
-      type: string
-      description: Required for Azure_arm if not create_storage_account
-    ex_resource_group:
-      type: string
-      description: Required for Azure_arm if not create_resource_group
-    image:
-      description: Provider's image id to be used on creation
-      required: true
-      type: string
-    key:
-      description: Associate machine with this key. Mist internal key id
-      type: string
-    location:
-      type: string
-      description: Mist internal location id
-    machine_password:
-      type: string
-      description: Required for Azure_arm
-    machine_username:
-      type: string
-      description: Required for Azure_arm
-    monitoring:
-      type: boolean
-      description: Enable monitoring on the machine
-    name:
-      type: string
-      description: Name of the machine
-      required: true
-    networks:
-      type: array
-      items:
-        type: string
-    new_network:
-      type: string
-      description: Required for Azure_arm if create_storage_account
-    new_storage_account:
-      type: string
-      description: Required for Azure_arm if create_storage_account
-    new_resource_group:
-      type: string
-      description: Required for Azure_arm if create_resource_group
-    plugins:
-      type: array
-      items:
-        type: string
-    post_script_id:
-      type: string
-    post_script_params:
-      type: string
     project_id:
       description: ' Needed only by Packet cloud'
       type: string
-    script:
-      type: string
-    script_id:
-      type: string
-    script_params:
-      type: string
-    size:
-      type: string
-      description: Provider's size id to be used on creation
     softlayer_backend_vlan_id:
       description: 'Specify id of a backend(private) vlan'
       type: integer
     ssh_port:
       type: integer
-    schedule:
-      type: object
     """
 
     params = params_from_request(request)
