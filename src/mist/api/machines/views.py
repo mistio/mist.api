@@ -124,25 +124,32 @@ def create_machine(request):
       type: string
       description: Name of the machine
       required: true
+      example: "my-digital-ocean-machine"
     image:
       description: Provider's image id to be used on creation
       required: true
       type: string
+      example: "17384153"
     size:
       type: string
       description: Provider's size id to be used on creation
+      example: "512mb"
     location:
       type: string
       description: Mist internal location id
+      example: "3462b4dfbb434986a7dac362789bc402"
     key:
       description: Associate machine with this key. Mist internal key id
       type: string
+      example: "da1df7d0402043b9a9c786b100992888"
     monitoring:
       type: boolean
       description: Enable monitoring on the machine
+      example: false
     async:
       description: Create machine asynchronously, returning a jobId
       type: boolean
+      example: false
     cloud_init:
       description: Cloud Init script
       type: string
@@ -156,6 +163,7 @@ def create_machine(request):
       type: string
     script_id:
       type: string
+      example: "e7ac65fb4b23453486778585616b2bb8"
     script_params:
       type: string
     plugins:
@@ -167,7 +175,7 @@ def create_machine(request):
     post_script_params:
       type: string
     associate_floating_ip:
-      type: string
+      type: boolean
       description: Required for Openstack. Either 'true' or 'false'
     azure_port_bindings:
       type: string
@@ -204,10 +212,11 @@ def create_machine(request):
       description: Required for Azure_arm if create_resource_group
     bare_metal:
       description: Needed only by SoftLayer cloud
-      type: string
+      type: boolean
     billing:
       description: Needed only by SoftLayer cloud
       type: string
+      example: "hourly"
     boot:
       description: Required for OnApp
       type: boolean
@@ -232,6 +241,7 @@ def create_machine(request):
       type: integer
     ssh_port:
       type: integer
+      example: 22
     """
 
     params = params_from_request(request)
