@@ -25,9 +25,10 @@ OK = Response("OK", 200)
              renderer='json')
 def add_schedule_entry(request):
     """
-    Add an entry to user schedules
+    Tags: schedules
+    ---
+    Adds an entry to user schedules.
     Add permission required on schedule.
-    READ permission required on cloud.
     RUN_SCRIPT permission required on machine.
     RUN permission required on script.
     ---
@@ -44,8 +45,8 @@ def add_schedule_entry(request):
       type: array
       description: list of machines_tags
     name:
-      required:true
-      type:string
+      required: true
+      type: string
       description: schedule name
     task_enabled:
       type: boolean
@@ -60,6 +61,7 @@ def add_schedule_entry(request):
       type: string
       description: describe schedule
     schedule_type:
+      required: true
       type: string
       description: three different types, interval, crontab, one_off
     schedule_entry:
@@ -90,7 +92,9 @@ def add_schedule_entry(request):
              renderer='json')
 def list_schedules_entries(request):
     """
-    List user schedules entries, order by _id
+    Tags: schedules
+    ---
+    Lists user schedules entries, order by _id.
     READ permission required on schedules
     ---
     """
@@ -105,11 +109,14 @@ def list_schedules_entries(request):
              renderer='json')
 def show_schedule_entry(request):
     """
-    Show a schedule details of a user
+    Tags: schedules
+    ---
+    Show details of schedule.
     READ permission required on schedule
     ---
     schedule_id:
       type: string
+      required: true
     """
     schedule_id = request.matchdict['schedule_id']
     auth_context = auth_context_from_request(request)
@@ -133,11 +140,14 @@ def show_schedule_entry(request):
              renderer='json')
 def delete_schedule(request):
     """
-    Delete a schedule entry of a user
+    Tags: schedules
+    ---
+    Deletes a schedule entry of a user.
     REMOVE permission required on schedule
     ---
     schedule_id:
       type: string
+      required: true
     """
     schedule_id = request.matchdict['schedule_id']
     auth_context = auth_context_from_request(request)
@@ -168,18 +178,18 @@ def delete_schedule(request):
              request_method='PATCH', renderer='json')
 def edit_schedule_entry(request):
     """
-    Edit a schedule entry
-    EDIT permission required on schedule
-    READ permission required on cloud.
+    Tags: schedules
+    ---
+    Edit a schedule entry.
+    EDIT permission required on schedule.
     RUN_SCRIPT permission required on machine.
     RUN permission required on script.
-
     ---
     script_id:
       type: string
     action:
       type: string
-     machines_uuids:
+    machines_uuids:
       required: true
       type: array
       description: list of machines_uuids
@@ -188,8 +198,8 @@ def edit_schedule_entry(request):
       type: array
       description: list of machines_tags
     name:
-      required:true
-      type:string
+      required: true
+      type: string
       description: schedule name
     enabled:
       type: boolean
@@ -226,7 +236,6 @@ def edit_schedule_entry(request):
     auth_context.check_perm('schedule', 'edit', schedule_id)
 
     owner = auth_context.owner
-    # Check if entry exists
     try:
         schedule = Schedule.objects.get(id=schedule_id, owner=owner,
                                         deleted=None)

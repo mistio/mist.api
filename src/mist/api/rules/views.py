@@ -111,15 +111,16 @@ def _get_transformed_params(auth_context, params):
 
 @view_config(route_name='api_v1_rules', request_method='POST', renderer='json')
 def add_rule(request):
-    """Add a new rule
-
-    READ permission required on cloud
-    EDIT_RULES permission required on machine
-
+    """
+    Tags: rules
+    ---
+    Adds a new rule.
+    READ permission required on cloud.
+    EDIT_RULES permission required on machine.
     DEPRECATION WARNING This API endpoint is deprecated. A new JSON schema
     will soon be put in use in order to add new rules. Also, a discrete API
     endpoint will be introduced for updating existing rules.
-
+    ---
     """
     auth_context = auth_context_from_request(request)
     params = params_from_request(request)
@@ -164,19 +165,18 @@ def add_rule(request):
 
 @view_config(route_name='api_v1_rule', request_method='DELETE')
 def delete_rule(request):
-    """Delete a rule given its UUID
-
-    READ permission required on Cloud
-    EDIT_RULES permission required on Machine
-
+    """
+    Tags: rules
     ---
-
+    Deletes a rule given its UUID.
+    READ permission required on Cloud.
+    EDIT_RULES permission required on Machine
+    ---
     rule:
       in: path
       type: string
       required: true
       description: the unique identifier of the rule to be deleted
-
     """
     auth_context = auth_context_from_request(request)
     rule_id = request.matchdict.get('rule')  # FIXME uuid, not title!
@@ -191,55 +191,55 @@ def delete_rule(request):
 
 @view_config(route_name='api_v1_rule_triggered', request_method='PUT')
 def triggered(request):
-    """Process a trigger sent by the alert service
-
+    """
+    Tags: rules
+    ---
+    Process a trigger sent by the alert service.
     Based on the parameters of the request, this method will initiate actions
     to mitigate the conditions that triggered the rule and notify the users.
-
     ---
-
     value:
-      type: integer
-      required: true
-      description: >
-        the value that triggered the rule by exceeding the threshold
+     type: integer
+     required: true
+     description: >
+       the value that triggered the rule by exceeding the threshold
     incident:
-      type: string
-      required: true
-      description: the incident's UUID
+     type: string
+     required: true
+     description: the incident's UUID
     resource:
-      type: string
-      required: true
-      description: the UUID of the resource for which the rule got triggered
+     type: string
+     required: true
+     description: the UUID of the resource for which the rule got triggered
     triggered:
-      type: integer
-      required: true
-      description: 0 if the specified incident got resolved/untriggered
+     type: integer
+     required: true
+     description: 0 if the specified incident got resolved/untriggered
     triggered_now:
-      type: integer
-      required: true
-      description: |
-        0 in case this is not the first time the specified incident has
-        raised an alert
+     type: integer
+     required: true
+     description:
+       0 in case this is not the first time the specified incident has
+       raised an alert
     firing_since:
-      type: datetime
-      required: true
-      description: |
-        the time at which the rule raised an alert and sent a trigger to
-        this API endpoint
+     type: string
+     required: true
+     description: |
+       the time at which the rule raised an alert and sent a trigger to
+       this API endpoint
     pending_since:
-      type: datetime
-      required: true
-      description: |
-        the time at which the rule evaluated to True and entered pending
-        state. A rule can remain in pending state if a TriggerOffset has
-        been configured
+     type: string
+     required: true
+     description: |
+       the time at which the rule evaluated to True and entered pending
+       state. A rule can remain in pending state if a TriggerOffset has
+       been configured. Datetime needed
     resolved_since:
-      type: datetime
-      required: true
-      description: >
-        the time at which the incident with the specified UUID resolved
-
+     type: string
+     required: true
+     description: >
+       the time at which the incident with the specified UUID resolved.\
+       Datetime needed
     """
     # FIXME Remove alongside the old alert service.
     if not config.CILIA_TRIGGER:
@@ -251,7 +251,6 @@ def triggered(request):
 
     params = params_from_request(request)
 
-    # Verify required parameters are present.
     keys = (
         'value',
         'incident',
