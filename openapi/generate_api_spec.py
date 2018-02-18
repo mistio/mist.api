@@ -56,7 +56,7 @@ def extract_request_body(operation, ret):
             properties[key] = {}
 
             for param in operation[key].keys():
-                if param in ['type', 'description']:
+                if param in ['type', 'description', 'example']:
                     properties[key][param] = operation[key][param]
 
                 if param in ['required']:
