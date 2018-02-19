@@ -9,6 +9,7 @@ be performed inside the corresponding method functions.
 
 """
 
+import os
 import urllib
 import json
 import netaddr
@@ -19,6 +20,7 @@ from time import time
 from datetime import datetime, timedelta
 
 from pyramid.response import Response
+from pyramid.response import FileResponse
 from pyramid.renderers import render_to_response
 from pyramid.httpexceptions import HTTPFound
 from pyramid.view import notfound_view_config
