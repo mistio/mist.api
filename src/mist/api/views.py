@@ -2626,6 +2626,14 @@ def fetch(request):
         raise NotImplementedError()
 
 
+@view_config(route_name='api_v1_spec')
+def openapi_spec(request):
+    curr_dir = os.path.dirname(__file__)
+    spec_location = "mist.io/api/openapi/spec.yml"
+    spec = os.path.join(curr_dir, "../../../", spec_location)
+    return FileResponse(spec, request=request)
+
+
 @view_config(route_name='version', request_method='GET', renderer='json')
 def version(request):
     """Return running version"""

@@ -153,6 +153,9 @@ def add_routes(configurator):
     configurator.add_route('request_whitelist_ip', '/request-whitelist-ip')
     configurator.add_route('confirm_whitelist', '/confirm-whitelist')
 
+    # openapi endpoint
+    configurator.add_route('api_v1_spec', '/api/v1/spec')
+
     configurator.add_route('api_v1_avatars', '/api/v1/avatars')
     configurator.add_route('api_v1_avatar', '/api/v1/avatars/{avatar}')
 
