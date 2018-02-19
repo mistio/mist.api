@@ -2631,7 +2631,10 @@ def fetch(request):
 @view_config(route_name='api_v1_spec', request_method='GET')
 def openapi_spec(request):
     curr_dir = os.path.dirname(__file__)
-    spec_location = "mist.io/api/openapi/spec.yml"
+    if config.HAS_CORE:
+        spec_location = "/mist.core/mist.io/api/openapi/spec.yml"
+    else:
+        spec_location = "/mist.io/api/openapi/spec.yml"
     spec = os.path.join(curr_dir, "../../../", spec_location)
     return FileResponse(spec, request=request)
 
