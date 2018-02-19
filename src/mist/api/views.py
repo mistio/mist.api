@@ -2626,7 +2626,7 @@ def fetch(request):
         raise NotImplementedError()
 
 
-@view_config(route_name='api_v1_spec')
+@view_config(route_name='api_v1_spec', request_method='GET')
 def openapi_spec(request):
     curr_dir = os.path.dirname(__file__)
     spec_location = "mist.io/api/openapi/spec.yml"
