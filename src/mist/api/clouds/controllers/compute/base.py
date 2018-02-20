@@ -923,14 +923,11 @@ class BaseComputeController(BaseController):
         """
         task_key = 'cloud:list_locations:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
-        try:
-            with task.task_runner(persist=persist):
-                cached_locations = {'%s' % l.id: l.as_dict()
-                                    for l in self.list_cached_locations()}
+        with task.task_runner(persist=persist):
+            cached_locations = {'%s' % l.id: l.as_dict()
+                                for l in self.list_cached_locations()}
 
-                locations = self._list_locations()
-        except PeriodicTaskThresholdExceeded:
-            raise
+            locations = self._list_locations()
 
         # Initialize AMQP connection to reuse for multiple messages.
         amqp_conn = Connection(config.AMQP_URI)
