@@ -6,6 +6,7 @@ import mongoengine as me
 
 from mist.api import config
 from mist.api.logs.methods import log_event
+from mist.api.users.models import User
 from mist.api.machines.models import Machine
 
 
@@ -84,6 +85,8 @@ class NotificationAction(BaseAlertAction):
 
     atype = 'notification'
 
+    users = me.ListField(me.StringField(), default=lambda: [])
+    teams = me.ListField(me.StringField(), default=lambda: [])
     emails = me.ListField(me.StringField(), default=lambda: [])
 
     def run(self, machine, value, triggered, timestamp, incident_id, action='',
@@ -93,10 +96,25 @@ class NotificationAction(BaseAlertAction):
         # TODO Shouldn't be specific to machines.
         assert isinstance(machine, Machine)
         assert machine.owner == self._instance.owner
+        emails = set(self.emails)
+        user_ids = set(self.users)
+        if not (self.users or self.teams):
+            emails |= set(self._instance.owner.get_emails())
+            emails |= set(self._instance.owner.alerts_email)
+        if user_ids:
+            user_ids &= set([m.id for m in self._instance.owner.members])
+        for user in User.objects(id__in=user_ids):
+            emails.add(user.email)
+        for team_id in self.teams:
+            try:
+                team = self._instance.owner.teams.get(id=team_id)
+                emails |= set([member.email for member in team.members])
+            except me.DoesNotExist:
+                continue
         send_alert_email(machine.owner, self._instance.id, value,
                          triggered, timestamp, incident_id, action=action,
                          cloud_id=machine.cloud.id,
-                         machine_id=machine.machine_id)
+                         machine_id=machine.machine_id, emails=emails)
 
     def clean(self):
         """Perform e-mail address validation."""
@@ -105,7 +123,8 @@ class NotificationAction(BaseAlertAction):
                 raise me.ValidationError('Invalid e-mail address: %s' % email)
 
     def as_dict(self):
-        return {'type': self.atype, 'emails': self.emails}
+        return {'type': self.atype, 'emails': self.emails,
+                'users': self.users, 'teams': self.teams}
 
 
 class NoDataAction(NotificationAction):
