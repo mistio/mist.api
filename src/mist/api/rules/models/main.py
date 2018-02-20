@@ -393,6 +393,22 @@ class ResourceRule(Rule, ConditionalClassMixin):
         return emails
 
     @property
+    def users(self):
+        users = []
+        for action in self.actions:
+            if action.atype == 'notification':
+                users = action.users
+        return users
+
+    @property
+    def teams(self):
+        teams = []
+        for action in self.actions:
+            if action.atype == 'notification':
+                teams = action.teams
+        return teams
+
+    @property
     def command(self):
         command = ''
         for action in self.actions:
@@ -409,6 +425,8 @@ class ResourceRule(Rule, ConditionalClassMixin):
             'aggregate': self.aggregate,
             'reminder_offset': self.reminder_offset,
             'emails': self.emails,
+            'users': self.users,
+            'teams': self.teams,
             'action': self.action,
             'command': self.command,
             'machine': self.machine,
