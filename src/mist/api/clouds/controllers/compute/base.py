@@ -835,8 +835,11 @@ class BaseComputeController(BaseController):
 
             _size.name = size.name
             _size.disk = size.disk
-            _size.ram = self._list_sizes__get_ram(size)
             _size.bandwidth = size.bandwidth
+            try:
+                _size.ram = self._list_sizes__get_ram(size)
+            except Exception as exc:
+                log.error(repr(exc))
 
             try:
                 cpus = self._list_sizes__get_cpu(size)
