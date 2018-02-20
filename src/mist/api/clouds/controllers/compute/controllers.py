@@ -834,7 +834,7 @@ class PacketComputeController(BaseComputeController):
         return name.split(' -')[0]
 
     def _list_sizes__get_ram(self, size):
-        return int(size.ram.strip('GB'))
+        return int(re.sub("\D", "", size.ram))
 
 
 class VultrComputeController(BaseComputeController):
