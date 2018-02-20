@@ -1068,9 +1068,6 @@ class DockerComputeController(BaseComputeController):
         machine.machine_type = 'container'
         machine.parent = self.dockerhost
 
-    def _list_sizes__fetch_sizes(self):
-        return []
-
     @property
     def dockerhost(self):
         """This is a helper method to get the machine representing the host"""
@@ -1275,6 +1272,9 @@ class DockerComputeController(BaseComputeController):
         if machine_libcloud.state == ContainerState.RUNNING:
             self.connection.stop_container(machine_libcloud)
         self.connection.destroy_container(machine_libcloud)
+
+    def _list_sizes__fetch_sizes(self):
+        return []
 
     # this method should never be called
     def _list_sizes__get_cpu(self, size):
