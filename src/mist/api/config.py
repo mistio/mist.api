@@ -1280,7 +1280,7 @@ if GC_SCHEDULERS:
 if ENABLE_MONITORING:
     _schedule['reset-traefik'] = {
         'task': 'mist.api.monitoring.tasks.reset_traefik_config',
-        'schedule': datetime.timedelta(minutes=5),
+        'schedule': datetime.timedelta(minutes=2),
     }
 if _schedule:
     CELERY_SETTINGS.update({'CELERYBEAT_SCHEDULE': _schedule})
