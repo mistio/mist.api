@@ -809,6 +809,14 @@ class BaseComputeController(BaseController):
 
             log.info("List sizes returned %d results for %s.",
                      len(fetched_sizes), self.cloud)
+        except InvalidCredsError as exc:
+            log.warning("Invalid creds on running list_sizes on %s: %s",
+                        self.cloud, exc)
+            raise CloudUnauthorizedError(msg=exc.message)
+        except (requests.exceptions.SSLError, ssl.SSLError) as exc:
+            log.error("SSLError on running list_sizes on %s: %s",
+                      self.cloud, exc)
+            raise SSLError(exc=exc)
         except Exception as exc:
             log.exception("Error while running list_sizes on %s", self.cloud)
             raise CloudUnavailableError(exc=exc)
