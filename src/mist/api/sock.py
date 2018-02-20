@@ -17,6 +17,7 @@ import datetime
 import traceback
 
 import tornado.gen
+import tornado.httpclient
 
 from sockjs.tornado import SockJSConnection, SockJSRouter
 from mist.api.sockjs_mux import MultiplexConnection
@@ -34,10 +35,7 @@ from mist.api.exceptions import PolicyUnauthorizedError
 from mist.api.amqp_tornado import Consumer
 
 from mist.api.clouds.methods import filter_list_clouds
-from mist.api.keys.methods import filter_list_keys
 from mist.api.machines.methods import filter_list_machines, filter_machine_ids
-from mist.api.scripts.methods import filter_list_scripts
-from mist.api.schedules.methods import filter_list_schedules
 from mist.api.dns.methods import filter_list_zones
 
 from mist.api import tasks
@@ -52,18 +50,14 @@ from mist.api.monitoring.methods import check_monitoring
 from mist.api.users.methods import filter_org
 from mist.api.users.methods import get_user_data
 
+from mist.api.portal.models import Portal
+
 from mist.api import config
 
 if config.HAS_CORE:
     from mist.core.methods import filter_list_tags
-    from mist.core.methods import filter_list_vpn_tunnels
-    from mist.core.orchestration.methods import filter_list_templates
-    from mist.core.orchestration.methods import filter_list_stacks
 else:
     from mist.api.dummy.methods import filter_list_tags
-    from mist.api.dummy.methods import filter_list_vpn_tunnels
-    from mist.api.dummy.methods import filter_list_templates
-    from mist.api.dummy.methods import filter_list_stacks
 
 logging.basicConfig(level=config.PY_LOG_LEVEL,
                     format=config.PY_LOG_FORMAT,
@@ -96,13 +90,11 @@ class MistConnection(SockJSConnection):
 
     def on_open(self, conn_info):
         log.info("%s: Initializing", self.__class__.__name__)
-        self.ip, self.user_agent, session_id = get_conn_info(conn_info)
-        log.info("Got connection info: %s %s %s",
-                 self.ip, self.user_agent, session_id)
+        self.ip, self.user_agent, self.cookie_session_id = get_conn_info(
+            conn_info)
         try:
-            self.auth_context = auth_context_from_session_id(session_id)
-            log.info("Got auth context %s for session %s",
-                     self.auth_context.owner.id, session_id)
+            self.auth_context = auth_context_from_session_id(
+                self.cookie_session_id)
         except UnauthorizedError:
             log.error("%s: Unauthorized session_id", self.__class__.__name__)
             self.send('logout')
@@ -138,6 +130,33 @@ class MistConnection(SockJSConnection):
             'closed': self.is_closed,
             'session_id': self.session_id,
         }
+
+    def internal_request(self, path, params=None, callback=None):
+        if path.startswith('/'):
+            path = path[1:]
+        if params:
+            path += '?' + '&'.join('%s=%s' % item
+                                   for item in params.iteritems())
+
+        def response_callback(resp):
+            if resp.code == 200:
+                data = json.loads(resp.body)
+                if callback is None:
+                    print data
+                else:
+                    callback(data)
+            else:
+                log.error("Error requesting %s from internal API: (%s) %s",
+                          path, resp.code, resp.body)
+
+        headers = {'Authorization': 'internal %s %s' % (
+            Portal.get_singleton().internal_api_key, self.cookie_session_id)}
+
+        tornado.httpclient.AsyncHTTPClient().fetch(
+            'http://api/%s' % path,
+            headers=headers,
+            callback=response_callback,
+        )
 
     def __repr__(self):
         conn_dict = self.get_dict()
@@ -268,9 +287,7 @@ class MainConnection(MistConnection):
         }
         if self.auth_context.token.su:
             self.log_kwargs['su'] = self.auth_context.token.su
-        log.info('About to log open event %s', self.auth_context.owner.id)
         log_event(action='connect', **self.log_kwargs)
-        log.info('Done %s', self.auth_context.owner.id)
 
     def on_ready(self):
         log.info("************** Ready to go! %s", self.auth_context.owner.id)
@@ -323,44 +340,69 @@ class MainConnection(MistConnection):
         self.send('list_tags', filter_list_tags(self.auth_context))
 
     def list_keys(self):
-        self.send('list_keys', filter_list_keys(self.auth_context))
+        self.internal_request(
+            'api/v1/keys',
+            callback=lambda keys: self.send('list_keys', keys),
+        )
 
     def list_scripts(self):
-        self.send('list_scripts', filter_list_scripts(self.auth_context))
+        self.internal_request(
+            'api/v1/scripts',
+            callback=lambda scripts: self.send('list_scripts', scripts),
+        )
 
     def list_schedules(self):
-        self.send('list_schedules', filter_list_schedules(self.auth_context))
+        self.internal_request(
+            'api/v1/schedules',
+            callback=lambda schedules: self.send('list_schedules', schedules),
+        )
 
     def list_templates(self):
-        self.send('list_templates', filter_list_templates(self.auth_context))
+        if not config.HAS_CORE:
+            return
+        self.internal_request(
+            'api/v1/templates',
+            callback=lambda templates: self.send('list_templates', templates),
+        )
 
     def list_stacks(self):
-        self.send('list_stacks', filter_list_stacks(self.auth_context))
+        if not config.HAS_CORE:
+            return
+        self.internal_request(
+            'api/v1/stacks',
+            callback=lambda stacks: self.send('list_stacks', stacks),
+        )
 
     def list_tunnels(self):
-        self.send('list_tunnels', filter_list_vpn_tunnels(self.auth_context))
+        if not config.HAS_CORE:
+            return
+        self.internal_request(
+            'api/v1/tunnels',
+            callback=lambda tunnels: self.send('list_tunnels', tunnels),
+        )
 
     def list_clouds(self):
         self.update_poller()
         self.send('list_clouds', filter_list_clouds(self.auth_context))
         clouds = Cloud.objects(owner=self.owner, enabled=True, deleted=None)
-        log.info(clouds)
         periodic_tasks = []
         for cloud in clouds:
-            machines = cloud.ctl.compute.list_cached_machines()
-            machines = filter_list_machines(
-                self.auth_context, cloud_id=cloud.id,
-                machines=[machine.as_dict() for machine in machines]
+            self.internal_request(
+                'api/v1/clouds/%s/machines' % cloud.id,
+                params={'cached': True},
+                callback=lambda machines, cloud_id=cloud.id: self.send(
+                    'list_machines',
+                    {'cloud_id': cloud_id, 'machines': machines}
+                ),
             )
-            log.info("Emitting list_machines from poller's cache.")
-            self.send('list_machines',
-                      {'cloud_id': cloud.id, 'machines': machines})
-
-            cached_locations = cloud.ctl.compute.list_cached_locations()
-            locations = [location.as_dict() for location in cached_locations]
-            log.info("Emitting list_locations from poller's cache.")
-            self.send('list_locations',
-                      {'cloud_id': cloud.id, 'locations': locations})
+            self.internal_request(
+                'api/v1/clouds/%s/locations' % cloud.id,
+                params={'cached': True},
+                callback=lambda locations, cloud_id=cloud.id: self.send(
+                    'list_locations',
+                    {'cloud_id': cloud_id, 'locations': locations}
+                ),
+            )
 
         periodic_tasks.extend([('list_images', tasks.ListImages()),
                                ('list_sizes', tasks.ListSizes()),

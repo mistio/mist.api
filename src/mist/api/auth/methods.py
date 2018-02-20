@@ -14,6 +14,8 @@ from mist.api.exceptions import UserUnauthorizedError
 from mist.api.exceptions import AdminUnauthorizedError
 from mist.api.exceptions import InternalServerError
 
+from mist.api.portal.models import Portal
+
 from mist.api.auth.tasks import revoke_token
 from mist.api.auth.models import ApiToken
 from mist.api.auth.models import SessionToken
@@ -93,8 +95,23 @@ def session_from_request(request):
         return request.environ['session']
     session = migrate_old_api_token(request)
     if session is None:
-        token_from_request = request.headers.get('Authorization', '').lower()
-        if token_from_request:
+        auth_value = request.headers.get('Authorization', '').lower()
+        if auth_value.startswith('internal'):
+            parts = auth_value.split(' ')
+            if len(parts) == 3:
+                internal_api_key, session_id = parts[1:]
+                if internal_api_key == Portal.get_singleton().internal_api_key:
+                    try:
+                        session_token = SessionToken.objects.get(
+                            token=session_id)
+                    except SessionToken.DoesNotExist:
+                        pass
+                    else:
+                        if session_token.is_valid():
+                            session_token.internal = True
+                            session = session_token
+        elif auth_value:
+            token_from_request = auth_value
             try:
                 api_token = ApiToken.objects.get(
                     token=token_from_request

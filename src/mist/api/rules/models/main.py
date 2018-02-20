@@ -365,14 +365,14 @@ class ResourceRule(Rule, ConditionalClassMixin):
     @property
     def machine(self):
         machines = self.get_resources()
-        assert machines.count() is 1
-        return machines.first().machine_id
+        assert machines.count() < 2
+        return machines.first().machine_id if machines else None
 
     @property
     def cloud(self):
         machines = self.get_resources()
-        assert machines.count() is 1
-        return machines.first().cloud.id
+        assert machines.count() < 2
+        return machines.first().cloud.id if machines else None
 
     @property
     def action(self):
@@ -393,6 +393,22 @@ class ResourceRule(Rule, ConditionalClassMixin):
         return emails
 
     @property
+    def users(self):
+        users = []
+        for action in self.actions:
+            if action.atype == 'notification':
+                users = action.users
+        return users
+
+    @property
+    def teams(self):
+        teams = []
+        for action in self.actions:
+            if action.atype == 'notification':
+                teams = action.teams
+        return teams
+
+    @property
     def command(self):
         command = ''
         for action in self.actions:
@@ -409,6 +425,8 @@ class ResourceRule(Rule, ConditionalClassMixin):
             'aggregate': self.aggregate,
             'reminder_offset': self.reminder_offset,
             'emails': self.emails,
+            'users': self.users,
+            'teams': self.teams,
             'action': self.action,
             'command': self.command,
             'machine': self.machine,

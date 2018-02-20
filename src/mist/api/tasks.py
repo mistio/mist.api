@@ -40,7 +40,6 @@ from mist.api.poller.models import PollingSchedule
 from mist.api.poller.models import ListMachinesPollingSchedule
 from mist.api.poller.models import PingProbeMachinePollingSchedule
 from mist.api.poller.models import SSHProbeMachinePollingSchedule
-from mist.api.poller.models import ListLocationsPollingSchedule
 
 from mist.api.helpers import send_email as helper_send_email
 from mist.api.helpers import amqp_publish_user
@@ -380,7 +379,7 @@ def openstack_post_create_steps(self, owner_id, cloud_id, machine_id,
                     # Find the external network
                     log.info("Create and associating floating ip with "
                              "machine: %s" % node.id)
-                    ext_net_id = networks['public'][0]['id']
+                    ext_net_id = networks['public'][0]['network_id']
                     conn.ex_create_floating_ip(ext_net_id, machine_port_id)
 
                 post_deploy_steps.delay(
@@ -1388,11 +1387,6 @@ def update_poller(org_id):
     for cloud in Cloud.objects(owner=org, deleted=None, enabled=True):
         log.info("Updating poller for cloud %s", cloud)
         ListMachinesPollingSchedule.add(cloud=cloud, interval=10, ttl=120)
-        sched = ListLocationsPollingSchedule.add(cloud=cloud,
-                                                 run_immediately=False)
-        sched.set_default_interval(60 * 60 * 24)
-        sched.save()
-
         for machine in cloud.ctl.compute.list_cached_machines():
             log.info("Updating poller for machine %s", machine)
             PingProbeMachinePollingSchedule.add(machine=machine,
