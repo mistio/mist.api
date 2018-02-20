@@ -3,7 +3,6 @@ variables:
 
 stages:
   - build
-  - generate_api_spec
   - test
 
 #################### BUILD STAGE ####################
@@ -23,16 +22,6 @@ build_mist_image:
   tags:
     - builder
   dependencies: []
-
-
-#################### GENERATE_API_SPEC STAGE ####################
-generate_api_spec:
-  stage: generate_api_spec
-  image: gcr.io/mist-ops/mist:$CI_COMMIT_SHA
-  before_script:
-    - cd /mist.api
-  script:
-    - python openapi/generate_api_spec.py
 
 
 #################### TEST STAGE ####################
