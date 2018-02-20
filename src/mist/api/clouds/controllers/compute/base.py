@@ -862,7 +862,7 @@ class BaseComputeController(BaseController):
         # Delete existing sizes not returned by libcloud
         CloudSize.objects(cloud=self.cloud,
                           external_id__nin=[s.external_id
-                                           for s in sizes]).delete()
+                                            for s in sizes]).delete()
 
         return sizes
 
