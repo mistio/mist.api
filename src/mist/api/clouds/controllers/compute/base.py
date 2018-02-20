@@ -794,7 +794,7 @@ class BaseComputeController(BaseController):
                                   connection=amqp_conn,
                                   data={'cloud_id': self.cloud.id,
                                         'sizes': sizes_dict})
-        return [size for size in sizes if size.missing_since is None]
+        return [size for size in sizes]
 
     def _list_sizes(self):
         """Fetch size listing in a libcloud compatible format
