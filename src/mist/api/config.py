@@ -571,6 +571,8 @@ EC2_SECURITYGROUP = {
     'description': 'Security group created by mist.io'
 }
 
+EC2_SECURITYGROUP_ID = 'sg-984dadf7'
+
 # Linode datacenter ids/names mapping
 LINODE_DATACENTERS = {
     2: 'Dallas, TX, USA',
