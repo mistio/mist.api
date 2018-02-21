@@ -18,6 +18,7 @@ from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 from mist.api.keys.models import Key
 from mist.api.networks.models import Network
+from mist.api.networks.models import Subnet
 
 from mist.api.exceptions import PolicyUnauthorizedError
 from mist.api.exceptions import MachineNameValidationError
@@ -125,13 +126,14 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                    image_name=None, size_name=None, location_name=None,
                    ips=None, monitoring=False,
                    ex_storage_account='', machine_password='',
-                   ex_resource_group='', networks=[], docker_env=[],
-                   docker_command=None,
+                   ex_resource_group='', networks=[],
+                   docker_env=[], docker_command=None,
                    ssh_port=22, script='', script_id='', script_params='',
                    job_id=None, job=None, docker_port_bindings={},
                    docker_exposed_ports={}, azure_port_bindings='',
                    hostname='', plugins=None, disk_size=None, disk_path=None,
                    post_script_id='', post_script_params='', cloud_init='',
+                   subnet_id='', subnet_external_id='',
                    create_network=False, new_network='',
                    create_resource_group=False, new_resource_group='',
                    create_storage_account=False, new_storage_account='',
@@ -250,7 +252,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                 break
         node = _create_machine_ec2(conn, key_id, private_key, public_key,
                                    machine_name, image, size, ec2_location,
-                                   cloud_init)
+                                   subnet_id, subnet_external_id, cloud_init)
     elif conn.type is Provider.NEPHOSCALE:
         node = _create_machine_nephoscale(conn, key_id, private_key,
                                           public_key, machine_name, image,
@@ -540,7 +542,8 @@ def _create_machine_openstack(conn, private_key, public_key, machine_name,
 
 
 def _create_machine_ec2(conn, key_name, private_key, public_key,
-                        machine_name, image, size, location, user_data):
+                        machine_name, image, size, location, subnet_id,
+                        subnet_external_id, user_data):
     """Create a machine in Amazon EC2.
 
     Here there is no checking done, all parameters are expected to be
@@ -574,15 +577,30 @@ def _create_machine_ec2(conn, key_name, private_key, public_key,
         else:
             raise InternalServerError("Couldn't create security group", exc)
 
+    import ipdb;
+    ipdb.set_trace()
+    try:
+        subnet = Subnet.objects.get(id=subnet_id)
+        subnet_id = subnet.subnet_id
+    except Subnet.DoesNotExist:
+        log.info('Got providers id instead of mist id, not doing nothing.')
+
+    subnet = None
+    subnets = conn.ex_list_subnets()
+    for libcloud_subnet in subnets:
+        if libcloud_subnet.id == subnet_id:
+            subnet = libcloud_subnet
+            break
+
     try:
         node = conn.create_node(
             name=machine_name,
             image=image,
             size=size,
             location=location,
+            ex_subnet=subnet,
             max_tries=1,
             ex_keyname=key_name,
-            ex_securitygroup=config.EC2_SECURITYGROUP['name'],
             ex_userdata=user_data
         )
     except Exception as e:

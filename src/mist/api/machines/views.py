@@ -250,6 +250,8 @@ def create_machine(request):
     create_network = params.get('create_network', False)
     new_network = params.get('new_network', '')
     networks = params.get('networks', [])
+    subnet_id = params.get('subnet_id', '')
+    subnet_external_id = params.get('subnet_external_id', '')
     docker_env = params.get('docker_env', [])
     docker_command = params.get('docker_command', None)
     script_id = params.get('script_id', '')
@@ -378,6 +380,7 @@ def create_machine(request):
               'disk_size': disk_size,
               'disk_path': disk_path,
               'cloud_init': cloud_init,
+              'subnet_id': subnet_id, 'subnet_external_id': subnet_external_id,
               'associate_floating_ip': associate_floating_ip,
               'associate_floating_ip_subnet': associate_floating_ip_subnet,
               'project_id': project_id,
@@ -404,7 +407,7 @@ def create_machine(request):
               'port_speed': port_speed,
               'hypervisor_group_id': hypervisor_group_id,
               'machine_username': machine_username}
-
+    import ipdb; ipdb.set_trace()
     if not async:
         ret = methods.create_machine(auth_context.owner, *args, **kwargs)
     else:
