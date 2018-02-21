@@ -11,7 +11,6 @@ from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import RuleNotFoundError
 from mist.api.exceptions import UnauthorizedError
-from mist.api.exceptions import InternalServerError
 from mist.api.exceptions import RequiredParameterMissingError
 
 from mist.api.rules.models import Rule
@@ -27,6 +26,7 @@ from mist.api import config
 log = logging.getLogger(__name__)
 
 
+# FIXME Deprecated!
 def _get_transformed_params(auth_context, params):
     # Sanitize reminder_offset.
     reminder_offset = params.get('reminder_offset') or 0
@@ -120,7 +120,7 @@ def _get_transformed_params(auth_context, params):
 
 
 @view_config(route_name='api_v1_rules', request_method='GET', renderer='json')
-def get(request):
+def get_rules(request):
     """Get a list of all rules"""
     auth_context = auth_context_from_request(request)
     if not auth_context.is_owner():
@@ -306,30 +306,21 @@ def add_rule(request):
     params = params_from_request(request)
 
     # Pyramid's `NestedMultiDict` is immutable.
-    kwargs = _get_transformed_params(auth_context, dict(params.copy()))
+    kwargs = dict(params.copy())
+    # kwargs = _get_transformed_params(auth_context, dict(params.copy()))
 
-    # FIXME Have a discrete API endpoint for updates.
-    title = params.get('id')
-    if title:
-        try:
-            rule = Rule.objects.get(owner_id=auth_context.owner.id,
-                                    title=title)
-            rule.ctl.set_auth_context(auth_context)
-            rule.ctl.update(**kwargs)
-        except Rule.DoesNotExist:
-            raise RuleNotFoundError()
-    else:
-        # Add new rule.
-        rule = MachineMetricRule.add(auth_context, **kwargs)
+    # FIXME Remove. Now there is a discrete API endpoint for updates.
+    if params.get('id'):
+        raise BadRequestError('POST to /api/v1/rules/<rule-id> for updates')
 
-        # FIXME Deprecated counter used for rules' titles.
-        auth_context.owner.rule_counter += 1
-        auth_context.owner.save()
+    # Add new rule.
+    rule = MachineMetricRule.add(auth_context, **kwargs)
 
-    rdict = rule.as_dict_old()
-    rdict['id'] = rule.rule_id
+    # FIXME Keep this?
+    auth_context.owner.rule_counter += 1
+    auth_context.owner.save()
 
-    return rdict
+    return rule.as_dict()
 
 
 @view_config(route_name='api_v1_rule', request_method='POST', renderer='json')
@@ -338,7 +329,7 @@ def update_rule(request):
 
     The expected request body is the same as for the `add_rule` endpoint. The
     difference is that none of the parameters are required. Only the specified
-    paramteres will be updated, leaving the rest unchanged.
+    parameters will be updated, leaving the rest unchanged.
 
     READ permission required on cloud
     EDIT_RULES permission required on machine
@@ -357,7 +348,7 @@ def update_rule(request):
     rule_id = request.matchdict.get('rule')
     try:
         rule = Rule.objects.get(owner_id=auth_context.owner.id, id=rule_id)
-        rule.set_auth_context(auth_context)
+        rule.ctl.set_auth_context(auth_context)
         rule.ctl.update(**params)
     except Rule.DoesNotExist:
         raise RuleNotFoundError()
@@ -460,9 +451,9 @@ def delete_rule(request):
 
     """
     auth_context = auth_context_from_request(request)
-    rule_id = request.matchdict.get('rule')  # FIXME uuid, not title!
+    rule_id = request.matchdict.get('rule')
     try:
-        rule = Rule.objects.get(owner_id=auth_context.owner.id, title=rule_id)
+        rule = Rule.objects.get(owner_id=auth_context.owner.id, id=rule_id)
         rule.ctl.set_auth_context(auth_context)
         rule.ctl.delete()
     except Rule.DoesNotExist:
@@ -586,6 +577,12 @@ def triggered(request):
 
     if machine.cloud.deleted:
         raise NotFoundError('Machine with id %s does not exist' % resource_id)
+
+    if machine.missing_since:
+        raise NotFoundError('Machine with id %s does not exist' % resource_id)
+
+    if machine.state == 'terminated':
+        raise NotFoundError('Machine with id %s is terminated' % resource_id)
 
     if not machine.monitoring.hasmonitoring:
         raise NotFoundError('%s does not have monitoring enabled' % machine)
