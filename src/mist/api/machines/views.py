@@ -407,7 +407,6 @@ def create_machine(request):
               'port_speed': port_speed,
               'hypervisor_group_id': hypervisor_group_id,
               'machine_username': machine_username}
-    import ipdb; ipdb.set_trace()
     if not async:
         ret = methods.create_machine(auth_context.owner, *args, **kwargs)
     else:

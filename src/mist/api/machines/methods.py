@@ -577,32 +577,39 @@ def _create_machine_ec2(conn, key_name, private_key, public_key,
         else:
             raise InternalServerError("Couldn't create security group", exc)
 
-    import ipdb;
-    ipdb.set_trace()
-    try:
-        subnet = Subnet.objects.get(id=subnet_id)
-        subnet_id = subnet.subnet_id
-    except Subnet.DoesNotExist:
-        log.info('Got providers id instead of mist id, not doing nothing.')
+    # import ipdb; ipdb.set_trace()
 
-    subnet = None
-    subnets = conn.ex_list_subnets()
-    for libcloud_subnet in subnets:
-        if libcloud_subnet.id == subnet_id:
-            subnet = libcloud_subnet
-            break
+    kwargs = {'name': machine_name, 'image': image,
+              'size': size, 'location': location,
+              'max_tries': 1, 'ex_keyname': key_name,
+              'ex_userdata': user_data
+              }
+
+    if subnet_id:
+
+        subnet = None
+
+        try:
+            subnet = Subnet.objects.get(id=subnet_id)
+            subnet_id = subnet.subnet_id
+        except Subnet.DoesNotExist:
+            log.info('Got providers id instead of mist id, not doing nothing.')
+
+        subnets = conn.ex_list_subnets()
+        for libcloud_subnet in subnets:
+            if libcloud_subnet.id == subnet_id:
+                subnet = libcloud_subnet
+                break
+        # if subnet is specified, then security group id is needed
+        kwargs.update({'ex_subnet': subnet,
+                      'ex_security_group_ids': config.EC2_SECURITYGROUP_ID})
+
+    else:
+        kwargs.update({'ex_securitygroup': config.EC2_SECURITYGROUP['name']})
 
     try:
-        node = conn.create_node(
-            name=machine_name,
-            image=image,
-            size=size,
-            location=location,
-            ex_subnet=subnet,
-            max_tries=1,
-            ex_keyname=key_name,
-            ex_userdata=user_data
-        )
+        node = conn.create_node(**kwargs)
+
     except Exception as e:
         raise MachineCreationError("EC2, got exception %s" % e, e)
 
