@@ -101,7 +101,7 @@ class BaseController(object):
             log.error('Error adding %s: %s', self.rule.title, err)
             raise
 
-    def update(self, save=True, fail_on_error=True, **kwargs):
+    def update(self, fail_on_error=True, **kwargs):
         """Update an existing Rule.
 
         This method is invoked by `self.add` when adding a new Rule, but it
@@ -186,12 +186,6 @@ class BaseController(object):
 
         # Attempt to save self.rule.
         try:
-            # FIXME This is temporary to ensure that the rule is not actually
-            # updated, unless mist.alert responds OK.
-            if save is False:
-                self.rule.validate()
-                return
-            # /
             self.check_auth_context()
             self.rule.save()
         except me.ValidationError as err:
@@ -284,13 +278,13 @@ class BaseController(object):
 
 class ArbitraryRuleController(BaseController):
 
-    def update(self, save=True, fail_on_error=True, **kwargs):
+    def update(self, fail_on_error=True, **kwargs):
         if 'conditions' in kwargs:
             raise BadRequestError('Conditions may not be specified for '
                                   'arbitrary rules. Filtering is meant '
                                   'to be included as part of the query.')
         super(ArbitraryRuleController, self).update(
-            save=save, fail_on_error=fail_on_error, **kwargs)
+            fail_on_error=fail_on_error, **kwargs)
 
 
 class ResourceRuleController(BaseController):
@@ -300,7 +294,7 @@ class ResourceRuleController(BaseController):
         return {'graphite': GraphiteBackendPlugin,
                 'influxdb': InfluxDBBackendPlugin}
 
-    def update(self, save=True, fail_on_error=True, **kwargs):
+    def update(self, fail_on_error=True, **kwargs):
         if 'conditions' in kwargs:
             self.rule.conditions = []
         for condition in kwargs.pop('conditions', []):
@@ -311,7 +305,7 @@ class ResourceRuleController(BaseController):
             cond_cls.update(**condition)
             self.rule.conditions.append(cond_cls)
         super(ResourceRuleController, self).update(
-            save=save, fail_on_error=fail_on_error, **kwargs)
+            fail_on_error=fail_on_error, **kwargs)
 
     def evaluate(self, update_state=False, trigger_actions=False):
         if config.CILIA_MULTI:
@@ -398,7 +392,7 @@ class NoDataRuleController(ResourceRuleController):
         return {'graphite': GraphiteNoDataPlugin,
                 'influxdb': InfluxDBNoDataPlugin}
 
-    def update(self, save=True, fail_on_error=True, **kwargs):
+    def update(self, fail_on_error=True, **kwargs):
         raise BadRequestError('NoData rules may not be editted')
 
     def delete(self):

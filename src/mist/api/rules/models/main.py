@@ -335,10 +335,6 @@ class ResourceRule(Rule, ConditionalClassMixin):
     # FIXME All following properties are for backwards compatibility.
 
     @property
-    def rule_id(self):
-        return self.title
-
-    @property
     def metric(self):
         assert len(self.queries) is 1
         return self.queries[0].target
@@ -363,18 +359,6 @@ class ResourceRule(Rule, ConditionalClassMixin):
         return self.frequency.timedelta.total_seconds() - 60
 
     @property
-    def machine(self):
-        machines = self.get_resources()
-        assert machines.count() < 2
-        return machines.first().machine_id if machines else None
-
-    @property
-    def cloud(self):
-        machines = self.get_resources()
-        assert machines.count() < 2
-        return machines.first().cloud.id if machines else None
-
-    @property
     def action(self):
         for action in reversed(self.actions):
             if action.atype == 'command':
@@ -383,55 +367,6 @@ class ResourceRule(Rule, ConditionalClassMixin):
                 return action.action
             if action.atype == 'notification':
                 return 'alert'
-
-    @property
-    def emails(self):
-        emails = []
-        for action in self.actions:
-            if action.atype == 'notification':
-                emails = action.emails
-        return emails
-
-    @property
-    def users(self):
-        users = []
-        for action in self.actions:
-            if action.atype == 'notification':
-                users = action.users
-        return users
-
-    @property
-    def teams(self):
-        teams = []
-        for action in self.actions:
-            if action.atype == 'notification':
-                teams = action.teams
-        return teams
-
-    @property
-    def command(self):
-        command = ''
-        for action in self.actions:
-            if action.atype == 'command':
-                command = action.command
-        return command
-
-    def as_dict_old(self):
-        return {
-            '_id': {'$oid': self.id},
-            'metric': self.metric,
-            'value': self.value,
-            'operator': self.operator,
-            'aggregate': self.aggregate,
-            'reminder_offset': self.reminder_offset,
-            'emails': self.emails,
-            'users': self.users,
-            'teams': self.teams,
-            'action': self.action,
-            'command': self.command,
-            'machine': self.machine,
-            'cloud': self.cloud,
-        }
 
 
 class MachineMetricRule(ResourceRule):
@@ -458,10 +393,6 @@ class NoDataRule(MachineMetricRule):
     # used internally, thus the `None`s.
 
     @property
-    def rule_id(self):
-        return self.title
-
-    @property
     def metric(self):
         return None
 
@@ -482,24 +413,5 @@ class NoDataRule(MachineMetricRule):
         return None
 
     @property
-    def machine(self):
-        return None
-
-    @property
-    def cloud(self):
-        return None
-
-    @property
     def action(self):
         return ''
-
-    @property
-    def emails(self):
-        return []
-
-    @property
-    def command(self):
-        return ''
-
-    def as_dict_old(self):
-        return {}
