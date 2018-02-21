@@ -166,44 +166,6 @@ class SocialAuthUser(me.Document):
         return 'SocialAuthUser for %s on %s' % (user, self.provider)
 
 
-class Rule(me.Document):
-    """The basic Rule Model."""
-
-    rule_action = me.StringField()
-    metric = me.StringField()  # metric_id for builtin or custom metric
-    value = me.FloatField()
-    cloud = me.StringField()
-    machine = me.StringField()
-    operator = me.StringField()
-    command = me.StringField()
-    action = me.StringField()
-    aggregate = me.StringField(default='all')  # must be in ('all','avg','any')
-    reminder_offset = me.IntField()  # seconds to wait
-    # before sending notifications
-    emails = me.ListField(me.StringField(), default=[])
-    # email to send the alerts. Can be a list of email addresses
-
-    migrated = me.BooleanField()
-
-    def clean(self):
-        # TODO: check if these are valid email addresses,
-        # to avoid possible spam
-        banned_mails_providers = config.BANNED_EMAIL_PROVIDERS
-
-        if self.emails:
-            if isinstance(self.emails, basestring):
-                emails = []
-                for email in self.emails.split(','):
-                    if re.match("[^@]+@[^@]+\.[^@]+", email):
-                        if email.split('@')[1] not in banned_mails_providers:
-                            emails.append(email.replace(' ', ''))
-                self.emails = emails
-        super(Rule, self).clean()
-
-    def as_dict(self):
-        return json.loads(self.to_json())
-
-
 class Owner(me.Document):
 
     id = me.StringField(primary_key=True,
@@ -214,7 +176,6 @@ class Owner(me.Document):
     rule_counter = me.IntField(default=0)
     total_machine_count = me.IntField()
 
-    rules = me.MapField(field=me.ReferenceField(Rule))
     alerts_email = me.ListField(me.StringField(), default=[])
 
     avatar = me.StringField(default='')
