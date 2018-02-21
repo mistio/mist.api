@@ -112,9 +112,9 @@ class NotificationAction(BaseAlertAction):
             except me.DoesNotExist:
                 continue
         send_alert_email(machine.owner, self._instance.id, value,
-                         triggered, timestamp, incident_id, action=action,
+                         triggered, timestamp, incident_id, emails,
                          cloud_id=machine.cloud.id,
-                         machine_id=machine.machine_id, emails=emails)
+                         machine_id=machine.machine_id, action=action)
 
     def clean(self):
         """Perform e-mail address validation."""
