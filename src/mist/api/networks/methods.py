@@ -43,7 +43,7 @@ def delete_network(owner, network):
 
 def create_subnet(owner, cloud, network, subnet_params):
     """
-    Create a new subnet attached to the specified network ont he given cloud.
+    Create a new subnet attached to the specified network on the given cloud.
     Subnet_params is a dict containing all the necessary values that describe a
     subnet.
     """
@@ -54,11 +54,18 @@ def create_subnet(owner, cloud, network, subnet_params):
     #  to declare it on the cloud provider
     new_subnet = SUBNETS[cloud.ctl.provider].add(network=network,
                                                  **subnet_params)
-
-    # Schedule a UI update
     trigger_session_update(owner, ['clouds'])
 
     return new_subnet
+
+
+def delete_subnet(owner, subnet):
+    """
+    Delete a subnet.
+    """
+    subnet.ctl.delete()
+
+    trigger_session_update(owner, ['clouds'])
 
 
 def list_networks(owner, cloud_id):
