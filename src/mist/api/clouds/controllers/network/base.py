@@ -398,9 +398,9 @@ class BaseNetworkController(BaseController):
 
             subnets.append(subnet)
 
-            # Delete missing subnets.
-            Subnet.objects(network=network,
-                           id__nin=[s.id for s in subnets]).delete()
+        # Delete missing subnets.
+        Subnet.objects(network=network,
+                       id__nin=[s.id for s in subnets]).delete()
 
         return subnets
 
