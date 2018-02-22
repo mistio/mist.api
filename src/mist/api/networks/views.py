@@ -144,6 +144,44 @@ def delete_network(request):
     return OK
 
 
+@view_config(route_name='api_v1_subnets',
+             request_method='GET', renderer='json')
+def list_subnets(request):
+    """
+    List subnets of a specified network of a cloud.
+    READ permission required on cloud.
+    READ permission required on network.
+    ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    network:
+      in: path
+      required: true
+      type: string
+    """
+    cloud_id = request.matchdict['cloud']
+    network_id = request.matchdict['network']
+    auth_context = auth_context_from_request(request)
+    auth_context.check_perm("cloud", "read", cloud_id)
+    auth_context.check_perm("network", "read", network_id)
+
+    try:
+        Cloud.objects.get(owner=auth_context.owner, id=cloud_id)
+    except me.DoesNotExist:
+        raise CloudNotFoundError
+
+    try:
+        Network.objects.get(owner=auth_context.owner, id=network_id)
+    except me.DoesNotExist:
+        raise NetworkNotFoundError
+
+    subnets = methods.list_subnets(auth_context.owner, cloud_id)
+
+    return subnets
+
+
 @view_config(route_name='api_v1_network', request_method='POST')
 def associate_ip(request):
     """
