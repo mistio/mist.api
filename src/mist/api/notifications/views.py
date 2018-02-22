@@ -40,7 +40,16 @@ ERROR_MSG += "Please contact support@mist.io, if the problem persists."
 @view_config(route_name='api_v1_dismiss_notification',
              request_method='DELETE', renderer='json')
 def dismiss_notification(request):
-    """Dismiss an in-app notification"""
+    """
+    Tags: notifications
+    ---
+    Dismiss an in-app notification
+    ---
+    notification:
+      in: path
+      type: string
+      required: true
+    """
     auth_context = auth_context_from_request(request)
     ntf_id = request.matchdict.get("notification_id")
     if not ntf_id:
@@ -58,7 +67,16 @@ def dismiss_notification(request):
 @view_config(route_name='api_v1_notification_override',
              request_method='PUT', renderer='json')
 def add_notification_override(request):
-    """Add a notification override with the specified properties"""
+    """
+    Tags: notifications
+    ---
+    Add a notification override with the specified properties
+    ---
+    notification:
+      in: path
+      type: string
+      required: true
+    """
     auth_context = auth_context_from_request(request)
     ntf_id = request.matchdict.get("notification_id")
     if not ntf_id:
@@ -92,7 +110,12 @@ def add_notification_override(request):
 @view_config(route_name='api_v1_notification_overrides',
              request_method='GET', renderer='json')
 def get_notification_overrides(request):
-    """Get a user's notification policy"""
+    """
+    Tags: notifications
+    ---
+    Get notification overrides for user, org policy
+    ---
+    """
     auth_context = auth_context_from_request(request)
     try:
         np = UserNotificationPolicy.objects.get(owner=auth_context.owner,
@@ -105,7 +128,12 @@ def get_notification_overrides(request):
 @view_config(route_name='api_v1_notification_overrides',
              request_method='DELETE', renderer='json')
 def delete_notification_override(request):
-    """Delete a notification override"""
+    """
+    Tags: notifications
+    ---
+    Delete a notification override
+    ---
+    """
     auth_context = auth_context_from_request(request)
     params = params_from_request(request)
     override_id = params.get("override_id", {}).get("$oid")  # FIXME
@@ -124,10 +152,13 @@ def delete_notification_override(request):
 
 @view_config(route_name='unsubscribe_page', request_method='GET')
 def request_unsubscription(request):
-    """Return an unsubscription request page
-
+    """
+    Tags: notifications
+    ---
+    Returns an unsubscription request page.
     Accepts a request, validates the unsubscribe token and returns a rendered
     template, with a link and another token to confirm unsubscribing.
+    ---
     """
     params = params_from_request(request)
 
@@ -223,10 +254,13 @@ def request_unsubscription(request):
 
 @view_config(route_name='unsubscribe', request_method='PUT', renderer='json')
 def confirm_unsubscription(request):
-    """Create a new notification override
-
+    """
+    Tags: notifications
+    ---
+    Creates a new notification override.
     Accepts an override creation request and adds the corresponding override,
     creating a new override policy if it does not exist.
+    ---
     """
     params = params_from_request(request)
     try:

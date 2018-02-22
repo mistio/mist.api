@@ -59,7 +59,11 @@ def _machine_from_matchdict(request):
 @view_config(route_name='api_v1_home_dashboard',
              request_method='GET', renderer='json')
 def home_dashboard(request):
-    """Return home monitoring dashboard"""
+    """
+    Tags: monitoring
+    ---
+    Return home monitoring dashboard
+    """
     auth_context_from_request(request)
     return copy.deepcopy(config.HOME_DASHBOARD_DEFAULT)
 
@@ -69,10 +73,12 @@ def home_dashboard(request):
 @view_config(route_name='api_v1_machine_dashboard',
              request_method='GET', renderer='json')
 def machine_dashboard(request):
-    """Return monitoring dashboard for a machine
-
-    READ permission required on cloud
-    READ permission required on machine
+    """
+    Tags: monitoring
+    ---
+    Return monitoring dashboard for a machine.
+    READ permission required on cloud.
+    READ permission required on machine.
     """
     machine = _machine_from_matchdict(request)
     if not machine.monitoring.hasmonitoring:
@@ -116,7 +122,11 @@ def machine_dashboard(request):
 @view_config(route_name='api_v1_monitoring',
              request_method='GET', renderer='json')
 def check_monitoring(request):
-    """Return monitored machines and user details"""
+    """
+    Tags: monitoring
+    ---
+    Return monitored machines and user details
+    """
     auth_context = auth_context_from_request(request)
     if not auth_context.is_owner():
         raise UnauthorizedError()
@@ -128,7 +138,10 @@ def check_monitoring(request):
 @view_config(route_name='api_v1_machine_monitoring',
              request_method='GET', renderer='json')
 def show_monitoring_details(request):
-    """Shows monitoring details for a machine"""
+    """
+    Tags: monitoring
+    ---
+    Shows monitoring details for a machine"""
     auth_context = auth_context_from_request(request)
     machine = _machine_from_matchdict(request)
     # SEC require permission EDIT on machine
@@ -143,10 +156,11 @@ def show_monitoring_details(request):
 @view_config(route_name='api_v1_machine_monitoring',
              request_method='POST', renderer='json')
 def update_monitoring(request):
-    """Enable or disable monitoring for a machine
-
+    """
+    Tags: monitoring
     ---
-
+    Enable or disable monitoring for a machine
+    ---
     machine:
       in: path
       type: string
@@ -196,8 +210,9 @@ def update_monitoring(request):
 @view_config(route_name='api_v1_metrics',
              request_method='GET', renderer='json')
 def find_metrics(request):
-    """Get metrics associated with a machine
-
+    """
+    Tags: monitoring
+    ---
     Get all metrics associated with specific machine.
     READ permission required on cloud.
     READ permission required on machine.
@@ -221,13 +236,13 @@ def find_metrics(request):
 @view_config(route_name='api_v1_metrics',
              request_method='PUT', renderer='json')
 def associate_metric(request):
-    """Associate a new metric to a machine
-
+    """
+    Tags: monitoring
+    ---
+    Associate a new metric to a machine.
     READ permission required on cloud.
     EDIT_GRAPHS permission required on machine
-
     ---
-
     machine:
       in: path
       type: string
@@ -235,7 +250,6 @@ def associate_metric(request):
     metric_id:
       type: string
       required: true
-
     """
     auth_context = auth_context_from_request(request)
     machine = _machine_from_matchdict(request)
@@ -257,13 +271,13 @@ def associate_metric(request):
 @view_config(route_name='api_v1_metrics',
              request_method='DELETE', renderer='json')
 def disassociate_metric(request):
-    """Disassociate a metric from a machine
-
+    """
+    Tags: monitoring
+    ---
+    Disassociate a metric from a machine.
     READ permission required on cloud.
     EDIT_GRAPHS permission required on machine
-
     ---
-
     machine:
       in: path
       type: string
@@ -271,7 +285,6 @@ def disassociate_metric(request):
     metric_id:
       type: string
       required: true
-
     """
     auth_context = auth_context_from_request(request)
     machine = _machine_from_matchdict(request)
@@ -293,10 +306,11 @@ def disassociate_metric(request):
 @view_config(route_name='api_v1_stats',
              request_method='GET', renderer='json')
 def get_stats(request):
-    """Request monitoring data for a machine
-
+    """
+    Tags: monitoring
     ---
-
+    Request monitoring data for a machine
+    ---
     machine:
       in: path
       type: string
