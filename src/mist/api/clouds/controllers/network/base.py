@@ -329,6 +329,9 @@ class BaseNetworkController(BaseController):
     def list_subnets(self, network, **kwargs):
         """Lists all Subnets attached to a Network present on the Cloud.
 
+        Currently EC2, Openstack and GCE clouds are supported.
+        For other providers this returns an empty list.
+
         Fetches all Subnets via libcloud, applies cloud-specific processing,
         and syncs the state of the database with the state of the Cloud.
 
@@ -402,7 +405,7 @@ class BaseNetworkController(BaseController):
         Subnet.objects(network=network,
                        id__nin=[s.id for s in subnets]).delete()
 
-        return subnets
+        return [sub.as_dict() for sub in subnets]
 
     def _list_subnets__fetch_subnets(self, network):
         """Fetches a list of subnets.
