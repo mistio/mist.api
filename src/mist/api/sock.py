@@ -277,6 +277,7 @@ class MainConnection(MistConnection):
         super(MainConnection, self).on_open(conn_info)
         self.running_machines = set()
         self.consumer = None
+        self.batch = []
         self.log_kwargs = {
             'ip': self.ip,
             'user_agent': self.user_agent,
@@ -311,6 +312,18 @@ class MainConnection(MistConnection):
         self.update_notifications()
         self.check_monitoring()
         self.periodic_update_poller()
+        self.send_batch_update()
+
+    @tornado.gen.coroutine
+    def send_batch_update(self):
+        """Send model patches in batches."""
+        while True:
+            if self.closed:
+                break
+            if self.batch:
+                self.send('patch_model', self.batch)
+                self.batch = []
+            yield tornado.gen.sleep(5)
 
     @tornado.gen.coroutine
     def periodic_update_poller(self):
@@ -609,7 +622,7 @@ class MainConnection(MistConnection):
                 line['path'] = '/clouds/%s/machines/%s' % (cloud_id,
                                                            line['path'])
             if patch:
-                self.send('patch_model', patch)
+                self.batch.extend(patch)
 
         elif routing_key == 'patch_locations':
             cloud_id = result['cloud_id']
