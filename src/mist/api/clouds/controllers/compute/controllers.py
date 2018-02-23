@@ -819,19 +819,16 @@ class PacketComputeController(BaseComputeController):
         from mist.api.clouds.models import CloudSize
         try:
             size = CloudSize.objects.get(cloud=self.cloud,
-                                         name=plan)
+                                         id=plan)
             return size
         except CloudSize.DoesNotExist:
             return None
 
     def _list_sizes__get_name(self, size, cpu):
         if cpu:
-            name = size.name + ' (%d cpus)' % cpu
-        else:
-            name = size.name
-        # format the name to contain only the type of the size
-        # since it is needed in list_machines__get_size
-        return name.split(' -')[0]
+            size.name = size.name + ' (%d cpus)' % cpu
+
+        return size.name
 
     def _list_sizes__get_ram(self, size):
         return int(re.sub("\D", "", size.ram))
