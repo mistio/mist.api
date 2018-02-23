@@ -7,11 +7,12 @@ from mist.api.scripts.models import TelegrafScript
 
 def migrate():
     """Migrate collectd plugins to telegraf executables"""
+
+    scripts = CollectdScript.objects(deleted=None, migrated__ne=True)
+    unmigrated = scripts.count()
     succeeded = failed = 0
 
-    scripts = CollectdScript.objects(deleted=None)
-
-    print 'Will migrate %d collectd script' % scripts.count()
+    print 'Will migrate %d collectd script' % unmigrated
 
     for old_script in scripts:
         try:
@@ -50,12 +51,20 @@ def migrate():
             traceback.print_exc()
             failed += 1
             print '[ERROR]'
+            continue
         else:
             succeeded += 1
             print '[OK]'
 
+        try:
+            old_script.migrated = True
+            old_script.save()
+        except Exception:
+            traceback.print_exc()
+            new_script.delete()
+
     print
-    print 'Migrated %d/%d' % (succeeded, scripts.count())
+    print 'Migrated %d/%d' % (succeeded, unmigrated)
     print
     print 'Completed %s' % ('successfully!' if not failed else 'with errors!')
     print

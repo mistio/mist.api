@@ -153,6 +153,8 @@ class Script(me.Document):
 
     deleted = me.DateTimeField()
 
+    migrated = me.BooleanField()  # NOTE For collectd scripts' migration.
+
     _controller_cls = None
 
     def __init__(self, *args, **kwargs):
