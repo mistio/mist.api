@@ -219,6 +219,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                         price=cloud_size.price,
                         driver=conn)
     except me.DoesNotExist:
+        cloud_size = None
         size = None
 
     if conn.type is Container_Provider.DOCKER:

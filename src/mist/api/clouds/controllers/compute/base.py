@@ -348,7 +348,7 @@ class BaseComputeController(BaseController):
                                node.extra.get('image') or '')
 
             try:
-                size = self._list_machines__get_size(node)
+                size = sizes_map.get(self._list_machines__get_size(node))
             except Exception as exc:
                 log.error("Error getting size of %s: %r", machine, exc)
             else:
@@ -901,19 +901,12 @@ class BaseComputeController(BaseController):
         return CloudSize.objects(cloud=self.cloud)
 
     def _list_machines__get_size(self, node):
-        """Return size from database for a
+        """Return key of size_map dict for a
         specific node
 
         Subclasses MAY override this method.
         """
-        # FIXME: resolve circular import issues
-        from mist.api.clouds.models import CloudSize
-        try:
-            size = CloudSize.objects.get(cloud=self.cloud,
-                                         name=node.size)
-        except CloudSize.DoesNotExist:
-            size = None
-        return size
+        return node.size
 
     def list_locations(self, persist=True):
         """Return list of locations for cloud

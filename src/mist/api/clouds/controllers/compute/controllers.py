@@ -210,14 +210,7 @@ class AmazonComputeController(BaseComputeController):
                                                size.ram, cpu)
 
     def _list_machines__get_size(self, node):
-        plan_id = node.extra.get('instance_type')
-        from mist.api.clouds.models import CloudSize
-        try:
-            size = CloudSize.objects.get(cloud=self.cloud,
-                                         external_id=plan_id)
-        except CloudSize.DoesNotExist:
-            size = None
-        return size
+        return node.extra.get('instance_type')
 
 
 class DigitalOceanComputeController(BaseComputeController):
@@ -251,14 +244,7 @@ class DigitalOceanComputeController(BaseComputeController):
         return node.extra.get('region')
 
     def _list_machines__get_size(self, node):
-        size_name = node.extra.get('size_slug')
-        from mist.api.clouds.models import CloudSize
-        try:
-            _size = CloudSize.objects.get(cloud=self.cloud,
-                                          external_id=size_name)
-            return _size
-        except CloudSize.DoesNotExist:
-            return None
+        return node.extra.get('size_slug')
 
     def _list_sizes__get_name(self, size, cpu):
         return size.name + ' (%d cpus / %dM RAM)' % (cpu,
@@ -293,14 +279,7 @@ class LinodeComputeController(BaseComputeController):
         return 0, price or 0
 
     def _list_machines__get_size(self, node):
-        plan_id = node.extra.get('PLANID')
-        from mist.api.clouds.models import CloudSize
-        try:
-            size = CloudSize.objects.get(cloud=self.cloud,
-                                         external_id=plan_id)
-            return size
-        except CloudSize.DoesNotExist:
-            return None
+        return node.extra.get('PLANID')
 
     def _list_machines__get_location(self, node):
         return str(node.extra.get('DATACENTERID'))
@@ -366,14 +345,7 @@ class RackSpaceComputeController(BaseComputeController):
             machine.os_type = 'linux'
 
     def _list_machines__get_size(self, node):
-        plan_id = node.extra.get('flavorId')
-        from mist.api.clouds.models import CloudSize
-        try:
-            size = CloudSize.objects.get(cloud=self.cloud,
-                                         external_id=plan_id)
-            return size
-        except CloudSize.DoesNotExist:
-            return None
+        return node.extra.get('flavorId')
 
     def _list_sizes__get_cpu(self, size):
         return size.vcpus
@@ -425,14 +397,7 @@ class SoftLayerComputeController(BaseComputeController):
         return node.extra.get('datacenter')
 
     def _list_machines__get_size(self, node):
-        size_id = str(node.extra.get('size'))
-        from mist.api.clouds.models import CloudSize
-        try:
-            size = CloudSize.objects.get(cloud=self.cloud,
-                                         external_id=size_id)
-            return size
-        except CloudSize.DoesNotExist:
-            return None
+        return str(node.extra.get('size'))
 
     def _reboot_machine(self, machine, machine_libcloud):
         self.connection.reboot_node(machine_libcloud)
@@ -472,14 +437,7 @@ class NephoScaleComputeController(BaseComputeController):
         return str(node.extra.get('zone_data').get('id'))
 
     def _list_machines__get_size(self, node):
-        plan_id = str(node.extra.get('size_id'))
-        from mist.api.clouds.models import CloudSize
-        try:
-            size = CloudSize.objects.get(cloud=self.cloud,
-                                         external_id=plan_id)
-            return size
-        except CloudSize.DoesNotExist:
-            return None
+        return str(node.extra.get('size_id'))
 
     def _list_sizes__fetch_sizes(self):
         sizes = self.connection.list_sizes(baremetal=False)
@@ -815,14 +773,7 @@ class PacketComputeController(BaseComputeController):
         return node.extra.get('facility')
 
     def _list_machines__get_size(self, node):
-        plan = node.extra.get('plan')
-        from mist.api.clouds.models import CloudSize
-        try:
-            size = CloudSize.objects.get(cloud=self.cloud,
-                                         id=plan)
-            return size
-        except CloudSize.DoesNotExist:
-            return None
+        return node.extra.get('plan')
 
     def _list_sizes__get_name(self, size, cpu):
         if cpu:
@@ -846,14 +797,7 @@ class VultrComputeController(BaseComputeController):
         return 0, machine_libcloud.extra.get('cost_per_month', 0)
 
     def _list_machines__get_size(self, node):
-        plan_id = node.extra.get('VPSPLANID')
-        from mist.api.clouds.models import CloudSize
-        try:
-            size = CloudSize.objects.get(cloud=self.cloud,
-                                         external_id=plan_id)
-            return size
-        except CloudSize.DoesNotExist:
-            return None
+        return node.extra.get('VPSPLANID')
 
     def _list_machines__get_location(self, node):
         return node.extra.get('DCID')
@@ -958,14 +902,7 @@ class OpenStackComputeController(BaseComputeController):
                            % (cpu, size.ram)
 
     def _list_machines__get_size(self, node):
-        plan_id = node.extra.get('flavorId')
-        from mist.api.clouds.models import CloudSize
-        try:
-            size = CloudSize.objects.get(cloud=self.cloud,
-                                         external_id=plan_id)
-            return size
-        except CloudSize.DoesNotExist:
-            return None
+        return node.extra.get('flavorId')
 
 
 class DockerComputeController(BaseComputeController):
