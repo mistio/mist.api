@@ -849,7 +849,6 @@ class BaseComputeController(BaseController):
 
             if isinstance(size.price, (float, basestring)):
                 _size.price = float(size.price)
-
             _size.name = self._list_sizes__get_name(size, cpus)
             try:
                 _size.save()
@@ -899,8 +898,7 @@ class BaseComputeController(BaseController):
         """
         # FIXME: resolve circular import issues
         from mist.api.clouds.models import CloudSize
-        return CloudSize.objects(cloud=self.cloud,
-                                 missing_since=None)
+        return CloudSize.objects(cloud=self.cloud)
 
     def _list_machines__get_size(self, node):
         """Return size from database for a
