@@ -205,7 +205,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                                 name=cloud_location.name,
                                 country=cloud_location.country, driver=conn)
     except me.DoesNotExist:
-        pass
+        location = None
 
     # transform size id to libcloud's NodeSize object
     try:
@@ -219,7 +219,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                         price=cloud_size.price,
                         driver=conn)
     except me.DoesNotExist:
-        pass
+        size = None
 
     if conn.type is Container_Provider.DOCKER:
         if public_key:
