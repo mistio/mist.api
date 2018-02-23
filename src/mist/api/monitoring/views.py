@@ -332,13 +332,19 @@ def deploy_plugin(request):
         script = script_cls.add(auth_context.owner, name, **kwargs)
         # Deploy it.
         ret = script.ctl.deploy_python_plugin(machine)
+        # FIXME Remove.
+        if machine.monitoring.method == 'collectd-graphite':
+            metrics = [ret['metric_id']]
+        else:
+            metrics = ret['metrics']
         # This will create/update the metric and associate it with the machine.
-        mist.api.monitoring.methods.associate_metric(
-            machine,
-            ret['metric_id'],
-            name=params.get('name', ''),
-            unit=params.get('unit', ''),
-        )
+        for metric_id in metrics:
+            mist.api.monitoring.methods.associate_metric(
+                machine,
+                metric_id,
+                name=params.get('name', ''),
+                unit=params.get('unit', ''),
+            )
         return ret
     raise BadRequestError('Invalid plugin_type')
 

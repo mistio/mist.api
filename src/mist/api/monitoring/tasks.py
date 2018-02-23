@@ -78,8 +78,7 @@ def install_telegraf(machine_id, job=None, job_id=None, plugins=None):
                           error=str(exc), **_log)
             else:
                 log_event(action='deploy_telegraf_script', script_id=script_id,
-                          metric_id=ret['metric_id'], stdout=ret['stdout'],
-                          **_log)
+                          metrics=ret['metrics'], stdout=ret['stdout'], **_log)
         if not err and failed:
             err = 'Deployment of scripts with IDs %s failed' % ','.join(failed)
 

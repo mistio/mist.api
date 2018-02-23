@@ -1,4 +1,5 @@
 """Script entity model."""
+import re
 from uuid import uuid4
 import mongoengine as me
 import mist.api.tag.models
@@ -249,11 +250,29 @@ class TelegrafScript(Script):
 
     exec_type = 'executable'
 
-    # ex. a dict of tags to be optionally associated with the computed metric.
-    tags = me.DictField()
     # ex. a dict with value_type='gauge', value_unit=''
     extra = me.DictField()
-    # Distinguishes between python and sh scripts.
-    evaluate_as = me.StringField(default='python', choices=('python', 'sh'))
 
     _controller_cls = controllers.TelegrafScriptController
+
+    def clean(self):
+        # Make sure the script name does not contain any weird characters.
+        if not re.match('^[\w]+$', self.name):
+            raise me.ValidationError('Alphanumeric characters and underscores '
+                                     'are only allowed in custom script names')
+
+        # Custom scripts should be provided inline (for now).
+        if not isinstance(self.location, InlineLocation):
+            raise me.ValidationError('Only inline scripts supported for now')
+
+        # Make sure shebang is present.
+        if not self.location.source_code.startswith('#!'):
+            raise me.ValidationError('Missing shebang')
+
+        # Check metric type.
+        if self.extra.get('value_type', 'gauge') not in ('gauge', 'derive'):
+            raise me.ValidationError('value_type must be "gauge" or "derive"')
+
+        # FIXME Allow derivatives.
+        if self.extra.get('value_type', 'gauge') == 'derive':
+            raise me.ValidationError('Derivative metrics not yet supported')

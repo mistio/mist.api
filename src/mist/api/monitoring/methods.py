@@ -562,6 +562,9 @@ $sudo /opt/mistio-collectd/collectd.sh restart
     retval, stdout = shell.command(script)
     shell.disconnect()
 
+    if retval:
+        log.error('Error undeploying custom plugin: %s', stdout)
+
     # TODO Shouldn't we also `disassociate_metric` and remove relevant Rules?
 
     return {'metric_id': None, 'stdout': stdout}
