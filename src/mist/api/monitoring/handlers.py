@@ -161,6 +161,8 @@ class BaseStatsHandler(object):
                     for index, point in enumerate(value):
                         if index == 0:  # Skip the "time" column.
                             continue
+                        if isinstance(point, basestring):  # Skip tags.
+                            continue
                         name = measurement.upper()
                         column = columns[index]
                         if column == 'mean':  # This is not very descriptive.
