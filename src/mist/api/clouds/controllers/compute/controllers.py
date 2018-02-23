@@ -890,7 +890,9 @@ class VSphereComputeController(BaseComputeController):
         self.connect()
 
     def _list_machines__get_location(self, node):
-        return node.extra.get('host')
+        cluster = node.extra.get('cluster', '')
+        host = node.extra.get('host', '')
+        return cluster or host
 
 
 class VCloudComputeController(BaseComputeController):

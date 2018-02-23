@@ -109,3 +109,6 @@ ENV/
 # Celerybeat files
 /celerybeat-schedule.dir
 /celerybeat-schedule.pag
+
+# openapi spec
+/openapi/spec.yml
