@@ -4,7 +4,6 @@ from uuid import uuid4
 import celery.schedules
 import mongoengine as me
 from mist.api.tag.models import Tag
-from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 from mist.api.exceptions import BadRequestError
 from mist.api.users.models import Organization
@@ -190,6 +189,8 @@ class Schedule(me.Document, ConditionalClassMixin):
     description = me.StringField()
     deleted = me.DateTimeField()
 
+    owner = me.ReferenceField(Organization, required=True)
+
     # celery periodic task specific fields
     queue = me.StringField()
     exchange = me.StringField()
@@ -211,16 +212,19 @@ class Schedule(me.Document, ConditionalClassMixin):
 
     no_changes = False
 
-    # _controller_cls = None
-
     def __init__(self, *args, **kwargs):
         # FIXME
         import mist.api.schedules.base
         super(Schedule, self).__init__(*args, **kwargs)
         self.ctl = mist.api.schedules.base.BaseController(self)
 
-    def owner_query(self):
-        return me.Q(cloud__in=Cloud.objects(owner=self.owner).only('id'))
+    @property
+    def owner_id(self):
+        # FIXME We should consider storing the owner id as a plain
+        # string, instead of using a ReferenceField, to minimize
+        # unintentional dereferencing. This is already happending
+        # in case of mist.api.rules.models.Rule.
+        return self.owner.id
 
     @classmethod
     def add(cls, auth_context, name, **kwargs):
@@ -366,5 +370,24 @@ class Schedule(me.Document, ConditionalClassMixin):
         return sdict
 
 
+class NonDeletedSchedule(object):
+    # NOTE This wrapper class is used by the UserScheduler. It allows to trick
+    # the scheduler by providing an interface similar to that of a mongoengine
+    # Document subclass in order to prevent schedules marked as deleted from
+    # being loaded. Similarly, we could have used a custom QuerySet manager to
+    # achieve this. However, subclasses of mongoengine models, which are not a
+    # direct subclass of the main `Document` class, do not fetch the documents
+    # of the corresponding superclass. In that case, we'd have to override the
+    # QuerySet class in a more exotic way, but there is no such need for now.
+    @classmethod
+    def objects(cls):
+        return Schedule.objects(deleted=None)
+
+    @classmethod
+    def _get_collection(cls):
+        return Schedule._get_collection()
+
+
 class UserScheduler(MongoScheduler):
-    Model = Schedule
+    Model = NonDeletedSchedule
+    UPDATE_INTERVAL = datetime.timedelta(seconds=20)

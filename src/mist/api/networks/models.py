@@ -134,6 +134,17 @@ class AmazonNetwork(Network):
         super(AmazonNetwork, self).clean()
 
 
+class AzureArmNetwork(Network):
+    instance_tenancy = me.StringField(default='default', choices=('default',
+                                                                  'private'))
+
+    def clean(self):
+        """Extended validation for EC2 Networks to ensure CIDR assignment."""
+        if not self.cidr:
+            raise me.ValidationError('Missing IPv4 range in CIDR notation')
+        super(AzureArmNetwork, self).clean()
+
+
 class GoogleNetwork(Network):
     mode = me.StringField(default='legacy', choices=('legacy', 'auto',
                                                      'custom'))
@@ -161,6 +172,14 @@ class OpenStackNetwork(Network):
     shared = me.BooleanField(default=False)
     admin_state_up = me.BooleanField(default=True)
     router_external = me.BooleanField(default=False)
+
+
+class LibvirtNetwork(Network):
+    pass
+
+
+class VSphereNetwork(Network):
+    pass
 
 
 class Subnet(me.Document):
@@ -266,6 +285,10 @@ class Subnet(me.Document):
 
 class AmazonSubnet(Subnet):
     availability_zone = me.StringField(required=True)
+
+
+class AzureArmSubnet(Subnet):
+    pass
 
 
 class GoogleSubnet(Subnet):

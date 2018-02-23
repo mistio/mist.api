@@ -15,8 +15,6 @@ from mist.api.exceptions import PolicyUnauthorizedError, NetworkNotFoundError
 
 from mist.api.helpers import params_from_request, view_config
 
-from mist.api.methods import create_subnet
-
 OK = Response("OK", 200)
 
 
@@ -24,15 +22,19 @@ OK = Response("OK", 200)
              request_method='GET', renderer='json')
 def list_networks(request):
     """
-    List networks of a cloud.
-    Currently supports the EC2, GCE and OpenStack clouds.
+    Tags: networks
+    ---
+    Lists networks of a cloud.
+    Currently supports the EC2, GCE and OpenStack providers.
     For other providers this returns an empty list.
     READ permission required on cloud.
     ---
-    cloud:
+    parameters:
+    - name: cloud
       in: path
       required: true
-      type: string
+      schema:
+        type: string
     """
     cloud_id = request.matchdict['cloud']
     auth_context = auth_context_from_request(request)
@@ -52,22 +54,34 @@ def list_networks(request):
              request_method='POST', renderer='json')
 def create_network(request):
     """
-    Create network on a cloud
+    Tags: networks
+    ---
     Creates a new network. If subnet dict is specified,
     after creating the network it will use the new
     network's id to create a subnet.
     CREATE_RESOURCES permission required on cloud.
     ---
-    cloud_id:
+    parameters:
+    - name: cloud_id
       in: path
       required: true
       description: The Cloud ID
-      type: string
-    network:
+      schema:
+        type: string
+    requestBody:
+      description: Foo
       required: true
-      type: dict
-    subnet:
-      type: dict
+      content:
+        'application/json':
+          schema:
+            type: object
+            properties:
+              network:
+                type: object
+              subnet:
+                type: object
+            required:
+            - network
     """
     cloud_id = request.matchdict['cloud']
 
@@ -96,8 +110,8 @@ def create_network(request):
     #  for backwards compatibility with the current UI
     if subnet_params:
         try:
-            subnet = create_subnet(auth_context.owner, cloud,
-                                   network, subnet_params)
+            subnet = methods.create_subnet(auth_context.owner, cloud,
+                                           network, subnet_params)
         except Exception as exc:
             # Cleaning up the network object in case subnet creation
             #  fails for any reason
@@ -111,17 +125,22 @@ def create_network(request):
 @view_config(route_name='api_v1_network', request_method='DELETE')
 def delete_network(request):
     """
-    Delete a network.
+    Tags: networks
+    ---
+    Deletes a network.
     CREATE_RESOURCES permission required on cloud.
     ---
-    cloud_id:
+    parameters:
+    - name: cloud_id
       in: path
       required: true
-      type: string
-    network_id:
+      schema:
+        type: string
+    - name: network_id
       in: path
       required: true
-      type: string
+      schema:
+        type: string
     """
     cloud_id = request.matchdict['cloud']
     network_id = request.matchdict['network']
@@ -149,28 +168,41 @@ def delete_network(request):
 @view_config(route_name='api_v1_network', request_method='POST')
 def associate_ip(request):
     """
-    Associate ip
-    Associate ip with the specific network and machine
+    Tags: networks
+    ---
+    Associates ip with the specific network and machine.
     READ permission required on cloud.
     EDIT permission required on cloud.
     ---
-    cloud:
+    parameters:
+    - name: cloud
       in: path
       required: true
-      type: string
-    network:
+      schema:
+        type: string
+    - name: network
       in: path
       required: true
-      type: string
-    assign:
-      default: true
-      type: boolean
-    ip:
+      schema:
+        type: string
+    requestBody:
+      description: Foo
       required: true
-      type: string
-    machine:
-      required: true
-      type: string
+      content:
+        'application/json':
+          schema:
+            type: object
+            properties:
+              assign:
+                default: true
+                type: boolean
+              ip:
+                type: string
+              machine:
+                type: string
+            required:
+            - ip
+            - machine
     """
     cloud_id = request.matchdict['cloud']
     network_id = request.matchdict['network']

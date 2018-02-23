@@ -1,3 +1,5 @@
+import datetime
+
 import jsonpatch
 
 from mist.api.helpers import amqp_publish_user
@@ -37,6 +39,9 @@ class MachineController(object):
 
     def destroy(self):
         return self.machine.cloud.ctl.compute.destroy_machine(self.machine)
+
+    def remove(self):
+        return self.machine.cloud.ctl.compute.remove_machine(self.machine)
 
     def resize(self, plan_id, kwargs):
         """Resize a machine on an other plan."""
@@ -93,20 +98,27 @@ class MachineController(object):
         task_key = 'machine:ping_probe:%s' % self.machine.id
         task = PeriodicTaskInfo.get_or_add(task_key)
         with task.task_runner(persist=persist):
-            data = ping(self.machine.cloud.owner, self.get_host())
-
-        probe = PingProbe()
-        probe.update_from_dict(data)
-        self.machine.ping_probe = probe
-        self.machine.save()
-        new_probe_data = _get_probe_dict()
-        patch = jsonpatch.JsonPatch.from_diff(old_probe_data,
-                                              new_probe_data).patch
-        if patch:
-            amqp_publish_user(self.machine.cloud.owner.id,
-                              routing_key='patch_machines',
-                              data={'cloud_id': self.machine.cloud.id,
-                                    'patch': patch})
+            try:
+                data = ping(self.machine.cloud.owner, self.get_host())
+            except:
+                probe = self.machine.ping_probe
+                if probe is not None:
+                    probe.unreachable_since = datetime.datetime.now()
+                raise
+            else:
+                probe = PingProbe()
+                probe.update_from_dict(data)
+            finally:
+                self.machine.ping_probe = probe
+                self.machine.save()
+                new_probe_data = _get_probe_dict()
+                patch = jsonpatch.JsonPatch.from_diff(old_probe_data,
+                                                      new_probe_data).patch
+                if patch:
+                    amqp_publish_user(self.machine.cloud.owner.id,
+                                      routing_key='patch_machines',
+                                      data={'cloud_id': self.machine.cloud.id,
+                                            'patch': patch})
         return self.machine.ping_probe.as_dict()
 
     def ssh_probe(self, persist=True):
@@ -130,21 +142,28 @@ class MachineController(object):
         task_key = 'machine:ssh_probe:%s' % self.machine.id
         task = PeriodicTaskInfo.get_or_add(task_key)
         with task.task_runner(persist=persist):
-            data = probe_ssh_only(
-                self.machine.cloud.owner, self.machine.cloud.id,
-                self.machine.machine_id, self.get_host(),
-            )
-
-        probe = SSHProbe()
-        probe.update_from_dict(data)
-        self.machine.ssh_probe = probe
-        self.machine.save()
-        new_probe_data = _get_probe_dict()
-        patch = jsonpatch.JsonPatch.from_diff(old_probe_data,
-                                              new_probe_data).patch
-        if patch:
-            amqp_publish_user(self.machine.cloud.owner.id,
-                              routing_key='patch_machines',
-                              data={'cloud_id': self.machine.cloud.id,
-                                    'patch': patch})
+            try:
+                data = probe_ssh_only(
+                    self.machine.cloud.owner, self.machine.cloud.id,
+                    self.machine.machine_id, self.get_host(),
+                )
+            except:
+                probe = self.machine.ssh_probe
+                if probe is not None:
+                    probe.unreachable_since = datetime.datetime.now()
+                raise
+            else:
+                probe = SSHProbe()
+                probe.update_from_dict(data)
+            finally:
+                self.machine.ssh_probe = probe
+                self.machine.save()
+                new_probe_data = _get_probe_dict()
+                patch = jsonpatch.JsonPatch.from_diff(old_probe_data,
+                                                      new_probe_data).patch
+                if patch:
+                    amqp_publish_user(self.machine.cloud.owner.id,
+                                      routing_key='patch_machines',
+                                      data={'cloud_id': self.machine.cloud.id,
+                                            'patch': patch})
         return self.machine.ssh_probe.as_dict()

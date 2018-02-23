@@ -1,4 +1,5 @@
 """Machine entity model."""
+import os
 import json
 import uuid
 import logging
@@ -66,6 +67,7 @@ class Actions(me.EmbeddedDocument):
     destroy = me.BooleanField(default=False)
     resize = me.BooleanField(default=False)
     rename = me.BooleanField(default=False)
+    remove = me.BooleanField(default=False)
     tag = me.BooleanField(default=False)
     resume = me.BooleanField(default=False)
     suspend = me.BooleanField(default=False)
@@ -76,33 +78,58 @@ class Monitoring(me.EmbeddedDocument):
     # Most of these will change with the new UI.
     hasmonitoring = me.BooleanField()
     monitor_server = me.StringField()  # Deprecated
-    collectd_password = me.StringField()
+    collectd_password = me.StringField(
+        default=lambda: os.urandom(32).encode('hex'))
     metrics = me.ListField()  # list of metric_id's
     installation_status = me.EmbeddedDocumentField(InstallationStatus)
+    method = me.StringField(default=config.DEFAULT_MONITORING_METHOD,
+                            choices=config.MONITORING_METHODS)
 
     def get_commands(self):
-        # FIXME: This is a hack.
-        from mist.api.methods import get_deploy_collectd_command_unix
-        from mist.api.methods import get_deploy_collectd_command_windows
-        from mist.api.methods import get_deploy_collectd_command_coreos
-        args = (self._instance.id, self.collectd_password,
-                config.COLLECTD_HOST, config.COLLECTD_PORT)
-        return {
-            'unix': get_deploy_collectd_command_unix(*args),
-            'coreos': get_deploy_collectd_command_coreos(*args),
-            'windows': get_deploy_collectd_command_windows(*args),
-        }
+        if self.method == 'collectd-graphite' and config.HAS_CORE:
+            from mist.api.methods import get_deploy_collectd_command_unix
+            from mist.api.methods import get_deploy_collectd_command_windows
+            from mist.api.methods import get_deploy_collectd_command_coreos
+            args = (self._instance.id, self.collectd_password,
+                    config.COLLECTD_HOST, config.COLLECTD_PORT)
+            return {
+                'unix': get_deploy_collectd_command_unix(*args),
+                'coreos': get_deploy_collectd_command_coreos(*args),
+                'windows': get_deploy_collectd_command_windows(*args),
+            }
+        elif self.method in ('telegraf-influxdb', 'telegraf-graphite'):
+            from mist.api.monitoring.commands import unix_install
+            from mist.api.monitoring.commands import coreos_install
+            from mist.api.monitoring.commands import windows_install
+            return {
+                'unix': unix_install(self._instance),
+                'coreos': coreos_install(self._instance),
+                'windows': windows_install(self._instance),
+            }
+        else:
+            raise Exception("Invalid monitoring method %s" % self.method)
+
+    def get_rules_dict(self):
+        m = self._instance
+        return {rid: rdict
+                for rid, rdict in m.cloud.owner.get_rules_dict().items()
+                if rdict['cloud'] == m.cloud.id and
+                rdict['machine'] == m.machine_id}
 
     def as_dict(self):
         status = self.installation_status
-
+        try:
+            commands = self.get_commands()
+        except:
+            commands = {}
         return {
             'hasmonitoring': self.hasmonitoring,
             'monitor_server': config.COLLECTD_HOST,
             'collectd_password': self.collectd_password,
             'metrics': self.metrics,
             'installation_status': status.as_dict() if status else '',
-            'commands': self.get_commands(),
+            'commands': commands,
+            'method': self.method,
         }
 
 
@@ -118,24 +145,34 @@ class PingProbe(me.EmbeddedDocument):
     packets_tx = me.IntField()
     packets_rx = me.IntField()
     packets_loss = me.FloatField()
+    packet_duplicate = me.FloatField(default=0.0)
     rtt_min = me.FloatField()
     rtt_max = me.FloatField()
     rtt_avg = me.FloatField()
     rtt_std = me.FloatField()
     updated_at = me.DateTimeField()
+    unreachable_since = me.DateTimeField()
+    meta = {'strict': False}
 
     def update_from_dict(self, data):
         for key in data:
             setattr(self, key, data[key])
         self.updated_at = datetime.datetime.now()
+        if self.packets_loss == 100:
+            self.unreachable_since = datetime.datetime.now()
+        else:
+            self.unreachable_since = None
 
     def as_dict(self):
         data = {key: getattr(self, key) for key in (
             'packets_tx', 'packets_rx', 'packets_loss',
             'rtt_min', 'rtt_max', 'rtt_avg', 'rtt_std', 'updated_at',
+            'unreachable_since',
         )}
-        if data['updated_at']:
-            data['updated_at'] = str(data['updated_at'].replace(tzinfo=None))
+        # Handle datetime objects
+        for key in ('updated_at', 'unreachable_since'):
+            if data[key]:
+                data[key] = str(data[key].replace(tzinfo=None))
         return data
 
 
@@ -151,8 +188,11 @@ class SSHProbe(me.EmbeddedDocument):
     kernel = me.StringField()
     os = me.StringField()
     os_version = me.StringField()
+    distro = me.StringField()
     dirty_cow = me.BooleanField()
     updated_at = me.DateTimeField()
+    unreachable_since = me.DateTimeField()
+    meta = {'strict': False}
 
     def update_from_dict(self, data):
 
@@ -192,19 +232,23 @@ class SSHProbe(me.EmbeddedDocument):
                 log.error("Invalid %s '%s': %r", strarr_attr, val, exc)
                 setattr(self, strarr_attr, [])
 
-        for str_attr in ('df', 'kernel', 'os', 'os_version'):
+        for str_attr in ('df', 'kernel', 'os', 'os_version', 'distro'):
             setattr(self, str_attr, str(data.get(str_attr, '')))
 
         self.dirty_cow = bool(data.get('dirty_cow'))
+        self.unreachable_since = None
         self.updated_at = datetime.datetime.now()
 
     def as_dict(self):
         data = {key: getattr(self, key) for key in (
             'uptime', 'loadavg', 'cores', 'users', 'pub_ips', 'priv_ips', 'df',
-            'macs', 'kernel', 'os', 'os_version', 'dirty_cow', 'updated_at'
+            'macs', 'kernel', 'os', 'os_version', 'distro', 'dirty_cow',
+            'updated_at', 'unreachable_since',
         )}
-        if data['updated_at']:
-            data['updated_at'] = str(data['updated_at'].replace(tzinfo=None))
+        # Handle datetime objects
+        for key in ('updated_at', 'unreachable_since'):
+            if data[key]:
+                data[key] = str(data[key].replace(tzinfo=None))
         return data
 
 
@@ -214,6 +258,8 @@ class Machine(me.Document):
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
 
     cloud = me.ReferenceField('Cloud', required=True)
+    owner = me.ReferenceField('Organization', required=True)
+    location = me.ReferenceField('CloudLocation', required=False)
     name = me.StringField()
 
     # Info gathered mostly by libcloud (or in some cases user input).
@@ -224,8 +270,8 @@ class Machine(me.Document):
     public_ips = me.ListField()
     private_ips = me.ListField()
     ssh_port = me.IntField(default=22)
-    os_type = me.StringField(default='unix', choices=('unix', 'linux',
-                                                      'windows', 'coreos'))
+    OS_TYPES = ('windows', 'coreos', 'freebsd', 'linux', 'unix')
+    os_type = me.StringField(default='unix', choices=OS_TYPES)
     rdp_port = me.IntField(default=3389)
     actions = me.EmbeddedDocumentField(Actions, default=lambda: Actions())
     extra = me.DictField()
@@ -248,6 +294,7 @@ class Machine(me.Document):
 
     last_seen = me.DateTimeField()
     missing_since = me.DateTimeField()
+    unreachable_since = me.DateTimeField()
     created = me.DateTimeField()
 
     monitoring = me.EmbeddedDocumentField(Monitoring,
@@ -273,11 +320,6 @@ class Machine(me.Document):
         super(Machine, self).__init__(*args, **kwargs)
         self.ctl = MachineController(self)
 
-    # Should this be a field? Should it be a @property? Or should it not exist?
-    @property
-    def owner(self):
-        return self.cloud.owner
-
     def clean(self):
         # Remove any KeyAssociation, whose `keypair` has been deleted. Do NOT
         # perform an atomic update on self, but rather remove items from the
@@ -287,11 +329,28 @@ class Machine(me.Document):
         for ka in reversed(range(len(self.key_associations))):
             if self.key_associations[ka].keypair.deleted:
                 self.key_associations.pop(ka)
+        # Populate owner field based on self.cloud.owner
+        if not self.owner:
+            self.owner = self.cloud.owner
+        self.clean_os_type()
+
+    def clean_os_type(self):
+        """Clean self.os_type"""
+        if self.os_type not in self.OS_TYPES:
+            for os_type in self.OS_TYPES:
+                if self.os_type.lower() == os_type:
+                    self.os_type = os_type
+                    break
+            else:
+                self.os_type = 'unix'
 
     def delete(self):
         super(Machine, self).delete()
         mist.api.tag.models.Tag.objects(resource=self).delete()
-        self.owner.mapper.remove(self)
+        try:
+            self.owner.mapper.remove(self)
+        except (AttributeError, me.DoesNotExist) as exc:
+            log.error(exc)
 
     def as_dict(self):
         # Return a dict as it will be returned to the API
@@ -325,19 +384,26 @@ class Machine(me.Document):
             'monitoring': self.monitoring.as_dict() if self.monitoring else '',
             'key_associations': [ka.as_dict() for ka in self.key_associations],
             'cloud': self.cloud.id,
+            'location': self.location.id if self.location else '',
+            'cloud_title': self.cloud.title,
             'last_seen': str(self.last_seen.replace(tzinfo=None)
                              if self.last_seen else ''),
             'missing_since': str(self.missing_since.replace(tzinfo=None)
                                  if self.missing_since else ''),
+            'unreachable_since': str(
+                self.unreachable_since.replace(tzinfo=None)
+                if self.unreachable_since else ''),
             'created': str(self.created.replace(tzinfo=None)
                            if self.created else ''),
             'machine_type': self.machine_type,
             'parent_id': self.parent.id if self.parent is not None else '',
             'probe': {
                 'ping': (self.ping_probe.as_dict()
-                         if self.ping_probe is not None else {}),
+                         if self.ping_probe is not None
+                         else PingProbe().as_dict()),
                 'ssh': (self.ssh_probe.as_dict()
-                        if self.ssh_probe is not None else {}),
+                        if self.ssh_probe is not None
+                        else SSHProbe().as_dict()),
             },
         }
 

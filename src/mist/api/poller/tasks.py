@@ -1,8 +1,9 @@
 import logging
 import datetime
 
+from mist.api.celery_app import app
+
 from mist.api.methods import notify_user
-from mist.api.tasks import app
 
 
 log = logging.getLogger(__name__)
@@ -38,6 +39,15 @@ def list_machines(schedule_id):
     from mist.api.poller.models import ListMachinesPollingSchedule
     sched = ListMachinesPollingSchedule.objects.get(id=schedule_id)
     sched.cloud.ctl.compute.list_machines(persist=False)
+
+
+@app.task(time_limit=60, soft_time_limit=55)
+def list_locations(schedule_id):
+    """Perform list locations. Cloud controller stores results in mongodb."""
+
+    from mist.api.poller.models import ListLocationsPollingSchedule
+    sched = ListLocationsPollingSchedule.objects.get(id=schedule_id)
+    sched.cloud.ctl.compute.list_locations(persist=False)
 
 
 @app.task(time_limit=45, soft_time_limit=40)

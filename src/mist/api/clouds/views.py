@@ -29,7 +29,9 @@ OK = Response("OK", 200)
 @view_config(route_name='api_v1_clouds', request_method='GET', renderer='json')
 def list_clouds(request):
     """
-    Request a list of all added clouds.
+    Tags: clouds
+    ---
+    Lists all added clouds.
     READ permission required on cloud.
     ---
     """
@@ -43,27 +45,98 @@ def list_clouds(request):
              request_method='POST', renderer='json')
 def add_cloud(request):
     """
-    Add a new cloud
-    Adds a new cloud to the user and returns the cloud_id
+    Tags: clouds
+    ---
+    Adds a new cloud and returns the cloud's id.
     ADD permission required on cloud.
-
     ---
     api_key:
       type: string
+      description: Required for Clearcenter
     api_secret:
       type: string
+    apikey:
+      type: string
+      description: Required for Ec2, Hostvirtual, Linode, \
+      Packet, Rackspace, OnApp, SoftLayer, Vultr
+    apisecret:
+      type: string
+      description: Required for Ec2
     apiurl:
       type: string
+    auth_password:
+      description: Optional for Docker
+      type: string
+    auth_url:
+      type: string
+      description: Required for OpenStack
+    auth_user:
+      description: Optional for Docker
+      type: string
+    authentication:
+      description: Required for Docker
+      enum:
+      - tls
+      - basic
+    ca_cert_file:
+      type: string
+      description: Optional for Docker
+    cert_file:
+      type: string
+      description: Optional for Docker
+    certificate:
+      type: string
+      description: Required for Azure
+    compute_endpoint:
+      type: string
+      description: Optional for OpenStack
+    dns_enabled:
+      type: boolean
+    docker_host:
+      description: Required for Docker
     docker_port:
       type: string
+    host:
+      type: string
+      description: Required for OnApp, Vcloud, vSphere
+    images_location:
+      type: string
+      description: Required for KVM
+    key:
+      type: string
+      description: Required for Azure_arm
+    key_file:
+      type: string
+      description: Optional for Docker
+    machine_hostname:
+      type: string
+      description: Required for KVM
     machine_key:
       type: string
+      description: Id of the key. Required for KVM
     machine_port:
       type: string
     machine_user:
       type: string
+      description: Required for KVM
+    organization:
+      type: string
+      description: Required for Vcloud
+    password:
+      type: string
+      description: Required for Nephoscale, OpenStack, Vcloud, vSphere
+    port:
+      type: integer
+      description: Required for Vcloud
+    private_key:
+      type: string
+      description: Required for GCE
+    project_id:
+      type: string
+      description: Required for GCE. Optional for Packet
     provider:
-      description: The id of the cloud provider.
+      description: The cloud provider.
+      required: True
       enum:
       - vcloud
       - bare_metal
@@ -83,16 +156,43 @@ def add_cloud(request):
       - onapp
       - hostvirtual
       - vultr
+      - clearcenter
       required: true
       type: string
+    region:
+      type: string
+      description: Required for Ec2, Rackspace. Optional for Openstack
     remove_on_error:
       type: string
+    secret:
+      type: string
+      description: Required for Azure_arm
+    show_all:
+      type: boolean
+      description: Show stopped containers. Required for Docker.
+    ssh_port:
+      type: integer
+      description: Required for KVM
+    subscription_id:
+      type: string
+      description: Required for Azure, Azure_arm
+    tenant_id:
+      type: string
+      description: Required for Azure_arm
     tenant_name:
       type: string
+      description: Required for OpenStack
     title:
       description: The human readable title of the cloud.
-      required: true
       type: string
+      required: True
+    token:
+      type: string
+      description: Required for Digitalocean
+    username:
+      type: string
+      description: Required for Nephoscale, Rackspace, OnApp, \
+      SoftLayer, OpenStack, Vcloud, vSphere
     """
     auth_context = auth_context_from_request(request)
     cloud_tags = auth_context.check_perm("cloud", "add", None)
@@ -138,8 +238,9 @@ def add_cloud(request):
 @view_config(route_name='api_v1_cloud_action', request_method='DELETE')
 def delete_cloud(request):
     """
-    Delete a cloud
-    Deletes cloud with given cloud_id.
+    Tags: clouds
+    ---
+    Deletes a cloud with given cloud_id.
     REMOVE permission required on cloud.
     ---
     cloud:
@@ -161,7 +262,8 @@ def delete_cloud(request):
 @view_config(route_name='api_v1_cloud_action', request_method='PUT')
 def rename_cloud(request):
     """
-    Rename a cloud
+    Tags: clouds
+    ---
     Renames cloud with given cloud_id.
     EDIT permission required on cloud.
     ---
@@ -170,7 +272,7 @@ def rename_cloud(request):
       required: true
       type: string
     new_name:
-      description: ' New name for the key (will also serve as the key''s id)'
+      description: ' New name for the given cloud'
       type: string
     """
     auth_context = auth_context_from_request(request)
@@ -193,11 +295,13 @@ def rename_cloud(request):
 @view_config(route_name='api_v1_cloud_action', request_method='PATCH')
 def update_cloud(request):
     """
-    UPDATE cloud with given cloud_id.
+    Tags: clouds
+    ---
+    Updates cloud with given cloud_id.
     EDIT permission required on cloud.
     Not all fields need to be specified, only the ones being modified
     ---
-    cloud:
+    cloud_id:
       in: path
       required: true
       type: string
@@ -243,11 +347,12 @@ def update_cloud(request):
 @view_config(route_name='api_v1_cloud_action', request_method='POST')
 def toggle_cloud(request):
     """
-    Toggle a cloud
-    Toggles cloud with given cloud_id.
+    Tags: clouds
+    ---
+    Toggles cloud with given cloud id.
     EDIT permission required on cloud.
     ---
-    cloud:
+    cloud_id:
       in: path
       required: true
       type: string
@@ -255,6 +360,7 @@ def toggle_cloud(request):
       enum:
       - '0'
       - '1'
+      required: true
       type: string
     """
     auth_context = auth_context_from_request(request)

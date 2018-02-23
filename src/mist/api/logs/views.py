@@ -13,6 +13,8 @@ from mist.api.logs.methods import get_story
 from mist.api.logs.methods import get_events
 from mist.api.auth.methods import auth_context_from_request
 
+from mist.api import config
+
 
 FIELDS = list(_FIELDS) + ['action', 'filter']
 FIELDS.remove('owner_id')  # SEC
@@ -22,10 +24,11 @@ LOG_TYPES = ('ui', 'job', 'shell', 'session', 'incident', 'request', )
 
 @view_config(route_name='api_v1_logs', request_method='GET', renderer='json')
 def get_logs(request):
-    """Get the latest logs.
-
+    """
+    Tags: logs+stories
     ---
-
+    Gets the latest logs.
+    ---
     event_type:
       type: string
       required: false
@@ -54,7 +57,6 @@ def get_logs(request):
       type: integer
       required: false
       description: the timestamp of the last log in the sequence
-
     """
     auth_context = auth_context_from_request(request)
     params = params_from_request(request)
@@ -107,15 +109,15 @@ def get_logs(request):
 @view_config(
     route_name='api_v1_story', request_method='DELETE', renderer='json')
 def close_story(request):
-    """Close an open story.
-
+    """
+    Tags: logs+stories
     ---
-
+    Closes an open story.
+    ---
     story_id:
       in: path
       type: string
       required: true
-
     """
     auth_context = auth_context_from_request(request)
 
@@ -135,15 +137,15 @@ def close_story(request):
 # TODO: This can be used to fetch any type of story.
 @view_config(route_name='api_v1_job', request_method='GET', renderer='json')
 def show_job(request):
-    """Fetch a story.
-
+    """
+    Tags: logs+stories
     ---
-
+    Fetches a story.
+    ---
     job_id:
       in: path
       type: string
       required: true
-
     """
     auth_context = auth_context_from_request(request)
     job_id = request.matchdict['job_id']
@@ -155,27 +157,26 @@ def show_job(request):
 # TODO: Improve. Use it for more than just orchestration workflows.
 @view_config(route_name='api_v1_job', request_method='DELETE', renderer='json')
 def end_job(request):
-    """End a running job.
-
-    Close/end an open job. This is very similar to the close_story API
+    """
+    Tags: logs+stories
+    ---
+    Ends a running job.
+    Closes/ends an open job. This is very similar to the close_story API
     endpoint. However, this endpoint may be used to perform additional
     actions upon closing an open story.
-
     ---
-
     job_id:
       in: path
       type: string
       required: true
-
     """
     auth_context = auth_context_from_request(request)
     params = params_from_request(request)
 
-    try:
+    if config.HAS_CORE:
         from mist.core.orchestration.models import Stack
         from mist.core.orchestration.methods import finish_workflow
-    except ImportError:
+    else:
         raise NotImplementedError()
 
     job_id = request.matchdict['job_id']

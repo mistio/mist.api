@@ -9,8 +9,8 @@ be performed inside the corresponding method functions.
 
 """
 
+import os
 import urllib
-import requests
 import json
 import netaddr
 import traceback
@@ -20,8 +20,9 @@ from time import time
 from datetime import datetime, timedelta
 
 from pyramid.response import Response
+from pyramid.response import FileResponse
 from pyramid.renderers import render_to_response
-from pyramid.httpexceptions import HTTPFound, HTTPNotFound
+from pyramid.httpexceptions import HTTPFound
 from pyramid.view import notfound_view_config
 
 import mist.api.tasks as tasks
@@ -42,10 +43,10 @@ from mist.api import methods
 
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import NotFoundError, BadRequestError, ForbiddenError
-from mist.api.exceptions import SSLError, ServiceUnavailableError
-from mist.api.exceptions import KeyParameterMissingError, MistError
+from mist.api.exceptions import ServiceUnavailableError
+from mist.api.exceptions import MistError
 from mist.api.exceptions import PolicyUnauthorizedError, UnauthorizedError
-from mist.api.exceptions import CloudNotFoundError, ScheduleTaskNotFound
+from mist.api.exceptions import CloudNotFoundError
 from mist.api.exceptions import NetworkNotFoundError, SubnetNotFoundError
 from mist.api.exceptions import UserUnauthorizedError, RedirectError
 from mist.api.exceptions import UserNotFoundError, ConflictError
@@ -53,14 +54,14 @@ from mist.api.exceptions import LoginThrottledError, TeamOperationError
 from mist.api.exceptions import MemberConflictError, MemberNotFound
 from mist.api.exceptions import OrganizationAuthorizationFailure
 from mist.api.exceptions import OrganizationNameExistsError
-from mist.api.exceptions import TeamForbidden, TeamNotFound
+from mist.api.exceptions import TeamForbidden
 from mist.api.exceptions import OrganizationOperationError
 from mist.api.exceptions import MethodNotAllowedError
 from mist.api.exceptions import WhitelistIPError
 
 from mist.api.helpers import encrypt, decrypt
-from mist.api.helpers import get_auth_header, params_from_request
-from mist.api.helpers import trigger_session_update, amqp_publish_user
+from mist.api.helpers import params_from_request
+from mist.api.helpers import trigger_session_update
 from mist.api.helpers import view_config, ip_from_request
 from mist.api.helpers import send_email
 from mist.api.helpers import get_file
@@ -162,7 +163,8 @@ def home(request):
         get_landing_template()
         return render_to_response('templates/landing.pt', template_inputs)
 
-    if not user.last_active or datetime.now() - user.last_active > timedelta(0, 300):
+    if not user.last_active or \
+            datetime.now() - user.last_active > timedelta(0, 300):
         user.last_active = datetime.now()
         user.save()
 
@@ -190,7 +192,7 @@ def not_found(request):
     template_inputs['csrf_token'] = json.dumps(get_csrf_token(request))
 
     try:
-        user = user_from_request(request)
+        user_from_request(request)
     except UserUnauthorizedError:
         external_auth = config.USE_EXTERNAL_AUTHENTICATION
         if external_auth:
@@ -351,7 +353,6 @@ def switch_org(request):
       description: The team's org id
       type: string
       required: true
-
     """
     org_id = request.matchdict.get('org_id')
     user = user_from_request(request)
@@ -405,7 +406,7 @@ def login_get(request):
     return_to = params.get('return_to', '')
     invitoken = params.get('invitoken', '')
     try:
-        user = user_from_request(request)
+        user_from_request(request)
         if not service:
             return HTTPFound(urllib.unquote(return_to) or '/')
         raise BadRequestError("Invalid service '%s'." % service)
@@ -433,19 +434,6 @@ def logout(request):
         raise ForbiddenError('If you wish to revoke a token use the /tokens'
                              ' path')
     real_user = session.get_user(effective=False)
-
-    # this will revoke all the tokens sent by the provider
-    sso_backend = session.context.get('social_auth_backend')
-    if sso_backend:
-        from mist.core.helpers import initiate_social_auth_request
-        initiate_social_auth_request(request, backend=sso_backend)
-        try:
-            request.backend.disconnect(user=user,
-                                       association_id=None,
-                                       request=request)
-        except Exception as e:
-            log.info('There was an exception while revoking tokens for user'
-                     ' %s: %s' % (user.email, repr(e)))
     if user != real_user:
         log.warn("Su logout")
         reissue_cookie_session(request, real_user)
@@ -491,7 +479,8 @@ def register(request):
             first_name = name[0]
             last_name = name[1] if len(name) > 1 else ""
             user, org = register_user(email, first_name, last_name, 'email',
-                                      selected_plan, promo_code, token)
+                                      selected_plan, promo_code, token,
+                                      request=request)
 
         if user.status == 'pending':
             # if user is not confirmed yet resend the email
@@ -511,33 +500,40 @@ def register(request):
         # if user requested a demo then notify the mist.api team
         subject = "Demo request"
         body = "User %s has requested a demo\n" % user.email
-        tasks.send_email.delay(subject, body, config.NOTIFICATION_EMAIL['demo'])
+        tasks.send_email.delay(subject, body,
+                               config.NOTIFICATION_EMAIL['demo'])
         user.requested_demo = True
         user.demo_request_date = time()
         user.save()
 
-        msg = "Dear %s %s, we will contact you within 24 hours to schedule a " \
-              "demo. In the meantime, we sent you an activation email so you" \
-              " can create an account to test Mist.io. If the email doesn't" \
-              " appear in your inbox, check your spam folder." \
-              % (user.first_name, user.last_name)
+        msg = (
+            "Dear %s %s, we will contact you within 24 hours to schedule a "
+            "demo. In the meantime, we sent you an activation email so you"
+            " can create an account to test Mist.io. If the email doesn't"
+            " appear in your inbox, check your spam folder."
+        ) % (user.first_name, user.last_name)
     elif request_beta:
         user = None
         # if user requested a demo then notify the mist.api team
         subject = "Private beta request"
-        body = "User %s <%s> has requested access to the private beta\n" % \
-            (params.get('name').encode('utf-8', 'ignore'), email)
-        tasks.send_email.delay(subject, body, config.NOTIFICATION_EMAIL['demo'])
+        body = "User %s <%s> has requested access to the private beta\n" % (
+            params.get('name').encode('utf-8', 'ignore'), email)
+        tasks.send_email.delay(subject, body,
+                               config.NOTIFICATION_EMAIL['demo'])
 
-        msg = "Dear %s, we will contact you within 24 hours with more " \
-              "information about the Mist.io private beta program. In the " \
-              "meantime, if you have any questions don't hesitate to contact" \
-              " us at info@mist.api" % params.get('name').encode('utf-8', 'ignore')
+        msg = (
+            "Dear %s, we will contact you within 24 hours with more "
+            "information about the Mist.io private beta program. In the "
+            "meantime, if you have any questions don't hesitate to contact"
+            " us at info@mist.api"
+        ) % params.get('name').encode('utf-8', 'ignore')
     else:
-        msg = "Dear %s,\n"\
-              "you will soon receive an activation email. "\
-              "If it does not appear in your Inbox within "\
-              "a few minutes, please check your spam folder.\n" % (user.first_name)
+        msg = (
+            "Dear %s,\n"
+            "you will soon receive an activation email. "
+            "If it does not appear in your Inbox within "
+            "a few minutes, please check your spam folder.\n"
+        ) % user.first_name
 
     return {
         'msg': msg,
@@ -637,7 +633,7 @@ def forgot_password(request):
 
     subject = config.RESET_PASSWORD_EMAIL_SUBJECT
     body = config.RESET_PASSWORD_EMAIL_BODY
-    body = body % ( (user.first_name or "") + " " + (user.last_name or ""),
+    body = body % ((user.first_name or "") + " " + (user.last_name or ""),
                    config.CORE_URI,
                    encrypt("%s:%s" % (token, email), config.SECRET),
                    user.password_reset_token_ip_addr,
@@ -715,6 +711,8 @@ def reset_password(request):
 @view_config(route_name='request_whitelist_ip', request_method='POST')
 def request_whitelist_ip(request):
     """
+    Tags: ip_whitelisting
+    ---
     User logs in successfully but it's from a non-whitelisted ip.
     They click on a link 'whitelist current ip', which sends an email
     to their account.
@@ -739,7 +737,7 @@ def request_whitelist_ip(request):
 
     subject = config.WHITELIST_IP_EMAIL_SUBJECT
     body = config.WHITELIST_IP_EMAIL_BODY
-    body = body % ( (user.first_name or "") + " " + (user.last_name or ""),
+    body = body % ((user.first_name or "") + " " + (user.last_name or ""),
                    config.CORE_URI,
                    encrypt("%s:%s" % (token, email), config.SECRET),
                    user.whitelist_ip_token_ip_addr,
@@ -756,6 +754,8 @@ def request_whitelist_ip(request):
 @view_config(route_name='confirm_whitelist', request_method=('GET'))
 def confirm_whitelist(request):
     """
+    Tags: ip_whitelisting
+    ---
     User tries to login successfully but from a non-whitelisted IP.
     They get a link to request whitelisting their current IP and an email
     with a link is sent to their email address.
@@ -860,7 +860,8 @@ def set_password(request):
         reissue_cookie_session(request, user)
 
         ret = {'selectedPlan': selected_plan}
-        if user.promo_codes:
+        if config.HAS_BILLING and user.promo_codes:
+            from mist.billing.models import Promo
             promo_code = user.promo_codes[-1]
             promo = Promo.objects.get(code=promo_code)
             ret['hasPromo'] = True
@@ -890,7 +891,6 @@ def confirm_invitation(request):
       description: member's invitation token
       type: string
       required: true
-
     """
     try:
         auth_context = auth_context_from_request(request)
@@ -949,7 +949,8 @@ def confirm_invitation(request):
     }
     if session_from_request(request).context.get('social_auth_backend'):
         args.update({
-            'social_auth_backend': session_from_request(request).context.get('social_auth_backend')
+            'social_auth_backend': session_from_request(request).context.get(
+                'social_auth_backend')
         })
     reissue_cookie_session(**args)
 
@@ -958,9 +959,12 @@ def confirm_invitation(request):
     return HTTPFound('/')
 
 
-@view_config(route_name='api_v1_user_whitelist_ip', request_method='POST', renderer='json')
+@view_config(route_name='api_v1_user_whitelist_ip', request_method='POST',
+             renderer='json')
 def whitelist_ip(request):
     """
+    Tags: ip_whitelisting
+    ---
     Whitelist IPs for specified user.
     """
     auth_context = auth_context_from_request(request)
@@ -976,19 +980,37 @@ def whitelist_ip(request):
     return OK
 
 
-@view_config(route_name='api_v1_images', request_method='POST', renderer='json')
+@view_config(route_name='api_v1_images', request_method='POST',
+             renderer='json')
 def list_specific_images(request):
     # FIXME: 1) i shouldn't exist, 2) i shouldn't be a post
+    """
+    Tags: images
+    ---
+    List images from each cloud. Furthermore if a search_term is provided, we
+    loop through each cloud and search for that term in the ids and the names
+    of the community images.
+    READ permission required on cloud.
+    ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    search_term:
+      type: string
+    """
     return list_images(request)
 
 
 @view_config(route_name='api_v1_images', request_method='GET', renderer='json')
 def list_images(request):
     """
-    List images of specified cloud
+    Tags: images
+    ---
+    List images of specified cloud.
     List images from each cloud. Furthermore if a search_term is provided, we
     loop through each cloud and search for that term in the ids and the names
-    of the community images
+    of the community images.
     READ permission required on cloud.
     ---
     cloud:
@@ -1007,7 +1029,7 @@ def list_images(request):
     auth_context = auth_context_from_request(request)
     auth_context.check_perm("cloud", "read", cloud_id)
     try:
-        cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id)
+        Cloud.objects.get(owner=auth_context.owner, id=cloud_id)
     except Cloud.DoesNotExist:
         raise NotFoundError('Cloud does not exist')
     return methods.list_images(auth_context.owner, cloud_id, term)
@@ -1016,8 +1038,10 @@ def list_images(request):
 @view_config(route_name='api_v1_image', request_method='POST', renderer='json')
 def star_image(request):
     """
-    Star/unstar an image
-    Toggle image star (star/unstar)
+    Tags: images
+    ---
+    Star/unstar an image.
+    Toggle image star (star/unstar).
     EDIT permission required on cloud.
     ---
     cloud:
@@ -1040,7 +1064,8 @@ def star_image(request):
 @view_config(route_name='api_v1_sizes', request_method='GET', renderer='json')
 def list_sizes(request):
     """
-    List sizes of a cloud
+    Tags: clouds
+    ---
     List sizes (aka flavors) from each cloud.
     READ permission required on cloud.
     ---
@@ -1055,10 +1080,12 @@ def list_sizes(request):
     return methods.list_sizes(auth_context.owner, cloud_id)
 
 
-@view_config(route_name='api_v1_locations', request_method='GET', renderer='json')
+@view_config(route_name='api_v1_locations', request_method='GET',
+             renderer='json')
 def list_locations(request):
     """
-    List locations of cloud
+    Tags: clouds
+    ---
     List locations from each cloud. Locations mean different things in each cl-
     oud. e.g. EC2 uses it as a datacenter in a given availability zone, where-
     as Linode lists availability zones. However all responses share id, name
@@ -1074,14 +1101,25 @@ def list_locations(request):
     """
     cloud_id = request.matchdict['cloud']
     auth_context = auth_context_from_request(request)
+    cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
+                              deleted=None)
     auth_context.check_perm("cloud", "read", cloud_id)
-    return methods.list_locations(auth_context.owner, cloud_id)
+    params = params_from_request(request)
+    cached = bool(params.get('cached', False))
+    if cached:
+        locations = cloud.ctl.compute.list_cached_locations()
+    else:
+        locations = cloud.ctl.compute.list_locations()
+    return [location.as_dict() for location in locations]
 
 
-@view_config(route_name='api_v1_subnets', request_method='GET', renderer='json')
+@view_config(route_name='api_v1_subnets', request_method='GET',
+             renderer='json')
 def list_subnets(request):
     """
-    List subnets of a cloud
+    Tags: networks
+    ---
+    List subnets of a cloud.
     Currently supports the EC2, GCE and OpenStack clouds.
     For other providers this returns an empty list.
     READ permission required on cloud.
@@ -1117,9 +1155,12 @@ def list_subnets(request):
     return subnets
 
 
-@view_config(route_name='api_v1_subnets', request_method='POST', renderer='json')
+@view_config(route_name='api_v1_subnets', request_method='POST',
+             renderer='json')
 def create_subnet(request):
     """
+    Tags: networks
+    ---
     Create subnet on a given network on a cloud.
     CREATE_RESOURCES permission required on cloud.
     ---
@@ -1135,7 +1176,7 @@ def create_subnet(request):
       type: string
     subnet:
       required: true
-      type: dict
+      type: object
     """
     cloud_id = request.matchdict['cloud']
     network_id = request.matchdict['network']
@@ -1165,7 +1206,9 @@ def create_subnet(request):
 @view_config(route_name='api_v1_subnet', request_method='DELETE')
 def delete_subnet(request):
     """
-    Delete a subnet.
+    Tags: networks
+    ---
+    Deletes a subnet.
     CREATE_RESOURCES permission required on cloud.
     ---
     cloud_id:
@@ -1216,7 +1259,9 @@ def delete_subnet(request):
 @view_config(route_name='api_v1_probe', request_method='POST', renderer='json')
 def probe(request):
     """
-    Probe a machine
+    Tags: machines
+    ---
+    Probes a machine.
     Ping and SSH to machine and collect various metrics.
     READ permission required on cloud.
     READ permission required on machine.
@@ -1233,17 +1278,10 @@ def probe(request):
       type: string
     key:
       type: string
-    ssh_user:
-      default: ''
-      description: ' Optional. Give if you explicitly want a specific user'
-      in: query
-      required: false
-      type: string
     """
     cloud_id = request.matchdict.get('cloud')
     params = params_from_request(request)
     key_id = params.get('key', None)
-    ssh_user = params.get('ssh_user', '')
 
     if key_id == 'undefined':
         key_id = ''
@@ -1275,23 +1313,19 @@ def probe(request):
         cloud_id = machine.cloud.id
         auth_context.check_perm("cloud", "read", cloud_id)
 
-    host = machine.hostname
     auth_context.check_perm("machine", "read", machine.id)
 
-    ret = methods.probe(auth_context.owner, cloud_id,
-                        machine.machine_id, host, key_id, ssh_user)
-    amqp_publish_user(auth_context.owner, "probe",
-                 {
-                    'cloud_id': cloud_id,
-                    'machine_id': machine.machine_id,
-                    'result': ret
-                 })
+    ret = {'ping': machine.ctl.ping_probe(),
+           'ssh': machine.ctl.ssh_probe()}
     return ret
 
 
-@view_config(route_name='api_v1_ping', request_method=('GET', 'POST'), renderer='json')
+@view_config(route_name='api_v1_ping', request_method=('GET', 'POST'),
+             renderer='json')
 def ping(request):
     """
+    Tags: api_tokens
+    ---
     Check that an api token is correct.
     ---
     """
@@ -1301,298 +1335,12 @@ def ping(request):
     return {'hello': user.email}
 
 
-@view_config(route_name='api_v1_monitoring', request_method='GET', renderer='json')
-def check_monitoring(request):
-    """
-    Check monitoring
-    Ask the mist.api service if monitoring is enabled for this machine.
-    ---
-    """
-    raise NotImplementedError()
-
-    user = user_from_request(request)
-    ret = methods.check_monitoring(user)
-    return ret
-
-
-@view_config(route_name='api_v1_update_monitoring', request_method='POST', renderer='json')
-def update_monitoring(request):
-    """
-    Enable monitoring
-    Enable monitoring for a machine.
-    ---
-    cloud:
-      in: path
-      required: true
-      type: string
-    machine:
-      in: path
-      required: true
-      type: string
-    action:
-      enum:
-      - enable
-      - disable
-      type: string
-    dns_name:
-      type: string
-    dry:
-      default: false
-      type: boolean
-    name:
-      description: ' Name of the plugin'
-      type: string
-    no_ssh:
-      default: false
-      type: boolean
-    public_ips:
-      items:
-        type: string
-      type: array
-    """
-    raise NotImplementedError()
-
-    user = user_from_request(request)
-    cloud_id = request.matchdict['cloud']
-    machine_id = request.matchdict['machine']
-    params = params_from_request(request)
-    if not user.mist_api_token:
-        log.info("trying to authenticate to service first")
-        email = params.get('email')
-        password = params.get('password')
-        if not email or not password:
-            raise UnauthorizedError("You need to authenticate to mist.api.")
-        payload = {'email': email, 'password': password}
-        try:
-            ret = requests.post(config.CORE_URI + '/auth', params=payload,
-                                verify=config.SSL_VERIFY)
-        except requests.exceptions.SSLError as exc:
-            log.error("%r", exc)
-            raise SSLError()
-        if ret.status_code == 200:
-            ret_dict = json.loads(ret.content)
-            user.email = email
-            user.mist_api_token = ret_dict.pop('token', '')
-            user.save()
-            log.info("succesfully check_authed")
-        elif ret.status_code in [400, 401]:
-            user.email = ""
-            user.mist_api_token = ""
-            user.save()
-            raise UnauthorizedError("You need to authenticate to mist.api.")
-        else:
-            raise UnauthorizedError("You need to authenticate to mist.api.")
-
-    action = params.get('action') or 'enable'
-    name = params.get('name', '')
-    public_ips = params.get('public_ips', [])  # TODO priv IPs?
-    dns_name = params.get('dns_name', '')
-    no_ssh = bool(params.get('no_ssh', False))
-    dry = bool(params.get('dry', False))
-
-    if action == 'enable':
-        ret_dict = methods.enable_monitoring(
-            user, cloud_id, machine_id, name, dns_name, public_ips,
-            no_ssh=no_ssh, dry=dry
-        )
-    elif action == 'disable':
-        methods.disable_monitoring(user, cloud_id, machine_id, no_ssh=no_ssh)
-        ret_dict = {}
-    else:
-        raise BadRequestError()
-
-    return ret_dict
-
-
-@view_config(route_name='api_v1_stats', request_method='GET', renderer='json')
-def get_stats(request):
-    """
-    Get monitor data for a machine
-    Get all monitor data for this machine
-    READ permission required on cloud.
-    READ permission required on machine.
-    ---
-    cloud:
-      in: path
-      required: true
-      type: string
-    machine:
-      in: path
-      required: true
-      type: string
-    start:
-      description: ' Time formatted as integer, from when to fetch stats (default now)'
-      in: query
-      required: false
-      type: string
-    stop:
-      default: ''
-      description: Time formatted as integer, until when to fetch stats (default +10 seconds)
-      in: query
-      required: false
-      type: string
-    step:
-      default: ''
-      description: ' Step to fetch stats (default 10 seconds)'
-      in: query
-      required: false
-      type: string
-    metrics:
-      default: ''
-      in: query
-      required: false
-      type: string
-    request_id:
-      default: ''
-      in: query
-      required: false
-      type: string
-    """
-    raise NotImplementedError()
-
-    cloud_id = request.matchdict['cloud']
-    machine_id = request.matchdict['machine']
-
-    auth_context = auth_context_from_request(request)
-    auth_context.check_perm("cloud", "read", cloud_id)
-    try:
-        machine = Machine.objects.get(cloud=cloud_id, machine_id=machine_id)
-        machine_uuid = machine.id
-    except me.DoesNotExist:
-        machine_uuid = ""
-    auth_context.check_perm("machine", "read", machine_uuid)
-
-    data = methods.get_stats(
-        auth_context.owner,
-        cloud_id,
-        machine_id,
-        request.params.get('start'),
-        request.params.get('stop'),
-        request.params.get('step'),
-        request.params.get('metrics')
-    )
-    data['request_id'] = request.params.get('request_id')
-    return data
-
-
-@view_config(route_name='api_v1_metrics', request_method='GET', renderer='json')
-def find_metrics(request):
-    """
-    Get metrics of a machine
-    Get all metrics associated with specific machine
-    READ permission required on cloud.
-    READ permission required on machine.
-    ---
-    cloud:
-      in: path
-      required: true
-      type: string
-    machine:
-      in: path
-      required: true
-      type: string
-    """
-    raise NotImplementedError()
-
-    cloud_id = request.matchdict['cloud']
-    machine_id = request.matchdict['machine']
-    auth_context = auth_context_from_request(request)
-    auth_context.check_perm("cloud", "read", cloud_id)
-    try:
-        machine = Machine.objects.get(cloud=cloud_id, machine_id=machine_id)
-        machine_uuid = machine.id
-    except me.DoesNotExist:
-        machine_uuid = ""
-    auth_context.check_perm("machine", "read", machine_uuid)
-    return methods.find_metrics(auth_context.owner, cloud_id, machine_id)
-
-
-@view_config(route_name='api_v1_metrics', request_method='PUT', renderer='json')
-def assoc_metric(request):
-    """
-    Associate metric with machine
-    Associate metric with specific machine
-    READ permission required on cloud.
-    EDIT_GRAPHS permission required on machine.
-    ---
-    cloud:
-      in: path
-      required: true
-      type: string
-    machine:
-      in: path
-      required: true
-      type: string
-    metric_id:
-      description: ' Metric_id '
-      type: string
-    """
-    raise NotImplementedError()
-
-    cloud_id = request.matchdict['cloud']
-    machine_id = request.matchdict['machine']
-    params = params_from_request(request)
-    metric_id = params.get('metric_id')
-    if not metric_id:
-        raise RequiredParameterMissingError('metric_id')
-    auth_context = auth_context_from_request(request)
-    auth_context.check_perm("cloud", "read", cloud_id)
-    try:
-        machine = Machine.objects.get(cloud=cloud_id, machine_id=machine_id)
-        machine_uuid = machine.id
-    except me.DoesNotExist:
-        machine_uuid = ""
-    auth_context.check_perm("machine", "edit_graphs", machine_uuid)
-    methods.assoc_metric(auth_context.owner, cloud_id, machine_id, metric_id)
-    return {}
-
-
-@view_config(route_name='api_v1_metrics', request_method='DELETE', renderer='json')
-def disassoc_metric(request):
-    """
-    Disassociate metric from machine
-    Disassociate metric from specific machine
-    READ permission required on cloud.
-    EDIT_GRAPHS permission required on machine.
-    ---
-    cloud:
-      in: path
-      required: true
-      type: string
-    machine:
-      in: path
-      required: true
-      type: string
-    metric_id:
-      description: ' Metric_id '
-      type: string
-    """
-    raise NotImplementedError()
-
-    cloud_id = request.matchdict['cloud']
-    machine_id = request.matchdict['machine']
-    params = params_from_request(request)
-    metric_id = params.get('metric_id')
-    if not metric_id:
-        raise RequiredParameterMissingError('metric_id')
-    auth_context = auth_context_from_request(request)
-    auth_context.check_perm("cloud", "read", cloud_id)
-    try:
-        machine = Machine.objects.get(cloud=cloud_id, machine_id=machine_id)
-        machine_uuid = machine.id
-    except me.DoesNotExist:
-        machine_uuid = ""
-    auth_context.check_perm("machine", "edit_graphs", machine_uuid)
-    methods.disassoc_metric(auth_context.owner, cloud_id, machine_id,
-                            metric_id)
-    return {}
-
-
 @view_config(route_name='api_v1_metric', request_method='PUT', renderer='json')
 def update_metric(request):
     """
-    Update a metric configuration
-    Update a metric configuration
+    Tags: machines
+    ---
+    Updates a metric configuration.
     READ permission required on cloud.
     EDIT_CUSTOM_METRICS required on machine.
     ---
@@ -1615,8 +1363,8 @@ def update_metric(request):
     plugin_type:
       type: string
     unit:
-      description: ' Optional. If given the new plugin will be measured according to this
-        unit'
+      description: ' Optional. If given the new plugin will be measured
+                    according to this unit'
       type: string
     """
     raise NotImplementedError()
@@ -1644,11 +1392,13 @@ def update_metric(request):
     return {}
 
 
-@view_config(route_name='api_v1_deploy_plugin', request_method='POST', renderer='json')
+@view_config(route_name='api_v1_deploy_plugin', request_method='POST',
+             renderer='json')
 def deploy_plugin(request):
     """
-    Deploy a plugin on a machine.
-    Deploy a plugin on the specific machine.
+    Tags: machines
+    ---
+    Deploys a plugin on the specific machine.
     READ permission required on cloud.
     EDIT_CUSTOM_METRICS required on machine.
     ---
@@ -1736,8 +1486,9 @@ def deploy_plugin(request):
              request_method='DELETE', renderer='json')
 def undeploy_plugin(request):
     """
-    Undeploy a plugin on a machine.
-    Undeploy a plugin on the specific machine.
+    Tags: machines
+    ---
+    Undeploy a plugin from the specific machine.
     READ permission required on cloud.
     EDIT_CUSTOM_METRICS required on machine.
     ---
@@ -1757,11 +1508,10 @@ def undeploy_plugin(request):
       required: true
       type: string
     plugin_type:
-      default: python
+      type: string
       enum:
       - python
       required: true
-      type: string
     """
     raise NotImplementedError()
 
@@ -1787,88 +1537,13 @@ def undeploy_plugin(request):
         raise BadRequestError("Invalid plugin_type: '%s'" % plugin_type)
 
 
-# @view_config(route_name='metric', request_method='DELETE', renderer='json')
-# def remove_metric(request):
-    # user = user_from_request(request)
-    # metric_id = request.matchdict['metric']
-    # url = "%s/metrics/%s" % (config.CORE_URI, metric_id)
-    # headers={'Authorization': get_auth_header(user)}
-    # try:
-        # resp = requests.delete(url, headers=headers,
-        #                        verify=config.SSL_VERIFY)
-    # except requests.exceptions.SSLError as exc:
-        # raise SSLError()
-    # except Exception as exc:
-        # log.error("Exception removing metric: %r", exc)
-        # raise exceptions.ServiceUnavailableError()
-    # if not resp.ok:
-        # log.error("Error removing metric %d:%s", resp.status_code, resp.text)
-        # raise exceptions.BadRequestError(resp.text)
-    # return resp.json()
-
-
-@view_config(route_name='api_v1_rules', request_method='POST', renderer='json')
-def update_rule(request):
-    """
-    Creates or updates a rule.
-    ---
-    """
-    raise NotImplementedError()
-
-    user = user_from_request(request)
-    params = params_from_request(request)
-    try:
-        ret = requests.post(
-            config.CORE_URI + request.path,
-            params=params,
-            headers={'Authorization': get_auth_header(user)},
-            verify=config.SSL_VERIFY
-        )
-    except requests.exceptions.SSLError as exc:
-        log.error("%r", exc)
-        raise SSLError()
-    if ret.status_code != 200:
-        log.error("Error updating rule %d:%s", ret.status_code, ret.text)
-        raise ServiceUnavailableError()
-    trigger_session_update(user, ['monitoring'])
-    return ret.json()
-
-
-@view_config(route_name='api_v1_rule', request_method='DELETE')
-def delete_rule(request):
-    """
-    Delete rule
-    Deletes a rule.
-    ---
-    rule:
-      description: ' Rule id '
-      in: path
-      required: true
-      type: string
-    """
-    raise NotImplementedError()
-
-    user = user_from_request(request)
-    try:
-        ret = requests.delete(
-            config.CORE_URI + request.path,
-            headers={'Authorization': get_auth_header(user)},
-            verify=config.SSL_VERIFY
-        )
-    except requests.exceptions.SSLError as exc:
-        log.error("%r", exc)
-        raise SSLError()
-    if ret.status_code != 200:
-        log.error("Error deleting rule %d:%s", ret.status_code, ret.text)
-        raise ServiceUnavailableError()
-    trigger_session_update(user, ['monitoring'])
-    return OK
-
-
-@view_config(route_name='api_v1_providers', request_method='GET', renderer='json')
+@view_config(route_name='api_v1_providers', request_method='GET',
+             renderer='json')
 def list_supported_providers(request):
     """
-    List supported providers
+    Tags: providers
+    ---
+    Lists supported providers.
     Return all of our SUPPORTED PROVIDERS
     ---
     api_version:
@@ -1888,9 +1563,15 @@ def list_supported_providers(request):
 @view_config(route_name='api_v1_avatars',
              request_method='POST', renderer='json')
 def upload_avatar(request):
+    """
+    Tags: avatars
+    ---
+    Upload an avatar
+    ---
+    """
     user = user_from_request(request)
     body = request.POST['file'].file.read()
-    if len(body) > 256*1024:
+    if len(body) > 256 * 1024:
         raise BadRequestError("File too large")
     from mist.api.users.models import Avatar
     avatar = Avatar()
@@ -1903,6 +1584,8 @@ def upload_avatar(request):
 @view_config(route_name='api_v1_avatar', request_method='GET')
 def get_avatar(request):
     """
+    Tags: avatars
+    ---
     Returns the requested avatar
     ---
     avatar:
@@ -1918,12 +1601,15 @@ def get_avatar(request):
     except me.DoesNotExist:
         raise NotFoundError()
 
-    return Response(content_type=str(avatar.content_type), body=str(avatar.body))
+    return Response(content_type=str(avatar.content_type),
+                    body=str(avatar.body))
 
 
 @view_config(route_name='api_v1_avatar', request_method='DELETE')
 def delete_avatar(request):
     """
+    Tags: avatars
+    ---
     Deletes the requested avatar
     ---
     avatar:
@@ -1955,7 +1641,9 @@ def delete_avatar(request):
 @view_config(route_name='api_v1_orgs', request_method='GET', renderer='json')
 def list_user_organizations(request):
     """
-    List user's organizations
+    Tags: organizations
+    ---
+    List user's organizations.
     List all the organizations where user is a member
     """
     try:
@@ -1970,7 +1658,9 @@ def list_user_organizations(request):
 @view_config(route_name='api_v1_org', request_method='POST', renderer='json')
 def create_organization(request):
     """
-    Create organization.
+    Tags: organizations
+    ---
+    Creates organization.
     The user creating it will be assigned to the
     owners team. For now owner has only org
     ---
@@ -2019,6 +1709,8 @@ def create_organization(request):
 @view_config(route_name='api_v1_org', request_method='GET', renderer='json')
 def show_user_organization(request):
     """
+    Tags: organizations
+    ---
     Show user's organization.
     If user is organization owner then show everything
     If user is just a member then show just himself as a team member and the
@@ -2076,9 +1768,12 @@ def show_user_pending_invitations(request):
     return invitations
 
 
-@view_config(route_name='api_v1_org_info', request_method='GET', renderer='json')
+@view_config(route_name='api_v1_org_info', request_method='GET',
+             renderer='json')
 def show_organization(request):
     """
+    Tags: organizations
+    ---
     Show organization.
     Details of org.
     ---
@@ -2093,28 +1788,31 @@ def show_organization(request):
 
     org_id = request.matchdict['org_id']
 
-    if not (auth_context.org and auth_context.is_owner()
-            and auth_context.org.id == org_id):
+    if not (auth_context.org and auth_context.is_owner() and
+            auth_context.org.id == org_id):
         raise OrganizationAuthorizationFailure()
 
     return auth_context.org.as_dict()
 
 
-@view_config(route_name='api_v1_org_info', request_method='PUT', renderer='json')
+@view_config(route_name='api_v1_org_info', request_method='PUT',
+             renderer='json')
 def edit_organization(request):
     """
-        Edit an organization entry in the db
-        Means rename.
-        Only available to organization owners.
-        ---
-        org_id:
-          description: The org's org id
-          type: string
-          required: true
-        name:
-          description: The team's name
-          type:string
-        """
+    Tags: organizations
+    ---
+    Edit an organization entry in the db
+    Means rename.
+    Only available to organization owners.
+    ---
+    org_id:
+      description: The org's org id
+      type: string
+      required: true
+    name:
+      description: The team's name
+      type: string
+    """
     auth_context = auth_context_from_request(request)
 
     if not auth_context.is_owner():
@@ -2125,6 +1823,7 @@ def edit_organization(request):
     name = params.get('new_name')
     alerts_email = params.get('alerts_email')
     avatar = params.get('avatar')
+    enable_r12ns = params.get('enable_r12ns')
 
     if avatar:
         try:
@@ -2139,6 +1838,9 @@ def edit_organization(request):
 
     if not name and not alerts_email and not avatar:
         raise RequiredParameterMissingError()
+
+    if enable_r12ns is not None:
+        auth_context.org.enable_r12ns = enable_r12ns
 
     # SEC check if owner
     if not (auth_context.org and auth_context.is_owner() and
@@ -2167,7 +1869,9 @@ def edit_organization(request):
 @view_config(route_name='api_v1_teams', request_method='POST', renderer='json')
 def add_team(request):
     """
-    Create new team.
+    Tags: teams
+    ---
+    Creates new team.
     Append it at org's teams list.
     Only available to organization owners.
     ---
@@ -2194,8 +1898,8 @@ def add_team(request):
         raise RequiredParameterMissingError()
 
     # SEC check if owner
-    if not (auth_context.org and auth_context.is_owner()
-            and auth_context.org.id == org_id):
+    if not (auth_context.org and auth_context.is_owner() and
+            auth_context.org.id == org_id):
         raise OrganizationAuthorizationFailure()
 
     team = Team()
@@ -2221,6 +1925,8 @@ def add_team(request):
 @view_config(route_name='api_v1_team', request_method='GET', renderer='json')
 def show_team(request):
     """
+    Tags: teams
+    ---
     Show team.
     Only available to organization owners.
     ---
@@ -2238,15 +1944,12 @@ def show_team(request):
     team_id = request.matchdict['team_id']
 
     # SEC check if owner
-    if not (auth_context.org and auth_context.is_owner()
-            and auth_context.org.id == org_id):
+    if not (auth_context.org and auth_context.is_owner() and
+            auth_context.org.id == org_id):
         raise OrganizationAuthorizationFailure()
 
     # Check if team entry exists
-    try:
-        team = auth_context.org.get_team_by_id(team_id)
-    except me.DoesNotExist:
-        raise TeamNotFound()
+    team = auth_context.org.get_team_by_id(team_id)
 
     return team.as_dict()
 
@@ -2255,7 +1958,9 @@ def show_team(request):
 @view_config(route_name='api_v1_teams', request_method='GET', renderer='json')
 def list_teams(request):
     """
-    List teams of an org.
+    Tags: teams
+    ---
+    Lists teams of an org.
     Only available to organization owners.
     ---
     org_id:
@@ -2267,8 +1972,8 @@ def list_teams(request):
     org_id = request.matchdict['org_id']
 
     # SEC check if owner
-    if not (auth_context.org and auth_context.is_owner()
-            and auth_context.org.id == org_id):
+    if not (auth_context.org and auth_context.is_owner() and
+            auth_context.org.id == org_id):
         raise OrganizationAuthorizationFailure()
 
     teams = [team.as_dict() for team in auth_context.org.teams]
@@ -2290,8 +1995,9 @@ def list_teams(request):
 @view_config(route_name='api_v1_team', request_method='PUT', renderer='json')
 def edit_team(request):
     """
-    Edit a team entry in the db
-    Means rename.
+    Tags: teams
+    ---
+    Renames a team entry in the db.
     Only available to organization owners.
     ---
     org_id:
@@ -2304,7 +2010,7 @@ def edit_team(request):
       required: true
     name:
       description: The team's name
-      type:string
+      type: string
     description:
       description: the teams's description
     """
@@ -2326,10 +2032,7 @@ def edit_team(request):
         raise OrganizationAuthorizationFailure()
 
     # Check if team entry exists
-    try:
-        team = auth_context.org.get_team_by_id(team_id)
-    except me.DoesNotExist:
-        raise TeamNotFound()
+    team = auth_context.org.get_team_by_id(team_id)
 
     if team.name == 'Owners' and name != 'Owners':
         raise BadRequestError('The name of the Owners Teams may not be edited')
@@ -2353,10 +2056,13 @@ def edit_team(request):
 
 
 # SEC
-@view_config(route_name='api_v1_team', request_method='DELETE', renderer='json')
+@view_config(route_name='api_v1_team', request_method='DELETE',
+             renderer='json')
 def delete_team(request):
     """
-    Delete a team entry in the db.
+    Tags: teams
+    ---
+    Deletes a team entry in the db.
     Only available to organization owners.
     ---
     org_id:
@@ -2403,10 +2109,13 @@ def delete_team(request):
 
 
 # SEC
-@view_config(route_name='api_v1_teams', request_method='DELETE', renderer='json')
+@view_config(route_name='api_v1_teams', request_method='DELETE',
+             renderer='json')
 def delete_teams(request):
     """
-    Delete multiple teams.
+    Tags: teams
+    ---
+    Deletes multiple teams.
     Provide a list of team ids to be deleted. The method will try to delete
     all of them and then return a json that describes for each team id
     whether or not it was deleted or the not_found if the team id could not
@@ -2417,9 +2126,8 @@ def delete_teams(request):
     team_ids:
       required: true
       type: array
-    items:
-      type: string
-      name: team_id
+      items:
+        type: string
     """
     auth_context = auth_context_from_request(request)
     org_id = request.matchdict['org_id']
@@ -2477,9 +2185,12 @@ def delete_teams(request):
 
 
 # SEC
-@view_config(route_name='api_v1_team_members', request_method='POST', renderer='json')
+@view_config(route_name='api_v1_team_members', request_method='POST',
+             renderer='json')
 def invite_member_to_team(request):
     """
+    Tags: teams
+    ---
     Invite a member to team.
     For each user there can be one invitation per organization, but each
     invitation could be for multiple teams.
@@ -2520,10 +2231,7 @@ def invite_member_to_team(request):
         raise OrganizationAuthorizationFailure()
 
     # Check if team entry exists
-    try:
-        team = auth_context.org.get_team_by_id(team_id)
-    except me.DoesNotExist:
-        raise TeamNotFound()
+    team = auth_context.org.get_team_by_id(team_id)
 
     emails = params.get('emails', '').strip().lower().split('\n')
 
@@ -2607,24 +2315,24 @@ def invite_member_to_team(request):
             else:
                 team_name = '"' + team.name + '" team'
             if user.status == 'pending':
-                body = config.REGISTRATION_AND_ORG_INVITATION_EMAIL_BODY % \
-                (auth_context.user.get_nice_name(),
-                 org.name,
-                 team_name,
-                 config.CORE_URI,
-                 user.activation_key,
-                 invitoken,
-                 's' if len(pending_teams) > 1 else '',
-                 config.CORE_URI)
+                body = config.REGISTRATION_AND_ORG_INVITATION_EMAIL_BODY % (
+                    auth_context.user.get_nice_name(),
+                    org.name,
+                    team_name,
+                    config.CORE_URI,
+                    user.activation_key,
+                    invitoken,
+                    's' if len(pending_teams) > 1 else '',
+                    config.CORE_URI)
             else:
-                body = config.USER_CONFIRM_ORG_INVITATION_EMAIL_BODY % \
-                                (auth_context.user.get_nice_name(),
-                                 org.name,
-                                 team_name,
-                                 config.CORE_URI,
-                                 invitoken,
-                                 's' if len(pending_teams) > 1 else '',
-                                 config.CORE_URI)
+                body = config.USER_CONFIRM_ORG_INVITATION_EMAIL_BODY % (
+                    auth_context.user.get_nice_name(),
+                    org.name,
+                    team_name,
+                    config.CORE_URI,
+                    invitoken,
+                    's' if len(pending_teams) > 1 else '',
+                    config.CORE_URI)
             return_val['pending'] = True
             log.info("Sending invitation to user with email '%s' for team %s "
                      "of org %s with token %s", user.email, team.name,
@@ -2642,7 +2350,7 @@ def invite_member_to_team(request):
                                                            config.CORE_URI)
             return_val['pending'] = False
 
-            # if one of the org owners adds him/herself to team don't send email
+            # if one of the org owners adds himself to team don't send email
             if user == auth_context.user:
                 return return_val
 
@@ -2654,9 +2362,12 @@ def invite_member_to_team(request):
 
 
 # SEC
-@view_config(route_name='api_v1_team_member', request_method='DELETE', renderer='json')
+@view_config(route_name='api_v1_team_member', request_method='DELETE',
+             renderer='json')
 def delete_member_from_team(request):
     """
+    Tags: teams
+    ---
     Delete a team's member entry from the db.
     It means remove member from list and save org.
     Only available to organization owners.
@@ -2681,15 +2392,12 @@ def delete_member_from_team(request):
     team_id = request.matchdict['team_id']
 
     # SEC check if owner
-    if not (auth_context.org and auth_context.is_owner()
-            and auth_context.org.id == org_id):
+    if not (auth_context.org and auth_context.is_owner() and
+            auth_context.org.id == org_id):
         raise OrganizationAuthorizationFailure()
 
     # Check if team entry exists
-    try:
-        team = auth_context.org.get_team_by_id(team_id)
-    except me.DoesNotExist:
-        raise TeamNotFound()
+    team = auth_context.org.get_team_by_id(team_id)
 
     # check if user exists
     try:
@@ -2709,8 +2417,8 @@ def delete_member_from_team(request):
             invitation.teams.remove(team_id)
             if len(invitation.teams) == 0:
                 subject = config.NOTIFY_INVITATION_REVOKED_SUBJECT
-                body = config.NOTIFY_INVITATION_REVOKED % \
-                       (auth_context.org.name, config.CORE_URI)
+                body = config.NOTIFY_INVITATION_REVOKED % (
+                    auth_context.org.name, config.CORE_URI)
                 try:
                     invitation.delete()
                 except me.ValidationError as e:
@@ -2747,15 +2455,15 @@ def delete_member_from_team(request):
 
     subject = config.ORG_TEAM_STATUS_CHANGE_EMAIL_SUBJECT
     if remove_from_org:
-        body = config.NOTIFY_REMOVED_FROM_ORG % \
-               (auth_context.org.name, config.CORE_URI)
+        body = config.NOTIFY_REMOVED_FROM_ORG % (
+            auth_context.org.name, config.CORE_URI)
         auth_context.org.remove_member_from_members(user)
     else:
-        body = config.NOTIFY_REMOVED_FROM_TEAM % \
-        (team.name,
-         auth_context.org.name,
-         auth_context.user.get_nice_name(),
-         config.CORE_URI)
+        body = config.NOTIFY_REMOVED_FROM_TEAM % (
+            team.name,
+            auth_context.org.name,
+            auth_context.user.get_nice_name(),
+            config.CORE_URI)
 
     try:
         auth_context.org.save()
@@ -2772,14 +2480,46 @@ def delete_member_from_team(request):
     return OK
 
 
+@view_config(route_name='api_v1_dev_add_user_to_team', request_method='POST',
+             renderer='json')
+def add_dev_user_to_team(request):
+    """
+    Add user to team. This method is user by integration tests.
+    It is enabled only if config.ENABLE_DEV_USERS is set to True (False by
+    default).
+    ---
+    org:
+      in: path
+      required: true
+      type: string
+    team:
+      in: path
+      required: true
+      type: string
+    """
+
+    auth_context = auth_context_from_request(request)
+
+    if not config.ENABLE_DEV_USERS:
+        raise NotFoundError()
+
+    params = params_from_request(request)
+    email = params.get('email', '').strip().lower()
+
+    team_id = request.matchdict['team_id']
+
+    user = User.objects.get(email=email)
+
+    auth_context.org.add_member_to_team_by_id(team_id, user)
+    auth_context.org.save()
+
+
 @view_config(route_name='api_v1_dev_register', request_method='POST',
              renderer='json')
 def register_dev_user(request):
     """
     Automatically register users to be used by integration tests.
-
     It actually does what dbinit does but through the API.
-
     It is enabled only if config.ENABLE_DEV_USERS is set to True (False by
     default).
     ---
@@ -2805,9 +2545,6 @@ def register_dev_user(request):
     name_parts = name.split(' ', 1)
     first_name = name_parts[0]
     last_name = name_parts[1] if len(name_parts) > 1 else ''
-
-    User.objects(email=email).delete()
-    Organization.objects(name=org_name).delete()
 
     log.warning("[DEV ENDPOINT]: creating User %s " % email)
     user = User(email=email)
@@ -2880,15 +2617,22 @@ def fetch(request):
         raise RequiredParameterMissingError('No action specified')
 
     if action == 'vpn_script':
-        try:
+        if config.HAS_CORE:
             from mist.core.vpn.views import fetch_vpn_script
-        except ImportError:
+        else:
             raise NotImplementedError()
         return fetch_vpn_script(params.get('object_id'))
     elif action == 'fetch_script':
         return fetch_script(params.get('object_id'))
     else:
         raise NotImplementedError()
+
+
+@view_config(route_name='api_v1_spec', request_method='GET')
+def openapi_spec(request):
+    curr_dir = os.path.dirname(__file__)
+    spec = os.path.join(curr_dir, "../../../openapi/spec.yml")
+    return FileResponse(spec, request=request)
 
 
 @view_config(route_name='version', request_method='GET', renderer='json')

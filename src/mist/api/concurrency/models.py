@@ -25,7 +25,7 @@ class PeriodicTaskInfo(me.Document):
         created_at = me.DateTimeField(default=datetime.datetime.now())
 
     # Unique task identifier.
-    key = me.StringField(primary=True)
+    key = me.StringField(primary_key=True)
 
     # Track successes/failures for autodisabling.
     last_success = me.DateTimeField()
@@ -136,6 +136,7 @@ class PeriodicTaskInfo(me.Document):
                     break
             if i < attempts - 1:
                 time.sleep(retry_sleep)
+                self.reload()
         else:
             log.warning("Lock for task '%s' is taken.", self.key)
             raise LockTakenError()
@@ -145,7 +146,7 @@ class PeriodicTaskInfo(me.Document):
     def release_lock(self):
         lock_id = self.lock.id
         self.reload()
-        if lock_id != self.lock.id:
+        if not self.lock or lock_id != self.lock.id:
             log.error("Someone broke our lock for task '%s' since we "
                       "acquired it!", self.key)
             return
@@ -166,7 +167,6 @@ class PeriodicTaskInfo(me.Document):
         1. Takes care of using locks to prevent concurrent runs of the same
            task.
         2. Tracks last success, last failure, and failure count of this task.
-        3.
 
         """
 

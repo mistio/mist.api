@@ -254,7 +254,6 @@ class BaseNetworkController(BaseController):
 
             network.name = net.name
             network.extra = copy.copy(net.extra)
-
             # Get the Network's CIDR.
             try:
                 network.cidr = self._list_networks__cidr_range(network, net)
@@ -287,10 +286,11 @@ class BaseNetworkController(BaseController):
 
             networks.append(network)
 
-            # Delete existing networks not returned by libcloud. All associated
-            # Subnets will also be deleted.
-            Network.objects(cloud=self.cloud,
-                            id__nin=[n.id for n in networks]).delete()
+        # Delete existing networks not returned by libcloud. All associated
+        # Subnets will also be deleted.
+        Network.objects(cloud=self.cloud,
+                        network_id__nin=[n.network_id
+                                         for n in networks]).delete()
 
         return networks
 

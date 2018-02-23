@@ -11,19 +11,13 @@ from uuid import uuid4
 
 from passlib.context import CryptContext
 
-try:
-    from mist.core.rbac.models import Policy
-except ImportError:
-    HAS_POLICY = False
-else:
-    HAS_POLICY = True
-
-try:
-    from mist.core.rbac.mappings import RBACMapping
-except ImportError:
-    from mist.api.dummy.mappings import RBACMapping
+from mist.api.exceptions import TeamNotFound
 
 from mist.api import config
+
+if config.HAS_RBAC:
+    from mist.rbac.models import Policy
+    from mist.rbac.mappings import RBACMapping
 
 
 logging.basicConfig(level=config.PY_LOG_LEVEL,
@@ -105,26 +99,24 @@ class SocialAuthUser(me.Document):
     provider = me.StringField(required=True)
 
     # This is the unique id that the authentication provider uses to
+    # identify a user
     uid = me.StringField(required=True, unique=True)
 
     # The id of the user that has connected with this account
     user_id = me.StringField(required=True)
 
-    access_token = me.StringField()
-    logged_in = me.BooleanField()
-
+    # A dictionary with the various data the provider returned for the user
     user_data = me.DictField()
 
+    # A field that is needed by the social auth library to store temp data
     extra_data = me.DictField()
 
     def get_user(self):
-        if self.user_id:
-            try:
-                user = User.objects.get(id=self.user_id)
-                return user
-            except me.DoesNotExist:
-                pass
-        return None
+        try:
+            return User.objects.get(id=self.user_id)
+        except User.DoesNotExist:
+            raise User.DoesNotExist("User with id %s can not be found"
+                                    % self.user_id)
 
     @property
     def user(self):
@@ -190,6 +182,8 @@ class Rule(me.Document):
     # before sending notifications
     emails = me.ListField(me.StringField(), default=[])
     # email to send the alerts. Can be a list of email addresses
+
+    migrated = me.BooleanField()
 
     def clean(self):
         # TODO: check if these are valid email addresses,
@@ -266,16 +260,28 @@ class Owner(me.Document):
                 self.emails = emails
         super(Owner, self).clean()
 
+    def get_rules_dict(self):
+        from mist.api.rules.models import MachineMetricRule as Rule
+        return {rule.rule_id: rule.as_dict_old()
+                for rule in Rule.objects(owner_id=self.id)}
+
+    def get_metrics_dict(self):
+        return {
+            metric.metric_id: {
+                'name': metric.name, 'unit': metric.unit
+            } for metric in Metric.objects(owner=self)
+        }
+
 
 class User(Owner):
     email = HtmlSafeStrField()
     # NOTE: deprecated. Only still used to migrate old API tokens
     mist_api_token = me.StringField()
-    last_name = HtmlSafeStrField()
+    last_name = HtmlSafeStrField(default='')
     feedback = me.EmbeddedDocumentField(Feedback, default=Feedback())
 
     activation_key = me.StringField()
-    first_name = HtmlSafeStrField()
+    first_name = HtmlSafeStrField(default='')
     invitation_accepted = me.FloatField()
     invitation_date = me.FloatField()
     last_login = me.FloatField()
@@ -296,11 +302,7 @@ class User(Owner):
     selected_plan = me.StringField()
     enterprise_plan = me.DictField()
 
-    is_ibm_user = me.BooleanField()
-
     open_id_url = HtmlSafeStrField()
-    g_plus_url = HtmlSafeStrField()
-    github_url = HtmlSafeStrField()
 
     password_reset_token_ip_addr = me.StringField()
     password_reset_token = me.StringField()
@@ -309,7 +311,6 @@ class User(Owner):
     whitelist_ip_token = me.StringField()
     whitelist_ip_token_created = me.FloatField()
     user_agent = me.StringField()
-    social_auth_users = me.MapField(field=me.ReferenceField(SocialAuthUser))
     username = me.StringField()
 
     can_create_org = me.BooleanField(default=True)
@@ -373,11 +374,14 @@ class User(Owner):
         super(User, self).clean()
 
     def get_nice_name(self):
-        if self.first_name and not self.last_name:
-            return self.first_name + '(' + self.email + ')'
-        else:
-            name = (self.first_name or '') + ' ' + (self.last_name or '')
-            return name.strip() or self.email
+        try:
+            if self.first_name and not self.last_name:
+                return self.first_name + '(' + self.email + ')'
+            else:
+                name = (self.first_name or '') + ' ' + (self.last_name or '')
+                return name.strip() or self.email
+        except AttributeError:
+                return self.email
 
 
 class Avatar(me.Document):
@@ -394,14 +398,14 @@ class Team(me.EmbeddedDocument):
     description = me.StringField()
     members = me.ListField(me.ReferenceField(User))
     visible = me.BooleanField(default=True)
-    if HAS_POLICY:
+    if config.HAS_RBAC:
         policy = me.EmbeddedDocumentField(
             Policy, default=lambda: Policy(operator='DENY'), required=True
         )
 
     def clean(self):
         """Ensure RBAC Mappings are properly initialized."""
-        if RBACMapping:
+        if config.HAS_RBAC:
             mappings = RBACMapping.objects(org=self._instance.id,
                                            team=self.id).only('id')
             if not mappings:
@@ -423,7 +427,7 @@ class Team(me.EmbeddedDocument):
         level Document.
 
         """
-        if not RBACMapping:
+        if not config.HAS_RBAC:
             return
         if self.name == 'Owners':
             return
@@ -438,7 +442,7 @@ class Team(me.EmbeddedDocument):
 
     def drop_mappings(self):
         """Delete the Team's RBAC Mappings."""
-        if RBACMapping:
+        if config.HAS_RBAC:
             RBACMapping.objects(org=self._instance.id, team=self.id).delete()
 
     def as_dict(self):
@@ -449,7 +453,7 @@ class Team(me.EmbeddedDocument):
             'members': self.members,
             'visible': self.visible
         }
-        if HAS_POLICY:
+        if config.HAS_RBAC:
             ret['policy'] = self.policy
         return ret
 
@@ -460,7 +464,7 @@ class Team(me.EmbeddedDocument):
 
 
 def _get_default_org_teams():
-    if HAS_POLICY:
+    if config.HAS_RBAC:
         return [Team(name='Owners', policy=Policy(operator='ALLOW'))]
     return [Team(name='Owners')]
 
@@ -477,14 +481,10 @@ class Organization(Owner):
     selected_plan = me.StringField()
     enterprise_plan = me.DictField()
     enable_r12ns = me.BooleanField(required=True, default=False)
+    default_monitoring_method = me.StringField(
+        choices=config.MONITORING_METHODS)
 
-    try:
-        import mist.core
-    except:
-        _insights_default = False
-    else:
-        _insights_default = True
-    insights_enabled = me.BooleanField(default=_insights_default)
+    insights_enabled = me.BooleanField(default=config.HAS_CORE)
 
     created = me.DateTimeField(default=datetime.datetime.now)
     registered_by = me.StringField()
@@ -493,12 +493,14 @@ class Organization(Owner):
     super_org = me.BooleanField(default=False)
     parent = me.ReferenceField('Organization', required=False)
 
+    meta = {'indexes': ['name']}
+
     @property
     def mapper(self):
         """Returns the `PermissionMapper` for the current Org context."""
-        try:
-            from mist.core.rbac.tasks import AsyncPermissionMapper
-        except ImportError:
+        if config.HAS_RBAC:
+            from mist.rbac.tasks import AsyncPermissionMapper
+        else:
             from mist.api.dummy.mappings import AsyncPermissionMapper
         return AsyncPermissionMapper(self)
 
@@ -516,10 +518,16 @@ class Organization(Owner):
         return emails
 
     def get_team(self, team_name):
-        return self.teams.get(name=team_name)
+        try:
+            return self.teams.get(name=team_name)
+        except me.DoesNotExist:
+            raise TeamNotFound("No team found with name '%s'." % team_name)
 
     def get_team_by_id(self, team_id):
-        return self.teams.get(id=team_id)
+        try:
+            return self.teams.get(id=team_id)
+        except me.DoesNotExist:
+            raise TeamNotFound("No team found with id '%s'." % team_id)
 
     def add_member_to_team(self, team_name, user):
         team = self.get_team(team_name)
@@ -563,9 +571,7 @@ class Organization(Owner):
         view["id"] = view_id
         view["members"] = []
         for member in self.members:
-            name = ""
-            name = (member.first_name or ' ') + (member.last_name or '')
-            name = (name.strip() or member.email)
+            name = member.get_nice_name()
             view["members"].append({
                 "id": member.id,
                 "name": name,
@@ -637,7 +643,7 @@ class Organization(Owner):
         if not owners.members:
             raise me.ValidationError("Owners team can't be empty.")
 
-        if HAS_POLICY:
+        if config.HAS_RBAC:
             # make sure owners policy allows all permissions
             if owners.policy.operator != 'ALLOW':
                 raise me.ValidationError("Owners policy must be set to ALLOW.")

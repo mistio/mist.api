@@ -1,6 +1,7 @@
 """Definition of Cloud mongoengine models"""
 
 import uuid
+import logging
 
 import mongoengine as me
 
@@ -14,11 +15,16 @@ from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import CloudExistsError
 from mist.api.exceptions import RequiredParameterMissingError
 
+from mist.api import config
+
 
 # This is a map from provider name to provider class, eg:
 # 'linode': LinodeCloud
 # It is autofilled by _populate_clouds which is run on the end of this file.
 CLOUDS = {}
+
+
+log = logging.getLogger(__name__)
 
 
 def _populate_clouds():
@@ -84,6 +90,9 @@ class Cloud(me.Document):
     polling_interval = me.IntField(default=0)  # in seconds
 
     dns_enabled = me.BooleanField(default=False)
+
+    default_monitoring_method = me.StringField(
+        choices=config.MONITORING_METHODS)
 
     deleted = me.DateTimeField()
 
@@ -165,7 +174,10 @@ class Cloud(me.Document):
     def delete(self):
         super(Cloud, self).delete()
         Tag.objects(resource=self).delete()
-        self.owner.mapper.remove(self)
+        try:
+            self.owner.mapper.remove(self)
+        except Exception as exc:
+            log.error("Got error %r while removing cloud %s", exc, self.id)
 
     def clean(self):
         if self.dns_enabled and not hasattr(self.ctl, 'dns'):
@@ -194,6 +206,45 @@ class Cloud(me.Document):
     def __str__(self):
         return '%s cloud %s (%s) of %s' % (type(self), self.title,
                                            self.id, self.owner)
+
+
+class CloudLocation(me.Document):
+    """A base Cloud Location Model."""
+    id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
+    cloud = me.ReferenceField('Cloud', required=True,
+                              reverse_delete_rule=me.CASCADE)
+    external_id = me.StringField(required=True)
+    name = me.StringField()
+    country = me.StringField()
+    missing_since = me.DateTimeField()
+    extra = me.DictField()
+
+    meta = {
+        'collection': 'locations',
+        'indexes': [
+            {
+                'fields': ['cloud', 'external_id'],
+                'sparse': False,
+                'unique': True,
+                'cls': False,
+            },
+        ]
+    }
+
+    def __str__(self):
+        name = "%s, %s (%s)" % (self.name, self.cloud.id, self.external_id)
+        return name
+
+    def as_dict(self):
+        return {
+            'id': self.id,
+            'cloud': self.cloud.id,
+            'external_id': self.external_id,
+            'name': self.name,
+            'country': self.country,
+            'missing_since': str(self.missing_since.replace(tzinfo=None)
+                                 if self.missing_since else '')
+        }
 
 
 class AmazonCloud(Cloud):
@@ -389,6 +440,17 @@ class OnAppCloud(Cloud):
 class OtherCloud(Cloud):
 
     _controller_cls = controllers.OtherMainController
+
+
+class ClearCenterCloud(Cloud):
+
+    uri = me.StringField(required=False,
+                         default='https://api.clearsdn.com')
+    apikey = me.StringField(required=True)
+    verify = me.BooleanField(default=True)
+
+    _private_fields = ('apikey', )
+    _controller_cls = controllers.ClearCenterMainController
 
 
 _populate_clouds()

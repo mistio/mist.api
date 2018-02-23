@@ -14,19 +14,23 @@ from mist.api.exceptions import UserUnauthorizedError
 from mist.api.exceptions import AdminUnauthorizedError
 from mist.api.exceptions import InternalServerError
 
-from mist.api.tasks import revoke_token
+from mist.api.portal.models import Portal
 
-try:
-    from mist.core.rbac.tokens import SuperToken
-    from mist.core.rbac.methods import AuthContext
-except:
-    from mist.api.dummy.rbac import AuthContext
-    SUPER_EXISTS = False
-else:
-    SUPER_EXISTS = True
-
+from mist.api.auth.tasks import revoke_token
 from mist.api.auth.models import ApiToken
 from mist.api.auth.models import SessionToken
+
+from mist.api import config
+
+if config.HAS_RBAC:
+    from mist.rbac.tokens import SuperToken
+    from mist.rbac.methods import AuthContext
+else:
+    from mist.api.dummy.rbac import AuthContext
+
+if config.HAS_CORE:
+    # Required to initialize OAuth2SessionToken model, subclass of AuthToken.
+    from mist.core.auth.social.models import OAuth2SessionToken  # noqa: F401
 
 
 def migrate_old_api_token(request):
@@ -91,8 +95,23 @@ def session_from_request(request):
         return request.environ['session']
     session = migrate_old_api_token(request)
     if session is None:
-        token_from_request = request.headers.get('Authorization', '').lower()
-        if token_from_request:
+        auth_value = request.headers.get('Authorization', '').lower()
+        if auth_value.startswith('internal'):
+            parts = auth_value.split(' ')
+            if len(parts) == 3:
+                internal_api_key, session_id = parts[1:]
+                if internal_api_key == Portal.get_singleton().internal_api_key:
+                    try:
+                        session_token = SessionToken.objects.get(
+                            token=session_id)
+                    except SessionToken.DoesNotExist:
+                        pass
+                    else:
+                        if session_token.is_valid():
+                            session_token.internal = True
+                            session = session_token
+        elif auth_value:
+            token_from_request = auth_value
             try:
                 api_token = ApiToken.objects.get(
                     token=token_from_request
@@ -100,9 +119,9 @@ def session_from_request(request):
             except DoesNotExist:
                 api_token = None
             try:
-                if not api_token and SUPER_EXISTS:
+                if not api_token and config.HAS_RBAC:
                     api_token = SuperToken.objects.get(
-                                token=token_from_request)
+                        token=token_from_request)
             except DoesNotExist:
                 pass
             if api_token and api_token.is_valid():
@@ -197,7 +216,7 @@ def auth_context_from_session_id(session_id):
 
 
 def reissue_cookie_session(request, user_id='', su='', org=None, after=0,
-                           **kwargs):
+                           TokenClass=SessionToken, **kwargs):
     """Invalidate previous cookie session and issue a fresh one
 
     Params `user_id` and `su` can be instances of `User`, `user_id`s or emails.
@@ -214,8 +233,13 @@ def reissue_cookie_session(request, user_id='', su='', org=None, after=0,
         session.invalidate()
         session.save()
 
+    kwargs.update({
+        'ip_address': mist.api.helpers.ip_from_request(request),
+        'user_agent': request.user_agent,
+    })
+
     # And then issue the new session
-    new_session = SessionToken()
+    new_session = TokenClass(**kwargs)
 
     # Pass on fingerprint & experiment choice to new session
     if session.fingerprint:
@@ -241,7 +265,9 @@ def reissue_cookie_session(request, user_id='', su='', org=None, after=0,
 
         if not org:
             # If no org is provided then get the org from the last session
-            old_session = SessionToken.objects(user_id=user_for_session.id).first()
+            old_session = SessionToken.objects(
+                user_id=user_for_session.id
+            ).first()
             if old_session and old_session.org and \
                     user_for_session in old_session.org.members:
                 # if the old session has an organization and user is still a
@@ -259,15 +285,6 @@ def reissue_cookie_session(request, user_id='', su='', org=None, after=0,
                     from mist.api.users.methods import create_org_for_user
                     org = create_org_for_user(user_for_session)
 
-    if kwargs.get('ttl') and kwargs.get('ttl') >= 0:
-        session.ttl = kwargs['ttl']
-    if kwargs.get('timeout') and kwargs.get('timeout') >= 0:
-        session.timeout = kwargs['timeout']
-    if kwargs.get('social_auth_backend'):
-        session.context['social_auth_backend'] = kwargs.get('social_auth_backend')
-
-    session.ip_address = mist.api.helpers.ip_from_request(request)
-    session.user_agent = request.user_agent
     session.org = org
     session.su = su
     session.save()
@@ -295,6 +312,7 @@ def get_random_name_for_token(user):
             pass
     raise InternalServerError('Could not produce random api token name for '
                               'user %s' % user.email)
+
 
 def get_csrf_token(request):
     """

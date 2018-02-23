@@ -4,7 +4,6 @@ import datetime
 import mongoengine as me
 
 from mist.api.tag.models import Tag
-from mist.api.users.models import Organization
 
 
 class BaseCondition(me.EmbeddedDocument):
@@ -38,20 +37,23 @@ class ConditionalClassMixin(object):
 
     condition_resource_cls = None  # Instance of mongoengine model class
 
-    owner = me.ReferenceField(Organization, required=True)
     conditions = me.EmbeddedDocumentListField(BaseCondition)
 
     def owner_query(self):
-        return me.Q(owner=self.owner)
+        return me.Q(owner=self.owner_id)
 
     def get_resources(self):
         query = self.owner_query()
         for condition in self.conditions:
             query &= condition.q
+        if 'deleted' in self.condition_resource_cls._fields:
+            query &= me.Q(deleted=None)
+        if 'missing_since' in self.condition_resource_cls._fields:
+            query &= me.Q(missing_since=None)
         return self.condition_resource_cls.objects(query)
 
     def get_ids(self):
-        return [resource.id for resource in self.get_resources().only('id')]
+        return [resource.id for resource in self.get_resources()]
 
 
 class FieldCondition(BaseCondition):
@@ -67,6 +69,8 @@ class FieldCondition(BaseCondition):
 
     @property
     def q(self):
+        if self.operator == 'eq':
+            return me.Q(**{self.field: self.value})
         return me.Q(**{'%s__%s' % (self.field, self.operator): self.value})
 
     def as_dict(self):
@@ -92,8 +96,7 @@ class TaggingCondition(BaseCondition):
             }
             if value:
                 query['value'] = value
-            ids |= set(tag.resource.id
-                       for tag in Tag.objects(**query).only('resource'))
+            ids |= set(tag.resource.id for tag in Tag.objects(**query))
         return me.Q(id__in=ids)
 
     def validate(self, clean=True):

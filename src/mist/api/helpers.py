@@ -14,12 +14,10 @@ could easily use in some other unrelated project.
 import os
 import re
 import sys
-import uuid
 import json
 import string
 import random
 import socket
-import shutil
 import smtplib
 import logging
 import datetime
@@ -32,8 +30,8 @@ from time import time, strftime, sleep
 
 from base64 import urlsafe_b64encode
 
-from pymongo import MongoClient
-from bson.objectid import ObjectId
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 from contextlib import contextmanager
 from email.utils import formatdate, make_msgid
@@ -62,19 +60,15 @@ from elasticsearch import Elasticsearch
 from elasticsearch_tornado import EsClient
 
 import mist.api.users.models
-from mist.api.auth.models import ApiToken, SessionToken, datetime_to_str
+from mist.api.auth.models import ApiToken, datetime_to_str
 
 from mist.api.exceptions import MistError, NotFoundError
 from mist.api.exceptions import RequiredParameterMissingError
 
 from mist.api import config
 
-try:
-    from mist.core.rbac.tokens import SuperToken
-except ImportError:
-    SUPER_EXISTS = False
-else:
-    SUPER_EXISTS = True
+if config.HAS_RBAC:
+    from mist.rbac.tokens import SuperToken
 
 
 logging.basicConfig(level=config.PY_LOG_LEVEL,
@@ -162,7 +156,19 @@ def parse_os_release(os_release):
     os = ''
     os_version = ''
     os_release = os_release.replace('"', '')
+    distro = ''
     lines = os_release.split("\n")
+
+    # ClearOS specific
+    # Needs a general update. We should find the whole distro string and
+    # extract more specific information like os = linux, os_family = red_hat
+    # etc.
+    for line in lines:
+        if 'clearos' in line.lower():
+            distro = line
+            os = 'clearos'
+            os_version = line.partition(" ")[-1]
+            return os, os_version, distro
 
     # Find ID which corresponds to the OS's name
     re_id = r'^ID=(.*)'
@@ -178,7 +184,7 @@ def parse_os_release(os_release):
         if match_version:
             os_version = match_version.group(1)
 
-    return os, os_version
+    return os, os_version, distro
 
 
 def dirty_cow(os, os_version, kernel_version):
@@ -216,7 +222,8 @@ def dirty_cow(os, os_version, kernel_version):
         },
     }
 
-    # If version is lower that min_patched_version it is most probably vulnerable
+    # If version is lower that min_patched_version it is most probably
+    # vulnerable
     if LooseVersion(kernel_version) < LooseVersion(min_patched_version):
         return True
 
@@ -255,7 +262,8 @@ def amqp_publish(exchange, routing_key, data,
         close = True
     channel = connection.channel()
     if ex_declare:
-        channel.exchange_declare(exchange=exchange, type=ex_type, auto_delete=auto_delete)
+        channel.exchange_declare(exchange=exchange, type=ex_type,
+                                 auto_delete=auto_delete)
     msg = Message(json.dumps(data))
     channel.basic_publish(msg, exchange=exchange, routing_key=routing_key)
     channel.close()
@@ -534,7 +542,7 @@ def get_datetime(timestamp):
     if isinstance(timestamp, datetime.datetime):
         # Timestamp is already a datetime object.
         return timestamp
-    if isinstance(timestamp, (int, float)):
+    elif isinstance(timestamp, (int, float)):
         try:
             # Handle Unix timestamps.
             return datetime.datetime.fromtimestamp(timestamp)
@@ -545,14 +553,14 @@ def get_datetime(timestamp):
             return datetime.datetime.fromtimestamp(timestamp / 1000)
         except ValueError:
             pass
-    if isinstance(timestamp, basestring):
+    elif isinstance(timestamp, basestring):
         try:
             timestamp = float(timestamp)
         except (ValueError, TypeError):
             pass
         else:
             # Timestamp is probably Unix timestamp given as string.
-            return parse_timestamp_to_datetime(timestamp)
+            return get_datetime(timestamp)
         try:
             # Try to parse as string date in common formats.
             return iso8601.parse_date(timestamp)
@@ -597,7 +605,8 @@ def ip_from_request(request):
             '0.0.0.0')
 
 
-def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3):
+def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3,
+               html_body=None):
     """Send email.
 
     subject: email's subject
@@ -613,22 +622,30 @@ def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3):
         sender = config.EMAIL_FROM
     if isinstance(recipients, basestring):
         recipients = [recipients]
-    headers = [
-        "From: %s" % sender,
-        "To: %s" % ", ".join(recipients),
-        "Subject: %s" % subject,
-        "Date: %s" % formatdate(),
-        "Message-ID: %s" % make_msgid()
-    ]
-    if bcc:
-        headers.append("Bcc: %s" % bcc)
-        recipients.append(bcc)
 
     if isinstance(body, str):
         body = body.decode('utf8')
 
-    message = "%s\r\n\r\n%s" % ("\r\n".join(headers), body)
-    message = message.encode('utf-8', 'ignore')
+    if html_body:
+        msg = MIMEMultipart('alternative')
+    else:
+        msg = MIMEText(body, 'plain')
+
+    msg["Subject"] = subject
+    msg["From"] = sender
+    msg["Date"] = formatdate()
+    msg["To"] = ", ".join(recipients)
+    msg["Message-ID"] = make_msgid()
+
+    if bcc:
+        msg["Bcc"] = bcc
+        recipients.append(bcc)
+
+    if html_body:
+        part1 = MIMEText(body, "plain", "utf-8")
+        part2 = MIMEText(html_body, "html", "utf-8")
+        msg.attach(part1)
+        msg.attach(part2)
 
     mail_settings = config.MAILER_SETTINGS
     host = mail_settings.get('mail.host')
@@ -650,7 +667,7 @@ def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3):
             if username:
                 server.login(username, password)
 
-            ret = server.sendmail(sender, recipients, message)
+            server.sendmail(sender, recipients, msg.as_string())
             server.quit()
             return True
         except smtplib.SMTPException as exc:
@@ -718,6 +735,11 @@ def ts_to_str(timestamp):
         return date_string
     except:
         return None
+
+
+def iso_to_seconds(iso):
+    """Attempt to transform a time representation into seconds."""
+    return get_datetime(iso).strftime('%s')
 
 
 def encrypt(plaintext, key=config.SECRET, key_salt='', no_iv=False):
@@ -799,15 +821,14 @@ def logging_view_decorator(func):
         if not hasattr(request, 'real_view_name'):
             request.real_view_name = func.func_name
 
-
         # check if exception occurred
         try:
             response = func(context, request)
         except HTTPError as e:
             if request.path_info.startswith('/social_auth/complete'):
-                log.info("There was a bad error during SSO connection: %s, and "
-                         "request was %s" % (repr(e), request.__dict__))
-            raise e
+                log.info("There was a bad error during SSO connection: %s, "
+                         "and request was %s" % (repr(e), request.__dict__))
+            raise
         # check if exception occured
         exc_flag = (config.LOG_EXCEPTIONS and
                     isinstance(context, Exception) and
@@ -856,7 +877,7 @@ def logging_view_decorator(func):
                     log_dict['experiment'] = session.experiment
                 if session.choice:
                     log_dict['choice'] = session.choice
-            except AttributeError: # in case of ApiToken
+            except AttributeError:  # in case of ApiToken
                 pass
 
         # log user
@@ -874,14 +895,14 @@ def logging_view_decorator(func):
             log_dict['owner_id'] = None
 
         if isinstance(session, ApiToken):
-            if not 'dummy' in session.name:
+            if 'dummy' not in session.name:
                 log_dict['api_token_id'] = str(session.id)
                 log_dict['api_token_name'] = session.name
                 log_dict['api_token'] = session.token[:4] + '***CENSORED***'
                 log_dict['token_expires'] = datetime_to_str(session.expires())
 
         # Log special Token.
-        if SUPER_EXISTS and isinstance(session, SuperToken):
+        if config.HAS_RBAC and isinstance(session, SuperToken):
             log_dict['setuid'] = True
             log_dict['api_token_id'] = str(session.id)
             log_dict['api_token_name'] = session.name
@@ -911,9 +932,9 @@ def logging_view_decorator(func):
         if machine_id and not log_dict.get('machine_id'):
             log_dict['machine_id'] = request.environ.get('machine_id')
 
-        machine_uuid = request.matchdict.get('machine_uuid') or \
-                       params.get('machine_uuid') or \
-                       request.environ.get('machine_uuid')
+        machine_uuid = (request.matchdict.get('machine_uuid') or
+                        params.get('machine_uuid') or
+                        request.environ.get('machine_uuid'))
         if machine_uuid and not log_dict.get('machine_uuid'):
             log_dict['machine_uuid'] = machine_uuid
 
@@ -996,7 +1017,8 @@ def logging_view_decorator(func):
         if not exc_flag:
             return response
 
-        # Publish traceback in rabbitmq, for heka to parse and forward to elastic
+        # Publish traceback in rabbitmq, for heka to parse and forward to
+        # elastic
         log.info("Bad exception occured, logging to rabbitmq")
         es_dict = log_dict.copy()
         es_dict.pop('_exc_type')
@@ -1139,7 +1161,7 @@ def mac_sign(kwargs=None, expires=None, key='', mac_len=0, mac_format='hex'):
         raise Exception('No message provided to be signed')
     if expires:
         kwargs['_expires'] = int(time() + expires)
-    parts = ["%s=%s" % (key, kwargs[key]) for key in sorted(kwargs.keys())]
+    parts = ["%s=%s" % (k, kwargs[k]) for k in sorted(kwargs.keys())]
     msg = "&".join(parts)
     hmac = HMAC(str(key), msg=str(msg), digestmod=SHA256Hash())
     if mac_format == 'b64':

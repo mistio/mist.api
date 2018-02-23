@@ -1,149 +1,338 @@
-from uuid import uuid4
-from datetime import datetime
-
+import uuid
+import json
+import urllib
+import datetime
 import mongoengine as me
 
-from mist.api.users.models import User, Organization
+from mist.api import config
+
+from mist.api.helpers import encrypt
+from mist.api.helpers import mac_sign
+
+from mist.api.users.models import User
+from mist.api.machines.models import Machine
+
+import mist.api.notifications.channels as cnls
 
 
-class NotificationRule(me.EmbeddedDocument):
-    '''
-    Represents a single notification rule, with a notification source
-    and optional channel.
-    '''
-    source = me.StringField(max_length=64, required=True, default="")
-    channel = me.StringField(max_length=64, required=False, default="")
-    value = me.StringField(max_length=7, required=True,
-                           choices=('ALLOW', 'BLOCK'), default='BLOCK')
+# TODO Move to config.py
+DEFAULT_REMINDER_SCHEDULE = [
+    0,
+    60 * 10,
+    60 * 60,
+    60 * 60 * 24,
+]
+
+
+class NotificationOverride(me.EmbeddedDocument):
+    """A user override that blocks notifications with given properties."""
+
+    id = me.StringField(default=lambda: uuid.uuid4().hex)
+
+    rid = me.StringField(default="")
+    rtype = me.StringField(default="")
+    channel = me.StringField(default="")
+
+    def blocks(self, channel, rtype="", rid=""):
+        """Return True if self blocks a notification with given properties."""
+        if self.channel and self.channel != channel:
+            return False
+        if self.rtype and self.rtype != rtype:
+            return False
+        if self.rid and self.rid != rid:
+            return False
+        return True
+
+    def blocks_channel(self, channel):
+        """Return True if self completely blocks the given channel."""
+        return channel == self.channel and not (self.rtype or self.rid)
+
+    def clean(self):
+        if self.rid and not self.rtype:
+            raise me.ValidationError('Resource ID provided without a type')
+        if self.rtype:
+            self.rtype = self.rtype.rstrip('s')
+
+    # FIXME All following methods/properties are for backwards compatibility.
+
+    @property
+    def machine(self):
+        if self.rtype == 'machine':
+            return Machine.objects.get(id=self.rid)
+
+    @property
+    def cloud(self):
+        return self.machine.cloud
+
+    @property
+    def value(self):
+        return "BLOCK"
+
+    def as_dict(self):
+        machine = self.machine
+        return {
+            '_id': {'$oid': self.id},
+            'rid': self.rid,
+            'rtype': self.rtype,
+            'channel': self.channel,
+            'machine': machine and {
+                "_ref": {"$ref": "machines", "$id": machine.id}},
+            'cloud': machine and {
+                "_ref": {"$ref": "clouds", "$id": machine.cloud.id}},
+            'value': self.value,
+        }
 
 
 class UserNotificationPolicy(me.Document):
-    '''
-    Represents a notification policy associated with a
-    user-organization pair, and containing a list of rules.
-    '''
-    rules = me.EmbeddedDocumentListField(NotificationRule)
-    user = me.ReferenceField(User, required=True)
-    organization = me.ReferenceField(Organization, required=True)
+    """A user's notification policy comprised of notification overrides."""
 
-    def notification_allowed(self, notification):
-        '''
-        Accepts a notification or string token and returns a boolean
-        indicating whether corresponding notification is allowed
-        or is blocked
-        '''
-        source = type(notification).__name__
-        for rule in self.rules:
-            if (rule.source == source and
-                    rule.value == 'BLOCK'):
-                return False
-            elif (rule.source == source and
-                    rule.value == 'ALLOW'):
-                return True
-        return not notification.explicit_allow
+    owner = me.ReferenceField('Organization', required=True)
+    email = me.EmailField(domain_whitelist=config.DOMAIN_VALIDATION_WHITELIST)
+    user_id = me.StringField()
 
-    def channel_allowed(self, channel, default=False):
-        '''
-        Accepts a notification or string token and returns a boolean
-        indicating whether corresponding notification is allowed
-        or is blocked
-        '''
-        for rule in self.rules:
-            if (rule.source == channel and
-                    rule.value == 'BLOCK'):
-                return False
-            elif (rule.source == channel and
-                    rule.value == 'ALLOW'):
+    overrides = me.EmbeddedDocumentListField(NotificationOverride)
+
+    meta = {
+        'collection': 'notification_policies',
+        'indexes': [
+            {
+                'fields': ['user_id', 'owner'],
+                'sparse': False,
+                'unique': True,
+                'cls': False,
+            },
+        ],
+    }
+
+    @property
+    def user(self):
+        return User.objects(me.Q(id=self.user_id) |
+                            me.Q(email=self.email)).first()
+
+    def has_blocked(self, ntf):
+        """Return True if self blocks the given notification."""
+        return self.has_dismissed(ntf) or self.has_overriden(ntf)
+
+    def has_overriden(self, ntf):
+        """Return True if self includes an override that matches `ntf`."""
+        for override in self.overrides:
+            if override.blocks(ntf.channel.ctype, ntf.rtype, ntf.rid):
                 return True
-        return default
+        return False
+
+    def has_dismissed(self, ntf):
+        """Return True if the given notification has been dismissed."""
+        if not isinstance(ntf, InAppNotification):
+            return False
+        return self.user_id in ntf.dismissed_by
+
+    def clean(self):
+        if not (self.email or self.user_id):
+            raise me.ValidationError('Neither a user ID nor email provided')
+
+        # Get the user's id, if missing. Some notification policies may
+        # belong to non-mist users (denoted by their e-mail).
+        if not self.user_id:
+            user = self.user
+            self.user_id = user.id if user else None
+        elif not self.email:
+            self.email = self.user.email
+
+    def __str__(self):
+        return 'Notification Policy of User %s' % self.email
 
 
 class Notification(me.Document):
-    '''
-    Represents a notification associated with a
-    user-organization pair
-    '''
-    meta = {'allow_inheritance': True}
+    """The main Notification entity."""
 
-    id = me.StringField(primary_key=True,
-                        default=lambda: uuid4().hex)
+    id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
+    owner = me.ReferenceField('Organization', required=True)
 
-    created_date = me.DateTimeField(required=False)
-    expiry_date = me.DateTimeField(required=False)
+    # TODO A list of external email addresses, ie e-mail addresses that do
+    # not correspond to members of the organization.
+    # emails = me.ListField(me.EmailField)
 
-    user = me.ReferenceField(User, required=True)
-    organization = me.ReferenceField(Organization, required=True)
-
-    # content fields
-    summary = me.StringField(max_length=512, required=False, default="")
-    body = me.StringField(required=True, default="")
+    # Content fields.
+    subject = me.StringField(required=False, default="", max_length=512)
+    text_body = me.StringField(required=True, default="")
     html_body = me.StringField(required=False, default="")
 
-    # taxonomy fields
-    source = me.StringField(max_length=64, required=True, default="")
-    resource = me.GenericReferenceField(required=False)
-    action_link = me.URLField(required=False)
+    # Taxonomy fields.
+    rid = me.StringField(default="")
+    rtype = me.StringField(default="")
 
-    unique = me.BooleanField(required=True, default=True)
+    # Reminder fields.
+    reminder_count = me.IntField(required=True, min_value=0, default=0)
+    reminder_enabled = me.BooleanField()
+    reminder_schedule = me.ListField(default=DEFAULT_REMINDER_SCHEDULE)
 
-    severity = me.StringField(
-        max_length=7,
-        required=True,
-        choices=(
-            'LOW',
-            'DEFAULT',
-            'HIGH'),
-        default='DEFAULT')
+    created_at = me.DateTimeField(default=lambda: datetime.datetime.utcnow())
 
-    feedback = me.StringField(
-        max_length=8,
-        required=True,
-        choices=(
-            'NEGATIVE',
-            'NEUTRAL',
-            'POSITIVE'),
-        default='NEUTRAL')
+    meta = {
+        'strict': False,
+        'allow_inheritance': True,
+        'collection': 'notifications',
+        'indexes': ['owner', '-created_at'],
+    }
 
-    # if true, only send (show) if explicitly
-    # allowed by a notifications rule
-    explicit_allow = me.BooleanField(required=True, default=False)
+    _notification_channel_cls = None
 
     def __init__(self, *args, **kwargs):
         super(Notification, self).__init__(*args, **kwargs)
-        if not self.created_date:
-            self.created_date = datetime.now()
+        if not self._notification_channel_cls:
+            raise TypeError("Can't initialize %s. This is just a base class "
+                            "and shouldn't be used to create notifications. "
+                            "Use a subclass that defines a "
+                            "`_notification_channel_cls` attribute" % self)
+        self.channel = self._notification_channel_cls(self)
+
+    @property
+    def remind_in(self):
+        """Return a timedelta until the next reminder since `created_at`."""
+        remind_in = self.reminder_schedule[self.reminder_count]
+        return datetime.timedelta(seconds=remind_in)
+
+    def due_in(self):
+        """Return a countdown until the next alert (reminder) is due."""
+        return self.created_at + self.remind_in - datetime.datetime.utcnow()
+
+    def is_due(self):
+        """Return True if self is due."""
+        if not self.reminder_enabled and self.reminder_count:
+            return False
+        if self.reminder_count > len(self.reminder_schedule):
+            return False
+        if self.due_in().total_seconds() > 0:
+            return False
+        return True
+
+    def clean(self):
+        if self.rid and not self.rtype:
+            raise me.ValidationError('Resource ID provided without a type')
+        # Advance `reminder_count` to suppress reminders, if disabled.
+        if not self.reminder_enabled:
+            self.reminder_count = len(self.reminder_schedule)
+        # This makes sure to fast-forward the `reminder_count` in case we've
+        # failed to send past notifications for periods of time that span
+        # reminder intervals. Thus we avoid spamming users with back-to-back
+        # reminders.
+        schedule_size = len(self.reminder_schedule)
+        for c in xrange(schedule_size - 1, self.reminder_count, -1):
+            timedelta = datetime.timedelta(seconds=self.reminder_schedule[c])
+            if self.created_at + timedelta < datetime.datetime.utcnow():
+                self.reminder_count = c
+                break
+
+    # FIXME All following methods/properties are for backwards compatibility.
+
+    @property
+    def machine(self):
+        if self.rtype == 'machine':
+            return Machine.objects.get(id=self.rid)
+
+    @property
+    def cloud(self):
+        return self.machine.cloud if self.rtype == 'machine' else None
+
+    @property
+    def source(self):
+        return self.channel.ctype
+
+    @property
+    def created_at_int(self):
+        return int(self.created_at.strftime('%s')) * 1000
+
+    def as_dict(self):
+        ret = {
+            '_id': self.id,
+            'source': self.source,
+            'summary': self.subject,
+            'subject': self.subject,
+            'body': self.text_body,
+            'html_body': self.html_body,
+            'created_date': {"$date": self.created_at_int},
+        }
+        if self.machine:
+            ret.update({
+                'machine': {
+                    "_ref": {"$ref": "machines", "$id": self.machine.id}},
+                'cloud': {
+                    "_ref": {"$ref": "clouds", "$id": self.machine.cloud.id}},
+            })
+        return ret
 
 
-class EmailReport(Notification):
-    '''
-    Represents a notification corresponding to
-    an email report
-    '''
-    subject = me.StringField(max_length=256, required=False, default="")
-    email = me.EmailField(required=False)
-    unsub_link = me.URLField(required=False)
+class EmailNotification(Notification):
+
+    _notification_channel_cls = cnls.EmailNotificationChannel
+
+    # E-mail "FROM" and "Title" fields. Not db fields, just class attributes.
+    sender_title = "Mist.io Notifications"
+    sender_email = config.EMAIL_NOTIFICATIONS
+
+    def __init__(self, *args, **kwargs):
+        super(EmailNotification, self).__init__(*args, **kwargs)
+        if not self.sender_title:
+            raise TypeError("%s requires the e-mail's title to be specified as"
+                            " the sender_title class attribute" % self)
+        if not self.sender_email:
+            raise TypeError("%s requires the sender's email to be specified as"
+                            " the sender_email class attribute" % self)
+
+    @property
+    def unsub_params(self):
+        return {'action': 'request_unsubscribe', 'channel': self.channel.ctype,
+                'org_id': self.owner.id, 'rtype': self.rtype, 'rid': self.rid}
+
+    def get_unsub_link(self, user_id, email=None):
+        params = self.unsub_params
+        params.update({'user_id': user_id, 'email': email})
+        mac_sign(params)
+        encrypted = {'token': encrypt(json.dumps(params))}
+        return '%s/unsubscribe?%s' % (config.CORE_URI,
+                                      urllib.urlencode(encrypted))
+
+
+class EmailReport(EmailNotification):
+
+    sender_title = "Mist.io Reports"
+    sender_email = config.EMAIL_REPORTS
+
+
+class EmailAlert(EmailNotification):
+
+    sender_title = "Mist.io Alerts"
+    sender_email = config.EMAIL_ALERTS
+
+    # The ID associated with a specific incident.
+    # Required in order to schedule alerts via e-mail notifications.
+    incident_id = me.StringField(required=True)
+
+    def clean(self):
+        if self.rtype != 'rule' and not self.rid:
+            raise me.ValidationError('Resource type != "rule" or missing ID')
+        super(EmailAlert, self).clean()
 
 
 class InAppNotification(Notification):
-    '''
-    Represents an in-app notification
-    '''
-    model_id = me.StringField(required=True, default="")  # "autoscale_v1"
-    model_output = me.DictField(
-        required=True,
-        default={})  # {"direction": "up"}
 
-    dismissed = me.BooleanField(required=True, default=False)
+    _notification_channel_cls = cnls.InAppNotificationChannel
+
+    # List of users that dismissed this notification.
+    dismissed_by = me.ListField(me.StringField())
 
 
 class InAppRecommendation(InAppNotification):
-    '''
-    Represents an in-app recommendation
-    '''
 
-    def __init__(self, *args, **kwargs):
-        super(InAppNotification, self).__init__(*args, **kwargs)
-        # recommendations should be explicitly allowed by
-        # the user
-        if not self.explicit_allow:
-            self.explicit_allow = True
+    # Fields specific to recommendations.
+    model_id = me.StringField(required=True)
+    model_output = me.DictField(required=True, default={})
+
+    # List of users that applied this recommendation.
+    applied = me.BooleanField(required=True, default=False)
+
+    def as_dict(self):
+        d = super(InAppRecommendation, self).as_dict()
+        d.update({'model_id': self.model_id,
+                  'model_output': self.model_output})
+        return d

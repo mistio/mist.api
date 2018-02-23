@@ -295,12 +295,25 @@ class BaseMainController(object):
         return
 
     def rename(self, title):
-        self.cloud.title = title
-        self.cloud.save()
+        try:
+            self.cloud.title = title
+            self.cloud.save()
+        except me.NotUniqueError:
+            raise CloudExistsError()
 
     def enable(self):
         self.cloud.enabled = True
         self.cloud.save()
+
+        # FIXME: Resolve circular import issues
+        from mist.api.poller.models import ListMachinesPollingSchedule
+        from mist.api.poller.models import ListLocationsPollingSchedule
+        # Ensure polling schedule is in place in case the cloud is re-enabled.
+        ListMachinesPollingSchedule.add(cloud=self.cloud)
+        # Ensure additional polling schedules with lower frequency.
+        schedule = ListLocationsPollingSchedule.add(cloud=self.cloud)
+        schedule.set_default_interval(60 * 60 * 24)
+        schedule.save()
 
     def disable(self):
         self.cloud.enabled = False
@@ -331,8 +344,10 @@ class BaseMainController(object):
 
         # FIXME: Resolve circular import issues
         from mist.api.poller.models import ListMachinesPollingSchedule
+        from mist.api.poller.models import ListLocationsPollingSchedule
 
         ListMachinesPollingSchedule.add(cloud=self.cloud)
+        ListLocationsPollingSchedule.add(cloud=self.cloud)
 
     def delete(self, expire=False):
         """Delete a Cloud.
@@ -344,11 +359,32 @@ class BaseMainController(object):
         """
         self.cloud.deleted = datetime.datetime.utcnow()
         self.cloud.save()
+        # FIXME: Circular dependency.
+        from mist.api.machines.models import Machine
+        Machine.objects(cloud=self.cloud,
+                        missing_since=None).update(
+            missing_since=datetime.datetime.utcnow()
+        )
+        # FIXME: Circular dependency.
+        # FIXME: Is this necessary? Can't we just delete the documents? If not,
+        # the following should take place in `self.disable`, too.
+        from mist.api.clouds.models import CloudLocation
+        CloudLocation.objects(cloud=self.cloud,
+                              missing_since=None).update(
+            missing_since=datetime.datetime.utcnow()
+        )
         if expire:
-            # FIXME: Circular dependency.
-            from mist.api.machines.models import Machine
+            # FIXME: Set reverse_delete_rule=me.CASCADE?
             Machine.objects(cloud=self.cloud).delete()
             self.cloud.delete()
 
     def disconnect(self):
         self.compute.disconnect()
+
+    def add_machine(self, **kwargs):
+        """
+        Add a machine in a bare metal cloud.
+        This is only supported on Other Server clouds.
+        """
+        raise BadRequestError("Adding machines is only supported in Bare"
+                              "Metal clouds.")

@@ -1,3 +1,4 @@
+import copy
 import logging
 from time import time
 
@@ -16,12 +17,9 @@ from mist.api.exceptions import OrganizationOperationError
 
 from mist.api.portal.models import Portal
 
-from mist.api import config
+from mist.api.helpers import ip_from_request
 
-try:
-    from mist.core.methods import assign_promo
-except ImportError:
-    from mist.api.dummy.methods import assign_promo
+from mist.api import config
 
 log = logging.getLogger(__name__)
 
@@ -36,7 +34,7 @@ def get_users_count(mongo_uri=None, confirmed=False):
 
 def register_user(email, first_name, last_name, registration_method,
                   selected_plan=None, promo_code=None, token=None,
-                  status='pending', create_organization=True):
+                  status='pending', create_organization=True, request=None):
     # User does not exist so we have to add him/her to the database
     # First make sure that email is not banned
     # Then create the User objects and the Organization
@@ -54,8 +52,13 @@ def register_user(email, first_name, last_name, registration_method,
     user.can_create_org = True
     user.save()
 
+    # For some users registering through sso it might not be necessary to
+    # create an organization, hence the flag
+    org = create_org_for_user(user, '', promo_code, token, selected_plan) \
+        if create_organization else None
+
     log_event_args = {
-        'owner_id': '',
+        'owner_id': org and org.id or '',
         'user_id': user.id,
         'first_name': user.first_name,
         'last_name': user.last_name,
@@ -65,10 +68,13 @@ def register_user(email, first_name, last_name, registration_method,
         'authentication_provider': registration_method
     }
 
-    # For some users registering through sso it might not be necessary to
-    # create an organization, hence the flag
-    org = create_org_for_user(user, '', promo_code, token, selected_plan) \
-        if create_organization else None
+    if request:
+        log_event_args.update({
+            'request_method': request.method,
+            'request_path': request.path,
+            'request_ip': ip_from_request(request),
+            'user_agent': request.user_agent,
+        })
 
     if org:
         log_event_args.update({
@@ -98,7 +104,9 @@ def create_org_for_user(user, org_name='', promo_code=None, token=None,
 
     # assign promo if applicable
     if promo_code or token:
-        assign_promo(org, promo_code, token)
+        if config.HAS_BILLING:
+            from mist.billing.methods import assign_promo
+            assign_promo(org, promo_code, token)
     return org
 
 
@@ -149,6 +157,13 @@ def get_user_data(auth_context):
     if user.role == 'Admin':
         upgrades = Portal.get_singleton().get_available_upgrades()
         ret['available_upgrades'] = upgrades
+    if config.HAS_BILLING:
+        from mist.billing.methods import get_all_user_plan_info
+        curr_plan, promos = get_all_user_plan_info(auth_context.org)
+        ret.update({
+            'current_plan': curr_plan,
+            'stripe_public_apikey': config.STRIPE_PUBLIC_APIKEY,
+        })
     return ret
 
 
@@ -172,6 +187,22 @@ def filter_org(auth_context):
                if auth_context.is_owner() or m['id'] in team_mates]
     org['teams'] = teams
     org['members'] = members
+
+    # Billing info
+    if config.HAS_BILLING:
+        from mist.billing.methods import get_subscription_history
+        from mist.billing.methods import get_all_user_plan_info
+        current_plan, promos = get_all_user_plan_info(auth_context.org)
+        available_plans = copy.deepcopy(config.PLANS)
+        # customize enterprise plan if one is assigned to user
+        if auth_context.org.enterprise_plan:
+            available_plans[-1] = auth_context.org.enterprise_plan
+            available_plans[-1]['visible'] = True
+        org['available_plans'] = available_plans
+        org['subscription_history'] = get_subscription_history(
+            auth_context.org)
+        org['current_plan'] = current_plan
+        org['promos'] = promos
 
     return org
 

@@ -6,7 +6,6 @@ code originally taken from:
 """
 
 
-import random
 import logging
 
 import pika
@@ -174,7 +173,8 @@ class Consumer(object):
         """Invoked by pika when RabbitMQ has finished the Exchange.Declare RPC
         command.
 
-        :param pika.Frame.Method unused_frame: Exchange.DeclareOk response frame
+        :param pika.Frame.Method unused_frame: Exchange.DeclareOk response
+                                               frame
 
         """
         log.debug('Exchange declared')
@@ -203,7 +203,7 @@ class Consumer(object):
 
         """
         log.debug('Binding %s to %s with %s',
-                 self.exchange, self.queue, self.routing_key)
+                  self.exchange, self.queue, self.routing_key)
         self._channel.queue_bind(self.on_bindok, self.queue,
                                  self.exchange, self.routing_key)
 
@@ -224,7 +224,7 @@ class Consumer(object):
 
         """
         log.debug('Consumer was cancelled remotely, shutting down: %r',
-                 method_frame)
+                  method_frame)
         if self._channel:
             self._channel.close()
 
@@ -253,7 +253,7 @@ class Consumer(object):
 
         """
         log.debug('Received message # %s from %s: %s',
-                 basic_deliver.delivery_tag, properties.app_id, body)
+                  basic_deliver.delivery_tag, properties.app_id, body)
         if self.ack:
             self.acknowledge_message(basic_deliver.delivery_tag)
 
