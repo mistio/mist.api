@@ -27,6 +27,11 @@ DEFAULT_RESPONSES = {'200': {'description': 'Successful Operation'},
                      '404': {'description': 'Not Found'}
                      }
 
+EXCLUDED_ROUTE_NAMES = ['api_v1_avatars', 'api_v1_avatar', 'api_v1_fetch',
+                        'api_v1_spec', 'stripe', 'api_v1_org_billing',
+                        'purchase', 'api_v1_request_info', 'api_v1_tokens',
+                        'api_v1_ping']
+
 
 def extract_params_from_operation(operation):
     params = []
@@ -147,10 +152,10 @@ def main():
                                               vi['callable'])
         if route_name:
             route_path = app.routes_mapper.get_route(route_name).path
-            if route_path and (route_name.startswith('api_v1_') or
-               route_name.endswith('tags') or route_name.endswith('tag'))\
+            if route_path and route_name.startswith('api_v1_')\
                and not route_name.startswith('api_v1_dev') and\
-               ('whitelist' not in route_name):
+               ('whitelist' not in route_name) and\
+               route_name not in EXCLUDED_ROUTE_NAMES:
                 try:
                     operation = docstring_to_object(func.func_doc)
                 except:
