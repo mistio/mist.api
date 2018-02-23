@@ -323,7 +323,7 @@ class MainConnection(MistConnection):
             if self.batch:
                 self.send('patch_model', self.batch)
                 self.batch = []
-            yield tornado.gen.sleep(10)
+            yield tornado.gen.sleep(5)
 
     @tornado.gen.coroutine
     def periodic_update_poller(self):
