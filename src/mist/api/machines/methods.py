@@ -600,9 +600,16 @@ def _create_machine_ec2(conn, key_name, private_key, public_key,
             if libcloud_subnet.id == subnet_id:
                 subnet = libcloud_subnet
                 break
-        # if subnet is specified, then security group id is needed
+
+        # if subnet is specified, then security group id
+        # instead of security group name is needed
+        groups = conn.ex_list_security_groups()
+        for group in groups:
+            if group.get('name') == config.EC2_SECURITYGROUP.get('name', ''):
+                security_group_id = group.get('id')
+                break
         kwargs.update({'ex_subnet': subnet,
-                      'ex_security_group_ids': config.EC2_SECURITYGROUP_ID})
+                      'ex_security_group_ids': security_group_id})
 
     else:
         kwargs.update({'ex_securitygroup': config.EC2_SECURITYGROUP['name']})
