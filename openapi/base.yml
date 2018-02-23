@@ -1,0 +1,15 @@
+info:
+  title: Mist.io API
+  version: 1.1.0
+openapi: 3.0.0
+produces:
+- application/json
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+security:
+  - ApiKeyAuth: []
+paths:
