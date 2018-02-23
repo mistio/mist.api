@@ -117,6 +117,17 @@ def list_sizes(owner, cloud_id):
                              deleted=None).ctl.compute.list_sizes()
 
 
+def list_subnets(cloud, network):
+    """List subnets for a particular network on a given cloud.
+    Currently EC2, Openstack and GCE clouds are supported. For other providers
+    this returns an empty list.
+    """
+    if not hasattr(cloud.ctl, 'network'):
+        return []
+    subnets = cloud.ctl.network.list_subnets(network=network)
+    return [subnet.as_dict() for subnet in subnets]
+
+
 def list_projects(owner, cloud_id):
     """List projects for each account.
     Currently supported for Packet.net. For other providers
