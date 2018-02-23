@@ -622,7 +622,7 @@ class MainConnection(MistConnection):
                 line['path'] = '/clouds/%s/machines/%s' % (cloud_id,
                                                            line['path'])
             if patch:
-                self.batch.append(patch)
+                self.batch.extend(patch)
 
         elif routing_key == 'patch_locations':
             cloud_id = result['cloud_id']
