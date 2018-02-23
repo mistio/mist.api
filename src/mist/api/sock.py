@@ -30,6 +30,8 @@ from mist.api.machines.models import Machine
 
 from mist.api.auth.methods import auth_context_from_session_id
 
+from mist.api.helpers import maybe_submit_cloud_task
+
 from mist.api.exceptions import UnauthorizedError, MistError
 from mist.api.exceptions import PolicyUnauthorizedError
 from mist.api.amqp_tornado import Consumer
@@ -428,6 +430,10 @@ class MainConnection(MistConnection):
                                ('list_projects', tasks.ListProjects())])
         for key, task in periodic_tasks:
             for cloud in clouds:
+                # Avoid submitting new celery tasks, when it's certain that
+                # they will exit immediately without performing any actions.
+                if not maybe_submit_cloud_task(cloud, key):
+                    continue
                 cached = task.smart_delay(self.owner.id, cloud.id)
                 if cached is not None:
                     log.info("Emitting %s from cache", key)
