@@ -42,7 +42,8 @@ from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import NotFoundError, BadRequestError, ForbiddenError
 from mist.api.exceptions import ServiceUnavailableError
 from mist.api.exceptions import MistError
-from mist.api.exceptions import UnauthorizedError
+from mist.api.exceptions import PolicyUnauthorizedError, UnauthorizedError
+from mist.api.exceptions import CloudNotFoundError
 from mist.api.exceptions import UserUnauthorizedError, RedirectError
 from mist.api.exceptions import UserNotFoundError, ConflictError
 from mist.api.exceptions import LoginThrottledError, TeamOperationError

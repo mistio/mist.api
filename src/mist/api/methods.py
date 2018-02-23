@@ -29,6 +29,7 @@ from mist.api.shell import Shell
 from mist.api.exceptions import MistError
 from mist.api.exceptions import RequiredParameterMissingError
 
+from mist.api.helpers import trigger_session_update
 from mist.api.helpers import amqp_publish_user
 from mist.api.helpers import StdStreamCapture
 
