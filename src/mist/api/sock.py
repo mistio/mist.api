@@ -30,6 +30,8 @@ from mist.api.machines.models import Machine
 
 from mist.api.auth.methods import auth_context_from_session_id
 
+from mist.api.helpers import maybe_submit_cloud_task
+
 from mist.api.exceptions import UnauthorizedError, MistError
 from mist.api.exceptions import PolicyUnauthorizedError
 from mist.api.amqp_tornado import Consumer
@@ -277,6 +279,7 @@ class MainConnection(MistConnection):
         super(MainConnection, self).on_open(conn_info)
         self.running_machines = set()
         self.consumer = None
+        self.batch = []
         self.log_kwargs = {
             'ip': self.ip,
             'user_agent': self.user_agent,
@@ -311,6 +314,18 @@ class MainConnection(MistConnection):
         self.update_notifications()
         self.check_monitoring()
         self.periodic_update_poller()
+        self.send_batch_update()
+
+    @tornado.gen.coroutine
+    def send_batch_update(self):
+        """Send model patches in batches."""
+        while True:
+            if self.closed:
+                break
+            if self.batch:
+                self.send('patch_model', self.batch)
+                self.batch = []
+            yield tornado.gen.sleep(5)
 
     @tornado.gen.coroutine
     def periodic_update_poller(self):
@@ -415,6 +430,10 @@ class MainConnection(MistConnection):
                                ('list_projects', tasks.ListProjects())])
         for key, task in periodic_tasks:
             for cloud in clouds:
+                # Avoid submitting new celery tasks, when it's certain that
+                # they will exit immediately without performing any actions.
+                if not maybe_submit_cloud_task(cloud, key):
+                    continue
                 cached = task.smart_delay(self.owner.id, cloud.id)
                 if cached is not None:
                     log.info("Emitting %s from cache", key)
@@ -609,7 +628,7 @@ class MainConnection(MistConnection):
                 line['path'] = '/clouds/%s/machines/%s' % (cloud_id,
                                                            line['path'])
             if patch:
-                self.send('patch_model', patch)
+                self.batch.extend(patch)
 
         elif routing_key == 'patch_locations':
             cloud_id = result['cloud_id']
