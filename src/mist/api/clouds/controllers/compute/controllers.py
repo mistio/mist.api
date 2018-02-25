@@ -800,7 +800,7 @@ class VSphereComputeController(BaseComputeController):
 
         """
         locations = self.connection.list_locations()
-        clusters = [l for l in locations \
+        clusters = [l for l in locations
                     if l.extra['type'] == 'cluster' and l.extra['drs']]
         hosts = [l for l in locations if l.extra['type'] == 'host']
 

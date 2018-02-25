@@ -390,8 +390,9 @@ class Machine(me.Document):
             'size': self.size,
             'state': self.state,
             'tags': tags,
-            'monitoring': self.monitoring.as_dict() \
-                if self.monitoring and self.monitoring.hasmonitoring else '',
+            'monitoring': self.monitoring.as_dict()
+                          if self.monitoring and self.monitoring.hasmonitoring
+                          else '',
             'key_associations': [ka.as_dict() for ka in self.key_associations],
             'cloud': self.cloud.id,
             'location': self.location.id if self.location else '',
