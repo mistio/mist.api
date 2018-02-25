@@ -24,6 +24,7 @@ from mist.api.sockjs_mux import MultiplexConnection
 
 from mist.api.logs.methods import log_event
 from mist.api.logs.methods import get_stories
+from mist.api.logs.constants import FIELDS
 
 from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
@@ -456,7 +457,7 @@ class MainConnection(MistConnection):
                          owner=self.auth_context.org,
                          dismissed_by__ne=self.auth_context.user.id)]
         log.info("Emitting notifications list")
-        self.send('notifications', json.dumps(notifications))  # FIXME dump?
+        self.send('notifications', notifications)
 
     def check_monitoring(self):
         try:
@@ -607,8 +608,7 @@ class MainConnection(MistConnection):
                 self.update_org()
 
         elif routing_key == 'patch_notifications':
-            if json.loads(result).get('user') == self.user.id:
-                self.send('patch_notifications', result)
+            self.send('patch_notifications', result)
 
         elif routing_key == 'patch_machines':
             cloud_id = result['cloud_id']
@@ -697,20 +697,19 @@ class LogsConnection(MistConnection):
     def send_stories(self, stype):
         """Send open stories of the specified type."""
 
-        def callback(stories, pending=False):
+        def callback(stories):
             email = self.auth_context.user.email
-            ename = '%s_%ss' % ('open' if pending else 'closed', stype)
+            ename = '%ss' % stype
             log.info('Will emit %d %s for %s', len(stories), ename, email)
             self.send(ename, stories)
 
         # Only send incidents for non-Owners.
         if not self.auth_context.is_owner() and stype != 'incident':
-            return callback([], pending=True)
+            return callback([])
 
         # Fetch the latest open stories.
         kwargs = {
             'story_type': stype,
-            'pending': True,
             'range': {
                 '@timestamp': {
                     'gte': int((time.time() - 7 * 24 * 60 * 60) * 1000)
@@ -722,12 +721,6 @@ class LogsConnection(MistConnection):
             kwargs['owner_id'] = self.enforce_logs_for
 
         get_stories(tornado_async=True, tornado_callback=callback, **kwargs)
-
-        # Fetch also the latest, closed incidents.
-        if stype == 'incident':
-            kwargs.update({'limit': 10, 'pending': False})
-            get_stories(tornado_async=True,
-                        tornado_callback=callback, **kwargs)
 
     def patch_stories(self, event):
         """Send a stories patch.
@@ -750,6 +743,10 @@ class LogsConnection(MistConnection):
                 story = {'error': event['error'],
                          'story_id': sid, 'type': stype,
                          'started_at': event['time'], 'finished_at': 0}
+                # Add event fields that must be present in the story
+                for field in FIELDS:
+                    if field in event and field not in story:
+                        story[field] = event[field]
                 # Include the entire log entry only in case of incidents.
                 if stype == 'incident':
                     story['logs'] = [event]
