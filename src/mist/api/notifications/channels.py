@@ -1,4 +1,3 @@
-import json
 import urllib2
 import logging
 import jsonpatch
@@ -178,8 +177,8 @@ class InAppNotificationChannel(BaseNotificationChannel):
                 amqp_publish_user(self.ntf.owner.id,
                                   routing_key='patch_notifications',
                                   connection=amqp_conn,
-                                  data=json.dumps({'user': user.id,
-                                                   'patch': patch}))
+                                  data={'user': user.id,
+                                        'patch': patch})
 
         # Finally, try to close the AMQP connection.
         try:
