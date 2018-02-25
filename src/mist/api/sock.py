@@ -608,7 +608,8 @@ class MainConnection(MistConnection):
                 self.update_org()
 
         elif routing_key == 'patch_notifications':
-            self.send('patch_notifications', result)
+            if result.get('user') == self.user.id:
+                self.send('patch_notifications', result)
 
         elif routing_key == 'patch_machines':
             cloud_id = result['cloud_id']
