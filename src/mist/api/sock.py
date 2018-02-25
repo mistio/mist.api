@@ -24,7 +24,7 @@ from mist.api.sockjs_mux import MultiplexConnection
 
 from mist.api.logs.methods import log_event
 from mist.api.logs.methods import get_stories
-from mist.api.logs.constants import FIELDS
+from mist.api.logs.methods import create_stories_patch
 
 from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
@@ -717,10 +717,8 @@ class LogsConnection(MistConnection):
                 }
             }
         }
-
         if self.enforce_logs_for is not None:
             kwargs['owner_id'] = self.enforce_logs_for
-
         get_stories(tornado_async=True, tornado_callback=callback, **kwargs)
 
     def patch_stories(self, event):
@@ -733,51 +731,12 @@ class LogsConnection(MistConnection):
         Each patch is meant to either push newly created stories or update
         existing ones simply based on a log entry's metadata.
 
-        The patch's schema conforms with `jsonpatch` (http://jsonpatch.com/).
-
         """
-        patch = []
-        for action, stype, sid in event.get('stories', []):
-            if not self.auth_context.is_owner() and stype != 'incident':
-                continue
-            if action in ('opens', ):
-                story = {'error': event['error'],
-                         'story_id': sid, 'type': stype,
-                         'started_at': event['time'], 'finished_at': 0}
-                # Add event fields that must be present in the story
-                for field in FIELDS:
-                    if field in event and field not in story:
-                        story[field] = event[field]
-                # Include the entire log entry only in case of incidents.
-                if stype == 'incident':
-                    story['logs'] = [event]
-                else:
-                    story['logs'] = [{'log_id': event['log_id']}]
-                # Push an entirely new story as part of the patch.
-                patch.append({'op': 'add',
-                              'path': '/%ss/%s' % (stype, sid),
-                              'value': story})
-            else:
-                # NOTE: The - character is used instead of an index to insert
-                # an item at the end of an array.
-                patch.append({'op': 'add',
-                              'path': '/%ss/%s/logs/-' % (stype, sid),
-                              'value': event['log_id']})
-                if event['error']:
-                    patch.append({'op': 'replace',
-                                  'path': '/%ss/%s/error' % (stype, sid),
-                                  'value': event['error']})
-                # If the latest log closes the story, instead of just updating
-                # it, notify the client-side to atomically update the story's
-                # finished_at timestamp, too.
-                if action == 'closes':
-                    patch.append({'op': 'replace',
-                                  'path': '/%ss/%s/finished_at' % (stype, sid),
-                                  'value': event['time']})
-
-        cls, email = self.__class__.__name__, self.auth_context.user.email
-        log.info('%s emitting %d patch(es) for %s', cls, len(patch), email)
-        self.send('patch_stories', patch)
+        patch = create_stories_patch(self.auth_context, event)
+        if patch:
+            cls, email = self.__class__.__name__, self.auth_context.user.email
+            log.info('%s emitting %d patch(es) for %s', cls, len(patch), email)
+            self.send('patch_stories', patch)
 
     def parse_log(self, event):
         """Parse a single log.
