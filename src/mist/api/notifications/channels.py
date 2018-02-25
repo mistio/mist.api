@@ -1,4 +1,3 @@
-import json
 import urllib2
 import logging
 import jsonpatch
