@@ -307,11 +307,20 @@ class Machine(me.Document):
         'collection': 'machines',
         'indexes': [
             {
-                'fields': ['cloud', 'machine_id'],
+                'fields': [
+                    'cloud',
+                    'machine_id'
+                ],
                 'sparse': False,
                 'unique': True,
                 'cls': False,
-            },
+            }, {
+                'fields': [
+                    'monitoring.installation_status.activated_at'
+                ],
+                'sparse': True,
+                'unique': False
+            }
         ],
         'strict': False,
     }
@@ -381,7 +390,8 @@ class Machine(me.Document):
             'size': self.size,
             'state': self.state,
             'tags': tags,
-            'monitoring': self.monitoring.as_dict() if self.monitoring else '',
+            'monitoring': self.monitoring.as_dict() \
+                if self.monitoring and self.monitoring.hasmonitoring else '',
             'key_associations': [ka.as_dict() for ka in self.key_associations],
             'cloud': self.cloud.id,
             'location': self.location.id if self.location else '',
