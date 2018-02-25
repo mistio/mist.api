@@ -20,12 +20,13 @@ from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 from mist.api.machines.models import InstallationStatus
 
-from mist.api.monitoring.helpers import show_fields
-from mist.api.monitoring.helpers import show_measurements
-
-from mist.api.monitoring.handlers import HANDLERS
-from mist.api.monitoring.handlers import MainStatsHandler
-from mist.api.monitoring.handlers import MultiLoadHandler
+from mist.api.monitoring.influxdb.helpers import show_fields
+from mist.api.monitoring.influxdb.helpers import show_measurements
+from mist.api.monitoring.influxdb.handlers import HANDLERS as INFLUXDB_HANDLERS
+from mist.api.monitoring.influxdb.handlers \
+    import MainStatsHandler as InfluxMainStatsHandler
+from mist.api.monitoring.influxdb.handlers \
+    import MultiLoadHandler as InfluxMultiLoadHandler
 from mist.api.monitoring import traefik
 
 from mist.api.rules.models import Rule
@@ -94,7 +95,9 @@ def get_stats(machine, start='', stop='', step='',
                 metric += '.*'
             if not measurement or measurement == '*':
                 raise BadRequestError('No measurement specified')
-            handler = HANDLERS.get(measurement, MainStatsHandler)(machine)
+            handler = INFLUXDB_HANDLERS.get(
+                measurement, InfluxMainStatsHandler
+            )(machine)
             data = handler.get_stats(metric=metric, start=start, stop=stop,
                                      step=step, callback=callback,
                                      tornado_async=tornado_async)
@@ -126,7 +129,7 @@ def get_load(owner, start='', stop='', step='', uuids=None,
             (start.strip('-'), stop.strip('-'), step)
         )
         # Get load stats.
-        return MultiLoadHandler(influx_uuids).get_stats(
+        return InfluxMultiLoadHandler(influx_uuids).get_stats(
             metric='system.load1',
             start=_start, stop=_stop, step=_step,
             callback=callback,
