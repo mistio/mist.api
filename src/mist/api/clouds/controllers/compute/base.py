@@ -882,7 +882,7 @@ class BaseComputeController(BaseController):
         # FIXME Imported here due to circular dependency issues. Perhaps one
         # way to solve this would be to move CloudLocation under its own dir.
         from mist.api.clouds.models import CloudLocation
-        return CloudLocation.objects(cloud=self.cloud, missing_since=None)
+        return CloudLocation.objects(cloud=self.cloud)
 
     def _list_locations__fetch_locations(self):
         """Fetch location listing in a libcloud compatible format

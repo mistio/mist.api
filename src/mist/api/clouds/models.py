@@ -216,7 +216,6 @@ class CloudLocation(me.Document):
     external_id = me.StringField(required=True)
     name = me.StringField()
     country = me.StringField()
-    missing_since = me.DateTimeField()
     extra = me.DictField()
 
     meta = {
@@ -242,8 +241,6 @@ class CloudLocation(me.Document):
             'external_id': self.external_id,
             'name': self.name,
             'country': self.country,
-            'missing_since': str(self.missing_since.replace(tzinfo=None)
-                                 if self.missing_since else '')
         }
 
 
