@@ -43,9 +43,12 @@ OK = Response("OK", 200)
              request_method='GET', renderer='json')
 def list_machines(request):
     """
-    List machines of all clouds
-    Gets machines and their metadata from all clouds
-    Check Permissions take place in filter_list_machines
+    Tags: machines
+    ---
+    Gets machines and their metadata from all clouds.
+    Check Permissions take place in filter_list_machines.
+    READ permission required on cloud.
+    READ permission required on machine.
     """
     auth_context = auth_context_from_request(request)
     params = params_from_request(request)
@@ -70,9 +73,10 @@ def list_machines(request):
              request_method='GET', renderer='json')
 def list_cloud_machines(request):
     """
-    List machines on cloud
-    Gets machines and their metadata from a cloud
-    Check Permissions take place in filter_list_machines
+    Tags: machines
+    ---
+    Lists machines on cloud along with their metadata.
+    Check Permissions takes place in filter_list_machines.
     READ permission required on cloud.
     READ permission required on machine.
     ---
@@ -102,115 +106,142 @@ def list_cloud_machines(request):
              renderer='json')
 def create_machine(request):
     """
-    Create machine(s) on cloud
+    Tags: machines
+    ---
     Creates one or more machines on the specified cloud. If async is true, a
     jobId will be returned.
     READ permission required on cloud.
-    CREATE_RESOURCES permissn required on cloud.
+    CREATE_RESOURCES permission required on cloud.
     CREATE permission required on machine.
     RUN permission required on script.
     READ permission required on key.
-
     ---
     cloud:
       in: path
       required: true
       type: string
-    async:
-      description: ' Create machines asynchronously, returning a jobId'
-      type: boolean
-    quantity:
-      description: ' The number of machines that will be created, async only'
-      type: integer
-    azure_port_bindings:
+    name:
       type: string
-    cloud_id:
-      description: The Cloud ID
+      description: Name of the machine
       required: true
-      type: string
-    disk:
-      description: ' Only required by Linode cloud'
-      type: string
-    docker_command:
-      type: string
-    docker_env:
-      items:
-        type: string
-      type: array
-    docker_exposed_ports:
-      type: object
-    docker_port_bindings:
-      type: object
-    hostname:
-      type: string
-    image_extra:
-      description: ' Needed only by Linode cloud'
-      type: string
+      example: "my-digital-ocean-machine"
     image:
-      description: ' Id of image to be used with the creation'
+      description: Provider's image id to be used on creation
       required: true
       type: string
-    image_name:
+      example: "17384153"
+    size:
       type: string
-    ips:
+      description: Provider's size id to be used on creation
+      example: "512mb"
+    location:
       type: string
-    job_id:
+      description: Mist internal location id
+      example: "3462b4dfbb434986a7dac362789bc402"
+    key:
+      description: Associate machine with this key. Mist internal key id
       type: string
-    key_id:
-      description: ' Associate machine with this key_id'
-      required: true
-      type: string
-    location_id:
-      description: ' Id of the cloud''s location to create the machine'
-      required: true
-      type: string
-    location_name:
-      type: string
-    machine_name:
-      required: true
-      type: string
+      example: "da1df7d0402043b9a9c786b100992888"
     monitoring:
+      type: boolean
+      description: Enable monitoring on the machine
+      example: false
+    async:
+      description: Create machine asynchronously, returning a jobId
+      type: boolean
+      example: false
+    cloud_init:
+      description: Cloud Init script
       type: string
     networks:
+      type: array
       items:
         type: string
-      type: array
-    plugins:
-      items:
-        type: string
-      type: array
-    post_script_id:
-      type: string
-    post_script_params:
-      type: string
+    schedule:
+      type: object
     script:
       type: string
     script_id:
       type: string
+      example: "e7ac65fb4b23453486778585616b2bb8"
     script_params:
       type: string
-    size_id:
-      description: ' Id of the size of the machine'
-      required: true
+    plugins:
+      type: array
+      items:
+        type: string
+    post_script_id:
       type: string
-    size_name:
+    post_script_params:
       type: string
-    ssh_port:
-      type: integer
+    associate_floating_ip:
+      type: boolean
+      description: Required for Openstack. Either 'true' or 'false'
+    azure_port_bindings:
+      type: string
+      description: Required for Azure
+    create_network:
+      type: boolean
+      description: Required for Azure_arm
+    create_resource_group:
+      type: boolean
+      description: Required for Azure_arm
+    create_storage_account:
+      type: boolean
+      description: Required for Azure_arm
+    ex_storage_account:
+      type: string
+      description: Required for Azure_arm if not create_storage_account
+    ex_resource_group:
+      type: string
+      description: Required for Azure_arm if not create_resource_group
+    machine_password:
+      type: string
+      description: Required for Azure_arm
+    machine_username:
+      type: string
+      description: Required for Azure_arm
+    new_network:
+      type: string
+      description: Required for Azure_arm if create_storage_account
+    new_storage_account:
+      type: string
+      description: Required for Azure_arm if create_storage_account
+    new_resource_group:
+      type: string
+      description: Required for Azure_arm if create_resource_group
+    bare_metal:
+      description: Needed only by SoftLayer cloud
+      type: boolean
+    billing:
+      description: Needed only by SoftLayer cloud
+      type: string
+      example: "hourly"
+    boot:
+      description: Required for OnApp
+      type: boolean
+    build:
+      description: Required for OnApp
+      type: boolean
+    docker_command:
+      type: string
+    docker_env:
+      type: array
+      items:
+        type: string
+    docker_exposed_ports:
+      type: object
+    docker_port_bindings:
+      type: object
+    project_id:
+      description: ' Needed only by Packet cloud'
+      type: string
     softlayer_backend_vlan_id:
       description: 'Specify id of a backend(private) vlan'
       type: integer
-    project_id:
-      description: ' Needed only by Packet.net cloud'
-      type: string
-    billing:
-      description: ' Needed only by SoftLayer cloud'
-      type: string
-    bare_metal:
-      description: ' Needed only by SoftLayer cloud'
-      type: string
-    schedule:
-      type: dict
+    ssh_port:
+      type: integer
+      example: 22
     """
 
     params = params_from_request(request)
@@ -422,7 +453,31 @@ def create_machine(request):
              renderer='json')
 def add_machine(request):
     """
+    Tags: machines
+    ---
     Add a machine to an OtherServer Cloud. This works for bare_metal clouds.
+    ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    machine_ip:
+      type: string
+      required: true
+    operating_system:
+      type: string
+    machine_name:
+      type: string
+    machine_key:
+      type: string
+    machine_user:
+      type: string
+    machine_port:
+      type: string
+    remote_desktop_port:
+      type: string
+    monitoring:
+      type: boolean
     """
     cloud_id = request.matchdict.get('cloud')
     params = params_from_request(request)
@@ -503,11 +558,12 @@ def add_machine(request):
              request_method='POST', renderer='json')
 def machine_actions(request):
     """
-    Call an action on machine
-    Calls a machine action on cloud that support it
+    Tags: machines
+    ---
+    Calls a machine action on cloud that supports it.
     READ permission required on cloud.
     ACTION permission required on machine(ACTION can be START,
-    STOP, DESTROY, REBOOT).
+    STOP, DESTROY, REBOOT or RESIZE, RENAME for some providers).
     ---
     machine_uuid:
       in: path
@@ -640,8 +696,10 @@ def machine_actions(request):
              request_method='GET', renderer='json')
 def machine_rdp(request):
     """
-    Rdp file for windows machines
-    Generate and return an rdp file for windows machines
+    Tags: machines
+    ---
+    Rdp file for windows machines.
+    Generates and returns an rdp file for windows machines.
     READ permission required on cloud.
     READ permission required on machine.
     ---
@@ -720,7 +778,9 @@ def machine_rdp(request):
              request_method='POST', renderer='json')
 def machine_console(request):
     """
-    Open VNC console
+    Tags: machines
+    ---
+    Open VNC console.
     Generate and return an URI to open a VNC console to target machine
     READ permission required on cloud.
     READ permission required on machine.
