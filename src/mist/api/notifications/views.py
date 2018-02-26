@@ -64,8 +64,8 @@ def dismiss_notification(request):
     return Response("OK", 200)
 
 
-@view_config(route_name='api_v1_notification_override',
-             request_method='PUT', renderer='json')
+@view_config(route_name='api_v1_notification_overrides',
+             request_method='POST', renderer='json')
 def add_notification_override(request):
     """
     Tags: notifications
@@ -78,11 +78,13 @@ def add_notification_override(request):
       required: true
     """
     auth_context = auth_context_from_request(request)
-    ntf_id = request.matchdict.get("notification_id")
+    params = params_from_request(request)
+    ntf_id = params.get("notification_id")
     if not ntf_id:
         raise RequiredParameterMissingError("notification_id")
     try:
         ntf = Notification.objects.get(id=ntf_id, owner=auth_context.owner)
+        ntf.channel.dismiss(auth_context.user)
     except Notification.DoesNotExist:
         raise NotFoundError()
     try:
@@ -122,10 +124,10 @@ def get_notification_overrides(request):
                                                 user_id=auth_context.user.id)
     except UserNotificationPolicy.DoesNotExist:
         raise NotFoundError()
-    return json.dumps(np.overrides, default=lambda x: x.as_dict())  # FIXME
+    return [o.as_dict() for o in np.overrides]
 
 
-@view_config(route_name='api_v1_notification_overrides',
+@view_config(route_name='api_v1_notification_override',
              request_method='DELETE', renderer='json')
 def delete_notification_override(request):
     """
@@ -135,11 +137,7 @@ def delete_notification_override(request):
     ---
     """
     auth_context = auth_context_from_request(request)
-    params = params_from_request(request)
-    override_id = params.get("override_id", {}).get("$oid")  # FIXME
-    if not override_id:
-        raise RequiredParameterMissingError("override_id")
-
+    override_id = request.matchdict.get("override_id")
     try:
         np = UserNotificationPolicy.objects.get(owner=auth_context.owner,
                                                 user_id=auth_context.user.id)
