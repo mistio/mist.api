@@ -1,15 +1,24 @@
 import time
+import logging
 
 from mist.api import config
+
+from mist.api.exceptions import NotFoundError, ServiceUnavailableError
 
 from mist.api.helpers import trigger_session_update
 
 from mist.api.rules.tasks import add_nodata_rule
 
-from mist.api.monitoring.graphite.handlers import MultiHandler
+from mist.api.clouds.models import Cloud
+from mist.api.machines.models import Machine
+
+from mist.api.monitoring.graphite.handlers import MultiHandler, get_multi_uuid
 
 
-def graphite_get_stats(machine, start="", stop="", step="", metrics=None):
+log = logging.getLogger(__name__)
+
+
+def get_stats(machine, start="", stop="", step="", metrics=None):
     if not metrics:
         metrics = (config.GRAPHITE_BUILTIN_METRICS.keys() +
                    machine.monitoring.metrics)
@@ -78,3 +87,40 @@ def _clean_monitor_metrics(owner, data):
         return metric_id, item
 
     return dict([_clean_monitor_metric(owner, item) for item in data])
+
+
+def _get_multimachine_stats(owner, metric, start='', stop='', step='',
+                            uuids=None):
+    if not uuids:
+        uuids = [machine.id for machine in Machine.objects(
+            cloud__in=Cloud.objects(owner=owner, deleted=None),
+            monitoring__hasmonitoring=True
+        )]
+    if not uuids:
+        raise NotFoundError("No machine has monitoring enabled.")
+    try:
+        data = get_multi_uuid(uuids, metric, start=start, stop=stop,
+                              interval_str=step)
+    except Exception as exc:
+        log.error("Error getting %s: %r", metric, exc)
+        raise ServiceUnavailableError()
+    ret = {}
+    for item in data:
+        uuid = item['target'].split('.')[1]
+        item['name'] = uuid
+        ret[uuid] = item
+    return ret
+
+
+def get_load(owner, start='', stop='', step='', uuids=None):
+    return _get_multimachine_stats(
+        owner, 'bucky.%(uuid)s.load.shortterm',
+        start=start, stop=stop, step=step, uuids=uuids,
+    )
+
+
+def get_cores(owner, start='', stop='', step='', uuids=None):
+    return _get_multimachine_stats(
+        owner, 'groupByNode(bucky.%(uuid)s.cpu.*.system,1,"countSeries")',
+        start=start, stop=stop, step=step, uuids=uuids,
+    )

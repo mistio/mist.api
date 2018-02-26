@@ -653,3 +653,23 @@ class MultiHandler(GenericHandler):
 
     def decorate_target(self, target):
         return self.get_handler(target).decorate_target(target)
+
+
+def get_multi_uuid(uuids, target, start="", stop="", interval_str=""):
+    """Get the same metric for multiple uuids
+
+    uuids should be a list of uuids
+    target should be a string containing '%(uuid)s'
+    """
+    target = target % {'uuid': '{' + ','.join(uuids) + '}'}
+    if interval_str:
+        target = summarize(target, interval_str)
+    params = [('target', target),
+              ('from', start or None),
+              ('until', stop or None),
+              ('format', 'json')]
+    resp = requests.get('%s/render' % config.GRAPHITE_URI, params=params)
+    if not resp.ok:
+        log.error(resp.text)
+        raise Exception(str(resp))
+    return resp.json()

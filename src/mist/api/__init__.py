@@ -331,6 +331,7 @@ def add_routes(configurator):
         'api_v1_cloud_stats',
         '/api/v1/clouds/{cloud}/machines/{machine}/stats')
     configurator.add_route('api_v1_stats', '/api/v1/machines/{machine}/stats')
+    configurator.add_route('api_v1_load', '/api/v1/machines/stats/load')
 
     # Notifications
     configurator.add_route(
