@@ -39,6 +39,10 @@ def as_percent(series_list, total=None):
         return "asPercent(%s)" % series_list
 
 
+def per_second(series_list):
+    return "perSecond(%s)" % (series_list, )
+
+
 def exclude(series_list, regex):
     return "exclude(%s,'%s')" % (series_list, regex)
 
@@ -48,8 +52,9 @@ def alias(series_list, name):
 
 
 class GenericHandler(object):
-    def __init__(self, uuid):
+    def __init__(self, uuid, telegraf=False):
         self.uuid = uuid
+        self.telegraf = telegraf
 
     def head(self):
         return "bucky.%s" % self.uuid
@@ -189,9 +194,6 @@ class GenericHandler(object):
 class CustomHandler(GenericHandler):
     plugin = ""
 
-    def __init__(self, uuid):
-        super(CustomHandler, self).__init__(uuid)
-
     def find_metrics(self, plugin=""):
         if not plugin:
             plugin = self.plugin
@@ -306,6 +308,8 @@ class DiskHandler(CustomHandler):
                 target = sum_series(
                     "%(head)s." + "disk.*.%s.%s" % (kind, direction)
                 )
+            if self.telegraf:
+                target = per_second(target)
         return target, alias
 
 
@@ -376,6 +380,8 @@ class InterfaceHandler(CustomHandler):
                 target = sum_series(
                     "%(head)s." + "interface.*.%s.%s" % (kind, direction)
                 )
+            if self.telegraf:
+                target = per_second(target)
         return target, alias
 
 
@@ -549,8 +555,8 @@ class PingHandler(CustomHandler):
 
 
 class MultiHandler(GenericHandler):
-    def __init__(self, uuid):
-        super(MultiHandler, self).__init__(uuid)
+    def __init__(self, uuid, telegraf=False):
+        super(MultiHandler, self).__init__(uuid, telegraf=telegraf)
         self.handlers = {
             'generic': GenericHandler,
             'interface': InterfaceHandler,
@@ -572,7 +578,7 @@ class MultiHandler(GenericHandler):
                 if parts[1] in self.handlers:
                     plugin = parts[1]
         log.debug("get_handler plugin: %s", plugin)
-        return self.handlers[plugin](self.uuid)
+        return self.handlers[plugin](self.uuid, telegraf=self.telegraf)
 
     def find_metrics(self, plugin=""):
         if plugin:

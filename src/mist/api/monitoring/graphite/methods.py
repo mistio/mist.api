@@ -32,7 +32,10 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
         'network-tx': 'interface.total.if_octets.tx',
     }
     targets = [old_targets.get(metric, metric) for metric in metrics]
-    handler = MultiHandler(machine.id)
+    handler = MultiHandler(
+        machine.id,
+        telegraf=machine.monitoring.method == 'telegraf-graphite',
+    )
     data = handler.get_data(targets, start, stop, interval_str=step)
     for item in data:
         if item['alias'].rfind("%(head)s.") == 0:
