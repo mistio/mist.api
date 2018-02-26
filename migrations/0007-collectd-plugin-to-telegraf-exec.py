@@ -1,14 +1,19 @@
 import re
+import argparse
 import traceback
 
 from mist.api.scripts.models import CollectdScript
 from mist.api.scripts.models import TelegrafScript
 
 
-def migrate():
+def migrate(org_ids=None):
     """Migrate collectd plugins to telegraf executables"""
 
-    scripts = CollectdScript.objects(deleted=None, migrated__ne=True)
+    kwargs = {'deleted': None, 'migrated__ne': True}
+    if org_ids:
+        kwargs['owner__in'] = org_ids
+
+    scripts = CollectdScript.objects(**kwargs)
     unmigrated = scripts.count()
     succeeded = failed = 0
 
@@ -70,5 +75,17 @@ def migrate():
     print
 
 
+def parse_args():
+    argparser = argparse.ArgumentParser(
+        description="Migrate Collectd scripts to Telegraf executables."
+    )
+    argparser.add_argument(
+        'org_ids', nargs='*',
+        help=("The IDs of the Organizations for which we wish to run the "
+              "migration. Multiple IDs may be specified. If no IDs are given, "
+              "the migration will apply to all Organizations."))
+    return argparser.parse_args()
+
+
 if __name__ == '__main__':
-    migrate()
+    migrate(parse_args().org_ids)

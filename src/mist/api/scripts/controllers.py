@@ -304,7 +304,11 @@ $(command -v sudo) /opt/mistio/telegraf/usr/bin/telegraf -test -config %s
         retval, test_out, test_err = shell.command(test_code, pty=False)
         stdout += test_out
         if test_err:
-            raise BadRequestError('Test of read() failed: %s' % test_err)
+            raise BadRequestError(
+                "Test of read() function failed. Ensure the script's output "
+                "is in the correct format for telegraf to parse. Expected "
+                "format is 'measurement_name field1=val1[,field2=val2,...]'."
+                "Error: %s" % test_err)
 
         # After the test/dry run, parse the series from stdout to gather
         # the measurement's name, tags, and values.
@@ -315,26 +319,28 @@ $(command -v sudo) /opt/mistio/telegraf/usr/bin/telegraf -test -config %s
                 measurement_and_tags, values, timestamp = line.split()
                 measurement, tags = measurement_and_tags.split(',', 1)
                 series.append((measurement, tags, values))
-
         if not series:
             raise BadRequestError('No computed series found in stdout')
 
-        # Construct a list of `metric_id`s. In case of InfluxDB, we have to
-        # make sure that we get all available values for a given measurement.
-        # For the Graphite-based system, we have to check whether the metric
-        # will be stored at the top level or under its own directory in order
-        # to modify the `metric_id` accordingly.
-        if machine.monitoring.method == 'telegraf-influxdb':
-            metrics = ['%s.*' % s[0] for s in series]
-        if machine.monitoring.method == 'telegraf-graphite':
-            metrics = []
-            for s in series:
-                metric_id = s[0]
-                values_list = s[2].split(',')
-                column = values_list[0].split('=')[0]
-                if len(values_list) > 1 or column != 'value':
-                    metric_id += '.*'
-                metrics.append(metric_id)
+        # Construct a list of `metric_id`s. All `metric_id`s are in the form:
+        # `<measurement>.<column>`. The aforementioned notation does not hold
+        # for the Graphite-based system, if the column name is "value", since
+        # in that case Graphite stores the series at the top level and not in
+        # a subdirectory, thus the measurement name suffices to query for the
+        # specified metric.
+        metrics = []
+        for s in series:
+            measurement = s[0]
+            values_list = s[2].split(',')
+            for value in values_list:
+                metric = measurement
+                column = value.split('=')[0]
+                if not (machine.monitoring.method == 'telegraf-graphite' and
+                        column == 'value'):
+                    metric += '.' + column
+                if metric in machine.monitoring.metrics:
+                    raise BadRequestError('Metric %s already exists' % metric)
+                metrics.append(metric)
 
         # Copy the plugin to the proper directory in order to be picked up by
         # telegraf.
