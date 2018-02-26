@@ -27,6 +27,9 @@ from mist.api.monitoring.influxdb.handlers \
     import MainStatsHandler as InfluxMainStatsHandler
 from mist.api.monitoring.influxdb.handlers \
     import MultiLoadHandler as InfluxMultiLoadHandler
+
+from mist.api.monitoring.graphite.methods import graphite_get_stats
+
 from mist.api.monitoring import traefik
 
 from mist.api.rules.models import Rule
@@ -69,11 +72,12 @@ def get_stats(machine, start='', stop='', step='',
     if machine.monitoring.method in ('collectd-graphite', 'telegraf-graphite'):
         if not config.HAS_CORE:
             raise Exception()
-        from mist.core.methods import _graphite_get_stats
-        return _graphite_get_stats(
+        stats = graphite_get_stats(
             machine, start=start, stop=stop, step=step, metrics=metrics,
-            callback=callback, tornado_async=tornado_async,
         )
+        if not callback:
+            return stats
+        return callback(stats)
     elif machine.monitoring.method == 'telegraf-influxdb':
         if not metrics:
             metrics = (config.INFLUXDB_BUILTIN_METRICS.keys() +
