@@ -795,9 +795,8 @@ class VSphereComputeController(BaseComputeController):
     def _list_locations__fetch_locations(self):
         """List locations for vSphere
 
-        If there are n EC2 all locations of a region have the same name, so the
-        availability zones are listed instead.
-
+        If there are clusters with drs enabled, return those.
+        Otherwise return the list of available hosts.
         """
         locations = self.connection.list_locations()
         clusters = [l for l in locations
