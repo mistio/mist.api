@@ -210,8 +210,7 @@ def check_monitoring(owner):
             # Keep for backwards compatibility
             'builtin_metrics': config.GRAPHITE_BUILTIN_METRICS,
             'builtin_metrics_graphite': config.GRAPHITE_BUILTIN_METRICS,
-            # FIXME
-            # 'builtin_metrics_influxdb': config.INFLUXDB_BUILTIN_METRICS,
+            'builtin_metrics_influxdb': config.INFLUXDB_BUILTIN_METRICS,
         })
     else:
         ret.update({
