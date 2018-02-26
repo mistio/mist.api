@@ -875,6 +875,11 @@ class BaseComputeController(BaseController):
                                        "errors": exc.to_dict()})
             locations.append(_location)
 
+        # Delete existing locations not returned by libcloud
+        CloudLocation.objects(cloud=self.cloud,
+                              external_id__nin=[l.external_id
+                                                for l in locations]).delete()
+
         return locations
 
     def list_cached_locations(self):
