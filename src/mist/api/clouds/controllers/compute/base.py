@@ -849,7 +849,7 @@ class BaseComputeController(BaseController):
 
             try:
                 _size.price = float(size.price or 0)
-            except ValueError:
+            except Exception:
                 log.error("Could not convert %s to float.", size.price)
 
             _size.name = self._list_sizes__get_name(size, cpus)
