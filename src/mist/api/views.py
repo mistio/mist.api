@@ -1113,51 +1113,6 @@ def list_locations(request):
     return [location.as_dict() for location in locations]
 
 
-<<<<<<< HEAD
-=======
-@view_config(route_name='api_v1_subnets', request_method='GET',
-             renderer='json')
-def list_subnets(request):
-    """
-    Tags: networks
-    ---
-    List subnets of a cloud.
-    Currently supports the EC2, GCE and OpenStack clouds.
-    For other providers this returns an empty list.
-    READ permission required on cloud.
-    ---
-    cloud:
-      in: path
-      required: true
-      type: string
-    network_id:
-      in: path
-      required: true
-      description: The DB ID of the network whose subnets will be returned
-      type: string
-    """
-
-    cloud_id = request.matchdict['cloud']
-    network_id = request.matchdict['network']
-    auth_context = auth_context_from_request(request)
-    auth_context.check_perm("cloud", "read", cloud_id)
-
-    try:
-        cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id)
-    except Cloud.DoesNotExist:
-        raise CloudNotFoundError
-
-    try:
-        network = Network.objects.get(cloud=cloud, id=network_id)
-    except Network.DoesNotExist:
-        raise NetworkNotFoundError
-
-    subnets = methods.list_subnets(cloud, network=network)
-
-    return subnets
-
-
->>>>>>> staging
 @view_config(route_name='api_v1_subnets', request_method='POST',
              renderer='json')
 def create_subnet(request):
