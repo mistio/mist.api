@@ -24,11 +24,14 @@ from mist.api.sockjs_mux import MultiplexConnection
 
 from mist.api.logs.methods import log_event
 from mist.api.logs.methods import get_stories
+from mist.api.logs.methods import create_stories_patch
 
 from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 
 from mist.api.auth.methods import auth_context_from_session_id
+
+from mist.api.helpers import maybe_submit_cloud_task
 
 from mist.api.exceptions import UnauthorizedError, MistError
 from mist.api.exceptions import PolicyUnauthorizedError
@@ -435,6 +438,10 @@ class MainConnection(MistConnection):
                                ('list_projects', tasks.ListProjects())])
         for key, task in periodic_tasks:
             for cloud in clouds:
+                # Avoid submitting new celery tasks, when it's certain that
+                # they will exit immediately without performing any actions.
+                if not maybe_submit_cloud_task(cloud, key):
+                    continue
                 cached = task.smart_delay(self.owner.id, cloud.id)
                 if cached is not None:
                     log.info("Emitting %s from cache", key)
@@ -457,7 +464,7 @@ class MainConnection(MistConnection):
                          owner=self.auth_context.org,
                          dismissed_by__ne=self.auth_context.user.id)]
         log.info("Emitting notifications list")
-        self.send('notifications', json.dumps(notifications))  # FIXME dump?
+        self.send('notifications', notifications)
 
     def check_monitoring(self):
         try:
@@ -608,7 +615,7 @@ class MainConnection(MistConnection):
                 self.update_org()
 
         elif routing_key == 'patch_notifications':
-            if json.loads(result).get('user') == self.user.id:
+            if result.get('user') == self.user.id:
                 self.send('patch_notifications', result)
 
         elif routing_key == 'patch_machines':
@@ -695,46 +702,52 @@ class LogsConnection(MistConnection):
                 event[key] = value
         except:
             pass
-        for stype in set([stype for _, stype, _ in event.get('stories', [])]):
-            self.send_stories(stype)
         if self.filter_log(event):
             self.send('event', self.parse_log(event))
+        self.patch_stories(event)
 
     def send_stories(self, stype):
         """Send open stories of the specified type."""
 
-        def callback(stories, pending=False):
+        def callback(stories):
             email = self.auth_context.user.email
-            ename = '%s_%ss' % ('open' if pending else 'closed', stype)
+            ename = '%ss' % stype
             log.info('Will emit %d %s for %s', len(stories), ename, email)
             self.send(ename, stories)
 
         # Only send incidents for non-Owners.
         if not self.auth_context.is_owner() and stype != 'incident':
-            self.send('open_%ss' % stype, [])
-            return
+            return callback([])
 
         # Fetch the latest open stories.
         kwargs = {
             'story_type': stype,
-            'pending': True,
             'range': {
                 '@timestamp': {
                     'gte': int((time.time() - 7 * 24 * 60 * 60) * 1000)
                 }
             }
         }
-
         if self.enforce_logs_for is not None:
             kwargs['owner_id'] = self.enforce_logs_for
-
         get_stories(tornado_async=True, tornado_callback=callback, **kwargs)
 
-        # Fetch also the latest, closed incidents.
-        if stype == 'incident':
-            kwargs.update({'limit': 10, 'pending': False})
-            get_stories(tornado_async=True,
-                        tornado_callback=callback, **kwargs)
+    def patch_stories(self, event):
+        """Send a stories patch.
+
+        Push an update of stories by creating a patch based on the `stories`
+        included in `event`, which describes the diff that should be applied
+        on existing stories.
+
+        Each patch is meant to either push newly created stories or update
+        existing ones simply based on a log entry's metadata.
+
+        """
+        patch = create_stories_patch(self.auth_context, event)
+        if patch:
+            cls, email = self.__class__.__name__, self.auth_context.user.email
+            log.info('%s emitting %d patch(es) for %s', cls, len(patch), email)
+            self.send('patch_stories', patch)
 
     def parse_log(self, event):
         """Parse a single log.
@@ -744,7 +757,7 @@ class LogsConnection(MistConnection):
         Override this method in order to add/remove fields to/from a log entry.
 
         """
-        for param in ('@version', 'stories', 'tags', '_traceback', '_exc', ):
+        for param in ('@version', 'tags', '_traceback', '_exc', ):
             event.pop(param, None)
         return event
 
