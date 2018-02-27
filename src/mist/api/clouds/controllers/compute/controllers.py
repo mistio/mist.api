@@ -792,6 +792,19 @@ class VSphereComputeController(BaseComputeController):
         host = node.extra.get('host', '')
         return cluster or host
 
+    def _list_locations__fetch_locations(self):
+        """List locations for vSphere
+
+        If there are clusters with drs enabled, return those.
+        Otherwise return the list of available hosts.
+        """
+        locations = self.connection.list_locations()
+        clusters = [l for l in locations
+                    if l.extra['type'] == 'cluster' and l.extra['drs']]
+        hosts = [l for l in locations if l.extra['type'] == 'host']
+
+        return clusters or hosts
+
 
 class VCloudComputeController(BaseComputeController):
 
