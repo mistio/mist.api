@@ -56,29 +56,3 @@ class CloudImage(me.Document):
                 self.os_type = 'vyatta'
 
         super(CloudImage, self).clean()
-
-
-class CloudSize(me.Document):
-    """A base Cloud Size Model."""
-    size_id = me.StringField(required=True)
-    cloud_provider = me.StringField(required=True)
-    cloud_region = me.StringField()  # eg for RackSpace
-    name = me.StringField()
-    price = me.StringField()
-    deprecated = me.BooleanField(default=False)
-
-    meta = {
-        'indexes': [
-            'cloud_provider',
-            {
-                'fields': ['cloud_provider', 'cloud_region', 'size_id'],
-                'sparse': False,
-                'unique': True,
-                'cls': False,
-            },
-        ],
-    }
-
-    def __str__(self):
-        name = "%s, %s (%s)" % (self.name, self.size_id, self.cloud_provider)
-        return name

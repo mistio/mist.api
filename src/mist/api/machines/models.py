@@ -260,6 +260,7 @@ class Machine(me.Document):
     cloud = me.ReferenceField('Cloud', required=True)
     owner = me.ReferenceField('Organization', required=True)
     location = me.ReferenceField('CloudLocation', required=False)
+    size = me.ReferenceField('CloudSize', required=False)
     name = me.StringField()
 
     # Info gathered mostly by libcloud (or in some cases user input).
@@ -277,7 +278,6 @@ class Machine(me.Document):
     extra = me.DictField()
     cost = me.EmbeddedDocumentField(Cost, default=lambda: Cost())
     image_id = me.StringField()
-    size = me.StringField()
     # libcloud.compute.types.NodeState
     state = me.StringField(default='unknown',
                            choices=('running', 'starting', 'rebooting',
@@ -378,13 +378,13 @@ class Machine(me.Document):
             'extra': self.extra,
             'cost': self.cost.as_dict(),
             'image_id': self.image_id,
-            'size': self.size,
             'state': self.state,
             'tags': tags,
             'monitoring': self.monitoring.as_dict() if self.monitoring else '',
             'key_associations': [ka.as_dict() for ka in self.key_associations],
             'cloud': self.cloud.id,
             'location': self.location.id if self.location else '',
+            'size': self.size.id if self.size else '',
             'cloud_title': self.cloud.title,
             'last_seen': str(self.last_seen.replace(tzinfo=None)
                              if self.last_seen else ''),

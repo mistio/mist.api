@@ -196,7 +196,6 @@ class BaseComputeController(BaseController):
         implementation.
 
         """
-
         task_key = 'cloud:list_machines:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
         try:
@@ -300,6 +299,18 @@ class BaseComputeController(BaseController):
             locations_map[location.external_id] = location
             locations_map[location.name] = location
 
+        # FIXME Imported here due to circular dependency issues. Perhaps one
+        # way to solve this would be to move CloudSize under its own dir.
+        from mist.api.clouds.models import CloudSize
+
+        # This is a map of sizes' external IDs and names to CloudSize
+        # mongoengine objects. It is used to lookup cached sizes based on
+        # a node's metadata in order to associate VM instances to their size.
+        sizes_map = {}
+        for size in CloudSize.objects(cloud=self.cloud):
+            sizes_map[size.external_id] = size
+            sizes_map[size.name] = size
+
         # Process each machine in returned list.
         # Store previously unseen machines separately.
         new_machines = []
@@ -326,6 +337,7 @@ class BaseComputeController(BaseController):
                 machine.location = locations_map.get(location_id)
 
             # Get misc libcloud metadata.
+
             image_id = ''
             if isinstance(node.extra.get('image'), dict):
                 image_id = str(node.extra.get('image').get('id'))
@@ -335,12 +347,15 @@ class BaseComputeController(BaseController):
                                node.extra.get('image_id') or
                                node.extra.get('image') or '')
 
-            size = (node.size or node.extra.get('flavorId') or
-                    node.extra.get('instancetype'))
+            try:
+                size = self._list_machines__get_size(node)
+            except Exception as exc:
+                log.error("Error getting size of %s: %r", machine, exc)
+            else:
+                machine.size = sizes_map.get(size)
 
             machine.name = node.name
             machine.image_id = image_id
-            machine.size = size
             machine.state = config.STATES[node.state]
             machine.private_ips = list(set(node.private_ips))
             machine.public_ips = list(set(node.public_ips))
@@ -728,11 +743,12 @@ class BaseComputeController(BaseController):
     def image_is_default(self, image_id):
         return True
 
-    def list_sizes(self):
+    def list_sizes(self, persist=True):
         """Return list of sizes for cloud
 
-        This returns the results obtained from libcloud, after some processing,
-        formatting and injection of extra information in a sane format.
+        A list of sizes is fetched from libcloud, data is processed, stored
+        on size models, and a list of size models is returned in a sane
+        format.
 
         Subclasses SHOULD NOT override or extend this method.
 
@@ -740,38 +756,152 @@ class BaseComputeController(BaseController):
         to allow subclasses to modify the data according to the specific of
         their cloud type. These methods currently are:
 
-            `self._list_sizes__fetch_sizes`
+            `self._list_sizes`
 
         Subclasses that require special handling should override these, by
         default, dummy methods.
 
         """
+        task_key = 'cloud:list_sizes:%s' % self.cloud.id
+        task = PeriodicTaskInfo.get_or_add(task_key)
+        with task.task_runner(persist=persist):
+            cached_sizes = {'%s' % s.id: s.as_dict()
+                            for s in self.list_cached_sizes()}
+            sizes = self._list_sizes()
 
-        # Fetch sizes, usually from libcloud connection.
-        sizes = self._list_sizes__fetch_sizes()
+        # Initialize AMQP connection to reuse for multiple messages.
+        amqp_conn = Connection(config.AMQP_URI)
+        if amqp_owner_listening(self.cloud.owner.id):
+            sizes_dict = [s.as_dict() for s in sizes]
+            if cached_sizes and sizes_dict:
+                # Publish patches to rabbitmq.
+                new_sizes = {'%s' % s['id']: s for s in sizes_dict}
+                patch = jsonpatch.JsonPatch.from_diff(cached_sizes,
+                                                      new_sizes).patch
+                if patch:
+                    amqp_publish_user(self.cloud.owner.id,
+                                      routing_key='patch_sizes',
+                                      connection=amqp_conn,
+                                      data={'cloud_id': self.cloud.id,
+                                            'patch': patch})
 
-        # Format size information.
-        return [{'id': size.id,
-                 'name': size.name,
-                 'bandwidth': size.bandwidth,
-                 'disk': size.disk,
-                 'driver': size.driver.name,
-                 'price': size.price,
-                 'ram': size.ram,
-                 'extra': size.extra} for size in sizes]
+            else:
+                # TODO: remove this block, once location patches
+                # are implemented in the UI
+                amqp_publish_user(self.cloud.owner.id,
+                                  routing_key='list_sizes',
+                                  connection=amqp_conn,
+                                  data={'cloud_id': self.cloud.id,
+                                        'sizes': sizes_dict})
+        return [size for size in sizes]
+
+    def _list_sizes(self):
+        """Fetch size listing in a libcloud compatible format
+
+        This is to be called exclusively by `self.list_sizes`.
+
+        Subclasses MAY override this method.
+
+        """
+        try:
+            fetched_sizes = self._list_sizes__fetch_sizes()
+
+            log.info("List sizes returned %d results for %s.",
+                     len(fetched_sizes), self.cloud)
+        except InvalidCredsError as exc:
+            log.warning("Invalid creds on running list_sizes on %s: %s",
+                        self.cloud, exc)
+            raise CloudUnauthorizedError(msg=exc.message)
+        except (requests.exceptions.SSLError, ssl.SSLError) as exc:
+            log.error("SSLError on running list_sizes on %s: %s",
+                      self.cloud, exc)
+            raise SSLError(exc=exc)
+        except Exception as exc:
+            log.exception("Error while running list_sizes on %s", self.cloud)
+            raise CloudUnavailableError(exc=exc)
+
+        sizes = []
+
+        for size in fetched_sizes:
+            # create the object in db if it does not exist
+            # FIXME: resolve circular import issues
+            from mist.api.clouds.models import CloudSize
+            try:
+                _size = CloudSize.objects.get(cloud=self.cloud,
+                                              external_id=size.id)
+            except CloudSize.DoesNotExist:
+                _size = CloudSize(cloud=self.cloud, external_id=size.id)
+
+            _size.name = size.name
+            _size.disk = size.disk
+            _size.bandwidth = size.bandwidth
+            try:
+                _size.ram = self._list_sizes__get_ram(size)
+            except Exception as exc:
+                log.error(repr(exc))
+
+            try:
+                cpus = self._list_sizes__get_cpu(size)
+                _size.cpus = cpus
+            except Exception as exc:
+                log.error(repr(exc))
+
+            try:
+                _size.price = float(size.price or 0)
+            except Exception:
+                log.error("Could not convert %s to float.", size.price)
+
+            try:
+                _size.save()
+                sizes.append(_size)
+            except me.ValidationError as exc:
+                log.error("Error adding %s: %s", size.name, exc.to_dict())
+                raise BadRequestError({"msg": exc.message,
+                                       "errors": exc.to_dict()})
+
+            # Delete existing sizes not returned by libcloud
+            CloudSize.objects(cloud=self.cloud,
+                              external_id__nin=[s.external_id
+                                                for s in sizes]).delete()
+
+        return sizes
 
     def _list_sizes__fetch_sizes(self):
         """Fetch size listing in a libcloud compatible format
 
-        This is to be called exclusively by `self.list_sizes`.
+        This is to be called exclusively by `self._list_sizes`.
 
         Most subclasses that use a simple libcloud connection, shouldn't need
         to override or extend this method.
 
         Subclasses MAY override this method.
-
         """
         return self.connection.list_sizes()
+
+    def _list_sizes__get_cpu(self, size):
+        return int(size.extra.get('cpus') or 1)
+
+    def _list_sizes__get_ram(self, size):
+        """Returns ram of size, as it will be
+        shown to the end user
+        """
+        return int(size.ram) if size.ram else None
+
+    def list_cached_sizes(self):
+        """Return list of sizes from database
+        for a specific cloud
+        """
+        # FIXME: resolve circular import issues
+        from mist.api.clouds.models import CloudSize
+        return CloudSize.objects(cloud=self.cloud)
+
+    def _list_machines__get_size(self, node):
+        """Return key of size_map dict for a
+        specific node
+
+        Subclasses MAY override this method.
+        """
+        return node.size
 
     def list_locations(self, persist=True):
         """Return list of locations for cloud
@@ -787,14 +917,11 @@ class BaseComputeController(BaseController):
         """
         task_key = 'cloud:list_locations:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
-        try:
-            with task.task_runner(persist=persist):
-                cached_locations = {'%s' % l.id: l.as_dict()
-                                    for l in self.list_cached_locations()}
+        with task.task_runner(persist=persist):
+            cached_locations = {'%s' % l.id: l.as_dict()
+                                for l in self.list_cached_locations()}
 
-                locations = self._list_locations()
-        except PeriodicTaskThresholdExceeded:
-            raise
+            locations = self._list_locations()
 
         # Initialize AMQP connection to reuse for multiple messages.
         amqp_conn = Connection(config.AMQP_URI)
@@ -819,7 +946,8 @@ class BaseComputeController(BaseController):
                                   connection=amqp_conn,
                                   data={'cloud_id': self.cloud.id,
                                         'locations': locations_dict})
-        return locations
+        return [location for location in locations
+                if location.missing_since is None]
 
     def _list_locations(self):
         """Return list of available locations for current cloud
