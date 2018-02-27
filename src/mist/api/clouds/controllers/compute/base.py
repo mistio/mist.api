@@ -842,9 +842,9 @@ class BaseComputeController(BaseController):
 
             if size.ram:
                 try:
-                     _size.ram = int(re.sub("\D", "", size.ram))
-                 except Exception as exc:
-                     log.error(repr(exc))
+                    _size.ram = int(re.sub("\D", "", size.ram))
+                except Exception as exc:
+                    log.error(repr(exc))
 
             try:
                 cpus = self._list_sizes__get_cpu(size)
