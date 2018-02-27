@@ -205,7 +205,17 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                                 name=cloud_location.name,
                                 country=cloud_location.country, driver=conn)
     except me.DoesNotExist:
-        location = None
+        # make sure mongo is up-to-date
+        cloud.ctl.compute.list_locations()
+        try:
+            from mist.api.clouds.models import CloudLocation
+            cloud_location = CloudLocation.objects.get(id=location_id)
+            location = NodeLocation(cloud_location.external_id,
+                                    name=cloud_location.name,
+                                    country=cloud_location.country, driver=conn)
+        except me.DoesNotExist:
+            location = NodeLocation(location_id, name=location_name, country='',
+                                    driver=conn)
 
     # transform size id to libcloud's NodeSize object
     try:
@@ -219,8 +229,21 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                         price=cloud_size.price,
                         driver=conn)
     except me.DoesNotExist:
-        cloud_size = None
-        size = None
+        # make sure mongo is up-to-date
+        cloud.ctl.compute.list_sizes()
+        try:
+            cloud_size = CloudSize.objects.get(id=size_id)
+            size = NodeSize(cloud_size.external_id,
+                            name=cloud_size.name,
+                            ram=cloud_size.ram,
+                            disk=cloud_size.disk,
+                            bandwidth=cloud_size.bandwidth,
+                            price=cloud_size.price,
+                            driver=conn)
+        except me.DoesNotExist:
+            # instantiate a dummy libcloud NodeSize
+            size = NodeSize(size_id, name=size_name, driver=conn)
+            cloud_size = NodeSize(size_id, name=size_name, driver=conn)
 
     if conn.type is Container_Provider.DOCKER:
         if public_key:
