@@ -324,6 +324,12 @@ class BaseMainController(object):
                         missing_since=None).update(
             missing_since=datetime.datetime.now()
         )
+        # FIXME: Circular dependency.
+        from mist.api.clouds.models import CloudLocation
+        CloudLocation.objects(cloud=self.cloud,
+                              missing_since=None).update(
+            missing_since=datetime.datetime.utcnow()
+        )
 
     def dns_enable(self):
         self.cloud.dns_enabled = True
@@ -363,6 +369,14 @@ class BaseMainController(object):
         from mist.api.machines.models import Machine
         Machine.objects(cloud=self.cloud,
                         missing_since=None).update(
+            missing_since=datetime.datetime.utcnow()
+        )
+        # FIXME: Circular dependency.
+        # FIXME: Is this necessary? Can't we just delete the documents? If not,
+        # the following should take place in `self.disable`, too.
+        from mist.api.clouds.models import CloudLocation
+        CloudLocation.objects(cloud=self.cloud,
+                              missing_since=None).update(
             missing_since=datetime.datetime.utcnow()
         )
         if expire:

@@ -877,11 +877,13 @@ class BaseComputeController(BaseController):
                                        "errors": exc.to_dict()})
             locations.append(_location)
 
-        # Delete existing locations not returned by libcloud
+        # update missing_since for locations not returned by libcloud
         CloudLocation.objects(cloud=self.cloud,
+                              missing_since=None,
                               external_id__nin=[l.external_id
-                                                for l in locations]).delete()
-
+                                                for l in locations]).update(
+                                                    missing_since=datetime.
+                                                    datetime.utcnow())
         return locations
 
     def list_cached_locations(self):
@@ -889,7 +891,7 @@ class BaseComputeController(BaseController):
         # FIXME Imported here due to circular dependency issues. Perhaps one
         # way to solve this would be to move CloudLocation under its own dir.
         from mist.api.clouds.models import CloudLocation
-        return CloudLocation.objects(cloud=self.cloud)
+        return CloudLocation.objects(cloud=self.cloud, missing_since=None)
 
     def _list_locations__fetch_locations(self):
         """Fetch location listing in a libcloud compatible format
