@@ -2,7 +2,7 @@ import logging
 
 from mist.api.rules.plugins import base
 from mist.api.rules.plugins import methods
-from mist.api.monitoring.handlers import BaseStatsHandler
+from mist.api.monitoring.influxdb.handlers import BaseStatsHandler
 
 
 log = logging.getLogger(__name__)

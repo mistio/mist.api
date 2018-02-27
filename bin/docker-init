@@ -28,7 +28,6 @@ if [ -n "$SETTINGS_FILE" ] && [ ! -e "$SETTINGS_FILE" ]; then
     tmp_file=$(mktemp -p $conf_dir)
     cp settings.py.dist $tmp_file
     mv $tmp_file $SETTINGS_FILE
-    rm $tmp_file
     set +x
 fi
 
