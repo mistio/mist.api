@@ -53,7 +53,7 @@ def install_telegraf(owner_id, cloud_id, machine_id, job=None, job_id=None):
     try:
         shell = mist.api.shell.Shell(host)
         key, user = shell.autoconfigure(owner, cloud.id, machine.machine_id)
-        exit_code, stdout = shell.command(unix_install(machine))
+        exit_code, stdout, stderr = shell.command(unix_install(machine), False)
         stdout = stdout.encode('utf-8', 'ignore')
         stdout = stdout.replace('\r\n', '\n').replace('\r', '\n')
     except Exception as err:
