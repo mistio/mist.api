@@ -22,12 +22,19 @@ from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 from mist.api.machines.models import InstallationStatus
 
-from mist.api.monitoring.helpers import show_fields
-from mist.api.monitoring.helpers import show_measurements
+from mist.api.monitoring.influxdb.helpers import show_fields
+from mist.api.monitoring.influxdb.helpers import show_measurements
+from mist.api.monitoring.influxdb.handlers import HANDLERS as INFLUXDB_HANDLERS
+from mist.api.monitoring.influxdb.handlers \
+    import MainStatsHandler as InfluxMainStatsHandler
+from mist.api.monitoring.influxdb.handlers \
+    import MultiLoadHandler as InfluxMultiLoadHandler
 
-from mist.api.monitoring.handlers import HANDLERS
-from mist.api.monitoring.handlers import MainStatsHandler
-from mist.api.monitoring.handlers import MultiLoadHandler
+from mist.api.monitoring.graphite.methods \
+    import get_stats as graphite_get_stats
+from mist.api.monitoring.graphite.methods \
+    import get_load as graphite_get_load
+
 from mist.api.monitoring import traefik
 
 from mist.api.rules.models import Rule
@@ -35,8 +42,7 @@ from mist.api.rules.models import Rule
 log = logging.getLogger(__name__)
 
 
-def get_stats(machine, start='', stop='', step='',
-              metrics=None, callback=None, tornado_async=False):
+def get_stats(machine, start='', stop='', step='', metrics=None):
     """Get all monitoring data for the specified machine.
 
     If a list of `metrics` is provided, each metric needs to comply with the
@@ -56,8 +62,6 @@ def get_stats(machine, start='', stop='', step='',
         - stop: the time until which to query for stats
         - step: the step at which to return stats
         - metrics: the metrics to query for, if explicitly specified
-        - callback: the method to be invoked in order to return data
-        - tornado_async: denotes whether to issue a Tornado-safe HTTP request
 
     """
     if not machine.monitoring.hasmonitoring:
@@ -70,10 +74,8 @@ def get_stats(machine, start='', stop='', step='',
     if machine.monitoring.method in ('collectd-graphite', 'telegraf-graphite'):
         if not config.HAS_CORE:
             raise Exception()
-        from mist.core.methods import _graphite_get_stats
-        return _graphite_get_stats(
+        return graphite_get_stats(
             machine, start=start, stop=stop, step=step, metrics=metrics,
-            callback=callback, tornado_async=tornado_async,
         )
     elif machine.monitoring.method == 'telegraf-influxdb':
         if not metrics:
@@ -96,10 +98,11 @@ def get_stats(machine, start='', stop='', step='',
                 metric += '.*'
             if not measurement or measurement == '*':
                 raise BadRequestError('No measurement specified')
-            handler = HANDLERS.get(measurement, MainStatsHandler)(machine)
+            handler = INFLUXDB_HANDLERS.get(
+                measurement, InfluxMainStatsHandler
+            )(machine)
             data = handler.get_stats(metric=metric, start=start, stop=stop,
-                                     step=step, callback=callback,
-                                     tornado_async=tornado_async)
+                                     step=step)
             if data:
                 results.update(data)
         return results
@@ -107,8 +110,7 @@ def get_stats(machine, start='', stop='', step='',
         raise Exception("Invalid monitoring method")
 
 
-def get_load(owner, start='', stop='', step='', uuids=None,
-             tornado_callback=None, tornado_async=True):
+def get_load(owner, start='', stop='', step='', uuids=None):
     """Get shortterm load for all monitored machines."""
     clouds = Cloud.objects(owner=owner, deleted=None).only('id')
     machines = Machine.objects(cloud__in=clouds,
@@ -121,41 +123,24 @@ def get_load(owner, start='', stop='', step='', uuids=None,
     influx_uuids = [machine.id for machine in machines
                     if machine.monitoring.method.endswith('-influxdb')]
 
-    def _get_influx_load(callback):
+    graphite_data = {}
+    influx_data = {}
+    if graphite_uuids:
+        graphite_data = graphite_get_load(owner, start=start, stop=stop,
+                                          step=step, uuids=graphite_uuids)
+    if influx_uuids:
         # Transform "min" and "sec" to "m" and "s", respectively.
         _start, _stop, _step = map(
             lambda x: re.sub('in|ec', repl='', string=x),
             (start.strip('-'), stop.strip('-'), step)
         )
-        # Get load stats.
-        return MultiLoadHandler(influx_uuids).get_stats(
+        influx_data = InfluxMultiLoadHandler(influx_uuids).get_stats(
             metric='system.load1',
             start=_start, stop=_stop, step=_step,
-            callback=callback,
-            tornado_async=tornado_async
         )
 
-    def _get_graphite_load(callback):
-        from mist.core.methods import _graphite_get_load
-        kwargs = {'owner': owner, 'start': start, 'stop': stop, 'step': step,
-                  'uuids': graphite_uuids}
-        if tornado_async and callback is not None:
-            _graphite_get_load(tornado_callback=callback, **kwargs)
-        elif callback is not None:
-            return callback(_graphite_get_load(**kwargs))
-        else:
-            return _graphite_get_load(**kwargs)
-
-    if graphite_uuids and influx_uuids:
-        def callback1(data1):
-            def callback2(data2):
-                return tornado_callback(dict(data1.items() + data2.items()))
-            return _get_influx_load(callback2)
-        return _get_graphite_load(callback1)
-    elif graphite_uuids:
-        return _get_graphite_load(tornado_callback)
-    elif influx_uuids:
-        return _get_influx_load(tornado_callback)
+    if graphite_data or influx_data:
+        return dict(graphite_data.items() + influx_data.items())
     else:
         raise NotFoundError('No machine has monitoring enabled')
 

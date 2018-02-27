@@ -21,6 +21,8 @@ from mist.api.scripts.models import CollectdScript
 from mist.api.scripts.models import TelegrafScript
 from mist.api.machines.models import Machine
 
+from mist.api.clouds.methods import filter_list_clouds
+
 
 log = logging.getLogger(__name__)
 
@@ -612,5 +614,55 @@ def get_stats(request):
     data = mist.api.monitoring.methods.get_stats(machine,
                                                  start=start, stop=stop,
                                                  step=step, metrics=metrics)
+    data['request_id'] = params.get('request_id')
+    return data
+
+
+@view_config(route_name='api_v1_load', request_method='GET', renderer='json')
+def get_load(request):
+    """
+    Tags: monitoring
+    ---
+    Request load data for all monitored machines
+    ---
+    start:
+      in: query
+      type: string
+      default: now
+      required: false
+      description: time (eg. '10s') since when to fetch stats
+    stop:
+      in: query
+      type: string
+      required: false
+      description: time until when to fetch stats
+    step:
+      in: query
+      type: string
+      required: false
+      description: step to fetch stats, used in aggregations
+    request_id:
+      in: query
+      type: string
+      required: false
+
+    """
+    auth_context = auth_context_from_request(request)
+    cloud_ids = [cloud['id'] for cloud in filter_list_clouds(auth_context)
+                 if cloud['enabled']]
+    uuids = [machine.id for machine in Machine.objects(
+        cloud__in=cloud_ids, monitoring__hasmonitoring=True,
+    ).only('id')]
+    if not auth_context.is_owner():
+        allowed_uuids = auth_context.get_allowed_resources(rtype='machines')
+        uuids = set(uuids) & set(allowed_uuids)
+
+    params = params_from_request(request)
+    start = params.get('start', '')
+    stop = params.get('stop', '')
+    step = params.get('step', '')
+    data = mist.api.monitoring.methods.get_load(auth_context.owner,
+                                                start=start, stop=stop,
+                                                step=step, uuids=uuids)
     data['request_id'] = params.get('request_id')
     return data
