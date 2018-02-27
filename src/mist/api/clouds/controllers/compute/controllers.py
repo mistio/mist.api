@@ -205,10 +205,6 @@ class AmazonComputeController(BaseComputeController):
     def _list_sizes__get_cpu(self, size):
         return int(size.extra.get('cpu', 1))
 
-    def _list_sizes__get_name(self, size, cpu):
-        return '%s - %s(%sMB RAM/ %s CPUs)' % (size.id, size.name,
-                                               size.ram, cpu)
-
     def _list_machines__get_size(self, node):
         return node.extra.get('instance_type')
 
@@ -246,10 +242,6 @@ class DigitalOceanComputeController(BaseComputeController):
     def _list_machines__get_size(self, node):
         return node.extra.get('size_slug')
 
-    def _list_sizes__get_name(self, size, cpu):
-        return size.name + ' (%d cpus / %dM RAM)' % (cpu,
-                                                     size.ram)
-
     def _list_sizes__get_cpu(self, size):
         return size.extra.get('vcpus')
 
@@ -283,12 +275,6 @@ class LinodeComputeController(BaseComputeController):
 
     def _list_machines__get_location(self, node):
         return str(node.extra.get('DATACENTERID'))
-
-    def _list_sizes__get_name(self, size, cpu):
-        """Sets name for size, as it will be
-        shown to the end user
-        """
-        return size.name + '(%d cpus)' % cpu
 
 
 class RackSpaceComputeController(BaseComputeController):
@@ -349,9 +335,6 @@ class RackSpaceComputeController(BaseComputeController):
 
     def _list_sizes__get_cpu(self, size):
         return size.vcpus
-
-    def _list_sizes__get_name(self, size, cpu):
-        return size.name + ' (%d cpus)' % cpu
 
 
 class SoftLayerComputeController(BaseComputeController):
@@ -570,11 +553,6 @@ class AzureArmComputeController(BaseComputeController):
     def _list_sizes__get_cpu(self, size):
         return size.extra.get('numberOfCores')
 
-    def _list_sizes__get_name(self, size, cpu):
-        return size.name + '/ ' + str(size.extra['numberOfCores']) \
-                                + ' cpus/' + str(size.ram / 1024) \
-                                + 'G RAM/ ' + str(size.disk) + 'GB SSD'
-
 
 class GoogleComputeController(BaseComputeController):
 
@@ -743,10 +721,6 @@ class GoogleComputeController(BaseComputeController):
     def _list_sizes__get_cpu(self, size):
         return size.extra.get('guestCpus')
 
-    def _list_sizes__get_name(self, size, cpu):
-        return "%s (%s)" % (size.name,
-                            size.extra.get('description'))
-
 
 class HostVirtualComputeController(BaseComputeController):
 
@@ -775,12 +749,6 @@ class PacketComputeController(BaseComputeController):
     def _list_machines__get_size(self, node):
         return node.extra.get('plan')
 
-    def _list_sizes__get_name(self, size, cpu):
-        if cpu:
-            size.name = size.name + ' (%d cpus)' % cpu
-
-        return size.name
-
     def _list_sizes__get_ram(self, size):
         return int(re.sub("\D", "", size.ram))
 
@@ -804,9 +772,6 @@ class VultrComputeController(BaseComputeController):
 
     def _list_sizes__get_cpu(self, size):
         return size.extra.get('vcpu_count')
-
-    def _list_sizes__get_name(self, size, cpu):
-        return size.name + ' (%d cpus)' % cpu
 
     def _list_sizes__fetch_sizes(self):
         sizes = self.connection.list_sizes()
@@ -896,10 +861,6 @@ class OpenStackComputeController(BaseComputeController):
 
     def _list_sizes__get_cpu(self, size):
         return size.vcpus
-
-    def _list_sizes__get_name(self, size, cpu):
-        return size.name + ' ( %d cpus / %dM RAM)' \
-                           % (cpu, size.ram)
 
     def _list_machines__get_size(self, node):
         return node.extra.get('flavorId')

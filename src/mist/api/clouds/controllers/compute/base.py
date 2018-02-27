@@ -348,7 +348,7 @@ class BaseComputeController(BaseController):
                                node.extra.get('image') or '')
 
             try:
-                size = sizes_map.get(self._list_machines__get_size(node))
+                size = self._list_machines__get_size(node)
             except Exception as exc:
                 log.error("Error getting size of %s: %r", machine, exc)
             else:
@@ -356,7 +356,6 @@ class BaseComputeController(BaseController):
 
             machine.name = node.name
             machine.image_id = image_id
-            machine.size = size
             machine.state = config.STATES[node.state]
             machine.private_ips = list(set(node.private_ips))
             machine.public_ips = list(set(node.public_ips))
@@ -852,7 +851,6 @@ class BaseComputeController(BaseController):
             except Exception:
                 log.error("Could not convert %s to float.", size.price)
 
-            _size.name = self._list_sizes__get_name(size, cpus)
             try:
                 _size.save()
                 sizes.append(_size)
@@ -882,12 +880,6 @@ class BaseComputeController(BaseController):
 
     def _list_sizes__get_cpu(self, size):
         return int(size.extra.get('cpus') or 1)
-
-    def _list_sizes__get_name(self, size, cpu):
-        """Sets name for size, as it will be
-        shown to the end user
-        """
-        return size.name
 
     def _list_sizes__get_ram(self, size):
         """Returns ram of size, as it will be
