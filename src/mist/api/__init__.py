@@ -219,11 +219,6 @@ def add_routes(configurator):
 
     configurator.add_route('api_v1_ping', '/api/v1/ping')
 
-    configurator.add_route(
-        'api_v1_deploy_plugin',
-        '/api/v1/clouds/{cloud}/machines/{machine}/plugins/{plugin}'
-    )
-
     configurator.add_route('api_v1_images', '/api/v1/clouds/{cloud}/images')
     configurator.add_route('api_v1_image',
                            '/api/v1/clouds/{cloud}/images/{image}')
@@ -327,6 +322,12 @@ def add_routes(configurator):
     configurator.add_route('api_v1_metrics',
                            '/api/v1/machines/{machine}/metrics')
     configurator.add_route('api_v1_metric', '/api/v1/metrics/{metric}')
+    configurator.add_route(
+        'api_v1_cloud_deploy_plugin',
+        '/api/v1/clouds/{cloud}/machines/{machine}/plugins/{plugin}')
+    configurator.add_route(
+        'api_v1_deploy_plugin',
+        '/api/v1/machines/{machine}/plugins/{plugin}')
     configurator.add_route(
         'api_v1_cloud_stats',
         '/api/v1/clouds/{cloud}/machines/{machine}/stats')

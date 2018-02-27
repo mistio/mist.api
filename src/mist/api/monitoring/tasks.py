@@ -7,11 +7,8 @@ from mist.api.celery_app import app
 import mist.api.shell
 
 from mist.api.helpers import trigger_session_update
-from mist.api.exceptions import MistError
 from mist.api.logs.methods import log_event
 
-from mist.api.users.models import Organization
-from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 
 from mist.api.monitoring.commands import unix_install, unix_uninstall
@@ -22,105 +19,103 @@ log = logging.getLogger(__name__)
 
 
 @app.task(soft_time_limit=480, time_limit=600)
-def install_telegraf(owner_id, cloud_id, machine_id, job=None, job_id=None):
+def install_telegraf(machine_id, job=None, job_id=None, plugins=None):
     """Deploy Telegraf over SSH."""
-    owner = Organization.objects.get(id=owner_id)
-    cloud = Cloud.objects.get(owner=owner, id=cloud_id)
-    machine = Machine.objects.get(cloud=cloud, machine_id=machine_id)
+    machine = Machine.objects.get(id=machine_id)
     machine.monitoring.installation_status.state = 'installing'
     machine.save()
 
-    trigger_session_update(owner, ['monitoring'])
+    trigger_session_update(machine.owner, ['monitoring'])
 
     _log = {
-        'owner_id': owner.id,
-        'event_type': 'job',
-        'cloud_id': cloud_id,
-        'machine_id': machine_id,
-        'job_id': job_id or uuid.uuid4().hex, 'job': job,
+        'owner_id': machine.owner.id,
+        'cloud_id': machine.cloud.id,
+        'machine_id': machine.machine_id,
+        'event_type': 'job', 'job_id': job_id or uuid.uuid4().hex, 'job': job,
     }
     log_event(action='telegraf_deployment_started', **_log)
 
-    # FIXME: Use an optimized method returning the first found hostname or IP.
-    host = machine.hostname
-    if not host:
-        for host in (machine.public_ips or []) + (machine.private_ips or []):
-            if ':' not in host:  # Filter out IPv6 addresses.
-                break
-        else:
-            raise MistError('Failed to determine hostname or IP address')
-    key = None
     try:
-        shell = mist.api.shell.Shell(host)
-        key, user = shell.autoconfigure(owner, cloud.id, machine.machine_id)
+        shell = mist.api.shell.Shell(machine.ctl.get_host())
+        key, user = shell.autoconfigure(machine.owner, machine.cloud.id,
+                                        machine.machine_id)
         exit_code, stdout = shell.command(unix_install(machine))
         stdout = stdout.encode('utf-8', 'ignore')
         stdout = stdout.replace('\r\n', '\n').replace('\r', '\n')
     except Exception as err:
         log.error('Error during Telegraf installation: %s', repr(err))
+        stdout = ''
     else:
         err = exit_code or None
+        _log.update({'key_id': key, 'ssh_user': user, 'exit_code': exit_code})
     finally:
         # Close the SSH connection.
         shell.disconnect()
 
-        # Update Machine's InstallationStatus.
-        if exit_code:
-            machine.monitoring.installation_status.state = 'failed'
-        else:
-            machine.monitoring.installation_status.state = 'succeeded'
-        machine.monitoring.installation_status.finished_at = time.time()
-        machine.monitoring.installation_status.stdout = stdout
-        machine.monitoring.installation_status.error_msg = str(err)
-        machine.save()
+    # Update Machine's InstallationStatus.
+    if exit_code:
+        machine.monitoring.installation_status.state = 'failed'
+    else:
+        machine.monitoring.installation_status.state = 'succeeded'
+    machine.monitoring.installation_status.finished_at = time.time()
+    machine.monitoring.installation_status.stdout = stdout
+    machine.monitoring.installation_status.error_msg = str(err)
+    machine.save()
 
-        # Trigger UI update.
-        trigger_session_update(owner, ['monitoring'])
+    # Deploy custom scripts for metrics' collection.
+    if not err and plugins:
+        failed = []
+        # FIXME Imported here due to circular dependency issues.
+        from mist.api.scripts.models import Script
+        for script_id in plugins:
+            try:
+                s = Script.objects.get(owner=machine.owner, id=script_id,
+                                       deleted=None)
+                ret = s.ctl.deploy_and_assoc_python_plugin_from_script(machine)
+            except Exception as exc:
+                failed.append(script_id)
+                log_event(action='deploy_telegraf_script', script_id=script_id,
+                          error=str(exc), **_log)
+            else:
+                log_event(action='deploy_telegraf_script', script_id=script_id,
+                          metrics=ret['metrics'], stdout=ret['stdout'], **_log)
+        if not err and failed:
+            err = 'Deployment of scripts with IDs %s failed' % ','.join(failed)
 
-        # Log deployment's outcome.
-        _log.update({
-            'key_id': key,
-            'ssh_user': user,
-            'exit_code': exit_code, 'stdout': stdout,
-        })
-        log_event(action='telegraf_deployment_finished', error=err, **_log)
+    # Log deployment's outcome.
+    log_event(action='telegraf_deployment_finished',
+              stdout=stdout, error=err, **_log)
+
+    # Trigger UI update.
+    trigger_session_update(machine.owner, ['monitoring'])
 
 
 @app.task(soft_time_limit=480, time_limit=600)
-def uninstall_telegraf(owner_id, cloud_id, machine_id, job=None, job_id=None):
+def uninstall_telegraf(machine_id, job=None, job_id=None):
     """Undeploy Telegraf."""
-    owner = Organization.objects.get(id=owner_id)
-    cloud = Cloud.objects.get(owner=owner, id=cloud_id)
-    machine = Machine.objects.get(cloud=cloud, machine_id=machine_id)
+    machine = Machine.objects.get(id=machine_id)
 
     _log = {
-        'owner_id': owner.id,
-        'cloud_id': cloud_id,
-        'machine_id': machine_id,
-        'job_id': job_id or uuid.uuid4().hex,
-        'job': job,
+        'owner_id': machine.owner.id,
+        'cloud_id': machine.cloud.id,
+        'machine_id': machine.machine_id,
+        'event_type': 'job', 'job_id': job_id or uuid.uuid4().hex, 'job': job,
     }
-    log_event(action='telegraf_undeployment_started', event_type='job', **_log)
+    log_event(action='telegraf_undeployment_started', **_log)
 
-    # FIXME: Use an optimized method returning the first found hostname or IP.
-    host = machine.hostname
-    if not host:
-        for host in (machine.public_ips or []) + (machine.private_ips or []):
-            if ':' not in host:  # Filter out IPv6 addresses.
-                break
-        else:
-            raise MistError('Failed to determine hostname or IP address')
-    key = None
     try:
-        shell = mist.api.shell.Shell(host)
-        key, user = shell.autoconfigure(owner, cloud_id, machine_id)
+        shell = mist.api.shell.Shell(machine.ctl.get_host())
+        key, user = shell.autoconfigure(machine.owner, machine.cloud.id,
+                                        machine.machine_id)
         exit_code, stdout = shell.command(unix_uninstall())
         stdout = stdout.encode('utf-8', 'ignore')
         stdout = stdout.replace('\r\n', '\n').replace('\r', '\n')
     except Exception as err:
-        log.error('Error during Telegraf undeployment: %s', repr(err))
+        log.error('Error during Telegraf undeployment: %r', err)
     else:
         err = exit_code or None
+        _log.update({'key_id': key, 'ssh_user': user, 'exit_code': exit_code,
+                     'stdout': stdout})
     finally:
         # Close the SSH connection.
         shell.disconnect()
@@ -129,18 +124,11 @@ def uninstall_telegraf(owner_id, cloud_id, machine_id, job=None, job_id=None):
         machine.monitoring.hasmonitoring = False
         machine.save()
 
-        # Trigger UI update.
-        trigger_session_update(owner, ['monitoring'])
-
         # Log undeployment's outcome.
-        _log.update({
-            'key_id': key,
-            'ssh_user': user,
-            'exit_code': exit_code,
-            'stdout': stdout
-        })
-        log_event(action='telegraf_undeployment_finished',
-                  event_type='job', error=err, **_log)
+        log_event(action='telegraf_undeployment_finished', error=err, **_log)
+
+        # Trigger UI update.
+        trigger_session_update(machine.owner, ['monitoring'])
 
 
 @app.task
