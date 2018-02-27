@@ -647,7 +647,7 @@ class MainConnection(MistConnection):
                     line['path'] = '/clouds/%s/sizes/%s' % (cloud_id,
                                                             _id)
             if patch:
-                self.send('patch_model', patch)
+                self.batch.extend(patch)
 
     def on_close(self, stale=False):
         if not self.closed:

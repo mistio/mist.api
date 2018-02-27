@@ -749,9 +749,6 @@ class PacketComputeController(BaseComputeController):
     def _list_machines__get_size(self, node):
         return node.extra.get('plan')
 
-    def _list_sizes__get_ram(self, size):
-        return int(re.sub("\D", "", size.ram))
-
 
 class VultrComputeController(BaseComputeController):
 
@@ -1185,10 +1182,6 @@ class DockerComputeController(BaseComputeController):
 
     def _list_sizes__fetch_sizes(self):
         return []
-
-    # this method should never be called
-    def _list_sizes__get_cpu(self, size):
-        return 0
 
 
 class LibvirtComputeController(BaseComputeController):

@@ -14,6 +14,7 @@ import logging
 import datetime
 import calendar
 import requests
+import re
 
 import jsonpatch
 
@@ -837,14 +838,17 @@ class BaseComputeController(BaseController):
             _size.name = size.name
             _size.disk = size.disk
             _size.bandwidth = size.bandwidth
-            try:
-                _size.ram = self._list_sizes__get_ram(size)
-            except Exception as exc:
-                log.error(repr(exc))
+            _size.missing_since = None
+
+            if size.ram:
+                try:
+                     _size.ram = int(re.sub("\D", "", size.ram))
+                 except Exception as exc:
+                     log.error(repr(exc))
 
             try:
                 cpus = self._list_sizes__get_cpu(size)
-                _size.cpus = cpus
+                _size.cpus = int(cpus)
             except Exception as exc:
                 log.error(repr(exc))
 
@@ -861,13 +865,13 @@ class BaseComputeController(BaseController):
                 raise BadRequestError({"msg": exc.message,
                                        "errors": exc.to_dict()})
 
-        # update missing_since for sizes not returned by libcloud
-        CloudSize.objects(cloud=self.cloud,
-                          missing_since=None,
-                          external_id__nin=[s.external_id
-                                            for s in sizes]).update(
-                                                missing_since=datetime.
-                                                datetime.utcnow())
+            # update missing_since for sizes not returned by libcloud
+            CloudSize.objects(cloud=self.cloud,
+                              missing_since=None,
+                              external_id__nin=[s.external_id
+                                                for s in sizes]).update(
+                                                    missing_since=datetime.
+                                                    datetime.utcnow())
 
         return sizes
 
@@ -886,19 +890,13 @@ class BaseComputeController(BaseController):
     def _list_sizes__get_cpu(self, size):
         return int(size.extra.get('cpus') or 1)
 
-    def _list_sizes__get_ram(self, size):
-        """Returns ram of size, as it will be
-        shown to the end user
-        """
-        return int(size.ram) if size.ram else None
-
     def list_cached_sizes(self):
         """Return list of sizes from database
         for a specific cloud
         """
         # FIXME: resolve circular import issues
         from mist.api.clouds.models import CloudSize
-        return CloudSize.objects(cloud=self.cloud)
+        return CloudSize.objects(cloud=self.cloud, missing_since=None)
 
     def _list_machines__get_size(self, node):
         """Return key of size_map dict for a
@@ -951,8 +949,7 @@ class BaseComputeController(BaseController):
                                   connection=amqp_conn,
                                   data={'cloud_id': self.cloud.id,
                                         'locations': locations_dict})
-        return [location for location in locations
-                if location.missing_since is None]
+        return locations
 
     def _list_locations(self):
         """Return list of available locations for current cloud
