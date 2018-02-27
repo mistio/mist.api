@@ -53,7 +53,7 @@ def filter(query, fields=None, start='', stop=''):
     if or_stmt:
         filters.append('(%s)' % ' OR '.join(or_stmt))
     if stop:
-        filters.insert(0, '"time" =< now() - %s' % stop)
+        filters.insert(0, '"time" <= now() - %s' % stop)
     if start:
         filters.insert(0, '"time" >= now() - %s' % start)
     return '%s WHERE %s' % (query, ' AND '.join(filters))
