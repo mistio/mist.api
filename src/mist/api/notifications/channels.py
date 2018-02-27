@@ -139,9 +139,9 @@ class InAppNotificationChannel(BaseNotificationChannel):
         # Save/update/dismiss notifications.
         if dismiss:
             dismissed_by = set(self.ntf.dismissed_by)
+            old_dismissed_by = list(dismissed_by)
             dismissed_by |= set(user.id for user in users)
             self.ntf.dismissed_by = list(dismissed_by)
-        self.ntf.save()
 
         # Is anyone listening?
         if not amqp_owner_listening(self.ntf.owner.id):
@@ -162,17 +162,28 @@ class InAppNotificationChannel(BaseNotificationChannel):
                 np = UserNotificationPolicy.objects.get(user_id=user.id)
             except UserNotificationPolicy.DoesNotExist:
                 log.debug('No UserNotificationPolicy found for %s', user)
-                user_old_ntfs = [ntf.as_dict() for ntf in owner_old_ntfs]
-                user_new_ntfs = [ntf.as_dict() for ntf in owner_new_ntfs]
+                user_old_ntfs = [ntf.as_dict() for ntf in owner_old_ntfs
+                                 if not (self.ntf.id == ntf.id and
+                                         user.id in old_dismissed_by)]
+                user_new_ntfs = [ntf.as_dict() for ntf in owner_new_ntfs
+                                 if not (self.ntf.id == ntf.id and
+                                         user.id in dismissed_by)]
             else:
                 user_old_ntfs = [ntf.as_dict() for ntf in owner_old_ntfs
-                                 if not np.has_blocked(ntf)]
+                                 if not np.has_blocked(ntf) and not
+                                 (self.ntf.id == ntf.id and
+                                  user.id in old_dismissed_by)]
                 user_new_ntfs = [ntf.as_dict() for ntf in owner_new_ntfs
-                                 if not np.has_blocked(ntf)]
+                                 if not np.has_blocked(ntf) and not
+                                 (self.ntf.id == ntf.id and
+                                  user.id in dismissed_by)]
+            # Now we can save the dismissed notification
+            self.ntf.save()
 
             # Calculate diff.
             patch = jsonpatch.JsonPatch.from_diff(user_old_ntfs,
                                                   user_new_ntfs).patch
+
             if patch:
                 amqp_publish_user(self.ntf.owner.id,
                                   routing_key='patch_notifications',
