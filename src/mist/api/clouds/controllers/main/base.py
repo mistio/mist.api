@@ -324,6 +324,11 @@ class BaseMainController(object):
                         missing_since=None).update(
             missing_since=datetime.datetime.now()
         )
+        from mist.api.clouds.models import CloudSize
+        CloudSize.objects(cloud=self.cloud,
+                          missing_since=None).update(
+            missing_since=datetime.datetime.now()
+        )
 
     def dns_enable(self):
         self.cloud.dns_enabled = True
@@ -374,6 +379,12 @@ class BaseMainController(object):
         CloudLocation.objects(cloud=self.cloud,
                               missing_since=None).update(
             missing_since=datetime.datetime.utcnow()
+        )
+        # FIXME: Circular dependency.
+        from mist.api.clouds.models import CloudSize
+        CloudSize.objects(cloud=self.cloud,
+                          missing_since=None).update(
+            missing_since=datetime.datetime.now()
         )
         if expire:
             # FIXME: Set reverse_delete_rule=me.CASCADE?

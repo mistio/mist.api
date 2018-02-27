@@ -861,10 +861,13 @@ class BaseComputeController(BaseController):
                 raise BadRequestError({"msg": exc.message,
                                        "errors": exc.to_dict()})
 
-            # Delete existing sizes not returned by libcloud
-            CloudSize.objects(cloud=self.cloud,
-                              external_id__nin=[s.external_id
-                                                for s in sizes]).delete()
+        # update missing_since for sizes not returned by libcloud
+        CloudSize.objects(cloud=self.cloud,
+                          missing_since=None,
+                          external_id__nin=[s.external_id
+                                            for s in sizes]).update(
+                                                missing_since=datetime.
+                                                datetime.utcnow())
 
         return sizes
 
