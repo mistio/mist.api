@@ -39,15 +39,17 @@ def install_telegraf(machine_id, job=None, job_id=None, plugins=None):
         shell = mist.api.shell.Shell(machine.ctl.get_host())
         key, user = shell.autoconfigure(machine.owner, machine.cloud.id,
                                         machine.machine_id)
-        exit_code, stdout = shell.command(unix_install(machine))
+        exit_code, stdout, stderr = shell.command(unix_install(machine), False)
         stdout = stdout.encode('utf-8', 'ignore')
         stdout = stdout.replace('\r\n', '\n').replace('\r', '\n')
+        stderr = stderr.encode('utf-8', 'ignore')
+        stderr = stderr.replace('\r\n', '\n').replace('\r', '\n')
     except Exception as err:
         log.error('Error during Telegraf installation: %s', repr(err))
-        stdout = ''
     else:
         err = exit_code or None
-        _log.update({'key_id': key, 'ssh_user': user, 'exit_code': exit_code})
+        _log.update({'key_id': key, 'ssh_user': user, 'exit_code': exit_code,
+                     'stdout': stdout, 'stderr': stderr})
     finally:
         # Close the SSH connection.
         shell.disconnect()
@@ -58,7 +60,7 @@ def install_telegraf(machine_id, job=None, job_id=None, plugins=None):
     else:
         machine.monitoring.installation_status.state = 'succeeded'
     machine.monitoring.installation_status.finished_at = time.time()
-    machine.monitoring.installation_status.stdout = stdout
+    machine.monitoring.installation_status.stdout = stderr
     machine.monitoring.installation_status.error_msg = str(err)
     machine.save()
 
@@ -83,8 +85,7 @@ def install_telegraf(machine_id, job=None, job_id=None, plugins=None):
             err = 'Deployment of scripts with IDs %s failed' % ','.join(failed)
 
     # Log deployment's outcome.
-    log_event(action='telegraf_deployment_finished',
-              stdout=stdout, error=err, **_log)
+    log_event(action='telegraf_deployment_finished', error=err, **_log)
 
     # Trigger UI update.
     trigger_session_update(machine.owner, ['monitoring'])
