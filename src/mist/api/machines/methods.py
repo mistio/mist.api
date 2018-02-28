@@ -214,8 +214,8 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                                     name=cloud_location.name,
                                     country=cloud_location.country, driver=conn)
         except me.DoesNotExist:
-            location = NodeLocation(location_id, name=location_name, country='',
-                                    driver=conn)
+            location = NodeLocation(location_id, name=location_name,
+                                    country='', driver=conn)
 
     # transform size id to libcloud's NodeSize object
     try:
@@ -242,8 +242,12 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                             driver=conn)
         except me.DoesNotExist:
             # instantiate a dummy libcloud NodeSize
-            size = NodeSize(size_id, name=size_name, driver=conn)
-            cloud_size = NodeSize(size_id, name=size_name, driver=conn)
+            size = NodeSize(size_id, name=size_name,
+                            ram=0, disk=0, bandwidth=0,
+                            price=0, driver=conn)
+            cloud_size = NodeSize(size_id, name=size_name,
+                                  ram=0, disk=0, bandwidth=0,
+                                  price=0, driver=conn)
 
     if conn.type is Container_Provider.DOCKER:
         if public_key:
