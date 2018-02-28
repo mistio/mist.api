@@ -588,6 +588,25 @@ class GoogleComputeController(BaseComputeController):
         # iso8601 string
         return machine_libcloud.extra.get('creationTimestamp')
 
+    def _list_machines__get_size_metadata(self, node):
+        import ipdb; ipdb.set_trace()
+        size = self.connection.get_size_metadata_from_node(node.extra.get('machineType'))
+        # FIXME: resolve circular import issues
+        from mist.api.clouds.models import CloudSize
+        _size = CloudSize(cloud=self.cloud, external_id=size.get('id'))
+        _size.ram = size.get('memoryMb')
+        _size.cpus = size.get('guestCpus')
+        _size.name = size.get('name')
+
+        try:
+            _size.save()
+        except me.ValidationError as exc:
+            log.error("Error adding %s: %s", size.name, exc.to_dict())
+            raise BadRequestError({"msg": exc.message,
+                                   "errors": exc.to_dict()})
+
+        return _size
+
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         extra = machine_libcloud.extra
 

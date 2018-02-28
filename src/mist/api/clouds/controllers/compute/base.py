@@ -349,7 +349,6 @@ class BaseComputeController(BaseController):
                 image_id = str(node.image or node.extra.get('imageId') or
                                node.extra.get('image_id') or
                                node.extra.get('image') or '')
-
             try:
                 size = self._list_machines__get_size(node)
             except Exception as exc:
@@ -357,6 +356,21 @@ class BaseComputeController(BaseController):
                 #
             else:
                 machine.size = sizes_map.get(size)
+
+            if not machine.size:
+                # make sure mongo is up-to-date
+                self.list_sizes()
+
+                try:
+                    size = self._list_machines__get_size(node)
+                except Exception as exc:
+                    log.error("Error getting size of %s: %r", machine, exc)
+                else:
+                    machine.size = sizes_map.get(size)
+
+                if not machine.size:
+                    # probably custom size, try to extract related info
+                    machine.size = self._list_machines__get_size_metadata(node)
 
             machine.name = node.name
             machine.image_id = image_id
@@ -527,6 +541,10 @@ class BaseComputeController(BaseController):
         if machine.key_associations:
             machine.actions.reboot = True
         machine.actions.tag = True
+
+    def _list_machines__get_size_metadata(self, node):
+        """Return size metadata for node"""
+        return
 
     def _list_machines__fetch_machines(self):
         """Perform the actual libcloud call to get list of nodes"""
