@@ -841,7 +841,7 @@ class BaseComputeController(BaseController):
             _size.bandwidth = size.bandwidth
             _size.missing_since = None
             _size.extra = size.extra
-            _size.extra.append({'price': size.price})
+            _size.extra.update({'price': size.price})
 
             if size.ram:
                 try:
