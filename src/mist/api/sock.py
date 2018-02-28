@@ -27,7 +27,6 @@ from mist.api.logs.methods import get_stories
 from mist.api.logs.methods import create_stories_patch
 
 from mist.api.clouds.models import Cloud
-from mist.api.machines.models import Machine
 
 from mist.api.auth.methods import auth_context_from_session_id
 
@@ -46,8 +45,6 @@ from mist.api.hub.tornado_shell_client import ShellHubClient
 
 from mist.api.notifications.models import InAppNotification
 
-from mist.api.monitoring.methods import get_load
-from mist.api.monitoring.methods import get_stats
 from mist.api.monitoring.methods import check_monitoring
 
 from mist.api.users.methods import filter_org
@@ -137,9 +134,11 @@ class MistConnection(SockJSConnection):
     def internal_request(self, path, params=None, callback=None):
         if path.startswith('/'):
             path = path[1:]
+        if isinstance(params, dict):
+            params = params.items()
         if params:
             path += '?' + '&'.join('%s=%s' % item
-                                   for item in params.iteritems())
+                                   for item in params)
 
         def response_callback(resp):
             if resp.code == 200:
@@ -490,28 +489,24 @@ class MainConnection(MistConnection):
             self.send('stats', ret)
 
         try:
+            params = [(name, val)
+                      for name, val in (('start', start), ('stop', stop),
+                                        ('step', step)) if val]
             if not cloud_id and not machine_id and (
                 not metrics or metrics == ['load.shortterm']
             ):
-                get_load(self.owner, start, stop, step,
-                         tornado_callback=callback)
+                self.internal_request(
+                    'api/v1/machines/stats/load',
+                    params=params, callback=callback,
+                )
             else:
-                try:
-                    cloud = Cloud.objects.get(owner=self.owner, id=cloud_id,
-                                              deleted=None)
-                except Cloud.DoesNotExist:
-                    raise MistError("Cloud %s does not exist" % cloud_id)
-                try:
-                    machine = Machine.objects.get(
-                        cloud=cloud,
-                        machine_id=machine_id,
-                        state__ne='terminated',
-                    )
-                except Machine.DoesNotExist:
-                    raise MistError("Machine %s doesn't exist" % machine_id)
-                get_stats(machine, start, stop, step,
-                          metrics=metrics, callback=callback,
-                          tornado_async=True)
+                for metric in metrics or []:
+                    params.append(('metrics', metric))
+                self.internal_request(
+                    'api/v1/clouds/%s/machines/%s/stats' % (cloud_id,
+                                                            machine_id),
+                    params=params, callback=callback,
+                )
         except MistError as exc:
             callback([], str(exc))
         except Exception as exc:
@@ -652,7 +647,7 @@ class MainConnection(MistConnection):
                     line['path'] = '/clouds/%s/sizes/%s' % (cloud_id,
                                                             _id)
             if patch:
-                self.send('patch_model', patch)
+                self.batch.extend(patch)
 
     def on_close(self, stale=False):
         if not self.closed:

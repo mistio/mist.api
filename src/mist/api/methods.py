@@ -452,38 +452,6 @@ def notify_user(owner, title, message="", email_notify=True, **kwargs):
                    email)
 
 
-def undeploy_python_plugin(owner, cloud_id, machine_id, plugin_id, host):
-
-    # Sanity checks
-    if not plugin_id:
-        raise RequiredParameterMissingError('plugin_id')
-    if not host:
-        raise RequiredParameterMissingError('host')
-
-    # Iniatilize SSH connection
-    shell = Shell(host)
-    key_id, ssh_user = shell.autoconfigure(owner, cloud_id, machine_id)
-
-    # Prepare collectd.conf
-    script = """
-sudo=$(command -v sudo)
-cd /opt/mistio-collectd/
-
-echo "Removing Include line for plugin conf from plugins/mist-python/include.conf"
-$sudo grep -v 'Import %(plugin_id)s$' plugins/mist-python/include.conf > /tmp/include.conf
-$sudo mv /tmp/include.conf plugins/mist-python/include.conf
-
-echo "Restarting collectd"
-$sudo /opt/mistio-collectd/collectd.sh restart
-""" % {'plugin_id': plugin_id}  # noqa
-
-    retval, stdout = shell.command(script)
-
-    shell.disconnect()
-
-    return {'metric_id': None, 'stdout': stdout}
-
-
 def run_playbook(owner, cloud_id, machine_id, playbook_path, extra_vars=None,
                  force_handlers=False, debug=False):
     if not extra_vars:
