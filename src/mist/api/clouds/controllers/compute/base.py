@@ -354,6 +354,7 @@ class BaseComputeController(BaseController):
                 size = self._list_machines__get_size(node)
             except Exception as exc:
                 log.error("Error getting size of %s: %r", machine, exc)
+                #
             else:
                 machine.size = sizes_map.get(size)
 
@@ -839,6 +840,8 @@ class BaseComputeController(BaseController):
             _size.disk = size.disk
             _size.bandwidth = size.bandwidth
             _size.missing_since = None
+            _size.extra = size.extra
+            _size.extra.append({'price': size.price})
 
             if size.ram:
                 try:
@@ -851,11 +854,6 @@ class BaseComputeController(BaseController):
                 _size.cpus = int(cpus)
             except Exception as exc:
                 log.error(repr(exc))
-
-            try:
-                _size.price = float(size.price or 0)
-            except Exception:
-                log.error("Could not convert %s to float.", size.price)
 
             try:
                 _size.save()

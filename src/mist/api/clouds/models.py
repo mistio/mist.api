@@ -256,10 +256,10 @@ class CloudSize(me.Document):
     name = me.StringField()
     cpus = me.IntField()
     ram = me.IntField()
-    price = me.FloatField()
     disk = me.IntField()
     bandwidth = me.IntField()
     missing_since = me.DateTimeField()
+    extra = me.DictField()  # price info  is included here
 
     meta = {
         'collection': 'sizes',
@@ -285,7 +285,7 @@ class CloudSize(me.Document):
             'cpus': self.cpus,
             'ram': self.ram,
             'bandwidth': self.bandwidth,
-            'price': self.price,
+            'extra': self.extra,
             'disk': self.disk,
             'missing_since': str(self.missing_since.replace(tzinfo=None)
                                  if self.missing_since else '')
