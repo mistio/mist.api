@@ -589,7 +589,6 @@ class GoogleComputeController(BaseComputeController):
         return machine_libcloud.extra.get('creationTimestamp')
 
     def _list_machines__get_size_metadata(self, node):
-        import ipdb; ipdb.set_trace()
         size = self.connection.get_size_metadata_from_node(node.extra.get('machineType'))
         # FIXME: resolve circular import issues
         from mist.api.clouds.models import CloudSize
@@ -1342,6 +1341,23 @@ class OnAppComputeController(BaseComputeController):
                                               0), 0
         else:
             return machine_libcloud.extra.get('price_per_hour', 0), 0
+
+    def _list_machines__get_size_metadata(self, node):
+        # FIXME: resolve circular import issues
+        from mist.api.clouds.models import CloudSize
+        _size = CloudSize(cloud=self.cloud,
+                          external_id=str(node.extra.get('id')))
+        _size.ram = node.extra.get('memory')
+        _size.cpus = node.extra.get('cpus')
+
+        try:
+            _size.save()
+        except me.ValidationError as exc:
+            log.error("Error adding %s: %s", _size, exc.to_dict())
+            raise BadRequestError({"msg": exc.message,
+                                   "errors": exc.to_dict()})
+
+        return _size
 
     def _resume_machine(self, machine, machine_libcloud):
         self.connection.ex_resume_node(machine_libcloud)
