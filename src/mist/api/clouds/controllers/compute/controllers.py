@@ -557,9 +557,9 @@ class AzureArmComputeController(BaseComputeController):
         return size.extra.get('numberOfCores')
 
     def _list_sizes__get_name(self, size):
-            return  size.name + ' ' + str(size.extra['numberOfCores']) \
-                        + ' cpus/' + str(size.ram / 1024) + 'G RAM/ ' \
-                        + str(size.disk) + 'GB SSD'
+            return size.name + ' ' + str(size.extra['numberOfCores']) \
+                             + ' cpus/' + str(size.ram / 1024) + 'G RAM/ ' \
+                             + str(size.disk) + 'GB SSD'
 
 
 class GoogleComputeController(BaseComputeController):
