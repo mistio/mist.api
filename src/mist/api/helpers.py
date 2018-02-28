@@ -694,6 +694,8 @@ rtype_to_classpath = {
     'stack': 'mist.core.orchestration.models.Stack',
     'schedule': 'mist.api.schedules.models.Schedule',
     'tunnel': 'mist.core.vpn.models.Tunnel',
+    'network': 'mist.api.networks.models.Network',
+    'subnet': 'mist.api.networks.models.Subnet',
 }
 
 

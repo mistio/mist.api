@@ -13,6 +13,7 @@ class Tag(me.Document):
                                             'scripts', 'machine', 'machines',
                                             'template', 'stack', 'image',
                                             'network', 'tunnel', 'schedules',
+                                            'networks', 'subnets',
                                             'zones', 'records'])
 
     value = me.StringField()
