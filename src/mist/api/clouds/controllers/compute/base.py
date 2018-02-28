@@ -836,7 +836,7 @@ class BaseComputeController(BaseController):
             except CloudSize.DoesNotExist:
                 _size = CloudSize(cloud=self.cloud, external_id=size.id)
 
-            _size.name = size.name
+            _size.name = self._list_sizes__get_name(size)
             _size.disk = size.disk
             _size.bandwidth = size.bandwidth
             _size.missing_since = None
@@ -887,6 +887,9 @@ class BaseComputeController(BaseController):
 
     def _list_sizes__get_cpu(self, size):
         return int(size.extra.get('cpus') or 1)
+
+    def _list_sizes__get_name(self, size):
+        return size.name
 
     def list_cached_sizes(self):
         """Return list of sizes from database

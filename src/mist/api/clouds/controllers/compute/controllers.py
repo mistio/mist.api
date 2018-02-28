@@ -208,6 +208,9 @@ class AmazonComputeController(BaseComputeController):
     def _list_machines__get_size(self, node):
         return node.extra.get('instance_type')
 
+    def _list_sizes__get_name(self, size):
+        return '%s - %s' % (size.id, size.name)
+
 
 class DigitalOceanComputeController(BaseComputeController):
 
@@ -553,6 +556,11 @@ class AzureArmComputeController(BaseComputeController):
     def _list_sizes__get_cpu(self, size):
         return size.extra.get('numberOfCores')
 
+    def _list_sizes__get_name(self, size):
+            return  size.name + ' ' + str(size.extra['numberOfCores']) \
+                        + ' cpus/' + str(size.ram / 1024) + 'G RAM/ ' \
+                        + str(size.disk) + 'GB SSD'
+
 
 class GoogleComputeController(BaseComputeController):
 
@@ -717,6 +725,10 @@ class GoogleComputeController(BaseComputeController):
 
     def _list_machines__get_location(self, node):
         return node.extra.get('zone').id
+
+    def _list_sizes__get_name(self, size):
+        return size.name = "%s (%s)" % (size.name,
+                                        size.extra.get('description'))
 
     def _list_sizes__get_cpu(self, size):
         return size.extra.get('guestCpus')
