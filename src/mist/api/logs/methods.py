@@ -370,7 +370,7 @@ def get_stories(story_type='', owner_id='', user_id='', sort_order=-1, limit=0,
         result = _on_response_callback(response, tornado_async)
         return process_stories(
             buckets=result["aggregations"]["stories"]["buckets"],
-            callback=tornado_callback, type=story_type, pending=pending
+            callback=tornado_callback, type=story_type
         )
 
     # Fetch stories. Invoke callback to process and return results.
@@ -405,7 +405,7 @@ def get_stories(story_type='', owner_id='', user_id='', sort_order=-1, limit=0,
         return _on_request_callback(query)
 
 
-def process_stories(buckets, type=None, pending=None, callback=None):
+def process_stories(buckets, type=None, callback=None):
     """Process fetched logs.
 
     Process results of Elasticsearch aggregations on logs in order to create
@@ -414,7 +414,6 @@ def process_stories(buckets, type=None, pending=None, callback=None):
     Arguments:
         - buckets: buckets of logs returned by Elasticsearch aggregations.
         - type: the story's type - one of (job, shell, session, incident).
-        - pending: denotes whether we are processing stories still pending.
         - callback: the callback to be invoked, after processing, if provided.
 
     """
@@ -471,7 +470,7 @@ def process_stories(buckets, type=None, pending=None, callback=None):
         stories.append(story)
 
     if callback is not None:
-        return callback(stories, pending)
+        return callback(stories)
     return stories
 
 
