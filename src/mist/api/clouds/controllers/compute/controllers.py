@@ -727,8 +727,7 @@ class GoogleComputeController(BaseComputeController):
         return node.extra.get('zone').id
 
     def _list_sizes__get_name(self, size):
-        return size.name = "%s (%s)" % (size.name,
-                                        size.extra.get('description'))
+        return "%s (%s)" % (size.name, size.extra.get('description'))
 
     def _list_sizes__get_cpu(self, size):
         return size.extra.get('guestCpus')
