@@ -129,6 +129,7 @@ def create_network(request):
             # Cleaning up the network object in case subnet creation fails
             # for any reason
             network.ctl.delete()
+            network.delete()
             raise exc
         if tags:
             add_tags_to_resource(auth_context.owner, subnet, tags)

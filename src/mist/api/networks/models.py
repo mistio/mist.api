@@ -49,7 +49,7 @@ class Network(me.Document):
 
     extra = me.DictField()  # The `extra` dictionary returned by libcloud.
 
-    deleted = me.DateTimeField()
+    missing_since = me.DateTimeField()
 
     meta = {
         'allow_inheritance': True,
@@ -114,6 +114,11 @@ class Network(me.Document):
             except (TypeError, netaddr.AddrFormatError) as err:
                 raise me.ValidationError(err)
         self.owner = self.owner or self.cloud.owner
+
+    def delete(self):
+        super(Network, self).delete()
+        self.owner.mapper.remove(self)
+        Tag.objects(resource=self).delete()
 
     def as_dict(self):
         """Returns the API representation of the `Network` object."""
@@ -216,7 +221,7 @@ class Subnet(me.Document):
 
     extra = me.DictField()  # The `extra` dictionary returned by libcloud.
 
-    deleted = me.DateTimeField()
+    missing_since = me.DateTimeField()
 
     meta = {
         'allow_inheritance': True,
@@ -284,6 +289,11 @@ class Subnet(me.Document):
             netaddr.cidr_to_glob(self.cidr)
         except (TypeError, netaddr.AddrFormatError) as err:
             raise me.ValidationError(err)
+
+    def delete(self):
+        super(Subnet, self).delete()
+        self.owner.mapper.remove(self)
+        Tag.objects(resource=self).delete()
 
     def as_dict(self):
         """Returns the API representation of the `Subnet` object."""
