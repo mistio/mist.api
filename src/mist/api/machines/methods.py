@@ -227,7 +227,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                         ram=cloud_size.ram,
                         disk=cloud_size.disk,
                         bandwidth=cloud_size.bandwidth,
-                        price=cloud_size.price,
+                        price=cloud_size.extra.get('price'),
                         driver=conn)
     except me.DoesNotExist:
         # make sure mongo is up-to-date
@@ -239,7 +239,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                             ram=cloud_size.ram,
                             disk=cloud_size.disk,
                             bandwidth=cloud_size.bandwidth,
-                            price=cloud_size.price,
+                            price=cloud_size.extra.get('price'),
                             driver=conn)
         except me.DoesNotExist:
             # instantiate a dummy libcloud NodeSize
