@@ -5,6 +5,8 @@ import mongoengine as me
 
 from mist.api.exceptions import RequiredParameterMissingError
 
+from mist.api.tag.models import Tag
+
 from mist.api.clouds.models import Cloud
 from mist.api.clouds.models import CLOUDS
 
@@ -37,6 +39,7 @@ class Network(me.Document):
     """
 
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
+    owner = me.ReferenceField('Organization')
     cloud = me.ReferenceField(Cloud, required=True)
     network_id = me.StringField()  # required=True)
 
@@ -45,6 +48,8 @@ class Network(me.Document):
     description = me.StringField()
 
     extra = me.DictField()  # The `extra` dictionary returned by libcloud.
+
+    deleted = me.DateTimeField()
 
     meta = {
         'allow_inheritance': True,
@@ -95,6 +100,12 @@ class Network(me.Document):
         network.ctl.create(**kwargs)
         return network
 
+    @property
+    def tags(self):
+        """Return the tags of this network."""
+        return [{'key': tag.key,
+                 'value': tag.value} for tag in Tag.objects(resource=self)]
+
     def clean(self):
         """Checks the CIDR to determine if it maps to a valid IPv4 network."""
         if self.cidr:
@@ -102,6 +113,7 @@ class Network(me.Document):
                 netaddr.cidr_to_glob(self.cidr)
             except (TypeError, netaddr.AddrFormatError) as err:
                 raise me.ValidationError(err)
+        self.owner = self.owner or self.cloud.owner
 
     def as_dict(self):
         """Returns the API representation of the `Network` object."""
@@ -113,6 +125,7 @@ class Network(me.Document):
             'cidr': self.cidr,
             'description': self.description,
             'extra': self.extra,
+            'tags': self.tags,
         }
         net_dict.update(
             {key: getattr(self, key) for key in self._network_specific_fields}
@@ -192,6 +205,7 @@ class Subnet(me.Document):
     """
 
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
+    owner = me.ReferenceField('Organization')
     network = me.ReferenceField('Network', required=True,
                                 reverse_delete_rule=me.CASCADE)
     subnet_id = me.StringField()
@@ -201,6 +215,8 @@ class Subnet(me.Document):
     description = me.StringField()
 
     extra = me.DictField()  # The `extra` dictionary returned by libcloud.
+
+    deleted = me.DateTimeField()
 
     meta = {
         'allow_inheritance': True,
@@ -255,8 +271,15 @@ class Subnet(me.Document):
         subnet.ctl.create(**kwargs)
         return subnet
 
+    @property
+    def tags(self):
+        """Return the tags of this subnet."""
+        return [{'key': tag.key,
+                 'value': tag.value} for tag in Tag.objects(resource=self)]
+
     def clean(self):
         """Checks the CIDR to determine if it maps to a valid IPv4 network."""
+        self.owner = self.owner or self.network.cloud.owner
         try:
             netaddr.cidr_to_glob(self.cidr)
         except (TypeError, netaddr.AddrFormatError) as err:
@@ -273,6 +296,7 @@ class Subnet(me.Document):
             'cidr': self.cidr,
             'description': self.description,
             'extra': self.extra,
+            'tags': self.tags,
         }
         subnet_dict.update(
             {key: getattr(self, key) for key in self._subnet_specific_fields}
