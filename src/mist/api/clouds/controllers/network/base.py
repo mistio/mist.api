@@ -291,10 +291,10 @@ class BaseNetworkController(BaseController):
             networks.append(network)
 
         # Set missing_since for networks not returned by libcloud.
-        Network.objects(cloud=self.cloud, id__nin=[n.id for n in networks],
-                        missing_since=None).update(
-                            missing_since=datetime.datetime.utcnow()
-                        )
+        Network.objects(
+            cloud=self.cloud, id__nin=[n.id for n in networks],
+            missing_since=None
+        ).update(missing_since=datetime.datetime.utcnow())
 
         # Update RBAC Mappings given the list of new networks.
         self.cloud.owner.mapper.update(new_networks, async=False)
@@ -408,10 +408,10 @@ class BaseNetworkController(BaseController):
             subnets.append(subnet)
 
         # Set missing_since for subnets not returned by libcloud.
-        Subnet.objects(network=network, id__nin=[s.id for s in subnets],
-                       missing_since=None).update(
-                            missing_since=datetime.datetime.utcnow()
-                        )
+        Subnet.objects(
+            network=network, id__nin=[s.id for s in subnets],
+            missing_since=None
+        ).update(missing_since=datetime.datetime.utcnow())
 
         # Update RBAC Mappings given the list of new subnetworks.
         self.cloud.owner.mapper.update(new_subnets, async=False)

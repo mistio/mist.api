@@ -5,6 +5,7 @@ from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 from mist.api.networks.models import Network, Subnet
 from mist.api.networks.models import NETWORKS, SUBNETS
+from mist.api.networks.methods import associate_ip as associate_ip_method
 from mist.api.networks.methods import filter_list_networks
 
 from mist.api.tag.methods import add_tags_to_resource
@@ -413,8 +414,8 @@ def associate_ip(request):
         machine_uuid = ""
     auth_context.check_perm("machine", "edit", machine_uuid)
 
-    ret = methods.associate_ip(auth_context.owner, cloud_id, network_id,
-                               ip, machine_id, assign)
+    ret = associate_ip_method(auth_context.owner, cloud_id, network_id,
+                              ip, machine_id, assign)
     if ret:
         return OK
     else:
