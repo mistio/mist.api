@@ -307,11 +307,20 @@ class Machine(me.Document):
         'collection': 'machines',
         'indexes': [
             {
-                'fields': ['cloud', 'machine_id'],
+                'fields': [
+                    'cloud',
+                    'machine_id'
+                ],
                 'sparse': False,
                 'unique': True,
                 'cls': False,
-            },
+            }, {
+                'fields': [
+                    'monitoring.installation_status.activated_at'
+                ],
+                'sparse': True,
+                'unique': False
+            }
         ],
         'strict': False,
     }
@@ -381,7 +390,9 @@ class Machine(me.Document):
             'size': self.size,
             'state': self.state,
             'tags': tags,
-            'monitoring': self.monitoring.as_dict() if self.monitoring else '',
+            'monitoring':
+                self.monitoring.as_dict() if self.monitoring and
+                self.monitoring.hasmonitoring else '',
             'key_associations': [ka.as_dict() for ka in self.key_associations],
             'cloud': self.cloud.id,
             'location': self.location.id if self.location else '',
@@ -405,47 +416,6 @@ class Machine(me.Document):
                         if self.ssh_probe is not None
                         else SSHProbe().as_dict()),
             },
-        }
-
-    def as_dict_old(self):
-        # Return a dict as it was previously being returned by list_machines
-
-        # This is need to be consistent with the previous situation
-        self.extra.update({'created': str(self.created or ''),
-                           'cost_per_month': '%.2f' % (self.cost.monthly),
-                           'cost_per_hour': '%.2f' % (self.cost.hourly)})
-        # tags as a list return for the ui
-        tags = {tag.key: tag.value for tag in mist.api.tag.models.Tag.objects(
-            owner=self.cloud.owner, resource=self).only('key', 'value')}
-        # Optimize tags data structure for js...
-        if isinstance(tags, dict):
-            tags = [{'key': key, 'value': value}
-                    for key, value in tags.iteritems()]
-        return {
-            'id': self.machine_id,
-            'uuid': self.id,
-            'name': self.name,
-            'public_ips': self.public_ips,
-            'private_ips': self.private_ips,
-            'imageId': self.image_id,
-            'os_type': self.os_type,
-            'last_seen': str(self.last_seen or ''),
-            'missing_since': str(self.missing_since or ''),
-            'state': self.state,
-            'size': self.size,
-            'extra': self.extra,
-            'tags': tags,
-            'can_stop': self.actions.stop,
-            'can_start': self.actions.start,
-            'can_destroy': self.actions.destroy,
-            'can_reboot': self.actions.reboot,
-            'can_tag': self.actions.tag,
-            'can_undefine': self.actions.undefine,
-            'can_rename': self.actions.rename,
-            'can_suspend': self.actions.suspend,
-            'can_resume': self.actions.resume,
-            'machine_type': self.machine_type,
-            'parent_id': self.parent.id if self.parent is not None else '',
         }
 
     def __str__(self):
