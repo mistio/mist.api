@@ -353,7 +353,6 @@ class BaseComputeController(BaseController):
                 size = self._list_machines__get_size(node)
             except Exception as exc:
                 log.error("Error getting size of %s: %r", machine, exc)
-                #
             else:
                 machine.size = sizes_map.get(size)
 
