@@ -299,8 +299,8 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                 size = libcloud_size
                 break
         node = _create_machine_gce(conn, key_id, private_key, public_key,
-                                   machine_name, image, libcloud_size, location,
-                                   cloud_init)
+                                   machine_name, image, libcloud_size,
+                                   location, cloud_init)
     elif conn.type is Provider.SOFTLAYER:
         node = _create_machine_softlayer(
             conn, key_id, private_key, public_key,
