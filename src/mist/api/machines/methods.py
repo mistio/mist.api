@@ -246,9 +246,6 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
             size = NodeSize(size_id, name=size_name,
                             ram=0, disk=0, bandwidth=0,
                             price=0, driver=conn)
-            cloud_size = NodeSize(size_id, name=size_name,
-                                  ram=0, disk=0, bandwidth=0,
-                                  price=0, driver=conn)
 
     if conn.type is Container_Provider.DOCKER:
         if public_key:
@@ -296,13 +293,13 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                                           public_key, machine_name, image,
                                           size, location, ips)
     elif conn.type is Provider.GCE:
-        sizes = conn.list_sizes(location=location_name)
-        for size in sizes:
-            if size.id == cloud_size.external_id:
-                size = size
+        libcloud_sizes = conn.list_sizes(location=location_name)
+        for libcloud_size in libcloud_sizes:
+            if libcloud_size.id == size.id:
+                size = libcloud_size
                 break
         node = _create_machine_gce(conn, key_id, private_key, public_key,
-                                   machine_name, image, size, location,
+                                   machine_name, image, libcloud_size, location,
                                    cloud_init)
     elif conn.type is Provider.SOFTLAYER:
         node = _create_machine_softlayer(
@@ -376,8 +373,8 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
     elif conn.type is Provider.LIBVIRT:
         try:
             # size_id should have a format cpu:ram, eg 1:2048
-            cpu = cloud_size.external_id.split(':')[0]
-            ram = cloud_size.external_id.split(':')[1]
+            cpu = size_id.split(':')[0]
+            ram = size_id.split(':')[1]
         except:
             ram = 512
             cpu = 1
