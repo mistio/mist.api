@@ -848,10 +848,9 @@ class BaseComputeController(BaseController):
             _size.missing_since = None
             _size.extra = {'description': size.extra.get('description', '')}
             _size.extra.update({'price': size.price})
-
             if size.ram:
                 try:
-                    _size.ram = int(re.sub("\D", "", size.ram))
+                    _size.ram = int(re.sub("\D", "", str(size.ram)))
                 except Exception as exc:
                     log.error(repr(exc))
 
