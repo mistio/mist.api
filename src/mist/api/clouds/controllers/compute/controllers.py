@@ -589,7 +589,8 @@ class GoogleComputeController(BaseComputeController):
         return machine_libcloud.extra.get('creationTimestamp')
 
     def _list_machines__get_size_metadata(self, node):
-        size = self.connection.get_size_metadata_from_node(node.extra.get('machineType'))
+        size = self.connection.get_size_metadata_from_node(node.extra.
+                                                           get('machineType'))
         # FIXME: resolve circular import issues
         from mist.api.clouds.models import CloudSize
         _size = CloudSize(cloud=self.cloud, external_id=size.get('id'))

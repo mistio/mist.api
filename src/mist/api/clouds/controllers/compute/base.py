@@ -358,19 +358,8 @@ class BaseComputeController(BaseController):
                 machine.size = sizes_map.get(size)
 
             if not machine.size:
-                # make sure mongo is up-to-date
-                self.list_sizes()
-
-                try:
-                    size = self._list_machines__get_size(node)
-                except Exception as exc:
-                    log.error("Error getting size of %s: %r", machine, exc)
-                else:
-                    machine.size = sizes_map.get(size)
-
-                if not machine.size:
-                    # probably custom size, try to extract related info
-                    machine.size = self._list_machines__get_size_metadata(node)
+                # probably custom size, try to extract related info
+                machine.size = self._list_machines__get_size_metadata(node)
 
             machine.name = node.name
             machine.image_id = image_id
