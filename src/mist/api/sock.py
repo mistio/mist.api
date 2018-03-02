@@ -574,7 +574,8 @@ class MainConnection(MistConnection):
                 filtered_networks = filter_list_networks(
                     self.auth_context, cloud_id, networks
                 )
-                self.send(routing_key, filtered_networks)
+                self.send(routing_key, {'cloud_id': cloud_id,
+                                        'networks': filtered_networks})
             else:
                 self.send(routing_key, result)
 
