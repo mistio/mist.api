@@ -5,11 +5,13 @@ import mist.api.networks.methods as methods
 
 from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
-from mist.api.networks.models import Network
+from mist.api.networks.models import Network, Subnet
 
 from mist.api.auth.methods import auth_context_from_request
 
 from mist.api.exceptions import CloudNotFoundError
+from mist.api.exceptions import SubnetNotFoundError
+
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import PolicyUnauthorizedError, NetworkNotFoundError
 
@@ -161,6 +163,106 @@ def delete_network(request):
         raise NetworkNotFoundError
 
     methods.delete_network(auth_context.owner, network)
+
+    return OK
+
+
+@view_config(route_name='api_v1_subnets', request_method='POST',
+             renderer='json')
+def create_subnet(request):
+    """
+    Tags: networks
+    ---
+    Create subnet on a given network on a cloud.
+    CREATE_RESOURCES permission required on cloud.
+    ---
+    cloud_id:
+      in: path
+      required: true
+      description: The Cloud ID
+      type: string
+    network_id:
+      in: path
+      required: true
+      description: The ID of the Network that will contain the new subnet
+      type: string
+    subnet:
+      required: true
+      type: object
+    """
+    import ipdb; ipdb.set_trace()
+    cloud_id = request.matchdict['cloud']
+    network_id = request.matchdict['network']
+
+    params = params_from_request(request)
+
+    auth_context = auth_context_from_request(request)
+
+    # TODO
+    if not auth_context.is_owner():
+        raise PolicyUnauthorizedError()
+
+    try:
+        cloud = Cloud.objects.get(id=cloud_id, owner=auth_context.owner)
+    except Cloud.DoesNotExist:
+        raise CloudNotFoundError
+    try:
+        network = Network.objects.get(id=network_id, cloud=cloud)
+    except Network.DoesNotExist:
+        raise NetworkNotFoundError
+
+    subnet = methods.create_subnet(auth_context.owner, cloud, network, params)
+
+    return subnet.as_dict()
+
+
+@view_config(route_name='api_v1_subnet', request_method='DELETE')
+def delete_subnet(request):
+    """
+    Tags: networks
+    ---
+    Deletes a subnet.
+    CREATE_RESOURCES permission required on cloud.
+    ---
+    cloud_id:
+      in: path
+      required: true
+      type: string
+    network_id:
+      in: path
+      required: true
+      type: string
+    subnet_id:
+      in: path
+      required: true
+      type: string
+    """
+    cloud_id = request.matchdict['cloud']
+    subnet_id = request.matchdict['subnet']
+    network_id = request.matchdict['network']
+
+    auth_context = auth_context_from_request(request)
+
+    # TODO
+    if not auth_context.is_owner():
+        raise PolicyUnauthorizedError()
+
+    try:
+        cloud = Cloud.objects.get(id=cloud_id, owner=auth_context.owner)
+    except Cloud.DoesNotExist:
+        raise CloudNotFoundError
+
+    try:
+        network = Network.objects.get(id=network_id, cloud=cloud)
+    except Network.DoesNotExist:
+        raise NetworkNotFoundError
+
+    try:
+        subnet = Subnet.objects.get(id=subnet_id, network=network)
+    except Subnet.DoesNotExist:
+        raise SubnetNotFoundError
+
+    methods.delete_subnet(auth_context.owner, subnet)
 
     return OK
 
