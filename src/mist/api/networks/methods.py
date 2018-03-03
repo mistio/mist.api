@@ -61,6 +61,16 @@ def create_subnet(owner, cloud, network, subnet_params):
     return new_subnet
 
 
+def delete_subnet(owner, subnet):
+    """
+    Delete a subnet.
+    """
+    subnet.ctl.delete()
+
+    # Schedule a UI update
+    trigger_session_update(owner, ['clouds'])
+
+
 def list_networks(owner, cloud_id):
     """List networks from each cloud.
     Currently EC2, Openstack, Azure ARM and GCE clouds are supported.
