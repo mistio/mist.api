@@ -227,9 +227,12 @@ def create_subnet(request):
       required: true
       description: The ID of the Network that will contain the new subnet
       type: string
-    subnet:
+    cidr:
       required: true
-      type: object
+      type: string
+    availability_zone:
+      description: Required for Amazon VPCs
+      type: string
     """
     cloud_id = request.matchdict['cloud']
     network_id = request.matchdict['network']
