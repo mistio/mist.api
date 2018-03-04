@@ -125,7 +125,8 @@ class Network(me.Document):
 
 class AmazonNetwork(Network):
     instance_tenancy = me.StringField(default='default', choices=('default',
-                                                                  'private'))
+                                                                  'dedicated',
+                                                                  'host'))
 
     def clean(self):
         """Extended validation for EC2 Networks to ensure CIDR assignment."""
