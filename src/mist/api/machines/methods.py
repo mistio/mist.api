@@ -577,8 +577,6 @@ def _create_machine_ec2(conn, key_name, private_key, public_key,
         else:
             raise InternalServerError("Couldn't create security group", exc)
 
-    # import ipdb; ipdb.set_trace()
-
     kwargs = {'name': machine_name, 'image': image,
               'size': size, 'location': location,
               'max_tries': 1, 'ex_keyname': key_name,
