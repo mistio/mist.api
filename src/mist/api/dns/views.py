@@ -176,6 +176,14 @@ def delete_dns_zone(request):
     Deletes a specific DNS zone under a cloud.
     REMOVE permission required on zone.
     ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    zone:
+      in: path
+      required: true
+      type: string
     """
     auth_context = auth_context_from_request(request)
     cloud_id = request.matchdict['cloud']
@@ -208,6 +216,18 @@ def delete_dns_record(request):
     Deletes a specific DNS record under a zone.
     REMOVE permission required on zone.
     ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    zone:
+      in: path
+      required: true
+      type: string
+    record:
+      in: path
+      required: true
+      type: string
     """
     auth_context = auth_context_from_request(request)
     cloud_id = request.matchdict['cloud']

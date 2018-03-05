@@ -213,10 +213,11 @@ def update_monitoring(request):
 @view_config(route_name='api_v1_monitoring',
              request_method='POST', renderer='json')
 def update_monitoring_options(request):
-    """Set global email alerts' recipients
-
+    """
+    Tags: monitoring
     ---
-
+    Set global email alerts' recipients
+    ---
     alerts_email:
       type: string
       description: One or more comma-separated e-mail addresses
@@ -268,7 +269,10 @@ def find_metrics(request):
 @view_config(route_name='api_v1_deploy_plugin',
              request_method='POST', renderer='json')
 def deploy_plugin(request):
-    """Deploy a custom plugin on a machine
+    """
+    Tags: monitoring
+    ---
+    Deploy a custom plugin on a machine
 
     Adds a scripts, which is then deployed on the specified machine to collect
     custom metrics.
@@ -374,7 +378,10 @@ def deploy_plugin(request):
 @view_config(route_name='api_v1_deploy_plugin',
              request_method='DELETE', renderer='json')
 def undeploy_plugin(request):
-    """Undeploy a custom plugin/script from a machine
+    """
+    Tags: monitoring
+    ---
+    Undeploy a custom plugin/script from a machine
 
     READ permission required on cloud
     EDIT_CUSTOM_METRICS permission required on machine
@@ -420,7 +427,10 @@ def undeploy_plugin(request):
 
 @view_config(route_name='api_v1_metric', request_method='PUT', renderer='json')
 def update_metric(request):
-    """Update a metric configuration
+    """
+    Tags: monitoring
+    ---
+    Update a metric configuration
 
     READ permission required on cloud
     EDIT_CUSTOM_METRICS permission required on machine
