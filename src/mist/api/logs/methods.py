@@ -370,7 +370,7 @@ def get_stories(story_type='', owner_id='', user_id='', sort_order=-1, limit=0,
         result = _on_response_callback(response, tornado_async)
         return process_stories(
             buckets=result["aggregations"]["stories"]["buckets"],
-            callback=tornado_callback, type=story_type, pending=pending
+            callback=tornado_callback, type=story_type
         )
 
     # Fetch stories. Invoke callback to process and return results.
@@ -405,7 +405,7 @@ def get_stories(story_type='', owner_id='', user_id='', sort_order=-1, limit=0,
         return _on_request_callback(query)
 
 
-def process_stories(buckets, type=None, pending=None, callback=None):
+def process_stories(buckets, type=None, callback=None):
     """Process fetched logs.
 
     Process results of Elasticsearch aggregations on logs in order to create
@@ -414,7 +414,6 @@ def process_stories(buckets, type=None, pending=None, callback=None):
     Arguments:
         - buckets: buckets of logs returned by Elasticsearch aggregations.
         - type: the story's type - one of (job, shell, session, incident).
-        - pending: denotes whether we are processing stories still pending.
         - callback: the callback to be invoked, after processing, if provided.
 
     """
@@ -471,7 +470,7 @@ def process_stories(buckets, type=None, pending=None, callback=None):
         stories.append(story)
 
     if callback is not None:
-        return callback(stories, pending)
+        return callback(stories)
     return stories
 
 
@@ -507,6 +506,59 @@ def process_filters(query, filters, close=None, error=None):
             query["query"]["bool"]["filter"]["bool"][append_to].append(
                 {"terms": {"stories": stories}}
             )
+
+
+def create_stories_patch(auth_context, event):
+    """Create a stories patch.
+
+    Generates a patch based on the `stories` included in `event`, which
+    describes the diff that should be applied on existing stories.
+
+    Each patch is meant to either describe newly created stories or update
+    existing ones simply based on a log entry's metadata.
+
+    The patch's schema conforms with `jsonpatch` (http://jsonpatch.com/).
+
+    """
+    patch = []
+    for action, stype, sid in event.get('stories', []):
+        if not auth_context.is_owner() and stype != 'incident':
+            continue
+        if action == 'opens':
+            story = {'error': event['error'],
+                     'story_id': sid, 'type': stype,
+                     'started_at': event['time'], 'finished_at': 0}
+            # Add event fields that must be present in the story.
+            for field in FIELDS:
+                if field in event and field not in story:
+                    story[field] = event[field]
+            # Include the entire log entry only in case of incidents.
+            if stype == 'incident':
+                story['logs'] = [event]
+            else:
+                story['logs'] = [{'log_id': event['log_id']}]
+            # Push an entirely new story as part of the patch.
+            patch.append({'op': 'add',
+                          'path': '/%ss/%s' % (stype, sid),
+                          'value': story})
+        else:
+            # NOTE: The - character is used instead of an index to insert
+            # an item at the end of an array.
+            patch.append({'op': 'add',
+                          'path': '/%ss/%s/logs/-' % (stype, sid),
+                          'value': event['log_id']})
+            if event['error']:
+                patch.append({'op': 'replace',
+                              'path': '/%ss/%s/error' % (stype, sid),
+                              'value': event['error']})
+            # If the latest log closes the story, instead of just updating
+            # it, notify the client-side to atomically update the story's
+            # finished_at timestamp, too.
+            if action == 'closes':
+                patch.append({'op': 'replace',
+                              'path': '/%ss/%s/finished_at' % (stype, sid),
+                              'value': event['time']})
+    return patch
 
 
 def associate_stories(event):

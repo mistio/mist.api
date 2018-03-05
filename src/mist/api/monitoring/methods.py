@@ -1,3 +1,4 @@
+import os
 import re
 import uuid
 import time
@@ -6,6 +7,7 @@ import logging
 import requests
 import mongoengine as me
 
+import mist.api.shell
 import mist.api.config as config
 import mist.api.monitoring.tasks
 
@@ -20,12 +22,19 @@ from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 from mist.api.machines.models import InstallationStatus
 
-from mist.api.monitoring.helpers import show_fields
-from mist.api.monitoring.helpers import show_measurements
+from mist.api.monitoring.influxdb.helpers import show_fields
+from mist.api.monitoring.influxdb.helpers import show_measurements
+from mist.api.monitoring.influxdb.handlers import HANDLERS as INFLUXDB_HANDLERS
+from mist.api.monitoring.influxdb.handlers \
+    import MainStatsHandler as InfluxMainStatsHandler
+from mist.api.monitoring.influxdb.handlers \
+    import MultiLoadHandler as InfluxMultiLoadHandler
 
-from mist.api.monitoring.handlers import HANDLERS
-from mist.api.monitoring.handlers import MainStatsHandler
-from mist.api.monitoring.handlers import MultiLoadHandler
+from mist.api.monitoring.graphite.methods \
+    import get_stats as graphite_get_stats
+from mist.api.monitoring.graphite.methods \
+    import get_load as graphite_get_load
+
 from mist.api.monitoring import traefik
 
 from mist.api.rules.models import Rule
@@ -33,8 +42,7 @@ from mist.api.rules.models import Rule
 log = logging.getLogger(__name__)
 
 
-def get_stats(machine, start='', stop='', step='',
-              metrics=None, callback=None, tornado_async=False):
+def get_stats(machine, start='', stop='', step='', metrics=None):
     """Get all monitoring data for the specified machine.
 
     If a list of `metrics` is provided, each metric needs to comply with the
@@ -54,8 +62,6 @@ def get_stats(machine, start='', stop='', step='',
         - stop: the time until which to query for stats
         - step: the step at which to return stats
         - metrics: the metrics to query for, if explicitly specified
-        - callback: the method to be invoked in order to return data
-        - tornado_async: denotes whether to issue a Tornado-safe HTTP request
 
     """
     if not machine.monitoring.hasmonitoring:
@@ -68,10 +74,8 @@ def get_stats(machine, start='', stop='', step='',
     if machine.monitoring.method in ('collectd-graphite', 'telegraf-graphite'):
         if not config.HAS_CORE:
             raise Exception()
-        from mist.core.methods import _graphite_get_stats
-        return _graphite_get_stats(
+        return graphite_get_stats(
             machine, start=start, stop=stop, step=step, metrics=metrics,
-            callback=callback, tornado_async=tornado_async,
         )
     elif machine.monitoring.method == 'telegraf-influxdb':
         if not metrics:
@@ -94,10 +98,11 @@ def get_stats(machine, start='', stop='', step='',
                 metric += '.*'
             if not measurement or measurement == '*':
                 raise BadRequestError('No measurement specified')
-            handler = HANDLERS.get(measurement, MainStatsHandler)(machine)
+            handler = INFLUXDB_HANDLERS.get(
+                measurement, InfluxMainStatsHandler
+            )(machine)
             data = handler.get_stats(metric=metric, start=start, stop=stop,
-                                     step=step, callback=callback,
-                                     tornado_async=tornado_async)
+                                     step=step)
             if data:
                 results.update(data)
         return results
@@ -105,8 +110,7 @@ def get_stats(machine, start='', stop='', step='',
         raise Exception("Invalid monitoring method")
 
 
-def get_load(owner, start='', stop='', step='', uuids=None,
-             tornado_callback=None, tornado_async=True):
+def get_load(owner, start='', stop='', step='', uuids=None):
     """Get shortterm load for all monitored machines."""
     clouds = Cloud.objects(owner=owner, deleted=None).only('id')
     machines = Machine.objects(cloud__in=clouds,
@@ -119,41 +123,24 @@ def get_load(owner, start='', stop='', step='', uuids=None,
     influx_uuids = [machine.id for machine in machines
                     if machine.monitoring.method.endswith('-influxdb')]
 
-    def _get_influx_load(callback):
+    graphite_data = {}
+    influx_data = {}
+    if graphite_uuids:
+        graphite_data = graphite_get_load(owner, start=start, stop=stop,
+                                          step=step, uuids=graphite_uuids)
+    if influx_uuids:
         # Transform "min" and "sec" to "m" and "s", respectively.
         _start, _stop, _step = map(
             lambda x: re.sub('in|ec', repl='', string=x),
             (start.strip('-'), stop.strip('-'), step)
         )
-        # Get load stats.
-        return MultiLoadHandler(influx_uuids).get_stats(
+        influx_data = InfluxMultiLoadHandler(influx_uuids).get_stats(
             metric='system.load1',
             start=_start, stop=_stop, step=_step,
-            callback=callback,
-            tornado_async=tornado_async
         )
 
-    def _get_graphite_load(callback):
-        from mist.core.methods import _graphite_get_load
-        kwargs = {'owner': owner, 'start': start, 'stop': stop, 'step': step,
-                  'uuids': graphite_uuids}
-        if tornado_async and callback is not None:
-            _graphite_get_load(tornado_callback=callback, **kwargs)
-        elif callback is not None:
-            return callback(_graphite_get_load(**kwargs))
-        else:
-            return _graphite_get_load(**kwargs)
-
-    if graphite_uuids and influx_uuids:
-        def callback1(data1):
-            def callback2(data2):
-                return tornado_callback(dict(data1.items() + data2.items()))
-            return _get_influx_load(callback2)
-        return _get_graphite_load(callback1)
-    elif graphite_uuids:
-        return _get_graphite_load(tornado_callback)
-    elif influx_uuids:
-        return _get_influx_load(tornado_callback)
+    if graphite_data or influx_data:
+        return dict(graphite_data.items() + influx_data.items())
     else:
         raise NotFoundError('No machine has monitoring enabled')
 
@@ -210,8 +197,7 @@ def check_monitoring(owner):
             # Keep for backwards compatibility
             'builtin_metrics': config.GRAPHITE_BUILTIN_METRICS,
             'builtin_metrics_graphite': config.GRAPHITE_BUILTIN_METRICS,
-            # FIXME
-            # 'builtin_metrics_influxdb': config.INFLUXDB_BUILTIN_METRICS,
+            'builtin_metrics_influxdb': config.INFLUXDB_BUILTIN_METRICS,
         })
     else:
         ret.update({
@@ -225,10 +211,23 @@ def check_monitoring(owner):
     return ret
 
 
-# FIXME: Method arguments are left unchanged for backwards compatibility.
-def enable_monitoring(owner, cloud_id, machine_id,
-                      no_ssh=False,
-                      dry=False, job_id='', deploy_async=True, plugins=None):
+def update_monitoring_options(owner, emails):
+    """Set `emails` as global e-mail alert's recipients."""
+    from mist.api.rules.actions import is_email_valid
+    # FIXME Send e-mails as a list, instead of string?
+    emails = emails.replace(' ', '')
+    emails = emails.replace('\n', ',')
+    emails = emails.replace('\r', ',')
+    owner.alerts_email = [
+        email for email in emails.split(',') if is_email_valid(email)
+    ]
+    owner.save()
+    trigger_session_update(owner, ['monitoring'])
+    return {'alerts_email': owner.alerts_email}
+
+
+def enable_monitoring(owner, cloud_id, machine_id, no_ssh=False, dry=False,
+                      job_id='', deploy_async=True, plugins=None):
     """Enable monitoring for a machine.
 
     If `no_ssh` is False, then the monitoring agent will be deployed over SSH.
@@ -342,7 +341,7 @@ def enable_monitoring(owner, cloud_id, machine_id,
             func = mist.api.monitoring.tasks.install_telegraf
             if deploy_async:
                 func = func.delay
-            func(owner.id, machine.cloud.id, machine.machine_id, job, job_id)
+            func(machine.id, job, job_id, plugins)
         else:
             raise Exception("Invalid monitoring method")
 
@@ -393,9 +392,8 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=''):
         elif machine.monitoring.method in ('telegraf-influxdb',
                                            'telegraf-graphite'):
             # Schedule undeployment of Telegraf.
-            mist.api.monitoring.tasks.uninstall_telegraf.delay(
-                owner.id, machine.cloud.id, machine.machine_id, job, job_id)
-
+            mist.api.monitoring.tasks.uninstall_telegraf.delay(machine.id,
+                                                               job, job_id)
     if job_id:
         ret_dict['job_id'] = job_id
 
@@ -515,3 +513,41 @@ def update_metric(owner, metric_id, name='', unit=''):
     metric.save()
     trigger_session_update(owner, ['monitoring'])
     return metric
+
+
+# FIXME The `plugin_id` is the name of the plugin/script as it exists in the
+# monitoring agent's configuration, and not an ID stored in our database to
+# which we can easily refer.
+def undeploy_python_plugin(machine, plugin_id):
+    """Undeploy a custom plugin from a machine."""
+    if machine.monitoring.method == 'collectd-graphite':
+        # Edit the collectd.conf.
+        script = """
+sudo=$(command -v sudo)
+cd /opt/mistio-collectd/
+
+echo "Removing Include line for plugin conf from plugins/mist-python/include.conf"
+$sudo grep -v 'Import %(plugin_id)s$' plugins/mist-python/include.conf > /tmp/include.conf
+$sudo mv /tmp/include.conf plugins/mist-python/include.conf
+
+echo "Restarting collectd"
+$sudo /opt/mistio-collectd/collectd.sh restart
+""" % {'plugin_id': plugin_id}  # noqa
+    else:
+        # Just remove the executable.
+        plugin = os.path.join('/opt/mistio/mist-telegraf/custom', plugin_id)
+        script = '$(command -v sudo) rm %s' % plugin
+
+    # Run the command over SSH.
+    shell = mist.api.shell.Shell(machine.ctl.get_host())
+    key_id, ssh_user = shell.autoconfigure(machine.owner, machine.cloud.id,
+                                           machine.machine_id)
+    retval, stdout = shell.command(script)
+    shell.disconnect()
+
+    if retval:
+        log.error('Error undeploying custom plugin: %s', stdout)
+
+    # TODO Shouldn't we also `disassociate_metric` and remove relevant Rules?
+
+    return {'metric_id': None, 'stdout': stdout}

@@ -436,9 +436,9 @@ def rename_rule(request):
 
 @view_config(route_name='api_v1_rule', request_method='DELETE')
 def delete_rule(request):
-    """Delete a rule given its UUID
+    """Delete a rule given its UUID.
 
-    READ permission required on Cloud
+    READ permission required on Cloud.
     EDIT_RULES permission required on Machine
 
     ---
@@ -463,7 +463,7 @@ def delete_rule(request):
 
 @view_config(route_name='api_v1_rule_triggered', request_method='PUT')
 def triggered(request):
-    """Process a trigger sent by the alert service
+    """Process a trigger sent by the alert service.
 
     Based on the parameters of the request, this method will initiate actions
     to mitigate the conditions that triggered the rule and notify the users.
@@ -471,46 +471,47 @@ def triggered(request):
     ---
 
     value:
-      type: integer
-      required: true
-      description: >
-        the value that triggered the rule by exceeding the threshold
+     type: integer
+     required: true
+     description: >
+       the value that triggered the rule by exceeding the threshold
     incident:
-      type: string
-      required: true
-      description: the incident's UUID
+     type: string
+     required: true
+     description: the incident's UUID
     resource:
-      type: string
-      required: true
-      description: the UUID of the resource for which the rule got triggered
+     type: string
+     required: true
+     description: the UUID of the resource for which the rule got triggered
     triggered:
-      type: integer
-      required: true
-      description: 0 if the specified incident got resolved/untriggered
+     type: integer
+     required: true
+     description: 0 if the specified incident got resolved/untriggered
     triggered_now:
-      type: integer
-      required: true
-      description: |
-        0 in case this is not the first time the specified incident has
-        raised an alert
+     type: integer
+     required: true
+     description: |
+       0 in case this is not the first time the specified incident has
+       raised an alert
     firing_since:
-      type: datetime
-      required: true
-      description: |
-        the time at which the rule raised an alert and sent a trigger to
-        this API endpoint
+     type: string
+     required: true
+     description: |
+       the time at which the rule raised an alert and sent a trigger to
+       this API endpoint
     pending_since:
-      type: datetime
-      required: true
-      description: |
-        the time at which the rule evaluated to True and entered pending
-        state. A rule can remain in pending state if a TriggerOffset has
-        been configured
+     type: string
+     required: true
+     description: |
+       the time at which the rule evaluated to True and entered pending
+       state. A rule can remain in pending state if a TriggerOffset has
+       been configured. Datetime needed
     resolved_since:
-      type: datetime
-      required: true
-      description: >
-        the time at which the incident with the specified UUID resolved
+     type: string
+     required: true
+     description: >
+       the time at which the incident with the specified UUID resolved.\
+       Datetime needed
 
     """
     # Do not publicly expose this API endpoint?
@@ -519,7 +520,6 @@ def triggered(request):
 
     params = params_from_request(request)
 
-    # Verify required parameters are present.
     keys = (
         'value',
         'incident',

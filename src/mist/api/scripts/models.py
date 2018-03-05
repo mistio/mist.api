@@ -1,4 +1,5 @@
 """Script entity model."""
+import re
 from uuid import uuid4
 import mongoengine as me
 import mist.api.tag.models
@@ -152,6 +153,8 @@ class Script(me.Document):
 
     deleted = me.DateTimeField()
 
+    migrated = me.BooleanField()  # NOTE For collectd scripts' migration.
+
     _controller_cls = None
 
     def __init__(self, *args, **kwargs):
@@ -208,42 +211,15 @@ class Script(me.Document):
         mist.api.tag.models.Tag.objects(resource=self).delete()
         self.owner.mapper.remove(self)
 
-    def as_dict_old(self):
-        """Data representation for api calls.
-           Use this for backwards compatibility"""
-
-        if self.location.type == 'inline':
-            entrypoint = ''
-        else:
-            entrypoint = self.location.entrypoint or ''
-
-        sdict = {
-            'id': str(self.id),
-            'name': self.name,
-            'description': self.description,
-            'location_type': self.location.type,
-            'entrypoint': entrypoint,
-            'script': self.script,
-            'exec_type': self.exec_type,
-        }
-
-        sdict.update({key: getattr(self, key)
-                      for key in self._script_specific_fields})
-
-        return sdict
-
     def as_dict(self):
         """Data representation for api calls."""
-
-        sdict = {
+        return {
             'id': str(self.id),
             'name': self.name,
             'description': self.description,
             'exec_type': self.exec_type,
             'location': self.location.as_dict(),
         }
-
-        return sdict
 
     def __str__(self):
         return 'Script %s (%s) of %s' % (self.name, self.id, self.owner)
@@ -270,3 +246,35 @@ class CollectdScript(Script):
     extra = me.DictField()
 
     _controller_cls = controllers.CollectdScriptController
+
+
+class TelegrafScript(Script):
+
+    exec_type = 'executable'
+
+    # ex. a dict with value_type='gauge', value_unit=''
+    extra = me.DictField()
+
+    _controller_cls = controllers.TelegrafScriptController
+
+    def clean(self):
+        # Make sure the script name does not contain any weird characters.
+        if not re.match('^[\w]+$', self.name):
+            raise me.ValidationError('Alphanumeric characters and underscores '
+                                     'are only allowed in custom script names')
+
+        # Custom scripts should be provided inline (for now).
+        if not isinstance(self.location, InlineLocation):
+            raise me.ValidationError('Only inline scripts supported for now')
+
+        # Make sure shebang is present.
+        if not self.location.source_code.startswith('#!'):
+            raise me.ValidationError('Missing shebang')
+
+        # Check metric type.
+        if self.extra.get('value_type', 'gauge') not in ('gauge', 'derive'):
+            raise me.ValidationError('value_type must be "gauge" or "derive"')
+
+        # FIXME Allow derivatives.
+        if self.extra.get('value_type', 'gauge') == 'derive':
+            raise me.ValidationError('Derivative metrics not yet supported')

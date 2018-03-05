@@ -1192,3 +1192,35 @@ def mac_verify(kwargs=None, key='', mac_len=0, mac_format='hex'):
     for kw in ('_expires', '_mac'):
         if kw in kwargs:
             del kwargs[kw]
+
+
+def maybe_submit_cloud_task(cloud, task_name):
+    """Decide whether a task should be submitted to celery
+
+    This method helps us prevent submitting new celery tasks, which are
+    guaranteed to return/exit immediately without performing any actual
+    actions.
+
+    For instance, such cases include async tasks for listing DNS zones
+    for clouds that have no DNS support or DNS is temporarily disabled.
+
+    Note that this is just a helper method used to make an initial decision.
+
+    The `cloud` argument must be a `mist.api.clouds.models.Cloud` mongoengine
+    objects and `task_name` must be the name/identifier of the corresponding
+    celery task.
+
+    """
+    if task_name == 'list_zones':
+        if not (hasattr(cloud.ctl, 'dns') and cloud.dns_enabled):
+            return False
+    if task_name == 'list_networks':
+        if not hasattr(cloud.ctl, 'network'):
+            return False
+    if task_name == 'list_projects':
+        if cloud.ctl.provider != 'packet':
+            return False
+    if task_name in ('list_resource_groups', 'list_storage_accounts', ):
+        if cloud.ctl.provider != 'azure_arm':
+            return False
+    return True

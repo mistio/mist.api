@@ -2,7 +2,7 @@ import logging
 
 from mist.api.rules.plugins import base
 from mist.api.rules.plugins import methods
-from mist.api.rules.plugins.graphite import handlers as hrs
+from mist.api.monitoring.graphite import handlers as hrs
 
 
 log = logging.getLogger(__name__)

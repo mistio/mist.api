@@ -46,14 +46,14 @@ def filter(query, fields=None, start='', stop=''):
     for key, value in fields.iteritems():
         if isinstance(value, list):
             or_stmt = ['"%s" = \'%s\'' % (key, val) for val in value]
-        elif re.match('^/.*/$', value):  # re.match('/.*/', value):
+        elif re.match('^/.*/$', value):
             filters.append('"%s" =~ %s' % (key, value))
         else:
             filters.append('"%s" = \'%s\'' % (key, value))
     if or_stmt:
         filters.append('(%s)' % ' OR '.join(or_stmt))
     if stop:
-        filters.insert(0, '"time" =< now() - %s' % stop)
+        filters.insert(0, '"time" <= now() - %s' % stop)
     if start:
         filters.insert(0, '"time" >= now() - %s' % start)
     return '%s WHERE %s' % (query, ' AND '.join(filters))
@@ -96,7 +96,7 @@ class BaseStatsHandler(object):
         self.measurement, self.column, tags = self.parse_path(metric)
 
         # Construct query.
-        q = 'SELECT %s FROM %s' % (self.column, self.measurement)
+        q = 'SELECT %s FROM "%s"' % (self.column, self.measurement)
         if step:
             q = aggregate(q)
         q = group(filter(q, tags, start, stop), self.group, step)
@@ -160,6 +160,8 @@ class BaseStatsHandler(object):
                     timestamp = iso_to_seconds(value[0])
                     for index, point in enumerate(value):
                         if index == 0:  # Skip the "time" column.
+                            continue
+                        if isinstance(point, basestring):  # Skip tags.
                             continue
                         name = measurement.upper()
                         column = columns[index]
