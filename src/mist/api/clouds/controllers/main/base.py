@@ -324,6 +324,12 @@ class BaseMainController(object):
                         missing_since=None).update(
             missing_since=datetime.datetime.now()
         )
+        # FIXME: Circular dependency.
+        from mist.api.clouds.models import CloudLocation
+        CloudLocation.objects(cloud=self.cloud,
+                              missing_since=None).update(
+            missing_since=datetime.datetime.utcnow()
+        )
 
     def dns_enable(self):
         self.cloud.dns_enabled = True

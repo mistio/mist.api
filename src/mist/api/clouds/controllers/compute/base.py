@@ -877,6 +877,13 @@ class BaseComputeController(BaseController):
                                        "errors": exc.to_dict()})
             locations.append(_location)
 
+        # update missing_since for locations not returned by libcloud
+        CloudLocation.objects(cloud=self.cloud,
+                              missing_since=None,
+                              external_id__nin=[l.external_id
+                                                for l in locations]).update(
+                                                    missing_since=datetime.
+                                                    datetime.utcnow())
         return locations
 
     def list_cached_locations(self):
