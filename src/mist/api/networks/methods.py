@@ -49,15 +49,8 @@ def filter_list_networks(auth_context, cloud_id, networks=None, perm='read'):
             if not networks.get(key):
                 continue
             for i in xrange(len(networks[key]) - 1, -1, -1):
-                network = networks[key][i]
-                if network['id'] not in allowed_resources['networks']:
+                if networks[key][i]['id'] not in allowed_resources['networks']:
                     networks[key].pop(i)
-                    continue
-                for j in xrange(len(network['subnets']) - 1, -1, -1):
-                    subnets = network['subnets']
-                    subnet_id = subnets[j]['id']
-                    if subnet_id not in allowed_resources['subnets']:
-                        subnets.pop(j)
     return networks
 
 

@@ -89,7 +89,6 @@ def tag_resources(request):
             query['machine_id'] = rid
         else:
             query['id'] = rid
-            query['deleted'] = None
 
         if cloud_id:
             query['cloud'] = cloud_id

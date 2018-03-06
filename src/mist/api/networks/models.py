@@ -292,7 +292,6 @@ class Subnet(me.Document):
 
     def delete(self):
         super(Subnet, self).delete()
-        self.owner.mapper.remove(self)
         Tag.objects(resource=self).delete()
 
     def as_dict(self):

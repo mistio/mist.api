@@ -120,7 +120,6 @@ def create_network(request):
     # Bundling Subnet creation in this call because it is required for
     # backwards compatibility with the current UI  # FIXME
     if subnet_params:
-        tags = auth_context.check_perm("subnet", "add", None) or {}
         try:
             # Create a DB document for the new subnet and call libcloud to
             # declare it on the cloud provider
@@ -132,8 +131,6 @@ def create_network(request):
             network.ctl.delete()
             network.delete()
             raise exc
-        if tags:
-            add_tags_to_resource(auth_context.owner, subnet, tags)
 
         network_dict['subnet'] = subnet.as_dict()
 
@@ -233,16 +230,7 @@ def list_subnets(request):
         network = Network.objects.get(cloud=cloud, id=network_id)
     except Network.DoesNotExist:
         raise NetworkNotFoundError()
-
-    subnets = []
-    for subnet in network.ctl.list_subnets():
-        try:
-            auth_context.check_perm('subnet', 'read', subnet.id)
-        except PolicyUnauthorizedError:
-            pass
-        else:
-            subnets.append(subnet.as_dict())
-    return subnets
+    return [subnet.as_dict() for subnet in network.ctl.list_subnets()]
 
 
 @view_config(route_name='api_v1_subnets', request_method='POST',
@@ -284,8 +272,7 @@ def create_subnet(request):
     auth_context.check_perm('cloud', 'read', cloud_id)
     auth_context.check_perm('cloud', 'create_resources', cloud_id)
     auth_context.check_perm('network', 'read', network_id)
-    auth_context.check_perm('network', 'create_subnets', network_id)
-    tags = auth_context.check_perm("subnet", "add", None) or {}
+    auth_context.check_perm('network', 'edit_subnets', network_id)
 
     try:
         cloud = Cloud.objects.get(id=cloud_id, owner=auth_context.owner)
@@ -298,8 +285,6 @@ def create_subnet(request):
 
     # Create subnet.
     subnet = SUBNETS[cloud.ctl.provider].add(network=network, **params)
-    if tags:
-        add_tags_to_resource(auth_context.owner, subnet, tags)
 
     return subnet.as_dict()
 
@@ -338,8 +323,7 @@ def delete_subnet(request):
     # SEC
     auth_context.check_perm('cloud', 'read', cloud_id)
     auth_context.check_perm('network', 'read', network_id)
-    auth_context.check_perm('subnet', 'read', subnet_id)
-    auth_context.check_perm('subnet', 'remove', subnet_id)
+    auth_context.check_perm('network', 'edit_subnets', network_id)
 
     try:
         cloud = Cloud.objects.get(id=cloud_id, owner=auth_context.owner)
