@@ -245,7 +245,7 @@ INFLUXDB_MACHINE_DASHBOARD_DEFAULT = {
                     "target": "net.bytes_recv"
                 }],
                 "yaxes": [{
-                    "format": "octets"
+                    "format": "B/s"
                 }]
             }, {
                 "id": 5,
@@ -259,7 +259,7 @@ INFLUXDB_MACHINE_DASHBOARD_DEFAULT = {
                     "target": "net.bytes_sent"
                 }],
                 "yaxes": [{
-                    "format": "octets"
+                    "format": "B/s"
                 }]
             }, {
                 "id": 6,
@@ -286,7 +286,7 @@ INFLUXDB_MACHINE_DASHBOARD_DEFAULT = {
                     "target": "diskio.write_bytes"
                 }],
                 "yaxes": [{
-                    "format": "octets"
+                    "format": "B/s"
                 }]
             }, {
                 "id": 8,
