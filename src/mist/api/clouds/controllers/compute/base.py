@@ -169,7 +169,7 @@ class BaseComputeController(BaseController):
 
         """
         super(BaseComputeController, self).check_connection()
-        self.list_machines()
+        self._list_machines()
 
     def list_cached_machines(self, timedelta=datetime.timedelta(days=1)):
         """Return list of machines from database
