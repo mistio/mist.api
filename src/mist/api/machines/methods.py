@@ -351,7 +351,8 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                                        image=image_id, disk_path=disk_path,
                                        networks=networks,
                                        public_key=public_key,
-                                       cloud_init=cloud_init)
+                                       cloud_init=cloud_init,
+                                       env_vars=env_vars)
     elif conn.type == Provider.PACKET:
         node = _create_machine_packet(conn, public_key, machine_name, image,
                                       size, location, cloud_init, project_id)
@@ -883,11 +884,15 @@ def _create_machine_digital_ocean(conn, key_name, private_key, public_key,
 
 def _create_machine_libvirt(conn, machine_name, disk_size, ram, cpu,
                             image, disk_path, networks,
-                            public_key, cloud_init):
+                            public_key, cloud_init, env_vars):
     """Create a machine in Libvirt.
     """
 
     try:
+        environment = {}
+        if env_vars:
+            environment = dict(item.split("=") for item in env_vars.splitlines())
+
         node = conn.create_node(
             name=machine_name,
             disk_size=disk_size,
@@ -897,7 +902,8 @@ def _create_machine_libvirt(conn, machine_name, disk_size, ram, cpu,
             disk_path=disk_path,
             networks=networks,
             public_key=public_key,
-            cloud_init=cloud_init
+            cloud_init=cloud_init,
+            env_vars=environment
         )
 
     except Exception as e:
