@@ -125,7 +125,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                    image_name=None, size_name=None, location_name=None,
                    ips=None, monitoring=False,
                    ex_storage_account='', machine_password='',
-                   ex_resource_group='', networks=[], docker_env=[],
+                   ex_resource_group='', networks=[], env_vars=[],
                    docker_command=None,
                    ssh_port=22, script='', script_id='', script_params='',
                    job_id=None, job=None, docker_port_bindings={},
@@ -215,7 +215,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
             node = _create_machine_docker(
                 conn, machine_name, image_id, '',
                 public_key=public_key,
-                docker_env=docker_env,
+                env_vars=env_vars,
                 docker_command=docker_command,
                 docker_port_bindings=docker_port_bindings,
                 docker_exposed_ports=docker_exposed_ports
@@ -230,7 +230,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
         else:
             node = _create_machine_docker(
                 conn, machine_name, image_id, script,
-                docker_env=docker_env,
+                env_vars=env_vars,
                 docker_command=docker_command,
                 docker_port_bindings=docker_port_bindings,
                 docker_exposed_ports=docker_exposed_ports
@@ -768,7 +768,7 @@ def _create_machine_onapp(conn, public_key,
 
 def _create_machine_docker(conn, machine_name, image_id,
                            script=None, public_key=None,
-                           docker_env={}, docker_command=None,
+                           env_vars=[], docker_command=None,
                            tty_attach=True, docker_port_bindings={},
                            docker_exposed_ports={}):
     """Create a machine in docker."""
@@ -776,16 +776,18 @@ def _create_machine_docker(conn, machine_name, image_id,
                            extra={}, driver=conn, path=None,
                            version=None)
     try:
+        environment = []
         if public_key:
             environment = ['PUBLIC_KEY=%s' % public_key.strip()]
-        else:
-            environment = []
 
-        if isinstance(docker_env, dict):
-            # docker_env is a dict, and we must convert it ot be in the form:
+        if isinstance(env_vars, dict):
+            # env_vars is a dict, and we must convert it ot be in the form:
             # [ "key=value", "key=value"...]
             docker_environment = ["%s=%s" % (key, value) for key, value in
-                                  docker_env.iteritems()]
+                                  env_vars.iteritems()]
+            environment += docker_environment
+        else:
+            docker_environment = [s.strip() for s in env_vars.splitlines()]
             environment += docker_environment
 
         try:
