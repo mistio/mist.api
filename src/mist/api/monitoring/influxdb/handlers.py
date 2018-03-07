@@ -20,14 +20,20 @@ from mist.api.machines.models import Machine
 log = logging.getLogger(__name__)
 
 
-AGGREGATORS = set((
+AGGREGATIONS = set((
     'MEAN',
+))
+
+
+TRANSFORMATIONS = set((
+    'DERIVATIVE',
+    'NON_NEGATIVE_DERIVATIVE',
 ))
 
 
 def aggregate(query, field, func='MEAN'):
     """Apply aggregator `func` on field `field` of the provided query."""
-    assert func.upper() in AGGREGATORS, 'Aggregator "%s" not supported' % func
+    assert func.upper() in AGGREGATIONS, 'Aggregator "%s" not supported' % func
     return query.replace(field, '%s(%s)' % (func.upper(), field))
 
 
@@ -75,7 +81,6 @@ class BaseStatsHandler(object):
     """A generic handler for querying InfluxDB and processing series."""
 
     group = None
-    rename = False
 
     influx = '%(host)s/query?db=%(db)s' % INFLUX
 
@@ -93,20 +98,43 @@ class BaseStatsHandler(object):
         This method, after parsing the metric given, is responsible for
         incrementally constructing the InfluxDB query.
 
+        The provided metric should be in the form of:
+
+            <measurement>.<tags>.<column>
+
+        Also, metrics may be enclosed in nested function, such as:
+
+            MEAN(system.load1)
+
+        or even:
+
+            DERIVATIVE(MEAN(net.bytes_sent))
+
         """
-        if step and not (stop or start):
-            raise BadRequestError('Aggregate functions with "GROUP BY time" '
-                                  'also require a "WHERE time" clause')
+        # A list of functions, extracted from `metric` to be applied later on.
+        functions = []
+
+        # Attempt to match nested functions in `metric` in order to extract the
+        # actual metric and store any functions in `functions` so that they can
+        # be re-applied later on.
+        regex = r'^(\w+)\((.+)\)$'
+        match = re.match(regex, metric)
+        while match:
+            groups = match.groups()
+            metric = groups[1]
+            functions.append(groups[0].upper())
+            match = re.match(regex, metric)
 
         # Get the measurement and requested column(s). Update tags.
-        measurement, column, tags = self.parse_path(metric)
+        self.measurement, self.column, tags = self.parse_path(metric)
 
         # Construct query.
-        q = 'SELECT %s' % column
-        if step:
-            q = aggregate(q, self.column)
-            q += ' AS %s' % self.column
-        elif self.rename:
+        q = 'SELECT %s' % self.column
+        for function in functions:
+            if function not in AGGREGATIONS | TRANSFORMATIONS:
+                raise BadRequestError('Function %s not supported' % function)
+            q = q.replace(self.column, '%s(%s)' % (function, self.column))
+        if functions and not re.match('^/.*/$', self.column):  # Not for regex.
             q += ' AS %s' % self.column
         q += ' FROM "%s"' % self.measurement
         q = group(filter(q, tags, start, stop), self.group, step)
@@ -156,11 +184,13 @@ class BaseStatsHandler(object):
 
         """
         # Measurement.
-        self.measurement, fields = metric.split('.', 1)
+        measurement, fields = metric.split('.', 1)
+        if not (measurement and fields):
+            raise BadRequestError('Invalid metric: %s' % metric)
 
         # Column.
         fields = fields.split('.')
-        self.column = fields[-1]
+        column = fields[-1]
 
         # Tags.
         if isinstance(self.machine, Machine):
@@ -177,12 +207,14 @@ class BaseStatsHandler(object):
                     continue
                 tags[tag[0]] = tag[1]
 
-        return self.measurement, self.column, tags
+        return measurement, column, tags
 
     def _on_stats_callback(self, data):
         """Process series returned by InfluxDB."""
         results = {}
         for result in data.get('results', []):
+            if result.get('error'):
+                raise BadRequestError(result['error'])
             for series in result.get('series', []):
                 # Get series name and columns.
                 measurement = series.get('name', self.measurement)
@@ -269,21 +301,25 @@ class DiskHandler(MainStatsHandler):
 class DiskIOHandler(MainStatsHandler):
 
     group = 'name'
-    rename = True
 
-    def parse_path(self, metric):
-        m, c, t = super(DiskIOHandler, self).parse_path(metric)
-        return m, 'NON_NEGATIVE_DERIVATIVE(%s)' % c, t
+    def get_stats(self, metric, start=None, stop=None, step=None,
+                  callback=None, tornado_async=False):
+        return super(DiskIOHandler, self).get_stats(
+            'NON_NEGATIVE_DERIVATIVE(%s)' % metric,
+            start, stop, step, callback, tornado_async
+        )
 
 
 class NetworkHandler(MainStatsHandler):
 
     group = 'interface'
-    rename = True
 
-    def parse_path(self, metric):
-        m, c, t = super(NetworkHandler, self).parse_path(metric)
-        return m, 'NON_NEGATIVE_DERIVATIVE(%s)' % c, t
+    def get_stats(self, metric, start=None, stop=None, step=None,
+                  callback=None, tornado_async=False):
+        return super(NetworkHandler, self).get_stats(
+            'NON_NEGATIVE_DERIVATIVE(%s)' % metric,
+            start, stop, step, callback, tornado_async
+        )
 
 
 class MultiLoadHandler(BaseStatsHandler):
