@@ -6,6 +6,21 @@ from mist.api import config
 REPO = "https://gitlab.ops.mist.io/mistio/mist-telegraf/raw/master/scripts"
 
 
+def fetch(cmd):
+    return """fetch() {
+    if command -v wget > /dev/null; then
+        wget -O- $@
+    elif command -v curl > /dev/null; then
+        curl -fssL $@
+    else
+        return 127
+    fi
+}
+
+fetch %s
+""" % cmd.lstrip('wget -O- ')
+
+
 def unix_install(machine):
     cmd = "wget -O- %s/install-telegraf.sh | sudo sh -s -- " % REPO
     cmd += "-m %s " % machine.id
