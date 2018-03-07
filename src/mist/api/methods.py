@@ -223,6 +223,16 @@ def create_subnet(owner, cloud, network, subnet_params):
     return new_subnet
 
 
+def delete_subnet(owner, subnet):
+    """
+    Delete a subnet.
+    """
+    subnet.ctl.delete()
+
+    # Schedule a UI update
+    trigger_session_update(owner, ['clouds'])
+
+
 # TODO deprecate this!
 # We should decouple probe_ssh_only from ping.
 # Use them as two separate functions instead & through celery
