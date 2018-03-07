@@ -334,7 +334,7 @@ class BaseMainController(object):
         from mist.api.clouds.models import CloudSize
         CloudSize.objects(cloud=self.cloud,
                           missing_since=None).update(
-            missing_since=datetime.datetime.now()
+            missing_since=datetime.datetime.now())
 
     def dns_enable(self):
         self.cloud.dns_enabled = True
