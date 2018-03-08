@@ -13,8 +13,8 @@ from mist.api.auth.methods import auth_context_from_request
 
 from mist.api.exceptions import CloudNotFoundError
 from mist.api.exceptions import SubnetNotFoundError
+from mist.api.exceptions import NetworkNotFoundError
 from mist.api.exceptions import RequiredParameterMissingError
-from mist.api.exceptions import PolicyUnauthorizedError, NetworkNotFoundError
 
 from mist.api.helpers import params_from_request, view_config
 from mist.api.helpers import trigger_session_update
