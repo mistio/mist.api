@@ -1153,6 +1153,14 @@ The mist.io team
 %s
 """
 
+CTA = {
+    "rbac": {
+        "action": "UPGRADE YOUR MIST.IO",
+        "uri": "https://mist.io/get-started",
+        "description": "Role based access policies are available in the Enterprise Edition and the Hosted Service."
+    }
+}
+
 SHOW_FOOTER = False
 ALLOW_SIGNUP_EMAIL = True
 ALLOW_SIGNUP_GOOGLE = False
@@ -1167,7 +1175,6 @@ STRIPE_PUBLIC_APIKEY = False
 ENABLE_AB = False
 ENABLE_R12N = False
 ENABLE_MONITORING = True
-ENABLE_DOCS = True
 MACHINE_PATCHES = True
 
 PLUGINS = []
@@ -1307,13 +1314,7 @@ WHITELIST_CIDR = [
 HOMEPAGE_INPUTS = {
     'portal_name': PORTAL_NAME,
     'theme': THEME,
-    'cta': {
-        "rbac": {
-            "action": "UPGRADE YOUR MIST.IO",
-            "uri": "https://mist.io/get-started",
-            "description": "Role based access policies are available in the Enterprise Edition and the Hosted Service."
-        }
-    },
+    'cta': CTA,
     'features': {
         'monitoring': ENABLE_MONITORING,
         'rbac': HAS_RBAC,
