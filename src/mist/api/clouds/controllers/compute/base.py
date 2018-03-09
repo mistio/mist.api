@@ -205,7 +205,7 @@ class BaseComputeController(BaseController):
                                 for m in self.list_cached_machines()}
                 machines = self._list_machines()
         except PeriodicTaskThresholdExceeded:
-            self.cloud.disable()
+            self.cloud.ctl.disable()
             raise
 
         # Initialize AMQP connection to reuse for multiple messages.
