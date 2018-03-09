@@ -1157,7 +1157,8 @@ CTA = {
     "rbac": {
         "action": "UPGRADE YOUR MIST.IO",
         "uri": "https://mist.io/get-started",
-        "description": "Role based access policies are available in the Enterprise Edition and the Hosted Service."
+        "description": "Role based access policies are available in the "
+                       "Enterprise Edition and the Hosted Service."
     }
 }
 
