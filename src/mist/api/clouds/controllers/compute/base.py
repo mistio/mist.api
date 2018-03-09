@@ -340,7 +340,6 @@ class BaseComputeController(BaseController):
                 machine.location = locations_map.get(location_id)
 
             # Get misc libcloud metadata.
-
             image_id = ''
             if isinstance(node.extra.get('image'), dict):
                 image_id = str(node.extra.get('image').get('id'))
@@ -349,16 +348,17 @@ class BaseComputeController(BaseController):
                 image_id = str(node.image or node.extra.get('imageId') or
                                node.extra.get('image_id') or
                                node.extra.get('image') or '')
+
+            # Attempt to map machine's size to a CloudSize object. If not
+            # successful, try to discover custom size.
             try:
                 size = self._list_machines__get_size(node)
+                if size:
+                    machine.size = sizes_map.get(size)
+                else:
+                    machine.size = self._list_machines__get_custom_size(node)
             except Exception as exc:
                 log.error("Error getting size of %s: %r", machine, exc)
-            else:
-                machine.size = sizes_map.get(size)
-
-            if not machine.size:
-                # probably custom size, try to extract related info
-                machine.size = self._list_machines__get_size_metadata(node)
 
             machine.name = node.name
             machine.image_id = image_id
@@ -530,7 +530,7 @@ class BaseComputeController(BaseController):
             machine.actions.reboot = True
         machine.actions.tag = True
 
-    def _list_machines__get_size_metadata(self, node):
+    def _list_machines__get_custom_size(self, node):
         """Return size metadata for node"""
         return
 

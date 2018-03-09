@@ -588,28 +588,19 @@ class GoogleComputeController(BaseComputeController):
         # iso8601 string
         return machine_libcloud.extra.get('creationTimestamp')
 
-    def _list_machines__get_size_metadata(self, node):
+    def _list_machines__get_custom_size(self, node):
         size = self.connection.get_size_metadata_from_node(node.extra.
                                                            get('machineType'))
         # create object only if the size of the node is custom
-        if size.get('name').startswith('custom'):
+        if size.get('name', '').startswith('custom'):
             # FIXME: resolve circular import issues
             from mist.api.clouds.models import CloudSize
             _size = CloudSize(cloud=self.cloud, external_id=size.get('id'))
             _size.ram = size.get('memoryMb')
             _size.cpus = size.get('guestCpus')
             _size.name = size.get('name')
-
-            try:
-                _size.save()
-            except me.ValidationError as exc:
-                log.error("Error adding %s: %s", size.name, exc.to_dict())
-                raise BadRequestError({"msg": exc.message,
-                                       "errors": exc.to_dict()})
-
+            _size.save()
             return _size
-
-        return None
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         extra = machine_libcloud.extra
@@ -1347,21 +1338,14 @@ class OnAppComputeController(BaseComputeController):
         else:
             return machine_libcloud.extra.get('price_per_hour', 0), 0
 
-    def _list_machines__get_size_metadata(self, node):
+    def _list_machines__get_custom_size(self, node):
         # FIXME: resolve circular import issues
         from mist.api.clouds.models import CloudSize
         _size = CloudSize(cloud=self.cloud,
                           external_id=str(node.extra.get('id')))
         _size.ram = node.extra.get('memory')
         _size.cpus = node.extra.get('cpus')
-
-        try:
-            _size.save()
-        except me.ValidationError as exc:
-            log.error("Error adding %s: %s", _size, exc.to_dict())
-            raise BadRequestError({"msg": exc.message,
-                                   "errors": exc.to_dict()})
-
+        _size.save()
         return _size
 
     def _resume_machine(self, machine, machine_libcloud):
