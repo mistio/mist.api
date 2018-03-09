@@ -846,6 +846,8 @@ class BaseComputeController(BaseController):
         default, dummy methods.
 
         """
+        # FIXME: resolve circular import issues
+        from mist.api.clouds.models import CloudLocation
 
         # Fetch locations, usually from libcloud connection.
         fetched_locations = self._list_locations__fetch_locations()
@@ -856,10 +858,7 @@ class BaseComputeController(BaseController):
         locations = []
 
         for loc in fetched_locations:
-
             try:
-                # FIXME: resolve circular import issues
-                from mist.api.clouds.models import CloudLocation
                 _location = CloudLocation.objects.get(cloud=self.cloud,
                                                       external_id=loc.id)
             except CloudLocation.DoesNotExist:
