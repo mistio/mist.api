@@ -75,6 +75,7 @@ class BaseStatsHandler(object):
     """A generic handler for querying InfluxDB and processing series."""
 
     group = None
+    rename = False
 
     influx = '%(host)s/query?db=%(db)s' % INFLUX
 
@@ -87,18 +88,27 @@ class BaseStatsHandler(object):
 
     def get_stats(self, metric, start=None, stop=None, step=None,
                   callback=None, tornado_async=False):
-        """Query InfluxDB for the given metric."""
+        """Query InfluxDB for the given metric.
+
+        This method, after parsing the metric given, is responsible for
+        incrementally constructing the InfluxDB query.
+
+        """
         if step and not (stop or start):
             raise BadRequestError('Aggregate functions with "GROUP BY time" '
                                   'also require a "WHERE time" clause')
 
         # Get the measurement and requested column(s). Update tags.
-        self.measurement, self.column, tags = self.parse_path(metric)
+        measurement, column, tags = self.parse_path(metric)
 
         # Construct query.
-        q = 'SELECT %s FROM "%s"' % (self.column, self.measurement)
+        q = 'SELECT %s' % column
         if step:
-            q = aggregate(q)
+            q = aggregate(q, self.column)
+            q += ' AS %s' % self.column
+        elif self.rename:
+            q += ' AS %s' % self.column
+        q += ' FROM "%s"' % self.measurement
         q = group(filter(q, tags, start, stop), self.group, step)
 
         if not tornado_async:
@@ -125,15 +135,39 @@ class BaseStatsHandler(object):
                                 callback=_on_tornado_response)
 
     def parse_path(self, metric):
-        """Parse metric to extract the measurement, column, and tags."""
+        """Parse metric to extract the measurement, column, and tags.
+
+        This method must be invoked by get_stats, before constructing the
+        InfluxDB query, in order to extract the necessary information from
+        the given metric, which is in the following format:
+
+            <measurement>.<tags>.<column>
+
+        where <tags> (optional) must be in "key=value" format and delimited
+        by ".".
+
+        This method should set `self.measurement` and `self.column` to the
+        pure values extracted from `metric`, before any further processing
+        takes place.
+
+        Subclasses may override this method in order to edit the resulting
+        measurement or column and apply functions to aggregate, select, and
+        transform data.
+
+        """
+        # Measurement.
+        self.measurement, fields = metric.split('.', 1)
+
+        # Column.
+        fields = fields.split('.')
+        self.column = fields[-1]
+
+        # Tags.
         if isinstance(self.machine, Machine):
             tags = {'machine_id': self.machine.id}
         else:
             tags = {'machine_id': self.machine}
 
-        measurement, fields = metric.split('.', 1)
-        fields = fields.split('.')
-        column = fields[-1]
         if len(fields) > 1:
             for tag in fields[:-1]:
                 tag = tag.split('=')
@@ -143,7 +177,7 @@ class BaseStatsHandler(object):
                     continue
                 tags[tag[0]] = tag[1]
 
-        return measurement, column, tags
+        return self.measurement, self.column, tags
 
     def _on_stats_callback(self, data):
         """Process series returned by InfluxDB."""
@@ -165,8 +199,6 @@ class BaseStatsHandler(object):
                             continue
                         name = measurement.upper()
                         column = columns[index]
-                        if column == 'mean':  # This is not very descriptive.
-                            column = 'mean_%s' % self.column
                         if tags:
                             id = '%s.%s.%s' % (measurement, tags, column)
                             name += ' %s' % ' '.join(series['tags'].values())
@@ -237,11 +269,21 @@ class DiskHandler(MainStatsHandler):
 class DiskIOHandler(MainStatsHandler):
 
     group = 'name'
+    rename = True
+
+    def parse_path(self, metric):
+        m, c, t = super(DiskIOHandler, self).parse_path(metric)
+        return m, 'NON_NEGATIVE_DERIVATIVE(%s)' % c, t
 
 
 class NetworkHandler(MainStatsHandler):
 
     group = 'interface'
+    rename = True
+
+    def parse_path(self, metric):
+        m, c, t = super(NetworkHandler, self).parse_path(metric)
+        return m, 'NON_NEGATIVE_DERIVATIVE(%s)' % c, t
 
 
 class MultiLoadHandler(BaseStatsHandler):
@@ -267,8 +309,6 @@ class MultiLoadHandler(BaseStatsHandler):
                         if index == 0:
                             continue
                         column = columns[index]
-                        if column == 'mean':
-                            column = 'mean_%s' % self.column
                         name = measurement.upper()
                         name += ' %s' % column.replace('_', ' ')
                         if machine_id not in results:

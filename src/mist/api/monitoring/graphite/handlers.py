@@ -40,7 +40,7 @@ def as_percent(series_list, total=None):
 
 
 def per_second(series_list):
-    return "perSecond(%s)" % (series_list, )
+    return "scaleToSeconds(nonNegativeDerivative(%s),1)" % (series_list, )
 
 
 def exclude(series_list, regex):

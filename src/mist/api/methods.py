@@ -29,7 +29,6 @@ from mist.api.shell import Shell
 from mist.api.exceptions import MistError
 from mist.api.exceptions import RequiredParameterMissingError
 
-from mist.api.helpers import trigger_session_update
 from mist.api.helpers import amqp_publish_user
 from mist.api.helpers import StdStreamCapture
 
@@ -39,7 +38,6 @@ import mist.api.tasks
 import mist.api.inventory
 
 from mist.api.clouds.models import Cloud
-from mist.api.networks.models import SUBNETS
 from mist.api.machines.models import Machine
 
 from mist.api import config
@@ -115,17 +113,6 @@ def list_sizes(owner, cloud_id):
     """List sizes (aka flavors) from each cloud"""
     return Cloud.objects.get(owner=owner, id=cloud_id,
                              deleted=None).ctl.compute.list_sizes()
-
-
-def list_subnets(cloud, network):
-    """List subnets for a particular network on a given cloud.
-    Currently EC2, Openstack and GCE clouds are supported. For other providers
-    this returns an empty list.
-    """
-    if not hasattr(cloud.ctl, 'network'):
-        return []
-    subnets = cloud.ctl.network.list_subnets(network=network)
-    return [subnet.as_dict() for subnet in subnets]
 
 
 def list_projects(owner, cloud_id):
@@ -207,36 +194,6 @@ def list_storage_accounts(owner, cloud_id):
         # close connection with libvirt
         conn.disconnect()
     return ret
-
-
-def create_subnet(owner, cloud, network, subnet_params):
-    """
-    Create a new subnet attached to the specified network ont he given cloud.
-    Subnet_params is a dict containing all the necessary values that describe a
-    subnet.
-    """
-    if not hasattr(cloud.ctl, 'network'):
-        raise NotImplementedError()
-
-    # Create a DB document for the new subnet and call libcloud
-    #  to declare it on the cloud provider
-    new_subnet = SUBNETS[cloud.ctl.provider].add(network=network,
-                                                 **subnet_params)
-
-    # Schedule a UI update
-    trigger_session_update(owner, ['clouds'])
-
-    return new_subnet
-
-
-def delete_subnet(owner, subnet):
-    """
-    Delete a subnet.
-    """
-    subnet.ctl.delete()
-
-    # Schedule a UI update
-    trigger_session_update(owner, ['clouds'])
 
 
 # TODO deprecate this!

@@ -76,6 +76,9 @@ MONGO_DB = "mist2"
 
 DOMAIN_VALIDATION_WHITELIST = []
 
+DOCS_URI = 'https://docs.mist.io/'
+SUPPORT_URI = 'https://docs.mist.io/contact'
+
 # InfluxDB
 INFLUX = {
     "host": "http://influxdb:8086", "db": "telegraf"
@@ -245,7 +248,7 @@ INFLUXDB_MACHINE_DASHBOARD_DEFAULT = {
                     "target": "net.bytes_recv"
                 }],
                 "yaxes": [{
-                    "format": "octets"
+                    "format": "B/s"
                 }]
             }, {
                 "id": 5,
@@ -259,7 +262,7 @@ INFLUXDB_MACHINE_DASHBOARD_DEFAULT = {
                     "target": "net.bytes_sent"
                 }],
                 "yaxes": [{
-                    "format": "octets"
+                    "format": "B/s"
                 }]
             }, {
                 "id": 6,
@@ -286,7 +289,7 @@ INFLUXDB_MACHINE_DASHBOARD_DEFAULT = {
                     "target": "diskio.write_bytes"
                 }],
                 "yaxes": [{
-                    "format": "octets"
+                    "format": "B/s"
                 }]
             }, {
                 "id": 8,
@@ -371,6 +374,9 @@ MAILER_SETTINGS = {
 EMAIL_FROM = "Mist.io team <we@mist.io>"
 EMAIL_ALERTS = "alert@mist.io"
 EMAIL_REPORTS = "reports@mist.io"
+EMAIL_INFO = "info@mist.io"
+EMAIL_SALES = "sales@mist.io"
+EMAIL_SUPPORT = "support@mist.io"
 EMAIL_NOTIFICATIONS = "notifications@mist.io"
 EMAIL_ALERTS_BCC = ""
 
@@ -1146,6 +1152,15 @@ The mist.io team
 %s
 """
 
+CTA = {
+    "rbac": {
+        "action": "UPGRADE YOUR MIST.IO",
+        "uri": "https://mist.io/get-started",
+        "description": "Role based access policies are available in the "
+                       "Enterprise Edition and the Hosted Service."
+    }
+}
+
 SHOW_FOOTER = False
 ALLOW_SIGNUP_EMAIL = True
 ALLOW_SIGNUP_GOOGLE = False
@@ -1158,6 +1173,7 @@ ENABLE_ORCHESTRATION = False
 ENABLE_INSIGHTS = False
 STRIPE_PUBLIC_APIKEY = False
 ENABLE_AB = False
+ENABLE_R12N = False
 ENABLE_MONITORING = True
 MACHINE_PATCHES = True
 
@@ -1298,25 +1314,36 @@ WHITELIST_CIDR = [
 HOMEPAGE_INPUTS = {
     'portal_name': PORTAL_NAME,
     'theme': THEME,
-    'google_analytics_id': GOOGLE_ANALYTICS_ID,
-    'mixpanel_id': MIXPANEL_ID,
+    'cta': CTA,
+    'features': {
+        'monitoring': ENABLE_MONITORING,
+        'rbac': HAS_RBAC,
+        'orchestration': ENABLE_ORCHESTRATION,
+        'insights': ENABLE_INSIGHTS,
+        'billing': HAS_BILLING,
+        'tunnels': ENABLE_TUNNELS,
+        'ab': ENABLE_AB,
+        'r12ns': ENABLE_R12N,
+        'signup_email': ALLOW_SIGNUP_EMAIL,
+        'signup_google': ALLOW_SIGNUP_GOOGLE,
+        'signup_github': ALLOW_SIGNUP_GITHUB,
+        'signin_email': ALLOW_SIGNIN_EMAIL,
+        'signin_google': ALLOW_SIGNIN_GOOGLE,
+        'signin_github': ALLOW_SIGNIN_GITHUB,
+        'landing_footer': SHOW_FOOTER,
+        'docs': DOCS_URI,
+        'support': SUPPORT_URI
+    },
+    'email': {
+        'info': EMAIL_INFO,
+        'support': EMAIL_SUPPORT,
+        'sales': EMAIL_SALES
+    },
     'fb_id': FB_ID,
     'olark_id': OLARK_ID,
-    'categories': LANDING_CATEGORIES,
-    'footer': SHOW_FOOTER,
-    'allow_signup_email': ALLOW_SIGNUP_EMAIL,
-    'allow_signup_google': ALLOW_SIGNUP_GOOGLE,
-    'allow_signup_github': ALLOW_SIGNUP_GITHUB,
-    'allow_signin_email': ALLOW_SIGNIN_EMAIL,
-    'allow_signin_google': ALLOW_SIGNIN_GOOGLE,
-    'allow_signin_github': ALLOW_SIGNIN_GITHUB,
-    'enable_rbac': HAS_RBAC,
-    'enable_tunnels': ENABLE_TUNNELS,
-    'enable_orchestration': ENABLE_ORCHESTRATION,
-    'enable_insights': ENABLE_INSIGHTS,
-    'enable_billing': HAS_BILLING,
-    'enable_ab': ENABLE_AB,
-    'enable_monitoring': ENABLE_MONITORING,
+    'google_analytics_id': GOOGLE_ANALYTICS_ID,
+    'mixpanel_id': MIXPANEL_ID,
+    'categories': LANDING_CATEGORIES
 }
 
 if HAS_BILLING and STRIPE_PUBLIC_APIKEY:

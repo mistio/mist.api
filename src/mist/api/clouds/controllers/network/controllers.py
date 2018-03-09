@@ -25,14 +25,12 @@ class AzureArmNetworkController(BaseNetworkController):
         return libcloud_network.extra['addressSpace']['addressPrefixes'][0]
 
     def _list_networks__postparse_network(self, network, libcloud_network):
-        location = libcloud_network.location
-        network.location = location
+        network.location = libcloud_network.location
 
     def _list_subnets__fetch_subnets(self, network):
         l_network = AzureNetwork(network.network_id,
                                  network.name, '', network.extra)
-        ret = self.cloud.ctl.compute.connection.ex_list_subnets(l_network)
-        return ret
+        return self.cloud.ctl.compute.connection.ex_list_subnets(l_network)
 
     def _list_subnets__cidr_range(self, subnet, libcloud_subnet):
         return subnet.extra.pop('addressPrefix')
@@ -172,16 +170,11 @@ class OpenStackNetworkController(BaseNetworkController):
 
 class LibvirtNetworkController(BaseNetworkController):
 
-    def _list_networks__postparse_network(self, network, libcloud_network):
-        return
-
     def _list_subnets__fetch_subnets(self, network):
         return []
 
 
 class VSphereNetworkController(BaseNetworkController):
-    def _list_networks__postparse_network(self, network, libcloud_network):
-        return
 
     def _list_subnets__fetch_subnets(self, network):
         return []
