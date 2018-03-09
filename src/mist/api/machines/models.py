@@ -395,7 +395,7 @@ class Machine(me.Document):
             'key_associations': [ka.as_dict() for ka in self.key_associations],
             'cloud': self.cloud.id,
             'location': self.location.id if self.location else '',
-            'size': self.size.id if self.size else '',
+            'size': self.size.name if self.size else '',
             'cloud_title': self.cloud.title,
             'last_seen': str(self.last_seen.replace(tzinfo=None)
                              if self.last_seen else ''),

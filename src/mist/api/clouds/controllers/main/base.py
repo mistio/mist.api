@@ -308,10 +308,16 @@ class BaseMainController(object):
         # FIXME: Resolve circular import issues
         from mist.api.poller.models import ListMachinesPollingSchedule
         from mist.api.poller.models import ListLocationsPollingSchedule
+        from mist.api.poller.models import ListSizesPollingSchedule
         # Ensure polling schedule is in place in case the cloud is re-enabled.
         ListMachinesPollingSchedule.add(cloud=self.cloud)
+
         # Ensure additional polling schedules with lower frequency.
         schedule = ListLocationsPollingSchedule.add(cloud=self.cloud)
+        schedule.set_default_interval(60 * 60 * 24)
+        schedule.save()
+
+        schedule = ListSizesPollingSchedule.add(cloud=self.cloud)
         schedule.set_default_interval(60 * 60 * 24)
         schedule.save()
 
@@ -355,12 +361,7 @@ class BaseMainController(object):
 
         # FIXME: Resolve circular import issues
         from mist.api.poller.models import ListMachinesPollingSchedule
-        from mist.api.poller.models import ListLocationsPollingSchedule
-        from mist.api.poller.models import ListSizesPollingSchedule
-
         ListMachinesPollingSchedule.add(cloud=self.cloud)
-        ListLocationsPollingSchedule.add(cloud=self.cloud)
-        ListSizesPollingSchedule.add(cloud=self.cloud)
 
     def delete(self, expire=False):
         """Delete a Cloud.

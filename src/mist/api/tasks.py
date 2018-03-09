@@ -683,21 +683,6 @@ class UserTask(Task):
             return 60 * 10  # Retry in 10mins after the third error
 
 
-class ListSizes(UserTask):
-    abstract = False
-    task_key = 'list_sizes'
-    result_expires = 60 * 60 * 24 * 7
-    result_fresh = 60 * 60
-    polling = False
-    soft_time_limit = 30
-
-    def execute(self, owner_id, cloud_id):
-        from mist.api import methods
-        owner = Owner.objects.get(id=owner_id)
-        sizes = methods.list_sizes(owner, cloud_id)
-        return {'cloud_id': cloud_id, 'sizes': sizes}
-
-
 class ListNetworks(UserTask):
     abstract = False
     task_key = 'list_networks'

@@ -775,17 +775,16 @@ class BaseComputeController(BaseController):
         task_key = 'cloud:list_sizes:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
         with task.task_runner(persist=persist):
-            cached_sizes = {'%s' % s.id: s.as_dict()
+            cached_sizes = {s.id: s.as_dict()
                             for s in self.list_cached_sizes()}
             sizes = self._list_sizes()
 
         # Initialize AMQP connection to reuse for multiple messages.
         amqp_conn = Connection(config.AMQP_URI)
         if amqp_owner_listening(self.cloud.owner.id):
-            sizes_dict = [s.as_dict() for s in sizes]
-            if cached_sizes and sizes_dict:
+            if cached_sizes and sizes:
                 # Publish patches to rabbitmq.
-                new_sizes = {'%s' % s['id']: s for s in sizes_dict}
+                new_sizes = {s.id: s.as_dict() for s in sizes}
                 patch = jsonpatch.JsonPatch.from_diff(cached_sizes,
                                                       new_sizes).patch
                 if patch:
@@ -802,8 +801,8 @@ class BaseComputeController(BaseController):
                                   routing_key='list_sizes',
                                   connection=amqp_conn,
                                   data={'cloud_id': self.cloud.id,
-                                        'sizes': sizes_dict})
-        return [size for size in sizes]
+                                        'sizes': [s.as_dict() for s in sizes]})
+        return sizes
 
     def _list_sizes(self):
         """Fetch size listing in a libcloud compatible format
@@ -815,7 +814,6 @@ class BaseComputeController(BaseController):
         """
         try:
             fetched_sizes = self._list_sizes__fetch_sizes()
-
             log.info("List sizes returned %d results for %s.",
                      len(fetched_sizes), self.cloud)
         except InvalidCredsError as exc:
@@ -897,16 +895,13 @@ class BaseComputeController(BaseController):
         return size.name
 
     def list_cached_sizes(self):
-        """Return list of sizes from database
-        for a specific cloud
-        """
+        """Return list of sizes from database for a specific cloud"""
         # FIXME: resolve circular import issues
         from mist.api.clouds.models import CloudSize
         return CloudSize.objects(cloud=self.cloud, missing_since=None)
 
     def _list_machines__get_size(self, node):
-        """Return key of size_map dict for a
-        specific node
+        """Return key of size_map dict for a specific node
 
         Subclasses MAY override this method.
         """

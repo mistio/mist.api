@@ -651,16 +651,12 @@ class MainConnection(MistConnection):
         elif routing_key in ['patch_locations', 'patch_sizes']:
             cloud_id = result['cloud_id']
             patch = result['patch']
-
-            # remove '/'
             for line in patch:
                 _id = line['path'][1:]
                 if routing_key == 'patch_locations':
-                    line['path'] = '/clouds/%s/locations/%s' % (cloud_id,
-                                                                _id)
+                    line['path'] = '/clouds/%s/locations/%s' % (cloud_id, _id)
                 elif routing_key == 'patch_sizes':
-                    line['path'] = '/clouds/%s/sizes/%s' % (cloud_id,
-                                                            _id)
+                    line['path'] = '/clouds/%s/sizes/%s' % (cloud_id, _id)
             if patch:
                 self.batch.extend(patch)
 
