@@ -109,12 +109,6 @@ def star_image(owner, cloud_id, image_id):
     return not star
 
 
-def list_sizes(owner, cloud_id):
-    """List sizes (aka flavors) from each cloud"""
-    return Cloud.objects.get(owner=owner, id=cloud_id,
-                             deleted=None).ctl.compute.list_sizes()
-
-
 def list_projects(owner, cloud_id):
     """List projects for each account.
     Currently supported for Packet.net. For other providers
