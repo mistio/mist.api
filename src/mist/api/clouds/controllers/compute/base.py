@@ -844,7 +844,7 @@ class BaseComputeController(BaseController):
             _size.disk = size.disk
             _size.bandwidth = size.bandwidth
             _size.missing_since = None
-            _size.extra = {'description': size.extra.get('description', '')}
+            _size.extra = size.extra
             _size.extra.update({'price': size.price})
             if size.ram:
                 try:
