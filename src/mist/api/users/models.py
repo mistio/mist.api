@@ -484,7 +484,7 @@ class Organization(Owner):
     default_monitoring_method = me.StringField(
         choices=config.MONITORING_METHODS)
 
-    insights_enabled = me.BooleanField(default=config.HAS_CORE)
+    insights_enabled = me.BooleanField(default=config.HAS_INSIGHTS)
 
     created = me.DateTimeField(default=datetime.datetime.now)
     registered_by = me.StringField()
