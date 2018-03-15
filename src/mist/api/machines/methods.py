@@ -121,7 +121,7 @@ def list_machines(owner, cloud_id, cached=False):
 
 
 def create_machine(owner, cloud_id, key_id, machine_name, location_id,
-                   image_id, size_id, image_extra=None, disk=None,
+                   image_id, size, image_extra=None, disk=None,
                    image_name=None, size_name=None, location_name=None,
                    ips=None, monitoring=False,
                    ex_storage_account='', machine_password='',
@@ -139,12 +139,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                    associate_floating_ip_subnet=None, project_id=None,
                    schedule={}, command=None, tags=None,
                    bare_metal=False, hourly=True,
-                   softlayer_backend_vlan_id=None,
-                   size_ram=256, size_cpu=1,
-                   size_disk_primary=5, size_disk_swap=1,
-                   boot=True, build=True,
-                   cpu_priority=1, cpu_sockets=1, cpu_threads=1, port_speed=0,
-                   hypervisor_group_id=None, machine_username=''):
+                   softlayer_backend_vlan_id=None, machine_username=''):
     """Creates a new virtual machine on the specified cloud.
 
     If the cloud is Rackspace it attempts to deploy the node with an ssh key
@@ -194,8 +189,32 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
     else:
         public_key = None
 
+    # For providers, which do not support pre-defined sizes, we expect `size`
+    # to be a dict with all the necessary information regarding the machine's
+    # size.
+    if cloud.ctl.provider in ('vsphere', 'onapp', ):
+        if not isinstance(size, dict):
+            raise BadRequestError('Expected size to be a dict.')
+        size_id = 'custom'
+        size_ram = size.get('size_ram', 256)
+        size_cpu = size.get('size_cpu', 1)
+        size_disk_primary = size.get('size_disk_primary', 5)
+        size_disk_swap = size.get('size_disk_swap', 1)
+        # Required by OnApp only.
+        boot = size.get('boot', True)
+        build = size.get('build', True)
+        cpu_priority = size.get('cpu_priority', 1)
+        cpu_sockets = size.get('cpu_sockets', 1)
+        cpu_threads = size.get('cpu_threads', 1)
+        port_speed = size.get('port_speed', 0)
+        hypervisor_group_id = size.get('hypervisor_group_id')
+    else:
+        if not isinstance(size, basestring):
+            raise BadRequestError('Expexted size to be an id.')
+        size_id = size
     size = NodeSize(size_id, name=size_name, ram='', disk=disk,
                     bandwidth='', price='', driver=conn)
+
     image = NodeImage(image_id, name=image_name, extra=image_extra,
                       driver=conn)
 
@@ -512,12 +531,18 @@ def _create_machine_openstack(conn, private_key, public_key, machine_name,
         server_key = server_key.name
 
     # select the right OpenStack network object
-    available_networks = conn.ex_list_networks()
+    # FIXME This is a bit error-prone, since here we are expected to pass a
+    # list of networks to libcloud, while in case of vSphere, `networks` is
+    # a single ID.
+    if not isinstance(networks, list):
+        networks = [networks]
+    chosen_networks = []
+    cached_network_ids = [n.network_id for
+                          n in Network.objects(id__in=networks)]
     try:
-        chosen_networks = []
-        for net in available_networks:
-            if net.id in networks:
-                chosen_networks.append(net)
+        for network in conn.ex_list_networks():
+            if network.id in cached_network_ids:
+                chosen_networks.append(network)
     except:
         chosen_networks = []
 
