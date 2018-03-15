@@ -324,10 +324,21 @@ def create_machine(request):
     auth_context = auth_context_from_request(request)
 
     try:
-        Cloud.objects.get(owner=auth_context.owner,
-                          id=cloud_id, deleted=None)
+        cloud = Cloud.objects.get(owner=auth_context.owner,
+                                  id=cloud_id, deleted=None)
     except Cloud.DoesNotExist:
         raise NotFoundError('Cloud does not exist')
+
+    # FIXME For backwards compatibility.
+    if cloud.ctl.provider in ('vsphere', 'onapp', ):
+        size = {}
+        for param in (
+            'size_ram', 'size_cpu', 'size_disk_primary', 'size_disk_swap',
+            'boot', 'build', 'cpu_priority', 'cpu_sockets', 'cpu_threads',
+            'port_speed', 'hypervisor_group_id',
+        ):
+            if param in params:
+                size[param] = params[param]
 
     # compose schedule as a dict from relative parameters
     if not params.get('schedule_type'):
