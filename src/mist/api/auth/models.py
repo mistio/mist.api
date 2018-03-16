@@ -162,7 +162,7 @@ class ApiToken(AuthToken):
             'ttl': self.ttl,
             'token': self.token[:4] + "...",
         })
-        if config.HAS_CORE:
+        if config.HAS_RBAC:
             view.update({
                 'policy': str(self.policy),
             })
