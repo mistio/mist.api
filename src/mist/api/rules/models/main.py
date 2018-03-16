@@ -255,13 +255,13 @@ class Rule(me.Document):
     def is_arbitrary(self):
         """Return True if self is arbitrary.
 
-        Arbitrary rules lack a list of `conditions` that refer to resources
+        Arbitrary rules lack a list of `selectors` that refer to resources
         either by their UUIDs or by tags. Such a list makes it easy to setup
         rules referencing specific resources without the need to provide the
         raw query expression.
 
         """
-        return 'conditions' not in type(self)._fields
+        return 'selectors' not in type(self)._fields
 
     def clean(self):
         # FIXME This is needed in order to ensure rule name convention remains
@@ -315,7 +315,7 @@ class ResourceRule(Rule, ConditionalClassMixin):
     mongodb collection.
 
     A `ResourceRule` may also apply to multiple resources, which depends on
-    the rule's list of `conditions`. By default such a rule will trigger an
+    the rule's list of `selectors`. By default such a rule will trigger an
     alert if just one of its queries evaluates to True.
 
     """
@@ -329,7 +329,7 @@ class ResourceRule(Rule, ConditionalClassMixin):
 
     def as_dict(self):
         d = super(ResourceRule, self).as_dict()
-        d['conditions'] = [cond.as_dict() for cond in self.conditions]
+        d['selectors'] = [cond.as_dict() for cond in self.selectors]
         return d
 
     # FIXME All following properties are for backwards compatibility.

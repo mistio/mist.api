@@ -279,8 +279,8 @@ class BaseController(object):
 class ArbitraryRuleController(BaseController):
 
     def update(self, fail_on_error=True, **kwargs):
-        if 'conditions' in kwargs:
-            raise BadRequestError('Conditions may not be specified for '
+        if 'selectors' in kwargs:
+            raise BadRequestError('Selectors may not be specified for '
                                   'arbitrary rules. Filtering is meant '
                                   'to be included as part of the query.')
         super(ArbitraryRuleController, self).update(
@@ -295,11 +295,11 @@ class ResourceRuleController(BaseController):
                 'influxdb': InfluxDBBackendPlugin}
 
     def update(self, fail_on_error=True, **kwargs):
-        if 'conditions' in kwargs:
+        if 'selectors' in kwargs:
             self.rule.conditions = []
-        for condition in kwargs.pop('conditions', []):
+        for condition in kwargs.pop('selectors', []):
             if condition.get('type') not in CONDITIONS:
-                raise BadRequestError('Condition type must be one of %s' %
+                raise BadRequestError('Selector type must be one of %s' %
                                       ' | '.join(CONDITIONS.keys()))
             cond_cls = CONDITIONS[condition.pop('type')]()
             cond_cls.update(**condition)
