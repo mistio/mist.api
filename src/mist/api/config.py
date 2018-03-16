@@ -1170,6 +1170,7 @@ ALLOW_SIGNIN_EMAIL = True
 ALLOW_SIGNIN_GOOGLE = False
 ALLOW_SIGNIN_GITHUB = False
 ENABLE_TUNNELS = False
+ENABLE_ORCHESTRATION = False
 STRIPE_PUBLIC_APIKEY = False
 ENABLE_AB = False
 ENABLE_R12N = False
@@ -1257,7 +1258,6 @@ for override_file in CONFIG_OVERRIDE_FILES:
 HAS_BILLING = 'billing' in PLUGINS
 HAS_RBAC = 'rbac' in PLUGINS
 HAS_INSIGHTS = 'insights' in PLUGINS
-HAS_ORCHESTRATION = 'orchestration' in PLUGINS
 
 
 # Update TELEGRAF_TARGET.
@@ -1319,7 +1319,7 @@ HOMEPAGE_INPUTS = {
     'features': {
         'monitoring': ENABLE_MONITORING,
         'rbac': HAS_RBAC,
-        'orchestration': HAS_ORCHESTRATION,
+        'orchestration': ENABLE_ORCHESTRATION,
         'insights': HAS_INSIGHTS,
         'billing': HAS_BILLING,
         'tunnels': ENABLE_TUNNELS,
