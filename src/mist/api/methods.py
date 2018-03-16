@@ -411,7 +411,8 @@ def notify_user(owner, title, message="", email_notify=True, **kwargs):
     if email_notify:
         from mist.api.helpers import send_email
         email = owner.email if hasattr(owner, 'email') else owner.get_email()
-        send_email("[mist.io] %s" % title, body.encode('utf-8', 'ignore'),
+        send_email("[%s] %s" % (config.PORTAL_NAME, title),
+                   body.encode('utf-8', 'ignore'),
                    email)
 
 

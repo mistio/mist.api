@@ -92,12 +92,14 @@ def get_stats(machine, start='', stop='', step='', metrics=None):
         # Fetch series.
         results = {}
         for metric in metrics:
-            path = metric.split('.')
-            measurement = path[0]
-            if len(path) is 1:
-                metric += '.*'
-            if not measurement or measurement == '*':
-                raise BadRequestError('No measurement specified')
+            regex = r'^(?:\w+)\((.+)\)$'
+            match = re.match(regex, metric)
+            if not match:
+                groups = (metric, )
+            while match:
+                groups = match.groups()
+                match = re.match(regex, groups[0])
+            measurement, _ = groups[0].split('.', 1)
             handler = INFLUXDB_HANDLERS.get(
                 measurement, InfluxMainStatsHandler
             )(machine)
