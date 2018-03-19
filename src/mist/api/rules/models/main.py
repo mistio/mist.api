@@ -329,7 +329,7 @@ class ResourceRule(Rule, ConditionalClassMixin):
 
     def as_dict(self):
         d = super(ResourceRule, self).as_dict()
-        d['conditions'] = [cond.as_dict() for cond in self.conditions]
+        d['selectors'] = [cond.as_dict() for cond in self.conditions]
         return d
 
     # FIXME All following properties are for backwards compatibility.

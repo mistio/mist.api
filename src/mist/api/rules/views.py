@@ -103,7 +103,7 @@ def _get_transformed_params(auth_context, params):
                 'teams': teams,
             },
         ],
-        'conditions': [
+        'selectors': [
             {
                 'type': 'machines',
                 'ids': [machine.id],
@@ -276,12 +276,12 @@ def add_rule(request):
               description: >
                 the command to be executed. Required by the command type
 
-    conditions:
+    selectors:
       in: query
       required: false
       description: |
-        a list of conditions to help match resources based on their UUIDs or
-        assigned tags. In case of an empty conditions list, the rule will match
+        a list of selectors to help match resources based on their UUIDs or
+        assigned tags. In case of an empty selectors list, the rule will match
         all resources of the corresponding resource type, i.e. all machines
       schema:
         type: array
