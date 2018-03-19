@@ -131,6 +131,10 @@ class KeyValidationError(BadRequestError):
     msg = "Invalid private key"
 
 
+class RuleNotFoundError(NotFoundError, KeyError):
+    msg = "Rule not found"
+
+
 class KeyNotFoundError(NotFoundError, KeyError):
     msg = "Key not found"
 

@@ -399,11 +399,16 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=''):
     if job_id:
         ret_dict['job_id'] = job_id
 
-    # Update monitoring information in db: set monitoring to off, remove rules
+    # Update monitoring information in db: set monitoring to off, remove rules.
+    # If the machine we are trying to disable monitoring for is the only one
+    # included in a rule, then delete the rule. Otherwise, attempt to remove
+    # the machine from the list of resources the rule is referring to.
     for rule in Rule.objects(owner_id=machine.owner.id):
-        if rule.cloud == cloud_id and rule.machine == machine_id:
+        if rule.ctl.includes_only(machine):
             rule.delete()
-    owner.save()
+        else:
+            rule.ctl.maybe_remove(machine)
+
     machine.monitoring.hasmonitoring = False
     machine.save()
 
@@ -492,12 +497,6 @@ def disassociate_metric(machine, metric_id):
         raise NotFoundError("Invalid metric_id")
     if metric_id not in machine.monitoring.metrics:
         raise NotFoundError("Metric isn't associated with this Machine")
-    if config.HAS_CORE:
-        from mist.core.methods import delete_rule
-        for rule in Rule.objects(owner_id=machine.owner.id):
-            if rule.cloud == machine.cloud.id and rule.machine == machine.id:
-                if rule.metric == metric_id:
-                    delete_rule(machine.owner, rule.rule_id)
     machine.monitoring.metrics.remove(metric_id)
     machine.save()
     trigger_session_update(machine.owner, ['monitoring'])
