@@ -2,8 +2,9 @@
 
 set -e
 
-export QUEUES="${QUEUES:-scripts,probe,ping,rules}"
+export QUEUES="${QUEUES:-scripts,probe,ping,rules,mappings}"
 export POOL=gevent
 export CONCURRENCY=${CONCURRENCY:-100}
+export TASKS="${TASKS:-mist.rbac.tasks}"
 
 exec ./bin/celery $@
