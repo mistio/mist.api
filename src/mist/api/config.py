@@ -1262,7 +1262,8 @@ HAS_RBAC = 'rbac' in PLUGINS
 # Update TELEGRAF_TARGET.
 
 if not TELEGRAF_TARGET:
-    if urlparse.urlparse(CORE_URI).hostname in ('localhost', '127.0.0.1'):
+    if urlparse.urlparse(CORE_URI).hostname in ('localhost', '127.0.0.1',
+                                                '172.17.0.1'):
         TELEGRAF_TARGET = "http://traefik"
     else:
         TELEGRAF_TARGET = CORE_URI + '/ingress'
