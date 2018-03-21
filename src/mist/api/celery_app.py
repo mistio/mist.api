@@ -15,4 +15,4 @@ app.autodiscover_tasks([
 ])
 if HAS_CORE:
     app.autodiscover_tasks(['mist.core.*'])
-app.autodiscover_tasks(['mist.%s.*' % _plugin for _plugin in PLUGINS])
+app.autodiscover_tasks(['mist.%s' % _plugin for _plugin in PLUGINS])
