@@ -5,21 +5,21 @@ from mist.api import config
 from mist.api.machines.models import Machine
 
 
-TRAEFIK_API_URL = '%s/api/providers/web' % config.TRAEFIK_API
+TRAEFIK_API_URL = '%s/api/providers/rest' % config.TRAEFIK_API
 
 
-def _gen_machine_frontend_config(machine):
+def _gen_machine_config(machine):
     """Generate traefik frontend config for machine with monitoring"""
     if not machine.monitoring.hasmonitoring:
         raise Exception("Machine.monitoring.hasmonitoring is False")
     if machine.monitoring.method == 'telegraf-graphite':
-        backend = 'gocky-graphite'
+        backend_port = 9097
     elif machine.monitoring.method == 'telegraf-influxdb':
-        backend = 'gocky-influxdb'
+        backend_port = 9096
     else:
         raise Exception("Invalid monitoring method '%s'"
                         % machine.monitoring.method)
-    return {
+    frontend = {
         "routes": {
             "main": {
                 "rule": "PathPrefixStrip:/%s" % (
@@ -27,7 +27,7 @@ def _gen_machine_frontend_config(machine):
                 ),
             },
         },
-        "backend": backend,
+        "backend": machine.id,
         "passHostHeader": True,
         "headers": {
             "customrequestheaders": {
@@ -39,48 +39,34 @@ def _gen_machine_frontend_config(machine):
                 "X-Gocky-Tag-Source-Type": machine.os_type,
             },
         },
-        "entryPoints": [
-            "http",
-        ],
+        "entryPoints": ["http"],
     }
+    backend = {
+        "servers": {
+            "gocky": {
+                "url": "http://gocky:%d" % backend_port,
+                "weight": 10,
+            },
+        },
+        "loadBalancer": {
+            "method": "wrr",
+        },
+    }
+    return frontend, backend
 
 
 def _gen_config():
     """Generate traefik config from scratch for all machines"""
-    return {
-        "backends": {
-            "gocky-influxdb": {
-                "loadBalancer": {
-                    "method": "wrr",
-                },
-                "servers": {
-                    "gocky": {
-                        "url": "http://gocky:9096",
-                        "weight": 10,
-                    },
-                },
-            },
-            "gocky-graphite": {
-                "loadBalancer": {
-                    "method": "wrr",
-                },
-                "servers": {
-                    "gocky": {
-                        "url": "http://gocky:9097",
-                        "weight": 10,
-                    },
-                },
-            },
-        },
-        "frontends": {
-            machine.id: _gen_machine_frontend_config(machine)
-            for machine in Machine.objects(
-                monitoring__hasmonitoring=True,
-                monitoring__method__in=['telegraf-graphite',
-                                        'telegraf-influxdb'],
-            )
-        },
-    }
+    cfg = {'frontends': {}, 'backends': {}}
+    for machine in Machine.objects(
+        monitoring__hasmonitoring=True,
+        monitoring__method__in=['telegraf-graphite',
+                                'telegraf-influxdb'],
+    ):
+        frontend, backend = _gen_machine_config(machine)
+        cfg['frontends'][machine.id] = frontend
+        cfg['backends'][machine.id] = backend
+    return cfg
 
 
 def _get_config():
@@ -92,9 +78,9 @@ def _get_config():
     return resp.json()
 
 
-def _set_config(config):
+def _set_config(cfg):
     """Set traefik config"""
-    resp = requests.put(TRAEFIK_API_URL, json=config)
+    resp = requests.put(TRAEFIK_API_URL, json=cfg)
     if not resp.ok:
         raise Exception("Bad traefik response: %s %s" % (resp.status_code,
                                                          resp.text))
@@ -108,13 +94,16 @@ def reset_config():
 
 def add_machine_to_config(machine):
     """Add frontend rule for machine monitoring"""
-    config = _get_config()
-    config["frontends"][machine.id] = _gen_machine_frontend_config(machine)
-    return _set_config(config)
+    cfg = _get_config()
+    frontend, backend = _gen_machine_config(machine)
+    cfg['frontends'][machine.id] = frontend
+    cfg['backends'][machine.id] = backend
+    return _set_config(cfg)
 
 
 def remove_machine_from_config(machine):
     """Remove frontend rule for machine monitoring"""
-    config = _get_config()
-    config["frontends"].pop(machine.id, None)
-    return _set_config(config)
+    cfg = _get_config()
+    cfg['frontends'].pop(machine.id, None)
+    cfg['backends'].pop(machine.id, None)
+    return _set_config(cfg)
