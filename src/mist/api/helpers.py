@@ -696,9 +696,10 @@ rtype_to_classpath = {
 }
 
 if config.HAS_CORE:
-    rtype_to_classpath.extend({'template': 'mist.core.orchestration.models.Template',
+    rtype_to_classpath.update({'template': 'mist.core.orchestration.models.Template',
                                'stack': 'mist.core.orchestration.models.Stack',
-                               'tunnel': 'mist.core.vpn.models.Tunnel',})
+                               'tunnel': 'mist.core.vpn.models.Tunnel'})
+
 
 def get_resource_model(rtype):
     model_path = rtype_to_classpath[rtype]
