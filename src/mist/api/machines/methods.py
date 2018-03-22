@@ -282,7 +282,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                 break
         node = _create_machine_gce(conn, key_id, private_key, public_key,
                                    machine_name, image, size, location,
-                                   cloud_init)
+                                   networks, cloud_init)
     elif conn.type is Provider.SOFTLAYER:
         node = _create_machine_softlayer(
             conn, key_id, private_key, public_key,
@@ -1358,7 +1358,7 @@ def _create_machine_vsphere(conn, machine_name, image,
 
 
 def _create_machine_gce(conn, key_name, private_key, public_key, machine_name,
-                        image, size, location, cloud_init):
+                        image, size, location, network, cloud_init):
     """Create a machine in GCE.
 
     Here there is no checking done, all parameters are expected to be
@@ -1374,12 +1374,17 @@ def _create_machine_gce(conn, key_name, private_key, public_key, machine_name,
         metadata['startup-script'] = cloud_init
 
     try:
+        network = Network.objects.get(id=network).name
+    except me.DoesNotExist:
+        network = 'default'
+    try:
         node = conn.create_node(
             name=machine_name,
             image=image,
             size=size,
             location=location,
-            ex_metadata=metadata
+            ex_metadata=metadata,
+            ex_network=network
         )
     except Exception as e:
         raise MachineCreationError(
