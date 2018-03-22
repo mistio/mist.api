@@ -37,26 +37,6 @@ def list_networks(owner, cloud_id):
     return ret
 
 
-def create_subnet(owner, cloud, network, subnet_params):
-    """
-    Create a new subnet attached to the specified network ont he given cloud.
-    Subnet_params is a dict containing all the necessary values that describe a
-    subnet.
-    """
-    if not hasattr(cloud.ctl, 'network'):
-        raise NotImplementedError()
-
-    # Create a DB document for the new subnet and call libcloud
-    #  to declare it on the cloud provider
-    new_subnet = SUBNETS[cloud.ctl.provider].add(network=network,
-                                                 **subnet_params)
-
-    # Schedule a UI update
-    trigger_session_update(owner, ['clouds'])
-
-    return new_subnet
-
-
 def filter_list_networks(auth_context, cloud_id, networks=None, perm='read'):
     """Filter the networks of the specific cloud based on RBAC policy"""
     if networks is None:
