@@ -274,7 +274,3 @@ class TelegrafScript(Script):
         # Check metric type.
         if self.extra.get('value_type', 'gauge') not in ('gauge', 'derive'):
             raise me.ValidationError('value_type must be "gauge" or "derive"')
-
-        # FIXME Allow derivatives.
-        if self.extra.get('value_type', 'gauge') == 'derive':
-            raise me.ValidationError('Derivative metrics not yet supported')

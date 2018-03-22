@@ -29,7 +29,6 @@ from mist.api.shell import Shell
 from mist.api.exceptions import MistError
 from mist.api.exceptions import RequiredParameterMissingError
 
-from mist.api.helpers import trigger_session_update
 from mist.api.helpers import amqp_publish_user
 from mist.api.helpers import StdStreamCapture
 
@@ -39,7 +38,6 @@ import mist.api.tasks
 import mist.api.inventory
 
 from mist.api.clouds.models import Cloud
-from mist.api.networks.models import SUBNETS
 from mist.api.machines.models import Machine
 
 from mist.api import config
@@ -433,7 +431,8 @@ def notify_user(owner, title, message="", email_notify=True, **kwargs):
     if email_notify:
         from mist.api.helpers import send_email
         email = owner.email if hasattr(owner, 'email') else owner.get_email()
-        send_email("[mist.io] %s" % title, body.encode('utf-8', 'ignore'),
+        send_email("[%s] %s" % (config.PORTAL_NAME, title),
+                   body.encode('utf-8', 'ignore'),
                    email)
 
 
@@ -691,11 +690,6 @@ def create_dns_a_record(owner, domain_name, ip_addr):
 # FIXME DEPRECATED
 def rule_triggered(machine, rule_id, value, triggered, timestamp,
                    notification_level, incident_id):
-    from mist.api.rules.models import NoDataRule
     from mist.api.rules.methods import run_chained_actions
-    if config.HAS_CORE and rule_id == 'nodata':
-        rule = NoDataRule.objects.get(owner_id=machine.owner.id,
-                                      title='NoData')
-        rule_id = rule.title
     run_chained_actions(rule_id, machine, value, triggered, timestamp,
                         notification_level, incident_id)

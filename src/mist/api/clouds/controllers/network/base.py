@@ -11,6 +11,7 @@ are in `mist.api.clouds.controllers.network.controllers`.
 import json
 import copy
 import logging
+import datetime
 import mongoengine.errors
 
 import mist.api.exceptions
@@ -243,7 +244,7 @@ class BaseNetworkController(BaseController):
         libcloud_nets = self.cloud.ctl.compute.connection.ex_list_networks()
 
         # List of Network mongoengine objects to be returned to the API.
-        networks = []
+        networks, new_networks = [], []
         for net in libcloud_nets:
             try:
                 network = Network.objects.get(cloud=self.cloud,
@@ -251,9 +252,12 @@ class BaseNetworkController(BaseController):
             except Network.DoesNotExist:
                 network = NETWORKS[self.provider](cloud=self.cloud,
                                                   network_id=net.id)
+                new_networks.append(network)
 
             network.name = net.name
             network.extra = copy.copy(net.extra)
+            network.missing_since = None
+
             # Get the Network's CIDR.
             try:
                 network.cidr = self._list_networks__cidr_range(network, net)
@@ -286,11 +290,14 @@ class BaseNetworkController(BaseController):
 
             networks.append(network)
 
-        # Delete existing networks not returned by libcloud. All associated
-        # Subnets will also be deleted.
-        Network.objects(cloud=self.cloud,
-                        network_id__nin=[n.network_id
-                                         for n in networks]).delete()
+        # Set missing_since for networks not returned by libcloud.
+        Network.objects(
+            cloud=self.cloud, id__nin=[n.id for n in networks],
+            missing_since=None
+        ).update(missing_since=datetime.datetime.utcnow())
+
+        # Update RBAC Mappings given the list of new networks.
+        self.cloud.owner.mapper.update(new_networks, async=False)
 
         return networks
 
@@ -356,7 +363,7 @@ class BaseNetworkController(BaseController):
         libcloud_subnets = self._list_subnets__fetch_subnets(network)
 
         # List of Subnet mongoengine objects to be returned to the API.
-        subnets = []
+        subnets, new_subnets = [], []
         for libcloud_subnet in libcloud_subnets:
             try:
                 subnet = Subnet.objects.get(network=network,
@@ -364,9 +371,11 @@ class BaseNetworkController(BaseController):
             except Subnet.DoesNotExist:
                 subnet = SUBNETS[self.provider](network=network,
                                                 subnet_id=libcloud_subnet.id)
+                new_subnets.append(subnet)
 
             subnet.name = libcloud_subnet.name
             subnet.extra = copy.copy(libcloud_subnet.extra)
+            subnet.missing_since = None
 
             # Get the Subnet's CIDR.
             try:
@@ -401,9 +410,18 @@ class BaseNetworkController(BaseController):
 
             subnets.append(subnet)
 
-        # Delete missing subnets.
-        Subnet.objects(network=network,
-                       id__nin=[s.id for s in subnets]).delete()
+            # Delete missing subnets.
+            Subnet.objects(network=network,
+                           id__nin=[s.id for s in subnets]).delete()
+        # Set missing_since for subnets not returned by libcloud.
+        Subnet.objects(
+            network=network, id__nin=[s.id for s in subnets],
+            missing_since=None
+        ).update(missing_since=datetime.datetime.utcnow())
+
+        # Update RBAC Mappings given the list of new subnetworks.
+        self.cloud.owner.mapper.update(new_subnets, async=False)
+
 
         return [sub.as_dict() for sub in subnets]
 
@@ -475,8 +493,6 @@ class BaseNetworkController(BaseController):
         libcloud_network = self._get_libcloud_network(network)
         self._delete_network(network, libcloud_network)
 
-        network.delete()
-
     def _delete_network(self, network, libcloud_network):
         """Performs the libcloud call that handles network deletion.
 
@@ -505,8 +521,6 @@ class BaseNetworkController(BaseController):
 
         libcloud_subnet = self._get_libcloud_subnet(subnet)
         self._delete_subnet(subnet, libcloud_subnet)
-
-        subnet.delete()
 
     def _delete_subnet(self, subnet, libcloud_subnet):
         """Performs the libcloud call that handles subnet deletion.

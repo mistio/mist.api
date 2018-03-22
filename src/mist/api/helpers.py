@@ -690,11 +690,18 @@ rtype_to_classpath = {
     'record': 'mist.api.dns.models.Record',
     'script': 'mist.api.scripts.models.Script',
     'key': 'mist.api.keys.models.Key',
-    'template': 'mist.core.orchestration.models.Template',
-    'stack': 'mist.core.orchestration.models.Stack',
     'schedule': 'mist.api.schedules.models.Schedule',
-    'tunnel': 'mist.core.vpn.models.Tunnel',
+    'network': 'mist.api.networks.models.Network',
+    'subnet': 'mist.api.networks.models.Subnet',
 }
+
+if config.HAS_CORE:
+    rtype_to_classpath.update(
+        {'template': 'mist.core.orchestration.models.Template',
+         'stack': 'mist.core.orchestration.models.Stack',
+         'tunnel': 'mist.core.vpn.models.Tunnel'
+         }
+    )
 
 
 def get_resource_model(rtype):
@@ -910,7 +917,8 @@ def logging_view_decorator(func):
         # log matchdict and params
         params = dict(params_from_request(request))
         for key in ['email', 'cloud', 'machine', 'rule', 'script_id',
-                    'tunnel_id', 'story_id', 'stack_id', 'template_id']:
+                    'tunnel_id', 'story_id', 'stack_id', 'template_id',
+                    'zone', 'record', 'network', 'subnet']:
             if key != 'email' and key in request.matchdict:
                 if not key.endswith('_id'):
                     log_dict[key + '_id'] = request.matchdict[key]

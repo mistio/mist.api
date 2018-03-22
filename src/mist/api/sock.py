@@ -38,6 +38,7 @@ from mist.api.amqp_tornado import Consumer
 
 from mist.api.clouds.methods import filter_list_clouds
 from mist.api.machines.methods import filter_list_machines, filter_machine_ids
+from mist.api.networks.methods import filter_list_networks
 from mist.api.dns.methods import filter_list_zones
 
 from mist.api import tasks
@@ -449,6 +450,13 @@ class MainConnection(MistConnection):
                         )
                         if cached is None:
                             continue
+                    elif key == 'list_networks':
+                        cached['networks'] = filter_list_networks(
+                            self.auth_context, **cached
+                        )
+                        if not (cached['networks']['public'] or
+                                cached['networks']['private']):
+                            continue
                     self.send(key, cached)
 
     def update_notifications(self):
@@ -553,7 +561,6 @@ class MainConnection(MistConnection):
                                      machine.get('private_ips', []))
                         if not ips:
                             continue
-
             elif routing_key == 'list_zones':
                 zones = result['zones']
                 cloud_id = result['cloud_id']
@@ -561,6 +568,14 @@ class MainConnection(MistConnection):
                     self.auth_context, cloud_id, zones
                 )
                 self.send(routing_key, filtered_zones)
+            elif routing_key == 'list_networks':
+                networks = result['networks']
+                cloud_id = result['cloud_id']
+                filtered_networks = filter_list_networks(
+                    self.auth_context, cloud_id, networks
+                )
+                self.send(routing_key, {'cloud_id': cloud_id,
+                                        'networks': filtered_networks})
             else:
                 self.send(routing_key, result)
 

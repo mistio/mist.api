@@ -166,44 +166,6 @@ class SocialAuthUser(me.Document):
         return 'SocialAuthUser for %s on %s' % (user, self.provider)
 
 
-class Rule(me.Document):
-    """The basic Rule Model."""
-
-    rule_action = me.StringField()
-    metric = me.StringField()  # metric_id for builtin or custom metric
-    value = me.FloatField()
-    cloud = me.StringField()
-    machine = me.StringField()
-    operator = me.StringField()
-    command = me.StringField()
-    action = me.StringField()
-    aggregate = me.StringField(default='all')  # must be in ('all','avg','any')
-    reminder_offset = me.IntField()  # seconds to wait
-    # before sending notifications
-    emails = me.ListField(me.StringField(), default=[])
-    # email to send the alerts. Can be a list of email addresses
-
-    migrated = me.BooleanField()
-
-    def clean(self):
-        # TODO: check if these are valid email addresses,
-        # to avoid possible spam
-        banned_mails_providers = config.BANNED_EMAIL_PROVIDERS
-
-        if self.emails:
-            if isinstance(self.emails, basestring):
-                emails = []
-                for email in self.emails.split(','):
-                    if re.match("[^@]+@[^@]+\.[^@]+", email):
-                        if email.split('@')[1] not in banned_mails_providers:
-                            emails.append(email.replace(' ', ''))
-                self.emails = emails
-        super(Rule, self).clean()
-
-    def as_dict(self):
-        return json.loads(self.to_json())
-
-
 class Owner(me.Document):
 
     id = me.StringField(primary_key=True,
@@ -214,7 +176,6 @@ class Owner(me.Document):
     rule_counter = me.IntField(default=0)
     total_machine_count = me.IntField()
 
-    rules = me.MapField(field=me.ReferenceField(Rule))
     alerts_email = me.ListField(me.StringField(), default=[])
 
     avatar = me.StringField(default='')
@@ -261,9 +222,12 @@ class Owner(me.Document):
         super(Owner, self).clean()
 
     def get_rules_dict(self):
-        from mist.api.rules.models import MachineMetricRule as Rule
-        return {rule.rule_id: rule.as_dict_old()
-                for rule in Rule.objects(owner_id=self.id)}
+        # FIXME In the future we should propagate no-data rules, as well,
+        # since we may allow limited actions to be performed on them by users.
+        from mist.api.rules.models import MachineMetricRule, NoDataRule
+        return {rule.id: rule.as_dict()
+                for rule in MachineMetricRule.objects(owner_id=self.id)
+                if not isinstance(rule, NoDataRule)}
 
     def get_metrics_dict(self):
         return {
@@ -484,7 +448,7 @@ class Organization(Owner):
     default_monitoring_method = me.StringField(
         choices=config.MONITORING_METHODS)
 
-    insights_enabled = me.BooleanField(default=config.HAS_CORE)
+    insights_enabled = me.BooleanField(default=config.HAS_INSIGHTS)
 
     created = me.DateTimeField(default=datetime.datetime.now)
     registered_by = me.StringField()
