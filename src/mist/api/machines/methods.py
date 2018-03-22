@@ -280,6 +280,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
             if size.id == size_id:
                 size = size
                 break
+        # FIXME: `networks` should always be an array, not a str like below
         node = _create_machine_gce(conn, key_id, private_key, public_key,
                                    machine_name, image, size, location,
                                    networks, cloud_init)
