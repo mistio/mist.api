@@ -100,10 +100,9 @@ class GoogleNetworkController(BaseNetworkController):
         network.mode = libcloud_network.mode
 
     def _list_subnets__fetch_subnets(self, network):
-        kwargs = {
-            'filters': {'filter': 'network eq %s' % network.extra['selfLink']}
-        }
-        return self.cloud.ctl.compute.connection.ex_list_subnetworks(**kwargs)
+        filter_expression = 'network eq %s' % network.extra['selfLink']
+        return self.cloud.ctl.compute.connection.ex_list_subnetworks(
+            filter_expression=filter_expression)
 
     def _list_subnets__postparse_subnet(self, subnet, libcloud_subnet):
         # Replace `GCERegion` object with the region's name.
