@@ -410,9 +410,6 @@ class BaseNetworkController(BaseController):
 
             subnets.append(subnet)
 
-            # Delete missing subnets.
-            Subnet.objects(network=network,
-                           id__nin=[s.id for s in subnets]).delete()
         # Set missing_since for subnets not returned by libcloud.
         Subnet.objects(
             network=network, id__nin=[s.id for s in subnets],
@@ -421,7 +418,6 @@ class BaseNetworkController(BaseController):
 
         # Update RBAC Mappings given the list of new subnetworks.
         self.cloud.owner.mapper.update(new_subnets, async=False)
-
 
         return [sub.as_dict() for sub in subnets]
 

@@ -172,6 +172,7 @@ def delete_network(request):
     auth_context.check_perm('cloud', 'read', cloud_id)
     auth_context.check_perm('network', 'read', network_id)
     auth_context.check_perm('network', 'remove', network_id)
+    import ipdb; ipdb.set_trace()
 
     try:
         cloud = Cloud.objects.get(id=cloud_id, owner=auth_context.owner)
@@ -230,7 +231,10 @@ def list_subnets(request):
         network = Network.objects.get(cloud=cloud, id=network_id)
     except Network.DoesNotExist:
         raise NetworkNotFoundError()
-    return [subnet.as_dict() for subnet in network.ctl.list_subnets()]
+
+    subnets = cloud.ctl.network.list_subnets(network=network)
+
+    return subnets
 
 
 @view_config(route_name='api_v1_subnets', request_method='POST',
@@ -341,153 +345,6 @@ def delete_subnet(request):
 
     # Trigger a UI update.
     trigger_session_update(auth_context.owner, ['clouds'])
-    return OK
-
-
-@view_config(route_name='api_v1_subnets', request_method='GET',
-             renderer='json')
-def list_subnets(request):
-    """
-    List subnets of a cloud
-    Currently supports the EC2, GCE and OpenStack clouds.
-    For other providers this returns an empty list.
-    READ permission required on cloud.
-    ---
-    cloud:
-      in: path
-      required: true
-      type: string
-    network_id:
-      in: path
-      required: true
-      description: The DB ID of the network whose subnets will be returned
-      type: string
-    """
-    cloud_id = request.matchdict['cloud']
-    network_id = request.matchdict['network']
-    auth_context = auth_context_from_request(request)
-    auth_context.check_perm("cloud", "read", cloud_id)
-
-    try:
-        cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id)
-    except Cloud.DoesNotExist:
-        raise CloudNotFoundError
-
-    if not hasattr(cloud.ctl, 'network'):
-        return []
-
-    try:
-        network = Network.objects.get(cloud=cloud, id=network_id)
-    except Network.DoesNotExist:
-        raise NetworkNotFoundError
-
-    subnets = cloud.ctl.network.list_subnets(network=network)
-
-    return subnets
-
-
-@view_config(route_name='api_v1_subnets', request_method='POST',
-             renderer='json')
-def create_subnet(request):
-    """
-    Tags: networks
-    ---
-    Create subnet on a given network on a cloud.
-    CREATE_RESOURCES permission required on cloud.
-    ---
-    cloud_id:
-      in: path
-      required: true
-      description: The Cloud ID
-      type: string
-    network_id:
-      in: path
-      required: true
-      description: The ID of the Network that will contain the new subnet
-      type: string
-    cidr:
-      required: true
-      type: string
-    availability_zone:
-      description: Required for Amazon VPCs
-      type: string
-    """
-    cloud_id = request.matchdict['cloud']
-    network_id = request.matchdict['network']
-
-    params = params_from_request(request)
-
-    auth_context = auth_context_from_request(request)
-
-    # SEC
-    auth_context.check_perm('cloud', 'read', cloud_id)
-    auth_context.check_perm('cloud', 'create_resources', cloud_id)
-    auth_context.check_perm('network', 'read', network_id)
-    auth_context.check_perm('network', 'edit_subnets', network_id)
-
-    try:
-        cloud = Cloud.objects.get(id=cloud_id, owner=auth_context.owner)
-    except Cloud.DoesNotExist:
-        raise CloudNotFoundError
-    try:
-        network = Network.objects.get(id=network_id, cloud=cloud)
-    except Network.DoesNotExist:
-        raise NetworkNotFoundError
-
-    subnet = methods.create_subnet(auth_context.owner, cloud, network, params)
-
-    return subnet.as_dict()
-
-
-@view_config(route_name='api_v1_subnet', request_method='DELETE')
-def delete_subnet(request):
-    """
-    Tags: networks
-    ---
-    Deletes a subnet.
-    CREATE_RESOURCES permission required on cloud.
-    ---
-    cloud_id:
-      in: path
-      required: true
-      type: string
-    network_id:
-      in: path
-      required: true
-      type: string
-    subnet_id:
-      in: path
-      required: true
-      type: string
-    """
-    cloud_id = request.matchdict['cloud']
-    subnet_id = request.matchdict['subnet']
-    network_id = request.matchdict['network']
-
-    auth_context = auth_context_from_request(request)
-
-    # SEC
-    auth_context.check_perm('cloud', 'read', cloud_id)
-    auth_context.check_perm('network', 'read', network_id)
-    auth_context.check_perm('network', 'edit_subnets', network_id)
-
-    try:
-        cloud = Cloud.objects.get(id=cloud_id, owner=auth_context.owner)
-    except Cloud.DoesNotExist:
-        raise CloudNotFoundError
-
-    try:
-        network = Network.objects.get(id=network_id, cloud=cloud)
-    except Network.DoesNotExist:
-        raise NetworkNotFoundError
-
-    try:
-        subnet = Subnet.objects.get(id=subnet_id, network=network)
-    except Subnet.DoesNotExist:
-        raise SubnetNotFoundError
-
-    methods.delete_subnet(auth_context.owner, subnet)
-
     return OK
 
 
