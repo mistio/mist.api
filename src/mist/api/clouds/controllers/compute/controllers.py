@@ -217,6 +217,7 @@ class DigitalOceanComputeController(BaseComputeController):
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         machine.size = machine['extra'].get('size_slug')
+        machine.extra['cpus'] = machine.extra.get('size', {}).get('vcpus', 0)
 
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
         return machine_libcloud.extra.get('created_at')  # iso8601 string
@@ -343,6 +344,12 @@ class SoftLayerComputeController(BaseComputeController):
         if 'windows' in str(machine_libcloud.extra.get('image', '')).lower():
             machine.os_type = 'windows'
 
+        # Get number of vCPUs for bare metal and cloud servers, respectively.
+        if 'cpu' in machine.extra:
+            machine.extra['cpus'] = machine.extra['cpu']
+        if 'maxCpu' in machine.extra:
+            machine.extra['cpus'] = machine.extra['maxCpu']
+
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         # SoftLayer includes recurringFee on the VM metadata but
         # this is only for the compute - CPU pricing.
@@ -398,6 +405,11 @@ class NephoScaleComputeController(BaseComputeController):
         machine.os_type = 'linux'
         if 'windows' in str(machine_libcloud.extra.get('image', '')).lower():
             machine.extra['os_type'] = machine.os_type = 'windows'
+
+        # Size info in the form of: CS05-SSD - 0,5GB, 4Core, 25GB, 10 Gbps
+        regex = r'(?:.*)\ (\d+)Core(?:.*)'
+        match = re.match(regex, machine.extra.get('service_type', ''))
+        machine.extra['cpus'] = match.groups()[0] if match else 0
 
     def _list_sizes__fetch_sizes(self):
         sizes = self.connection.list_sizes(baremetal=False)
@@ -755,6 +767,9 @@ class VultrComputeController(BaseComputeController):
 
     def _connect(self):
         return get_driver(Provider.VULTR)(self.cloud.apikey)
+
+    def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        machine.extra['cpus'] = machine.extra.get('vcpu_count', 0)
 
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
         return machine_libcloud.extra.get('date_created')  # iso8601 string
@@ -1219,6 +1234,10 @@ class LibvirtComputeController(BaseComputeController):
         xml_desc = machine_libcloud.extra.get('xml_description')
         if xml_desc:
             machine.extra['xml_description'] = escape(xml_desc)
+
+        # Number of CPUs allocated to guest.
+        if 'processors' in machine.extra:
+            machine.extra['cpus'] = machine.extra['processors']
 
     def _list_images__fetch_images(self, search=None):
         return self.connection.list_images(location=self.cloud.images_location)
