@@ -5,13 +5,12 @@ from pyramid.response import Response
 from mist.api.helpers import view_config
 from mist.api.helpers import get_datetime
 from mist.api.helpers import params_from_request
-from mist.api.helpers import trigger_session_update
 from mist.api.methods import rule_triggered
 
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import BadRequestError
+from mist.api.exceptions import RuleNotFoundError
 from mist.api.exceptions import UnauthorizedError
-from mist.api.exceptions import InternalServerError
 from mist.api.exceptions import RequiredParameterMissingError
 
 from mist.api.rules.models import Rule
@@ -27,6 +26,7 @@ from mist.api import config
 log = logging.getLogger(__name__)
 
 
+# FIXME Deprecated!
 def _get_transformed_params(auth_context, params):
     # Sanitize reminder_offset.
     reminder_offset = params.get('reminder_offset') or 0
@@ -103,7 +103,7 @@ def _get_transformed_params(auth_context, params):
                 'teams': teams,
             },
         ],
-        'conditions': [
+        'selectors': [
             {
                 'type': 'machines',
                 'ids': [machine.id],
@@ -119,95 +119,357 @@ def _get_transformed_params(auth_context, params):
     return kwargs
 
 
+@view_config(route_name='api_v1_rules', request_method='GET', renderer='json')
+def get_rules(request):
+    """Get a list of all rules"""
+    auth_context = auth_context_from_request(request)
+    if not auth_context.is_owner():
+        raise UnauthorizedError('Restricted to Owners')
+    return [r.as_dict() for r in Rule.objects(owner_id=auth_context.owner.id)]
+
+
 @view_config(route_name='api_v1_rules', request_method='POST', renderer='json')
 def add_rule(request):
-    """
-    Tags: rules
+    """Add a new rule
+
+    READ permission required on Cloud
+    EDIT_RULES permission required on Machine
+
     ---
-    Adds a new rule.
-    READ permission required on cloud.
-    EDIT_RULES permission required on machine.
-    DEPRECATION WARNING This API endpoint is deprecated. A new JSON schema
-    will soon be put in use in order to add new rules. Also, a discrete API
-    endpoint will be introduced for updating existing rules.
-    ---
+
+    queries:
+      in: query
+      required: true
+      description: |
+        a list of queries to be evaluated. Queries are chained together with a
+        logical AND, meaning that all queries will have to evaluate to True in
+        order for the rule to get triggered
+      schema:
+        type: array
+        items:
+          type: object
+          properties:
+            target:
+              type: string
+              required: true
+              description: the metric's name, e.g. "load.shortterm"
+            operator:
+              type: string
+              required: true
+              description: |
+                the operator used to compare the computed value with the given
+                threshold
+            threshold:
+              type: string
+              required: true
+              description: the value over/under which an alert will be raised
+            aggregation:
+              type: string
+              required: true
+              description: |
+                the function to be applied on the computed series. Must be one
+                of: all, any, avg
+
+    window:
+      in: query
+      required: true
+      description: the time window of each query
+      schema:
+        type: object
+        properties:
+          start:
+            type: integer
+            required: true
+            description: |
+              a positive integer denoting the start of the search window in
+              terms of "now() - start"
+          stop:
+            type: integer
+            default: 0
+            required: false
+            description: |
+              a positive integer, where stop < start, denoting the end of the
+              search window. Defaults to now
+          period:
+            type: string
+            required: true
+            description: units of time, e.g. "seconds"
+
+    frequency:
+      in: query
+      required: true
+      description: the frequency of each evaluation
+      schema:
+        type: object
+        properties:
+          every:
+            type: integer
+            required: true
+            description: >
+              a positive integer denoting how often the rule must be evaluated
+          period:
+            type: string
+            required: true
+            description: units of time, e.g. "seconds"
+
+    trigger_after:
+      in: query
+      required: false
+      description: |
+        an offset, which prevents an alert from actually being raised, unless
+        the threshold is exceeded for "trigger_after" consecutive evaluations
+      schema:
+        type: object
+        properties:
+          offset:
+            type: integer
+            required: true
+            description: a positive integer denoting the tolerance period
+          period:
+            type: string
+            required: true
+            description: units of time, e.g. "seconds"
+
+    actions:
+      in: query
+      default: notification
+      required: false
+      description: |
+        a list of actions to be executed once a rule is triggered. Defaults to
+        sending a notification
+      schema:
+        type: array
+        items:
+          type: object
+          properties:
+            type:
+              type: string
+              required: true
+              description: >
+                the action's type: notification, machine_action, command
+            users:
+              type: array
+              required: false
+              description: |
+                a list of user to be notified, denoted by their UUIDs. Can be
+                used by a notification action (optional)
+            teams:
+              type: array
+              required: false
+              description: |
+                a list of teams, denoted by their UUIDs, whose users will be
+                notified. Can be used by a notification action (optional)
+            emails:
+              type: array
+              required: false
+              description: |
+                a list of e-mails to send a notification to. Can be used by a
+                notification action (optional)
+            action:
+              type: string
+              required: false
+              description: >
+                the action to be performed. Required by machine_action type
+            command:
+              type: string
+              required: false
+              description: >
+                the command to be executed. Required by the command type
+
+    selectors:
+      in: query
+      required: false
+      description: |
+        a list of selectors to help match resources based on their UUIDs or
+        assigned tags. In case of an empty selectors list, the rule will match
+        all resources of the corresponding resource type, i.e. all machines
+      schema:
+        type: array
+        items:
+          type: object
+          properties:
+            type:
+              type: string
+              required: true
+              description: one of "machines" or "tags"
+            ids:
+              type: array
+              required: false
+              description: a list of UUIDs in case type is "machines"
+            tags:
+              type: array
+              required: false
+              description: a list of tags in case type is "tags"
+
     """
     auth_context = auth_context_from_request(request)
     params = params_from_request(request)
 
     # Pyramid's `NestedMultiDict` is immutable.
-    kwargs = _get_transformed_params(auth_context, dict(params.copy()))
+    kwargs = dict(params.copy())
+    # kwargs = _get_transformed_params(auth_context, dict(params.copy()))
 
-    # FIXME Have a discrete API endpoint for updates.
-    title = params.get('id')
-    if title:
-        try:
-            rule = Rule.objects.get(owner_id=auth_context.owner.id,
-                                    title=title)
-            rule.ctl.set_auth_context(auth_context)
-            rule.ctl.update(save=False, **kwargs)
-        except Rule.DoesNotExist:
-            raise NotFoundError()
-    else:
-        # Add new rule.
-        rule = MachineMetricRule.add(auth_context, **kwargs)
+    # FIXME Remove. Now there is a discrete API endpoint for updates.
+    if params.get('id'):
+        raise BadRequestError('POST to /api/v1/rules/<rule-id> for updates')
 
-        # FIXME Deprecated counter used for rules' titles.
-        auth_context.owner.rule_counter += 1
-        auth_context.owner.save()
+    # Add new rule.
+    rule = MachineMetricRule.add(auth_context, **kwargs)
 
-    # FIXME Remove alongside the old alert service.
-    if config.HAS_CORE:
-        from mist.core.methods import _push_rule
-        if not _push_rule(rule.owner, rule.title):
-            if not title:
-                rule.delete()
-            raise InternalServerError()
-    if title:
-        rule.save()
+    # FIXME Keep this?
+    auth_context.owner.rule_counter += 1
+    auth_context.owner.save()
 
-    rdict = rule.as_dict_old()
-    rdict['id'] = rule.rule_id
+    return rule.as_dict()
 
-    trigger_session_update(auth_context.owner, ['monitoring'])
-    return rdict
+
+@view_config(route_name='api_v1_rule', request_method='POST', renderer='json')
+def update_rule(request):
+    """Update a rule given its UUID
+
+    The expected request body is the same as for the `add_rule` endpoint. The
+    difference is that none of the parameters are required. Only the specified
+    parameters will be updated, leaving the rest unchanged.
+
+    READ permission required on cloud
+    EDIT_RULES permission required on machine
+
+    ---
+
+    rule_id:
+      in: path
+      type: string
+      required: true
+      description: the UUID of the rule to be updated
+
+    """
+    auth_context = auth_context_from_request(request)
+    params = dict(params_from_request(request).copy())
+    rule_id = request.matchdict.get('rule')
+    try:
+        rule = Rule.objects.get(owner_id=auth_context.owner.id, id=rule_id)
+        rule.ctl.set_auth_context(auth_context)
+        rule.ctl.update(**params)
+    except Rule.DoesNotExist:
+        raise RuleNotFoundError()
+    return rule.as_dict()
+
+
+@view_config(route_name='api_v1_rule', request_method='PUT')
+def toggle_rule(request):
+    """Enable or disable a rule
+
+    Permits Owners to temporarily disable or re-enable a rule's evaluation
+
+    ---
+
+    rule:
+      in: path
+      type: string
+      required: true
+      description: the UUID of the rule to be updated
+
+    action:
+      in: query
+      type: string
+      required: true
+      description: the action to perform (enable, disable)
+
+    """
+    auth_context = auth_context_from_request(request)
+    action = params_from_request(request).get('action')
+    rule_id = request.matchdict.get('rule')
+
+    if not auth_context.is_owner():
+        raise UnauthorizedError('Restricted to Owners')
+
+    if not action:
+        raise RequiredParameterMissingError('action')
+
+    if action not in ('enable', 'disable', ):
+        raise BadRequestError('Action must be one of (enable, disable)')
+
+    try:
+        rule = Rule.objects.get(owner_id=auth_context.owner.id, id=rule_id)
+        getattr(rule.ctl, action)()
+    except Rule.DoesNotExist:
+        raise RuleNotFoundError()
+    return Response('OK', 200)
+
+
+@view_config(route_name='api_v1_rule', request_method='PATCH')
+def rename_rule(request):
+    """Rename a rule
+
+    ---
+
+    rule:
+      in: path
+      type: string
+      required: true
+      description: the UUID of the rule to be updated
+
+    title:
+      in: query
+      type: string
+      required: true
+      description: the rule's new title
+
+    """
+    auth_context = auth_context_from_request(request)
+    title = params_from_request(request).get('title')
+    rule_id = request.matchdict.get('rule')
+
+    if not auth_context.is_owner():
+        raise UnauthorizedError('Restricted to Owners')
+
+    if not title:
+        raise RequiredParameterMissingError('title')
+
+    try:
+        rule = Rule.objects.get(owner_id=auth_context.owner.id, id=rule_id)
+        rule.ctl.rename(title)
+    except Rule.DoesNotExist:
+        raise RuleNotFoundError()
+    return Response('OK', 200)
 
 
 @view_config(route_name='api_v1_rule', request_method='DELETE')
 def delete_rule(request):
-    """
-    Tags: rules
-    ---
-    Deletes a rule given its UUID.
+    """Delete a rule given its UUID.
+
     READ permission required on Cloud.
     EDIT_RULES permission required on Machine
+
     ---
+
     rule:
       in: path
       type: string
       required: true
       description: the unique identifier of the rule to be deleted
+
     """
     auth_context = auth_context_from_request(request)
-    rule_id = request.matchdict.get('rule')  # FIXME uuid, not title!
+    rule_id = request.matchdict.get('rule')
     try:
-        rule = Rule.objects.get(owner_id=auth_context.owner.id, title=rule_id)
+        rule = Rule.objects.get(owner_id=auth_context.owner.id, id=rule_id)
         rule.ctl.set_auth_context(auth_context)
         rule.ctl.delete()
     except Rule.DoesNotExist:
-        raise NotFoundError()
+        raise RuleNotFoundError()
     return Response('OK', 200)
 
 
 @view_config(route_name='api_v1_rule_triggered', request_method='PUT')
 def triggered(request):
-    """
-    Tags: rules
-    ---
-    Process a trigger sent by the alert service.
+    """Process a trigger sent by the alert service.
+
     Based on the parameters of the request, this method will initiate actions
     to mitigate the conditions that triggered the rule and notify the users.
+
     ---
+
     value:
      type: integer
      required: true
@@ -228,7 +490,7 @@ def triggered(request):
     triggered_now:
      type: integer
      required: true
-     description:
+     description: |
        0 in case this is not the first time the specified incident has
        raised an alert
     firing_since:
@@ -250,11 +512,8 @@ def triggered(request):
      description: >
        the time at which the incident with the specified UUID resolved.\
        Datetime needed
-    """
-    # FIXME Remove alongside the old alert service.
-    if not config.CILIA_TRIGGER:
-        return Response('OK', 200)
 
+    """
     # Do not publicly expose this API endpoint?
     if config.CILIA_SECRET_KEY != request.headers.get('Cilia-Secret-Key'):
         raise UnauthorizedError()
@@ -318,6 +577,12 @@ def triggered(request):
 
     if machine.cloud.deleted:
         raise NotFoundError('Machine with id %s does not exist' % resource_id)
+
+    if machine.missing_since:
+        raise NotFoundError('Machine with id %s does not exist' % resource_id)
+
+    if machine.state == 'terminated':
+        raise NotFoundError('Machine with id %s is terminated' % resource_id)
 
     if not machine.monitoring.hasmonitoring:
         raise NotFoundError('%s does not have monitoring enabled' % machine)

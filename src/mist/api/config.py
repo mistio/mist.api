@@ -338,7 +338,6 @@ GRAPHITE_URI = "http://graphite"
 
 # Alert service's settings.
 CILIA_MULTI = False
-CILIA_TRIGGER = True
 CILIA_TRIGGER_API = "http://api"
 CILIA_SECRET_KEY = ""
 CILIA_GRAPHITE_NODATA_TARGETS = (
