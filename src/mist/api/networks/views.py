@@ -172,7 +172,6 @@ def delete_network(request):
     auth_context.check_perm('cloud', 'read', cloud_id)
     auth_context.check_perm('network', 'read', network_id)
     auth_context.check_perm('network', 'remove', network_id)
-    import ipdb; ipdb.set_trace()
 
     try:
         cloud = Cloud.objects.get(id=cloud_id, owner=auth_context.owner)

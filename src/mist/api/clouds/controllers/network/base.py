@@ -483,7 +483,7 @@ class BaseNetworkController(BaseController):
 
         assert network.cloud == self.cloud
 
-        for subnet in Subnet.objects(network=network):
+        for subnet in Subnet.objects(network=network, missing_since=None):
             subnet.ctl.delete()
 
         libcloud_network = self._get_libcloud_network(network)
