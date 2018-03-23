@@ -702,8 +702,8 @@ if config.HAS_CORE:
 
 if config.HAS_ORCHESTRATION:
     rtype_to_classpath.update(
-        {'template': 'mist.core.orchestration.models.Template',
-         'stack': 'mist.core.orchestration.models.Stack',}
+        {'template': 'mist.orchestration.models.Template',
+         'stack': 'mist.orchestration.models.Stack',}
     )
 
 
