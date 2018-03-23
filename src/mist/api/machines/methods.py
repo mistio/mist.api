@@ -891,7 +891,10 @@ def _create_machine_libvirt(conn, machine_name, disk_size, ram, cpu,
     try:
         environment = {}
         if env_vars:
-            environment = dict(item.split("=") for item in env_vars.splitlines())
+            if not isinstance(env_vars, dict):
+                environment = dict(item.split("=") for item in env_vars.splitlines())
+            else:
+                environment = env_vars
 
         node = conn.create_node(
             name=machine_name,
