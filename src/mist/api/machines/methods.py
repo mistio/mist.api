@@ -24,6 +24,7 @@ from mist.api.exceptions import PolicyUnauthorizedError
 from mist.api.exceptions import MachineNameValidationError
 from mist.api.exceptions import BadRequestError, MachineCreationError
 from mist.api.exceptions import CloudUnavailableError, InternalServerError
+from mist.api.exceptions import NotFoundError
 
 from mist.api.helpers import get_temp_file
 
@@ -616,13 +617,19 @@ def _create_machine_ec2(conn, key_name, private_key, public_key,
             subnet = Subnet.objects.get(id=subnet_id)
             subnet_id = subnet.subnet_id
         except Subnet.DoesNotExist:
-            log.info('Got providers id instead of mist id, not doing nothing.')
+            try:
+                subnet = Subnet.objects.get(external_id=subnet_id)
+                log.info('Got providers id instead of mist id, not doing nothing.')
+            except Subnet.DoesNotExist:
+                raise NotFoundError('Subnet specified does not exist')
 
         subnets = conn.ex_list_subnets()
         for libcloud_subnet in subnets:
             if libcloud_subnet.id == subnet_id:
                 subnet = libcloud_subnet
                 break
+        else:
+            raise Exception('Subnet specified does not exist')
 
         # if subnet is specified, then security group id
         # instead of security group name is needed
