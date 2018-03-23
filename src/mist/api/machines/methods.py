@@ -133,8 +133,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                    docker_exposed_ports={}, azure_port_bindings='',
                    hostname='', plugins=None, disk_size=None, disk_path=None,
                    post_script_id='', post_script_params='', cloud_init='',
-                   subnet_id='', subnet_external_id='',
-                   create_network=False, new_network='',
+                   subnet_id='', create_network=False, new_network='',
                    create_resource_group=False, new_resource_group='',
                    create_storage_account=False, new_storage_account='',
                    associate_floating_ip=False,
@@ -271,7 +270,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                 break
         node = _create_machine_ec2(conn, key_id, private_key, public_key,
                                    machine_name, image, size, ec2_location,
-                                   subnet_id, subnet_external_id, cloud_init)
+                                   subnet_id, cloud_init)
     elif conn.type is Provider.NEPHOSCALE:
         node = _create_machine_nephoscale(conn, key_id, private_key,
                                           public_key, machine_name, image,
@@ -569,7 +568,7 @@ def _create_machine_openstack(conn, private_key, public_key, machine_name,
 
 def _create_machine_ec2(conn, key_name, private_key, public_key,
                         machine_name, image, size, location, subnet_id,
-                        subnet_external_id, user_data):
+                        user_data):
     """Create a machine in Amazon EC2.
 
     Here there is no checking done, all parameters are expected to be

@@ -282,7 +282,6 @@ def create_machine(request):
     new_network = params.get('new_network', '')
     networks = params.get('networks', [])
     subnet_id = params.get('subnet_id', '')
-    subnet_external_id = params.get('subnet_external_id', '')
     docker_env = params.get('docker_env', [])
     docker_command = params.get('docker_command', None)
     script_id = params.get('script_id', '')
@@ -408,7 +407,7 @@ def create_machine(request):
               'disk_size': disk_size,
               'disk_path': disk_path,
               'cloud_init': cloud_init,
-              'subnet_id': subnet_id, 'subnet_external_id': subnet_external_id,
+              'subnet_id': subnet_id,
               'associate_floating_ip': associate_floating_ip,
               'associate_floating_ip_subnet': associate_floating_ip_subnet,
               'project_id': project_id,
