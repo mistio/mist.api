@@ -231,9 +231,7 @@ def list_subnets(request):
     except Network.DoesNotExist:
         raise NetworkNotFoundError()
 
-    subnets = cloud.ctl.network.list_subnets(network=network)
-
-    return subnets
+    return [subnet.as_dict() for subnet in network.ctl.list_subnets()]
 
 
 @view_config(route_name='api_v1_subnets', request_method='POST',

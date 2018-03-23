@@ -26,7 +26,7 @@ def list_networks(owner, cloud_id):
         network_dict = network.as_dict()
         if hasattr(network, 'location'):
             network_dict['location'] = network.location
-        network_dict['subnets'] = [subnet for
+        network_dict['subnets'] = [subnet.as_dict() for
                                    subnet in network.ctl.list_subnets()]
 
     # TODO: Backwards-compatible network privacy detection, to be replaced

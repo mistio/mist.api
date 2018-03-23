@@ -419,7 +419,7 @@ class BaseNetworkController(BaseController):
         # Update RBAC Mappings given the list of new subnetworks.
         self.cloud.owner.mapper.update(new_subnets, async=False)
 
-        return [sub.as_dict() for sub in subnets]
+        return subnets
 
     def _list_subnets__fetch_subnets(self, network):
         """Fetches a list of subnets.
