@@ -619,7 +619,8 @@ def _create_machine_ec2(conn, key_name, private_key, public_key,
         except Subnet.DoesNotExist:
             try:
                 subnet = Subnet.objects.get(external_id=subnet_id)
-                log.info('Got providers id instead of mist id, not doing nothing.')
+                log.info('Got providers id instead of mist id, not \
+                doing nothing.')
             except Subnet.DoesNotExist:
                 raise NotFoundError('Subnet specified does not exist')
 
