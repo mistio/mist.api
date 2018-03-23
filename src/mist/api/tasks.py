@@ -905,7 +905,7 @@ def create_machine_async(
     disk_size=None, disk_path=None, create_storage_account=False,
     new_storage_account='', create_resource_group=False,
     new_resource_group='', create_network=False,
-    new_network='', cloud_init='', subnet_id='', subnet_external_id='',
+    new_network='', cloud_init='', subnet_id='',
     associate_floating_ip=False,
     associate_floating_ip_subnet=None, project_id=None,
     tags=None, schedule={}, bare_metal=False, hourly=True,
