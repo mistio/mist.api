@@ -157,6 +157,9 @@ def create_machine(request):
       type: array
       items:
         type: string
+    subnet_id:
+      type: string
+      description: Optional for EC2
     schedule:
       type: object
     script:
