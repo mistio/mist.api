@@ -157,6 +157,8 @@ def create_machine(request):
       type: array
       items:
         type: string
+    subnetwork:
+      type: string
     schedule:
       type: object
     script:
@@ -281,6 +283,7 @@ def create_machine(request):
     create_network = params.get('create_network', False)
     new_network = params.get('new_network', '')
     networks = params.get('networks', [])
+    subnetwork = params.get('subnetwork', None)
     docker_env = params.get('docker_env', [])
     docker_command = params.get('docker_command', None)
     script_id = params.get('script_id', '')
@@ -394,7 +397,7 @@ def create_machine(request):
             image_extra, disk, image_name, size_name,
             location_name, ips, monitoring,
             ex_storage_account, machine_password, ex_resource_group, networks,
-            docker_env, docker_command)
+            subnetwork, docker_env, docker_command)
     kwargs = {'script_id': script_id,
               'script_params': script_params, 'script': script, 'job': job,
               'job_id': job_id, 'docker_port_bindings': docker_port_bindings,

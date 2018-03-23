@@ -125,7 +125,8 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                    image_name=None, size_name=None, location_name=None,
                    ips=None, monitoring=False,
                    ex_storage_account='', machine_password='',
-                   ex_resource_group='', networks=[], docker_env=[],
+                   ex_resource_group='', networks=[], subnetwork=None,
+                   docker_env=[],
                    docker_command=None,
                    ssh_port=22, script='', script_id='', script_params='',
                    job_id=None, job=None, docker_port_bindings={},
@@ -283,7 +284,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
         # FIXME: `networks` should always be an array, not a str like below
         node = _create_machine_gce(conn, key_id, private_key, public_key,
                                    machine_name, image, size, location,
-                                   networks, cloud_init)
+                                   networks, subnetwork, cloud_init)
     elif conn.type is Provider.SOFTLAYER:
         node = _create_machine_softlayer(
             conn, key_id, private_key, public_key,
@@ -1359,7 +1360,8 @@ def _create_machine_vsphere(conn, machine_name, image,
 
 
 def _create_machine_gce(conn, key_name, private_key, public_key, machine_name,
-                        image, size, location, network, cloud_init):
+                        image, size, location, network, subnetwork,
+                        cloud_init):
     """Create a machine in GCE.
 
     Here there is no checking done, all parameters are expected to be
@@ -1385,7 +1387,8 @@ def _create_machine_gce(conn, key_name, private_key, public_key, machine_name,
             size=size,
             location=location,
             ex_metadata=metadata,
-            ex_network=network
+            ex_network=network,
+            ex_subnetwork=subnetwork
         )
     except Exception as e:
         raise MachineCreationError(
