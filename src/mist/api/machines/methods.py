@@ -631,8 +631,9 @@ def _create_machine_ec2(conn, key_name, private_key, public_key,
             if group.get('name') == config.EC2_SECURITYGROUP.get('name', ''):
                 security_group_id = group.get('id')
                 break
-        kwargs.update({'ex_subnet': subnet,
-                      'ex_security_group_ids': security_group_id})
+        if subnet:
+            kwargs.update({'ex_subnet': subnet,
+                          'ex_security_group_ids': security_group_id})
 
     else:
         kwargs.update({'ex_securitygroup': config.EC2_SECURITYGROUP['name']})
