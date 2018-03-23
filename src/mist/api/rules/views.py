@@ -121,7 +121,11 @@ def _get_transformed_params(auth_context, params):
 
 @view_config(route_name='api_v1_rules', request_method='GET', renderer='json')
 def get_rules(request):
-    """Get a list of all rules"""
+    """
+    Tags: rules
+    ---
+    Get a list of all rules
+    """
     auth_context = auth_context_from_request(request)
     if not auth_context.is_owner():
         raise UnauthorizedError('Restricted to Owners')
@@ -130,7 +134,10 @@ def get_rules(request):
 
 @view_config(route_name='api_v1_rules', request_method='POST', renderer='json')
 def add_rule(request):
-    """Add a new rule
+    """
+    Tags: rules
+    ---
+    Add a new rule
 
     READ permission required on Cloud
     EDIT_RULES permission required on Machine
@@ -325,7 +332,10 @@ def add_rule(request):
 
 @view_config(route_name='api_v1_rule', request_method='POST', renderer='json')
 def update_rule(request):
-    """Update a rule given its UUID
+    """
+    Tags: rules
+    ---
+    Update a rule given its UUID
 
     The expected request body is the same as for the `add_rule` endpoint. The
     difference is that none of the parameters are required. Only the specified
@@ -357,7 +367,10 @@ def update_rule(request):
 
 @view_config(route_name='api_v1_rule', request_method='PUT')
 def toggle_rule(request):
-    """Enable or disable a rule
+    """
+    Tags: rules
+    ---
+    Enable or disable a rule
 
     Permits Owners to temporarily disable or re-enable a rule's evaluation
 
@@ -399,7 +412,10 @@ def toggle_rule(request):
 
 @view_config(route_name='api_v1_rule', request_method='PATCH')
 def rename_rule(request):
-    """Rename a rule
+    """
+    Tags: rules
+    ---
+    Rename a rule
 
     ---
 
@@ -436,7 +452,10 @@ def rename_rule(request):
 
 @view_config(route_name='api_v1_rule', request_method='DELETE')
 def delete_rule(request):
-    """Delete a rule given its UUID.
+    """
+    Tags: rules
+    ---
+    Delete a rule given its UUID.
 
     READ permission required on Cloud.
     EDIT_RULES permission required on Machine
@@ -463,7 +482,10 @@ def delete_rule(request):
 
 @view_config(route_name='api_v1_rule_triggered', request_method='PUT')
 def triggered(request):
-    """Process a trigger sent by the alert service.
+    """
+    Tags: rules
+    ---
+    Process a trigger sent by the alert service.
 
     Based on the parameters of the request, this method will initiate actions
     to mitigate the conditions that triggered the rule and notify the users.
