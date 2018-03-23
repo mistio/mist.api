@@ -611,14 +611,12 @@ def _create_machine_ec2(conn, key_name, private_key, public_key,
 
     if subnet_id:
 
-        subnet = None
-
         try:
             subnet = Subnet.objects.get(id=subnet_id)
             subnet_id = subnet.subnet_id
         except Subnet.DoesNotExist:
             try:
-                subnet = Subnet.objects.get(external_id=subnet_id)
+                subnet = Subnet.objects.get(subnet_id=subnet_id)
                 log.info('Got providers id instead of mist id, not \
                 doing nothing.')
             except Subnet.DoesNotExist:
@@ -630,7 +628,7 @@ def _create_machine_ec2(conn, key_name, private_key, public_key,
                 subnet = libcloud_subnet
                 break
         else:
-            raise Exception('Subnet specified does not exist')
+            raise NotFoundError('Subnet specified does not exist')
 
         # if subnet is specified, then security group id
         # instead of security group name is needed
@@ -639,9 +637,8 @@ def _create_machine_ec2(conn, key_name, private_key, public_key,
             if group.get('name') == config.EC2_SECURITYGROUP.get('name', ''):
                 security_group_id = group.get('id')
                 break
-        if subnet:
-            kwargs.update({'ex_subnet': subnet,
-                          'ex_security_group_ids': security_group_id})
+        kwargs.update({'ex_subnet': subnet,
+                      'ex_security_group_ids': security_group_id})
 
     else:
         kwargs.update({'ex_securitygroup': config.EC2_SECURITYGROUP['name']})
