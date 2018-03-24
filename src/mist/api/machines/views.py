@@ -157,6 +157,11 @@ def create_machine(request):
       type: array
       items:
         type: string
+    subnet_id:
+      type: string
+      description: Optional for EC2
+    subnetwork:
+      type: string
     schedule:
       type: object
     script:
@@ -281,6 +286,8 @@ def create_machine(request):
     create_network = params.get('create_network', False)
     new_network = params.get('new_network', '')
     networks = params.get('networks', [])
+    subnet_id = params.get('subnet_id', '')
+    subnetwork = params.get('subnetwork', None)
     docker_env = params.get('docker_env', [])
     docker_command = params.get('docker_command', None)
     script_id = params.get('script_id', '')
@@ -394,7 +401,7 @@ def create_machine(request):
             image_extra, disk, image_name, size_name,
             location_name, ips, monitoring,
             ex_storage_account, machine_password, ex_resource_group, networks,
-            docker_env, docker_command)
+            subnetwork, docker_env, docker_command)
     kwargs = {'script_id': script_id,
               'script_params': script_params, 'script': script, 'job': job,
               'job_id': job_id, 'docker_port_bindings': docker_port_bindings,
@@ -406,6 +413,7 @@ def create_machine(request):
               'disk_size': disk_size,
               'disk_path': disk_path,
               'cloud_init': cloud_init,
+              'subnet_id': subnet_id,
               'associate_floating_ip': associate_floating_ip,
               'associate_floating_ip_subnet': associate_floating_ip_subnet,
               'project_id': project_id,
@@ -421,7 +429,6 @@ def create_machine(request):
               'create_resource_group': create_resource_group,
               'new_resource_group': new_resource_group,
               'machine_username': machine_username}
-
     if not async:
         ret = methods.create_machine(auth_context.owner, *args, **kwargs)
     else:
