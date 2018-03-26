@@ -101,10 +101,7 @@ def main(global_config, **settings):
 
     for plugin in config.PLUGINS:
         log.info("Loading plugin mist.%s", plugin)
-        try:
-            configurator.include('mist.%s.add_routes' % plugin)
-        except ImportError:
-            pass
+        configurator.include('mist.%s.add_routes' % plugin)
         configurator.scan('mist.%s' % plugin)
 
     return mist.api.auth.middleware.AuthMiddleware(
