@@ -304,7 +304,7 @@ class Machine(me.Document):
     ping_probe = me.EmbeddedDocumentField(PingProbe, required=False)
 
     # Number of vCPUs gathered from various sources. This field is meant to
-    # be updated ONLY by the mist.api.metering.tasks:push_metering_info task.
+    # be updated ONLY by the mist.api.metering.tasks:find_machine_cores task.
     cores = me.IntField()
 
     meta = {

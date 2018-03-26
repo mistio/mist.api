@@ -363,6 +363,7 @@ class BaseMainController(object):
         """
         if expire:
             # FIXME: Set reverse_delete_rule=me.CASCADE?
+            from mist.api.machines.models import Machine
             Machine.objects(cloud=self.cloud).delete()
             self.cloud.delete()
         else:
