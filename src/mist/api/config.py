@@ -528,7 +528,7 @@ CELERY_SETTINGS = {
         'mist.api.rules.tasks.evaluate': {'queue': 'rules'},
 
         # Core tasks
-        'mist.insights.tasks.list_deployments': {'queue': 'deployments'},
+        'mist.core.insights.tasks.list_deployments': {'queue': 'deployments'},
         'mist.rbac.tasks.update_mappings': {'queue': 'mappings'},
         'mist.rbac.tasks.remove_mappings': {'queue': 'mappings'},
     },
