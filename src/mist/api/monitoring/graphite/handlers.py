@@ -56,7 +56,7 @@ class GenericHandler(object):
     def __init__(self, uuid, telegraf=False, telegraf_since=None):
         self.uuid = uuid
         self.telegraf = telegraf
-        self.telegraf_since = telegraf_since and telegraf_since
+        self.telegraf_since = telegraf and telegraf_since
 
     def head(self):
         return "bucky.%s" % self.uuid
@@ -211,10 +211,9 @@ class CustomHandler(GenericHandler):
 
     def get_data(self, targets, start="", stop="", interval_str=""):
         data = super(CustomHandler, self).get_data(targets, start, stop,
-                                                      interval_str)
+                                                   interval_str)
         # Set as null datapoints before telegraf activation
-        if self.plugin in ['disk', 'interface'] and self.telegraf and \
-            self.telegraf_since:
+        if self.telegraf_since and self.plugin in ['disk', 'interface']:
             telegraf_since = calendar.timegm(self.telegraf_since.timetuple())
             for target in data:
                 for datapoint in target['datapoints']:
@@ -223,6 +222,7 @@ class CustomHandler(GenericHandler):
                     else:
                         break
         return data
+
 
 class LoadHandler(CustomHandler):
     plugin = "load"
