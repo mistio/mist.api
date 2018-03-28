@@ -2,6 +2,7 @@ import os
 import re
 import uuid
 import time
+import datetime
 import logging
 
 import requests
@@ -253,6 +254,7 @@ def enable_monitoring(owner, cloud_id, machine_id, no_ssh=False, dry=False,
                     "machine '%s' in cloud '%s'.",
                     owner.id, machine_id, cloud_id)
 
+    old_monitoring_method = machine.monitoring.method
     # Decide on monitoring method
     machine.monitoring.method = (
         machine.cloud.default_monitoring_method or
@@ -262,6 +264,8 @@ def enable_monitoring(owner, cloud_id, machine_id, no_ssh=False, dry=False,
     assert machine.monitoring.method in config.MONITORING_METHODS
     assert machine.monitoring.method != 'collectd-graphite' or config.HAS_CORE
 
+    if old_monitoring_method != machine.monitoring.method:
+        machine.monitoring.method_since = datetime.datetime.now()
     # Extra vars
     if machine.monitoring.method == 'collectd-graphite':
         from mist.core.methods import _enable_monitoring_prepare

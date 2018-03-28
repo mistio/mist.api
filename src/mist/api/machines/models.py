@@ -83,6 +83,7 @@ class Monitoring(me.EmbeddedDocument):
     metrics = me.ListField()  # list of metric_id's
     installation_status = me.EmbeddedDocumentField(InstallationStatus)
     method = me.StringField(choices=config.MONITORING_METHODS)
+    method_since = me.DateTimeField()
 
     def get_commands(self):
         if self.method == 'collectd-graphite' and config.HAS_CORE:
