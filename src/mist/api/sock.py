@@ -374,7 +374,7 @@ class MainConnection(MistConnection):
         )
 
     def list_templates(self):
-        if not config.HAS_CORE:
+        if not config.HAS_ORCHESTRATION:
             return
         self.internal_request(
             'api/v1/templates',
@@ -382,7 +382,7 @@ class MainConnection(MistConnection):
         )
 
     def list_stacks(self):
-        if not config.HAS_CORE:
+        if not config.HAS_ORCHESTRATION:
             return
         self.internal_request(
             'api/v1/stacks',

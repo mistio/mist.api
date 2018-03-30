@@ -82,8 +82,8 @@ class Monitoring(me.EmbeddedDocument):
         default=lambda: os.urandom(32).encode('hex'))
     metrics = me.ListField()  # list of metric_id's
     installation_status = me.EmbeddedDocumentField(InstallationStatus)
-    method = me.StringField(default=config.DEFAULT_MONITORING_METHOD,
-                            choices=config.MONITORING_METHODS)
+    method = me.StringField(choices=config.MONITORING_METHODS)
+    method_since = me.DateTimeField()
 
     def get_commands(self):
         if self.method == 'collectd-graphite' and config.HAS_CORE:
@@ -342,6 +342,8 @@ class Machine(me.Document):
         if not self.owner:
             self.owner = self.cloud.owner
         self.clean_os_type()
+        if self.monitoring.method not in config.MONITORING_METHODS:
+            self.monitoring.method = config.DEFAULT_MONITORING_METHOD
 
     def clean_os_type(self):
         """Clean self.os_type"""

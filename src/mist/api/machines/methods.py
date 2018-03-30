@@ -18,11 +18,13 @@ from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 from mist.api.keys.models import Key
 from mist.api.networks.models import Network
+from mist.api.networks.models import Subnet
 
 from mist.api.exceptions import PolicyUnauthorizedError
 from mist.api.exceptions import MachineNameValidationError
 from mist.api.exceptions import BadRequestError, MachineCreationError
 from mist.api.exceptions import CloudUnavailableError, InternalServerError
+from mist.api.exceptions import NotFoundError
 
 from mist.api.helpers import get_temp_file
 
@@ -125,14 +127,15 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                    image_name=None, size_name=None, location_name=None,
                    ips=None, monitoring=False,
                    ex_storage_account='', machine_password='',
-                   ex_resource_group='', networks=[], docker_env=[],
+                   ex_resource_group='', networks=[], subnetwork=None,
+                   docker_env=[],
                    docker_command=None,
                    ssh_port=22, script='', script_id='', script_params='',
                    job_id=None, job=None, docker_port_bindings={},
                    docker_exposed_ports={}, azure_port_bindings='',
                    hostname='', plugins=None, disk_size=None, disk_path=None,
                    post_script_id='', post_script_params='', cloud_init='',
-                   create_network=False, new_network='',
+                   subnet_id='', create_network=False, new_network='',
                    create_resource_group=False, new_resource_group='',
                    create_storage_account=False, new_storage_account='',
                    associate_floating_ip=False,
@@ -269,7 +272,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                 break
         node = _create_machine_ec2(conn, key_id, private_key, public_key,
                                    machine_name, image, size, ec2_location,
-                                   cloud_init)
+                                   subnet_id, cloud_init)
     elif conn.type is Provider.NEPHOSCALE:
         node = _create_machine_nephoscale(conn, key_id, private_key,
                                           public_key, machine_name, image,
@@ -283,7 +286,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
         # FIXME: `networks` should always be an array, not a str like below
         node = _create_machine_gce(conn, key_id, private_key, public_key,
                                    machine_name, image, size, location,
-                                   networks, cloud_init)
+                                   networks, subnetwork, cloud_init)
     elif conn.type is Provider.SOFTLAYER:
         node = _create_machine_softlayer(
             conn, key_id, private_key, public_key,
@@ -560,7 +563,8 @@ def _create_machine_openstack(conn, private_key, public_key, machine_name,
 
 
 def _create_machine_ec2(conn, key_name, private_key, public_key,
-                        machine_name, image, size, location, user_data):
+                        machine_name, image, size, location, subnet_id,
+                        user_data):
     """Create a machine in Amazon EC2.
 
     Here there is no checking done, all parameters are expected to be
@@ -594,17 +598,49 @@ def _create_machine_ec2(conn, key_name, private_key, public_key,
         else:
             raise InternalServerError("Couldn't create security group", exc)
 
+    kwargs = {'name': machine_name, 'image': image,
+              'size': size, 'location': location,
+              'max_tries': 1, 'ex_keyname': key_name,
+              'ex_userdata': user_data
+              }
+
+    if subnet_id:
+
+        try:
+            subnet = Subnet.objects.get(id=subnet_id)
+            subnet_id = subnet.subnet_id
+        except Subnet.DoesNotExist:
+            try:
+                subnet = Subnet.objects.get(subnet_id=subnet_id)
+                log.info('Got providers id instead of mist id, not \
+                doing nothing.')
+            except Subnet.DoesNotExist:
+                raise NotFoundError('Subnet specified does not exist')
+
+        subnets = conn.ex_list_subnets()
+        for libcloud_subnet in subnets:
+            if libcloud_subnet.id == subnet_id:
+                subnet = libcloud_subnet
+                break
+        else:
+            raise NotFoundError('Subnet specified does not exist')
+
+        # if subnet is specified, then security group id
+        # instead of security group name is needed
+        groups = conn.ex_list_security_groups()
+        for group in groups:
+            if group.get('name') == config.EC2_SECURITYGROUP.get('name', ''):
+                security_group_id = group.get('id')
+                break
+        kwargs.update({'ex_subnet': subnet,
+                      'ex_security_group_ids': security_group_id})
+
+    else:
+        kwargs.update({'ex_securitygroup': config.EC2_SECURITYGROUP['name']})
+
     try:
-        node = conn.create_node(
-            name=machine_name,
-            image=image,
-            size=size,
-            location=location,
-            max_tries=1,
-            ex_keyname=key_name,
-            ex_securitygroup=config.EC2_SECURITYGROUP['name'],
-            ex_userdata=user_data
-        )
+        node = conn.create_node(**kwargs)
+
     except Exception as e:
         raise MachineCreationError("EC2, got exception %s" % e, e)
 
@@ -1353,7 +1389,8 @@ def _create_machine_vsphere(conn, machine_name, image,
 
 
 def _create_machine_gce(conn, key_name, private_key, public_key, machine_name,
-                        image, size, location, network, cloud_init):
+                        image, size, location, network, subnetwork,
+                        cloud_init):
     """Create a machine in GCE.
 
     Here there is no checking done, all parameters are expected to be
@@ -1379,7 +1416,8 @@ def _create_machine_gce(conn, key_name, private_key, public_key, machine_name,
             size=size,
             location=location,
             ex_metadata=metadata,
-            ex_network=network
+            ex_network=network,
+            ex_subnetwork=subnetwork
         )
     except Exception as e:
         raise MachineCreationError(

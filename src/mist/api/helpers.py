@@ -697,10 +697,13 @@ rtype_to_classpath = {
 
 if config.HAS_CORE:
     rtype_to_classpath.update(
-        {'template': 'mist.core.orchestration.models.Template',
-         'stack': 'mist.core.orchestration.models.Stack',
-         'tunnel': 'mist.core.vpn.models.Tunnel'
-         }
+        {'tunnel': 'mist.core.vpn.models.Tunnel'}
+    )
+
+if config.HAS_ORCHESTRATION:
+    rtype_to_classpath.update(
+        {'template': 'mist.orchestration.models.Template',
+         'stack': 'mist.orchestration.models.Stack'}
     )
 
 
