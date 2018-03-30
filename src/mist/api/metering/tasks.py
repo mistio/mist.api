@@ -4,6 +4,7 @@ import datetime
 
 from mist.api import config
 from mist.api.celery_app import app
+from mist.api.rules.models import Rule
 from mist.api.machines.models import Machine
 from mist.api.monitoring.methods import get_stats
 
@@ -66,10 +67,11 @@ def push_metering_info():
     now = datetime.datetime.utcnow()
     metering = {}
 
+    # Base InfluxDB URL.
+    url = config.INFLUX['host']
+
     # Create database for storing metering data, if missing.
-    db = requests.post(
-        '%(host)s/query?q=CREATE DATABASE metering' % config.INFLUX
-    )
+    db = requests.post('%s/query?q=CREATE DATABASE metering' % url)
     if not db.ok:
         raise Exception(db.content)
 
@@ -86,7 +88,13 @@ def push_metering_info():
         except Exception as exc:
             log.error('Failed upon cores metering of %s: %r', machine.id, exc)
 
-    # TODO Checks
+    # Checks
+    for rule in Rule.objects():
+        try:
+            metering[rule.owner_id]['checks'] += rule.total_check_count
+        except Exception as exc:
+            log.error('Failed upon checks metering of %s: %r', rule.id, exc)
+
     # TODO Datapoints
 
     # Assemble points.
@@ -97,8 +105,7 @@ def push_metering_info():
         points.append(point)
 
     # Write metering data.
-    write = requests.post(
-        '%(host)s/write?db=metering' % config.INFLUX, data='\n'.join(points)
-    )
+    data = '\n'.join(points)
+    write = requests.post('%s/write?db=metering&precision=s' % url, data=data)
     if not write.ok:
         log.error('Failed to write metering data: %s', write.text)

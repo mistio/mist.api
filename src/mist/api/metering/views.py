@@ -21,16 +21,19 @@ log = logging.getLogger(__name__)
 def metering(request):
     """Request metering data"""
     auth_context = auth_context_from_request(request)
-    start = params_from_request(request).get('start', '7d')  # 1 week default.
+    start = params_from_request(request).get('start', '6d')  # 1 week default.
 
     # Prepare base URL.
     url = '%(host)s/query?db=metering' % config.INFLUX
 
     # Prepare query.
-    query = 'SELECT MAX(cores) AS cores FROM usage '
-    query += 'WHERE "time" >= now() - %s ' % start
-    query += 'AND "owner" = \'%s\' ' % auth_context.owner.id
-    query += 'GROUP BY time(1d)'
+    query = 'SELECT'
+    query += ' MAX(cores) AS cores,'
+    query += ' NON_NEGATIVE_DERIVATIVE(MAX(checks)) AS checks '
+    query += 'FROM usage'
+    query += ' WHERE "time" >= now() - %s' % start
+    query += ' AND "owner" = \'%s\' ' % auth_context.owner.id
+    query += 'GROUP BY time(1d) fill(0)'
 
     # Request metering info.
     results = requests.get('%s&q=%s' % (url, query))

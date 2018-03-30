@@ -104,6 +104,7 @@ class Rule(me.Document):
     last_run_at = me.DateTimeField()
     run_immediately = me.BooleanField()
     total_run_count = me.IntField(min_value=0, default=0)
+    total_check_count = me.IntField(min_value=0, default=0)
 
     # Field updated by celery workers. This is where celery workers keep state.
     states = me.MapField(field=me.EmbeddedDocumentField(RuleState))
