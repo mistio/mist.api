@@ -867,7 +867,6 @@ class OpenStackComputeController(BaseComputeController):
             except Exception as exc:
                 raise BadRequestError('Failed to resize node: %s' % exc)
 
-
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         # do not include ipv6 on public ips
         public_ips = []
