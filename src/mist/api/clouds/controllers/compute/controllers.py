@@ -32,6 +32,8 @@ import pytz
 
 import mongoengine as me
 
+from time import sleep
+
 from xml.sax.saxutils import escape
 
 from libcloud.pricing import get_size_price
@@ -852,9 +854,19 @@ class OpenStackComputeController(BaseComputeController):
                         bandwidth='', price='', driver=self.connection)
         try:
             self.connection.ex_resize(machine_libcloud, size)
-            self.connection.ex_confirm_resize(machine_libcloud)
         except Exception as exc:
             raise BadRequestError('Failed to resize node: %s' % exc)
+
+        try:
+            sleep(5)
+            self.connection.ex_confirm_resize(machine_libcloud)
+        except Exception as exc:
+            sleep(5)
+            try:
+                self.connection.ex_confirm_resize(machine_libcloud)
+            except Exception as exc:
+                raise BadRequestError('Failed to resize node: %s' % exc)
+
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         # do not include ipv6 on public ips
