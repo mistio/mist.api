@@ -1,4 +1,5 @@
 import logging
+import datetime
 import requests
 
 from mist.api import config
@@ -21,19 +22,30 @@ log = logging.getLogger(__name__)
 def metering(request):
     """Request metering data"""
     auth_context = auth_context_from_request(request)
-    start = params_from_request(request).get('start', '6d')  # 1 week default.
+    params = params_from_request(request)
+
+    try:
+        start = params.get('start', 6)  # 1 week default.
+        start = int(start)
+    except ValueError:
+        raise BadRequestError('Bad "start" offset: %s. Must be an int' % start)
+
+    # Get the start of the samples' range.
+    now = datetime.datetime.utcnow()
+    today = datetime.datetime(year=now.year, month=now.month, day=now.day)
+    start = today - datetime.timedelta(start)
 
     # Prepare base URL.
     url = '%(host)s/query?db=metering' % config.INFLUX
 
     # Prepare query.
-    query = 'SELECT'
-    query += ' MAX(cores) AS cores,'
-    query += ' NON_NEGATIVE_DERIVATIVE(MAX(checks)) AS checks '
-    query += 'FROM usage'
-    query += ' WHERE "time" >= now() - %s' % start
-    query += ' AND "owner" = \'%s\' ' % auth_context.owner.id
-    query += 'GROUP BY time(1d) fill(0)'
+    query = "SELECT"
+    query += " MAX(cores) AS cores,"
+    query += " NON_NEGATIVE_DERIVATIVE(MAX(checks)) AS checks "
+    query += "FROM usage"
+    query += " WHERE time >= '%s'" % start.isoformat(sep=' ')
+    query += " AND owner = '%s' " % auth_context.owner.id
+    query += "GROUP BY time(1d)"
 
     # Request metering info.
     results = requests.get('%s&q=%s' % (url, query))
@@ -48,8 +60,8 @@ def metering(request):
         results = results['results'][0]['series'][0]
         columns = results['columns']
     except (KeyError, IndexError):
-        log.error('Failed to parse results: %s', results)
-        raise BadRequestError()
+        log.error('Failed to execute: %s', query)
+        raise BadRequestError('Failed to parse results: %s' % results)
 
     data = []
     for value in results.get('values', []):
