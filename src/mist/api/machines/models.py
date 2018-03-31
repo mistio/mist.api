@@ -110,11 +110,11 @@ class Monitoring(me.EmbeddedDocument):
             raise Exception("Invalid monitoring method %s" % self.method)
 
     def get_rules_dict(self):
+        from mist.api.rules.models import MachineMetricRule
         m = self._instance
-        return {rid: rdict
-                for rid, rdict in m.cloud.owner.get_rules_dict().items()
-                if rdict['cloud'] == m.cloud.id and
-                rdict['machine'] == m.machine_id}
+        return {rule.id: rule.as_dict() for
+                rule in MachineMetricRule(owner_id=m.owner.id) if
+                rule.ctl.includes_only(m)}
 
     def as_dict(self):
         status = self.installation_status

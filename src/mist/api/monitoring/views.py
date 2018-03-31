@@ -27,22 +27,31 @@ from mist.api.clouds.methods import filter_list_clouds
 log = logging.getLogger(__name__)
 
 
-def _machine_from_matchdict(request):
+def _machine_from_matchdict(request, deleted=False):
     """Find machine given either uuid or cloud-id/ext-id in request path"""
     auth_context = auth_context_from_request(request)
     if 'cloud' in request.matchdict:
         try:
-            cloud = Cloud.objects.get(owner=auth_context.owner,
-                                      id=request.matchdict['cloud'],
-                                      deleted=None)
+            if not deleted:
+                cloud = Cloud.objects.get(owner=auth_context.owner,
+                                          id=request.matchdict['cloud'],
+                                          deleted=None)
+            else:
+                cloud = Cloud.objects.get(owner=auth_context.owner,
+                                          id=request.matchdict['cloud'])
         except Cloud.DoesNotExist:
             raise NotFoundError('Cloud does not exist')
         try:
-            machine = Machine.objects.get(
-                cloud=cloud,
-                machine_id=request.matchdict['machine'],
-                state__ne='terminated',
-            )
+            if not deleted:
+                machine = Machine.objects.get(
+                    cloud=cloud,
+                    machine_id=request.matchdict['machine'],
+                    state__ne='terminated',
+                )
+            else:
+                machine = Machine.objects.get(
+                    cloud=cloud,
+                    machine_id=request.matchdict['machine'])
         except Machine.DoesNotExist:
             raise NotFoundError("Machine %s doesn't exist" %
                                 request.matchdict['machine'])
@@ -151,7 +160,7 @@ def show_monitoring_details(request):
     machine = _machine_from_matchdict(request)
     # SEC require permission EDIT on machine
     auth_context.check_perm('machine', 'edit', machine.id)
-    ret = machine.get_commands()
+    ret = machine.monitoring.get_commands()
     ret['rules'] = machine.monitoring.get_rules_dict()
     return ret
 
@@ -185,18 +194,22 @@ def update_monitoring(request):
 
     """
     auth_context = auth_context_from_request(request)
-
-    machine = _machine_from_matchdict(request)
-    # SEC require permission EDIT on machine
-    auth_context.check_perm("machine", "edit", machine.id)
-
     params = params_from_request(request)
-
     no_ssh = bool(params.get('no_ssh'))
     dry = bool(params.get('dry'))
     action = params.get('action')
     if not action:
         raise RequiredParameterMissingError('action')
+
+    if action == 'enable':
+        machine = _machine_from_matchdict(request)
+    elif action == 'disable':
+        machine = _machine_from_matchdict(request, deleted=True)
+    else:
+        raise BadRequestError('Action must be one of (enable, disable)')
+
+    # SEC require permission EDIT on machine
+    auth_context.check_perm("machine", "edit", machine.id)
 
     if action == 'enable':
         return mist.api.monitoring.methods.enable_monitoring(
@@ -206,8 +219,6 @@ def update_monitoring(request):
         return mist.api.monitoring.methods.disable_monitoring(
             owner=auth_context.owner, cloud_id=machine.cloud.id,
             machine_id=machine.machine_id, no_ssh=no_ssh)
-    else:
-        raise BadRequestError('Action must be one of (enable, disable)')
 
 
 @view_config(route_name='api_v1_monitoring',
