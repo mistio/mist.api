@@ -417,8 +417,7 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=''):
 
     # tell monitor server to no longer monitor this uuid
     try:
-        if machine.monitoring.method in ('collectd-graphite',
-                                         'telegraf-graphite'):
+        if machine.monitoring.method in ('collectd-graphite'):
             if not config.HAS_CORE:
                 raise Exception
             url = "%s/machines/%s" % (config.MONITOR_URI, machine.id)
