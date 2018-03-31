@@ -110,6 +110,8 @@ class Monitoring(me.EmbeddedDocument):
             raise Exception("Invalid monitoring method %s" % self.method)
 
     def get_rules_dict(self):
+        # FIXME: This no longer works since the new rule models
+        # Also doesn't take into account rules on tags
         m = self._instance
         return {rid: rdict
                 for rid, rdict in m.cloud.owner.get_rules_dict().items()
