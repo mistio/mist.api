@@ -299,8 +299,7 @@ def enable_monitoring(owner, cloud_id, machine_id, no_ssh=False, dry=False,
 
     # Attempt to contact monitor server and enable monitoring for the machine
     try:
-        if machine.monitoring.method in ('collectd-graphite',
-                                         'telegraf-graphite'):
+        if machine.monitoring.method in ('collectd-graphite'):
             if not config.HAS_CORE:
                 raise Exception()
             from mist.core.methods import _enable_monitoring_monitor
