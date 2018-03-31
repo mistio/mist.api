@@ -34,11 +34,11 @@ def _machine_from_matchdict(request, deleted=False):
         try:
             if not deleted:
                 cloud = Cloud.objects.get(owner=auth_context.owner,
-                                        id=request.matchdict['cloud'],
-                                        deleted=None)
+                                          id=request.matchdict['cloud'],
+                                          deleted=None)
             else:
                 cloud = Cloud.objects.get(owner=auth_context.owner,
-                                        id=request.matchdict['cloud'])
+                                          id=request.matchdict['cloud'])
         except Cloud.DoesNotExist:
             raise NotFoundError('Cloud does not exist')
         try:
