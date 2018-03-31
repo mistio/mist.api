@@ -161,7 +161,7 @@ def show_monitoring_details(request):
     # SEC require permission EDIT on machine
     auth_context.check_perm('machine', 'edit', machine.id)
     ret = machine.monitoring.get_commands()
-    # ret['rules'] = machine.monitoring.get_rules_dict()
+    ret['rules'] = machine.monitoring.get_rules_dict()
     return ret
 
 
