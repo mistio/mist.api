@@ -101,6 +101,8 @@ def _alert_pretty_details(owner, rule_id, value, triggered, timestamp,
     else:
         time_ago = "just now"
     return {
+        'rule_id': rule.id,
+        'rule_title': rule.title,
         'cloud_id': cloud_id,
         'machine_id': machine_id,
         'name': machine.name,
@@ -137,7 +139,8 @@ def _log_alert(owner, rule_id, value, triggered, timestamp, incident_id,
         'host': info['host'],
         'rule_action': info['action'],
         'incident_id': incident_id,
-        'rule_id': rule_id,
+        'rule_id': info['rule_id'],
+        'rule_title': info['rule_title'],
     }
     event_kwargs.update(kwargs)
     log_event(**event_kwargs)
