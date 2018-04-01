@@ -20,6 +20,8 @@ from mist.api.auth.methods import auth_context_from_request
 
 from mist.api.machines.models import Machine
 
+from mist.api.notifications.models import Notification
+
 from mist.api import config
 
 
@@ -360,6 +362,9 @@ def update_rule(request):
         rule = Rule.objects.get(owner_id=auth_context.owner.id, id=rule_id)
         rule.ctl.set_auth_context(auth_context)
         rule.ctl.update(**params)
+        Notification.objects(  # Delete related notifications.
+            owner=auth_context.owner, rtype='rule', rid=rule_id
+        ).delete()
     except Rule.DoesNotExist:
         raise RuleNotFoundError()
     return rule.as_dict()
@@ -475,6 +480,9 @@ def delete_rule(request):
         rule = Rule.objects.get(owner_id=auth_context.owner.id, id=rule_id)
         rule.ctl.set_auth_context(auth_context)
         rule.ctl.delete()
+        Notification.objects(  # Delete related notifications.
+            owner=auth_context.owner, rtype='rule', rid=rule_id
+        ).delete()
     except Rule.DoesNotExist:
         raise RuleNotFoundError()
     return Response('OK', 200)
