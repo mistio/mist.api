@@ -5,6 +5,7 @@ import logging
 import mongoengine as me
 
 from mist.api import config
+from mist.api.helpers import is_email_valid
 from mist.api.logs.methods import log_event
 from mist.api.users.models import User
 from mist.api.machines.models import Machine
@@ -23,18 +24,6 @@ def _populate_actions():
             if issubclass(value, BaseAlertAction):
                 if value.atype not in (None, 'no_data', ):  # Exclude these.
                     ACTIONS[value.atype] = value
-
-
-def is_email_valid(email):
-    """E-mail address validator.
-
-    Ensure the e-mail is a valid expression and the provider is not banned.
-
-    """
-    # TODO Move this to mist.api.helpers.
-    regex = '(^[\w\.-]+@[a-zA-Z0-9-]+(\.[a-zA-Z0-9-.]+)+$)'
-    return (re.match(regex, email) and
-            email.split('@')[1] not in config.BANNED_EMAIL_PROVIDERS)
 
 
 class BaseAlertAction(me.EmbeddedDocument):
