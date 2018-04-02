@@ -47,6 +47,7 @@ THEME = ""
 GC_SCHEDULERS = True
 VERSION_CHECK = True
 USAGE_SURVEY = False
+ENABLE_METERING = True
 
 ELASTICSEARCH = {
     'elastic_host': 'elasticsearch',
@@ -1299,6 +1300,16 @@ if ENABLE_MONITORING:
         'task': 'mist.api.monitoring.tasks.reset_traefik_config',
         'schedule': datetime.timedelta(minutes=2),
     }
+if ENABLE_METERING:
+    _schedule['find-machine-cores'] = {
+        'task': 'mist.api.metering.tasks.find_machine_cores',
+        'schedule': datetime.timedelta(minutes=10),
+    }
+    _schedule['push-metering-info'] = {
+        'task': 'mist.api.metering.tasks.push_metering_info',
+        'schedule': datetime.timedelta(minutes=30),
+    }
+
 if _schedule:
     CELERY_SETTINGS.update({'CELERYBEAT_SCHEDULE': _schedule})
 

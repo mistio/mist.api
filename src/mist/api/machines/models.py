@@ -303,6 +303,10 @@ class Machine(me.Document):
     ssh_probe = me.EmbeddedDocumentField(SSHProbe, required=False)
     ping_probe = me.EmbeddedDocumentField(PingProbe, required=False)
 
+    # Number of vCPUs gathered from various sources. This field is meant to
+    # be updated ONLY by the mist.api.metering.tasks:find_machine_cores task.
+    cores = me.IntField()
+
     meta = {
         'collection': 'machines',
         'indexes': [
@@ -418,6 +422,7 @@ class Machine(me.Document):
                         if self.ssh_probe is not None
                         else SSHProbe().as_dict()),
             },
+            'cores': self.cores,
         }
 
     def __str__(self):

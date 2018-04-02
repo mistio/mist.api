@@ -318,18 +318,15 @@ class BaseMainController(object):
     def disable(self):
         self.cloud.enabled = False
         self.cloud.save()
-        # FIXME: Circular dependency.
-        from mist.api.machines.models import Machine
-        Machine.objects(cloud=self.cloud,
-                        missing_since=None).update(
-            missing_since=datetime.datetime.now()
-        )
-        # FIXME: Circular dependency.
-        from mist.api.clouds.models import CloudLocation
-        CloudLocation.objects(cloud=self.cloud,
-                              missing_since=None).update(
-            missing_since=datetime.datetime.utcnow()
-        )
+        # We schedule a task to set the `missing_since` of resources associated
+        # with `self.cloud` with a small delay. Since the poller syncs with the
+        # db every 20 sec, there is a good chance that the poller will not pick
+        # up the change to `self.cloud.enabled` in time to stop scheduling
+        # further polling tasks. This may result in `missing_since` being reset
+        # to `None`. For that, we schedule a task in the future to ensure that
+        # celery has executed all respective poller tasks first.
+        from mist.api.tasks import set_missing_since
+        set_missing_since.apply_async((self.cloud.id, ), countdown=30)
 
     def dns_enable(self):
         self.cloud.dns_enabled = True
@@ -362,27 +359,18 @@ class BaseMainController(object):
         but rather marked as deleted.
 
         :param expire: if True, the document is expired from its collection.
+
         """
-        self.cloud.deleted = datetime.datetime.utcnow()
-        self.cloud.save()
-        # FIXME: Circular dependency.
-        from mist.api.machines.models import Machine
-        Machine.objects(cloud=self.cloud,
-                        missing_since=None).update(
-            missing_since=datetime.datetime.utcnow()
-        )
-        # FIXME: Circular dependency.
-        # FIXME: Is this necessary? Can't we just delete the documents? If not,
-        # the following should take place in `self.disable`, too.
-        from mist.api.clouds.models import CloudLocation
-        CloudLocation.objects(cloud=self.cloud,
-                              missing_since=None).update(
-            missing_since=datetime.datetime.utcnow()
-        )
         if expire:
             # FIXME: Set reverse_delete_rule=me.CASCADE?
+            from mist.api.machines.models import Machine
             Machine.objects(cloud=self.cloud).delete()
             self.cloud.delete()
+        else:
+            from mist.api.tasks import set_missing_since
+            self.cloud.deleted = datetime.datetime.utcnow()
+            self.cloud.save()
+            set_missing_since.apply_async((self.cloud.id, ), countdown=30)
 
     def disconnect(self):
         self.compute.disconnect()

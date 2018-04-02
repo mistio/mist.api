@@ -98,6 +98,7 @@ class BaseBackendPlugin(object):
                 state.resource in (set(self.rids) ^ remove_states) and not
                 state.expired()
             }
+            self.rule.total_check_count += len(self.rids)
             self.rule.save()
 
     def evaluate(self, rid, trigger_actions=False):
