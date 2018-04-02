@@ -1515,6 +1515,12 @@ class ClearCenterComputeController(BaseComputeController):
         machine.actions.reboot = False
         machine.actions.stop = False
 
+    def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        machine.hostname = machine_libcloud.extra['hostname']
+
+    def _list_machines__cost_machine(self, machine, machine_libcloud):
+        return 0, machine_libcloud.extra['monthly_cost_estimate']
+
     def list_images(self, search=None):
         return []
 
