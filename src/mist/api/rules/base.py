@@ -15,8 +15,8 @@ from mist.api.rules.models import Frequency
 from mist.api.rules.models import TriggerOffset
 from mist.api.rules.models import QueryCondition
 
-from mist.api.rules.actions import ACTIONS
-from mist.api.rules.actions import NoDataAction
+from mist.api.rules.models import ACTIONS
+from mist.api.rules.models import NoDataAction
 
 from mist.api.rules.plugins import GraphiteNoDataPlugin
 from mist.api.rules.plugins import GraphiteBackendPlugin

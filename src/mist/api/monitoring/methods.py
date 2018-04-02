@@ -216,7 +216,7 @@ def check_monitoring(owner):
 
 def update_monitoring_options(owner, emails):
     """Set `emails` as global e-mail alert's recipients."""
-    from mist.api.rules.actions import is_email_valid
+    from mist.api.helpers import is_email_valid
     # FIXME Send e-mails as a list, instead of string?
     emails = emails.replace(' ', '')
     emails = emails.replace('\n', ',')

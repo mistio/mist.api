@@ -18,8 +18,8 @@ from mist.api.rules.models import Window
 from mist.api.rules.models import Frequency
 from mist.api.rules.models import TriggerOffset
 from mist.api.rules.models import QueryCondition
-from mist.api.rules.actions import BaseAlertAction
-from mist.api.rules.actions import NotificationAction
+from mist.api.rules.models import BaseAlertAction
+from mist.api.rules.models import NotificationAction
 
 from mist.api.rules.plugins import GraphiteNoDataPlugin
 from mist.api.rules.plugins import GraphiteBackendPlugin
