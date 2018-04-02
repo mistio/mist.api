@@ -1,10 +1,8 @@
-import re
 import uuid
 import time
 import logging
 import mongoengine as me
 
-from mist.api import config
 from mist.api.helpers import is_email_valid
 from mist.api.logs.methods import log_event
 from mist.api.users.models import User
