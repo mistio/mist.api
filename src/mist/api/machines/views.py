@@ -264,7 +264,7 @@ def create_machine(request):
     # this is used in libvirt
     disk_size = int(params.get('libvirt_disk_size', 4))
     disk_path = params.get('libvirt_disk_path', '')
-    size = params['size']
+    size = params.get('size', None)
     # deploy_script received as unicode, but ScriptDeployment wants str
     script = str(params.get('script', ''))
     # these are required only for Linode/GCE, passing them anyway
@@ -338,14 +338,15 @@ def create_machine(request):
 
     # FIXME For backwards compatibility.
     if cloud.ctl.provider in ('vsphere', 'onapp', ):
-        size = {}
+        if not size or not isinstance(size, dict):
+            size = {}
         for param in (
             'size_ram', 'size_cpu', 'size_disk_primary', 'size_disk_swap',
             'boot', 'build', 'cpu_priority', 'cpu_sockets', 'cpu_threads',
             'port_speed', 'hypervisor_group_id',
         ):
-            if param in params:
-                size[param] = params[param]
+            if param in params and params[param]:
+                size[param.replace('size_', '')] = params[param]
 
     # compose schedule as a dict from relative parameters
     if not params.get('schedule_type'):

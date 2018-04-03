@@ -199,10 +199,10 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
         if not isinstance(size, dict):
             raise BadRequestError('Expected size to be a dict.')
         size_id = 'custom'
-        size_ram = size.get('size_ram', 256)
-        size_cpu = size.get('size_cpu', 1)
-        size_disk_primary = size.get('size_disk_primary', 5)
-        size_disk_swap = size.get('size_disk_swap', 1)
+        size_ram = size.get('ram', 256)
+        size_cpu = size.get('cpu', 1)
+        size_disk_primary = size.get('disk_primary', 5)
+        size_disk_swap = size.get('disk_swap', 1)
         # Required by OnApp only.
         boot = size.get('boot', True)
         build = size.get('build', True)
@@ -213,7 +213,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
         hypervisor_group_id = size.get('hypervisor_group_id')
     else:
         if not isinstance(size, (basestring, int)):
-            raise BadRequestError('Expexted size to be an id.')
+            raise BadRequestError('Expected size to be an id.')
         size_id = size
     size = NodeSize(size_id, name=size_name, ram='', disk=disk,
                     bandwidth='', price='', driver=conn)
