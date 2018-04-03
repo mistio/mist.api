@@ -29,7 +29,7 @@ from mist.api.exceptions import CloudNotFoundError
 from mist.api.shell import Shell
 
 from mist.api.users.models import User, Owner, Organization
-from mist.api.clouds.models import Cloud, DockerCloud, CloudLocation
+from mist.api.clouds.models import Cloud, DockerCloud, CloudLocation, CloudSize
 from mist.api.machines.models import Machine
 from mist.api.scripts.models import Script
 from mist.api.schedules.models import Schedule
@@ -1402,9 +1402,7 @@ def gc_schedulers():
 
 @app.task
 def set_missing_since(cloud_id):
-    # TODO Uncomment when sizes' polling is moved to poller.
-    # for Model in (Machine, CloudLocation, CloudSize):
-    for Model in (Machine, CloudLocation):
+    for Model in (Machine, CloudLocation, CloudSize):
         Model.objects(cloud=cloud_id, missing_since=None).update(
             missing_since=datetime.datetime.utcnow()
         )
