@@ -77,8 +77,7 @@ def get_usage(owner_id='', full_days=6):
 
 def get_current_portal_usage():
     usage = get_usage(owner_id='', full_days=2)
-    # TODO: Change to -2 to take data for previous (complete) day.
-    current = usage[-1]['usage']
+    current = usage[-2]['usage']
     for k in current:
         if current[k] is None:
             current[k] = 0
