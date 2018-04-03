@@ -38,6 +38,7 @@ print >> sys.stderr, "MIST_API_DIR is %s" % MIST_API_DIR
 
 PORTAL_NAME = "Mist.io"
 CORE_URI = "http://localhost"
+LICENSE_KEY = ""
 AMQP_URI = "rabbitmq:5672"
 MEMCACHED_HOST = ["memcached:11211"]
 BROKER_URL = "amqp://guest:guest@rabbitmq/"
@@ -1197,7 +1198,7 @@ FROM_ENV_STRINGS = [
     'AMQP_URI', 'BROKER_URL', 'CORE_URI', 'MONGO_URI', 'MONGO_DB', 'DOCKER_IP',
     'DOCKER_PORT', 'DOCKER_TLS_KEY', 'DOCKER_TLS_CERT', 'DOCKER_TLS_CA',
     'UI_TEMPLATE_URL', 'LANDING_TEMPLATE_URL', 'THEME',
-    'DEFAULT_MONITORING_METHOD'
+    'DEFAULT_MONITORING_METHOD', 'LICENSE_KEY',
 ]
 FROM_ENV_INTS = [
 ]
