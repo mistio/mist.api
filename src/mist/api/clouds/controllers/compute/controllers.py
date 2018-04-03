@@ -220,7 +220,6 @@ class DigitalOceanComputeController(BaseComputeController):
         return get_driver(Provider.DIGITAL_OCEAN)(self.cloud.token)
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        machine.size = machine['extra'].get('size_slug')
         machine.extra['cpus'] = machine.extra.get('size', {}).get('vcpus', 0)
 
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
