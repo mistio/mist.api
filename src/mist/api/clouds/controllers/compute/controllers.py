@@ -430,11 +430,6 @@ class NephoScaleComputeController(BaseComputeController):
         match = re.match(regex, machine.extra.get('service_type', ''))
         machine.extra['cpus'] = match.groups()[0] if match else 0
 
-    def _list_sizes__fetch_sizes(self):
-        sizes = self.connection.list_sizes(baremetal=False)
-        sizes.extend(self.connection.list_sizes(baremetal=True))
-        return sizes
-
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         size = str(machine_libcloud.extra.get('size_id', ''))
         price = get_size_price(driver_type='compute', driver_name='nephoscale',
