@@ -157,6 +157,11 @@ def create_machine(request):
       type: array
       items:
         type: string
+    subnet_id:
+      type: string
+      description: Optional for EC2
+    subnetwork:
+      type: string
     schedule:
       type: object
     script:
@@ -259,7 +264,7 @@ def create_machine(request):
     # this is used in libvirt
     disk_size = int(params.get('libvirt_disk_size', 4))
     disk_path = params.get('libvirt_disk_path', '')
-    size_id = params['size']
+    size = params.get('size', None)
     # deploy_script received as unicode, but ScriptDeployment wants str
     script = str(params.get('script', ''))
     # these are required only for Linode/GCE, passing them anyway
@@ -281,6 +286,8 @@ def create_machine(request):
     create_network = params.get('create_network', False)
     new_network = params.get('new_network', '')
     networks = params.get('networks', [])
+    subnet_id = params.get('subnet_id', '')
+    subnetwork = params.get('subnetwork', None)
     docker_env = params.get('docker_env', [])
     docker_command = params.get('docker_command', None)
     script_id = params.get('script_id', '')
@@ -310,7 +317,6 @@ def create_machine(request):
     hourly = params.get('hourly', True)
 
     job_id = params.get('job_id')
-    job_id = params.get('job_id')
     # The `job` variable points to the event that started the job. If a job_id
     # is not provided, then it means that this is the beginning of a new story
     # that starts with a `create_machine` event. If a job_id is provided that
@@ -322,26 +328,25 @@ def create_machine(request):
     else:
         job = None
 
-    # these are needed for OnApp
-    size_ram = params.get('size_ram', 256)
-    size_cpu = params.get('size_cpu', 1)
-    size_disk_primary = params.get('size_disk_primary', 5)
-    size_disk_swap = params.get('size_disk_swap', 1)
-    boot = params.get('boot', True)
-    build = params.get('build', True)
-    cpu_priority = params.get('cpu_priority', 1)
-    cpu_sockets = params.get('cpu_sockets', 1)
-    cpu_threads = params.get('cpu_threads', 1)
-    port_speed = params.get('port_speed', 0)
-    hypervisor_group_id = params.get('hypervisor_group_id')
-
     auth_context = auth_context_from_request(request)
 
     try:
-        Cloud.objects.get(owner=auth_context.owner,
-                          id=cloud_id, deleted=None)
+        cloud = Cloud.objects.get(owner=auth_context.owner,
+                                  id=cloud_id, deleted=None)
     except Cloud.DoesNotExist:
         raise NotFoundError('Cloud does not exist')
+
+    # FIXME For backwards compatibility.
+    if cloud.ctl.provider in ('vsphere', 'onapp', ):
+        if not size or not isinstance(size, dict):
+            size = {}
+        for param in (
+            'size_ram', 'size_cpu', 'size_disk_primary', 'size_disk_swap',
+            'boot', 'build', 'cpu_priority', 'cpu_sockets', 'cpu_threads',
+            'port_speed', 'hypervisor_group_id',
+        ):
+            if param in params and params[param]:
+                size[param.replace('size_', '')] = params[param]
 
     # compose schedule as a dict from relative parameters
     if not params.get('schedule_type'):
@@ -393,11 +398,11 @@ def create_machine(request):
                               'dictionaries')
 
     args = (cloud_id, key_id, machine_name,
-            location_id, image_id, size_id,
+            location_id, image_id, size,
             image_extra, disk, image_name, size_name,
             location_name, ips, monitoring,
             ex_storage_account, machine_password, ex_resource_group, networks,
-            docker_env, docker_command)
+            subnetwork, docker_env, docker_command)
     kwargs = {'script_id': script_id,
               'script_params': script_params, 'script': script, 'job': job,
               'job_id': job_id, 'docker_port_bindings': docker_port_bindings,
@@ -409,6 +414,7 @@ def create_machine(request):
               'disk_size': disk_size,
               'disk_path': disk_path,
               'cloud_init': cloud_init,
+              'subnet_id': subnet_id,
               'associate_floating_ip': associate_floating_ip,
               'associate_floating_ip_subnet': associate_floating_ip_subnet,
               'project_id': project_id,
@@ -417,23 +423,12 @@ def create_machine(request):
               'hourly': hourly,
               'schedule': schedule,
               'softlayer_backend_vlan_id': softlayer_backend_vlan_id,
-              'size_ram': size_ram,
-              'size_cpu': size_cpu,
-              'size_disk_primary': size_disk_primary,
-              'size_disk_swap': size_disk_swap,
               'create_storage_account': create_storage_account,
               'new_storage_account': new_storage_account,
               'create_network': create_network,
               'new_network': new_network,
               'create_resource_group': create_resource_group,
               'new_resource_group': new_resource_group,
-              'boot': boot,
-              'build': build,
-              'cpu_priority': cpu_priority,
-              'cpu_sockets': cpu_sockets,
-              'cpu_threads': cpu_threads,
-              'port_speed': port_speed,
-              'hypervisor_group_id': hypervisor_group_id,
               'machine_username': machine_username}
     if not async:
         ret = methods.create_machine(auth_context.owner, *args, **kwargs)

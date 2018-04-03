@@ -30,7 +30,7 @@ DEFAULT_RESPONSES = {'200': {'description': 'Successful Operation'},
 EXCLUDED_ROUTE_NAMES = ['api_v1_avatars', 'api_v1_avatar', 'api_v1_fetch',
                         'api_v1_spec', 'stripe', 'api_v1_org_billing',
                         'purchase', 'api_v1_request_info', 'api_v1_tokens',
-                        'api_v1_ping']
+                        'api_v1_ping', 'api_v1_report']
 
 
 def extract_params_from_operation(operation):

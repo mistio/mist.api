@@ -53,7 +53,7 @@ def add_cloud_v_2(owner, title, provider, params):
     # SEC
     # Update the RBAC mappings with the new Cloud and finally trigger
     # a session update by registering it as a chained task.
-    if config.HAS_CORE:
+    if config.HAS_RBAC:
         owner.mapper.update(
             cloud,
             callback=async_session_update, args=(owner.id, ['clouds'], )

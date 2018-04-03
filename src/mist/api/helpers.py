@@ -112,6 +112,17 @@ def atomic_write_file(path, content):
         os.rename(tmp_path, path)
 
 
+def is_email_valid(email):
+    """E-mail address validator.
+
+    Ensure the e-mail is a valid expression and the provider is not banned.
+
+    """
+    match = re.match(r'^[\w\.-]+@([a-zA-Z0-9-]+)(\.[a-zA-Z0-9-]+)+$', email)
+    return (match and
+            ''.join(match.groups()) not in config.BANNED_EMAIL_PROVIDERS)
+
+
 def params_from_request(request):
     """Get the parameters dict from request.
 
@@ -690,13 +701,21 @@ rtype_to_classpath = {
     'record': 'mist.api.dns.models.Record',
     'script': 'mist.api.scripts.models.Script',
     'key': 'mist.api.keys.models.Key',
-    'template': 'mist.core.orchestration.models.Template',
-    'stack': 'mist.core.orchestration.models.Stack',
     'schedule': 'mist.api.schedules.models.Schedule',
-    'tunnel': 'mist.core.vpn.models.Tunnel',
     'network': 'mist.api.networks.models.Network',
     'subnet': 'mist.api.networks.models.Subnet',
 }
+
+if config.HAS_CORE:
+    rtype_to_classpath.update(
+        {'tunnel': 'mist.core.vpn.models.Tunnel'}
+    )
+
+if config.HAS_ORCHESTRATION:
+    rtype_to_classpath.update(
+        {'template': 'mist.orchestration.models.Template',
+         'stack': 'mist.orchestration.models.Stack'}
+    )
 
 
 def get_resource_model(rtype):

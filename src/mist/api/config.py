@@ -38,6 +38,7 @@ print >> sys.stderr, "MIST_API_DIR is %s" % MIST_API_DIR
 
 PORTAL_NAME = "Mist.io"
 CORE_URI = "http://localhost"
+LICENSE_KEY = ""
 AMQP_URI = "rabbitmq:5672"
 MEMCACHED_HOST = ["memcached:11211"]
 BROKER_URL = "amqp://guest:guest@rabbitmq/"
@@ -47,6 +48,7 @@ THEME = ""
 GC_SCHEDULERS = True
 VERSION_CHECK = True
 USAGE_SURVEY = False
+ENABLE_METERING = True
 
 ELASTICSEARCH = {
     'elastic_host': 'elasticsearch',
@@ -338,7 +340,6 @@ GRAPHITE_URI = "http://graphite"
 
 # Alert service's settings.
 CILIA_MULTI = False
-CILIA_TRIGGER = True
 CILIA_TRIGGER_API = "http://api"
 CILIA_SECRET_KEY = ""
 CILIA_GRAPHITE_NODATA_TARGETS = (
@@ -1170,8 +1171,6 @@ ALLOW_SIGNIN_EMAIL = True
 ALLOW_SIGNIN_GOOGLE = False
 ALLOW_SIGNIN_GITHUB = False
 ENABLE_TUNNELS = False
-ENABLE_ORCHESTRATION = False
-ENABLE_INSIGHTS = False
 STRIPE_PUBLIC_APIKEY = False
 ENABLE_AB = False
 ENABLE_R12N = False
@@ -1199,7 +1198,7 @@ FROM_ENV_STRINGS = [
     'AMQP_URI', 'BROKER_URL', 'CORE_URI', 'MONGO_URI', 'MONGO_DB', 'DOCKER_IP',
     'DOCKER_PORT', 'DOCKER_TLS_KEY', 'DOCKER_TLS_CERT', 'DOCKER_TLS_CA',
     'UI_TEMPLATE_URL', 'LANDING_TEMPLATE_URL', 'THEME',
-    'DEFAULT_MONITORING_METHOD'
+    'DEFAULT_MONITORING_METHOD', 'LICENSE_KEY',
 ]
 FROM_ENV_INTS = [
 ]
@@ -1258,12 +1257,15 @@ for override_file in CONFIG_OVERRIDE_FILES:
 
 HAS_BILLING = 'billing' in PLUGINS
 HAS_RBAC = 'rbac' in PLUGINS
+HAS_INSIGHTS = 'insights' in PLUGINS
+HAS_ORCHESTRATION = 'orchestration' in PLUGINS
 
 
 # Update TELEGRAF_TARGET.
 
 if not TELEGRAF_TARGET:
-    if urlparse.urlparse(CORE_URI).hostname in ('localhost', '127.0.0.1'):
+    if urlparse.urlparse(CORE_URI).hostname in ('localhost', '127.0.0.1',
+                                                '172.17.0.1'):
         TELEGRAF_TARGET = "http://traefik"
     else:
         TELEGRAF_TARGET = CORE_URI + '/ingress'
@@ -1299,6 +1301,16 @@ if ENABLE_MONITORING:
         'task': 'mist.api.monitoring.tasks.reset_traefik_config',
         'schedule': datetime.timedelta(minutes=2),
     }
+if ENABLE_METERING:
+    _schedule['find-machine-cores'] = {
+        'task': 'mist.api.metering.tasks.find_machine_cores',
+        'schedule': datetime.timedelta(minutes=10),
+    }
+    _schedule['push-metering-info'] = {
+        'task': 'mist.api.metering.tasks.push_metering_info',
+        'schedule': datetime.timedelta(minutes=30),
+    }
+
 if _schedule:
     CELERY_SETTINGS.update({'CELERYBEAT_SCHEDULE': _schedule})
 
@@ -1319,8 +1331,8 @@ HOMEPAGE_INPUTS = {
     'features': {
         'monitoring': ENABLE_MONITORING,
         'rbac': HAS_RBAC,
-        'orchestration': ENABLE_ORCHESTRATION,
-        'insights': ENABLE_INSIGHTS,
+        'orchestration': HAS_ORCHESTRATION,
+        'insights': HAS_INSIGHTS,
         'billing': HAS_BILLING,
         'tunnels': ENABLE_TUNNELS,
         'ab': ENABLE_AB,

@@ -2,6 +2,7 @@ import os
 import re
 import uuid
 import time
+import datetime
 import logging
 
 import requests
@@ -92,12 +93,14 @@ def get_stats(machine, start='', stop='', step='', metrics=None):
         # Fetch series.
         results = {}
         for metric in metrics:
-            path = metric.split('.')
-            measurement = path[0]
-            if len(path) is 1:
-                metric += '.*'
-            if not measurement or measurement == '*':
-                raise BadRequestError('No measurement specified')
+            regex = r'^(?:\w+)\((.+)\)$'
+            match = re.match(regex, metric)
+            if not match:
+                groups = (metric, )
+            while match:
+                groups = match.groups()
+                match = re.match(regex, groups[0])
+            measurement, _ = groups[0].split('.', 1)
             handler = INFLUXDB_HANDLERS.get(
                 measurement, InfluxMainStatsHandler
             )(machine)
@@ -213,7 +216,7 @@ def check_monitoring(owner):
 
 def update_monitoring_options(owner, emails):
     """Set `emails` as global e-mail alert's recipients."""
-    from mist.api.rules.actions import is_email_valid
+    from mist.api.helpers import is_email_valid
     # FIXME Send e-mails as a list, instead of string?
     emails = emails.replace(' ', '')
     emails = emails.replace('\n', ',')
@@ -251,6 +254,7 @@ def enable_monitoring(owner, cloud_id, machine_id, no_ssh=False, dry=False,
                     "machine '%s' in cloud '%s'.",
                     owner.id, machine_id, cloud_id)
 
+    old_monitoring_method = machine.monitoring.method
     # Decide on monitoring method
     machine.monitoring.method = (
         machine.cloud.default_monitoring_method or
@@ -260,6 +264,8 @@ def enable_monitoring(owner, cloud_id, machine_id, no_ssh=False, dry=False,
     assert machine.monitoring.method in config.MONITORING_METHODS
     assert machine.monitoring.method != 'collectd-graphite' or config.HAS_CORE
 
+    if old_monitoring_method != machine.monitoring.method:
+        machine.monitoring.method_since = datetime.datetime.now()
     # Extra vars
     if machine.monitoring.method == 'collectd-graphite':
         from mist.core.methods import _enable_monitoring_prepare
@@ -293,8 +299,7 @@ def enable_monitoring(owner, cloud_id, machine_id, no_ssh=False, dry=False,
 
     # Attempt to contact monitor server and enable monitoring for the machine
     try:
-        if machine.monitoring.method in ('collectd-graphite',
-                                         'telegraf-graphite'):
+        if machine.monitoring.method in ('collectd-graphite'):
             if not config.HAS_CORE:
                 raise Exception()
             from mist.core.methods import _enable_monitoring_monitor
@@ -397,18 +402,22 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=''):
     if job_id:
         ret_dict['job_id'] = job_id
 
-    # Update monitoring information in db: set monitoring to off, remove rules
+    # Update monitoring information in db: set monitoring to off, remove rules.
+    # If the machine we are trying to disable monitoring for is the only one
+    # included in a rule, then delete the rule. Otherwise, attempt to remove
+    # the machine from the list of resources the rule is referring to.
     for rule in Rule.objects(owner_id=machine.owner.id):
-        if rule.cloud == cloud_id and rule.machine == machine_id:
+        if rule.ctl.includes_only(machine):
             rule.delete()
-    owner.save()
+        else:
+            rule.ctl.maybe_remove(machine)
+
     machine.monitoring.hasmonitoring = False
     machine.save()
 
     # tell monitor server to no longer monitor this uuid
     try:
-        if machine.monitoring.method in ('collectd-graphite',
-                                         'telegraf-graphite'):
+        if machine.monitoring.method in ('collectd-graphite'):
             if not config.HAS_CORE:
                 raise Exception
             url = "%s/machines/%s" % (config.MONITOR_URI, machine.id)
@@ -490,12 +499,6 @@ def disassociate_metric(machine, metric_id):
         raise NotFoundError("Invalid metric_id")
     if metric_id not in machine.monitoring.metrics:
         raise NotFoundError("Metric isn't associated with this Machine")
-    if config.HAS_CORE:
-        from mist.core.methods import delete_rule
-        for rule in Rule.objects(owner_id=machine.owner.id):
-            if rule.cloud == machine.cloud.id and rule.machine == machine.id:
-                if rule.metric == metric_id:
-                    delete_rule(machine.owner, rule.rule_id)
     machine.monitoring.metrics.remove(metric_id)
     machine.save()
     trigger_session_update(machine.owner, ['monitoring'])

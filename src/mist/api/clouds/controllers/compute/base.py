@@ -996,6 +996,7 @@ class BaseComputeController(BaseController):
             _location.country = loc.country
             _location.name = loc.name
             _location.extra = loc.extra
+            _location.missing_since = None
 
             try:
                 _location.save()

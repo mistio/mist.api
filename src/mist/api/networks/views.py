@@ -230,6 +230,7 @@ def list_subnets(request):
         network = Network.objects.get(cloud=cloud, id=network_id)
     except Network.DoesNotExist:
         raise NetworkNotFoundError()
+
     return [subnet.as_dict() for subnet in network.ctl.list_subnets()]
 
 

@@ -2,11 +2,9 @@ import operator
 import logging
 
 from mist.api.exceptions import NotFoundError
-from mist.api.exceptions import MachineNotFoundError
-
 from mist.api.rules.tasks import run_action_by_id
 from mist.api.rules.models import Rule
-from mist.api.rules.actions import NotificationAction
+from mist.api.rules.models import NotificationAction
 
 
 log = logging.getLogger(__name__)
@@ -37,11 +35,6 @@ def run_chained_actions(rule_id, machine, value, triggered, timestamp,
         rule = Rule.objects.get(owner_id=machine.owner.id, title=rule_id)
     except Rule.DoesNotExist:
         raise NotFoundError()
-
-    # FIXME Perhaps check whether `missing_since!=None` or `state!=running`?
-    if rule.action == 'destroy' and triggered and notification_level != 0:
-        log.error("We still get triggered to destroy!")
-        raise MachineNotFoundError()
 
     # If the rule got un-triggered or re-triggered, just send a notification
     # if a NotificationAction has been specified.

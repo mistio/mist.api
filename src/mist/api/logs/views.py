@@ -173,9 +173,9 @@ def end_job(request):
     auth_context = auth_context_from_request(request)
     params = params_from_request(request)
 
-    if config.HAS_CORE:
-        from mist.core.orchestration.models import Stack
-        from mist.core.orchestration.methods import finish_workflow
+    if config.HAS_ORCHESTRATION:
+        from mist.orchestration.models import Stack
+        from mist.orchestration.methods import finish_workflow
     else:
         raise NotImplementedError()
 

@@ -18,8 +18,8 @@ from mist.api.rules.models import Window
 from mist.api.rules.models import Frequency
 from mist.api.rules.models import TriggerOffset
 from mist.api.rules.models import QueryCondition
-from mist.api.rules.actions import BaseAlertAction
-from mist.api.rules.actions import NotificationAction
+from mist.api.rules.models import BaseAlertAction
+from mist.api.rules.models import NotificationAction
 
 from mist.api.rules.plugins import GraphiteNoDataPlugin
 from mist.api.rules.plugins import GraphiteBackendPlugin
@@ -104,6 +104,7 @@ class Rule(me.Document):
     last_run_at = me.DateTimeField()
     run_immediately = me.BooleanField()
     total_run_count = me.IntField(min_value=0, default=0)
+    total_check_count = me.IntField(min_value=0, default=0)
 
     # Field updated by celery workers. This is where celery workers keep state.
     states = me.MapField(field=me.EmbeddedDocumentField(RuleState))
@@ -329,14 +330,10 @@ class ResourceRule(Rule, ConditionalClassMixin):
 
     def as_dict(self):
         d = super(ResourceRule, self).as_dict()
-        d['conditions'] = [cond.as_dict() for cond in self.conditions]
+        d['selectors'] = [cond.as_dict() for cond in self.conditions]
         return d
 
     # FIXME All following properties are for backwards compatibility.
-
-    @property
-    def rule_id(self):
-        return self.title
 
     @property
     def metric(self):
@@ -363,18 +360,6 @@ class ResourceRule(Rule, ConditionalClassMixin):
         return self.frequency.timedelta.total_seconds() - 60
 
     @property
-    def machine(self):
-        machines = self.get_resources()
-        assert machines.count() < 2
-        return machines.first().machine_id if machines else None
-
-    @property
-    def cloud(self):
-        machines = self.get_resources()
-        assert machines.count() < 2
-        return machines.first().cloud.id if machines else None
-
-    @property
     def action(self):
         for action in reversed(self.actions):
             if action.atype == 'command':
@@ -383,55 +368,6 @@ class ResourceRule(Rule, ConditionalClassMixin):
                 return action.action
             if action.atype == 'notification':
                 return 'alert'
-
-    @property
-    def emails(self):
-        emails = []
-        for action in self.actions:
-            if action.atype == 'notification':
-                emails = action.emails
-        return emails
-
-    @property
-    def users(self):
-        users = []
-        for action in self.actions:
-            if action.atype == 'notification':
-                users = action.users
-        return users
-
-    @property
-    def teams(self):
-        teams = []
-        for action in self.actions:
-            if action.atype == 'notification':
-                teams = action.teams
-        return teams
-
-    @property
-    def command(self):
-        command = ''
-        for action in self.actions:
-            if action.atype == 'command':
-                command = action.command
-        return command
-
-    def as_dict_old(self):
-        return {
-            '_id': {'$oid': self.id},
-            'metric': self.metric,
-            'value': self.value,
-            'operator': self.operator,
-            'aggregate': self.aggregate,
-            'reminder_offset': self.reminder_offset,
-            'emails': self.emails,
-            'users': self.users,
-            'teams': self.teams,
-            'action': self.action,
-            'command': self.command,
-            'machine': self.machine,
-            'cloud': self.cloud,
-        }
 
 
 class MachineMetricRule(ResourceRule):
@@ -458,10 +394,6 @@ class NoDataRule(MachineMetricRule):
     # used internally, thus the `None`s.
 
     @property
-    def rule_id(self):
-        return self.title
-
-    @property
     def metric(self):
         return None
 
@@ -482,24 +414,5 @@ class NoDataRule(MachineMetricRule):
         return None
 
     @property
-    def machine(self):
-        return None
-
-    @property
-    def cloud(self):
-        return None
-
-    @property
     def action(self):
         return ''
-
-    @property
-    def emails(self):
-        return []
-
-    @property
-    def command(self):
-        return ''
-
-    def as_dict_old(self):
-        return {}

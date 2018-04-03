@@ -3,6 +3,7 @@ import re
 import uuid
 import json
 import logging
+import datetime
 import mongoengine as me
 
 from time import time
@@ -28,7 +29,7 @@ from mist.api.exceptions import CloudNotFoundError
 from mist.api.shell import Shell
 
 from mist.api.users.models import User, Owner, Organization
-from mist.api.clouds.models import Cloud, DockerCloud
+from mist.api.clouds.models import Cloud, DockerCloud, CloudLocation
 from mist.api.machines.models import Machine
 from mist.api.scripts.models import Script
 from mist.api.schedules.models import Schedule
@@ -122,9 +123,12 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
         if node and isinstance(node, Container):
             node = cloud.ctl.compute.inspect_node(node)
 
-        if node and len(node.public_ips):
+        if node:
             # filter out IPv6 addresses
-            ips = filter(lambda ip: ':' not in ip, node.public_ips)
+            ips = filter(lambda ip: ':' not in ip,
+                         node.public_ips + node.private_ips)
+            if not ips:
+                raise self.retry(exc=Exception(), countdown=60, max_retries=20)
             host = ips[0]
         else:
             tmp_log('ip not found, retrying')
@@ -875,10 +879,10 @@ def undeploy_collectd(owner_id, cloud_id, machine_id):
 @app.task
 def create_machine_async(
     owner_id, cloud_id, key_id, machine_name, location_id,
-    image_id, size_id, image_extra, disk,
+    image_id, size, image_extra, disk,
     image_name, size_name, location_name, ips, monitoring,
     ex_storage_account, machine_password, ex_resource_group,
-    networks, docker_env, docker_command, script='',
+    networks, subnetwork, docker_env, docker_command, script='',
     script_id='', script_params='',
     post_script_id='', post_script_params='',
     quantity=1, persist=False, job_id=None, job=None,
@@ -887,13 +891,11 @@ def create_machine_async(
     disk_size=None, disk_path=None, create_storage_account=False,
     new_storage_account='', create_resource_group=False,
     new_resource_group='', create_network=False,
-    new_network='', cloud_init='', associate_floating_ip=False,
+    new_network='', cloud_init='', subnet_id='',
+    associate_floating_ip=False,
     associate_floating_ip_subnet=None, project_id=None,
     tags=None, schedule={}, bare_metal=False, hourly=True,
-    softlayer_backend_vlan_id=None, size_ram=256, size_cpu=1,
-    size_disk_primary=5, size_disk_swap=1, boot=True, build=True,
-    cpu_priority=1, cpu_sockets=1, cpu_threads=1, port_speed=0,
-    hypervisor_group_id=None, machine_username='',
+    softlayer_backend_vlan_id=None, machine_username=''
 ):
     from multiprocessing.dummy import Pool as ThreadPool
     from mist.api.machines.methods import create_machine
@@ -924,10 +926,10 @@ def create_machine_async(
     for name in names:
         specs.append((
             (owner, cloud_id, key_id, name, location_id, image_id,
-             size_id, image_extra, disk, image_name, size_name,
+             size, image_extra, disk, image_name, size_name,
              location_name, ips, monitoring, ex_storage_account,
-             machine_password, ex_resource_group, networks, docker_env,
-             docker_command, 22, script, script_id, script_params,
+             machine_password, ex_resource_group, networks, subnetwork,
+             docker_env, docker_command, 22, script, script_id, script_params,
              job_id, job),
             {'hostname': hostname, 'plugins': plugins,
              'post_script_id': post_script_id,
@@ -941,25 +943,14 @@ def create_machine_async(
              'tags': tags,
              'schedule': schedule,
              'softlayer_backend_vlan_id': softlayer_backend_vlan_id,
-             'size_ram': size_ram,
-             'size_cpu': size_cpu,
-             'size_disk_primary': size_disk_primary,
-             'size_disk_swap': size_disk_swap,
              'create_network': create_network,
              'new_network': new_network,
              'create_resource_group': create_resource_group,
              'new_resource_group': new_resource_group,
              'create_storage_account': create_storage_account,
              'new_storage_account': new_storage_account,
-             'boot': boot,
-             'build': build,
              'bare_metal': bare_metal,
              'hourly': hourly,
-             'cpu_priority': cpu_priority,
-             'cpu_sockets': cpu_sockets,
-             'cpu_threads': cpu_threads,
-             'port_speed': port_speed,
-             'hypervisor_group_id': hypervisor_group_id,
              'machine_username': machine_username}
         ))
 
@@ -1407,6 +1398,16 @@ def gc_schedulers():
                 entry.delete()
             except Exception as exc:
                 log.error(exc)
+
+
+@app.task
+def set_missing_since(cloud_id):
+    # TODO Uncomment when sizes' polling is moved to poller.
+    # for Model in (Machine, CloudLocation, CloudSize):
+    for Model in (Machine, CloudLocation):
+        Model.objects(cloud=cloud_id, missing_since=None).update(
+            missing_since=datetime.datetime.utcnow()
+        )
 
 
 @app.task

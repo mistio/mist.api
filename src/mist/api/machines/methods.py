@@ -18,11 +18,13 @@ from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 from mist.api.keys.models import Key
 from mist.api.networks.models import Network
+from mist.api.networks.models import Subnet
 
 from mist.api.exceptions import PolicyUnauthorizedError
 from mist.api.exceptions import MachineNameValidationError
 from mist.api.exceptions import BadRequestError, MachineCreationError
 from mist.api.exceptions import CloudUnavailableError, InternalServerError
+from mist.api.exceptions import NotFoundError
 
 from mist.api.helpers import get_temp_file
 
@@ -121,30 +123,26 @@ def list_machines(owner, cloud_id, cached=False):
 
 
 def create_machine(owner, cloud_id, key_id, machine_name, location_id,
-                   image_id, size_id, image_extra=None, disk=None,
+                   image_id, size, image_extra=None, disk=None,
                    image_name=None, size_name=None, location_name=None,
                    ips=None, monitoring=False,
                    ex_storage_account='', machine_password='',
-                   ex_resource_group='', networks=[], docker_env=[],
+                   ex_resource_group='', networks=[], subnetwork=None,
+                   docker_env=[],
                    docker_command=None,
                    ssh_port=22, script='', script_id='', script_params='',
                    job_id=None, job=None, docker_port_bindings={},
                    docker_exposed_ports={}, azure_port_bindings='',
                    hostname='', plugins=None, disk_size=None, disk_path=None,
                    post_script_id='', post_script_params='', cloud_init='',
-                   create_network=False, new_network='',
+                   subnet_id='', create_network=False, new_network='',
                    create_resource_group=False, new_resource_group='',
                    create_storage_account=False, new_storage_account='',
                    associate_floating_ip=False,
                    associate_floating_ip_subnet=None, project_id=None,
                    schedule={}, command=None, tags=None,
                    bare_metal=False, hourly=True,
-                   softlayer_backend_vlan_id=None,
-                   size_ram=256, size_cpu=1,
-                   size_disk_primary=5, size_disk_swap=1,
-                   boot=True, build=True,
-                   cpu_priority=1, cpu_sockets=1, cpu_threads=1, port_speed=0,
-                   hypervisor_group_id=None, machine_username=''):
+                   softlayer_backend_vlan_id=None, machine_username=''):
     """Creates a new virtual machine on the specified cloud.
 
     If the cloud is Rackspace it attempts to deploy the node with an ssh key
@@ -193,6 +191,32 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
         public_key = key.public.replace('\n', '')
     else:
         public_key = None
+
+    # For providers, which do not support pre-defined sizes, we expect `size`
+    # to be a dict with all the necessary information regarding the machine's
+    # size.
+    if cloud.ctl.provider in ('vsphere', 'onapp', ):
+        if not isinstance(size, dict):
+            raise BadRequestError('Expected size to be a dict.')
+        size_id = 'custom'
+        size_ram = size.get('ram', 256)
+        size_cpu = size.get('cpu', 1)
+        size_disk_primary = size.get('disk_primary', 5)
+        size_disk_swap = size.get('disk_swap', 1)
+        # Required by OnApp only.
+        boot = size.get('boot', True)
+        build = size.get('build', True)
+        cpu_priority = size.get('cpu_priority', 1)
+        cpu_sockets = size.get('cpu_sockets', 1)
+        cpu_threads = size.get('cpu_threads', 1)
+        port_speed = size.get('port_speed', 0)
+        hypervisor_group_id = size.get('hypervisor_group_id')
+    else:
+        if not isinstance(size, (basestring, int)):
+            raise BadRequestError('Expected size to be an id.')
+        size_id = size
+    size = NodeSize(size_id, name=size_name, ram='', disk=disk,
+                    bandwidth='', price='', driver=conn)
 
     image = NodeImage(image_id, name=image_name, extra=image_extra,
                       driver=conn)
@@ -287,7 +311,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                 break
         node = _create_machine_ec2(conn, key_id, private_key, public_key,
                                    machine_name, image, size, ec2_location,
-                                   cloud_init)
+                                   subnet_id, cloud_init)
     elif conn.type is Provider.NEPHOSCALE:
         node = _create_machine_nephoscale(conn, key_id, private_key,
                                           public_key, machine_name, image,
@@ -298,9 +322,10 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
             if libcloud_size.id == size.id:
                 size = libcloud_size
                 break
+        # FIXME: `networks` should always be an array, not a str like below
         node = _create_machine_gce(conn, key_id, private_key, public_key,
-                                   machine_name, image, libcloud_size,
-                                   location, cloud_init)
+                                   machine_name, image, size, location,
+                                   networks, subnetwork, cloud_init)
     elif conn.type is Provider.SOFTLAYER:
         node = _create_machine_softlayer(
             conn, key_id, private_key, public_key,
@@ -544,12 +569,18 @@ def _create_machine_openstack(conn, private_key, public_key, machine_name,
         server_key = server_key.name
 
     # select the right OpenStack network object
-    available_networks = conn.ex_list_networks()
+    # FIXME This is a bit error-prone, since here we are expected to pass a
+    # list of networks to libcloud, while in case of vSphere, `networks` is
+    # a single ID.
+    if not isinstance(networks, list):
+        networks = [networks]
+    chosen_networks = []
+    cached_network_ids = [n.network_id for
+                          n in Network.objects(id__in=networks)]
     try:
-        chosen_networks = []
-        for net in available_networks:
-            if net.id in networks:
-                chosen_networks.append(net)
+        for network in conn.ex_list_networks():
+            if network.id in cached_network_ids:
+                chosen_networks.append(network)
     except:
         chosen_networks = []
 
@@ -572,7 +603,8 @@ def _create_machine_openstack(conn, private_key, public_key, machine_name,
 
 
 def _create_machine_ec2(conn, key_name, private_key, public_key,
-                        machine_name, image, size, location, user_data):
+                        machine_name, image, size, location, subnet_id,
+                        user_data):
     """Create a machine in Amazon EC2.
 
     Here there is no checking done, all parameters are expected to be
@@ -606,17 +638,49 @@ def _create_machine_ec2(conn, key_name, private_key, public_key,
         else:
             raise InternalServerError("Couldn't create security group", exc)
 
+    kwargs = {'name': machine_name, 'image': image,
+              'size': size, 'location': location,
+              'max_tries': 1, 'ex_keyname': key_name,
+              'ex_userdata': user_data
+              }
+
+    if subnet_id:
+
+        try:
+            subnet = Subnet.objects.get(id=subnet_id)
+            subnet_id = subnet.subnet_id
+        except Subnet.DoesNotExist:
+            try:
+                subnet = Subnet.objects.get(subnet_id=subnet_id)
+                log.info('Got providers id instead of mist id, not \
+                doing nothing.')
+            except Subnet.DoesNotExist:
+                raise NotFoundError('Subnet specified does not exist')
+
+        subnets = conn.ex_list_subnets()
+        for libcloud_subnet in subnets:
+            if libcloud_subnet.id == subnet_id:
+                subnet = libcloud_subnet
+                break
+        else:
+            raise NotFoundError('Subnet specified does not exist')
+
+        # if subnet is specified, then security group id
+        # instead of security group name is needed
+        groups = conn.ex_list_security_groups()
+        for group in groups:
+            if group.get('name') == config.EC2_SECURITYGROUP.get('name', ''):
+                security_group_id = group.get('id')
+                break
+        kwargs.update({'ex_subnet': subnet,
+                      'ex_security_group_ids': security_group_id})
+
+    else:
+        kwargs.update({'ex_securitygroup': config.EC2_SECURITYGROUP['name']})
+
     try:
-        node = conn.create_node(
-            name=machine_name,
-            image=image,
-            size=size,
-            location=location,
-            max_tries=1,
-            ex_keyname=key_name,
-            ex_securitygroup=config.EC2_SECURITYGROUP['name'],
-            ex_userdata=user_data
-        )
+        node = conn.create_node(**kwargs)
+
     except Exception as e:
         raise MachineCreationError("EC2, got exception %s" % e, e)
 
@@ -1365,7 +1429,8 @@ def _create_machine_vsphere(conn, machine_name, image,
 
 
 def _create_machine_gce(conn, key_name, private_key, public_key, machine_name,
-                        image, size, location, cloud_init):
+                        image, size, location, network, subnetwork,
+                        cloud_init):
     """Create a machine in GCE.
 
     Here there is no checking done, all parameters are expected to be
@@ -1381,12 +1446,18 @@ def _create_machine_gce(conn, key_name, private_key, public_key, machine_name,
         metadata['startup-script'] = cloud_init
 
     try:
+        network = Network.objects.get(id=network).name
+    except me.DoesNotExist:
+        network = 'default'
+    try:
         node = conn.create_node(
             name=machine_name,
             image=image,
             size=size,
             location=location,
-            ex_metadata=metadata
+            ex_metadata=metadata,
+            ex_network=network,
+            ex_subnetwork=subnetwork
         )
     except Exception as e:
         raise MachineCreationError(

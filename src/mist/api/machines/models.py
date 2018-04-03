@@ -82,8 +82,8 @@ class Monitoring(me.EmbeddedDocument):
         default=lambda: os.urandom(32).encode('hex'))
     metrics = me.ListField()  # list of metric_id's
     installation_status = me.EmbeddedDocumentField(InstallationStatus)
-    method = me.StringField(default=config.DEFAULT_MONITORING_METHOD,
-                            choices=config.MONITORING_METHODS)
+    method = me.StringField(choices=config.MONITORING_METHODS)
+    method_since = me.DateTimeField()
 
     def get_commands(self):
         if self.method == 'collectd-graphite' and config.HAS_CORE:
@@ -110,11 +110,11 @@ class Monitoring(me.EmbeddedDocument):
             raise Exception("Invalid monitoring method %s" % self.method)
 
     def get_rules_dict(self):
+        from mist.api.rules.models import MachineMetricRule
         m = self._instance
-        return {rid: rdict
-                for rid, rdict in m.cloud.owner.get_rules_dict().items()
-                if rdict['cloud'] == m.cloud.id and
-                rdict['machine'] == m.machine_id}
+        return {rule.id: rule.as_dict() for
+                rule in MachineMetricRule.objects(owner_id=m.owner.id) if
+                rule.ctl.includes_only(m)}
 
     def as_dict(self):
         status = self.installation_status
@@ -303,6 +303,10 @@ class Machine(me.Document):
     ssh_probe = me.EmbeddedDocumentField(SSHProbe, required=False)
     ping_probe = me.EmbeddedDocumentField(PingProbe, required=False)
 
+    # Number of vCPUs gathered from various sources. This field is meant to
+    # be updated ONLY by the mist.api.metering.tasks:find_machine_cores task.
+    cores = me.IntField()
+
     meta = {
         'collection': 'machines',
         'indexes': [
@@ -342,6 +346,8 @@ class Machine(me.Document):
         if not self.owner:
             self.owner = self.cloud.owner
         self.clean_os_type()
+        if self.monitoring.method not in config.MONITORING_METHODS:
+            self.monitoring.method = config.DEFAULT_MONITORING_METHOD
 
     def clean_os_type(self):
         """Clean self.os_type"""
@@ -416,6 +422,7 @@ class Machine(me.Document):
                         if self.ssh_probe is not None
                         else SSHProbe().as_dict()),
             },
+            'cores': self.cores,
         }
 
     def __str__(self):

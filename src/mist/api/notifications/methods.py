@@ -22,7 +22,7 @@ log = logging.getLogger(__name__)
 # resource_id) tuple in order to fetch the corresponding mongoengine object
 # and the verify ownership.
 def send_alert_email(owner, rule_id, value, triggered, timestamp, incident_id,
-                     cloud_id, machine_id, action='', emails=None):
+                     emails, cloud_id, machine_id, action=''):
     """Notify owner that alert was triggered.
 
     params:
@@ -74,13 +74,6 @@ def send_alert_email(owner, rule_id, value, triggered, timestamp, incident_id,
 
     pt = os.path.join(os.path.dirname(__file__), 'templates/html_alert.pt')
     alert.html_body = PageTemplateFile(pt)(inputs=info)
-
-    # Concat all e-mail addresses. FIXME This shouldn't be here. It must be
-    # returned by the mist.api.rules.actions.NotificationAction.
-    if not emails:
-        emails = set(rule.emails)
-        for email_list in (owner.get_emails(), owner.alerts_email or [], ):
-            emails |= set(email_list)
 
     # Send alert.
     alert.channel.send(list(emails))
