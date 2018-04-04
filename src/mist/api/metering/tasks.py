@@ -53,7 +53,7 @@ def find_machine_cores():
             machine.cores = (
                 _get_cores_from_unix(machine) or
                 _get_cores_from_tsdb(machine) or
-                _get_cores_from_machine_extra(machine)  or
+                _get_cores_from_machine_extra(machine) or
                 _get_cores_from_libcloud_size(machine)
             )
             machine.save()
