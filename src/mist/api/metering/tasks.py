@@ -45,16 +45,16 @@ def find_machine_cores():
         except ValueError:
             return 0
 
-    # def _get_cores_from_libcloud_size(machine):
-    #     return machine.size.cpus if machine.size else 0
+    def _get_cores_from_libcloud_size(machine):
+        return machine.size.cpus if machine.size else 0
 
     for machine in Machine.objects(missing_since=None):
         try:
             machine.cores = (
                 _get_cores_from_unix(machine) or
                 _get_cores_from_tsdb(machine) or
-                _get_cores_from_machine_extra(machine)  # or
-                # _get_cores_from_libcloud_size(machine)
+                _get_cores_from_machine_extra(machine)  or
+                _get_cores_from_libcloud_size(machine)
             )
             machine.save()
         except Exception as exc:
