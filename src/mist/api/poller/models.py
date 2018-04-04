@@ -245,6 +245,11 @@ class ListLocationsPollingSchedule(CloudPollingSchedule):
     task = 'mist.api.poller.tasks.list_locations'
 
 
+class ListSizesPollingSchedule(CloudPollingSchedule):
+
+    task = 'mist.api.poller.tasks.list_sizes'
+
+
 class MachinePollingSchedule(PollingSchedule):
 
     machine_id = me.StringField(required=True)

@@ -229,8 +229,47 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                                 name=cloud_location.name,
                                 country=cloud_location.country, driver=conn)
     except me.DoesNotExist:
-        location = NodeLocation(location_id, name=location_name, country='',
-                                driver=conn)
+        # make sure mongo is up-to-date
+        cloud.ctl.compute.list_locations()
+        try:
+            from mist.api.clouds.models import CloudLocation
+            cloud_location = CloudLocation.objects.get(id=location_id)
+            location = NodeLocation(cloud_location.external_id,
+                                    name=cloud_location.name,
+                                    country=cloud_location.country,
+                                    driver=conn)
+        except me.DoesNotExist:
+            location = NodeLocation(location_id, name=location_name,
+                                    country='', driver=conn)
+
+    # transform size id to libcloud's NodeSize object
+    try:
+        from mist.api.clouds.models import CloudSize
+        cloud_size = CloudSize.objects.get(id=size_id)
+        size = NodeSize(cloud_size.external_id,
+                        name=cloud_size.name,
+                        ram=cloud_size.ram,
+                        disk=cloud_size.disk,
+                        bandwidth=cloud_size.bandwidth,
+                        price=cloud_size.extra.get('price'),
+                        driver=conn)
+    except me.DoesNotExist:
+        # make sure mongo is up-to-date
+        cloud.ctl.compute.list_sizes()
+        try:
+            cloud_size = CloudSize.objects.get(id=size_id)
+            size = NodeSize(cloud_size.external_id,
+                            name=cloud_size.name,
+                            ram=cloud_size.ram,
+                            disk=cloud_size.disk,
+                            bandwidth=cloud_size.bandwidth,
+                            price=cloud_size.extra.get('price'),
+                            driver=conn)
+        except me.DoesNotExist:
+            # instantiate a dummy libcloud NodeSize
+            size = NodeSize(size_id, name=size_name,
+                            ram=0, disk=0, bandwidth=0,
+                            price=0, driver=conn)
 
     if conn.type is Container_Provider.DOCKER:
         if public_key:
@@ -278,10 +317,10 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                                           public_key, machine_name, image,
                                           size, location, ips)
     elif conn.type is Provider.GCE:
-        sizes = conn.list_sizes(location=location_name)
-        for size in sizes:
-            if size.id == size_id:
-                size = size
+        libcloud_sizes = conn.list_sizes(location=location_name)
+        for libcloud_size in libcloud_sizes:
+            if libcloud_size.id == size.id:
+                size = libcloud_size
                 break
         # FIXME: `networks` should always be an array, not a str like below
         node = _create_machine_gce(conn, key_id, private_key, public_key,
@@ -341,11 +380,6 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
         # FIXME: The orchestration UI does not provide all the necessary
         # parameters, thus we need to fetch the proper size and image objects.
         # This should be properly fixed when migrated to the controllers.
-        if not disk:
-            for size in conn.list_sizes():
-                if int(size.id) == int(size_id):
-                    size = size
-                    break
         if not image_extra:  # Missing: {'64bit': 1, 'pvops': 1}
             for image in conn.list_images():
                 if int(image.id) == int(image_id):
