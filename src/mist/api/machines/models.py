@@ -8,6 +8,7 @@ import mongoengine as me
 
 import mist.api.tag.models
 from mist.api.keys.models import Key
+from mist.api.networks.models import Network
 from mist.api.machines.controllers import MachineController
 
 from mist.api import config
@@ -306,6 +307,7 @@ class Machine(me.Document):
     # Number of vCPUs gathered from various sources. This field is meant to
     # be updated ONLY by the mist.api.metering.tasks:find_machine_cores task.
     cores = me.IntField()
+    network = me.ReferenceField('Network', required=False)
 
     meta = {
         'collection': 'machines',
@@ -423,6 +425,7 @@ class Machine(me.Document):
                         else SSHProbe().as_dict()),
             },
             'cores': self.cores,
+            'network': self.network.id if self.network else '',
         }
 
     def __str__(self):
