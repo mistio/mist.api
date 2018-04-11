@@ -76,7 +76,7 @@ def add_cloud_v_2(owner, title, provider, params):
     ListMachinesPollingSchedule.add(cloud=cloud)
 
     # Add networks' polling schedule.
-    ListNetworksPollingSchedule.add(cloud=cloud)
+    schedule = ListNetworksPollingSchedule.add(cloud=cloud)
     schedule.set_default_interval(60)
     schedule.save()
 

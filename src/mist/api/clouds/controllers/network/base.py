@@ -305,6 +305,9 @@ class BaseNetworkController(BaseController):
         """Returns networks stored in database
         for a specific cloud
         """
+        # FIXME: Move these imports to the top of the file when circular
+        # import issues are resolved
+        from mist.api.networks.models import Network
         return Network.objects(cloud=self.cloud)
 
     def _list_networks__cidr_range(self, network, libcloud_network):
