@@ -301,6 +301,12 @@ class BaseNetworkController(BaseController):
 
         return networks
 
+    def list_cached_networks(self):
+        """Returns networks stored in database
+        for a specific cloud
+        """
+        return Network.objects(cloud=self.cloud)
+
     def _list_networks__cidr_range(self, network, libcloud_network):
         """Returns the network's IP range in CIDR notation.
 
