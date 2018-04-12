@@ -78,12 +78,15 @@ class Monitoring(me.EmbeddedDocument):
     # Most of these will change with the new UI.
     hasmonitoring = me.BooleanField()
     monitor_server = me.StringField()  # Deprecated
-    collectd_password = me.StringField(
-        default=lambda: os.urandom(32).encode('hex'))
+    collectd_password = me.StringField()
     metrics = me.ListField()  # list of metric_id's
     installation_status = me.EmbeddedDocumentField(InstallationStatus)
     method = me.StringField(choices=config.MONITORING_METHODS)
     method_since = me.DateTimeField()
+
+    def clean(self):
+        if not self.collectd_password:
+            self.collectd_password = os.urandom(32).encode('hex')
 
     def get_commands(self):
         if self.method == 'collectd-graphite' and config.HAS_CORE:
