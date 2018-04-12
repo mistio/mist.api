@@ -2,6 +2,6 @@
 
 set -e
 
-export QUEUES="${QUEUES:-celery,machines,command}"
+export QUEUES="${QUEUES:-celery,machines,command,mappings}"
 
 exec ./bin/celery $@
