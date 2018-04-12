@@ -569,7 +569,7 @@ def associate_stories(event):
     except Exception as exc:
         job = None
         log.warn('Failed to extract job param from extra: %s', exc)
-    else:
+    if job:
         event['job'] = job
 
     # Decide whether the event tends to open, update, or close a story.

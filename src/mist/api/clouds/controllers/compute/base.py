@@ -830,10 +830,11 @@ class BaseComputeController(BaseController):
 
         sizes = []
 
+        # FIXME: resolve circular import issues
+        from mist.api.clouds.models import CloudSize
+
         for size in fetched_sizes:
             # create the object in db if it does not exist
-            # FIXME: resolve circular import issues
-            from mist.api.clouds.models import CloudSize
             try:
                 _size = CloudSize.objects.get(cloud=self.cloud,
                                               external_id=size.id)
@@ -866,13 +867,11 @@ class BaseComputeController(BaseController):
                 raise BadRequestError({"msg": exc.message,
                                        "errors": exc.to_dict()})
 
-            # update missing_since for sizes not returned by libcloud
-            CloudSize.objects(cloud=self.cloud,
-                              missing_since=None,
-                              external_id__nin=[s.external_id
-                                                for s in sizes]).update(
-                                                    missing_since=datetime.
-                                                    datetime.utcnow())
+        # Update missing_since for sizes not returned by libcloud
+        CloudSize.objects(
+            cloud=self.cloud, missing_since=None,
+            external_id__nin=[s.external_id for s in sizes]
+        ).update(missing_since=datetime.datetime.utcnow())
 
         return sizes
 

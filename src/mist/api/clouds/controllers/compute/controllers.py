@@ -1539,10 +1539,10 @@ class OtherComputeController(BaseComputeController):
     def list_images(self, search=None):
         return []
 
-    def list_sizes(self):
+    def list_sizes(self, persist=True):
         return []
 
-    def list_locations(self, persist=False):
+    def list_locations(self, persist=True):
         return []
 
 
@@ -1574,8 +1574,8 @@ class ClearCenterComputeController(BaseComputeController):
     def list_images(self, search=None):
         return []
 
-    def list_sizes(self):
+    def list_sizes(self, persist=True):
         return []
 
-    def list_locations(self):
+    def list_locations(self, persist=True):
         return []
