@@ -76,9 +76,8 @@ def add_cloud_v_2(owner, title, provider, params):
     ListMachinesPollingSchedule.add(cloud=cloud)
 
     # Add networks' polling schedule.
-    schedule = ListNetworksPollingSchedule.add(cloud=cloud)
-    schedule.set_default_interval(60)
-    schedule.save()
+    # FIXME: change frequency???
+    ListNetworksPollingSchedule.add(cloud=cloud)
 
     # Add extra cloud-level polling schedules with lower frequency. Such
     # schedules poll resource that should hardly ever change. Thus, we
