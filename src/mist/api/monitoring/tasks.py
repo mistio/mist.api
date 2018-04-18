@@ -84,7 +84,7 @@ def install_telegraf(machine_id, job=None, job_id=None, plugins=None):
             err = 'Deployment of scripts with IDs %s failed' % ','.join(failed)
 
     # Log deployment's outcome.
-    log_event(action='telegraf_deployment_finished', error=err, **_log)
+    log_event(action='telegraf_deployment_finished', error=str(err), **_log)
 
     # Trigger UI update.
     trigger_session_update(machine.owner, ['monitoring'])
