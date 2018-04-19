@@ -310,15 +310,22 @@ class BaseComputeController(BaseController):
         # mongoengine objects. It is used to lookup cached sizes based on
         # a node's metadata in order to associate VM instances to their size.
         sizes_map = {}
+        from mist.api.clouds.models import CloudSize
         for size in CloudSize.objects(cloud=self.cloud):
             sizes_map[size.external_id] = size
             sizes_map[size.name] = size
+        from mist.api.networks.models import Network
+        networks_map = {}
+        subnets_map = {}
+        for network in Network.objects(cloud=self.cloud):
+            networks_map[network.network_id] = network
+            networks_map[network.name] = network
+            subnets_map.update(self._list_machines__set_subnets_map(network))
 
         # Process each machine in returned list.
         # Store previously unseen machines separately.
         new_machines = []
         for node in nodes:
-
             # Fetch machine mongoengine model from db, or initialize one.
             try:
                 machine = Machine.objects.get(cloud=self.cloud,
@@ -359,6 +366,22 @@ class BaseComputeController(BaseController):
                     machine.size = self._list_machines__get_custom_size(node)
             except Exception as exc:
                 log.error("Error getting size of %s: %r", machine, exc)
+
+            # Discover network of machine.
+            try:
+                network_id = self._list_machines__get_network(node)
+            except Exception as exc:
+                log.error("Error getting network of %s: %r", machine, exc)
+            else:
+                machine.network = networks_map.get(network_id)
+
+            # Discover subnet of machine.
+            try:
+                subnet = self._list_machines__get_subnet(node)
+            except Exception as exc:
+                log.error("Error getting subnet of %s: %r", machine, exc)
+            else:
+                machine.subnet = subnets_map.get(subnet)
 
             machine.name = node.name
             machine.image_id = image_id
@@ -530,9 +553,44 @@ class BaseComputeController(BaseController):
             machine.actions.reboot = True
         machine.actions.tag = True
 
+    def _list_machines__get_size(self, node):
+        """Return key of size_map dict for a specific node
+
+        Subclasses MAY override this method.
+        """
+        return node.size
+
     def _list_machines__get_custom_size(self, node):
         """Return size metadata for node"""
         return
+
+    def _list_machines__get_network(self, node):
+        """Return key of networks_map dict for a specific node
+
+        Subclasses MAY override this method.
+        """
+        return
+
+    def _list_machines__get_subnet(self, node):
+        """Return key of subnets_map dict for a specific node
+
+        Subclasses MAY override this method.
+        """
+        return
+
+    def _list_machines__set_subnets_map(self, network):
+        """Set the subnets_map dict for a specific network.
+        This method is needed because in some providers, such as GCE,
+        extra info is needed in order for the subnet a machine belongs to,
+        to be identified.
+        Subclasses MAY override this method.
+        """
+        from mist.api.networks.models import Subnet
+        subnets_map = {}
+        for subnet in Subnet.objects(network=network):
+            subnets_map[subnet.subnet_id] = subnet
+            subnets_map[subnet.name] = subnet
+        return subnets_map
 
     def _list_machines__fetch_machines(self):
         """Perform the actual libcloud call to get list of nodes"""
@@ -899,13 +957,6 @@ class BaseComputeController(BaseController):
         # FIXME: resolve circular import issues
         from mist.api.clouds.models import CloudSize
         return CloudSize.objects(cloud=self.cloud, missing_since=None)
-
-    def _list_machines__get_size(self, node):
-        """Return key of size_map dict for a specific node
-
-        Subclasses MAY override this method.
-        """
-        return node.size
 
     def list_locations(self, persist=True):
         """Return list of locations for cloud
