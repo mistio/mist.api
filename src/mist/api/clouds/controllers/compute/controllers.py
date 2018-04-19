@@ -142,6 +142,9 @@ class AmazonComputeController(BaseComputeController):
     def _list_machines__get_network(self, node):
         return node.extra.get('vpc_id')
 
+    def _list_machines__get_subnet(self, node):
+        return node.extra.get('subnet_id')
+
     def _resize_machine(self, machine, machine_libcloud, plan_id, kwargs):
         attributes = {'InstanceType.Value': plan_id}
         # instance must be in stopped mode
@@ -628,6 +631,17 @@ class GoogleComputeController(BaseComputeController):
     def _list_machines__get_network(self, node):
         network = node.extra.get('networkInterfaces')[0].get('network')
         return network.split('/')[-1]
+
+    def _list_machines__get_subnet(self, node):
+        subnet = node.extra.get('networkInterfaces')[0].get('subnetwork')
+        return subnet.split('/')[-1], subnet.split('/')[-3]
+
+    def _list_machines__set_subnets_map(self, network):
+        from mist.api.networks.models import Subnet
+        subnets_map = {}
+        for subnet in Subnet.objects(network=network):
+            subnets_map[subnet.name, subnet.region] = subnet
+        return subnets_map
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         extra = machine_libcloud.extra
