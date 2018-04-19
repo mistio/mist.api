@@ -26,9 +26,7 @@ from mist.api.clouds.utils import LibcloudExceptionHandler
 from mist.api.clouds.controllers.base import BaseController
 
 from mist.api.concurrency.models import PeriodicTaskInfo
-from mist.api.concurrency.models import PeriodicTaskThresholdExceeded
 
-from mist.api.helpers import amqp_publish
 from mist.api.helpers import amqp_publish_user
 from mist.api.helpers import amqp_owner_listening
 
@@ -245,7 +243,7 @@ class BaseNetworkController(BaseController):
         task = PeriodicTaskInfo.get_or_add(task_key)
         with task.task_runner(persist=persist):
             cached_networks = {'%s' % n.id: n.as_dict()
-                                for n in self.list_cached_networks()}
+                               for n in self.list_cached_networks()}
 
             networks = self._list_networks()
 
