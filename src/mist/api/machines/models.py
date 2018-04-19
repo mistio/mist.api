@@ -261,6 +261,8 @@ class Machine(me.Document):
     owner = me.ReferenceField('Organization', required=True)
     location = me.ReferenceField('CloudLocation', required=False)
     size = me.ReferenceField('CloudSize', required=False)
+    network = me.ReferenceField('Network', required=False)
+    subnet = me.ReferenceField('Subnet', required=False)
     name = me.StringField()
 
     # Info gathered mostly by libcloud (or in some cases user input).
@@ -306,7 +308,6 @@ class Machine(me.Document):
     # Number of vCPUs gathered from various sources. This field is meant to
     # be updated ONLY by the mist.api.metering.tasks:find_machine_cores task.
     cores = me.IntField()
-    network = me.ReferenceField('Network', required=False)
 
     meta = {
         'collection': 'machines',
