@@ -426,6 +426,7 @@ class Machine(me.Document):
             },
             'cores': self.cores,
             'network': self.network.id if self.network else '',
+            'subnet': self.subnet.id if self.subnet else '',
         }
 
     def __str__(self):

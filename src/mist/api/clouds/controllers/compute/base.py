@@ -310,7 +310,6 @@ class BaseComputeController(BaseController):
         # mongoengine objects. It is used to lookup cached sizes based on
         # a node's metadata in order to associate VM instances to their size.
         sizes_map = {}
-        from mist.api.clouds.models import CloudSize
         for size in CloudSize.objects(cloud=self.cloud):
             sizes_map[size.external_id] = size
             sizes_map[size.name] = size
@@ -366,7 +365,6 @@ class BaseComputeController(BaseController):
                     machine.size = self._list_machines__get_custom_size(node)
             except Exception as exc:
                 log.error("Error getting size of %s: %r", machine, exc)
-
             # Discover network of machine.
             try:
                 network_id = self._list_machines__get_network(node)

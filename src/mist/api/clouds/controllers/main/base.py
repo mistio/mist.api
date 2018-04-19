@@ -310,9 +310,8 @@ class BaseMainController(object):
         from mist.api.poller.models import ListLocationsPollingSchedule
         from mist.api.poller.models import ListSizesPollingSchedule
         from mist.api.poller.models import ListNetworksPollingSchedule
-        # Ensure polling schedule is in place in case the cloud is re-enabled.
+        # Ensure polling schedules are in place in case the cloud is re-enabled.
         ListMachinesPollingSchedule.add(cloud=self.cloud)
-        # FIXME: CHANGE FREQUENCY?
         ListNetworksPollingSchedule.add(cloud=self.cloud)
         # Ensure additional polling schedules with lower frequency.
         schedule = ListLocationsPollingSchedule.add(cloud=self.cloud)

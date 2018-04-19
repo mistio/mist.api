@@ -76,7 +76,6 @@ def add_cloud_v_2(owner, title, provider, params):
     ListMachinesPollingSchedule.add(cloud=cloud)
 
     # Add networks' polling schedule.
-    # FIXME: change frequency???
     ListNetworksPollingSchedule.add(cloud=cloud)
 
     # Add extra cloud-level polling schedules with lower frequency. Such
