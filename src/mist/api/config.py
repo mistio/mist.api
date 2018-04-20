@@ -1163,6 +1163,7 @@ CTA = {
 }
 
 SHOW_FOOTER = False
+REDIRECT_HOME_TO_SIGNIN = False
 ALLOW_SIGNUP_EMAIL = True
 ALLOW_SIGNUP_GOOGLE = False
 ALLOW_SIGNUP_GITHUB = False
@@ -1342,6 +1343,7 @@ HOMEPAGE_INPUTS = {
         'signin_email': ALLOW_SIGNIN_EMAIL,
         'signin_google': ALLOW_SIGNIN_GOOGLE,
         'signin_github': ALLOW_SIGNIN_GITHUB,
+        'signin_home': REDIRECT_HOME_TO_SIGNIN,
         'landing_footer': SHOW_FOOTER,
         'docs': DOCS_URI,
         'support': SUPPORT_URI
