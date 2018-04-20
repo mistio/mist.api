@@ -344,10 +344,13 @@ def deploy_plugin(request):
         raise ForbiddenError("Machine doesn't seem to have monitoring enabled")
 
     # Prepare params
-    extra = {'value_type': params.get('value_type', 'gauge'), 'value_unit': ''}
     kwargs = {
         'location_type': 'inline',
-        'extra': extra,
+        'extra': {
+            'value_type': params.get('value_type', 'gauge'),
+            'value_unit': params.get('unit', ''),
+            'value_name': params.get('name', ''),
+        },
         'script': params.get('read_function'),
         'description': 'python plugin'
     }
@@ -363,21 +366,7 @@ def deploy_plugin(request):
         # Add the script.
         script = script_cls.add(auth_context.owner, name, **kwargs)
         # Deploy it.
-        ret = script.ctl.deploy_python_plugin(machine)
-        # FIXME Remove.
-        if machine.monitoring.method == 'collectd-graphite':
-            metrics = [ret['metric_id']]
-        else:
-            metrics = ret['metrics']
-        # This will create/update the metric and associate it with the machine.
-        for metric_id in metrics:
-            mist.api.monitoring.methods.associate_metric(
-                machine,
-                metric_id,
-                name=params.get('name', ''),
-                unit=params.get('unit', ''),
-            )
-        return ret
+        return script.ctl.deploy_and_assoc_python_plugin_from_script(machine)
     raise BadRequestError('Invalid plugin_type')
 
 

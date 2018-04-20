@@ -241,9 +241,11 @@ $sudo rm -rf %(tmp_dir)s""" % {'plugin_id': plugin_id, 'tmp_dir': tmp_dir}  # no
         # FIXME this works only for inline source_code
         # else we must_download the source from url or github
         ret = self.deploy_python_plugin(machine)
-        associate_metric(machine, ret['metric_id'],
-                         name=self.script.name,
-                         unit=self.script.extra.get('value_unit', ''))
+        associate_metric(
+            machine, ret['metric_id'],
+            name=self.script.extra.get('value_name') or self.script.name,
+            unit=self.script.extra.get('value_unit', ''),
+        )
         return ret
 
 
@@ -363,7 +365,11 @@ $(command -v sudo) /opt/mistio/telegraf/usr/bin/telegraf -test -config %s
     def deploy_and_assoc_python_plugin_from_script(self, machine):
         ret = self.deploy_python_plugin(machine)
         for metric_id in ret['metrics']:
-            associate_metric(machine, metric_id,
-                             name=self.script.name,
-                             unit=self.script.extra.get('value_unit', ''))
+            if self.script.extra.get('value_type') == 'derive':
+                metric_id = 'derivative(%s)' % metric_id
+            associate_metric(
+                machine, metric_id,
+                name=self.script.extra.get('value_name') or self.script.name,
+                unit=self.script.extra.get('value_unit', ''),
+            )
         return ret
