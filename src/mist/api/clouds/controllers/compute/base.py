@@ -22,7 +22,7 @@ import mongoengine as me
 
 from libcloud.common.types import InvalidCredsError
 from libcloud.compute.types import NodeState
-from libcloud.compute.base import NodeLocation, Node
+from libcloud.compute.base import NodeLocation, Node, NodeSize
 from libcloud.common.exceptions import BaseHTTPError
 
 from amqp.connection import Connection
@@ -1282,7 +1282,7 @@ class BaseComputeController(BaseController):
         raise BadRequestError("Machines on public clouds can't be removed."
                               "This is only supported in Bare Metal clouds.")
 
-    def resize_machine(self, machine, plan_id, kwargs):
+    def resize_machine(self, machine, size_id, kwargs):
         """Resize machine
 
         The param `machine` must be an instance of a machine model of this
@@ -1290,7 +1290,7 @@ class BaseComputeController(BaseController):
 
         Not that the usual way to resize a machine would be to run
 
-            machine.ctl.resize(plan_id)
+            machine.ctl.resize(size_id)
 
         which would in turn call this method, so that its cloud can customize
         it as needed.
@@ -1306,7 +1306,14 @@ class BaseComputeController(BaseController):
 
         machine_libcloud = self._get_machine_libcloud(machine)
         try:
-            self._resize_machine(machine, machine_libcloud, plan_id, kwargs)
+            from mist.api.clouds.models import CloudSize
+            size = CloudSize.objects.get(id=size_id)
+            node_size = NodeSize(size.external_id, name=size.name,
+                                 ram=size.ram, disk=size.disk,
+                                 bandwidth=size.bandwidth,
+                                 price=size.extra['price'],
+                                 driver=self.connection)
+            self._resize_machine(machine, machine_libcloud, node_size, kwargs)
         except Exception as exc:
             raise BadRequestError('Failed to resize node: %s' % exc)
         try:
@@ -1319,7 +1326,7 @@ class BaseComputeController(BaseController):
         except Exception as exc:
             log.exception("Failed to dismiss scale recommendation: %r", exc)
 
-    def _resize_machine(self, machine, machine_libcloud, plan_id, kwargs):
+    def _resize_machine(self, machine, machine_libcloud, node_size, kwargs):
         """Private method to resize a given machine
 
         Params:
@@ -1329,7 +1336,7 @@ class BaseComputeController(BaseController):
         Differnent cloud controllers should override this private method, which
         is called by the public method `resize_machine`.
         """
-        self.connection.ex_resize_node(machine_libcloud, plan_id)
+        self.connection.ex_resize_node(machine_libcloud, node_size)
 
     def rename_machine(self, machine, name):
         """Rename machine

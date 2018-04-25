@@ -581,7 +581,7 @@ def machine_actions(request):
     cloud_id = request.matchdict.get('cloud')
     params = params_from_request(request)
     action = params.get('action', '')
-    plan_id = params.get('plan_id', '')
+    size_id = params.get('size', params.get('plan_id', ''))
     memory = params.get('memory', '')
     cpus = params.get('cpus', '')
     cpu_shares = params.get('cpu_shares', '')
@@ -676,7 +676,7 @@ def machine_actions(request):
             kwargs['cpu_shares'] = cpu_shares
         if cpu_units:
             kwargs['cpu_units'] = cpu_units
-        getattr(machine.ctl, action)(plan_id, kwargs)
+        getattr(machine.ctl, action)(size_id, kwargs)
 
     # TODO: We shouldn't return list_machines, just OK. Save the API!
     return methods.filter_list_machines(auth_context, cloud_id)
