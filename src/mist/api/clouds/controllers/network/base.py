@@ -243,7 +243,8 @@ class BaseNetworkController(BaseController):
         from mist.api.networks.models import Network, NETWORKS
 
         try:
-            libcloud_nets = self.cloud.ctl.compute.connection.ex_list_networks()
+            libcloud_nets = \
+                self.cloud.ctl.compute.connection.ex_list_networks()
         except ConnectionError as e:
             raise mist.api.exceptions.CloudUnavailableError(e)
         # List of Network mongoengine objects to be returned to the API.
