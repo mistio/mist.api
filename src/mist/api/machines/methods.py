@@ -301,8 +301,8 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                                          size, location, user_data=cloud_init)
     elif conn.type in [Provider.OPENSTACK]:
         node = _create_machine_openstack(conn, private_key, public_key,
-                                         machine_name, image, size, location,
-                                         networks, cloud_init)
+                                         key.name, machine_name, image, size,
+                                         location, networks, cloud_init)
     elif conn.type is Provider.EC2 and private_key:
         locations = conn.list_locations()
         for loc in locations:
@@ -541,8 +541,9 @@ def _create_machine_rackspace(conn, public_key, machine_name,
         raise MachineCreationError("Rackspace, got exception %r" % e, exc=e)
 
 
-def _create_machine_openstack(conn, private_key, public_key, machine_name,
-                              image, size, location, networks, user_data):
+def _create_machine_openstack(conn, private_key, public_key, key_name,
+                              machine_name, image, size, location, networks,
+                              user_data):
     """Create a machine in Openstack.
 
     Here there is no checking done, all parameters are expected to be
@@ -559,7 +560,7 @@ def _create_machine_openstack(conn, private_key, public_key, machine_name,
                 server_key = k.name
                 break
         if not server_key:
-            server_key = conn.ex_import_keypair_from_string(name=machine_name,
+            server_key = conn.ex_import_keypair_from_string(name=key_name,
                                                             key_material=key)
             server_key = server_key.name
     except:

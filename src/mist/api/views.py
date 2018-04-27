@@ -544,7 +544,7 @@ def confirm(request):
     After registering, the user is sent a confirmation email to his email
     address with a link containing a token that directs the user to this view
     to confirm his email address.
-    If invitation token exists redirect to set_password
+    If invitation token exists redirect to set_password or to social auth
     """
     params = params_from_request(request)
     key = params.get('key')
@@ -572,7 +572,13 @@ def confirm(request):
     user.save()
 
     invitoken = params.get('invitoken')
-    url = request.route_url('set_password', _query={'key': key})
+    if config.ALLOW_SIGNIN_EMAIL:
+        url = request.route_url('set_password', _query={'key': key})
+    elif config.ALLOW_SIGNIN_GOOGLE:
+        url = '/social_auth/login/google-oauth2?key=%s' % key
+    elif config.ALLOW_SIGNIN_GITHUB:
+        url = '/social_auth/login/github-oauth2?key=%s' % key
+
     if invitoken:
         try:
             MemberInvitation.objects.get(token=invitoken)
