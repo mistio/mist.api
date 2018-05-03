@@ -4,7 +4,7 @@ import logging
 from mist.api.exceptions import NotFoundError
 from mist.api.rules.tasks import run_action_by_id
 from mist.api.rules.models import Rule
-from mist.api.rules.actions import NotificationAction
+from mist.api.rules.models import NotificationAction
 
 
 log = logging.getLogger(__name__)

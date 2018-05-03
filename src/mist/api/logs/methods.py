@@ -280,7 +280,7 @@ def get_stories(story_type='', owner_id='', user_id='', sort_order=-1, limit=0,
     # in Tornado context. If the short version is requested, return only the
     # absolute necessary fields needed to create the story.
     if not expand:
-        includes = ["log_id", "stories", "error", "time"]
+        includes = ["log_id", "stories", "error", "time", "job"]
         if story_type == "incident":
             includes += list(FIELDS) + ["action", "extra"]
     else:
@@ -466,7 +466,6 @@ def process_stories(buckets, type=None, callback=None):
 
             # Append the log to the story's `logs`.
             story['logs'].append(body)
-
         stories.append(story)
 
     if callback is not None:
@@ -570,6 +569,8 @@ def associate_stories(event):
     except Exception as exc:
         job = None
         log.warn('Failed to extract job param from extra: %s', exc)
+    if job:
+        event['job'] = job
 
     # Decide whether the event tends to open, update, or close a story.
     action = 'updates'

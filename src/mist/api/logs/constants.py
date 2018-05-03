@@ -21,6 +21,7 @@ FIELDS = (
     'shell_id',
     'session_id',
     'incident_id',
+    'job',
 )
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #

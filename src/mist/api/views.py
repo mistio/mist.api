@@ -544,7 +544,7 @@ def confirm(request):
     After registering, the user is sent a confirmation email to his email
     address with a link containing a token that directs the user to this view
     to confirm his email address.
-    If invitation token exists redirect to set_password
+    If invitation token exists redirect to set_password or to social auth
     """
     params = params_from_request(request)
     key = params.get('key')
@@ -572,7 +572,13 @@ def confirm(request):
     user.save()
 
     invitoken = params.get('invitoken')
-    url = request.route_url('set_password', _query={'key': key})
+    if config.ALLOW_SIGNIN_EMAIL:
+        url = request.route_url('set_password', _query={'key': key})
+    elif config.ALLOW_SIGNIN_GOOGLE:
+        url = '/social_auth/login/google-oauth2?key=%s' % key
+    elif config.ALLOW_SIGNIN_GITHUB:
+        url = '/social_auth/login/github-oauth2?key=%s' % key
+
     if invitoken:
         try:
             MemberInvitation.objects.get(token=invitoken)
@@ -1072,8 +1078,16 @@ def list_sizes(request):
     """
     cloud_id = request.matchdict['cloud']
     auth_context = auth_context_from_request(request)
+    cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
+                              deleted=None)
     auth_context.check_perm("cloud", "read", cloud_id)
-    return methods.list_sizes(auth_context.owner, cloud_id)
+    params = params_from_request(request)
+    cached = bool(params.get('cached', False))
+    if cached:
+        sizes = cloud.ctl.compute.list_cached_sizes()
+    else:
+        sizes = cloud.ctl.compute.list_sizes()
+    return [size.as_dict() for size in sizes]
 
 
 @view_config(route_name='api_v1_locations', request_method='GET',

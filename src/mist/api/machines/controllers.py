@@ -43,10 +43,10 @@ class MachineController(object):
     def remove(self):
         return self.machine.cloud.ctl.compute.remove_machine(self.machine)
 
-    def resize(self, plan_id, kwargs):
+    def resize(self, size_id, kwargs):
         """Resize a machine on an other plan."""
         return self.machine.cloud.ctl.compute.resize_machine(self.machine,
-                                                             plan_id, kwargs)
+                                                             size_id, kwargs)
 
     def rename(self, name):
         """Renames a machine on a certain cloud."""

@@ -2,6 +2,7 @@ import os
 import re
 import uuid
 import time
+import datetime
 import logging
 
 import requests
@@ -215,7 +216,7 @@ def check_monitoring(owner):
 
 def update_monitoring_options(owner, emails):
     """Set `emails` as global e-mail alert's recipients."""
-    from mist.api.rules.actions import is_email_valid
+    from mist.api.helpers import is_email_valid
     # FIXME Send e-mails as a list, instead of string?
     emails = emails.replace(' ', '')
     emails = emails.replace('\n', ',')
@@ -253,6 +254,7 @@ def enable_monitoring(owner, cloud_id, machine_id, no_ssh=False, dry=False,
                     "machine '%s' in cloud '%s'.",
                     owner.id, machine_id, cloud_id)
 
+    old_monitoring_method = machine.monitoring.method
     # Decide on monitoring method
     machine.monitoring.method = (
         machine.cloud.default_monitoring_method or
@@ -262,6 +264,8 @@ def enable_monitoring(owner, cloud_id, machine_id, no_ssh=False, dry=False,
     assert machine.monitoring.method in config.MONITORING_METHODS
     assert machine.monitoring.method != 'collectd-graphite' or config.HAS_CORE
 
+    if old_monitoring_method != machine.monitoring.method:
+        machine.monitoring.method_since = datetime.datetime.now()
     # Extra vars
     if machine.monitoring.method == 'collectd-graphite':
         from mist.core.methods import _enable_monitoring_prepare
@@ -295,8 +299,7 @@ def enable_monitoring(owner, cloud_id, machine_id, no_ssh=False, dry=False,
 
     # Attempt to contact monitor server and enable monitoring for the machine
     try:
-        if machine.monitoring.method in ('collectd-graphite',
-                                         'telegraf-graphite'):
+        if machine.monitoring.method in ('collectd-graphite'):
             if not config.HAS_CORE:
                 raise Exception()
             from mist.core.methods import _enable_monitoring_monitor
@@ -414,8 +417,7 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=''):
 
     # tell monitor server to no longer monitor this uuid
     try:
-        if machine.monitoring.method in ('collectd-graphite',
-                                         'telegraf-graphite'):
+        if machine.monitoring.method in ('collectd-graphite'):
             if not config.HAS_CORE:
                 raise Exception
             url = "%s/machines/%s" % (config.MONITOR_URI, machine.id)

@@ -112,6 +112,17 @@ def atomic_write_file(path, content):
         os.rename(tmp_path, path)
 
 
+def is_email_valid(email):
+    """E-mail address validator.
+
+    Ensure the e-mail is a valid expression and the provider is not banned.
+
+    """
+    match = re.match(r'^[\w\.-]+@([a-zA-Z0-9-]+)(\.[a-zA-Z0-9-]+)+$', email)
+    return (match and
+            ''.join(match.groups()) not in config.BANNED_EMAIL_PROVIDERS)
+
+
 def params_from_request(request):
     """Get the parameters dict from request.
 

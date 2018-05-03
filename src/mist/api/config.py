@@ -38,6 +38,7 @@ print >> sys.stderr, "MIST_API_DIR is %s" % MIST_API_DIR
 
 PORTAL_NAME = "Mist.io"
 CORE_URI = "http://localhost"
+LICENSE_KEY = ""
 AMQP_URI = "rabbitmq:5672"
 MEMCACHED_HOST = ["memcached:11211"]
 BROKER_URL = "amqp://guest:guest@rabbitmq/"
@@ -47,6 +48,7 @@ THEME = ""
 GC_SCHEDULERS = True
 VERSION_CHECK = True
 USAGE_SURVEY = False
+ENABLE_METERING = True
 
 ELASTICSEARCH = {
     'elastic_host': 'elasticsearch',
@@ -65,8 +67,7 @@ PY_LOG_FORMAT = '%(asctime)s %(levelname)s %(threadName)s %(module)s - %(funcNam
 PY_LOG_FORMAT_DATE = "%Y-%m-%d %H:%M:%S"
 LOG_EXCEPTIONS = True
 
-JS_BUILD = False
-CSS_BUILD = False
+JS_BUILD = True
 JS_LOG_LEVEL = 3
 
 ENABLE_DEV_USERS = False
@@ -1163,6 +1164,7 @@ CTA = {
 }
 
 SHOW_FOOTER = False
+REDIRECT_HOME_TO_SIGNIN = False
 ALLOW_SIGNUP_EMAIL = True
 ALLOW_SIGNUP_GOOGLE = False
 ALLOW_SIGNUP_GITHUB = False
@@ -1197,7 +1199,7 @@ FROM_ENV_STRINGS = [
     'AMQP_URI', 'BROKER_URL', 'CORE_URI', 'MONGO_URI', 'MONGO_DB', 'DOCKER_IP',
     'DOCKER_PORT', 'DOCKER_TLS_KEY', 'DOCKER_TLS_CERT', 'DOCKER_TLS_CA',
     'UI_TEMPLATE_URL', 'LANDING_TEMPLATE_URL', 'THEME',
-    'DEFAULT_MONITORING_METHOD'
+    'DEFAULT_MONITORING_METHOD', 'LICENSE_KEY',
 ]
 FROM_ENV_INTS = [
 ]
@@ -1264,7 +1266,8 @@ HAS_CLOUDIFY_INSIGHTS = HAS_INSIGHTS and HAS_ORCHESTRATION
 # Update TELEGRAF_TARGET.
 
 if not TELEGRAF_TARGET:
-    if urlparse.urlparse(CORE_URI).hostname in ('localhost', '127.0.0.1'):
+    if urlparse.urlparse(CORE_URI).hostname in ('localhost', '127.0.0.1',
+                                                '172.17.0.1'):
         TELEGRAF_TARGET = "http://traefik"
     else:
         TELEGRAF_TARGET = CORE_URI + '/ingress'
@@ -1300,6 +1303,16 @@ if ENABLE_MONITORING:
         'task': 'mist.api.monitoring.tasks.reset_traefik_config',
         'schedule': datetime.timedelta(minutes=2),
     }
+if ENABLE_METERING:
+    _schedule['find-machine-cores'] = {
+        'task': 'mist.api.metering.tasks.find_machine_cores',
+        'schedule': datetime.timedelta(minutes=10),
+    }
+    _schedule['push-metering-info'] = {
+        'task': 'mist.api.metering.tasks.push_metering_info',
+        'schedule': datetime.timedelta(minutes=30),
+    }
+
 if _schedule:
     CELERY_SETTINGS.update({'CELERYBEAT_SCHEDULE': _schedule})
 
@@ -1332,6 +1345,7 @@ HOMEPAGE_INPUTS = {
         'signin_email': ALLOW_SIGNIN_EMAIL,
         'signin_google': ALLOW_SIGNIN_GOOGLE,
         'signin_github': ALLOW_SIGNIN_GITHUB,
+        'signin_home': REDIRECT_HOME_TO_SIGNIN,
         'landing_footer': SHOW_FOOTER,
         'docs': DOCS_URI,
         'support': SUPPORT_URI

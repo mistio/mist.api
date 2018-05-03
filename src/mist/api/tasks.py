@@ -3,6 +3,7 @@ import re
 import uuid
 import json
 import logging
+import datetime
 import mongoengine as me
 
 from time import time
@@ -28,7 +29,7 @@ from mist.api.exceptions import CloudNotFoundError
 from mist.api.shell import Shell
 
 from mist.api.users.models import User, Owner, Organization
-from mist.api.clouds.models import Cloud, DockerCloud
+from mist.api.clouds.models import Cloud, DockerCloud, CloudLocation, CloudSize
 from mist.api.machines.models import Machine
 from mist.api.scripts.models import Script
 from mist.api.schedules.models import Schedule
@@ -684,21 +685,6 @@ class UserTask(Task):
             return 120  # Retry in 120sec after the second error
         if len(errors) == 3:
             return 60 * 10  # Retry in 10mins after the third error
-
-
-class ListSizes(UserTask):
-    abstract = False
-    task_key = 'list_sizes'
-    result_expires = 60 * 60 * 24 * 7
-    result_fresh = 60 * 60
-    polling = False
-    soft_time_limit = 30
-
-    def execute(self, owner_id, cloud_id):
-        from mist.api import methods
-        owner = Owner.objects.get(id=owner_id)
-        sizes = methods.list_sizes(owner, cloud_id)
-        return {'cloud_id': cloud_id, 'sizes': sizes}
 
 
 class ListNetworks(UserTask):
@@ -1412,6 +1398,14 @@ def gc_schedulers():
                 entry.delete()
             except Exception as exc:
                 log.error(exc)
+
+
+@app.task
+def set_missing_since(cloud_id):
+    for Model in (Machine, CloudLocation, CloudSize):
+        Model.objects(cloud=cloud_id, missing_since=None).update(
+            missing_since=datetime.datetime.utcnow()
+        )
 
 
 @app.task

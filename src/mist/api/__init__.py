@@ -101,10 +101,7 @@ def main(global_config, **settings):
 
     for plugin in config.PLUGINS:
         log.info("Loading plugin mist.%s", plugin)
-        try:
-            configurator.include('mist.%s.add_routes' % plugin)
-        except ImportError:
-            pass
+        configurator.include('mist.%s.add_routes' % plugin)
         configurator.scan('mist.%s' % plugin)
 
     return mist.api.auth.middleware.AuthMiddleware(
@@ -255,6 +252,9 @@ def add_routes(configurator):
     configurator.add_route('api_v1_rules', '/api/v1/rules')
     configurator.add_route('api_v1_rule', '/api/v1/rules/{rule}')
     configurator.add_route('api_v1_rule_triggered', '/api/v1/rule-triggered')
+
+    # Metering.
+    configurator.add_route('api_v1_metering', '/api/v1/metering')
 
     configurator.add_route('api_v1_zones',
                            '/api/v1/clouds/{cloud}/dns/zones')
