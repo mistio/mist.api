@@ -122,6 +122,11 @@ def add_script(request):
             "'collectd_python_plugin')."
         )
 
+    # Set ownership.
+    script.owned_by = script.created_by = auth_context.user
+    script.save()
+    auth_context.user.get_ownership_mapper(auth_context.owner).update(script)
+
     if script_tags:
         add_tags_to_resource(auth_context.owner, script, script_tags.items())
 

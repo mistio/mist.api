@@ -96,6 +96,9 @@ class Cloud(me.Document):
 
     deleted = me.DateTimeField()
 
+    owned_by = me.ReferenceField('User', reverse_delete_rule=me.NULLIFY)
+    created_by = me.ReferenceField('User', reverse_delete_rule=me.NULLIFY)
+
     meta = {
         'strict': False,
         'allow_inheritance': True,
@@ -197,6 +200,8 @@ class Cloud(me.Document):
                 for tag in Tag.objects(owner=self.owner,
                                        resource=self).only('key', 'value')
             ],
+            'owned_by': self.owned_by.id if self.owned_by else '',
+            'created_by': self.created_by.id if self.created_by else '',
         }
         cdict.update({key: getattr(self, key)
                       for key in self._cloud_specific_fields

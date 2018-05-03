@@ -155,6 +155,9 @@ class Script(me.Document):
 
     migrated = me.BooleanField()  # NOTE For collectd scripts' migration.
 
+    owned_by = me.ReferenceField('User', reverse_delete_rule=me.NULLIFY)
+    created_by = me.ReferenceField('User', reverse_delete_rule=me.NULLIFY)
+
     _controller_cls = None
 
     def __init__(self, *args, **kwargs):
@@ -219,6 +222,8 @@ class Script(me.Document):
             'description': self.description,
             'exec_type': self.exec_type,
             'location': self.location.as_dict(),
+            'owned_by': self.owned_by.id if self.owned_by else '',
+            'created_by': self.created_by.id if self.created_by else '',
         }
 
     def __str__(self):

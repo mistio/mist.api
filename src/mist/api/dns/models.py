@@ -47,6 +47,9 @@ class Zone(me.Document):
 
     deleted = me.DateTimeField()
 
+    owned_by = me.ReferenceField('User', reverse_delete_rule=me.NULLIFY)
+    created_by = me.ReferenceField('User', reverse_delete_rule=me.NULLIFY)
+
     meta = {
         'collection': 'zones',
         'indexes': [
@@ -109,7 +112,9 @@ class Zone(me.Document):
             'type': self.type,
             'ttl': self.ttl,
             'extra': self.extra,
-            'cloud': self.cloud.id
+            'cloud': self.cloud.id,
+            'owned_by': self.owned_by.id if self.owned_by else '',
+            'created_by': self.created_by.id if self.created_by else '',
         }
 
     def clean(self):
@@ -142,6 +147,9 @@ class Record(me.Document):
     owner = me.ReferenceField('Organization', required=True)
 
     deleted = me.DateTimeField()
+
+    owned_by = me.ReferenceField('User', reverse_delete_rule=me.NULLIFY)
+    created_by = me.ReferenceField('User', reverse_delete_rule=me.NULLIFY)
 
     meta = {
         'collection': 'records',
@@ -225,7 +233,9 @@ class Record(me.Document):
             'rdata': self.rdata,
             'ttl': self.ttl,
             'extra': self.extra,
-            'zone': self.zone.id
+            'zone': self.zone.id,
+            'owned_by': self.owned_by.id if self.owned_by else '',
+            'created_by': self.created_by.id if self.created_by else '',
         }
 
 

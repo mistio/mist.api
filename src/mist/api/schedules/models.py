@@ -210,6 +210,9 @@ class Schedule(me.Document, ConditionalClassMixin):
     total_run_count = me.IntField(min_value=0, default=0)
     max_run_count = me.IntField(min_value=0, default=0)
 
+    owned_by = me.ReferenceField('User', reverse_delete_rule=me.NULLIFY)
+    created_by = me.ReferenceField('User', reverse_delete_rule=me.NULLIFY)
+
     no_changes = False
 
     def __init__(self, *args, **kwargs):
@@ -249,7 +252,10 @@ class Schedule(me.Document, ConditionalClassMixin):
         schedule = cls(owner=owner, name=name)
         schedule.ctl.set_auth_context(auth_context)
         schedule.ctl.add(**kwargs)
-
+        schedule.owned_by = schedule.created_by = auth_context.user
+        schedule.save()
+        mapper = auth_context.user.get_ownership_mapper(auth_context.owner)
+        mapper.update(schedule)
         return schedule
 
     @property
@@ -365,6 +371,8 @@ class Schedule(me.Document, ConditionalClassMixin):
             'total_run_count': self.total_run_count,
             'max_run_count': self.max_run_count,
             'conditions': conditions,
+            'owned_by': self.owned_by.id if self.owned_by else '',
+            'created_by': self.created_by.id if self.created_by else '',
         }
 
         return sdict
