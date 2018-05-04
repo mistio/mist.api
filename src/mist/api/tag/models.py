@@ -21,7 +21,7 @@ class Tag(me.Document):
     meta = {
         'indexes': [
             {
-                'fields': ['resource', 'key'],
+                'fields': ['owner', 'resource', 'key'],
                 'sparse': False,
                 'unique': True,
                 'cls': False,
