@@ -640,7 +640,7 @@ def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3,
     if html_body:
         msg = MIMEMultipart('alternative')
     else:
-        msg = MIMEText(body.encode('utf-8', 'ignore') , 'plain')
+        msg = MIMEText(body.encode('utf-8', 'ignore'), 'plain')
 
     msg["Subject"] = subject
     msg["From"] = sender
