@@ -611,7 +611,6 @@ class Organization(Owner):
             # make sure owners policy allows all permissions
             if owners.policy.operator != 'ALLOW':
                 owners.policy.operator = 'ALLOW'
-                owners.policy.save()
                 log.warning("Owners policy must be set to ALLOW. Updating...")
 
             # make sure owners policy doesn't contain specific rules
