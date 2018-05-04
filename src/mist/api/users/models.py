@@ -610,7 +610,9 @@ class Organization(Owner):
         if config.HAS_RBAC:
             # make sure owners policy allows all permissions
             if owners.policy.operator != 'ALLOW':
-                raise me.ValidationError("Owners policy must be set to ALLOW.")
+                owners.policy.operator = 'ALLOW'
+                owners.policy.save()
+                log.warning("Owners policy must be set to ALLOW. Updating...")
 
             # make sure owners policy doesn't contain specific rules
             if owners.policy.rules:
