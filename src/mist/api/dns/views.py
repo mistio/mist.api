@@ -105,17 +105,17 @@ def create_dns_zone(request):
         raise CloudNotFoundError
 
     params = params_from_request(request)
-    new_zone = Zone.add(owner=cloud.owner, cloud=cloud, **params).as_dict()
+    new_zone = Zone.add(owner=cloud.owner, cloud=cloud, **params)
     new_zone.owned_by = new_zone.created_by = auth_context.user
     new_zone.save()
     auth_context.user.get_ownership_mapper(auth_context.owner).update(new_zone)
 
     if tags:
-        resolve_id_and_set_tags(auth_context.owner, 'zone', new_zone['id'],
+        resolve_id_and_set_tags(auth_context.owner, 'zone', new_zone.id,
                                 tags, cloud_id=cloud_id)
 
     trigger_session_update(auth_context.owner, ['zones'])
-    return new_zone
+    return new_zone.as_dict()
 
 
 @view_config(route_name='api_v1_records', request_method='POST',
@@ -160,17 +160,17 @@ def create_dns_record(request):
     params = params_from_request(request)
     dns_cls = RECORDS[params['type']]
 
-    rec = dns_cls.add(owner=auth_context.owner, zone=zone, **params).as_dict()
+    rec = dns_cls.add(owner=auth_context.owner, zone=zone, **params)
     rec.owned_by = rec.created_by = auth_context.user
     rec.save()
     auth_context.user.get_ownership_mapper(auth_context.owner).update(rec)
 
     if tags:
-        resolve_id_and_set_tags(auth_context.owner, 'record', rec['id'], tags,
+        resolve_id_and_set_tags(auth_context.owner, 'record', rec.id, tags,
                                 cloud_id=cloud_id, zone_id=zone_id)
 
     trigger_session_update(auth_context.owner, ['zones'])
-    return rec
+    return rec.as_dict()
 
 
 @view_config(route_name='api_v1_zone', request_method='DELETE',

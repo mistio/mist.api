@@ -968,9 +968,12 @@ def create_machine_async(
             error = repr(exc)
         finally:
             name = args[3]
-            log_event(auth_context.owner.id, 'job', 'machine_creation_finished', job=job,
-                      job_id=job_id, cloud_id=cloud_id, machine_name=name,
-                      error=error, machine_id=node.get('id', ''), user_id=auth_context.user.id)
+            log_event(
+                auth_context.owner.id, 'job', 'machine_creation_finished',
+                job=job, job_id=job_id, cloud_id=cloud_id, machine_name=name,
+                error=error, machine_id=node.get('id', ''),
+                user_id=auth_context.user.id
+            )
 
     pool.map(create_machine_wrapper, specs)
     pool.close()

@@ -170,13 +170,15 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     # or monitoring are supplied, this will run after both finish
     # post_script_params: extra params, for post_script_id
     log.info('Creating machine %s on cloud %s' % (machine_name, cloud_id))
-    cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id, deleted=None)
+    cloud = Cloud.objects.get(owner=auth_context.owner,
+                              id=cloud_id, deleted=None)
     conn = connect_provider(cloud)
 
     machine_name = machine_name_validator(conn.type, machine_name)
     key = None
     if key_id:
-        key = Key.objects.get(owner=auth_context.owner, id=key_id, deleted=None)
+        key = Key.objects.get(owner=auth_context.owner,
+                              id=key_id, deleted=None)
 
     # if key_id not provided, search for default key
     if conn.type not in [Provider.LIBVIRT,
@@ -184,7 +186,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                          Provider.ONAPP,
                          Provider.AZURE_ARM]:
         if not key_id:
-            key = Key.objects.get(owner=auth_context.owner, default=True, deleted=None)
+            key = Key.objects.get(owner=auth_context.owner,
+                                  default=True, deleted=None)
             key_id = key.name
     if key:
         private_key = key.private
@@ -478,10 +481,10 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
 
     elif key_id:
         mist.api.tasks.post_deploy_steps.delay(
-            auth_context.owner.id, cloud_id, node.id, monitoring, script=script,
-            key_id=key_id, script_id=script_id, script_params=script_params,
-            job_id=job_id, job=job, hostname=hostname, plugins=plugins,
-            post_script_id=post_script_id,
+            auth_context.owner.id, cloud_id, node.id, monitoring,
+            script=script, key_id=key_id, script_id=script_id,
+            script_params=script_params, job_id=job_id, job=job,
+            hostname=hostname, plugins=plugins, post_script_id=post_script_id,
             post_script_params=post_script_params, schedule=schedule,
         )
 
