@@ -20,103 +20,12 @@ from mist.api.auth.methods import auth_context_from_request
 
 from mist.api.machines.models import Machine
 
+from mist.api.notifications.models import Notification
+
 from mist.api import config
 
 
 log = logging.getLogger(__name__)
-
-
-# FIXME Deprecated!
-def _get_transformed_params(auth_context, params):
-    # Sanitize reminder_offset.
-    reminder_offset = params.get('reminder_offset') or 0
-    try:
-        reminder_offset = int(reminder_offset)
-        if reminder_offset < 0:
-            raise ValueError()
-        reminder_offset -= reminder_offset % 60
-    except (ValueError, TypeError):
-        raise BadRequestError('Invalid value for mins: %r' % reminder_offset)
-
-    # Sanitize threshold value.
-    try:
-        value = float(params.get('value') or 0)
-    except ValueError:
-        raise BadRequestError('Invalid value: %s' % params.get('value'))
-
-    # Clean e-mail addresses.
-    emails = params.get('emails') or []
-    if not isinstance(emails, list):
-        emails = [emails]
-    emails = [e.strip() for e in emails if e.strip()]
-
-    # Get list of user/team IDs.
-    teams = params.get('teams') or []
-    users = params.get('users') or []
-    if not isinstance(teams, list):
-        raise BadRequestError('"teams" must be a list of Team UUIDs')
-    if not isinstance(users, list):
-        raise BadRequestError('"users" must be a list of User UUIDs')
-
-    # Get metric.
-    metric = params.get('metric')
-    metric = {
-        'cpu': 'cpu.total.nonidle',
-        'load': 'load.shortterm',
-        'ram': 'memory.nonfree_percent',
-        'disk-read': 'disk.total.disk_octets.read',
-        'disk-write': 'disk.total.disk_octets.write',
-        'network-rx': 'interface.total.if_octets.rx',
-        'network-tx': 'interface.total.if_octets.tx',
-    }.get(metric, metric)
-
-    # Verify machine ownership.
-    cloud_id = params.get('cloudId') or params.get('cloud')
-    machine_id = params.get('machineId') or params.get('machine')
-    try:
-        machine = Machine.objects.get(owner=auth_context.owner, cloud=cloud_id,
-                                      machine_id=machine_id)
-    except Machine.DoesNotExist:
-        raise NotFoundError('Machine %s does not exist' % machine_id)
-
-    # Transform params.
-    kwargs = {
-        'queries': [{
-            'target': metric,
-            'operator': params.get('operator'),
-            'threshold': value,
-            'aggregation': params.get('aggregate', 'all'),
-        }],
-        'window': {
-            'start': reminder_offset + 60,
-            'period': 'seconds',
-        },
-        'frequency': {
-            'every': reminder_offset + 60,
-            'period': 'seconds',
-        },
-        'actions': [
-            {
-                'type': 'notification',
-                'emails': emails,
-                'users': users,
-                'teams': teams,
-            },
-        ],
-        'selectors': [
-            {
-                'type': 'machines',
-                'ids': [machine.id],
-            },
-        ],
-    }
-    if params.get('action') == 'command':
-        kwargs['actions'].append({'type': 'command',
-                                  'command': params.get('command')})
-    if params.get('action') in ('reboot', 'destroy', ):
-        kwargs['actions'].append({'type': 'machine_action',
-                                  'action': params.get('action')})
-    return kwargs
 
 
 @view_config(route_name='api_v1_rules', request_method='GET', renderer='json')
@@ -314,7 +223,6 @@ def add_rule(request):
 
     # Pyramid's `NestedMultiDict` is immutable.
     kwargs = dict(params.copy())
-    # kwargs = _get_transformed_params(auth_context, dict(params.copy()))
 
     # FIXME Remove. Now there is a discrete API endpoint for updates.
     if params.get('id'):
@@ -360,6 +268,9 @@ def update_rule(request):
         rule = Rule.objects.get(owner_id=auth_context.owner.id, id=rule_id)
         rule.ctl.set_auth_context(auth_context)
         rule.ctl.update(**params)
+        Notification.objects(  # Delete related notifications.
+            owner=auth_context.owner, rtype='rule', rid=rule_id
+        ).delete()
     except Rule.DoesNotExist:
         raise RuleNotFoundError()
     return rule.as_dict()
@@ -475,6 +386,9 @@ def delete_rule(request):
         rule = Rule.objects.get(owner_id=auth_context.owner.id, id=rule_id)
         rule.ctl.set_auth_context(auth_context)
         rule.ctl.delete()
+        Notification.objects(  # Delete related notifications.
+            owner=auth_context.owner, rtype='rule', rid=rule_id
+        ).delete()
     except Rule.DoesNotExist:
         raise RuleNotFoundError()
     return Response('OK', 200)

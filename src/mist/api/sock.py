@@ -27,6 +27,7 @@ from mist.api.logs.methods import get_stories
 from mist.api.logs.methods import create_stories_patch
 
 from mist.api.clouds.models import Cloud
+from mist.api.machines.models import Machine
 
 from mist.api.auth.methods import auth_context_from_session_id
 
@@ -185,9 +186,9 @@ class ShellConnection(MistConnection):
             self.close()
         try:
             if not data.get('job_id'):
-                self.auth_context.check_perm(
-                    'machine', 'open_shell', data['machine_id']
-                )
+                m = Machine.objects.get(cloud=data['cloud_id'],
+                                        machine_id=data['machine_id'])
+                self.auth_context.check_perm('machine', 'open_shell', m.id)
         except PolicyUnauthorizedError as err:
             self.emit_shell_data('%s' % err)
             self.close()
@@ -419,9 +420,16 @@ class MainConnection(MistConnection):
                     {'cloud_id': cloud_id, 'locations': locations}
                 ),
             )
+            self.internal_request(
+                'api/v1/clouds/%s/sizes' % cloud.id,
+                params={'cached': True},
+                callback=lambda sizes, cloud_id=cloud.id: self.send(
+                    'list_sizes',
+                    {'cloud_id': cloud_id, 'sizes': sizes}
+                ),
+            )
 
         periodic_tasks.extend([('list_images', tasks.ListImages()),
-                               ('list_sizes', tasks.ListSizes()),
                                ('list_networks', tasks.ListNetworks()),
                                ('list_zones', tasks.ListZones()),
                                ('list_resource_groups',
@@ -641,15 +649,15 @@ class MainConnection(MistConnection):
             if patch:
                 self.batch.extend(patch)
 
-        elif routing_key == 'patch_locations':
+        elif routing_key in ['patch_locations', 'patch_sizes']:
             cloud_id = result['cloud_id']
             patch = result['patch']
-
-            # remove '/'
             for line in patch:
-                location_id = line['path'][1:]
-                line['path'] = '/clouds/%s/locations/%s' % (cloud_id,
-                                                            location_id)
+                _id = line['path'][1:]
+                if routing_key == 'patch_locations':
+                    line['path'] = '/clouds/%s/locations/%s' % (cloud_id, _id)
+                elif routing_key == 'patch_sizes':
+                    line['path'] = '/clouds/%s/sizes/%s' % (cloud_id, _id)
             if patch:
                 self.batch.extend(patch)
 

@@ -10,6 +10,7 @@ app.autodiscover_tasks([
     'mist.api.poller',
     'mist.api.portal',
     'mist.api.monitoring',
+    'mist.api.metering',
     'mist.api.rules',
     'mist.api.auth',
 ])

@@ -78,12 +78,15 @@ class Monitoring(me.EmbeddedDocument):
     # Most of these will change with the new UI.
     hasmonitoring = me.BooleanField()
     monitor_server = me.StringField()  # Deprecated
-    collectd_password = me.StringField(
-        default=lambda: os.urandom(32).encode('hex'))
+    collectd_password = me.StringField()
     metrics = me.ListField()  # list of metric_id's
     installation_status = me.EmbeddedDocumentField(InstallationStatus)
     method = me.StringField(choices=config.MONITORING_METHODS)
     method_since = me.DateTimeField()
+
+    def clean(self):
+        if not self.collectd_password:
+            self.collectd_password = os.urandom(32).encode('hex')
 
     def get_commands(self):
         if self.method == 'collectd-graphite' and config.HAS_CORE:
@@ -110,11 +113,11 @@ class Monitoring(me.EmbeddedDocument):
             raise Exception("Invalid monitoring method %s" % self.method)
 
     def get_rules_dict(self):
+        from mist.api.rules.models import MachineMetricRule
         m = self._instance
-        return {rid: rdict
-                for rid, rdict in m.cloud.owner.get_rules_dict().items()
-                if rdict['cloud'] == m.cloud.id and
-                rdict['machine'] == m.machine_id}
+        return {rule.id: rule.as_dict() for
+                rule in MachineMetricRule.objects(owner_id=m.owner.id) if
+                rule.ctl.includes_only(m)}
 
     def as_dict(self):
         status = self.installation_status
@@ -260,6 +263,7 @@ class Machine(me.Document):
     cloud = me.ReferenceField('Cloud', required=True)
     owner = me.ReferenceField('Organization', required=True)
     location = me.ReferenceField('CloudLocation', required=False)
+    size = me.ReferenceField('CloudSize', required=False)
     name = me.StringField()
 
     # Info gathered mostly by libcloud (or in some cases user input).
@@ -277,7 +281,6 @@ class Machine(me.Document):
     extra = me.DictField()
     cost = me.EmbeddedDocumentField(Cost, default=lambda: Cost())
     image_id = me.StringField()
-    size = me.StringField()
     # libcloud.compute.types.NodeState
     state = me.StringField(default='unknown',
                            choices=('running', 'starting', 'rebooting',
@@ -302,6 +305,10 @@ class Machine(me.Document):
 
     ssh_probe = me.EmbeddedDocumentField(SSHProbe, required=False)
     ping_probe = me.EmbeddedDocumentField(PingProbe, required=False)
+
+    # Number of vCPUs gathered from various sources. This field is meant to
+    # be updated ONLY by the mist.api.metering.tasks:find_machine_cores task.
+    cores = me.IntField()
 
     meta = {
         'collection': 'machines',
@@ -389,7 +396,6 @@ class Machine(me.Document):
             'extra': self.extra,
             'cost': self.cost.as_dict(),
             'image_id': self.image_id,
-            'size': self.size,
             'state': self.state,
             'tags': tags,
             'monitoring':
@@ -398,6 +404,7 @@ class Machine(me.Document):
             'key_associations': [ka.as_dict() for ka in self.key_associations],
             'cloud': self.cloud.id,
             'location': self.location.id if self.location else '',
+            'size': self.size.name if self.size else '',
             'cloud_title': self.cloud.title,
             'last_seen': str(self.last_seen.replace(tzinfo=None)
                              if self.last_seen else ''),
@@ -418,6 +425,7 @@ class Machine(me.Document):
                         if self.ssh_probe is not None
                         else SSHProbe().as_dict()),
             },
+            'cores': self.cores,
         }
 
     def __str__(self):

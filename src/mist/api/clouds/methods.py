@@ -10,6 +10,7 @@ from mist.api.exceptions import BadRequestError, NotFoundError
 
 from mist.api.poller.models import ListMachinesPollingSchedule
 from mist.api.poller.models import ListLocationsPollingSchedule
+from mist.api.poller.models import ListSizesPollingSchedule
 
 from mist.api.monitoring.methods import disable_monitoring_cloud
 
@@ -77,6 +78,10 @@ def add_cloud_v_2(owner, title, provider, params):
     # schedules poll resource that should hardly ever change. Thus, we
     # add the schedules, increase their interval, and forget about them.
     schedule = ListLocationsPollingSchedule.add(cloud=cloud)
+    schedule.set_default_interval(60 * 60 * 24)
+    schedule.save()
+
+    schedule = ListSizesPollingSchedule.add(cloud=cloud)
     schedule.set_default_interval(60 * 60 * 24)
     schedule.save()
 

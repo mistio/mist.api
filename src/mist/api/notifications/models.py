@@ -200,7 +200,7 @@ class Notification(me.Document):
         """Return True if self is due."""
         if not self.reminder_enabled and self.reminder_count:
             return False
-        if self.reminder_count > len(self.reminder_schedule):
+        if self.reminder_count >= len(self.reminder_schedule):
             return False
         if self.due_in().total_seconds() > 0:
             return False
