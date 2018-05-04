@@ -413,6 +413,7 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=''):
             rule.ctl.maybe_remove(machine)
 
     machine.monitoring.hasmonitoring = False
+    machine.monitoring.activated_at = 0
     machine.save()
 
     # tell monitor server to no longer monitor this uuid
