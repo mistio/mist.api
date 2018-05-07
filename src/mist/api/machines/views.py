@@ -26,8 +26,8 @@ from mist.api.monitoring.methods import disable_monitoring
 
 from mist.api import config
 
-if config.HAS_CORE:
-    from mist.core.vpn.methods import destination_nat as dnat
+if config.HAS_VPN:
+    from mist.vpn.methods import destination_nat as dnat
 else:
     from mist.api.dummy.methods import dnat
 

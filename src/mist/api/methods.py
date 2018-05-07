@@ -305,8 +305,8 @@ def _ping_host(host, pkts=10):
 
 
 def ping(owner, host, pkts=10):
-    if config.HAS_CORE:
-        from mist.core.vpn.methods import super_ping
+    if config.HAS_VPN:
+        from mist.vpn.methods import super_ping
         result = super_ping(owner=owner, host=host, pkts=pkts)
     else:
         result = _ping_host(host, pkts=pkts)

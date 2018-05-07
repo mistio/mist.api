@@ -51,8 +51,8 @@ from mist.api.clouds.controllers.base import BaseController
 from mist.api.tag.models import Tag
 from mist.api.machines.models import Machine
 
-if config.HAS_CORE:
-    from mist.core.vpn.methods import destination_nat as dnat
+if config.HAS_VPN:
+    from mist.vpn.methods import destination_nat as dnat
 else:
     from mist.api.dummy.methods import dnat
 
