@@ -1259,6 +1259,7 @@ HAS_BILLING = 'billing' in PLUGINS
 HAS_RBAC = 'rbac' in PLUGINS
 HAS_INSIGHTS = 'insights' in PLUGINS
 HAS_ORCHESTRATION = 'orchestration' in PLUGINS
+HAS_EXPERIMENTS = 'experiments' in PLUGINS
 
 
 # Update TELEGRAF_TARGET.

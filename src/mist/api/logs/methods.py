@@ -22,7 +22,7 @@ from mist.api.logs.constants import FIELDS, JOBS
 from mist.api.logs.constants import EXCLUDED_BUCKETS, TYPES
 from mist.api.logs.constants import STARTS_STORY, CLOSES_STORY, CLOSES_INCIDENT
 
-if config.HAS_CORE:
+if config.HAS_EXPERIMENTS:
     from mist.experiments.helpers import cross_populate_session_data
 else:
     from mist.api.dummy.methods import cross_populate_session_data
