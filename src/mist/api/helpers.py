@@ -25,6 +25,10 @@ import tempfile
 import traceback
 import functools
 import jsonpickle
+import tarfile
+import StringIO
+import memcache
+import collections
 
 from time import time, strftime, sleep
 
@@ -75,6 +79,198 @@ logging.basicConfig(level=config.PY_LOG_LEVEL,
                     format=config.PY_LOG_FORMAT,
                     datefmt=config.PY_LOG_FORMAT_DATE)
 log = logging.getLogger(__name__)
+
+all_routes = {}
+
+
+def snake_to_camel(s):
+    return reduce(lambda y, z: y + z.capitalize(), s.split('_'))
+
+
+def flatten_dict(d, parent_key='', sep='__'):
+    """
+    Flatten a nested dict
+    """
+    items = []
+    for k, v in d.items():
+        new_key = parent_key + sep + k if parent_key else k
+        if isinstance(v, collections.MutableMapping):
+            items.extend(flatten_dict(v, new_key, sep=sep).items())
+        else:
+            items.append((new_key, v))
+    return dict(items)
+
+
+def user_from_field(key, value):
+    return mist.api.users.models.User.objects.get(**{key: value})
+
+
+class CheckSumError(Exception):
+    pass
+
+
+def _lazysecret(secret, blocksize=32, padding='}'):
+    """pads secret if not legal AES block size (16, 24, 32)"""
+    if not len(secret) in (16, 24, 32):
+        return secret + (blocksize - len(secret)) * padding
+    return secret
+
+
+def clear_cache(key):
+    """Clear cached response for key.
+
+    """
+    cache = memcache.Client(config.MEMCACHED_HOST)
+    cache.delete(str(key))
+    log.info("clearing cache for key %s" % key)
+
+
+def subscribe_log_events_raw(callback=None, routing_keys=('#')):
+    raise NotImplementedError()  # change email to owner.id etc
+
+    def preparse_event_dec(func):
+        def wrapped(msg):
+            try:
+                # bring extra key-value pairs to top level
+                for key, val in json.loads(msg.body.pop('extra')).items():
+                    msg.body[key] = val
+            except:
+                pass
+            return func(msg)
+        return wrapped
+
+    def echo(msg):
+        event = msg.body
+        # print msg.delivery_info.get('routing_key'),
+        try:
+            if 'email' in event and 'type' in event and 'action' in event:
+                print event.pop('email'), event.pop('type'), \
+                    event.pop('action')
+            err = event.pop('error', False)
+            if err:
+                print '  error:', err
+            time = event.pop('time')
+            if time:
+                print '  date:', datetime.datetime.fromtimestamp(time)
+            for key, val in event.items():
+                print '  %s: %s' % (key, val)
+        except:
+            print event
+
+    if callback is None:
+        callback = echo
+    callback = preparse_event_dec(callback)
+    log.info('Subscribing to log events with routing keys %s', routing_keys)
+    mist.api.helpers.amqp_subscribe('events', callback, ex_type='topic',
+                                    routing_keys=routing_keys)
+
+
+def subscribe_log_events(callback=None, email='*', event_type='*', action='*',
+                         error='*'):
+    raise NotImplementedError()  # change email to owner.id etc
+    keys = [str(var).lower().replace('.', '^')
+            for var in (email, event_type, action, error)]
+    routing_key = '.'.join(keys)
+    subscribe_log_events_raw(callback, [routing_key])
+
+
+def choose_monitor_server():
+    """Returns the server responsible for monitoring the specified machine.
+
+    Do some nifty balancing and return the IP of the relevant monitor server.
+    TODO: Replace dummy code
+
+    """
+    # connection = MongoClient(config.MONGO_URI)
+    # monitors = connection['mist'].monitors.find({'status': 'active'})
+    # log.debug("monitor = '%s' (%d)" % (monitors, monitors.count()))
+    # best_monitor = monitors[0]
+    # for monitor in monitors:
+    #     if monitor['users'] < best_monitor['users']:
+    #         best_monitor = monitor
+    # return best_monitor
+    return {'uri': config.MONITOR_URI}
+
+
+def has_beta_access(user):
+    """Returns flag defining whether the frontend will display beta features"""
+    if user.role == 'Admin':
+        return True
+    if user.email in config.BETA_ACCESS_USERS:
+        return True
+    return user.beta_access
+
+
+def tarball_from_files(files):
+    """Files must be a dict with filenames as keys and contents as values"""
+    fobj = StringIO.StringIO()
+    tarball = tarfile.open(fileobj=fobj, mode='w:gz')
+    for name, content in files.items():
+        fobj_tmp = StringIO.StringIO(content)
+        tinfo = tarfile.TarInfo(name)
+        tinfo.size = len(content)
+        tarball.addfile(tinfo, fileobj=fobj_tmp)
+    tarball.close()
+    fobj.seek(0)
+    return fobj.read()
+
+
+def transform_resource_properties(params):
+    resource_type_params = {
+        "image": ["cloud_id", "image_id"],
+        "network": ["cloud_id", "network_id"],
+        "machine": ["cloud_id", "machine_id"],
+        "script": ["script_id"],
+        "key": ["key_id"],
+        "cloud": ["cloud_id"],
+        "template": ["template_id"],
+        "stack": ["stack_id"]
+    }
+    args = []
+    for resource_type in resource_type_params:
+        valid = True
+        for param in resource_type_params[resource_type]:
+            if not params.get(param):
+                valid = False
+        if valid:
+            break
+    if valid:
+        for param in resource_type_params[resource_type]:
+            args.append(params.get(param))
+    else:
+        return "", []
+    return resource_type, args
+
+
+def get_resource_model(rtype):
+    model_path = rtype_to_classpath[rtype]
+    mod, member = model_path.rsplit('.', 1)
+    __import__(mod)
+    return getattr(sys.modules[mod], member)
+
+
+def get_object_with_id(owner, rid, rtype, *args, **kwargs):
+    query = {}
+    if rtype in ['machine', 'network', 'image', 'location']:
+        if 'cloud_id' not in kwargs:
+            raise RequiredParameterMissingError('No cloud id provided')
+        else:
+            query.update({'cloud': kwargs['cloud_id']})
+    if rtype == 'machine':
+        query.update({'machine_id': rid})
+    else:
+        query.update({'id': rid})
+
+    if rtype not in ['machine', 'image']:
+        query.update({'owner': owner})
+
+    try:
+        resource_obj = get_resource_model(rtype).objects.get(**query)
+    except DoesNotExist:
+        raise NotFoundError('Resource with this id could not be located')
+
+    return resource_obj
+
 
 
 @contextmanager
