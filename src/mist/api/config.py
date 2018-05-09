@@ -48,7 +48,7 @@ THEME = ""
 GC_SCHEDULERS = True
 VERSION_CHECK = True
 USAGE_SURVEY = False
-ENABLE_METERING = True
+ENABLE_METERING = False
 
 ELASTICSEARCH = {
     'elastic_host': 'elasticsearch',
