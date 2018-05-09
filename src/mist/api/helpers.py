@@ -272,7 +272,6 @@ def get_object_with_id(owner, rid, rtype, *args, **kwargs):
     return resource_obj
 
 
-
 @contextmanager
 def get_temp_file(content, dir=None):
     """Creates a temporary file on disk and saves 'content' in it.
@@ -800,10 +799,6 @@ def rename_kwargs(kwargs, old_key, new_key):
                         old_key, new_key)
 
 
-def snake_to_camel(s):
-    return reduce(lambda y, z: y + z.capitalize(), s.split('_'))
-
-
 def ip_from_request(request):
     """Extract IP address from HTTP Request headers."""
     return (request.get('HTTP_X_REAL_IP') or
@@ -912,36 +907,6 @@ if config.HAS_ORCHESTRATION:
         {'template': 'mist.orchestration.models.Template',
          'stack': 'mist.orchestration.models.Stack'}
     )
-
-
-def get_resource_model(rtype):
-    model_path = rtype_to_classpath[rtype]
-    mod, member = model_path.rsplit('.', 1)
-    __import__(mod)
-    return getattr(sys.modules[mod], member)
-
-
-def get_object_with_id(owner, rid, rtype, *args, **kwargs):
-    query = {}
-    if rtype in ['machine', 'network', 'image', 'location']:
-        if 'cloud_id' not in kwargs:
-            raise RequiredParameterMissingError('No cloud id provided')
-        else:
-            query.update({'cloud': kwargs['cloud_id']})
-    if rtype == 'machine':
-        query.update({'machine_id': rid})
-    else:
-        query.update({'id': rid, 'deleted': None})
-
-    if rtype not in ['machine', 'image']:
-        query.update({'owner': owner})
-
-    try:
-        resource_obj = get_resource_model(rtype).objects.get(**query)
-    except DoesNotExist:
-        raise NotFoundError('Resource with this id could not be located')
-
-    return resource_obj
 
 
 def ts_to_str(timestamp):
