@@ -409,3 +409,23 @@ class RecordCreationError(InternalServerError):
 # FORBIDDEN (translated as 403 in views)
 class WhitelistIPError(ForbiddenError):
     msg = "Trying to login from a non-whitelisted IP address."
+
+
+class MonitorServerUnavailableError(ServiceUnavailableError):
+    msg = "Couldn't connect to monitor server"
+
+
+class OpenIdServiceNotFoundError(NotFoundError):
+    msg = "OpenID service was not found"
+
+
+class UnknownOpenIdError(NotFoundError):
+    mag = "No user with such open id url"
+
+
+class OpenIdFaillure(UnauthorizedError):
+    msg = "OpenId verification failed"
+
+
+class VPNTunnelError(ServiceUnavailableError):
+    msg = 'VPN Service Error'
