@@ -87,33 +87,8 @@ def snake_to_camel(s):
     return reduce(lambda y, z: y + z.capitalize(), s.split('_'))
 
 
-def flatten_dict(d, parent_key='', sep='__'):
-    """
-    Flatten a nested dict
-    """
-    items = []
-    for k, v in d.items():
-        new_key = parent_key + sep + k if parent_key else k
-        if isinstance(v, collections.MutableMapping):
-            items.extend(flatten_dict(v, new_key, sep=sep).items())
-        else:
-            items.append((new_key, v))
-    return dict(items)
-
-
 def user_from_field(key, value):
     return mist.api.users.models.User.objects.get(**{key: value})
-
-
-class CheckSumError(Exception):
-    pass
-
-
-def _lazysecret(secret, blocksize=32, padding='}'):
-    """pads secret if not legal AES block size (16, 24, 32)"""
-    if not len(secret) in (16, 24, 32):
-        return secret + (blocksize - len(secret)) * padding
-    return secret
 
 
 def clear_cache(key):
@@ -172,74 +147,6 @@ def subscribe_log_events(callback=None, email='*', event_type='*', action='*',
             for var in (email, event_type, action, error)]
     routing_key = '.'.join(keys)
     subscribe_log_events_raw(callback, [routing_key])
-
-
-def choose_monitor_server():
-    """Returns the server responsible for monitoring the specified machine.
-
-    Do some nifty balancing and return the IP of the relevant monitor server.
-    TODO: Replace dummy code
-
-    """
-    # connection = MongoClient(config.MONGO_URI)
-    # monitors = connection['mist'].monitors.find({'status': 'active'})
-    # log.debug("monitor = '%s' (%d)" % (monitors, monitors.count()))
-    # best_monitor = monitors[0]
-    # for monitor in monitors:
-    #     if monitor['users'] < best_monitor['users']:
-    #         best_monitor = monitor
-    # return best_monitor
-    return {'uri': config.MONITOR_URI}
-
-
-def has_beta_access(user):
-    """Returns flag defining whether the frontend will display beta features"""
-    if user.role == 'Admin':
-        return True
-    if user.email in config.BETA_ACCESS_USERS:
-        return True
-    return user.beta_access
-
-
-def tarball_from_files(files):
-    """Files must be a dict with filenames as keys and contents as values"""
-    fobj = StringIO.StringIO()
-    tarball = tarfile.open(fileobj=fobj, mode='w:gz')
-    for name, content in files.items():
-        fobj_tmp = StringIO.StringIO(content)
-        tinfo = tarfile.TarInfo(name)
-        tinfo.size = len(content)
-        tarball.addfile(tinfo, fileobj=fobj_tmp)
-    tarball.close()
-    fobj.seek(0)
-    return fobj.read()
-
-
-def transform_resource_properties(params):
-    resource_type_params = {
-        "image": ["cloud_id", "image_id"],
-        "network": ["cloud_id", "network_id"],
-        "machine": ["cloud_id", "machine_id"],
-        "script": ["script_id"],
-        "key": ["key_id"],
-        "cloud": ["cloud_id"],
-        "template": ["template_id"],
-        "stack": ["stack_id"]
-    }
-    args = []
-    for resource_type in resource_type_params:
-        valid = True
-        for param in resource_type_params[resource_type]:
-            if not params.get(param):
-                valid = False
-        if valid:
-            break
-    if valid:
-        for param in resource_type_params[resource_type]:
-            args.append(params.get(param))
-    else:
-        return "", []
-    return resource_type, args
 
 
 def get_resource_model(rtype):
@@ -330,22 +237,6 @@ def params_from_request(request):
     except:
         params = request.params
     return params or {}
-
-
-def b58_encode(num):
-    """Returns num in a base58-encoded string."""
-    alphabet = '123456789abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ'
-    base_count = len(alphabet)
-    encode = ''
-    if (num < 0):
-        return ''
-    while (num >= base_count):
-        mod = num % base_count
-        encode = alphabet[mod] + encode
-        num = num / base_count
-    if (num):
-        encode = alphabet[num] + encode
-    return encode
 
 
 def get_auth_header(user):
