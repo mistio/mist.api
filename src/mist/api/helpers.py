@@ -25,10 +25,7 @@ import tempfile
 import traceback
 import functools
 import jsonpickle
-import tarfile
-import StringIO
 import memcache
-import collections
 
 from time import time, strftime, sleep
 
