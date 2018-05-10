@@ -529,18 +529,6 @@ def deploy_collectd(owner, cloud_id, machine_id, extra_vars):
     return ret_dict
 
 
-def undeploy_collectd(owner, cloud_id, machine_id):
-    ret_dict = run_playbook(
-        owner, cloud_id, machine_id,
-        playbook_path='deploy_collectd/ansible/disable.yml',
-        force_handlers=True,
-        # debug=True,
-    )
-    _notify_playbook_result(owner, ret_dict, cloud_id, machine_id,
-                            label='Collectd undeployment')
-    return ret_dict
-
-
 def get_deploy_collectd_command_unix(uuid, password, monitor, port=25826):
     url = "https://github.com/mistio/deploy_collectd/raw/master/local_run.py"
     cmd = "wget -O mist_collectd.py %s && $(command -v sudo) python mist_collectd.py %s %s" % (  # noqa
