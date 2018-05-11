@@ -19,7 +19,7 @@ from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import MethodNotAllowedError
 from mist.api.exceptions import PaymentRequiredError
-from mist.core.exceptions import MonitorServerUnavailableError
+from mist.api.exceptions import MonitorServerUnavailableError
 
 from mist.api.users.models import Metric
 from mist.api.clouds.models import Cloud
