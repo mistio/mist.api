@@ -25,7 +25,6 @@ import tempfile
 import traceback
 import functools
 import jsonpickle
-import memcache
 
 from time import time, strftime, sleep
 
@@ -1231,15 +1230,6 @@ def maybe_submit_cloud_task(cloud, task_name):
         if cloud.ctl.provider != 'azure_arm':
             return False
     return True
-
-
-def clear_cache(key):
-    """Clear cached response for key.
-
-    """
-    cache = memcache.Client(config.MEMCACHED_HOST)
-    cache.delete(str(key))
-    log.info("clearing cache for key %s" % key)
 
 
 def subscribe_log_events_raw(callback=None, routing_keys=('#')):

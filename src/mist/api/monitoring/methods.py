@@ -13,13 +13,10 @@ import mist.api.config as config
 import mist.api.monitoring.tasks
 
 from mist.api.helpers import trigger_session_update
-from mist.api.auth.models import get_secure_rand_token
 
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import MethodNotAllowedError
-from mist.api.exceptions import PaymentRequiredError
-from mist.api.exceptions import MonitorServerUnavailableError
 
 from mist.api.users.models import Metric
 from mist.api.clouds.models import Cloud
@@ -559,88 +556,3 @@ $sudo /opt/mistio-collectd/collectd.sh restart
     # TODO Shouldn't we also `disassociate_metric` and remove relevant Rules?
 
     return {'metric_id': None, 'stdout': stdout}
-
-
-def _enable_monitoring_prepare(machine):
-    """Make all necessary checks and populate all fields in order to proceed
-    to enabling monitoring for a machine. Saves the machine in the user object
-    with hasMonitoring = False
-
-    """
-
-    log.info("Preparing machine %s for monitoring.", machine)
-
-    # check if monitoring already enabled
-    if machine.monitoring.hasmonitoring:
-        raise BadRequestError("Machine already has monitoring enabled.")
-
-    owner = machine.cloud.owner
-
-    # check if plan allows to enable monitoring
-    if config.HAS_BILLING:
-        from mist.billing.models import BillingInfo
-        plan = None
-        try:
-            billing = BillingInfo.objects.get(org=owner)
-            if billing.plans:
-                plan = billing.plans[-1]
-        except BillingInfo.DoesNotExist:
-            pass
-        mon_count = owner.count_mon_machines()
-        if plan is None and mon_count:
-            raise PaymentRequiredError("Please upgrade to a plan to enable"
-                                       " monitoring.")
-        if plan and plan.has_expired() and mon_count:
-            raise PaymentRequiredError("Plan has expired. Please upgrade to a "
-                                       "plan to enable monitoring.")
-        if plan and mon_count >= plan.machine_limit:
-            log.error("User %s tried to enable monitoring for a machine but "
-                      "there are already %d machines with monitoring enabled.",
-                      owner.id, mon_count)
-            raise PaymentRequiredError("Monitoring is limited to %s machines"
-                                       "for your plan. Please upgrade your "
-                                       "plan." % mon_count)
-            # TODO: redirect to plans page?
-
-    # update machine entry
-    if not machine.monitoring.collectd_password:
-        machine.monitoring.collectd_password = get_secure_rand_token(16)
-    machine.monitoring.hasmonitoring = False
-    machine.save()
-    log.debug("Updating user %s monitor information in mongo.", owner.id)
-    return {
-        'uuid': machine.id,
-        'password': machine.monitoring.collectd_password,
-        'monitor': config.COLLECTD_HOST,
-        'port': config.COLLECTD_PORT if hasattr(config,
-                                                'COLLECTD_PORT') else 25826,
-    }
-
-
-def _enable_monitoring_monitor(owner, cloud_id, machine_id):
-    """Contact monitor server to enable monitoring for machine.
-    It assumes that _enable_monitoring_prepare and deployment of collectd agent
-    have already taken place.
-
-    """
-    cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
-    machine = Machine.objects.get(cloud=cloud, machine_id=machine_id)
-
-    # attempt to contact monitor server and enable monitoring for the machine
-    payload = {'passwd': machine.monitoring.collectd_password}
-    try:
-        uri = "%s/machines/%s" % (config.MONITOR_URI, machine.id)
-        ret = requests.put(uri, params=payload)
-        if ret.status_code == 200:
-            log.info("Added machine to monitor server.")
-        elif ret.status_code == 409:
-            log.info("Machine already exists in monitor server.")
-            # continue since for some reason it didn't exist in our db
-            # update: monitor server will no longer return 409
-            # and will update the collectd password
-        else:
-            log.error("enable_monitoring: Monitor server bad response %d:%s",
-                      ret.status_code, ret.text)
-            raise MonitorServerUnavailableError()
-    except:
-        raise MonitorServerUnavailableError()
