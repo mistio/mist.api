@@ -89,18 +89,7 @@ class Monitoring(me.EmbeddedDocument):
             self.collectd_password = os.urandom(32).encode('hex')
 
     def get_commands(self):
-        if self.method == 'collectd-graphite' and config.HAS_CORE:
-            from mist.api.methods import get_deploy_collectd_command_unix
-            from mist.api.methods import get_deploy_collectd_command_windows
-            from mist.api.methods import get_deploy_collectd_command_coreos
-            args = (self._instance.id, self.collectd_password,
-                    config.COLLECTD_HOST, config.COLLECTD_PORT)
-            return {
-                'unix': get_deploy_collectd_command_unix(*args),
-                'coreos': get_deploy_collectd_command_coreos(*args),
-                'windows': get_deploy_collectd_command_windows(*args),
-            }
-        elif self.method in ('telegraf-influxdb', 'telegraf-graphite'):
+        if self.method in ('telegraf-influxdb', 'telegraf-graphite'):
             from mist.api.monitoring.commands import unix_install
             from mist.api.monitoring.commands import coreos_install
             from mist.api.monitoring.commands import windows_install

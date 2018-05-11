@@ -331,16 +331,7 @@ def enable_monitoring(owner, cloud_id, machine_id, no_ssh=False, dry=False,
             job_id = uuid.uuid4().hex
             job = 'enable_monitoring'
         ret_dict['job'] = job
-        if machine.monitoring.method == 'collectd-graphite':
-            # Install collectd to the machine
-            func = mist.api.tasks.deploy_collectd
-            if deploy_async:
-                func = func.delay
-            func(
-                owner.id, machine.cloud.id, machine.machine_id, extra_vars,
-                job_id=job_id, job=job, plugins=plugins,
-            )
-        elif machine.monitoring.method in ('telegraf-influxdb',
+        if machine.monitoring.method in ('telegraf-influxdb',
                                            'telegraf-graphite'):
             # Install Telegraf
             func = mist.api.monitoring.tasks.install_telegraf
@@ -391,9 +382,6 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=''):
         if machine.monitoring.method == 'collectd-graphite':
             if not config.HAS_CORE:
                 raise Exception
-            from mist.core.tasks import undeploy_collectd
-            undeploy_collectd.delay(owner.id, cloud_id, machine_id,
-                                    job_id=job_id, job=job)
         elif machine.monitoring.method in ('telegraf-influxdb',
                                            'telegraf-graphite'):
             # Schedule undeployment of Telegraf.
