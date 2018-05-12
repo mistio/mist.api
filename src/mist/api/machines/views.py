@@ -647,7 +647,6 @@ def machine_actions(request):
         # if machine has monitoring, disable it. the way we disable depends on
         # whether this is a standalone io installation or not
         try:
-            # we don't actually bother to undeploy collectd
             disable_monitoring(auth_context.owner, cloud_id, machine_id,
                                no_ssh=True)
         except Exception as exc:

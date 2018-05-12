@@ -1512,7 +1512,6 @@ def destroy_machine(user, cloud_id, machine_id):
     # if machine has monitoring, disable it. the way we disable depends on
     # whether this is a standalone io installation or not
     try:
-        # we don't actually bother to undeploy collectd
         disable_monitoring(user, cloud_id, machine_id, no_ssh=True)
     except Exception as exc:
         log.warning("Didn't manage to disable monitoring, maybe the "
