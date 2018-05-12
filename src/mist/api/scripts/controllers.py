@@ -1,5 +1,4 @@
 import os
-import re
 import yaml
 import random
 import logging
@@ -10,7 +9,6 @@ from mist.api.exceptions import ScriptFormatError
 from mist.api.scripts.base import BaseScriptController
 from yaml.parser import ParserError as YamlParserError
 from yaml.scanner import ScannerError as YamlScannerError
-from mist.api.exceptions import RequiredParameterMissingError
 
 from mist.api.monitoring.methods import associate_metric
 

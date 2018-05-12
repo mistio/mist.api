@@ -5,7 +5,6 @@ import time
 import datetime
 import logging
 
-import requests
 import mongoengine as me
 
 import mist.api.shell
@@ -268,7 +267,7 @@ def enable_monitoring(owner, cloud_id, machine_id, no_ssh=False, dry=False,
         machine.monitoring.method_since = datetime.datetime.now()
     # Extra vars
     if machine.monitoring.method in ('telegraf-influxdb',
-                                       'telegraf-graphite'):
+                                     'telegraf-graphite'):
         extra_vars = {'uuid': machine.id, 'monitor': config.INFLUX['host']}
     else:
         raise Exception("Invalid monitoring method")
@@ -324,7 +323,7 @@ def enable_monitoring(owner, cloud_id, machine_id, no_ssh=False, dry=False,
             job = 'enable_monitoring'
         ret_dict['job'] = job
         if machine.monitoring.method in ('telegraf-influxdb',
-                                           'telegraf-graphite'):
+                                         'telegraf-graphite'):
             # Install Telegraf
             func = mist.api.monitoring.tasks.install_telegraf
             if deploy_async:
@@ -372,7 +371,7 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=''):
         ret_dict['job'] = job
 
         if machine.monitoring.method in ('telegraf-influxdb',
-                                           'telegraf-graphite'):
+                                         'telegraf-graphite'):
             # Schedule undeployment of Telegraf.
             mist.api.monitoring.tasks.uninstall_telegraf.delay(machine.id,
                                                                job, job_id)
