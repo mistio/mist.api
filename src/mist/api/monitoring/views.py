@@ -17,7 +17,6 @@ from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.auth.methods import auth_context_from_request
 
 from mist.api.clouds.models import Cloud
-from mist.api.scripts.models import CollectdScript
 from mist.api.scripts.models import TelegrafScript
 from mist.api.machines.models import Machine
 
