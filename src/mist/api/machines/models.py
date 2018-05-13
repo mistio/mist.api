@@ -78,7 +78,7 @@ class Monitoring(me.EmbeddedDocument):
     # Most of these will change with the new UI.
     hasmonitoring = me.BooleanField()
     monitor_server = me.StringField()  # Deprecated
-    collectd_password = me.StringField()
+    collectd_password = me.StringField() # Deprecated
     metrics = me.ListField()  # list of metric_id's
     installation_status = me.EmbeddedDocumentField(InstallationStatus)
     method = me.StringField(choices=config.MONITORING_METHODS)
@@ -116,7 +116,6 @@ class Monitoring(me.EmbeddedDocument):
             commands = {}
         return {
             'hasmonitoring': self.hasmonitoring,
-            'monitor_server': config.COLLECTD_HOST,
             'collectd_password': self.collectd_password,
             'metrics': self.metrics,
             'installation_status': status.as_dict() if status else '',
