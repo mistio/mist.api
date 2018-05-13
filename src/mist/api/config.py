@@ -48,7 +48,7 @@ THEME = ""
 GC_SCHEDULERS = True
 VERSION_CHECK = True
 USAGE_SURVEY = False
-ENABLE_METERING = True
+ENABLE_METERING = False
 
 ELASTICSEARCH = {
     'elastic_host': 'elasticsearch',
@@ -1259,6 +1259,7 @@ HAS_RBAC = 'rbac' in PLUGINS
 HAS_INSIGHTS = 'insights' in PLUGINS
 HAS_ORCHESTRATION = 'orchestration' in PLUGINS
 HAS_VPN = 'vpn' in PLUGINS
+HAS_EXPERIMENTS = 'experiments' in PLUGINS
 
 
 # Update TELEGRAF_TARGET.
