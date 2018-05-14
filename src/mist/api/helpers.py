@@ -137,22 +137,6 @@ def params_from_request(request):
     return params or {}
 
 
-def b58_encode(num):
-    """Returns num in a base58-encoded string."""
-    alphabet = '123456789abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ'
-    base_count = len(alphabet)
-    encode = ''
-    if (num < 0):
-        return ''
-    while (num >= base_count):
-        mod = num % base_count
-        encode = alphabet[mod] + encode
-        num = num / base_count
-    if (num):
-        encode = alphabet[num] + encode
-    return encode
-
-
 def get_auth_header(user):
     """The value created here is added as an "Authorization" header in HTTP
     requests towards the hosted mist core service.
@@ -640,7 +624,7 @@ def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3,
     if html_body:
         msg = MIMEMultipart('alternative')
     else:
-        msg = MIMEText(body, 'plain')
+        msg = MIMEText(body.encode('utf-8', 'ignore'), 'plain')
 
     msg["Subject"] = subject
     msg["From"] = sender
@@ -1246,3 +1230,52 @@ def maybe_submit_cloud_task(cloud, task_name):
         if cloud.ctl.provider != 'azure_arm':
             return False
     return True
+
+
+def subscribe_log_events_raw(callback=None, routing_keys=('#')):
+    raise NotImplementedError()  # change email to owner.id etc
+
+    def preparse_event_dec(func):
+        def wrapped(msg):
+            try:
+                # bring extra key-value pairs to top level
+                for key, val in json.loads(msg.body.pop('extra')).items():
+                    msg.body[key] = val
+            except:
+                pass
+            return func(msg)
+        return wrapped
+
+    def echo(msg):
+        event = msg.body
+        # print msg.delivery_info.get('routing_key'),
+        try:
+            if 'email' in event and 'type' in event and 'action' in event:
+                print event.pop('email'), event.pop('type'), \
+                    event.pop('action')
+            err = event.pop('error', False)
+            if err:
+                print '  error:', err
+            time = event.pop('time')
+            if time:
+                print '  date:', datetime.datetime.fromtimestamp(time)
+            for key, val in event.items():
+                print '  %s: %s' % (key, val)
+        except:
+            print event
+
+    if callback is None:
+        callback = echo
+    callback = preparse_event_dec(callback)
+    log.info('Subscribing to log events with routing keys %s', routing_keys)
+    mist.api.helpers.amqp_subscribe('events', callback, ex_type='topic',
+                                    routing_keys=routing_keys)
+
+
+def subscribe_log_events(callback=None, email='*', event_type='*', action='*',
+                         error='*'):
+    raise NotImplementedError()  # change email to owner.id etc
+    keys = [str(var).lower().replace('.', '^')
+            for var in (email, event_type, action, error)]
+    routing_key = '.'.join(keys)
+    subscribe_log_events_raw(callback, [routing_key])

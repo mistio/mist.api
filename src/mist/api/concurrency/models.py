@@ -49,7 +49,7 @@ class PeriodicTaskInfo(me.Document):
     max_failures_period = datetime.timedelta(days=2)
 
     # Lock will be broken if it was last acquired more than this time ago.
-    break_lock_after = datetime.timedelta(seconds=60)
+    break_lock_after = datetime.timedelta(seconds=300)
 
     # Abort task if previous attempt was in less than this time before.
     min_interval = datetime.timedelta(seconds=5)

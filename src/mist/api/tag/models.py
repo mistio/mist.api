@@ -20,6 +20,7 @@ class Tag(me.Document):
 
     meta = {
         'indexes': [
+            'owner',
             {
                 'fields': ['resource', 'key'],
                 'sparse': False,
