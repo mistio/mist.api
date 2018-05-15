@@ -199,7 +199,7 @@ def end_job(request):
             raise RequiredParameterMissingError('machine_name')
         try:
             error = bool(int(params.get('error')))
-        except (TypeError, ValueError) as err:
+        except (TypeError, ValueError):
             raise RequiredParameterMissingError('error')
         # Log cloud-init's outcome. This is expected by the kubernetes
         # blueprint in order for execution to continue. The cloud-init
