@@ -30,7 +30,7 @@ else:
 
 if config.HAS_CORE:
     # Required to initialize OAuth2SessionToken model, subclass of AuthToken.
-    from mist.core.auth.social.models import OAuth2SessionToken  # noqa: F401
+    from mist.auth.social.models import OAuth2SessionToken  # noqa: F401
 
 
 def migrate_old_api_token(request):
