@@ -1300,7 +1300,7 @@ if GC_SCHEDULERS:
 if ENABLE_MONITORING:
     _schedule['reset-traefik'] = {
         'task': 'mist.api.monitoring.tasks.reset_traefik_config',
-        'schedule': datetime.timedelta(minutes=2),
+        'schedule': datetime.timedelta(seconds=90),
     }
 if ENABLE_METERING:
     _schedule['find-machine-cores'] = {
