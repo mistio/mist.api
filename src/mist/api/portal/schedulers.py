@@ -11,7 +11,9 @@ class RunImmediatelyScheduleEntry(ScheduleEntry):
         if no `last_run_at` value is present.
 
         """
-        return datetime.datetime(2000, 1, 1)
+        if not self.total_run_count:
+            return datetime.datetime(2000, 1, 1)
+        return super(RunImmediatelyScheduleEntry, self)._default_now()
 
 
 class RunImmediatelyPersistentScheduler(PersistentScheduler):
