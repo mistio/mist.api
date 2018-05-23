@@ -5,9 +5,9 @@ import celery
 
 import mongoengine as me
 
-
 from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
+from mist.api.sharding.mixins import ShardedScheduleMixin
 
 
 log = logging.getLogger(__name__)
@@ -39,11 +39,12 @@ class PollingInterval(me.EmbeddedDocument):
         return msg
 
 
-class PollingSchedule(me.Document):
+class PollingSchedule(ShardedScheduleMixin, me.Document):
 
     meta = {
         'allow_inheritance': True,
         'strict': False,
+        'indexes': ['shard_id']
     }
 
     # We use a unique name for easy identification and to avoid running the
