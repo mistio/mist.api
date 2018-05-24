@@ -99,15 +99,13 @@ def push_metering_info(owner_id):
 
     # Datapoints
     try:
-        q = "SELECT SUM(counter) FROM datapoints "
+        q = "SELECT MAX(counter) FROM datapoints "
         q += "WHERE owner = '%s' AND time >= now() - 30m" % owner_id
+        q += " GROUP BY machine"
         result = requests.get('%s/query?db=metering&q=%s' % (url, q)).json()
         result = result['results'][0]['series']
-        assert len(result) is 1, result
-        series = result[0]
-        values = series['values']
-        assert len(values) is 1, series
-        metering[owner_id]['datapoints'] = values[0][-1]
+        for series in result:
+            metering[owner_id]['datapoints'] += series['values'][0][-1]
     except Exception as exc:
         log.error('Failed upon datapoints metering: %r', exc)
 
