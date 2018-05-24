@@ -26,7 +26,7 @@ def _skip_metering(machine):
 
 
 @app.task
-def find_machine_cores():
+def find_machine_cores(machine_id):
     """Decide on the number of vCPUs for all machines"""
 
     def _get_cores_from_unix(machine):
@@ -50,17 +50,17 @@ def find_machine_cores():
     def _get_cores_from_libcloud_size(machine):
         return machine.size.cpus if machine.size else 0
 
-    for machine in Machine.objects(missing_since=None):
-        try:
-            machine.cores = (
-                _get_cores_from_unix(machine) or
-                _get_cores_from_tsdb(machine) or
-                _get_cores_from_machine_extra(machine) or
-                _get_cores_from_libcloud_size(machine)
-            )
-            machine.save()
-        except Exception as exc:
-            log.error('Failed to get cores of machine %s: %r', machine.id, exc)
+    try:
+        machine = Machine.objects.get(id=machine_id)
+        machine.cores = (
+            _get_cores_from_unix(machine) or
+            _get_cores_from_tsdb(machine) or
+            _get_cores_from_machine_extra(machine) or
+            _get_cores_from_libcloud_size(machine)
+        )
+        machine.save()
+    except Exception as exc:
+        log.error('Failed to get cores of machine %s: %r', machine.id, exc)
 
 
 @app.task

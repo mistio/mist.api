@@ -255,7 +255,6 @@ class CloudPollingSchedule(PollingSchedule):
             schedule.add_interval(interval, ttl)
         if run_immediately:
             schedule.run_immediately = True
-
         schedule.cleanup_expired_intervals()
         schedule.save()
         return schedule
@@ -316,7 +315,7 @@ class MachinePollingSchedule(PollingSchedule):
                            self.machine_id)
 
     @classmethod
-    def add(cls, machine, interval=None, ttl=300):
+    def add(cls, machine, run_immediately=True, interval=None, ttl=300):
         try:
             schedule = cls.objects.get(machine_id=machine.id)
         except cls.DoesNotExist:
@@ -330,7 +329,8 @@ class MachinePollingSchedule(PollingSchedule):
         schedule.set_default_interval(60 * 60 * 2)
         if interval is not None:
             schedule.add_interval(interval, ttl)
-        schedule.run_immediately = True
+        if run_immediately:
+            schedule.run_immediately = True
         schedule.cleanup_expired_intervals()
         schedule.save()
         return schedule
@@ -344,3 +344,20 @@ class PingProbeMachinePollingSchedule(MachinePollingSchedule):
 class SSHProbeMachinePollingSchedule(MachinePollingSchedule):
 
     task = 'mist.api.poller.tasks.ssh_probe'
+
+
+class FindCoresMachinePollingSchedule(MachinePollingSchedule):
+
+    @property
+    def task(self):
+        return 'mist.api.metering.tasks.find_machine_cores'
+
+    @property
+    def args(self):
+        return (self.machine_id, )
+
+    @property
+    def enabled(self):
+        return (super(FindCoresMachinePollingSchedule, self).enabled and
+                config.ENABLE_METERING)
+

@@ -1302,11 +1302,6 @@ if ENABLE_MONITORING:
         'task': 'mist.api.monitoring.tasks.reset_traefik_config',
         'schedule': datetime.timedelta(seconds=90),
     }
-if ENABLE_METERING:
-    _schedule['find-machine-cores'] = {
-        'task': 'mist.api.metering.tasks.find_machine_cores',
-        'schedule': datetime.timedelta(minutes=10),
-    }
 
 if _schedule:
     CELERY_SETTINGS.update({'CELERYBEAT_SCHEDULE': _schedule})
