@@ -64,7 +64,7 @@ def find_machine_cores():
 
 
 @app.task
-def push_metering_info():
+def push_metering_info(owner_id):
     """Collect and push new metering data to InfluxDB"""
     now = datetime.datetime.utcnow()
     metering = {}
@@ -78,20 +78,20 @@ def push_metering_info():
         raise Exception(db.content)
 
     # CPUs
-    for machine in Machine.objects(last_seen__gte=now.date()):
+    for machine in Machine.objects(owner=owner_id, last_seen__gte=now.date()):
         metering.setdefault(
-            machine.owner.id,
+            owner_id,
             dict.fromkeys(('cores', 'checks', 'datapoints'), 0)
         )
         try:
             if _skip_metering(machine):
                 continue
-            metering[machine.owner.id]['cores'] += machine.cores or 0
+            metering[owner_id]['cores'] += machine.cores or 0
         except Exception as exc:
             log.error('Failed upon cores metering of %s: %r', machine.id, exc)
 
     # Checks
-    for rule in Rule.objects():
+    for rule in Rule.objects(owner_id=owner_id):
         try:
             metering[rule.owner_id]['checks'] += rule.total_check_count
         except Exception as exc:
@@ -99,22 +99,17 @@ def push_metering_info():
 
     # Datapoints
     try:
-        connection = amqp.Connection(config.AMQP_URI)
-        channel = connection.channel()
-        channel.queue_declare('metering', auto_delete=False)
-        while True:
-            msg = channel.basic_get(queue='metering', no_ack=True)
-            if msg is None:
-                break
-            for owner_id, value in json.loads(msg.body).iteritems():
-                metering[owner_id]['datapoints'] += sum(value.itervalues())
+        q = "SELECT SUM(counter) FROM datapoints "
+        q += "WHERE owner = '%s' AND time >= now() - 30m" % owner_id
+        result = requests.get('%s/query?db=metering&q=%s' % (url, q)).json()
+        result = result['results'][0]['series']
+        assert len(result) is 1, result
+        series = result[0]
+        values = series['values']
+        assert len(values) is 1, series
+        metering[owner_id]['datapoints'] = values[0][-1]
     except Exception as exc:
         log.error('Failed upon datapoints metering: %r', exc)
-    try:
-        channel.close()
-        connection.close()
-    except Exception as exc:
-        log.error('Failed to close connection to RabbitMQ: %r', exc)
 
     # Assemble points.
     points = []

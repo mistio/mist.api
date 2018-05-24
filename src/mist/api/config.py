@@ -1307,10 +1307,6 @@ if ENABLE_METERING:
         'task': 'mist.api.metering.tasks.find_machine_cores',
         'schedule': datetime.timedelta(minutes=10),
     }
-    _schedule['push-metering-info'] = {
-        'task': 'mist.api.metering.tasks.push_metering_info',
-        'schedule': datetime.timedelta(minutes=30),
-    }
 
 if _schedule:
     CELERY_SETTINGS.update({'CELERYBEAT_SCHEDULE': _schedule})

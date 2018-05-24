@@ -1369,6 +1369,9 @@ def create_organization(request):
     except me.OperationError:
         raise OrganizationOperationError()
 
+    from mist.api.poller.models import MeteringPollingSchedule
+    MeteringPollingSchedule.add(org)
+
     trigger_session_update(auth_context.user, ['user'])
     return org.as_dict()
 

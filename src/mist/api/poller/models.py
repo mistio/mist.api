@@ -5,6 +5,7 @@ import celery
 
 import mongoengine as me
 
+from mist.api import config
 from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 from mist.api.sharding.mixins import ShardedScheduleMixin
@@ -181,6 +182,52 @@ class DebugPollingSchedule(PollingSchedule):
     task = 'mist.api.poller.tasks.debug'
 
     value = me.StringField()
+
+
+class OwnerPollingSchedule(PollingSchedule):
+
+    owner = me.ReferenceField('Organization', reverse_delete_rule=me.CASCADE)
+
+    @classmethod
+    def add(cls, owner, run_immediately=True, interval=None, ttl=300):
+        try:
+            schedule = cls.objects.get(owner=owner)
+        except cls.DoesNotExist:
+            schedule = cls(owner=owner)
+            try:
+                schedule.save()
+            except me.NotUniqueError:
+                # Work around race condition where schedule was created since
+                # last time we checked.
+                schedule = cls.objects.get(owner=owner)
+        schedule.set_default_interval(60 * 30)
+        if interval is not None:
+            schedule.add_interval(interval, ttl)
+        if run_immediately:
+            schedule.run_immediately = True
+        schedule.cleanup_expired_intervals()
+        schedule.save()
+        return schedule
+
+    def get_name(self):
+        return '%s(%s)' % (super(OwnerPollingSchedule, self).get_name(),
+                           self.owner)
+
+
+class MeteringPollingSchedule(OwnerPollingSchedule):
+
+    @property
+    def task(self):
+        return 'mist.api.metering.tasks.push_metering_info'
+
+    @property
+    def args(self):
+        return [str(self.owner.id)]
+
+    @property
+    def enabled(self):
+        return (super(MeteringPollingSchedule, self).enabled and
+                config.ENABLE_METERING)
 
 
 class CloudPollingSchedule(PollingSchedule):
