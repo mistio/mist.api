@@ -58,8 +58,8 @@ from mist.api.clouds.controllers.main.base import BaseComputeController
 
 from mist.api import config
 
-if config.HAS_CORE:
-    from mist.core.vpn.methods import destination_nat as dnat
+if config.HAS_VPN:
+    from mist.vpn.methods import destination_nat as dnat
 else:
     from mist.api.dummy.methods import dnat
 

@@ -51,8 +51,8 @@ from mist.api.clouds.controllers.dns import controllers as dns_ctls
 
 from mist.api import config
 
-if config.HAS_CORE:
-    from mist.core.vpn.methods import to_tunnel
+if config.HAS_VPN:
+    from mist.vpn.methods import to_tunnel
 else:
     from mist.api.dummy.methods import to_tunnel
 

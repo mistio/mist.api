@@ -1170,7 +1170,6 @@ ALLOW_SIGNUP_GITHUB = False
 ALLOW_SIGNIN_EMAIL = True
 ALLOW_SIGNIN_GOOGLE = False
 ALLOW_SIGNIN_GITHUB = False
-ENABLE_TUNNELS = False
 STRIPE_PUBLIC_APIKEY = False
 ENABLE_AB = False
 ENABLE_R12N = False
@@ -1259,6 +1258,7 @@ HAS_BILLING = 'billing' in PLUGINS
 HAS_RBAC = 'rbac' in PLUGINS
 HAS_INSIGHTS = 'insights' in PLUGINS
 HAS_ORCHESTRATION = 'orchestration' in PLUGINS
+HAS_VPN = 'vpn' in PLUGINS
 HAS_EXPERIMENTS = 'experiments' in PLUGINS
 
 
@@ -1335,7 +1335,7 @@ HOMEPAGE_INPUTS = {
         'orchestration': HAS_ORCHESTRATION,
         'insights': HAS_INSIGHTS,
         'billing': HAS_BILLING,
-        'tunnels': ENABLE_TUNNELS,
+        'tunnels': HAS_VPN,
         'ab': ENABLE_AB,
         'r12ns': ENABLE_R12N,
         'signup_email': ALLOW_SIGNUP_EMAIL,
