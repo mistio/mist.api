@@ -337,7 +337,7 @@ def create_machine(request):
         raise NotFoundError('Cloud does not exist')
 
     # FIXME For backwards compatibility.
-    if cloud.ctl.provider in ('vsphere', 'onapp', ):
+    if cloud.ctl.provider in ('vsphere', 'onapp', 'libvirt', ):
         if not size or not isinstance(size, dict):
             size = {}
         for param in (
