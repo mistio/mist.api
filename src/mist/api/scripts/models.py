@@ -239,15 +239,6 @@ class ExecutableScript(Script):
     _controller_cls = controllers.ExecutableScriptController
 
 
-class CollectdScript(Script):
-
-    exec_type = 'executable'
-    # ex. a dict with value_type='gauge', value_unit=''
-    extra = me.DictField()
-
-    _controller_cls = controllers.CollectdScriptController
-
-
 class TelegrafScript(Script):
 
     exec_type = 'executable'

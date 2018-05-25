@@ -329,7 +329,6 @@ INFLUXDB_MACHINE_DASHBOARD_DEFAULT = {
 }
 
 MONITORING_METHODS = (
-    'collectd-graphite',
     'telegraf-influxdb',
     'telegraf-graphite',
 )
@@ -483,9 +482,6 @@ NOTIFICATION_EMAIL = {
 SENDGRID_EMAIL_NOTIFICATIONS_KEY = ""
 
 # Monitoring Related
-COLLECTD_HOST = ""
-COLLECTD_PORT = ""
-
 GOOGLE_ANALYTICS_ID = ""
 
 USE_EXTERNAL_AUTHENTICATION = False
