@@ -78,7 +78,7 @@ class Monitoring(me.EmbeddedDocument):
     # Most of these will change with the new UI.
     hasmonitoring = me.BooleanField()
     monitor_server = me.StringField()  # Deprecated
-    collectd_password = me.StringField()
+    collectd_password = me.StringField()  # Deprecated
     metrics = me.ListField()  # list of metric_id's
     installation_status = me.EmbeddedDocumentField(InstallationStatus)
     method = me.StringField(choices=config.MONITORING_METHODS)
@@ -89,18 +89,7 @@ class Monitoring(me.EmbeddedDocument):
             self.collectd_password = os.urandom(32).encode('hex')
 
     def get_commands(self):
-        if self.method == 'collectd-graphite' and config.HAS_CORE:
-            from mist.api.methods import get_deploy_collectd_command_unix
-            from mist.api.methods import get_deploy_collectd_command_windows
-            from mist.api.methods import get_deploy_collectd_command_coreos
-            args = (self._instance.id, self.collectd_password,
-                    config.COLLECTD_HOST, config.COLLECTD_PORT)
-            return {
-                'unix': get_deploy_collectd_command_unix(*args),
-                'coreos': get_deploy_collectd_command_coreos(*args),
-                'windows': get_deploy_collectd_command_windows(*args),
-            }
-        elif self.method in ('telegraf-influxdb', 'telegraf-graphite'):
+        if self.method in ('telegraf-influxdb', 'telegraf-graphite'):
             from mist.api.monitoring.commands import unix_install
             from mist.api.monitoring.commands import coreos_install
             from mist.api.monitoring.commands import windows_install
@@ -127,7 +116,6 @@ class Monitoring(me.EmbeddedDocument):
             commands = {}
         return {
             'hasmonitoring': self.hasmonitoring,
-            'monitor_server': config.COLLECTD_HOST,
             'collectd_password': self.collectd_password,
             'metrics': self.metrics,
             'installation_status': status.as_dict() if status else '',

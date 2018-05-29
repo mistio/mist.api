@@ -17,7 +17,6 @@ from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.auth.methods import auth_context_from_request
 
 from mist.api.clouds.models import Cloud
-from mist.api.scripts.models import CollectdScript
 from mist.api.scripts.models import TelegrafScript
 from mist.api.machines.models import Machine
 
@@ -98,7 +97,7 @@ def machine_dashboard(request):
     if not machine.monitoring.hasmonitoring:
         raise MethodNotAllowedError("Machine doesn't have monitoring enabled")
 
-    if machine.monitoring.method in ('collectd-graphite', 'telegraf-graphite'):
+    if machine.monitoring.method in ('telegraf-graphite'):
         if not config.HAS_CORE:
             raise Exception()
         if machine.os_type == "windows":
@@ -355,16 +354,10 @@ def deploy_plugin(request):
         'description': 'python plugin'
     }
 
-    # Get script class based on monitoring system
-    if machine.monitoring.method == 'collectd-graphite':
-        script_cls = CollectdScript
-    else:
-        script_cls = TelegrafScript
-
     # FIXME Telegraf can load any sort of executable, not just python scripts.
     if params.get('plugin_type') == 'python':
         # Add the script.
-        script = script_cls.add(auth_context.owner, name, **kwargs)
+        script = TelegrafScript.add(auth_context.owner, name, **kwargs)
         # Deploy it.
         return script.ctl.deploy_and_assoc_python_plugin_from_script(machine)
     raise BadRequestError('Invalid plugin_type')

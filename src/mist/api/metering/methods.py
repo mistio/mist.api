@@ -32,7 +32,8 @@ def get_usage(owner_id='', full_days=6):
     # Prepare query.
     query = "SELECT"
     query += " MAX(cores) AS cores,"
-    query += " NON_NEGATIVE_DERIVATIVE(MAX(checks)) AS checks "
+    query += " NON_NEGATIVE_DERIVATIVE(MAX(checks)) AS checks,"
+    query += " NON_NEGATIVE_DERIVATIVE(MAX(datapoints)) AS datapoints "
     query += "FROM usage"
     query += " WHERE time >= '%s'" % start.isoformat(sep=' ')
     if owner_id:

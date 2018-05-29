@@ -26,8 +26,8 @@ from mist.api.monitoring.methods import disable_monitoring
 
 from mist.api import config
 
-if config.HAS_CORE:
-    from mist.core.vpn.methods import destination_nat as dnat
+if config.HAS_VPN:
+    from mist.vpn.methods import destination_nat as dnat
 else:
     from mist.api.dummy.methods import dnat
 
@@ -337,7 +337,7 @@ def create_machine(request):
         raise NotFoundError('Cloud does not exist')
 
     # FIXME For backwards compatibility.
-    if cloud.ctl.provider in ('vsphere', 'onapp', ):
+    if cloud.ctl.provider in ('vsphere', 'onapp', 'libvirt', ):
         if not size or not isinstance(size, dict):
             size = {}
         for param in (
@@ -647,7 +647,6 @@ def machine_actions(request):
         # if machine has monitoring, disable it. the way we disable depends on
         # whether this is a standalone io installation or not
         try:
-            # we don't actually bother to undeploy collectd
             disable_monitoring(auth_context.owner, cloud_id, machine_id,
                                no_ssh=True)
         except Exception as exc:

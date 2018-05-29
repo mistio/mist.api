@@ -1,3 +1,5 @@
+import amqp
+import json
 import logging
 import requests
 import datetime
@@ -95,7 +97,24 @@ def push_metering_info():
         except Exception as exc:
             log.error('Failed upon checks metering of %s: %r', rule.id, exc)
 
-    # TODO Datapoints
+    # Datapoints
+    try:
+        connection = amqp.Connection(config.AMQP_URI)
+        channel = connection.channel()
+        channel.queue_declare('metering', auto_delete=False)
+        while True:
+            msg = channel.basic_get(queue='metering', no_ack=True)
+            if msg is None:
+                break
+            for owner_id, value in json.loads(msg.body).iteritems():
+                metering[owner_id]['datapoints'] += sum(value.itervalues())
+    except Exception as exc:
+        log.error('Failed upon datapoints metering: %r', exc)
+    try:
+        channel.close()
+        connection.close()
+    except Exception as exc:
+        log.error('Failed to close connection to RabbitMQ: %r', exc)
 
     # Assemble points.
     points = []

@@ -810,73 +810,6 @@ class ListStorageAccounts(UserTask):
 
 
 @app.task
-def deploy_collectd(owner_id, cloud_id, machine_id, extra_vars, job_id='',
-                    job=None, plugins=None):
-    # FIXME
-    from mist.api.methods import deploy_collectd
-
-    owner = Owner.objects.get(id=owner_id)
-    cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
-    machine = Machine.objects.get(cloud=cloud, machine_id=machine_id)
-    machine.monitoring.installation_status.state = 'installing'
-    machine.save()
-
-    trigger_session_update(owner, ['monitoring'])
-
-    log_dict = {
-        'owner_id': owner.id,
-        'event_type': 'job',
-        'cloud_id': cloud_id,
-        'machine_id': machine_id,
-        'job_id': job_id or uuid.uuid4().hex,
-        'job': job,
-    }
-    log_event(action='deploy_collectd_started', **log_dict)
-    ret_dict = deploy_collectd(owner, cloud_id, machine_id, extra_vars)
-    error = False if ret_dict['success'] else (ret_dict['error_msg'] or True)
-    if plugins and not error:
-        for script_id in plugins:
-            try:
-                script = Script.objects.get(owner=owner, id=script_id,
-                                            deleted=None)
-                ret = script.ctl.deploy_and_assoc_python_plugin_from_script(
-                    machine)
-            except Exception as exc:
-                log_event(
-                    action='deploy_collectd_python_plugin',
-                    plugin_script_id=script_id, error=str(exc), **log_dict
-                )
-                if not error:
-                    error = "Deployment of '%s' plugin failed." % script_id
-            else:
-                log_event(
-                    action='deploy_collectd_python_plugin',
-                    plugin_script_id=script_id, metric_id=ret['metric_id'],
-                    stdout=ret['stdout'], **log_dict
-                )
-
-    log_event(action='deploy_collectd_finished', error=error,
-              stdout=ret_dict['stdout'], **log_dict)
-
-    if ret_dict['success']:
-        machine.monitoring.installation_status.state = 'succeeded'
-    else:
-        machine.monitoring.installation_status.state = 'failed'
-    machine.monitoring.installation_status.finished_at = time()
-    machine.monitoring.installation_status.stdout = ret_dict['stdout']
-    machine.monitoring.installation_status.error_msg = ret_dict['error_msg']
-    machine.save()
-    trigger_session_update(owner, ['monitoring'])
-
-
-@app.task
-def undeploy_collectd(owner_id, cloud_id, machine_id):
-    import mist.api.methods
-    owner = Owner.objects.get(id=owner_id)
-    mist.api.methods.undeploy_collectd(owner, cloud_id, machine_id)
-
-
-@app.task
 def create_machine_async(
     auth_context_serialized, cloud_id, key_id, machine_name, location_id,
     image_id, size, image_extra, disk,
@@ -1371,9 +1304,9 @@ def update_poller(org_id):
         for machine in cloud.ctl.compute.list_cached_machines():
             log.info("Updating poller for machine %s", machine)
             PingProbeMachinePollingSchedule.add(machine=machine,
-                                                interval=90, ttl=120)
+                                                interval=300, ttl=120)
             SSHProbeMachinePollingSchedule.add(machine=machine,
-                                               interval=90, ttl=120)
+                                               interval=300, ttl=120)
 
 
 @app.task
