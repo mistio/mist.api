@@ -54,11 +54,8 @@ def register_user(email, first_name, last_name, registration_method,
 
     # For some users registering through sso it might not be necessary to
     # create an organization, hence the flag
-    org = None
-    if create_organization:
-        org = create_org_for_user(user, '', promo_code, token, selected_plan)
-        from mist.api.poller.models import MeteringPollingSchedule
-        MeteringPollingSchedule.add(org)
+    org = create_org_for_user(user, '', promo_code, token, selected_plan) \
+        if create_organization else None
 
     log_event_args = {
         'owner_id': org and org.id or '',
