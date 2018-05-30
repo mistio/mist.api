@@ -1,5 +1,3 @@
-import amqp
-import json
 import logging
 import requests
 import datetime

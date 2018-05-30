@@ -365,4 +365,3 @@ class FindCoresMachinePollingSchedule(MachinePollingSchedule):
     def enabled(self):
         return (super(FindCoresMachinePollingSchedule, self).enabled and
                 config.ENABLE_METERING)
-
