@@ -254,6 +254,8 @@ class Machine(OwnershipMixin, me.Document):
     owner = me.ReferenceField('Organization', required=True)
     location = me.ReferenceField('CloudLocation', required=False)
     size = me.ReferenceField('CloudSize', required=False)
+    network = me.ReferenceField('Network', required=False)
+    subnet = me.ReferenceField('Subnet', required=False)
     name = me.StringField()
 
     # Info gathered mostly by libcloud (or in some cases user input).
@@ -416,6 +418,8 @@ class Machine(OwnershipMixin, me.Document):
                         else SSHProbe().as_dict()),
             },
             'cores': self.cores,
+            'network': self.network.id if self.network else '',
+            'subnet': self.subnet.id if self.subnet else '',
         }
 
     def __str__(self):
