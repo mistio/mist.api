@@ -146,6 +146,18 @@ class AmazonComputeController(BaseComputeController):
                 return plan_price.replace('/hour', '').replace('$', ''), 0
         return 0, 0
 
+    def _list_machines__get_location(self, node):
+        return node.extra.get('availability')
+
+    def _list_machines__get_size(self, node):
+        return node.extra.get('instance_type')
+
+    def _list_machines__get_network(self, node):
+        return node.extra.get('vpc_id')
+
+    def _list_machines__get_subnet(self, node):
+        return node.extra.get('subnet_id')
+
     def _list_images__fetch_images(self, search=None):
         default_images = config.EC2_IMAGES[self.cloud.region]
         image_ids = default_images.keys() + self.cloud.starred
@@ -201,14 +213,8 @@ class AmazonComputeController(BaseComputeController):
                 pass
         return locations
 
-    def _list_machines__get_location(self, node):
-        return node.extra.get('availability')
-
     def _list_sizes__get_cpu(self, size):
         return int(size.extra.get('cpu', 1))
-
-    def _list_machines__get_size(self, node):
-        return node.extra.get('instance_type')
 
     def _list_sizes__get_name(self, size):
         return '%s - %s' % (size.id, size.name)
@@ -543,6 +549,19 @@ class AzureArmComputeController(BaseComputeController):
             return 0, 0
         return machine_libcloud.extra.get('cost_per_hour', 0), 0
 
+    def _list_machines__machine_actions(self, machine, machine_libcloud):
+        super(AzureArmComputeController, self)._list_machines__machine_actions(
+            machine, machine_libcloud)
+        if machine_libcloud.state is NodeState.PAUSED:
+            machine.actions.start = True
+
+    def _list_machines__get_location(self, node):
+        return node.extra.get('location')
+
+    def _list_machines__get_network(self, node):
+        network = node.extra.get('networkProfile')[0].get('id')
+        return network.split('/')[-1] + '-vnet'
+
     def _list_images__fetch_images(self, search=None):
         # Fetch mist's recommended images
         images = [NodeImage(id=image, name=name,
@@ -555,15 +574,6 @@ class AzureArmComputeController(BaseComputeController):
 
     def _destroy_machine(self, machine, machine_libcloud):
         self.connection.destroy_node(machine_libcloud)
-
-    def _list_machines__machine_actions(self, machine, machine_libcloud):
-        super(AzureArmComputeController, self)._list_machines__machine_actions(
-            machine, machine_libcloud)
-        if machine_libcloud.state is NodeState.PAUSED:
-            machine.actions.start = True
-
-    def _list_machines__get_location(self, node):
-        return node.extra.get('location')
 
     def _list_sizes__fetch_sizes(self):
         location = self.connection.list_locations()[0]
@@ -617,6 +627,21 @@ class GoogleComputeController(BaseComputeController):
             _size.name = size.get('name')
             _size.save()
             return _size
+
+    def _list_machines__get_network(self, node):
+        network = node.extra.get('networkInterfaces')[0].get('network')
+        return network.split('/')[-1]
+
+    def _list_machines__get_subnet(self, node):
+        subnet = node.extra.get('networkInterfaces')[0].get('subnetwork')
+        return subnet.split('/')[-1], subnet.split('/')[-3]
+
+    def _list_machines__set_subnets_map(self, network):
+        from mist.api.networks.models import Subnet
+        subnets_map = {}
+        for subnet in Subnet.objects(network=network):
+            subnets_map[subnet.name, subnet.region] = subnet
+        return subnets_map
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         extra = machine_libcloud.extra

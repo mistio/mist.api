@@ -30,6 +30,7 @@ from mist.api.shell import Shell
 
 from mist.api.users.models import User, Owner, Organization
 from mist.api.clouds.models import Cloud, DockerCloud, CloudLocation, CloudSize
+from mist.api.networks.models import Network
 from mist.api.machines.models import Machine
 from mist.api.scripts.models import Script
 from mist.api.schedules.models import Schedule
@@ -687,25 +688,6 @@ class UserTask(Task):
             return 60 * 10  # Retry in 10mins after the third error
 
 
-class ListNetworks(UserTask):
-    abstract = False
-    task_key = 'list_networks'
-    result_expires = 60 * 60 * 24
-    result_fresh = 0
-    polling = False
-    soft_time_limit = 60
-
-    def execute(self, owner_id, cloud_id):
-        owner = Owner.objects.get(id=owner_id)
-        log.warn('Running list networks for user %s cloud %s'
-                 % (owner.id, cloud_id))
-        from mist.api.networks.methods import list_networks
-        networks = list_networks(owner, cloud_id)
-        log.warn('Returning list networks for user %s cloud %s'
-                 % (owner.id, cloud_id))
-        return {'cloud_id': cloud_id, 'networks': networks}
-
-
 class ListZones(UserTask):
     abstract = False
     task_key = 'list_zones'
@@ -1335,7 +1317,7 @@ def gc_schedulers():
 
 @app.task
 def set_missing_since(cloud_id):
-    for Model in (Machine, CloudLocation, CloudSize):
+    for Model in (Machine, CloudLocation, CloudSize, Network):
         Model.objects(cloud=cloud_id, missing_since=None).update(
             missing_since=datetime.datetime.utcnow()
         )
