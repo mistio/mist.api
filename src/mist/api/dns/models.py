@@ -5,12 +5,12 @@ import ipaddress as ip
 
 import mongoengine as me
 
-from mist.api.mixins import OwnershipMixin
 from mist.api.tag.models import Tag
 from mist.api.clouds.models import Cloud
 from mist.api.users.models import Organization
 from mist.api.dns.controllers import ZoneController, RecordController
 from mist.api.clouds.controllers.dns.base import BaseDNSController
+from mist.api.ownership.mixins import OwnershipMixin
 
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import RequiredParameterMissingError

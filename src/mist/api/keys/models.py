@@ -5,12 +5,12 @@ import mongoengine as me
 import mist.api.tag.models
 from Crypto.PublicKey import RSA
 
-from mist.api.mixins import OwnershipMixin
 from mist.api.users.models import Owner
 from mist.api.exceptions import BadRequestError
 from mist.api.keys import controllers
 from mist.api.keys.base import BaseKeyController
 from mist.api.exceptions import RequiredParameterMissingError
+from mist.api.ownership.mixins import OwnershipMixin
 
 log = logging.getLogger(__name__)
 

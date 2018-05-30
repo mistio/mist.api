@@ -3,7 +3,7 @@ import uuid
 import netaddr
 import mongoengine as me
 
-from mist.api.mixins import OwnershipMixin
+from mist.api.ownership.mixins import OwnershipMixin
 
 from mist.api.exceptions import RequiredParameterMissingError
 
@@ -287,8 +287,6 @@ class Subnet(me.Document):
     def clean(self):
         """Checks the CIDR to determine if it maps to a valid IPv4 network."""
         self.owner = self.owner or self.network.cloud.owner
-        self.owned_by = self.network.owned_by
-        self.created_by = self.network.created_by
         try:
             netaddr.cidr_to_glob(self.cidr)
         except (TypeError, netaddr.AddrFormatError) as err:

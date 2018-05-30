@@ -4,11 +4,11 @@ from uuid import uuid4
 import mongoengine as me
 import mist.api.tag.models
 from urlparse import urlparse
-from mist.api.mixins import OwnershipMixin
 from mist.api.users.models import Owner
 from mist.api.exceptions import BadRequestError
 from mist.api.scripts.base import BaseScriptController
 from mist.api.exceptions import RequiredParameterMissingError
+from mist.api.ownership.mixins import OwnershipMixin
 
 import mist.api.scripts.controllers as controllers
 

@@ -8,9 +8,9 @@ import mongoengine as me
 
 import mist.api.tag.models
 
-from mist.api.mixins import OwnershipMixin
 from mist.api.keys.models import Key
 from mist.api.machines.controllers import MachineController
+from mist.api.ownership.mixins import OwnershipMixin
 
 from mist.api import config
 

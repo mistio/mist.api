@@ -3,7 +3,6 @@ import datetime
 from uuid import uuid4
 import celery.schedules
 import mongoengine as me
-from mist.api.mixins import OwnershipMixin
 from mist.api.tag.models import Tag
 from mist.api.machines.models import Machine
 from mist.api.exceptions import BadRequestError
@@ -12,6 +11,7 @@ from celerybeatmongo.schedulers import MongoScheduler
 from mist.api.exceptions import ScheduleNameExistsError
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.conditions.models import ConditionalClassMixin
+from mist.api.ownership.mixins import OwnershipMixin
 
 
 #: Authorized values for Interval.period
