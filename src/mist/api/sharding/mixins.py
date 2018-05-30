@@ -5,6 +5,7 @@ import datetime
 import threading
 import mongoengine as me
 
+import mist.api.config as config
 
 log = logging.getLogger(__name__)
 
@@ -49,19 +50,19 @@ class ShardManagerMixin(object):
     # document's `shard_update_at` field is not touched/renewed within this
     # period of time, then the document may be re-assigned to a different
     # shard.
-    max_shard_period = os.getenv('MAX_SHARD_PERIOD', 60)
+    max_shard_period = config.SHARD_MANAGER_MAX_SHARD_PERIOD
 
     # The maximum number of documents that may be assigned to a single shard
     # at a time. This should be set to a meaningful value to not delay shard
     # assignment, but also prevent the majority of the documents from being
     # assigned to the same shard.
-    max_shard_claims = os.getenv('MAX_SHARD_CLAIMS', 500)
+    max_shard_claims = config.SHARD_MANAGER_MAX_SHARD_CLAIMS
 
     # The amount of time the sharding thread may sleep in between checks. We
     # set this to a meaningful value to not delay shard assignment, but also
     # give time to other processes of the scheduler to claim their piece of
     # the pie.
-    manager_interval = os.getenv('MANAGER_INTERVAL', 10)
+    manager_interval = config.SHARD_MANAGER_INTERVAL
 
     def __init__(self, *args, **kwargs):
         super(ShardManagerMixin, self).__init__(*args, **kwargs)
