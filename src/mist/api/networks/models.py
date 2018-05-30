@@ -3,6 +3,8 @@ import uuid
 import netaddr
 import mongoengine as me
 
+from mist.api.mixins import OwnershipMixin
+
 from mist.api.exceptions import RequiredParameterMissingError
 
 from mist.api.tag.models import Tag
@@ -29,7 +31,7 @@ def _populate_class_mapping(mapping, class_suffix, base_class):
                         mapping[provider] = value
 
 
-class Network(me.Document):
+class Network(OwnershipMixin, me.Document):
     """The basic Network model.
 
     This class is only meant to be used as a basic class for cloud-specific
@@ -50,9 +52,6 @@ class Network(me.Document):
     extra = me.DictField()  # The `extra` dictionary returned by libcloud.
 
     missing_since = me.DateTimeField()
-
-    owned_by = me.ReferenceField('User', reverse_delete_rule=me.NULLIFY)
-    created_by = me.ReferenceField('User', reverse_delete_rule=me.NULLIFY)
 
     meta = {
         'allow_inheritance': True,
@@ -134,8 +133,6 @@ class Network(me.Document):
             'description': self.description,
             'extra': self.extra,
             'tags': self.tags,
-            'owned_by': self.owned_by.id if self.owned_by else '',
-            'created_by': self.created_by.id if self.created_by else '',
         }
         net_dict.update(
             {key: getattr(self, key) for key in self._network_specific_fields}
@@ -228,9 +225,6 @@ class Subnet(me.Document):
 
     missing_since = me.DateTimeField()
 
-    owned_by = me.ReferenceField('User', reverse_delete_rule=me.NULLIFY)
-    created_by = me.ReferenceField('User', reverse_delete_rule=me.NULLIFY)
-
     meta = {
         'allow_inheritance': True,
         'collection': 'subnets',
@@ -316,8 +310,6 @@ class Subnet(me.Document):
             'description': self.description,
             'extra': self.extra,
             'tags': self.tags,
-            'owned_by': self.owned_by.id if self.owned_by else '',
-            'created_by': self.created_by.id if self.created_by else '',
         }
         subnet_dict.update(
             {key: getattr(self, key) for key in self._subnet_specific_fields}

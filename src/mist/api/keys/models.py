@@ -4,6 +4,8 @@ from uuid import uuid4
 import mongoengine as me
 import mist.api.tag.models
 from Crypto.PublicKey import RSA
+
+from mist.api.mixins import OwnershipMixin
 from mist.api.users.models import Owner
 from mist.api.exceptions import BadRequestError
 from mist.api.keys import controllers
@@ -13,7 +15,7 @@ from mist.api.exceptions import RequiredParameterMissingError
 log = logging.getLogger(__name__)
 
 
-class Key(me.Document):
+class Key(OwnershipMixin, me.Document):
     """Abstract base class for every key/machine attr mongoengine model.
 
     This class defines the fields common to all keys of all types. For each
@@ -72,9 +74,6 @@ class Key(me.Document):
     owner = me.ReferenceField(Owner)
     default = me.BooleanField(default=False)
     deleted = me.DateTimeField()
-
-    owned_by = me.ReferenceField('User', reverse_delete_rule=me.NULLIFY)
-    created_by = me.ReferenceField('User', reverse_delete_rule=me.NULLIFY)
 
     _private_fields = ()
     _controller_cls = None
@@ -136,8 +135,6 @@ class Key(me.Document):
             'name': self.name,
             'owner': self.owner.id,
             'default': self.default,
-            'owned_by': self.owned_by.id if self.owned_by else '',
-            'created_by': self.created_by.id if self.created_by else '',
         }
 
         mdict.update({key: getattr(self, key)

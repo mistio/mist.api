@@ -113,9 +113,7 @@ def create_network(request):
     # Create a DB document for the new network and call libcloud to declare
     # it on the cloud provider
     network = NETWORKS[cloud.ctl.provider].add(cloud=cloud, **network_params)
-    network.owned_by = network.created_by = auth_context.user
-    network.save()
-    auth_context.user.get_ownership_mapper(auth_context.owner).update(network)
+    network.assign_to(auth_context.user)
 
     network_dict = network.as_dict()
     if tags:

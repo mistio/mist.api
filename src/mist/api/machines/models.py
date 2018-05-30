@@ -7,6 +7,8 @@ import datetime
 import mongoengine as me
 
 import mist.api.tag.models
+
+from mist.api.mixins import OwnershipMixin
 from mist.api.keys.models import Key
 from mist.api.machines.controllers import MachineController
 
@@ -243,7 +245,7 @@ class SSHProbe(me.EmbeddedDocument):
         return data
 
 
-class Machine(me.Document):
+class Machine(OwnershipMixin, me.Document):
     """The basic machine model"""
 
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
@@ -297,13 +299,6 @@ class Machine(me.Document):
     # Number of vCPUs gathered from various sources. This field is meant to
     # be updated ONLY by the mist.api.metering.tasks:find_machine_cores task.
     cores = me.IntField()
-
-    # Fields denoting the creator and owner of this Machine. The `owner` is
-    # used to extend RBAC in order to allow users to have full access on any
-    # resource they might have created. For newly provisioned resources the
-    # creator and the owner will usually be equal.
-    owned_by = me.ReferenceField('User', reverse_delete_rule=me.NULLIFY)
-    created_by = me.ReferenceField('User', reverse_delete_rule=me.NULLIFY)
 
     meta = {
         'collection': 'machines',
@@ -421,8 +416,6 @@ class Machine(me.Document):
                         else SSHProbe().as_dict()),
             },
             'cores': self.cores,
-            'owned_by': self.owned_by.id if self.owned_by else '',
-            'created_by': self.created_by.id if self.created_by else '',
         }
 
     def __str__(self):

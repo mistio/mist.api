@@ -426,10 +426,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             machine = Machine.objects.get(cloud=cloud, machine_id=node.id)
 
         # Assign machine's owner/creator.
-        machine.owned_by = machine.created_by = auth_context.user
-        machine.save()
-        mapper = auth_context.user.get_ownership_mapper(auth_context.owner)
-        mapper.update(machine)
+        machine.assign_to(auth_context.user)
 
         # Associate key.
         username = node.extra.get('username', '')

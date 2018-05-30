@@ -3,6 +3,7 @@ import datetime
 from uuid import uuid4
 import celery.schedules
 import mongoengine as me
+from mist.api.mixins import OwnershipMixin
 from mist.api.tag.models import Tag
 from mist.api.machines.models import Machine
 from mist.api.exceptions import BadRequestError
@@ -153,7 +154,7 @@ class ScriptTask(BaseTaskType):
         return 'Run script: %s' % self.script_id
 
 
-class Schedule(me.Document, ConditionalClassMixin):
+class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
     """Abstract base class for every schedule attr mongoengine model.
     This model is based on celery periodic task and creates defines the fields
     common to all schedules of all types. For each different schedule type, a
@@ -210,9 +211,6 @@ class Schedule(me.Document, ConditionalClassMixin):
     total_run_count = me.IntField(min_value=0, default=0)
     max_run_count = me.IntField(min_value=0, default=0)
 
-    owned_by = me.ReferenceField('User', reverse_delete_rule=me.NULLIFY)
-    created_by = me.ReferenceField('User', reverse_delete_rule=me.NULLIFY)
-
     no_changes = False
 
     def __init__(self, *args, **kwargs):
@@ -252,10 +250,7 @@ class Schedule(me.Document, ConditionalClassMixin):
         schedule = cls(owner=owner, name=name)
         schedule.ctl.set_auth_context(auth_context)
         schedule.ctl.add(**kwargs)
-        schedule.owned_by = schedule.created_by = auth_context.user
-        schedule.save()
-        mapper = auth_context.user.get_ownership_mapper(auth_context.owner)
-        mapper.update(schedule)
+        schedule.assign_to(auth_context.user)
         return schedule
 
     @property
@@ -371,8 +366,6 @@ class Schedule(me.Document, ConditionalClassMixin):
             'total_run_count': self.total_run_count,
             'max_run_count': self.max_run_count,
             'conditions': conditions,
-            'owned_by': self.owned_by.id if self.owned_by else '',
-            'created_by': self.created_by.id if self.created_by else '',
         }
 
         return sdict

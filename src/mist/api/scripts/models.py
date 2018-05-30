@@ -4,6 +4,7 @@ from uuid import uuid4
 import mongoengine as me
 import mist.api.tag.models
 from urlparse import urlparse
+from mist.api.mixins import OwnershipMixin
 from mist.api.users.models import Owner
 from mist.api.exceptions import BadRequestError
 from mist.api.scripts.base import BaseScriptController
@@ -91,7 +92,7 @@ class UrlLocation(Location):
             return 'Script is in repo {0.repo}'.format(self)
 
 
-class Script(me.Document):
+class Script(OwnershipMixin, me.Document):
     """Abstract base class for every script attr mongoengine model.
 
         This class defines the fields common to all scripts of all types.
@@ -154,9 +155,6 @@ class Script(me.Document):
     deleted = me.DateTimeField()
 
     migrated = me.BooleanField()  # NOTE For collectd scripts' migration.
-
-    owned_by = me.ReferenceField('User', reverse_delete_rule=me.NULLIFY)
-    created_by = me.ReferenceField('User', reverse_delete_rule=me.NULLIFY)
 
     _controller_cls = None
 
@@ -222,8 +220,6 @@ class Script(me.Document):
             'description': self.description,
             'exec_type': self.exec_type,
             'location': self.location.as_dict(),
-            'owned_by': self.owned_by.id if self.owned_by else '',
-            'created_by': self.created_by.id if self.created_by else '',
         }
 
     def __str__(self):

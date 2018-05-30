@@ -5,6 +5,7 @@ import logging
 
 import mongoengine as me
 
+from mist.api.mixins import OwnershipMixin
 from mist.api.tag.models import Tag
 from mist.api.keys.models import Key
 from mist.api.users.models import Organization
@@ -36,7 +37,7 @@ def _populate_clouds():
                 CLOUDS[value._controller_cls.provider] = value
 
 
-class Cloud(me.Document):
+class Cloud(OwnershipMixin, me.Document):
     """Abstract base class for every cloud/provider mongoengine model
 
     This class defines the fields common to all clouds of all types. For each
@@ -95,9 +96,6 @@ class Cloud(me.Document):
         choices=config.MONITORING_METHODS)
 
     deleted = me.DateTimeField()
-
-    owned_by = me.ReferenceField('User', reverse_delete_rule=me.NULLIFY)
-    created_by = me.ReferenceField('User', reverse_delete_rule=me.NULLIFY)
 
     meta = {
         'strict': False,
@@ -200,8 +198,6 @@ class Cloud(me.Document):
                 for tag in Tag.objects(owner=self.owner,
                                        resource=self).only('key', 'value')
             ],
-            'owned_by': self.owned_by.id if self.owned_by else '',
-            'created_by': self.created_by.id if self.created_by else '',
         }
         cdict.update({key: getattr(self, key)
                       for key in self._cloud_specific_fields

@@ -106,9 +106,7 @@ def create_dns_zone(request):
 
     params = params_from_request(request)
     new_zone = Zone.add(owner=cloud.owner, cloud=cloud, **params)
-    new_zone.owned_by = new_zone.created_by = auth_context.user
-    new_zone.save()
-    auth_context.user.get_ownership_mapper(auth_context.owner).update(new_zone)
+    new_zone.assign_to(auth_context.user)
 
     if tags:
         resolve_id_and_set_tags(auth_context.owner, 'zone', new_zone.id,
@@ -161,9 +159,7 @@ def create_dns_record(request):
     dns_cls = RECORDS[params['type']]
 
     rec = dns_cls.add(owner=auth_context.owner, zone=zone, **params)
-    rec.owned_by = rec.created_by = auth_context.user
-    rec.save()
-    auth_context.user.get_ownership_mapper(auth_context.owner).update(rec)
+    rec.assign_to(auth_context.user)
 
     if tags:
         resolve_id_and_set_tags(auth_context.owner, 'record', rec.id, tags,

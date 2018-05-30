@@ -227,14 +227,12 @@ def add_cloud(request):
         add_tags_to_resource(owner, cloud, cloud_tags.items())
 
     # Set ownership.
-    cloud.owned_by = cloud.created_by = auth_context.user
-    cloud.save()
+    cloud.assign_to(auth_context.user)
 
     # SEC
     # Update the RBAC & User/Ownership mappings with the new Cloud and finally
     # trigger a session update by registering it as a chained task.
     if config.HAS_RBAC:
-        auth_context.user.get_ownership_mapper(owner).update(cloud)
         owner.mapper.update(
             cloud,
             callback=async_session_update, args=(owner.id, ['clouds'], )

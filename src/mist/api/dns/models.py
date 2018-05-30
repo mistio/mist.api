@@ -5,6 +5,7 @@ import ipaddress as ip
 
 import mongoengine as me
 
+from mist.api.mixins import OwnershipMixin
 from mist.api.tag.models import Tag
 from mist.api.clouds.models import Cloud
 from mist.api.users.models import Organization
@@ -29,7 +30,7 @@ def _populate_records():
                 RECORDS[value._record_type] = value
 
 
-class Zone(me.Document):
+class Zone(OwnershipMixin, me.Document):
     """This is the class definition for the Mongo Engine Document related to a
     DNS zone.
     """
@@ -46,9 +47,6 @@ class Zone(me.Document):
                               reverse_delete_rule=me.CASCADE)
 
     deleted = me.DateTimeField()
-
-    owned_by = me.ReferenceField('User', reverse_delete_rule=me.NULLIFY)
-    created_by = me.ReferenceField('User', reverse_delete_rule=me.NULLIFY)
 
     meta = {
         'collection': 'zones',
@@ -113,8 +111,6 @@ class Zone(me.Document):
             'ttl': self.ttl,
             'extra': self.extra,
             'cloud': self.cloud.id,
-            'owned_by': self.owned_by.id if self.owned_by else '',
-            'created_by': self.created_by.id if self.created_by else '',
         }
 
     def clean(self):
@@ -127,7 +123,7 @@ class Zone(me.Document):
                                           self.owner)
 
 
-class Record(me.Document):
+class Record(OwnershipMixin, me.Document):
     """This is the class definition for the Mongo Engine Document related to a
     DNS record.
     """
@@ -147,9 +143,6 @@ class Record(me.Document):
     owner = me.ReferenceField('Organization', required=True)
 
     deleted = me.DateTimeField()
-
-    owned_by = me.ReferenceField('User', reverse_delete_rule=me.NULLIFY)
-    created_by = me.ReferenceField('User', reverse_delete_rule=me.NULLIFY)
 
     meta = {
         'collection': 'records',
@@ -234,8 +227,6 @@ class Record(me.Document):
             'ttl': self.ttl,
             'extra': self.extra,
             'zone': self.zone.id,
-            'owned_by': self.owned_by.id if self.owned_by else '',
-            'created_by': self.created_by.id if self.created_by else '',
         }
 
 
