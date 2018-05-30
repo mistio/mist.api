@@ -690,9 +690,9 @@ rtype_to_classpath = {
     'subnet': 'mist.api.networks.models.Subnet',
 }
 
-if config.HAS_CORE:
+if config.HAS_VPN:
     rtype_to_classpath.update(
-        {'tunnel': 'mist.core.vpn.models.Tunnel'}
+        {'tunnel': 'mist.vpn.models.Tunnel'}
     )
 
 if config.HAS_ORCHESTRATION:

@@ -30,6 +30,7 @@ from mist.api.shell import Shell
 
 from mist.api.users.models import User, Owner, Organization
 from mist.api.clouds.models import Cloud, DockerCloud, CloudLocation, CloudSize
+from mist.api.networks.models import Network
 from mist.api.machines.models import Machine
 from mist.api.scripts.models import Script
 from mist.api.schedules.models import Schedule
@@ -688,25 +689,6 @@ class UserTask(Task):
             return 60 * 10  # Retry in 10mins after the third error
 
 
-class ListNetworks(UserTask):
-    abstract = False
-    task_key = 'list_networks'
-    result_expires = 60 * 60 * 24
-    result_fresh = 0
-    polling = False
-    soft_time_limit = 60
-
-    def execute(self, owner_id, cloud_id):
-        owner = Owner.objects.get(id=owner_id)
-        log.warn('Running list networks for user %s cloud %s'
-                 % (owner.id, cloud_id))
-        from mist.api.networks.methods import list_networks
-        networks = list_networks(owner, cloud_id)
-        log.warn('Returning list networks for user %s cloud %s'
-                 % (owner.id, cloud_id))
-        return {'cloud_id': cloud_id, 'networks': networks}
-
-
 class ListZones(UserTask):
     abstract = False
     task_key = 'list_zones'
@@ -808,73 +790,6 @@ class ListStorageAccounts(UserTask):
         log.warn('Returning list storage accounts for user %s cloud %s',
                  owner.id, cloud_id)
         return {'cloud_id': cloud_id, 'storage_accounts': storage_accounts}
-
-
-@app.task
-def deploy_collectd(owner_id, cloud_id, machine_id, extra_vars, job_id='',
-                    job=None, plugins=None):
-    # FIXME
-    from mist.api.methods import deploy_collectd
-
-    owner = Owner.objects.get(id=owner_id)
-    cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
-    machine = Machine.objects.get(cloud=cloud, machine_id=machine_id)
-    machine.monitoring.installation_status.state = 'installing'
-    machine.save()
-
-    trigger_session_update(owner, ['monitoring'])
-
-    log_dict = {
-        'owner_id': owner.id,
-        'event_type': 'job',
-        'cloud_id': cloud_id,
-        'machine_id': machine_id,
-        'job_id': job_id or uuid.uuid4().hex,
-        'job': job,
-    }
-    log_event(action='deploy_collectd_started', **log_dict)
-    ret_dict = deploy_collectd(owner, cloud_id, machine_id, extra_vars)
-    error = False if ret_dict['success'] else (ret_dict['error_msg'] or True)
-    if plugins and not error:
-        for script_id in plugins:
-            try:
-                script = Script.objects.get(owner=owner, id=script_id,
-                                            deleted=None)
-                ret = script.ctl.deploy_and_assoc_python_plugin_from_script(
-                    machine)
-            except Exception as exc:
-                log_event(
-                    action='deploy_collectd_python_plugin',
-                    plugin_script_id=script_id, error=str(exc), **log_dict
-                )
-                if not error:
-                    error = "Deployment of '%s' plugin failed." % script_id
-            else:
-                log_event(
-                    action='deploy_collectd_python_plugin',
-                    plugin_script_id=script_id, metric_id=ret['metric_id'],
-                    stdout=ret['stdout'], **log_dict
-                )
-
-    log_event(action='deploy_collectd_finished', error=error,
-              stdout=ret_dict['stdout'], **log_dict)
-
-    if ret_dict['success']:
-        machine.monitoring.installation_status.state = 'succeeded'
-    else:
-        machine.monitoring.installation_status.state = 'failed'
-    machine.monitoring.installation_status.finished_at = time()
-    machine.monitoring.installation_status.stdout = ret_dict['stdout']
-    machine.monitoring.installation_status.error_msg = ret_dict['error_msg']
-    machine.save()
-    trigger_session_update(owner, ['monitoring'])
-
-
-@app.task
-def undeploy_collectd(owner_id, cloud_id, machine_id):
-    import mist.api.methods
-    owner = Owner.objects.get(id=owner_id)
-    mist.api.methods.undeploy_collectd(owner, cloud_id, machine_id)
 
 
 @app.task
@@ -1406,7 +1321,7 @@ def gc_schedulers():
 
 @app.task
 def set_missing_since(cloud_id):
-    for Model in (Machine, CloudLocation, CloudSize):
+    for Model in (Machine, CloudLocation, CloudSize, Network):
         Model.objects(cloud=cloud_id, missing_since=None).update(
             missing_since=datetime.datetime.utcnow()
         )

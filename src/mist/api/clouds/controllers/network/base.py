@@ -14,12 +14,22 @@ import logging
 import datetime
 import mongoengine.errors
 
+import jsonpatch
 from requests import ConnectionError
 
 import mist.api.exceptions
 
+from amqp.connection import Connection
+
+from mist.api import config
+
 from mist.api.clouds.utils import LibcloudExceptionHandler
 from mist.api.clouds.controllers.base import BaseController
+
+from mist.api.concurrency.models import PeriodicTaskInfo
+
+from mist.api.helpers import amqp_publish_user
+from mist.api.helpers import amqp_owner_listening
 
 log = logging.getLogger(__name__)
 
@@ -218,8 +228,53 @@ class BaseNetworkController(BaseController):
         """
         return
 
+    def list_networks(self, persist=True):
+        """Return list of networks for cloud
+
+        A list of networks is fetched from libcloud, data is processed, stored
+        on network models, and a list of network models is returned.
+
+        Subclasses SHOULD NOT override or extend this method.
+
+        This method wraps `_list_networks` which contains the core
+        implementation.
+
+        """
+        task_key = 'cloud:list_networks:%s' % self.cloud.id
+        task = PeriodicTaskInfo.get_or_add(task_key)
+        with task.task_runner(persist=persist):
+            cached_networks = {'%s' % n.id: n.as_dict()
+                               for n in self.list_cached_networks()}
+
+            networks = self._list_networks()
+
+        # Initialize AMQP connection to reuse for multiple messages.
+        amqp_conn = Connection(config.AMQP_URI)
+        if amqp_owner_listening(self.cloud.owner.id):
+            networks_dict = [n.as_dict() for n in networks]
+            if cached_networks and networks_dict:
+                # Publish patches to rabbitmq.
+                new_networks = {'%s' % n['id']: n for n in networks_dict}
+                patch = jsonpatch.JsonPatch.from_diff(cached_networks,
+                                                      new_networks).patch
+                if patch:
+                    amqp_publish_user(self.cloud.owner.id,
+                                      routing_key='patch_networks',
+                                      connection=amqp_conn,
+                                      data={'cloud_id': self.cloud.id,
+                                            'patch': patch})
+            else:
+                # TODO: remove this block, once patches
+                # are implemented in the UI
+                amqp_publish_user(self.cloud.owner.id,
+                                  routing_key='list_networks',
+                                  connection=amqp_conn,
+                                  data={'cloud_id': self.cloud.id,
+                                        'networks': networks_dict})
+        return networks
+
     @LibcloudExceptionHandler(mist.api.exceptions.NetworkListingError)
-    def list_networks(self):
+    def _list_networks(self):
         """Lists all Networks present on the Cloud.
 
         Fetches all Networks via libcloud, applies cloud-specific processing,
@@ -304,6 +359,15 @@ class BaseNetworkController(BaseController):
         self.cloud.owner.mapper.update(new_networks, async=False)
 
         return networks
+
+    def list_cached_networks(self):
+        """Returns networks stored in database
+        for a specific cloud
+        """
+        # FIXME: Move these imports to the top of the file when circular
+        # import issues are resolved
+        from mist.api.networks.models import Network
+        return Network.objects(cloud=self.cloud)
 
     def _list_networks__cidr_range(self, network, libcloud_network):
         """Returns the network's IP range in CIDR notation.

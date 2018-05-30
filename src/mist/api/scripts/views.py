@@ -9,7 +9,7 @@ from mist.api import tasks
 
 from mist.api.machines.models import Machine
 from mist.api.scripts.models import Script, ExecutableScript
-from mist.api.scripts.models import AnsibleScript, CollectdScript
+from mist.api.scripts.models import AnsibleScript
 
 from mist.api.auth.methods import auth_context_from_request
 
@@ -114,12 +114,9 @@ def add_script(request):
         script = ExecutableScript.add(auth_context.owner, name, **kwargs)
     elif exec_type == 'ansible':
         script = AnsibleScript.add(auth_context.owner, name, **kwargs)
-    elif exec_type == 'collectd_python_plugin':
-        script = CollectdScript.add(auth_context.owner, name, **kwargs)
     else:
         raise BadRequestError(
-            "Param 'exec_type' must be in ('executable', 'ansible', "
-            "'collectd_python_plugin')."
+            "Param 'exec_type' must be in ('executable', 'ansible')."
         )
 
     if script_tags:

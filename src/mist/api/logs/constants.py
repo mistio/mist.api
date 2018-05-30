@@ -38,10 +38,10 @@ JOBS = {
         'post_deploy_finished',
     ),
     'enable_monitoring': (
-        'deploy_collectd_finished', 'telegraf_deployment_finished',
+        'telegraf_deployment_finished',
     ),
     'disable_monitoring': (
-        'undeploy_collectd_finished', 'telegraf_undeployment_finished',
+        'telegraf_undeployment_finished',
     ),
 }
 
