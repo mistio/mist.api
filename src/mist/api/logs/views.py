@@ -1,7 +1,10 @@
+import datetime
+
 from pyramid.response import Response
 
 from mist.api.helpers import view_config
 from mist.api.helpers import params_from_request
+from mist.api.helpers import trigger_session_update
 
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import BadRequestError
@@ -10,6 +13,7 @@ from mist.api.exceptions import RequiredParameterMissingError
 
 from mist.api.logs.constants import FIELDS as _FIELDS
 from mist.api.logs.methods import get_story
+from mist.api.logs.methods import log_event
 from mist.api.logs.methods import get_events
 from mist.api.auth.methods import auth_context_from_request
 
@@ -190,10 +194,38 @@ def end_job(request):
     except Stack.DoesNotExist:
         raise NotFoundError('Stack does not exist')
 
-    # Finish the workflow. Update the Stack and its status.
-    finish_workflow(stack, job_id, workflow, params.get('exit_code'),
-                    params.get('cmdout'), params.get('error'),
-                    params.get('node_instances'), params.get('outputs'))
+    if params.get('action', '') == 'cloud_init_finished':
+        if not params.get('machine_name'):
+            raise RequiredParameterMissingError('machine_name')
+        try:
+            error = bool(int(params.get('error')))
+        except (TypeError, ValueError):
+            raise RequiredParameterMissingError('error')
+        # Log cloud-init's outcome. This is expected by the kubernetes
+        # blueprint in order for execution to continue. The cloud-init
+        # script POSTs back once it's done, since there is no other way
+        # to know when it's finished running, especially in case there
+        # is no SSH connectivity to the machine.
+        log_event(
+            job_id=job_id,
+            workflow=workflow,
+            stack_id=stack.id,
+            owner_id=stack.owner.id,
+            template_id=stack.template.id,
+            machine_name=params['machine_name'], action=params['action'],
+            event_type='job', error=error,
+        )
+    else:
+        # Finish the workflow. Update the Stack and its status.
+        finish_workflow(stack, job_id, workflow, params.get('exit_code'),
+                        params.get('cmdout'), params.get('error'),
+                        params.get('node_instances'), params.get('outputs'))
+
+        # Delete the Stack, if it's been deleted, rather than just uninstalled.
+        action = job['logs'][1].get('action', '')
+        if workflow == 'uninstall' and action == 'delete_stack':
+            stack.update(set__deleted=datetime.datetime.utcnow())
+            trigger_session_update(auth_context.owner, ['stacks'])
 
     # FIXME:The MistClient expects a JSON-decodable response.
     # return Response('OK', 200)

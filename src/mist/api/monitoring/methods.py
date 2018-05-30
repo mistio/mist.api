@@ -5,7 +5,6 @@ import time
 import datetime
 import logging
 
-import requests
 import mongoengine as me
 
 import mist.api.shell
@@ -72,7 +71,7 @@ def get_stats(machine, start='', stop='', step='', metrics=None):
     elif not isinstance(metrics, list):
         metrics = [metrics]
 
-    if machine.monitoring.method in ('collectd-graphite', 'telegraf-graphite'):
+    if machine.monitoring.method in ('telegraf-graphite'):
         if not config.HAS_CORE:
             raise Exception()
         return graphite_get_stats(
@@ -267,11 +266,8 @@ def enable_monitoring(owner, cloud_id, machine_id, no_ssh=False, dry=False,
     if old_monitoring_method != machine.monitoring.method:
         machine.monitoring.method_since = datetime.datetime.now()
     # Extra vars
-    if machine.monitoring.method == 'collectd-graphite':
-        from mist.core.methods import _enable_monitoring_prepare
-        extra_vars = _enable_monitoring_prepare(machine)
-    elif machine.monitoring.method in ('telegraf-influxdb',
-                                       'telegraf-graphite'):
+    if machine.monitoring.method in ('telegraf-influxdb',
+                                     'telegraf-graphite'):
         extra_vars = {'uuid': machine.id, 'monitor': config.INFLUX['host']}
     else:
         raise Exception("Invalid monitoring method")
@@ -299,11 +295,6 @@ def enable_monitoring(owner, cloud_id, machine_id, no_ssh=False, dry=False,
 
     # Attempt to contact monitor server and enable monitoring for the machine
     try:
-        if machine.monitoring.method in ('collectd-graphite'):
-            if not config.HAS_CORE:
-                raise Exception()
-            from mist.core.methods import _enable_monitoring_monitor
-            _enable_monitoring_monitor(owner, cloud_id, machine_id)
         if machine.monitoring.method in ('telegraf-influxdb',
                                          'telegraf-graphite'):
             traefik.reset_config()
@@ -331,17 +322,8 @@ def enable_monitoring(owner, cloud_id, machine_id, no_ssh=False, dry=False,
             job_id = uuid.uuid4().hex
             job = 'enable_monitoring'
         ret_dict['job'] = job
-        if machine.monitoring.method == 'collectd-graphite':
-            # Install collectd to the machine
-            func = mist.api.tasks.deploy_collectd
-            if deploy_async:
-                func = func.delay
-            func(
-                owner.id, machine.cloud.id, machine.machine_id, extra_vars,
-                job_id=job_id, job=job, plugins=plugins,
-            )
-        elif machine.monitoring.method in ('telegraf-influxdb',
-                                           'telegraf-graphite'):
+        if machine.monitoring.method in ('telegraf-influxdb',
+                                         'telegraf-graphite'):
             # Install Telegraf
             func = mist.api.monitoring.tasks.install_telegraf
             if deploy_async:
@@ -388,14 +370,8 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=''):
             job_id = uuid.uuid4().hex
         ret_dict['job'] = job
 
-        if machine.monitoring.method == 'collectd-graphite':
-            if not config.HAS_CORE:
-                raise Exception
-            from mist.core.tasks import undeploy_collectd
-            undeploy_collectd.delay(owner.id, cloud_id, machine_id,
-                                    job_id=job_id, job=job)
-        elif machine.monitoring.method in ('telegraf-influxdb',
-                                           'telegraf-graphite'):
+        if machine.monitoring.method in ('telegraf-influxdb',
+                                         'telegraf-graphite'):
             # Schedule undeployment of Telegraf.
             mist.api.monitoring.tasks.uninstall_telegraf.delay(machine.id,
                                                                job, job_id)
@@ -413,23 +389,11 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=''):
             rule.ctl.maybe_remove(machine)
 
     machine.monitoring.hasmonitoring = False
+    machine.monitoring.activated_at = 0
     machine.save()
 
     # tell monitor server to no longer monitor this uuid
     try:
-        if machine.monitoring.method in ('collectd-graphite'):
-            if not config.HAS_CORE:
-                raise Exception
-            url = "%s/machines/%s" % (config.MONITOR_URI, machine.id)
-            ret = requests.delete(url)
-            if ret.status_code == 404:
-                log.warning("Monitor server couldn't find uuid, continuing..")
-            elif ret.status_code != 200:
-                log.error("disable_monitoring: "
-                          "Monitor server bad response %d:%s",
-                          ret.status_code, ret.text)
-            else:
-                log.debug("Monitor server good response in disable_monitoring")
         if machine.monitoring.method in ('telegraf-influxdb',
                                          'telegraf-graphite'):
             traefik.reset_config()
@@ -463,7 +427,7 @@ def find_metrics(machine):
     if not machine.monitoring.hasmonitoring:
         raise MethodNotAllowedError("Machine doesn't have monitoring enabled")
 
-    if machine.monitoring.method in ('collectd-graphite', 'telegraf-graphite'):
+    if machine.monitoring.method in ('telegraf-graphite'):
         if not config.HAS_CORE:
             raise Exception()
         from mist.core.methods import _graphite_find_metrics
@@ -524,23 +488,9 @@ def update_metric(owner, metric_id, name='', unit=''):
 # which we can easily refer.
 def undeploy_python_plugin(machine, plugin_id):
     """Undeploy a custom plugin from a machine."""
-    if machine.monitoring.method == 'collectd-graphite':
-        # Edit the collectd.conf.
-        script = """
-sudo=$(command -v sudo)
-cd /opt/mistio-collectd/
-
-echo "Removing Include line for plugin conf from plugins/mist-python/include.conf"
-$sudo grep -v 'Import %(plugin_id)s$' plugins/mist-python/include.conf > /tmp/include.conf
-$sudo mv /tmp/include.conf plugins/mist-python/include.conf
-
-echo "Restarting collectd"
-$sudo /opt/mistio-collectd/collectd.sh restart
-""" % {'plugin_id': plugin_id}  # noqa
-    else:
-        # Just remove the executable.
-        plugin = os.path.join('/opt/mistio/mist-telegraf/custom', plugin_id)
-        script = '$(command -v sudo) rm %s' % plugin
+    # Just remove the executable.
+    plugin = os.path.join('/opt/mistio/mist-telegraf/custom', plugin_id)
+    script = '$(command -v sudo) rm %s' % plugin
 
     # Run the command over SSH.
     shell = mist.api.shell.Shell(machine.ctl.get_host())

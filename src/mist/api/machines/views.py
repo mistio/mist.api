@@ -26,8 +26,8 @@ from mist.api.monitoring.methods import disable_monitoring
 
 from mist.api import config
 
-if config.HAS_CORE:
-    from mist.core.vpn.methods import destination_nat as dnat
+if config.HAS_VPN:
+    from mist.vpn.methods import destination_nat as dnat
 else:
     from mist.api.dummy.methods import dnat
 
@@ -337,7 +337,7 @@ def create_machine(request):
         raise NotFoundError('Cloud does not exist')
 
     # FIXME For backwards compatibility.
-    if cloud.ctl.provider in ('vsphere', 'onapp', ):
+    if cloud.ctl.provider in ('vsphere', 'onapp', 'libvirt', ):
         if not size or not isinstance(size, dict):
             size = {}
         for param in (
@@ -581,7 +581,7 @@ def machine_actions(request):
     cloud_id = request.matchdict.get('cloud')
     params = params_from_request(request)
     action = params.get('action', '')
-    plan_id = params.get('plan_id', '')
+    size_id = params.get('size', params.get('plan_id', ''))
     memory = params.get('memory', '')
     cpus = params.get('cpus', '')
     cpu_shares = params.get('cpu_shares', '')
@@ -647,7 +647,6 @@ def machine_actions(request):
         # if machine has monitoring, disable it. the way we disable depends on
         # whether this is a standalone io installation or not
         try:
-            # we don't actually bother to undeploy collectd
             disable_monitoring(auth_context.owner, cloud_id, machine_id,
                                no_ssh=True)
         except Exception as exc:
@@ -676,7 +675,7 @@ def machine_actions(request):
             kwargs['cpu_shares'] = cpu_shares
         if cpu_units:
             kwargs['cpu_units'] = cpu_units
-        getattr(machine.ctl, action)(plan_id, kwargs)
+        getattr(machine.ctl, action)(size_id, kwargs)
 
     # TODO: We shouldn't return list_machines, just OK. Save the API!
     return methods.filter_list_machines(auth_context, cloud_id)

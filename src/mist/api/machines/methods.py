@@ -195,7 +195,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
     # For providers, which do not support pre-defined sizes, we expect `size`
     # to be a dict with all the necessary information regarding the machine's
     # size.
-    if cloud.ctl.provider in ('vsphere', 'onapp', ):
+    if cloud.ctl.provider in ('vsphere', 'onapp', 'libvirt', ):
         if not isinstance(size, dict):
             raise BadRequestError('Expected size to be a dict.')
         size_id = 'custom'
@@ -301,8 +301,8 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                                          size, location, user_data=cloud_init)
     elif conn.type in [Provider.OPENSTACK]:
         node = _create_machine_openstack(conn, private_key, public_key,
-                                         machine_name, image, size, location,
-                                         networks, cloud_init)
+                                         key.name, machine_name, image, size,
+                                         location, networks, cloud_init)
     elif conn.type is Provider.EC2 and private_key:
         locations = conn.list_locations()
         for loc in locations:
@@ -396,16 +396,10 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
         node = _create_machine_vultr(conn, public_key, machine_name, image,
                                      size, location, cloud_init)
     elif conn.type is Provider.LIBVIRT:
-        try:
-            # size_id should have a format cpu:ram, eg 1:2048
-            cpu = size_id.split(':')[0]
-            ram = size_id.split(':')[1]
-        except:
-            ram = 512
-            cpu = 1
         node = _create_machine_libvirt(conn, machine_name,
-                                       disk_size=disk_size, ram=ram, cpu=cpu,
-                                       image=image_id, disk_path=disk_path,
+                                       disk_size=disk_size, ram=size_ram,
+                                       cpu=size_cpu, image=image_id,
+                                       disk_path=disk_path,
                                        networks=networks,
                                        public_key=public_key,
                                        cloud_init=cloud_init)
@@ -541,8 +535,9 @@ def _create_machine_rackspace(conn, public_key, machine_name,
         raise MachineCreationError("Rackspace, got exception %r" % e, exc=e)
 
 
-def _create_machine_openstack(conn, private_key, public_key, machine_name,
-                              image, size, location, networks, user_data):
+def _create_machine_openstack(conn, private_key, public_key, key_name,
+                              machine_name, image, size, location, networks,
+                              user_data):
     """Create a machine in Openstack.
 
     Here there is no checking done, all parameters are expected to be
@@ -559,7 +554,7 @@ def _create_machine_openstack(conn, private_key, public_key, machine_name,
                 server_key = k.name
                 break
         if not server_key:
-            server_key = conn.ex_import_keypair_from_string(name=machine_name,
+            server_key = conn.ex_import_keypair_from_string(name=key_name,
                                                             key_material=key)
             server_key = server_key.name
     except:
@@ -1511,7 +1506,6 @@ def destroy_machine(user, cloud_id, machine_id):
     # if machine has monitoring, disable it. the way we disable depends on
     # whether this is a standalone io installation or not
     try:
-        # we don't actually bother to undeploy collectd
         disable_monitoring(user, cloud_id, machine_id, no_ssh=True)
     except Exception as exc:
         log.warning("Didn't manage to disable monitoring, maybe the "

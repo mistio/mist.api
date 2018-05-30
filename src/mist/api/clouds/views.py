@@ -36,8 +36,6 @@ def list_clouds(request):
     ---
     """
     auth_context = auth_context_from_request(request)
-    # to prevent iterate throw every cloud
-    auth_context.check_perm("cloud", "read", None)
     return filter_list_clouds(auth_context)
 
 

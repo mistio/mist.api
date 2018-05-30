@@ -37,7 +37,7 @@ from time import sleep
 from xml.sax.saxutils import escape
 
 from libcloud.pricing import get_size_price
-from libcloud.compute.base import Node, NodeImage, NodeSize
+from libcloud.compute.base import Node, NodeImage
 from libcloud.compute.providers import get_driver
 from libcloud.container.providers import get_driver as get_container_driver
 from libcloud.compute.types import Provider, NodeState
@@ -58,8 +58,8 @@ from mist.api.clouds.controllers.main.base import BaseComputeController
 
 from mist.api import config
 
-if config.HAS_CORE:
-    from mist.core.vpn.methods import destination_nat as dnat
+if config.HAS_VPN:
+    from mist.vpn.methods import destination_nat as dnat
 else:
     from mist.api.dummy.methods import dnat
 
@@ -91,6 +91,19 @@ class AmazonComputeController(BaseComputeController):
         machine.actions.rename = True
         if machine_libcloud.state != NodeState.TERMINATED:
             machine.actions.resize = True
+
+    def _resize_machine(self, machine, machine_libcloud, node_size, kwargs):
+        attributes = {'InstanceType.Value': node_size.id}
+        # instance must be in stopped mode
+        if machine_libcloud.state != NodeState.STOPPED:
+            raise BadRequestError('The instance has to be stopped '
+                                  'in order to be resized')
+        try:
+            self.connection.ex_modify_instance_attribute(machine_libcloud,
+                                                         attributes)
+            self.connection.ex_start_node(machine_libcloud)
+        except Exception as exc:
+            raise BadRequestError('Failed to resize node: %s' % exc)
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         # Find os_type.
@@ -144,19 +157,6 @@ class AmazonComputeController(BaseComputeController):
 
     def _list_machines__get_subnet(self, node):
         return node.extra.get('subnet_id')
-
-    def _resize_machine(self, machine, machine_libcloud, plan_id, kwargs):
-        attributes = {'InstanceType.Value': plan_id}
-        # instance must be in stopped mode
-        if machine_libcloud.state != NodeState.STOPPED:
-            raise BadRequestError('The instance has to be stopped '
-                                  'in order to be resized')
-        try:
-            self.connection.ex_modify_instance_attribute(machine_libcloud,
-                                                         attributes)
-            self.connection.ex_start_node(machine_libcloud)
-        except Exception as exc:
-            raise BadRequestError('Failed to resize node: %s' % exc)
 
     def _list_images__fetch_images(self, search=None):
         default_images = config.EC2_IMAGES[self.cloud.region]
@@ -237,9 +237,9 @@ class DigitalOceanComputeController(BaseComputeController):
         machine.actions.rename = True
         machine.actions.resize = True
 
-    def _resize_machine(self, machine, machine_libcloud, plan_id, kwargs):
+    def _resize_machine(self, machine, machine_libcloud, node_size, kwargs):
         try:
-            self.connection.ex_resize_node(machine_libcloud, plan_id)
+            self.connection.ex_resize_node(machine_libcloud, node_size.id)
         except Exception as exc:
             raise BadRequestError('Failed to resize node: %s' % exc)
 
@@ -906,10 +906,10 @@ class OpenStackComputeController(BaseComputeController):
             self.cloud.password,
             api_version='2.0',
             ex_force_auth_version='2.0_password',
-            ex_force_auth_url=url,
             ex_tenant_name=self.cloud.tenant,
             ex_force_service_region=self.cloud.region,
             ex_force_base_url=self.cloud.compute_endpoint,
+            ex_auth_url=url
         )
 
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
@@ -921,11 +921,9 @@ class OpenStackComputeController(BaseComputeController):
         machine.actions.rename = True
         machine.actions.resize = True
 
-    def _resize_machine(self, machine, machine_libcloud, plan_id, kwargs):
-        size = NodeSize(plan_id, name=plan_id, ram='', disk='',
-                        bandwidth='', price='', driver=self.connection)
+    def _resize_machine(self, machine, machine_libcloud, node_size, kwargs):
         try:
-            self.connection.ex_resize(machine_libcloud, size)
+            self.connection.ex_resize(machine_libcloud, node_size)
         except Exception as exc:
             raise BadRequestError('Failed to resize node: %s' % exc)
 
@@ -1411,7 +1409,7 @@ class OnAppComputeController(BaseComputeController):
     def _suspend_machine(self, machine, machine_libcloud):
         self.connection.ex_suspend_node(machine_libcloud)
 
-    def _resize_machine(self, machine, machine_libcloud, plan_id, kwargs):
+    def _resize_machine(self, machine, machine_libcloud, node_size, kwargs):
         # send only non empty valid args
         valid_kwargs = {}
         for param in kwargs:
@@ -1564,10 +1562,10 @@ class OtherComputeController(BaseComputeController):
     def list_images(self, search=None):
         return []
 
-    def list_sizes(self):
+    def list_sizes(self, persist=True):
         return []
 
-    def list_locations(self, persist=False):
+    def list_locations(self, persist=True):
         return []
 
 
@@ -1599,8 +1597,8 @@ class ClearCenterComputeController(BaseComputeController):
     def list_images(self, search=None):
         return []
 
-    def list_sizes(self):
+    def list_sizes(self, persist=True):
         return []
 
-    def list_locations(self):
+    def list_locations(self, persist=True):
         return []

@@ -15,6 +15,7 @@ import datetime
 import mongoengine.errors
 
 import jsonpatch
+from requests import ConnectionError
 
 import mist.api.exceptions
 
@@ -296,8 +297,11 @@ class BaseNetworkController(BaseController):
         # import issues are resolved
         from mist.api.networks.models import Network, NETWORKS
 
-        libcloud_nets = self.cloud.ctl.compute.connection.ex_list_networks()
-
+        try:
+            libcloud_nets = \
+                self.cloud.ctl.compute.connection.ex_list_networks()
+        except ConnectionError as e:
+            raise mist.api.exceptions.CloudUnavailableError(e)
         # List of Network mongoengine objects to be returned to the API.
         networks, new_networks = [], []
         for net in libcloud_nets:

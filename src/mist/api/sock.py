@@ -27,6 +27,7 @@ from mist.api.logs.methods import get_stories
 from mist.api.logs.methods import create_stories_patch
 
 from mist.api.clouds.models import Cloud
+from mist.api.machines.models import Machine
 
 from mist.api.auth.methods import auth_context_from_session_id
 
@@ -185,9 +186,9 @@ class ShellConnection(MistConnection):
             self.close()
         try:
             if not data.get('job_id'):
-                self.auth_context.check_perm(
-                    'machine', 'open_shell', data['machine_id']
-                )
+                m = Machine.objects.get(cloud=data['cloud_id'],
+                                        machine_id=data['machine_id'])
+                self.auth_context.check_perm('machine', 'open_shell', m.id)
         except PolicyUnauthorizedError as err:
             self.emit_shell_data('%s' % err)
             self.close()

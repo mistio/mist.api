@@ -22,7 +22,7 @@ import mongoengine as me
 
 from libcloud.common.types import InvalidCredsError
 from libcloud.compute.types import NodeState
-from libcloud.compute.base import NodeLocation, Node
+from libcloud.compute.base import NodeLocation, Node, NodeSize
 from libcloud.common.exceptions import BaseHTTPError
 
 from amqp.connection import Connection
@@ -51,8 +51,8 @@ from mist.api.clouds.controllers.base import BaseController
 from mist.api.tag.models import Tag
 from mist.api.machines.models import Machine
 
-if config.HAS_CORE:
-    from mist.core.vpn.methods import destination_nat as dnat
+if config.HAS_VPN:
+    from mist.vpn.methods import destination_nat as dnat
 else:
     from mist.api.dummy.methods import dnat
 
@@ -886,10 +886,11 @@ class BaseComputeController(BaseController):
 
         sizes = []
 
+        # FIXME: resolve circular import issues
+        from mist.api.clouds.models import CloudSize
+
         for size in fetched_sizes:
             # create the object in db if it does not exist
-            # FIXME: resolve circular import issues
-            from mist.api.clouds.models import CloudSize
             try:
                 _size = CloudSize.objects.get(cloud=self.cloud,
                                               external_id=size.id)
@@ -922,13 +923,11 @@ class BaseComputeController(BaseController):
                 raise BadRequestError({"msg": exc.message,
                                        "errors": exc.to_dict()})
 
-            # update missing_since for sizes not returned by libcloud
-            CloudSize.objects(cloud=self.cloud,
-                              missing_since=None,
-                              external_id__nin=[s.external_id
-                                                for s in sizes]).update(
-                                                    missing_since=datetime.
-                                                    datetime.utcnow())
+        # Update missing_since for sizes not returned by libcloud
+        CloudSize.objects(
+            cloud=self.cloud, missing_since=None,
+            external_id__nin=[s.external_id for s in sizes]
+        ).update(missing_since=datetime.datetime.utcnow())
 
         return sizes
 
@@ -1332,7 +1331,7 @@ class BaseComputeController(BaseController):
         raise BadRequestError("Machines on public clouds can't be removed."
                               "This is only supported in Bare Metal clouds.")
 
-    def resize_machine(self, machine, plan_id, kwargs):
+    def resize_machine(self, machine, size_id, kwargs):
         """Resize machine
 
         The param `machine` must be an instance of a machine model of this
@@ -1340,7 +1339,7 @@ class BaseComputeController(BaseController):
 
         Not that the usual way to resize a machine would be to run
 
-            machine.ctl.resize(plan_id)
+            machine.ctl.resize(size_id)
 
         which would in turn call this method, so that its cloud can customize
         it as needed.
@@ -1356,7 +1355,14 @@ class BaseComputeController(BaseController):
 
         machine_libcloud = self._get_machine_libcloud(machine)
         try:
-            self._resize_machine(machine, machine_libcloud, plan_id, kwargs)
+            from mist.api.clouds.models import CloudSize
+            size = CloudSize.objects.get(id=size_id)
+            node_size = NodeSize(size.external_id, name=size.name,
+                                 ram=size.ram, disk=size.disk,
+                                 bandwidth=size.bandwidth,
+                                 price=size.extra['price'],
+                                 driver=self.connection)
+            self._resize_machine(machine, machine_libcloud, node_size, kwargs)
         except Exception as exc:
             raise BadRequestError('Failed to resize node: %s' % exc)
         try:
@@ -1369,7 +1375,7 @@ class BaseComputeController(BaseController):
         except Exception as exc:
             log.exception("Failed to dismiss scale recommendation: %r", exc)
 
-    def _resize_machine(self, machine, machine_libcloud, plan_id, kwargs):
+    def _resize_machine(self, machine, machine_libcloud, node_size, kwargs):
         """Private method to resize a given machine
 
         Params:
@@ -1379,7 +1385,7 @@ class BaseComputeController(BaseController):
         Differnent cloud controllers should override this private method, which
         is called by the public method `resize_machine`.
         """
-        self.connection.ex_resize_node(machine_libcloud, plan_id)
+        self.connection.ex_resize_node(machine_libcloud, node_size)
 
     def rename_machine(self, machine, name):
         """Rename machine

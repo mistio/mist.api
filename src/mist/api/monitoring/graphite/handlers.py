@@ -149,8 +149,13 @@ class GenericHandler(object):
     def target_alias(self, name):
         """Given a metric identifier, return the correct target and alias"""
         target = name.replace("%s." % self.head(), "%(head)s.")
+        derivative = re.match(r'derivative\((.*)\)', target)
+        if derivative:
+            target = derivative.groups()[0]
         if not target.startswith('%(head)s.'):
             target = "%(head)s." + target
+        if derivative:
+            target = per_second(target)
         return target, target
 
     def decorate_target(self, target):
