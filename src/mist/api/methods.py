@@ -305,8 +305,8 @@ def _ping_host(host, pkts=10):
 
 
 def ping(owner, host, pkts=10):
-    if config.HAS_CORE:
-        from mist.core.vpn.methods import super_ping
+    if config.HAS_VPN:
+        from mist.vpn.methods import super_ping
         result = super_ping(owner=owner, host=host, pkts=pkts)
     else:
         result = _ping_host(host, pkts=pkts)
@@ -514,59 +514,6 @@ def _notify_playbook_result(owner, res, cloud_id=None, machine_id=None,
     if not res['success']:
         kwargs['output'] = res['stdout']
     notify_user(owner, title, **kwargs)
-
-
-def deploy_collectd(owner, cloud_id, machine_id, extra_vars):
-    ret_dict = run_playbook(
-        owner, cloud_id, machine_id,
-        playbook_path='deploy_collectd/ansible/enable.yml',
-        extra_vars=extra_vars,
-        force_handlers=True,
-        # debug=True,
-    )
-    _notify_playbook_result(owner, ret_dict, cloud_id, machine_id,
-                            label='Collectd deployment')
-    return ret_dict
-
-
-def undeploy_collectd(owner, cloud_id, machine_id):
-    ret_dict = run_playbook(
-        owner, cloud_id, machine_id,
-        playbook_path='deploy_collectd/ansible/disable.yml',
-        force_handlers=True,
-        # debug=True,
-    )
-    _notify_playbook_result(owner, ret_dict, cloud_id, machine_id,
-                            label='Collectd undeployment')
-    return ret_dict
-
-
-def get_deploy_collectd_command_unix(uuid, password, monitor, port=25826):
-    url = "https://github.com/mistio/deploy_collectd/raw/master/local_run.py"
-    cmd = "wget -O mist_collectd.py %s && $(command -v sudo) python mist_collectd.py %s %s" % (  # noqa
-        url, uuid, password)
-    if monitor != 'monitor1.mist.api':
-        cmd += " -m %s" % monitor
-    if str(port) != '25826':
-        cmd += " -p %s" % port
-    return cmd
-
-
-def get_deploy_collectd_command_windows(uuid, password, monitor, port=25826):
-    return (
-        'Set-ExecutionPolicy -ExecutionPolicy RemoteSigned '
-        '-Scope CurrentUser -Force;(New-Object System.Net.WebClient).'
-        'DownloadFile(\'https://raw.githubusercontent.com/mistio/'
-        'deploy_collectm/master/collectm.remote.install.ps1\','
-        ' \'.\collectm.remote.install.ps1\');.\collectm.remote.install.ps1 '
-        '-SetupConfigFile -setupArgs \'-username "%s" -password "%s" '
-        '-servers @("%s:%s")\''
-    ) % (uuid, password, monitor, port)
-
-
-def get_deploy_collectd_command_coreos(uuid, password, monitor, port=25826):
-    return "sudo docker run -d -v /sys/fs/cgroup:/sys/fs/cgroup -e COLLECTD_USERNAME=%s -e COLLECTD_PASSWORD=%s -e MONITOR_SERVER=%s -e COLLECTD_PORT=%s mist/collectd" % (  # noqa
-        uuid, password, monitor, port)
 
 
 def create_dns_a_record(owner, domain_name, ip_addr):

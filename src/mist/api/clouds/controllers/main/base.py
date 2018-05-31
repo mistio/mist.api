@@ -309,9 +309,10 @@ class BaseMainController(object):
         from mist.api.poller.models import ListMachinesPollingSchedule
         from mist.api.poller.models import ListLocationsPollingSchedule
         from mist.api.poller.models import ListSizesPollingSchedule
-        # Ensure polling schedule is in place in case the cloud is re-enabled.
+        from mist.api.poller.models import ListNetworksPollingSchedule
+        # Ensure polling schedules are in place in case the cloud is re-enabled
         ListMachinesPollingSchedule.add(cloud=self.cloud)
-
+        ListNetworksPollingSchedule.add(cloud=self.cloud)
         # Ensure additional polling schedules with lower frequency.
         schedule = ListLocationsPollingSchedule.add(cloud=self.cloud)
         schedule.set_default_interval(60 * 60 * 24)

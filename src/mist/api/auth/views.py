@@ -157,6 +157,8 @@ def create_token(request):
     if not user.check_password(password):
         raise UserUnauthorizedError('Wrong password')
 
+    if not org:
+        org = reissue_cookie_session(request, user.id).org
     # first check if the api token name is unique if it has been provided
     # otherwise produce a new one.
     if api_token_name:

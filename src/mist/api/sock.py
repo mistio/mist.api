@@ -428,9 +428,16 @@ class MainConnection(MistConnection):
                     {'cloud_id': cloud_id, 'sizes': sizes}
                 ),
             )
+            self.internal_request(
+                'api/v1/clouds/%s/networks' % cloud.id,
+                params={'cached': True},
+                callback=lambda networks, cloud_id=cloud.id: self.send(
+                    'list_networks',
+                    {'cloud_id': cloud_id, 'networks': networks}
+                ),
+            )
 
         periodic_tasks.extend([('list_images', tasks.ListImages()),
-                               ('list_networks', tasks.ListNetworks()),
                                ('list_zones', tasks.ListZones()),
                                ('list_resource_groups',
                                 tasks.ListResourceGroups()),
@@ -649,7 +656,8 @@ class MainConnection(MistConnection):
             if patch:
                 self.batch.extend(patch)
 
-        elif routing_key in ['patch_locations', 'patch_sizes']:
+        elif routing_key in ['patch_locations', 'patch_sizes',
+                             'patch_networks']:
             cloud_id = result['cloud_id']
             patch = result['patch']
             for line in patch:
@@ -658,6 +666,8 @@ class MainConnection(MistConnection):
                     line['path'] = '/clouds/%s/locations/%s' % (cloud_id, _id)
                 elif routing_key == 'patch_sizes':
                     line['path'] = '/clouds/%s/sizes/%s' % (cloud_id, _id)
+                elif routing_key == 'patch_networks':
+                    line['path'] = '/clouds/%s/networks/%s' % (cloud_id, _id)
             if patch:
                 self.batch.extend(patch)
 

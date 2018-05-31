@@ -329,7 +329,6 @@ INFLUXDB_MACHINE_DASHBOARD_DEFAULT = {
 }
 
 MONITORING_METHODS = (
-    'collectd-graphite',
     'telegraf-influxdb',
     'telegraf-graphite',
 )
@@ -347,6 +346,11 @@ CILIA_GRAPHITE_NODATA_TARGETS = (
 CILIA_INFLUXDB_NODATA_TARGETS = (
     "system.load1", "system.n_cpus", "cpu.cpu=cpu0.usage_user"
 )
+
+# Shard Manager settings. Can also be set through env variables.
+SHARD_MANAGER_INTERVAL = 10
+SHARD_MANAGER_MAX_SHARD_PERIOD = 60
+SHARD_MANAGER_MAX_SHARD_CLAIMS = 500
 
 # number of api tokens user can have
 ACTIVE_APITOKEN_NUM = 20
@@ -483,9 +487,6 @@ NOTIFICATION_EMAIL = {
 SENDGRID_EMAIL_NOTIFICATIONS_KEY = ""
 
 # Monitoring Related
-COLLECTD_HOST = ""
-COLLECTD_PORT = ""
-
 GOOGLE_ANALYTICS_ID = ""
 
 USE_EXTERNAL_AUTHENTICATION = False
@@ -1171,7 +1172,6 @@ ALLOW_SIGNUP_GITHUB = False
 ALLOW_SIGNIN_EMAIL = True
 ALLOW_SIGNIN_GOOGLE = False
 ALLOW_SIGNIN_GITHUB = False
-ENABLE_TUNNELS = False
 STRIPE_PUBLIC_APIKEY = False
 ENABLE_AB = False
 ENABLE_R12N = False
@@ -1202,6 +1202,8 @@ FROM_ENV_STRINGS = [
     'DEFAULT_MONITORING_METHOD', 'LICENSE_KEY',
 ]
 FROM_ENV_INTS = [
+    'SHARD_MANAGER_MAX_SHARD_PERIOD', 'SHARD_MANAGER_MAX_SHARD_CLAIMS',
+    'SHARD_MANAGER_INTERVAL',
 ]
 FROM_ENV_BOOLS = [
     'SSL_VERIFY', 'ALLOW_CONNECT_LOCALHOST', 'ALLOW_CONNECT_PRIVATE',
@@ -1260,7 +1262,8 @@ HAS_BILLING = 'billing' in PLUGINS
 HAS_RBAC = 'rbac' in PLUGINS
 HAS_INSIGHTS = 'insights' in PLUGINS
 HAS_ORCHESTRATION = 'orchestration' in PLUGINS
-HAS_CLOUDIFY_INSIGHTS = HAS_INSIGHTS and HAS_ORCHESTRATION
+HAS_CLOUDIFY_INSIGHTS = HAS_INSIGHTS and HAS_ORCHESTRATION and 'cloudify.insights' in PLUGINS
+HAS_VPN = 'vpn' in PLUGINS
 HAS_EXPERIMENTS = 'experiments' in PLUGINS
 
 
@@ -1302,16 +1305,7 @@ if GC_SCHEDULERS:
 if ENABLE_MONITORING:
     _schedule['reset-traefik'] = {
         'task': 'mist.api.monitoring.tasks.reset_traefik_config',
-        'schedule': datetime.timedelta(minutes=2),
-    }
-if ENABLE_METERING:
-    _schedule['find-machine-cores'] = {
-        'task': 'mist.api.metering.tasks.find_machine_cores',
-        'schedule': datetime.timedelta(minutes=10),
-    }
-    _schedule['push-metering-info'] = {
-        'task': 'mist.api.metering.tasks.push_metering_info',
-        'schedule': datetime.timedelta(minutes=30),
+        'schedule': datetime.timedelta(seconds=90),
     }
 
 if _schedule:
@@ -1337,7 +1331,7 @@ HOMEPAGE_INPUTS = {
         'orchestration': HAS_ORCHESTRATION,
         'insights': HAS_INSIGHTS,
         'billing': HAS_BILLING,
-        'tunnels': ENABLE_TUNNELS,
+        'tunnels': HAS_VPN,
         'ab': ENABLE_AB,
         'r12ns': ENABLE_R12N,
         'signup_email': ALLOW_SIGNUP_EMAIL,
