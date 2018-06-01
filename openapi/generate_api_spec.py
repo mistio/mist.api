@@ -164,8 +164,9 @@ def main():
                     for method in request_method:
                         routes.append((route_path, method.lower(), operation))
                 else:
-                    routes.append((route_path, request_method.lower(),
-                                   operation))
+                    if request_method:
+                        routes.append((route_path, request_method.lower(),
+                                       operation))
 
     for path, method, operation in routes:
         if path not in paths:
