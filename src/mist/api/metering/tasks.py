@@ -1,5 +1,3 @@
-import amqp
-import json
 import logging
 import requests
 import datetime
@@ -26,7 +24,7 @@ def _skip_metering(machine):
 
 
 @app.task
-def find_machine_cores():
+def find_machine_cores(machine_id):
     """Decide on the number of vCPUs for all machines"""
 
     def _get_cores_from_unix(machine):
@@ -50,21 +48,21 @@ def find_machine_cores():
     def _get_cores_from_libcloud_size(machine):
         return machine.size.cpus if machine.size else 0
 
-    for machine in Machine.objects(missing_since=None):
-        try:
-            machine.cores = (
-                _get_cores_from_unix(machine) or
-                _get_cores_from_tsdb(machine) or
-                _get_cores_from_machine_extra(machine) or
-                _get_cores_from_libcloud_size(machine)
-            )
-            machine.save()
-        except Exception as exc:
-            log.error('Failed to get cores of machine %s: %r', machine.id, exc)
+    try:
+        machine = Machine.objects.get(id=machine_id)
+        machine.cores = (
+            _get_cores_from_unix(machine) or
+            _get_cores_from_tsdb(machine) or
+            _get_cores_from_machine_extra(machine) or
+            _get_cores_from_libcloud_size(machine)
+        )
+        machine.save()
+    except Exception as exc:
+        log.error('Failed to get cores of machine %s: %r', machine.id, exc)
 
 
 @app.task
-def push_metering_info():
+def push_metering_info(owner_id):
     """Collect and push new metering data to InfluxDB"""
     now = datetime.datetime.utcnow()
     metering = {}
@@ -78,20 +76,20 @@ def push_metering_info():
         raise Exception(db.content)
 
     # CPUs
-    for machine in Machine.objects(last_seen__gte=now.date()):
+    for machine in Machine.objects(owner=owner_id, last_seen__gte=now.date()):
         metering.setdefault(
-            machine.owner.id,
+            owner_id,
             dict.fromkeys(('cores', 'checks', 'datapoints'), 0)
         )
         try:
             if _skip_metering(machine):
                 continue
-            metering[machine.owner.id]['cores'] += machine.cores or 0
+            metering[owner_id]['cores'] += machine.cores or 0
         except Exception as exc:
             log.error('Failed upon cores metering of %s: %r', machine.id, exc)
 
     # Checks
-    for rule in Rule.objects():
+    for rule in Rule.objects(owner_id=owner_id):
         try:
             metering[rule.owner_id]['checks'] += rule.total_check_count
         except Exception as exc:
@@ -99,22 +97,15 @@ def push_metering_info():
 
     # Datapoints
     try:
-        connection = amqp.Connection(config.AMQP_URI)
-        channel = connection.channel()
-        channel.queue_declare('metering', auto_delete=False)
-        while True:
-            msg = channel.basic_get(queue='metering', no_ack=True)
-            if msg is None:
-                break
-            for owner_id, value in json.loads(msg.body).iteritems():
-                metering[owner_id]['datapoints'] += sum(value.itervalues())
+        q = "SELECT MAX(counter) FROM datapoints "
+        q += "WHERE owner = '%s' AND time >= now() - 30m" % owner_id
+        q += " GROUP BY machine"
+        result = requests.get('%s/query?db=metering&q=%s' % (url, q)).json()
+        result = result['results'][0]['series']
+        for series in result:
+            metering[owner_id]['datapoints'] += series['values'][0][-1]
     except Exception as exc:
         log.error('Failed upon datapoints metering: %r', exc)
-    try:
-        channel.close()
-        connection.close()
-    except Exception as exc:
-        log.error('Failed to close connection to RabbitMQ: %r', exc)
 
     # Assemble points.
     points = []

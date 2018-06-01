@@ -117,7 +117,7 @@ class BasePeriodType(me.EmbeddedDocument):
     def clean(self):
         if self.timedelta.total_seconds() < 60:
             raise me.ValidationError("%s's timedelta cannot be less than "
-                                     "a minute", self.__class__.__name__)
+                                     "a minute" % self.__class__.__name__)
 
 
 class Window(BasePeriodType):

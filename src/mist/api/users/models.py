@@ -626,6 +626,14 @@ class Organization(Owner):
 
         self.members_count = len(self.members)
         self.teams_count = len(self.teams)
+
+        # Add schedule for metering.
+        try:
+            from mist.api.poller.models import MeteringPollingSchedule
+            MeteringPollingSchedule.add(self, run_immediately=False)
+        except Exception as exc:
+            log.error('Error adding metering schedule for %s: %r', self, exc)
+
         super(Organization, self).clean()
 
 
