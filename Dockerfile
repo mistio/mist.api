@@ -4,7 +4,7 @@ FROM mist/alpine:3.4
 RUN apk add --update --no-cache g++ gcc libvirt libvirt-dev libxml2-dev libxslt-dev
 RUN pip install libvirt-python==2.4.0
 
-RUN pip install --no-cache-dir ipython pdb ipdb flake8 pytest pytest-cov
+RUN pip install --no-cache-dir ipython ipdb flake8 pytest pytest-cov
 
 # Remove `-frozen` to build without strictly pinned dependencies.
 COPY requirements-frozen.txt /mist.api/requirements.txt
