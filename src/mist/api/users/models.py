@@ -630,7 +630,7 @@ class Organization(Owner):
         # Add schedule for metering.
         try:
             from mist.api.poller.models import MeteringPollingSchedule
-            MeteringPollingSchedule.add(self)
+            MeteringPollingSchedule.add(self, run_immediately=False)
         except Exception as exc:
             log.error('Error adding metering schedule for %s: %r', self, exc)
 
