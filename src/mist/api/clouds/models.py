@@ -179,6 +179,11 @@ class Cloud(OwnershipMixin, me.Document):
             self.owner.mapper.remove(self)
         except Exception as exc:
             log.error("Got error %r while removing cloud %s", exc, self.id)
+        try:
+            if self.owned_by:
+                self.owned_by.get_ownership_mapper(self.owner).remove(self)
+        except Exception as exc:
+            log.error("Got error %r while removing cloud %s", exc, self.id)
 
     def clean(self):
         if self.dns_enabled and not hasattr(self.ctl, 'dns'):
@@ -198,6 +203,8 @@ class Cloud(OwnershipMixin, me.Document):
                 for tag in Tag.objects(owner=self.owner,
                                        resource=self).only('key', 'value')
             ],
+            'owned_by': self.owned_by.id if self.owned_by else '',
+            'created_by': self.created_by.id if self.created_by else '',
         }
         cdict.update({key: getattr(self, key)
                       for key in self._cloud_specific_fields

@@ -361,6 +361,11 @@ class Machine(OwnershipMixin, me.Document):
             self.owner.mapper.remove(self)
         except (AttributeError, me.DoesNotExist) as exc:
             log.error(exc)
+        try:
+            if self.owned_by:
+                self.owned_by.get_ownership_mapper(self.owner).remove(self)
+        except (AttributeError, me.DoesNotExist) as exc:
+            log.error(exc)
 
     def as_dict(self):
         # Return a dict as it will be returned to the API
@@ -420,6 +425,8 @@ class Machine(OwnershipMixin, me.Document):
             'cores': self.cores,
             'network': self.network.id if self.network else '',
             'subnet': self.subnet.id if self.subnet else '',
+            'owned_by': self.owned_by.id if self.owned_by else '',
+            'created_by': self.created_by.id if self.created_by else '',
         }
 
     def __str__(self):

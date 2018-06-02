@@ -211,6 +211,8 @@ class Script(OwnershipMixin, me.Document):
         super(Script, self).delete()
         mist.api.tag.models.Tag.objects(resource=self).delete()
         self.owner.mapper.remove(self)
+        if self.owned_by:
+            self.owned_by.get_ownership_mapper(self.owner).remove(self)
 
     def as_dict(self):
         """Data representation for api calls."""
@@ -220,6 +222,8 @@ class Script(OwnershipMixin, me.Document):
             'description': self.description,
             'exec_type': self.exec_type,
             'location': self.location.as_dict(),
+            'owned_by': self.owned_by.id if self.owned_by else '',
+            'created_by': self.created_by.id if self.created_by else '',
         }
 
     def __str__(self):

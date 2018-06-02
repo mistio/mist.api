@@ -1,10 +1,6 @@
-import logging
 import mongoengine as me
 
 from mist.api.exceptions import UnauthorizedError
-
-
-log = logging.getLogger(__name__)
 
 
 class OwnershipMixin(object):
@@ -26,14 +22,6 @@ class OwnershipMixin(object):
 
     owned_by = me.ReferenceField('User', reverse_delete_rule=me.NULLIFY)
     created_by = me.ReferenceField('User', reverse_delete_rule=me.NULLIFY)
-
-    def delete(self):
-        super(OwnershipMixin, self).delete()
-        try:
-            if self.owned_by:
-                self.owned_by.get_ownership_mapper(self.owner).remove(self)
-        except Exception as exc:
-            log.error(exc)
 
     def assign_to(self, user, assign_creator=True):
         """Assign the resource to `user`
@@ -64,9 +52,3 @@ class OwnershipMixin(object):
         if self.owned_by:
             self.owned_by.get_ownership_mapper(self.owner).remove(self)
         self.assign_to(user, assign_creator=False)
-
-    def as_dict(self):
-        d = super(OwnershipMixin, self).as_dict()
-        d.update({'owned_by': self.owned_by.id if self.owned_by else '',
-                  'created_by': self.created_by.id if self.created_by else ''})
-        return d

@@ -127,6 +127,8 @@ class Key(OwnershipMixin, me.Document):
         super(Key, self).delete()
         mist.api.tag.models.Tag.objects(resource=self).delete()
         self.owner.mapper.remove(self)
+        if self.owned_by:
+            self.owned_by.get_ownership_mapper(self.owner).remove(self)
 
     def as_dict(self):
         # Return a dict as it will be returned to the API
@@ -135,6 +137,8 @@ class Key(OwnershipMixin, me.Document):
             'name': self.name,
             'owner': self.owner.id,
             'default': self.default,
+            'owned_by': self.owned_by.id if self.owned_by else '',
+            'created_by': self.created_by.id if self.created_by else '',
         }
 
         mdict.update({key: getattr(self, key)

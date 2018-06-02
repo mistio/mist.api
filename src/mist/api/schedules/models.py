@@ -341,6 +341,8 @@ class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
         super(Schedule, self).delete()
         Tag.objects(resource=self).delete()
         self.owner.mapper.remove(self)
+        if self.owned_by:
+            self.owned_by.get_ownership_mapper(self.owner).remove(self)
 
     def as_dict(self):
         # Return a dict as it will be returned to the API
@@ -366,6 +368,8 @@ class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
             'total_run_count': self.total_run_count,
             'max_run_count': self.max_run_count,
             'conditions': conditions,
+            'owned_by': self.owned_by.id if self.owned_by else '',
+            'created_by': self.created_by.id if self.created_by else '',
         }
 
         return sdict

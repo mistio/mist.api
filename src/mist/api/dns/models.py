@@ -100,6 +100,8 @@ class Zone(OwnershipMixin, me.Document):
         super(Zone, self).delete()
         Tag.objects(resource=self).delete()
         self.owner.mapper.remove(self)
+        if self.owned_by:
+            self.owned_by.get_ownership_mapper(self.owner).remove(self)
 
     def as_dict(self):
         """Return a dict with the model values."""
@@ -111,6 +113,8 @@ class Zone(OwnershipMixin, me.Document):
             'ttl': self.ttl,
             'extra': self.extra,
             'cloud': self.cloud.id,
+            'owned_by': self.owned_by.id if self.owned_by else '',
+            'created_by': self.created_by.id if self.created_by else '',
         }
 
     def clean(self):
@@ -205,6 +209,8 @@ class Record(OwnershipMixin, me.Document):
         super(Record, self).delete()
         Tag.objects(resource=self).delete()
         self.zone.owner.mapper.remove(self)
+        if self.owned_by:
+            self.owned_by.get_ownership_mapper(self.owner).remove(self)
 
     def clean(self):
         """Overriding the default clean method to implement param checking"""
@@ -227,6 +233,8 @@ class Record(OwnershipMixin, me.Document):
             'ttl': self.ttl,
             'extra': self.extra,
             'zone': self.zone.id,
+            'owned_by': self.owned_by.id if self.owned_by else '',
+            'created_by': self.created_by.id if self.created_by else '',
         }
 
 
