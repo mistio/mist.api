@@ -49,7 +49,6 @@ from mist.api.concurrency.models import PeriodicTaskThresholdExceeded
 
 from mist.api.clouds.controllers.base import BaseController
 from mist.api.tag.models import Tag
-from mist.api.machines.models import Machine
 
 if config.HAS_VPN:
     from mist.vpn.methods import destination_nat as dnat
@@ -179,6 +178,7 @@ class BaseComputeController(BaseController):
         during the last `timedelta`.
 
         """
+        from mist.api.machines.models import Machine
         return Machine.objects(
             cloud=self.cloud,
             missing_since=None,
@@ -321,6 +321,7 @@ class BaseComputeController(BaseController):
             networks_map[network.name] = network
             subnets_map.update(self._list_machines__set_subnets_map(network))
 
+        from mist.api.machines.models import Machine
         # Process each machine in returned list.
         # Store previously unseen machines separately.
         new_machines = []
