@@ -1055,6 +1055,7 @@ class DockerComputeController(BaseComputeController):
         if self._dockerhost is not None:
             return self._dockerhost
 
+        from mist.api.machines.models import Machine
         try:
             # Find dockerhost from database.
             machine = Machine.objects.get(cloud=self.cloud,
@@ -1546,6 +1547,7 @@ class OtherComputeController(BaseComputeController):
         return None
 
     def _list_machines__fetch_generic_machines(self):
+        from mist.api.machines.models import Machine
         return Machine.objects(cloud=self.cloud, missing_since=None)
 
     def reboot_machine(self, machine):
