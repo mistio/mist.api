@@ -40,6 +40,7 @@ from mist.api.rules.models import NoDataRule
 
 from mist.api.poller.models import PollingSchedule
 from mist.api.poller.models import ListMachinesPollingSchedule
+from mist.api.poller.models import FindCoresMachinePollingSchedule
 from mist.api.poller.models import PingProbeMachinePollingSchedule
 from mist.api.poller.models import SSHProbeMachinePollingSchedule
 
@@ -1285,6 +1286,9 @@ def update_poller(org_id):
         ListMachinesPollingSchedule.add(cloud=cloud, interval=10, ttl=120)
         for machine in cloud.ctl.compute.list_cached_machines():
             log.info("Updating poller for machine %s", machine)
+            FindCoresMachinePollingSchedule.add(machine=machine,
+                                                interval=600, ttl=360,
+                                                run_immediately=False)
             PingProbeMachinePollingSchedule.add(machine=machine,
                                                 interval=300, ttl=120)
             SSHProbeMachinePollingSchedule.add(machine=machine,

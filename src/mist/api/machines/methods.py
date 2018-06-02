@@ -982,6 +982,14 @@ def _create_machine_libvirt(conn, machine_name, disk_size, ram, cpu,
                             public_key, cloud_init):
     """Create a machine in Libvirt.
     """
+    # The libvirt drivers expects network names.
+    from mist.api.networks.models import LibvirtNetwork
+    network_names = []
+    for nid in networks:
+        try:
+            network_names.append(LibvirtNetwork.objects.get(id=nid).name)
+        except LibvirtNetwork.DoesNotExist:
+            log.error('LibvirtNetwork %s does not exist' % nid)
 
     try:
         node = conn.create_node(
@@ -991,7 +999,7 @@ def _create_machine_libvirt(conn, machine_name, disk_size, ram, cpu,
             cpu=cpu,
             image=image,
             disk_path=disk_path,
-            networks=networks,
+            networks=network_names,
             public_key=public_key,
             cloud_init=cloud_init
         )
