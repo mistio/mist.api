@@ -50,8 +50,6 @@ from mist.api.exceptions import MachineNotFoundError
 from mist.api.exceptions import BadRequestError
 from mist.api.helpers import sanitize_host
 
-from mist.api.machines.models import Machine
-
 from mist.api.misc.cloud import CloudImage
 
 from mist.api.clouds.controllers.main.base import BaseComputeController
@@ -847,8 +845,8 @@ class VultrComputeController(BaseComputeController):
 class VSphereComputeController(BaseComputeController):
 
     def _connect(self):
-        host = dnat(self.cloud.owner, self.cloud.host)
-        return get_driver(Provider.VSPHERE)(host=host,
+        host, port = dnat(self.cloud.owner, self.cloud.host, 443)
+        return get_driver(Provider.VSPHERE)(host=host, port=port,
                                             username=self.cloud.username,
                                             password=self.cloud.password)
 

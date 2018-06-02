@@ -41,7 +41,6 @@ from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.helpers import sanitize_host, check_host
 
 from mist.api.keys.models import Key
-from mist.api.machines.models import Machine
 
 from mist.api.helpers import rename_kwargs
 from mist.api.clouds.controllers.main.base import BaseMainController
@@ -288,6 +287,7 @@ class LibvirtMainController(BaseMainController):
         # changing the cloud's host.
         # FIXME: Add type field to differentiate between actual vm's and the
         # host.
+        from mist.api.machines.models import Machine
 
         try:
             machine = Machine.objects.get(cloud=self.cloud,
@@ -469,6 +469,7 @@ class OtherMainController(BaseMainController):
             ssh_key = Key.objects.get(owner=self.cloud.owner, id=ssh_key,
                                       deleted=None)
 
+        from mist.api.machines.models import Machine
         # Create and save machine entry to database.
         machine = Machine(
             cloud=self.cloud,
