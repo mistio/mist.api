@@ -46,7 +46,6 @@ pyvmomi==6.5
 requests
 sendgrid-python
 sockjs-tornado
-stripe
 tornado
 tornado_profile
 uwsgidecorators

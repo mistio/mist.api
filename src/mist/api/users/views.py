@@ -1,5 +1,4 @@
 import logging
-import stripe
 
 from pyramid.response import Response
 
@@ -68,14 +67,11 @@ def update_user_settings(request):
     """
 
     # SEC raise exception if not user
-    import ipdb
-    ipdb.set_trace()
     user = user_from_request(request)
 
     auth_context = auth_context_from_request(request)
 
     params = params_from_request(request)
-    stripe.api_key = config.STRIPE_SECRET_APIKEY
 
     action = params.get('action')
     actions = ['update_details', 'update_password', 'cancel_plan']
