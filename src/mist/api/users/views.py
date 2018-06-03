@@ -74,28 +74,10 @@ def update_user_settings(request):
     params = params_from_request(request)
 
     action = params.get('action')
-    actions = ['update_details', 'update_password', 'cancel_plan']
+    actions = ['update_details', 'update_password']
     if action not in actions:
         log.error("Update_user_settings bad action='%s'", action)
         raise BadRequestError('action')
-
-    if action == 'cancel_plan':
-        if not auth_context.is_owner():
-            raise UnauthorizedError()
-        if not config.HAS_BILLING:
-            raise BadRequestError("Billing not enabled")
-        from mist.billing.methods import cancel_plan
-        from mist.billing.methods import get_all_user_plan_info
-        from mist.billing.methods import get_subscription_history
-        cancel_plan(auth_context.owner)
-        trigger_session_update(auth_context.owner, ['org'])
-
-        curr_plan, promos = get_all_user_plan_info(auth_context.owner)
-        return {
-            'current_plan': curr_plan,
-            'user_plans': get_subscription_history(auth_context.owner),
-            'promo_codes': promos,
-        }
 
     if action == 'update_details':
         avatar = params.get('avatar')
