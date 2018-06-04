@@ -56,10 +56,9 @@ from mist.api.portal.models import Portal
 
 from mist.api import config
 
-if config.HAS_CORE:
-    from mist.core.methods import filter_list_tags
-else:
-    from mist.api.dummy.methods import filter_list_tags
+if config.HAS_RBAC:
+    from mist.rbac.methods import filter_log_event
+
 
 logging.basicConfig(level=config.PY_LOG_LEVEL,
                     format=config.PY_LOG_FORMAT,
@@ -305,7 +304,6 @@ class MainConnection(MistConnection):
     def start(self):
         self.update_user()
         self.update_org()
-        self.list_tags()
         self.list_keys()
         self.list_scripts()
         self.list_schedules()
@@ -352,9 +350,6 @@ class MainConnection(MistConnection):
 
         if org:
             self.send('org', org)
-
-    def list_tags(self):
-        self.send('list_tags', filter_list_tags(self.auth_context))
 
     def list_keys(self):
         self.internal_request(
@@ -617,8 +612,6 @@ class MainConnection(MistConnection):
                 self.list_templates()
             if 'stacks' in sections:
                 self.list_stacks()
-            if 'tags' in sections:
-                self.list_tags()
             if 'tunnels' in sections:
                 self.list_tunnels()
             if 'notifications' in sections:
@@ -786,6 +779,8 @@ class LogsConnection(MistConnection):
         default, the log entry is returned as is.
 
         """
+        if config.HAS_RBAC:
+            return filter_log_event(self.auth_context, event)
         return event
 
     def on_close(self, stale=False):
@@ -799,11 +794,13 @@ class LogsConnection(MistConnection):
 
 
 def make_router():
-    return SockJSRouter(
-        MultiplexConnection.get(
-            main=MainConnection,
-            logs=LogsConnection,
-            shell=ShellConnection,
-        ),
-        '/socket'
-    )
+    conns = {
+        'main': MainConnection,
+        'logs': LogsConnection,
+        'shell': ShellConnection,
+    }
+    if config.HAS_MANAGE:
+        from mist.manage.sock import ManageLogsConnection
+        conns['manage_logs'] = ManageLogsConnection
+
+    return SockJSRouter(MultiplexConnection.get(**conns), '/socket')
