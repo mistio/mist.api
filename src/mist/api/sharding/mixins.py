@@ -7,6 +7,7 @@ import mongoengine as me
 
 import mist.api.config as config
 
+
 log = logging.getLogger(__name__)
 
 
@@ -104,21 +105,21 @@ class ShardManagerMixin(object):
 
         while True:
             now = datetime.datetime.utcnow()
+
+            # Touch existing documents to renew the sharding period.
+            objects = self.Model.objects(shard_id=self.current_shard_id)
+            renewed = objects.update(shard_update_at=now)
+            log.debug('%s renewed %s docs', self.current_shard_id, renewed)
+
+            # Fetch documents which have either not been claimed or renewed.
             d = now - datetime.timedelta(seconds=self.max_shard_period)
             q = (me.Q(shard_update_at__lt=d) | me.Q(shard_update_at=None))
             q &= me.Q(shard_id__ne=self.current_shard_id)
 
-            docs = self.Model.objects(q)
-
             # Claim some of the documents. Note that we have to iterate the
             # limited cursor, instead of applying a bulk update.
-            for doc in docs.limit(self.max_shard_claims):
+            for doc in self.Model.objects(q).limit(self.max_shard_claims):
                 doc.update(shard_id=self.current_shard_id, shard_update_at=now)
                 log.debug('%s claimed %s', self.current_shard_id, doc.name)
-
-            # Touch existing documents to renew the sharding period.
-            for entry in self._schedule.itervalues():
-                entry._task.update(shard_update_at=now)
-                log.debug('%s renewed %s', self.current_shard_id, entry.name)
 
             time.sleep(self.manager_interval)
