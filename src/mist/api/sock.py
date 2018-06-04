@@ -794,11 +794,13 @@ class LogsConnection(MistConnection):
 
 
 def make_router():
-    return SockJSRouter(
-        MultiplexConnection.get(
-            main=MainConnection,
-            logs=LogsConnection,
-            shell=ShellConnection,
-        ),
-        '/socket'
-    )
+    conns = {
+        'main': MainConnection,
+        'logs': LogsConnection,
+        'shell': ShellConnection,
+    }
+    if config.HAS_MANAGE:
+        from mist.manage.sock import ManageLogsConnection
+        conns['manage_logs'] = ManageLogsConnection
+
+    return SockJSRouter(MultiplexConnection.get(**conns), '/socket')
