@@ -301,6 +301,11 @@ def add_routes(configurator):
         '/api/v1/org/{org_id}/teams/{team_id}/members/{user_id}'
     )
 
+    configurator.add_route('delete_account', '/delete_account/{email}')
+
+    # Account page.
+    configurator.add_route('api_v1_account', '/api/v1/account')
+
     configurator.add_route('api_v1_user_whitelist_ip',
                            '/api/v1/whitelist')
 
