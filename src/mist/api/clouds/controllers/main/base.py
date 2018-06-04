@@ -169,6 +169,9 @@ class BaseMainController(object):
             # Propagate original error.
             raise
 
+        # Add relevant polling schedules.
+        self.add_polling_schedules()
+
     def _add__preparse_kwargs(self, kwargs):
         """Preparse keyword arguments to `self.add`
 
@@ -304,23 +307,7 @@ class BaseMainController(object):
     def enable(self):
         self.cloud.enabled = True
         self.cloud.save()
-
-        # FIXME: Resolve circular import issues
-        from mist.api.poller.models import ListMachinesPollingSchedule
-        from mist.api.poller.models import ListLocationsPollingSchedule
-        from mist.api.poller.models import ListSizesPollingSchedule
-        from mist.api.poller.models import ListNetworksPollingSchedule
-        # Ensure polling schedules are in place in case the cloud is re-enabled
-        ListMachinesPollingSchedule.add(cloud=self.cloud)
-        ListNetworksPollingSchedule.add(cloud=self.cloud)
-        # Ensure additional polling schedules with lower frequency.
-        schedule = ListLocationsPollingSchedule.add(cloud=self.cloud)
-        schedule.set_default_interval(60 * 60 * 24)
-        schedule.save()
-
-        schedule = ListSizesPollingSchedule.add(cloud=self.cloud)
-        schedule.set_default_interval(60 * 60 * 24)
-        schedule.save()
+        self.add_polling_schedules()
 
     def disable(self):
         self.cloud.enabled = False
@@ -352,9 +339,39 @@ class BaseMainController(object):
         self.cloud.polling_interval = interval
         self.cloud.save()
 
-        # FIXME: Resolve circular import issues
+    def add_polling_schedules(self):
+        """Add all the relevant cloud polling schedules
+
+        This method simply adds all relevant polling schedules and sets
+        their default settings. See the `mist.api.tasks.update_poller`
+        task for dynamically adding new polling schedules or updating
+        existing ones.
+
+        """
+
+        # FIXME Imported here due to circular dependency issues.
         from mist.api.poller.models import ListMachinesPollingSchedule
+        from mist.api.poller.models import ListNetworksPollingSchedule
+        from mist.api.poller.models import ListLocationsPollingSchedule
+        from mist.api.poller.models import ListSizesPollingSchedule
+
+        # Add machines' polling schedule.
         ListMachinesPollingSchedule.add(cloud=self.cloud)
+
+        # Add networks' polling schedule, if applicable.
+        if hasattr(self.cloud.ctl, 'network'):
+            ListNetworksPollingSchedule.add(cloud=self.cloud)
+
+        # Add extra cloud-level polling schedules with lower frequency. Such
+        # schedules poll resources that should hardly ever change. Thus, we
+        # add the schedules, increase their interval, and forget about them.
+        schedule = ListLocationsPollingSchedule.add(cloud=self.cloud)
+        schedule.set_default_interval(60 * 60 * 24)
+        schedule.save()
+
+        schedule = ListSizesPollingSchedule.add(cloud=self.cloud)
+        schedule.set_default_interval(60 * 60 * 24)
+        schedule.save()
 
     def delete(self, expire=False):
         """Delete a Cloud.
