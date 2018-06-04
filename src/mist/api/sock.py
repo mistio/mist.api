@@ -56,11 +56,6 @@ from mist.api.portal.models import Portal
 
 from mist.api import config
 
-if config.HAS_CORE:
-    from mist.core.methods import filter_list_tags
-else:
-    from mist.api.dummy.methods import filter_list_tags
-
 logging.basicConfig(level=config.PY_LOG_LEVEL,
                     format=config.PY_LOG_FORMAT,
                     datefmt=config.PY_LOG_FORMAT_DATE)
@@ -305,7 +300,6 @@ class MainConnection(MistConnection):
     def start(self):
         self.update_user()
         self.update_org()
-        self.list_tags()
         self.list_keys()
         self.list_scripts()
         self.list_schedules()
@@ -352,9 +346,6 @@ class MainConnection(MistConnection):
 
         if org:
             self.send('org', org)
-
-    def list_tags(self):
-        self.send('list_tags', filter_list_tags(self.auth_context))
 
     def list_keys(self):
         self.internal_request(
@@ -617,8 +608,6 @@ class MainConnection(MistConnection):
                 self.list_templates()
             if 'stacks' in sections:
                 self.list_stacks()
-            if 'tags' in sections:
-                self.list_tags()
             if 'tunnels' in sections:
                 self.list_tunnels()
             if 'notifications' in sections:
