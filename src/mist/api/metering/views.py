@@ -10,7 +10,11 @@ from mist.api.metering.methods import get_usage
 @view_config(route_name='api_v1_metering', request_method='GET',
              renderer='json')
 def metering(request):
-    """Request metering data"""
+    """
+    Tags: metering
+    ---
+    Request metering data
+    """
     auth_context = auth_context_from_request(request)
     params = params_from_request(request)
 
