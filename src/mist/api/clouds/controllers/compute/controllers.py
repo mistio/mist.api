@@ -50,8 +50,6 @@ from mist.api.exceptions import MachineNotFoundError
 from mist.api.exceptions import BadRequestError
 from mist.api.helpers import sanitize_host
 
-from mist.api.machines.models import Machine
-
 from mist.api.misc.cloud import CloudImage
 
 from mist.api.clouds.controllers.main.base import BaseComputeController
@@ -847,8 +845,8 @@ class VultrComputeController(BaseComputeController):
 class VSphereComputeController(BaseComputeController):
 
     def _connect(self):
-        host = dnat(self.cloud.owner, self.cloud.host)
-        return get_driver(Provider.VSPHERE)(host=host,
+        host, port = dnat(self.cloud.owner, self.cloud.host, 443)
+        return get_driver(Provider.VSPHERE)(host=host, port=port,
                                             username=self.cloud.username,
                                             password=self.cloud.password)
 
@@ -1057,6 +1055,7 @@ class DockerComputeController(BaseComputeController):
         if self._dockerhost is not None:
             return self._dockerhost
 
+        from mist.api.machines.models import Machine
         try:
             # Find dockerhost from database.
             machine = Machine.objects.get(cloud=self.cloud,
@@ -1548,6 +1547,7 @@ class OtherComputeController(BaseComputeController):
         return None
 
     def _list_machines__fetch_generic_machines(self):
+        from mist.api.machines.models import Machine
         return Machine.objects(cloud=self.cloud, missing_since=None)
 
     def reboot_machine(self, machine):
