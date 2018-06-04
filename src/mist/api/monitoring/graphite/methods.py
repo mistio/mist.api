@@ -1,9 +1,12 @@
 import time
 import logging
 
+import requests
+
 from mist.api import config
 
 from mist.api.exceptions import NotFoundError, ServiceUnavailableError
+from mist.api.exceptions import ForbiddenError
 
 from mist.api.helpers import trigger_session_update
 
@@ -92,6 +95,41 @@ def _clean_monitor_metrics(owner, data):
         return metric_id, item
 
     return dict([_clean_monitor_metric(owner, item) for item in data])
+
+
+def find_metrics(machine):
+    if not machine.monitoring.hasmonitoring:
+        raise ForbiddenError("Machine doesn't have monitoring enabled.")
+    url = "%s/machines/%s/metrics" % (config.MONITOR_URI, machine.id)
+    try:
+        resp = requests.get(url)
+    except Exception as exc:
+        log.error("Exception finding metrics: %r", exc)
+        raise ServiceUnavailableError()
+    if not resp.ok:
+        log.error("Got error from monitor server: %s", resp.text)
+        raise ServiceUnavailableError()
+
+    metrics = _clean_monitor_metrics(machine.owner, resp.json())
+    for metric_id in metrics:
+        metrics[metric_id]['id'] = metric_id
+
+    # # complex custom metrics won't appear unless manually added
+    # for metric_id in machine.monitoring.metrics:
+        # metric = user.metrics.get(metric_id, Metric())
+        # log.warning("find_metrics manually adding complex custom metrics!")
+        # if "%(head)s" in metrid_id:
+        #     metrics.append({
+        #         'metric_id': metric_id,
+        #         'name': metric.name,
+        #         'unit': metric.unit,
+        #         '_target': metric_id,
+        #         'max_value': None,
+        #         'min_value': None,
+        #         'priority': -100,
+        #     })
+
+    return metrics
 
 
 def _get_multimachine_stats(owner, metric, start='', stop='', step='',
