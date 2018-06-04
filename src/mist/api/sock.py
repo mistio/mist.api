@@ -56,6 +56,10 @@ from mist.api.portal.models import Portal
 
 from mist.api import config
 
+if config.HAS_RBAC:
+    from mist.rbac.methods import filter_log_event
+
+
 logging.basicConfig(level=config.PY_LOG_LEVEL,
                     format=config.PY_LOG_FORMAT,
                     datefmt=config.PY_LOG_FORMAT_DATE)
@@ -775,6 +779,8 @@ class LogsConnection(MistConnection):
         default, the log entry is returned as is.
 
         """
+        if config.HAS_RBAC:
+            return filter_log_event(self.auth_context, event)
         return event
 
     def on_close(self, stale=False):
