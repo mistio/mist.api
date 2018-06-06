@@ -1192,7 +1192,6 @@ else:
     print >> sys.stderr, "Couldn't find core config in %s" % CORE_CONFIG_PATH
     HAS_CORE = False
 
-
 # Get settings from environmental variables.
 FROM_ENV_STRINGS = [
     'AMQP_URI', 'BROKER_URL', 'CORE_URI', 'MONGO_URI', 'MONGO_DB', 'DOCKER_IP',
@@ -1256,6 +1255,12 @@ for override_file in CONFIG_OVERRIDE_FILES:
     else:
         print >> sys.stderr, ("Couldn't find settings file in %s" %
                               override_file)
+
+for plugin in PLUGINS:
+    try:
+        exec 'from mist.%s.config import *' % plugin
+    except ImportError:
+        pass
 
 HAS_BILLING = 'billing' in PLUGINS
 HAS_RBAC = 'rbac' in PLUGINS
