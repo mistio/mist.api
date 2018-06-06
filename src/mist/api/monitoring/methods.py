@@ -182,14 +182,8 @@ def check_monitoring(owner):
                 machines = custom_metrics[metric_id]['machines']
                 machines.append((machine.cloud.id, machine.machine_id))
 
-    if config.HAS_BILLING:
-        from mist.billing.methods import curr_plan_as_dict
-    else:
-        def curr_plan_as_dict(owner):
-            return {}
 
     ret = {
-        'current_plan': curr_plan_as_dict(owner),
         'machines': monitored_machines,
         'monitored_machines': monitored_machines_2,
         'rules': owner.get_rules_dict(),
