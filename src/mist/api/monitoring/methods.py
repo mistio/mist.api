@@ -33,6 +33,8 @@ from mist.api.monitoring.influxdb.handlers \
 from mist.api.monitoring.graphite.methods \
     import get_stats as graphite_get_stats
 from mist.api.monitoring.graphite.methods \
+    import find_metrics as graphite_find_metrics
+from mist.api.monitoring.graphite.methods \
     import get_load as graphite_get_load
 
 from mist.api.monitoring import traefik
@@ -430,8 +432,7 @@ def find_metrics(machine):
     if machine.monitoring.method in ('telegraf-graphite'):
         if not config.HAS_CORE:
             raise Exception()
-        from mist.core.methods import _graphite_find_metrics
-        return _graphite_find_metrics(machine)
+        return graphite_find_metrics(machine)
     elif machine.monitoring.method == 'telegraf-influxdb':
         metrics = {}
         for metric in show_fields(show_measurements(machine.id)):

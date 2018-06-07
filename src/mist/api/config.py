@@ -1263,6 +1263,7 @@ HAS_INSIGHTS = 'insights' in PLUGINS
 HAS_ORCHESTRATION = 'orchestration' in PLUGINS
 HAS_VPN = 'vpn' in PLUGINS
 HAS_EXPERIMENTS = 'experiments' in PLUGINS
+HAS_MANAGE = 'manage' in PLUGINS
 
 
 # Update TELEGRAF_TARGET.
