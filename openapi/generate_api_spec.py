@@ -32,7 +32,8 @@ EXCLUDED_ROUTE_NAMES = ['api_v1_avatars', 'api_v1_avatar', 'api_v1_fetch',
                         'purchase', 'api_v1_request_info', 'api_v1_tokens',
                         'api_v1_ping', 'api_v1_report', 'manage',
                         'api_v1_manage_orgs', 'api_v1_manage_org',
-                        'api_v1_manage_users', 'api_v1_manage_user']
+                        'api_v1_manage_users', 'api_v1_manage_user',
+                        'api_v1_logs_ui']
 
 
 def extract_params_from_operation(operation):
