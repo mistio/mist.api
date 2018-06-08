@@ -3,6 +3,8 @@ import uuid
 import netaddr
 import mongoengine as me
 
+from mist.api.ownership.mixins import OwnershipMixin
+
 from mist.api.exceptions import RequiredParameterMissingError
 
 from mist.api.tag.models import Tag
@@ -29,7 +31,7 @@ def _populate_class_mapping(mapping, class_suffix, base_class):
                         mapping[provider] = value
 
 
-class Network(me.Document):
+class Network(OwnershipMixin, me.Document):
     """The basic Network model.
 
     This class is only meant to be used as a basic class for cloud-specific
@@ -119,6 +121,8 @@ class Network(me.Document):
         super(Network, self).delete()
         self.owner.mapper.remove(self)
         Tag.objects(resource=self).delete()
+        if self.owned_by:
+            self.owned_by.get_ownership_mapper(self.owner).remove(self)
 
     def as_dict(self):
         """Returns the API representation of the `Network` object."""
@@ -131,6 +135,8 @@ class Network(me.Document):
             'description': self.description,
             'extra': self.extra,
             'tags': self.tags,
+            'owned_by': self.owned_by.id if self.owned_by else '',
+            'created_by': self.created_by.id if self.created_by else '',
         }
         net_dict.update(
             {key: getattr(self, key) for key in self._network_specific_fields}
