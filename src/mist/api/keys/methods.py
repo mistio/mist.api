@@ -63,8 +63,8 @@ def list_keys(owner):
                                    key_associations__keypair__exact=key)
         key_object["id"] = key.id
         key_object['name'] = key.name
-	key_object['owned_by'] = key.owned_by.id if key.owned_by else ''
-	key_object['created_by'] = key.created_by.id if key.created_by else ''
+        key_object['owned_by'] = key.owned_by.id if key.owned_by else ''
+        key_object['created_by'] = key.created_by.id if key.created_by else ''
         key_object["isDefault"] = key.default
         key_object["machines"] = transform_key_machine_associations(machines,
                                                                     key)
