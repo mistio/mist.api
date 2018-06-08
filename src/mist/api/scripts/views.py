@@ -119,6 +119,9 @@ def add_script(request):
             "Param 'exec_type' must be in ('executable', 'ansible')."
         )
 
+    # Set ownership.
+    script.assign_to(auth_context.user)
+
     if script_tags:
         add_tags_to_resource(auth_context.owner, script, script_tags.items())
 

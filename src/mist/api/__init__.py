@@ -256,6 +256,9 @@ def add_routes(configurator):
     # Metering.
     configurator.add_route('api_v1_metering', '/api/v1/metering')
 
+    # Ownership
+    configurator.add_route('api_v1_ownership', '/api/v1/ownership')
+
     configurator.add_route('api_v1_zones',
                            '/api/v1/clouds/{cloud}/dns/zones')
     configurator.add_route('api_v1_zone',

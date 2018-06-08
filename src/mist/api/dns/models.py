@@ -10,6 +10,7 @@ from mist.api.clouds.models import Cloud
 from mist.api.users.models import Organization
 from mist.api.dns.controllers import ZoneController, RecordController
 from mist.api.clouds.controllers.dns.base import BaseDNSController
+from mist.api.ownership.mixins import OwnershipMixin
 
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import RequiredParameterMissingError
@@ -29,7 +30,7 @@ def _populate_records():
                 RECORDS[value._record_type] = value
 
 
-class Zone(me.Document):
+class Zone(OwnershipMixin, me.Document):
     """This is the class definition for the Mongo Engine Document related to a
     DNS zone.
     """
@@ -99,6 +100,8 @@ class Zone(me.Document):
         super(Zone, self).delete()
         Tag.objects(resource=self).delete()
         self.owner.mapper.remove(self)
+        if self.owned_by:
+            self.owned_by.get_ownership_mapper(self.owner).remove(self)
 
     def as_dict(self):
         """Return a dict with the model values."""
@@ -109,7 +112,9 @@ class Zone(me.Document):
             'type': self.type,
             'ttl': self.ttl,
             'extra': self.extra,
-            'cloud': self.cloud.id
+            'cloud': self.cloud.id,
+            'owned_by': self.owned_by.id if self.owned_by else '',
+            'created_by': self.created_by.id if self.created_by else '',
         }
 
     def clean(self):
@@ -122,7 +127,7 @@ class Zone(me.Document):
                                           self.owner)
 
 
-class Record(me.Document):
+class Record(OwnershipMixin, me.Document):
     """This is the class definition for the Mongo Engine Document related to a
     DNS record.
     """
@@ -204,6 +209,8 @@ class Record(me.Document):
         super(Record, self).delete()
         Tag.objects(resource=self).delete()
         self.zone.owner.mapper.remove(self)
+        if self.owned_by:
+            self.owned_by.get_ownership_mapper(self.owner).remove(self)
 
     def clean(self):
         """Overriding the default clean method to implement param checking"""
@@ -225,7 +232,9 @@ class Record(me.Document):
             'rdata': self.rdata,
             'ttl': self.ttl,
             'extra': self.extra,
-            'zone': self.zone.id
+            'zone': self.zone.id,
+            'owned_by': self.owned_by.id if self.owned_by else '',
+            'created_by': self.created_by.id if self.created_by else '',
         }
 
 
