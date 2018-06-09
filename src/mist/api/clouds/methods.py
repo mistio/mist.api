@@ -2,7 +2,6 @@ import mist.api.clouds.models as cloud_models
 
 from mist.api.clouds.models import Cloud
 
-from mist.api.tasks import async_session_update
 from mist.api.helpers import trigger_session_update
 
 from mist.api.exceptions import RequiredParameterMissingError
@@ -45,17 +44,6 @@ def add_cloud_v_2(owner, title, provider, params):
         'errors': getattr(cloud,
                           'errors', []),  # just an attribute, not a field
     }
-
-    # SEC
-    # Update the RBAC mappings with the new Cloud and finally trigger
-    # a session update by registering it as a chained task.
-    if config.HAS_RBAC:
-        owner.mapper.update(
-            cloud,
-            callback=async_session_update, args=(owner.id, ['clouds'], )
-        )
-    else:
-        trigger_session_update(owner.id, ['clouds'])
 
     log.info("Cloud with id '%s' added succesfully.", cloud.id)
 

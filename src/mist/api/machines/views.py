@@ -431,9 +431,9 @@ def create_machine(request):
               'new_resource_group': new_resource_group,
               'machine_username': machine_username}
     if not async:
-        ret = methods.create_machine(auth_context.owner, *args, **kwargs)
+        ret = methods.create_machine(auth_context, *args, **kwargs)
     else:
-        args = (auth_context.owner.id, ) + args
+        args = (auth_context.serialize(), ) + args
         kwargs.update({'quantity': quantity, 'persist': persist})
         tasks.create_machine_async.apply_async(args, kwargs, countdown=2)
         ret = {'job_id': job_id}

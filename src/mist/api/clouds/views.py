@@ -4,6 +4,7 @@ from pyramid.response import Response
 from mist.api.clouds.models import Cloud
 from mist.api.auth.methods import auth_context_from_request
 
+from mist.api.tasks import async_session_update
 from mist.api.helpers import trigger_session_update
 from mist.api.helpers import view_config, params_from_request
 
@@ -225,11 +226,26 @@ def add_cloud(request):
     if cloud_tags:
         add_tags_to_resource(owner, cloud, cloud_tags.items())
 
+    # Set ownership.
+    cloud.assign_to(auth_context.user)
+
+    # SEC
+    # Update the RBAC & User/Ownership mappings with the new Cloud and finally
+    # trigger a session update by registering it as a chained task.
+    if config.HAS_RBAC:
+        owner.mapper.update(
+            cloud,
+            callback=async_session_update, args=(owner.id, ['clouds'], )
+        )
+    else:
+        trigger_session_update(owner.id, ['clouds'])
+
     c_count = Cloud.objects(owner=owner, deleted=None).count()
     ret = cloud.as_dict()
     ret['index'] = c_count - 1
     if monitoring:
         ret['monitoring'] = monitoring
+
     return ret
 
 

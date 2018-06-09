@@ -795,7 +795,7 @@ class ListStorageAccounts(UserTask):
 
 @app.task
 def create_machine_async(
-    owner_id, cloud_id, key_id, machine_name, location_id,
+    auth_context_serialized, cloud_id, key_id, machine_name, location_id,
     image_id, size, image_extra, disk,
     image_name, size_name, location_name, ips, monitoring,
     ex_storage_account, machine_password, ex_resource_group,
@@ -819,8 +819,10 @@ def create_machine_async(
     from mist.api.exceptions import MachineCreationError
     log.warn('MULTICREATE ASYNC %d' % quantity)
 
+    # Re-construct AuthContext.
+    auth_context = AuthContext.deserialize(auth_context_serialized)
+
     job_id = job_id or uuid.uuid4().hex
-    owner = Owner.objects.get(id=owner_id)
 
     names = []
     if quantity == 1:
@@ -830,8 +832,8 @@ def create_machine_async(
         for i in range(1, quantity + 1):
             names.append('%s-%d' % (machine_name, i))
 
-    log_event(owner.id, 'job', 'async_machine_creation_started',
-              job_id=job_id, job=job,
+    log_event(auth_context.owner.id, 'job', 'async_machine_creation_started',
+              user_id=auth_context.user.id, job_id=job_id, job=job,
               cloud_id=cloud_id, script=script, script_id=script_id,
               script_params=script_params, monitoring=monitoring,
               persist=persist, quantity=quantity, key_id=key_id,
@@ -842,7 +844,7 @@ def create_machine_async(
     specs = []
     for name in names:
         specs.append((
-            (owner, cloud_id, key_id, name, location_id, image_id,
+            (auth_context, cloud_id, key_id, name, location_id, image_id,
              size, image_extra, disk, image_name, size_name,
              location_name, ips, monitoring, ex_storage_account,
              machine_password, ex_resource_group, networks, subnetwork,
@@ -883,9 +885,12 @@ def create_machine_async(
             error = repr(exc)
         finally:
             name = args[3]
-            log_event(owner.id, 'job', 'machine_creation_finished', job=job,
-                      job_id=job_id, cloud_id=cloud_id, machine_name=name,
-                      error=error, machine_id=node.get('id', ''))
+            log_event(
+                auth_context.owner.id, 'job', 'machine_creation_finished',
+                job=job, job_id=job_id, cloud_id=cloud_id, machine_name=name,
+                error=error, machine_id=node.get('id', ''),
+                user_id=auth_context.user.id
+            )
 
     pool.map(create_machine_wrapper, specs)
     pool.close()

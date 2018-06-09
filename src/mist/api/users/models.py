@@ -347,6 +347,14 @@ class User(Owner):
         except AttributeError:
                 return self.email
 
+    def get_ownership_mapper(self, org):
+        """Return the `OwnershipMapper` in the specified Org context."""
+        if config.HAS_RBAC:
+            from mist.rbac.mappings import OwnershipMapper
+        else:
+            from mist.api.dummy.mappings import OwnershipMapper
+        return OwnershipMapper(self, org)
+
 
 class Avatar(me.Document):
     id = me.StringField(primary_key=True,
@@ -449,6 +457,7 @@ class Organization(Owner):
         choices=config.MONITORING_METHODS)
 
     insights_enabled = me.BooleanField(default=config.HAS_INSIGHTS)
+    ownership_enabled = me.BooleanField()
 
     created = me.DateTimeField(default=datetime.datetime.now)
     registered_by = me.StringField()
