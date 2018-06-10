@@ -1237,14 +1237,16 @@ for plugin in PLUGINS:
             if key in ['PLUGIN_ENV_STRINGS', 'PLUGIN_ENV_INTS',
                        'PLUGIN_ENV_BOOLS', 'PLUGIN_ENV_ARRAYS']:
                 locals()[key] += plugin_env[key]
-            elif isinstance(locals().get(key), dict) and isinstance(plugin_env[key], dict):
+            elif isinstance(locals().get(key), dict) and \
+                    isinstance(plugin_env[key], dict):
                 locals()[key].update(plugin_env[key])
             else:
                 locals()[key] = plugin_env[key]
         print >> sys.stderr, "Imported config of `%s` plugin" % plugin
     except Exception as exc:
         if exc.message != 'No module named config':
-            print >> sys.stderr, "Failed to import config of `%s` plugin" % plugin
+            print >> sys.stderr, "Failed to import config of `%s` plugin" % \
+                plugin
 
 # Get settings from environmental variables.
 FROM_ENV_STRINGS = [
