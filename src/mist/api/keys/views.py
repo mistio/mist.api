@@ -72,6 +72,9 @@ def add_key(request):
     else:
         key = SSHKey.add(auth_context.owner, key_name, **params)
 
+    # Set ownership.
+    key.assign_to(auth_context.user)
+
     if key_tags:
         add_tags_to_resource(auth_context.owner, key, key_tags.items())
     # since its a new key machines fields should be an empty list

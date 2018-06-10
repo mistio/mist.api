@@ -11,6 +11,7 @@ from celerybeatmongo.schedulers import MongoScheduler
 from mist.api.exceptions import ScheduleNameExistsError
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.conditions.models import ConditionalClassMixin
+from mist.api.ownership.mixins import OwnershipMixin
 
 
 #: Authorized values for Interval.period
@@ -153,7 +154,7 @@ class ScriptTask(BaseTaskType):
         return 'Run script: %s' % self.script_id
 
 
-class Schedule(me.Document, ConditionalClassMixin):
+class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
     """Abstract base class for every schedule attr mongoengine model.
     This model is based on celery periodic task and creates defines the fields
     common to all schedules of all types. For each different schedule type, a
@@ -249,7 +250,7 @@ class Schedule(me.Document, ConditionalClassMixin):
         schedule = cls(owner=owner, name=name)
         schedule.ctl.set_auth_context(auth_context)
         schedule.ctl.add(**kwargs)
-
+        schedule.assign_to(auth_context.user)
         return schedule
 
     @property
@@ -340,6 +341,8 @@ class Schedule(me.Document, ConditionalClassMixin):
         super(Schedule, self).delete()
         Tag.objects(resource=self).delete()
         self.owner.mapper.remove(self)
+        if self.owned_by:
+            self.owned_by.get_ownership_mapper(self.owner).remove(self)
 
     def as_dict(self):
         # Return a dict as it will be returned to the API
@@ -365,6 +368,8 @@ class Schedule(me.Document, ConditionalClassMixin):
             'total_run_count': self.total_run_count,
             'max_run_count': self.max_run_count,
             'conditions': conditions,
+            'owned_by': self.owned_by.id if self.owned_by else '',
+            'created_by': self.created_by.id if self.created_by else '',
         }
 
         return sdict
