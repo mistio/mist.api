@@ -4,7 +4,6 @@ from uuid import uuid4
 import celery.schedules
 import mongoengine as me
 from mist.api.tag.models import Tag
-from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 from mist.api.exceptions import BadRequestError
 from mist.api.users.models import Organization
@@ -12,6 +11,7 @@ from celerybeatmongo.schedulers import MongoScheduler
 from mist.api.exceptions import ScheduleNameExistsError
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.conditions.models import ConditionalClassMixin
+from mist.api.ownership.mixins import OwnershipMixin
 
 
 #: Authorized values for Interval.period
@@ -154,7 +154,7 @@ class ScriptTask(BaseTaskType):
         return 'Run script: %s' % self.script_id
 
 
-class Schedule(me.Document, ConditionalClassMixin):
+class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
     """Abstract base class for every schedule attr mongoengine model.
     This model is based on celery periodic task and creates defines the fields
     common to all schedules of all types. For each different schedule type, a
@@ -219,8 +219,13 @@ class Schedule(me.Document, ConditionalClassMixin):
         super(Schedule, self).__init__(*args, **kwargs)
         self.ctl = mist.api.schedules.base.BaseController(self)
 
-    def owner_query(self):
-        return me.Q(cloud__in=Cloud.objects(owner=self.owner).only('id'))
+    @property
+    def owner_id(self):
+        # FIXME We should consider storing the owner id as a plain
+        # string, instead of using a ReferenceField, to minimize
+        # unintentional dereferencing. This is already happending
+        # in case of mist.api.rules.models.Rule.
+        return self.owner.id
 
     @classmethod
     def add(cls, auth_context, name, **kwargs):
@@ -245,7 +250,7 @@ class Schedule(me.Document, ConditionalClassMixin):
         schedule = cls(owner=owner, name=name)
         schedule.ctl.set_auth_context(auth_context)
         schedule.ctl.add(**kwargs)
-
+        schedule.assign_to(auth_context.user)
         return schedule
 
     @property
@@ -336,6 +341,8 @@ class Schedule(me.Document, ConditionalClassMixin):
         super(Schedule, self).delete()
         Tag.objects(resource=self).delete()
         self.owner.mapper.remove(self)
+        if self.owned_by:
+            self.owned_by.get_ownership_mapper(self.owner).remove(self)
 
     def as_dict(self):
         # Return a dict as it will be returned to the API
@@ -361,10 +368,31 @@ class Schedule(me.Document, ConditionalClassMixin):
             'total_run_count': self.total_run_count,
             'max_run_count': self.max_run_count,
             'conditions': conditions,
+            'owned_by': self.owned_by.id if self.owned_by else '',
+            'created_by': self.created_by.id if self.created_by else '',
         }
 
         return sdict
 
 
+class NonDeletedSchedule(object):
+    # NOTE This wrapper class is used by the UserScheduler. It allows to trick
+    # the scheduler by providing an interface similar to that of a mongoengine
+    # Document subclass in order to prevent schedules marked as deleted from
+    # being loaded. Similarly, we could have used a custom QuerySet manager to
+    # achieve this. However, subclasses of mongoengine models, which are not a
+    # direct subclass of the main `Document` class, do not fetch the documents
+    # of the corresponding superclass. In that case, we'd have to override the
+    # QuerySet class in a more exotic way, but there is no such need for now.
+    @classmethod
+    def objects(cls):
+        return Schedule.objects(deleted=None)
+
+    @classmethod
+    def _get_collection(cls):
+        return Schedule._get_collection()
+
+
 class UserScheduler(MongoScheduler):
-    Model = Schedule
+    Model = NonDeletedSchedule
+    UPDATE_INTERVAL = datetime.timedelta(seconds=20)

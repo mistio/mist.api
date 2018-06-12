@@ -1,8 +1,9 @@
 import logging
 import datetime
 
+from mist.api.celery_app import app
+
 from mist.api.methods import notify_user
-from mist.api.tasks import app
 
 
 log = logging.getLogger(__name__)
@@ -29,7 +30,7 @@ def debug(schedule_id):
         fobj.write(msg)
 
 
-@app.task(time_limit=60, soft_time_limit=55)
+@app.task(time_limit=180, soft_time_limit=155)
 def list_machines(schedule_id):
     """Perform list machines. Cloud controller stores results in mongodb."""
 
@@ -38,6 +39,33 @@ def list_machines(schedule_id):
     from mist.api.poller.models import ListMachinesPollingSchedule
     sched = ListMachinesPollingSchedule.objects.get(id=schedule_id)
     sched.cloud.ctl.compute.list_machines(persist=False)
+
+
+@app.task(time_limit=60, soft_time_limit=55)
+def list_locations(schedule_id):
+    """Perform list locations. Cloud controller stores results in mongodb."""
+
+    from mist.api.poller.models import ListLocationsPollingSchedule
+    sched = ListLocationsPollingSchedule.objects.get(id=schedule_id)
+    sched.cloud.ctl.compute.list_locations(persist=False)
+
+
+@app.task(time_limit=60, soft_time_limit=55)
+def list_sizes(schedule_id):
+    """Perform list sizes. Cloud controller stores results in mongodb."""
+
+    from mist.api.poller.models import ListSizesPollingSchedule
+    sched = ListSizesPollingSchedule.objects.get(id=schedule_id)
+    sched.cloud.ctl.compute.list_sizes(persist=False)
+
+
+@app.task(time_limit=60, soft_time_limit=55)
+def list_networks(schedule_id):
+    """Perform list networks. Cloud controller stores results in mongodb."""
+
+    from mist.api.poller.models import ListNetworksPollingSchedule
+    sched = ListNetworksPollingSchedule.objects.get(id=schedule_id)
+    sched.cloud.ctl.network.list_networks(persist=False)
 
 
 @app.task(time_limit=45, soft_time_limit=40)

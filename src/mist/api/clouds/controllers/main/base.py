@@ -305,15 +305,35 @@ class BaseMainController(object):
         self.cloud.enabled = True
         self.cloud.save()
 
+        # FIXME: Resolve circular import issues
+        from mist.api.poller.models import ListMachinesPollingSchedule
+        from mist.api.poller.models import ListLocationsPollingSchedule
+        from mist.api.poller.models import ListSizesPollingSchedule
+        from mist.api.poller.models import ListNetworksPollingSchedule
+        # Ensure polling schedules are in place in case the cloud is re-enabled
+        ListMachinesPollingSchedule.add(cloud=self.cloud)
+        ListNetworksPollingSchedule.add(cloud=self.cloud)
+        # Ensure additional polling schedules with lower frequency.
+        schedule = ListLocationsPollingSchedule.add(cloud=self.cloud)
+        schedule.set_default_interval(60 * 60 * 24)
+        schedule.save()
+
+        schedule = ListSizesPollingSchedule.add(cloud=self.cloud)
+        schedule.set_default_interval(60 * 60 * 24)
+        schedule.save()
+
     def disable(self):
         self.cloud.enabled = False
         self.cloud.save()
-        # FIXME: Circular dependency.
-        from mist.api.machines.models import Machine
-        Machine.objects(cloud=self.cloud,
-                        missing_since=None).update(
-            missing_since=datetime.datetime.now()
-        )
+        # We schedule a task to set the `missing_since` of resources associated
+        # with `self.cloud` with a small delay. Since the poller syncs with the
+        # db every 20 sec, there is a good chance that the poller will not pick
+        # up the change to `self.cloud.enabled` in time to stop scheduling
+        # further polling tasks. This may result in `missing_since` being reset
+        # to `None`. For that, we schedule a task in the future to ensure that
+        # celery has executed all respective poller tasks first.
+        from mist.api.tasks import set_missing_since
+        set_missing_since.apply_async((self.cloud.id, ), countdown=30)
 
     def dns_enable(self):
         self.cloud.dns_enabled = True
@@ -334,7 +354,6 @@ class BaseMainController(object):
 
         # FIXME: Resolve circular import issues
         from mist.api.poller.models import ListMachinesPollingSchedule
-
         ListMachinesPollingSchedule.add(cloud=self.cloud)
 
     def delete(self, expire=False):
@@ -344,14 +363,26 @@ class BaseMainController(object):
         but rather marked as deleted.
 
         :param expire: if True, the document is expired from its collection.
+
         """
-        self.cloud.deleted = datetime.datetime.utcnow()
-        self.cloud.save()
         if expire:
-            # FIXME: Circular dependency.
+            # FIXME: Set reverse_delete_rule=me.CASCADE?
             from mist.api.machines.models import Machine
             Machine.objects(cloud=self.cloud).delete()
             self.cloud.delete()
+        else:
+            from mist.api.tasks import set_missing_since
+            self.cloud.deleted = datetime.datetime.utcnow()
+            self.cloud.save()
+            set_missing_since.apply_async((self.cloud.id, ), countdown=30)
 
     def disconnect(self):
         self.compute.disconnect()
+
+    def add_machine(self, **kwargs):
+        """
+        Add a machine in a bare metal cloud.
+        This is only supported on Other Server clouds.
+        """
+        raise BadRequestError("Adding machines is only supported in Bare"
+                              "Metal clouds.")

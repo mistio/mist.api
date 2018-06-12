@@ -25,14 +25,12 @@ class AzureArmNetworkController(BaseNetworkController):
         return libcloud_network.extra['addressSpace']['addressPrefixes'][0]
 
     def _list_networks__postparse_network(self, network, libcloud_network):
-        location = libcloud_network.location
-        network.location = location
+        network.location = libcloud_network.location
 
     def _list_subnets__fetch_subnets(self, network):
         l_network = AzureNetwork(network.network_id,
                                  network.name, '', network.extra)
-        ret = self.cloud.ctl.compute.connection.ex_list_subnets(l_network)
-        return ret
+        return self.cloud.ctl.compute.connection.ex_list_subnets(l_network)
 
     def _list_subnets__cidr_range(self, subnet, libcloud_subnet):
         return subnet.extra.pop('addressPrefix')
@@ -102,10 +100,9 @@ class GoogleNetworkController(BaseNetworkController):
         network.mode = libcloud_network.mode
 
     def _list_subnets__fetch_subnets(self, network):
-        kwargs = {
-            'filters': {'filter': 'network eq %s' % network.extra['selfLink']}
-        }
-        return self.cloud.ctl.compute.connection.ex_list_subnetworks(**kwargs)
+        filter_expression = 'network eq %s' % network.extra['selfLink']
+        return self.cloud.ctl.compute.connection.ex_list_subnetworks(
+            filter_expression=filter_expression)
 
     def _list_subnets__postparse_subnet(self, subnet, libcloud_subnet):
         # Replace `GCERegion` object with the region's name.
@@ -168,3 +165,15 @@ class OpenStackNetworkController(BaseNetworkController):
 
     def _delete_subnet(self, subnet, libcloud_subnet):
         self.cloud.ctl.compute.connection.ex_delete_subnet(libcloud_subnet.id)
+
+
+class LibvirtNetworkController(BaseNetworkController):
+
+    def _list_subnets__fetch_subnets(self, network):
+        return []
+
+
+class VSphereNetworkController(BaseNetworkController):
+
+    def _list_subnets__fetch_subnets(self, network):
+        return []

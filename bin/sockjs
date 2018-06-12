@@ -11,11 +11,6 @@ from tornado_profile import TornadoProfiler
 
 import mist.api.sock
 
-try:
-    from mist.core.sock import make_router
-except ImportError:
-    from mist.api.sock import make_router
-
 
 def sig_handler(sig, frame):
     import logging
@@ -35,6 +30,7 @@ def usr1_handler(sig, frame):
     for conn in list(mist.api.sock.CONNECTIONS):
         log.info(conn)
 
+
 def usr2_handler(sig, frame):
     import logging
     log = logging.getLogger(__name__)
@@ -42,6 +38,7 @@ def usr2_handler(sig, frame):
     for conn in list(mist.api.sock.CONNECTIONS):
         log.info(conn)
         conn.send('reload')
+
 
 def heartbeat():
     import logging
@@ -83,6 +80,6 @@ if __name__ == '__main__':
 
     app = tornado.web.Application([
         (r"/", MainHandler),
-    ] + make_router().urls + TornadoProfiler().get_routes())
+    ] + mist.api.sock.make_router().urls + TornadoProfiler().get_routes())
     app.listen(port)
     tornado.ioloop.IOLoop.instance().start()

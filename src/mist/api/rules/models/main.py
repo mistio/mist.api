@@ -1,20 +1,30 @@
 import uuid
+import celery
 import mongoengine as me
 
-from mist.api.exceptions import NotFoundError
+from mist.api import config
+
 from mist.api.exceptions import BadRequestError
+
 from mist.api.users.models import Organization
 from mist.api.machines.models import Machine
 from mist.api.conditions.models import ConditionalClassMixin
 
+from mist.api.rules.base import NoDataRuleController
 from mist.api.rules.base import ResourceRuleController
 from mist.api.rules.base import ArbitraryRuleController
+from mist.api.rules.models import RuleState
 from mist.api.rules.models import Window
 from mist.api.rules.models import Frequency
 from mist.api.rules.models import TriggerOffset
 from mist.api.rules.models import QueryCondition
-from mist.api.rules.actions import BaseAlertAction
-from mist.api.rules.actions import NotificationAction
+from mist.api.rules.models import BaseAlertAction
+from mist.api.rules.models import NotificationAction
+
+from mist.api.rules.plugins import GraphiteNoDataPlugin
+from mist.api.rules.plugins import GraphiteBackendPlugin
+from mist.api.rules.plugins import InfluxDBNoDataPlugin
+from mist.api.rules.plugins import InfluxDBBackendPlugin
 
 
 class Rule(me.Document):
@@ -57,12 +67,6 @@ class Rule(me.Document):
     """
 
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
-    # TODO This must be globally unique, since celerybeat-mongo uses schedule
-    # names to prepare the dictionary of schedules to be run. As the keys of
-    # this dictionary are the schedules' names, we could end up with schedules
-    # being skipped. We should use a deterministic, computed property in order
-    # to autogenerate a schedule's `name`.
-    # name = me.StringField()
     title = me.StringField(required=True)
     owner_id = me.StringField(required=True)
 
@@ -70,9 +74,9 @@ class Rule(me.Document):
     # ANDed together in order to decide whether an alert should be raised.
     queries = me.EmbeddedDocumentListField(QueryCondition, required=True)
 
-    # Defines the time window and frequency of each search. TODO required.
-    window = me.EmbeddedDocumentField(Window)
-    frequency = me.EmbeddedDocumentField(Frequency)
+    # Defines the time window and frequency of each search.
+    window = me.EmbeddedDocumentField(Window, required=True)
+    frequency = me.EmbeddedDocumentField(Frequency, required=True)
 
     # Associates a reminder offset, which will cause an alert to be fired if
     # and only if the threshold is exceeded for a number of trigger_after
@@ -84,11 +88,26 @@ class Rule(me.Document):
     # Defines a list of actions to be executed once the rule is triggered.
     # Defaults to just notifying the users.
     actions = me.EmbeddedDocumentListField(
-        BaseAlertAction, default=lambda: [NotificationAction()]
+        BaseAlertAction, required=True, default=lambda: [NotificationAction()]
     )
 
     # Disable the rule organization-wide.
     disabled = me.BooleanField(default=False)
+
+    # Fields passed to celerybeat as optional arguments.
+    queue = me.StringField()
+    exchange = me.StringField()
+    routing_key = me.StringField()
+    soft_time_limit = me.IntField()
+
+    # Fields updated by the scheduler.
+    last_run_at = me.DateTimeField()
+    run_immediately = me.BooleanField()
+    total_run_count = me.IntField(min_value=0, default=0)
+    total_check_count = me.IntField(min_value=0, default=0)
+
+    # Field updated by celery workers. This is where celery workers keep state.
+    states = me.MapField(field=me.EmbeddedDocumentField(RuleState))
 
     meta = {
         'strict': False,
@@ -105,6 +124,7 @@ class Rule(me.Document):
     }
 
     _controller_cls = None
+    _backend_plugin = None
 
     def __init__(self, *args, **kwargs):
         super(Rule, self).__init__(*args, **kwargs)
@@ -116,7 +136,7 @@ class Rule(me.Document):
                 "attribute derived from `mist.api.rules.base:BaseController`, "
                 "instead." % self.__class__.__name__
             )
-        if self.backend_plugin is None:
+        if self._backend_plugin is None:
             raise NotImplementedError(
                 "Cannot instantiate self. %s does not define a backend_plugin "
                 "in order to evaluate rules against the corresponding backend "
@@ -125,7 +145,7 @@ class Rule(me.Document):
         self.ctl = self._controller_cls(self)
 
     @classmethod
-    def add(cls, owner_id, title=None, **kwargs):
+    def add(cls, auth_context, title=None, **kwargs):
         """Add a new Rule.
 
         New rules should be added by invoking this class method on a Rule
@@ -140,16 +160,13 @@ class Rule(me.Document):
 
         """
         try:
-            Organization.objects.get(id=owner_id)
-        except Organization.DoesNotExist:
-            raise NotFoundError('Organization %s does not exist' % owner_id)
-        try:
-            cls.objects.get(owner_id=owner_id, title=title)
+            cls.objects.get(owner_id=auth_context.owner.id, title=title)
         except cls.DoesNotExist:
-            rule = cls(owner_id=owner_id, title=title)
+            rule = cls(owner_id=auth_context.owner.id, title=title)
+            rule.ctl.set_auth_context(auth_context)
+            rule.ctl.add(**kwargs)
         else:
             raise BadRequestError('Title "%s" is already in use' % title)
-        rule.ctl.add(**kwargs)
         return rule
 
     @property
@@ -163,13 +180,69 @@ class Rule(me.Document):
         return Organization.objects.get(id=self.owner_id)
 
     @property
-    def backend_plugin(self):
+    def plugin(self):
         """Return the instance of a backend plugin.
 
         Subclasses MUST define the plugin to be used, instantiated with `self`.
 
         """
+        return self._backend_plugin(self)
+
+    # NOTE The following properties are required by the scheduler.
+
+    @property
+    def name(self):
+        """Return the name of the celery task.
+
+        This must be globally unique, since celerybeat-mongo uses schedule
+        names as keys of the dictionary of schedules to run.
+
+        """
+        return 'Org(%s):Rule(%s)' % (self.owner_id, self.id)
+
+    @property
+    def task(self):
+        """Return the celery task to run.
+
+        This is the most basic celery task that should be used for most rule
+        evaluations. However, subclasses may provide their own property or
+        class attribute based on their needs.
+
+        """
+        return 'mist.api.rules.tasks.evaluate'
+
+    @property
+    def args(self):
+        """Return the args of the celery task."""
+        return (self.id, )
+
+    @property
+    def kwargs(self):
+        """Return the kwargs of the celery task."""
+        return {}
+
+    @property
+    def expires(self):
+        """Return None to denote that self is not meant to expire."""
         return None
+
+    @property
+    def enabled(self):
+        """Return True if the celery task is currently enabled.
+
+        Subclasses MAY override or extend this property.
+
+        """
+        return not self.disabled
+
+    @property
+    def schedule(self):
+        """Return a celery schedule instance.
+
+        Used internally by the scheduler. Subclasses MUST NOT override this.
+
+        """
+        return celery.schedules.schedule(self.frequency.timedelta)
 
     def get_action(self, action_id):
         """Return the action given its UUID.
@@ -198,27 +271,6 @@ class Rule(me.Document):
         if not self.title:
             self.title = 'rule%d' % self.owner.rule_counter
 
-        # FIXME Ensure a single query condition is specified for backwards
-        # compatibility with the existing monitoring/alert stack.
-        if not len(self.queries) is 1:
-            raise me.ValidationError()
-
-        # Push the NotificationAction, if specified, at the beggining of the
-        # actions list. This way we make sure that users are always notified
-        # even if subsequent actions fail. We also enforce a single instance
-        # of the NotificationAction.
-        for i, action in enumerate(self.actions):
-            if isinstance(action, NotificationAction):
-                self.actions.pop(i)
-                self.actions.insert(0, action)
-                break
-        for action in self.actions[1:]:
-            if isinstance(action, NotificationAction):
-                raise me.ValidationError(
-                    "Multiple notifications are not supported. Users "
-                    "will always be notified at the beginning of the "
-                    "actions' cycle.")
-
     def as_dict(self):
         return {
             'id': self.id,
@@ -227,8 +279,6 @@ class Rule(me.Document):
             'window': self.window.as_dict(),
             'frequency': self.frequency.as_dict(),
             'trigger_after': self.trigger_after.as_dict(),
-            'no_data_alert': self.no_data_alert,
-            'no_data_state': self.no_data_state,
             'actions': [action.as_dict() for action in self.actions],
             'disabled': self.disabled,
         }
@@ -273,16 +323,17 @@ class ResourceRule(Rule, ConditionalClassMixin):
 
     _controller_cls = ResourceRuleController
 
+    @property
+    def enabled(self):
+        return (super(ResourceRule, self).enabled and
+                bool(self.get_resources().count()))
+
     def as_dict(self):
         d = super(ResourceRule, self).as_dict()
-        d['conditions'] = [cond.as_dict() for cond in self.conditions]
+        d['selectors'] = [cond.as_dict() for cond in self.conditions]
         return d
 
     # FIXME All following properties are for backwards compatibility.
-
-    @property
-    def rule_id(self):
-        return self.title
 
     @property
     def metric(self):
@@ -309,18 +360,6 @@ class ResourceRule(Rule, ConditionalClassMixin):
         return self.frequency.timedelta.total_seconds() - 60
 
     @property
-    def machine(self):
-        machines = self.get_resources()
-        assert machines.count() is 1
-        return machines.first().machine_id
-
-    @property
-    def cloud(self):
-        machines = self.get_resources()
-        assert machines.count() is 1
-        return machines.first().cloud.id
-
-    @property
     def action(self):
         for action in reversed(self.actions):
             if action.atype == 'command':
@@ -330,42 +369,50 @@ class ResourceRule(Rule, ConditionalClassMixin):
             if action.atype == 'notification':
                 return 'alert'
 
-    @property
-    def emails(self):
-        emails = []
-        for action in self.actions:
-            if action.atype == 'notification':
-                emails = action.emails
-        return emails
-
-    @property
-    def command(self):
-        command = ''
-        for action in self.actions:
-            if action.atype == 'command':
-                command = action.command
-        return command
-
-    def as_dict_old(self):
-        return {
-            '_id': {'$oid': self.id},
-            'metric': self.metric,
-            'value': self.value,
-            'operator': self.operator,
-            'aggregate': self.aggregate,
-            'reminder_offset': self.reminder_offset,
-            'emails': self.emails,
-            'action': self.action,
-            'command': self.command,
-            'machine': self.machine,
-            'cloud': self.cloud,
-        }
-
 
 class MachineMetricRule(ResourceRule):
 
     condition_resource_cls = Machine
 
     @property
-    def backend_plugin(self):
-        return 'graphite'
+    def _backend_plugin(self):
+        return (GraphiteBackendPlugin if config.HAS_CORE else
+                InfluxDBBackendPlugin)
+
+
+class NoDataRule(MachineMetricRule):
+
+    _controller_cls = NoDataRuleController
+
+    @property
+    def _backend_plugin(self):
+        return (GraphiteNoDataPlugin if config.HAS_CORE else
+                InfluxDBNoDataPlugin)
+
+    # FIXME All following properties are for backwards compatibility.
+    # However, this rule is not meant to match any queries, but to be
+    # used internally, thus the `None`s.
+
+    @property
+    def metric(self):
+        return None
+
+    @property
+    def operator(self):
+        return None
+
+    @property
+    def value(self):
+        return None
+
+    @property
+    def aggregate(self):
+        return None
+
+    @property
+    def reminder_offset(self):
+        return None
+
+    @property
+    def action(self):
+        return ''

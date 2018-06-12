@@ -29,7 +29,9 @@ OK = Response("OK", 200)
 @view_config(route_name='api_v1_tokens', request_method='GET', renderer='json')
 def list_tokens(request):
     """
-    List user's api tokens
+    Tags: api_tokens
+    ---
+    Lists user's api tokens
     ---
     """
     # FIXME: should call an optimized methods.list_tokens
@@ -43,7 +45,8 @@ def list_tokens(request):
                 token_view['last_accessed_at'] = 'Never'
             tokens_list.append(token_view)
 
-    # If user is owner also include all active tokens in the current org context
+    # If user is owner also include all active tokens in the current org
+    # context
     if auth_context.is_owner():
         org_tokens = ApiToken.objects(org=auth_context.org, revoked=False)
         for token in org_tokens:
@@ -58,16 +61,18 @@ def list_tokens(request):
     return tokens_list
 
 
-@view_config(route_name='api_v1_tokens', request_method='POST', renderer='json')
+@view_config(route_name='api_v1_tokens', request_method='POST',
+             renderer='json')
 def create_token(request):
     """
-    Create a new api token
+    Tags: api_tokens
+    ---
+    Creates a new api token.
     Used so that a user can send his credentials and produce a new api token.
-    They api token itself will be returned in a json document along with it's
+    The api token itself will be returned in a json document along with it's
     id and it's name.
-    If user has used su then he should provide his own credentials however the
-    api token will authenticate the user that he is impersonating.
-    User can also send as parameters the name and the ttl.
+    If user has used su then he should provide his own credentials.However, the
+    api token will authenticate the user he is impersonating.
     If name is not sent then a random one with the format api_token_xyz where
     xyz is a number will be produced.
     If the user provides a name then there must be no other token for that user
@@ -81,15 +86,16 @@ def create_token(request):
     If user is coming from oauth then he will be able to create a new token
     without a password provided he is authenticated somehow.
     If you are using the /auth route please switch to /api_v1_tokens route. The
-    /auth route is deprecated and will be removed completely in the future.
+    /auth route is deprecated.
     ---
     email:
       description: User's email
       type: string
+      required: true
     password:
       description: User's password
-      required: true
       type: string
+      required: true
     name:
       description: Api token name
       type: string
@@ -97,7 +103,7 @@ def create_token(request):
       description: Time to live for the token
       type: integer
     org_id:
-      description: Org id if this token is to be used in organizational context
+      description: Org id if the token will be used in organizational context
       type: string
     """
 
@@ -107,7 +113,7 @@ def create_token(request):
     api_token_name = params.get('name', '')
     org_id = params.get('org_id', '')
     ttl = params.get('ttl', 60 * 60)
-    if (isinstance(ttl, str) or isinstance(ttl, unicode)) and not ttl.isdigit():
+    if isinstance(ttl, basestring) and not ttl.isdigit():
         raise BadRequestError('Ttl must be a number greater than 0')
     ttl = int(ttl)
     if ttl < 0:
@@ -121,7 +127,7 @@ def create_token(request):
     except UserUnauthorizedError:
         # The following should apply, but currently it can't due to tests.
         # if not org_id:
-        #     raise RequiredParameterMissingError("No org_id provided")
+            # raise RequiredParameterMissingError("No org_id provided")
         if not email:
             raise RequiredParameterMissingError("No email provided")
         org = None
@@ -151,6 +157,8 @@ def create_token(request):
     if not user.check_password(password):
         raise UserUnauthorizedError('Wrong password')
 
+    if not org:
+        org = reissue_cookie_session(request, user.id).org
     # first check if the api token name is unique if it has been provided
     # otherwise produce a new one.
     if api_token_name:
@@ -181,16 +189,20 @@ def create_token(request):
     return token_view
 
 
-@view_config(route_name='api_v1_sessions', request_method='GET', renderer='json')
+@view_config(route_name='api_v1_sessions', request_method='GET',
+             renderer='json')
 def list_sessions(request):
     """
-    List active sessions
+    Tags: sessions
+    ---
+    Lists active sessions
     ---
     """
     auth_context = auth_context_from_request(request)
     session = request.environ['session']
     # Get active sessions for the current user
-    session_tokens = SessionToken.objects(user_id=auth_context.user.id, revoked=False)
+    session_tokens = SessionToken.objects(user_id=auth_context.user.id,
+                                          revoked=False)
     sessions_list = []
     for token in session_tokens:
         if token.is_valid():
@@ -205,7 +217,8 @@ def list_sessions(request):
         for token in org_tokens:
             if token.is_valid():
                 public_view = token.get_public_view()
-                if isinstance(session, SessionToken) and session.id == token.id:
+                if isinstance(session, SessionToken) and \
+                   session.id == token.id:
                     public_view['active'] = True
                 try:
                     sessions_list.index(public_view)
@@ -219,10 +232,14 @@ def list_sessions(request):
 @view_config(route_name='api_v1_tokens', request_method='DELETE')
 def revoke_token(request):
     """
-    Revoke api token
+    Tags: api_tokens
+    ---
+    Revokes api token
     ---
     id:
       description: Api token ID
+      type: string
+      required: true
     """
     return revoke_session(request)
 
@@ -231,6 +248,8 @@ def revoke_token(request):
 @view_config(route_name='api_v1_sessions', request_method='DELETE')
 def revoke_session(request):
     """
+    Tags: sessions
+    ---
     Revoke an active session
     ---
     id:
@@ -249,9 +268,8 @@ def revoke_session(request):
             auth_token = AuthToken.objects.get(org=auth_context.org,
                                                id=auth_token_id)
         else:
-            auth_token = AuthToken.objects.get(user_id=
-                                               auth_context.user.get_id(),
-                                               id=auth_token_id)
+            auth_token = AuthToken.objects.get(
+                user_id=auth_context.user.get_id(), id=auth_token_id)
         if auth_token.is_valid():
             auth_token.invalidate()
             auth_token.save()

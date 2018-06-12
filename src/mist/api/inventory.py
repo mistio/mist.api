@@ -2,9 +2,11 @@ from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 from mist.api.keys.models import SSHKey, SignedSSHKey
 
-try:
-    from mist.core.vpn.methods import destination_nat as dnat
-except ImportError:
+from mist.api import config
+
+if config.HAS_VPN:
+    from mist.vpn.methods import destination_nat as dnat
+else:
     from mist.api.dummy.methods import dnat
 
 

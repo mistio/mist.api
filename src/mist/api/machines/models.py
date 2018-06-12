@@ -1,4 +1,5 @@
 """Machine entity model."""
+import os
 import json
 import uuid
 import logging
@@ -6,8 +7,10 @@ import datetime
 import mongoengine as me
 
 import mist.api.tag.models
+
 from mist.api.keys.models import Key
 from mist.api.machines.controllers import MachineController
+from mist.api.ownership.mixins import OwnershipMixin
 
 from mist.api import config
 
@@ -66,6 +69,7 @@ class Actions(me.EmbeddedDocument):
     destroy = me.BooleanField(default=False)
     resize = me.BooleanField(default=False)
     rename = me.BooleanField(default=False)
+    remove = me.BooleanField(default=False)
     tag = me.BooleanField(default=False)
     resume = me.BooleanField(default=False)
     suspend = me.BooleanField(default=False)
@@ -76,33 +80,49 @@ class Monitoring(me.EmbeddedDocument):
     # Most of these will change with the new UI.
     hasmonitoring = me.BooleanField()
     monitor_server = me.StringField()  # Deprecated
-    collectd_password = me.StringField()
+    collectd_password = me.StringField()  # Deprecated
     metrics = me.ListField()  # list of metric_id's
     installation_status = me.EmbeddedDocumentField(InstallationStatus)
+    method = me.StringField(choices=config.MONITORING_METHODS)
+    method_since = me.DateTimeField()
+
+    def clean(self):
+        if not self.collectd_password:
+            self.collectd_password = os.urandom(32).encode('hex')
 
     def get_commands(self):
-        # FIXME: This is a hack.
-        from mist.api.methods import get_deploy_collectd_command_unix
-        from mist.api.methods import get_deploy_collectd_command_windows
-        from mist.api.methods import get_deploy_collectd_command_coreos
-        args = (self._instance.id, self.collectd_password,
-                config.COLLECTD_HOST, config.COLLECTD_PORT)
-        return {
-            'unix': get_deploy_collectd_command_unix(*args),
-            'coreos': get_deploy_collectd_command_coreos(*args),
-            'windows': get_deploy_collectd_command_windows(*args),
-        }
+        if self.method in ('telegraf-influxdb', 'telegraf-graphite'):
+            from mist.api.monitoring.commands import unix_install
+            from mist.api.monitoring.commands import coreos_install
+            from mist.api.monitoring.commands import windows_install
+            return {
+                'unix': unix_install(self._instance),
+                'coreos': coreos_install(self._instance),
+                'windows': windows_install(self._instance),
+            }
+        else:
+            raise Exception("Invalid monitoring method %s" % self.method)
+
+    def get_rules_dict(self):
+        from mist.api.rules.models import MachineMetricRule
+        m = self._instance
+        return {rule.id: rule.as_dict() for
+                rule in MachineMetricRule.objects(owner_id=m.owner.id) if
+                rule.ctl.includes_only(m)}
 
     def as_dict(self):
         status = self.installation_status
-
+        try:
+            commands = self.get_commands()
+        except:
+            commands = {}
         return {
             'hasmonitoring': self.hasmonitoring,
-            'monitor_server': config.COLLECTD_HOST,
             'collectd_password': self.collectd_password,
             'metrics': self.metrics,
             'installation_status': status.as_dict() if status else '',
-            'commands': self.get_commands(),
+            'commands': commands,
+            'method': self.method,
         }
 
 
@@ -124,20 +144,28 @@ class PingProbe(me.EmbeddedDocument):
     rtt_avg = me.FloatField()
     rtt_std = me.FloatField()
     updated_at = me.DateTimeField()
+    unreachable_since = me.DateTimeField()
     meta = {'strict': False}
 
     def update_from_dict(self, data):
         for key in data:
             setattr(self, key, data[key])
         self.updated_at = datetime.datetime.now()
+        if self.packets_loss == 100:
+            self.unreachable_since = datetime.datetime.now()
+        else:
+            self.unreachable_since = None
 
     def as_dict(self):
         data = {key: getattr(self, key) for key in (
             'packets_tx', 'packets_rx', 'packets_loss',
             'rtt_min', 'rtt_max', 'rtt_avg', 'rtt_std', 'updated_at',
+            'unreachable_since',
         )}
-        if data['updated_at']:
-            data['updated_at'] = str(data['updated_at'].replace(tzinfo=None))
+        # Handle datetime objects
+        for key in ('updated_at', 'unreachable_since'):
+            if data[key]:
+                data[key] = str(data[key].replace(tzinfo=None))
         return data
 
 
@@ -153,8 +181,10 @@ class SSHProbe(me.EmbeddedDocument):
     kernel = me.StringField()
     os = me.StringField()
     os_version = me.StringField()
+    distro = me.StringField()
     dirty_cow = me.BooleanField()
     updated_at = me.DateTimeField()
+    unreachable_since = me.DateTimeField()
     meta = {'strict': False}
 
     def update_from_dict(self, data):
@@ -195,29 +225,37 @@ class SSHProbe(me.EmbeddedDocument):
                 log.error("Invalid %s '%s': %r", strarr_attr, val, exc)
                 setattr(self, strarr_attr, [])
 
-        for str_attr in ('df', 'kernel', 'os', 'os_version'):
+        for str_attr in ('df', 'kernel', 'os', 'os_version', 'distro'):
             setattr(self, str_attr, str(data.get(str_attr, '')))
 
         self.dirty_cow = bool(data.get('dirty_cow'))
+        self.unreachable_since = None
         self.updated_at = datetime.datetime.now()
 
     def as_dict(self):
         data = {key: getattr(self, key) for key in (
             'uptime', 'loadavg', 'cores', 'users', 'pub_ips', 'priv_ips', 'df',
-            'macs', 'kernel', 'os', 'os_version', 'dirty_cow', 'updated_at'
+            'macs', 'kernel', 'os', 'os_version', 'distro', 'dirty_cow',
+            'updated_at', 'unreachable_since',
         )}
-        if data['updated_at']:
-            data['updated_at'] = str(data['updated_at'].replace(tzinfo=None))
+        # Handle datetime objects
+        for key in ('updated_at', 'unreachable_since'):
+            if data[key]:
+                data[key] = str(data[key].replace(tzinfo=None))
         return data
 
 
-class Machine(me.Document):
+class Machine(OwnershipMixin, me.Document):
     """The basic machine model"""
 
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
 
     cloud = me.ReferenceField('Cloud', required=True)
     owner = me.ReferenceField('Organization', required=True)
+    location = me.ReferenceField('CloudLocation', required=False)
+    size = me.ReferenceField('CloudSize', required=False)
+    network = me.ReferenceField('Network', required=False)
+    subnet = me.ReferenceField('Subnet', required=False)
     name = me.StringField()
 
     # Info gathered mostly by libcloud (or in some cases user input).
@@ -235,7 +273,6 @@ class Machine(me.Document):
     extra = me.DictField()
     cost = me.EmbeddedDocumentField(Cost, default=lambda: Cost())
     image_id = me.StringField()
-    size = me.StringField()
     # libcloud.compute.types.NodeState
     state = me.StringField(default='unknown',
                            choices=('running', 'starting', 'rebooting',
@@ -252,6 +289,7 @@ class Machine(me.Document):
 
     last_seen = me.DateTimeField()
     missing_since = me.DateTimeField()
+    unreachable_since = me.DateTimeField()
     created = me.DateTimeField()
 
     monitoring = me.EmbeddedDocumentField(Monitoring,
@@ -260,15 +298,28 @@ class Machine(me.Document):
     ssh_probe = me.EmbeddedDocumentField(SSHProbe, required=False)
     ping_probe = me.EmbeddedDocumentField(PingProbe, required=False)
 
+    # Number of vCPUs gathered from various sources. This field is meant to
+    # be updated ONLY by the mist.api.metering.tasks:find_machine_cores task.
+    cores = me.IntField()
+
     meta = {
         'collection': 'machines',
         'indexes': [
             {
-                'fields': ['cloud', 'machine_id'],
+                'fields': [
+                    'cloud',
+                    'machine_id'
+                ],
                 'sparse': False,
                 'unique': True,
                 'cls': False,
-            },
+            }, {
+                'fields': [
+                    'monitoring.installation_status.activated_at'
+                ],
+                'sparse': True,
+                'unique': False
+            }
         ],
         'strict': False,
     }
@@ -290,6 +341,8 @@ class Machine(me.Document):
         if not self.owner:
             self.owner = self.cloud.owner
         self.clean_os_type()
+        if self.monitoring.method not in config.MONITORING_METHODS:
+            self.monitoring.method = config.DEFAULT_MONITORING_METHOD
 
     def clean_os_type(self):
         """Clean self.os_type"""
@@ -308,13 +361,18 @@ class Machine(me.Document):
             self.owner.mapper.remove(self)
         except (AttributeError, me.DoesNotExist) as exc:
             log.error(exc)
+        try:
+            if self.owned_by:
+                self.owned_by.get_ownership_mapper(self.owner).remove(self)
+        except (AttributeError, me.DoesNotExist) as exc:
+            log.error(exc)
 
     def as_dict(self):
         # Return a dict as it will be returned to the API
 
         # tags as a list return for the ui
         tags = {tag.key: tag.value for tag in mist.api.tag.models.Tag.objects(
-            owner=self.cloud.owner, resource=self
+            resource=self
         ).only('key', 'value')}
         # Optimize tags data structure for js...
         if isinstance(tags, dict):
@@ -335,17 +393,23 @@ class Machine(me.Document):
             'extra': self.extra,
             'cost': self.cost.as_dict(),
             'image_id': self.image_id,
-            'size': self.size,
             'state': self.state,
             'tags': tags,
-            'monitoring': self.monitoring.as_dict() if self.monitoring else '',
+            'monitoring':
+                self.monitoring.as_dict() if self.monitoring and
+                self.monitoring.hasmonitoring else '',
             'key_associations': [ka.as_dict() for ka in self.key_associations],
             'cloud': self.cloud.id,
+            'location': self.location.id if self.location else '',
+            'size': self.size.name if self.size else '',
             'cloud_title': self.cloud.title,
             'last_seen': str(self.last_seen.replace(tzinfo=None)
                              if self.last_seen else ''),
             'missing_since': str(self.missing_since.replace(tzinfo=None)
                                  if self.missing_since else ''),
+            'unreachable_since': str(
+                self.unreachable_since.replace(tzinfo=None)
+                if self.unreachable_since else ''),
             'created': str(self.created.replace(tzinfo=None)
                            if self.created else ''),
             'machine_type': self.machine_type,
@@ -358,47 +422,11 @@ class Machine(me.Document):
                         if self.ssh_probe is not None
                         else SSHProbe().as_dict()),
             },
-        }
-
-    def as_dict_old(self):
-        # Return a dict as it was previously being returned by list_machines
-
-        # This is need to be consistent with the previous situation
-        self.extra.update({'created': str(self.created or ''),
-                           'cost_per_month': '%.2f' % (self.cost.monthly),
-                           'cost_per_hour': '%.2f' % (self.cost.hourly)})
-        # tags as a list return for the ui
-        tags = {tag.key: tag.value for tag in mist.api.tag.models.Tag.objects(
-            owner=self.cloud.owner, resource=self).only('key', 'value')}
-        # Optimize tags data structure for js...
-        if isinstance(tags, dict):
-            tags = [{'key': key, 'value': value}
-                    for key, value in tags.iteritems()]
-        return {
-            'id': self.machine_id,
-            'uuid': self.id,
-            'name': self.name,
-            'public_ips': self.public_ips,
-            'private_ips': self.private_ips,
-            'imageId': self.image_id,
-            'os_type': self.os_type,
-            'last_seen': str(self.last_seen or ''),
-            'missing_since': str(self.missing_since or ''),
-            'state': self.state,
-            'size': self.size,
-            'extra': self.extra,
-            'tags': tags,
-            'can_stop': self.actions.stop,
-            'can_start': self.actions.start,
-            'can_destroy': self.actions.destroy,
-            'can_reboot': self.actions.reboot,
-            'can_tag': self.actions.tag,
-            'can_undefine': self.actions.undefine,
-            'can_rename': self.actions.rename,
-            'can_suspend': self.actions.suspend,
-            'can_resume': self.actions.resume,
-            'machine_type': self.machine_type,
-            'parent_id': self.parent.id if self.parent is not None else '',
+            'cores': self.cores,
+            'network': self.network.id if self.network else '',
+            'subnet': self.subnet.id if self.subnet else '',
+            'owned_by': self.owned_by.id if self.owned_by else '',
+            'created_by': self.created_by.id if self.created_by else '',
         }
 
     def __str__(self):

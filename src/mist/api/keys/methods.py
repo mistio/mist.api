@@ -9,6 +9,8 @@ from mist.api.tag.methods import get_tags_for_resource
 from mist.api.helpers import trigger_session_update
 from mist.api.helpers import transform_key_machine_associations
 
+from mist.api.exceptions import KeyNotFoundError
+
 from mist.api import config
 
 import logging
@@ -29,7 +31,10 @@ def delete_key(owner, key_id):
     :return:
     """
     log.info("Deleting key with id '%s'.", key_id)
-    key = Key.objects.get(owner=owner, id=key_id, deleted=None)
+    try:
+        key = Key.objects.get(owner=owner, id=key_id, deleted=None)
+    except Key.DoesNotExist:
+        raise KeyNotFoundError()
     default_key = key.default
     key.update(set__deleted=datetime.utcnow())
     other_key = Key.objects(owner=owner, id__ne=key_id, deleted=None).first()
@@ -52,10 +57,14 @@ def list_keys(owner):
     # FIXME: This must be taken care of in Keys.as_dict
     for key in keys:
         key_object = {}
+        # FIXME: Need to optimize this! It's potentially invoked per ssh probe.
+        # Can't we expose associations directly from Machine.key_associations?
         machines = Machine.objects(cloud__in=clouds,
                                    key_associations__keypair__exact=key)
         key_object["id"] = key.id
         key_object['name'] = key.name
+        key_object['owned_by'] = key.owned_by.id if key.owned_by else ''
+        key_object['created_by'] = key.created_by.id if key.created_by else ''
         key_object["isDefault"] = key.default
         key_object["machines"] = transform_key_machine_associations(machines,
                                                                     key)

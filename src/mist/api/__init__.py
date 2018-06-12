@@ -99,6 +99,11 @@ def main(global_config, **settings):
     configurator.include(add_routes)
     configurator.scan()
 
+    for plugin in config.PLUGINS:
+        log.info("Loading plugin mist.%s", plugin)
+        configurator.include('mist.%s.add_routes' % plugin)
+        configurator.scan('mist.%s' % plugin)
+
     return mist.api.auth.middleware.AuthMiddleware(
         mist.api.auth.middleware.CsrfMiddleware(
             configurator.make_wsgi_app()
@@ -148,6 +153,9 @@ def add_routes(configurator):
     configurator.add_route('request_whitelist_ip', '/request-whitelist-ip')
     configurator.add_route('confirm_whitelist', '/confirm-whitelist')
 
+    # openapi endpoint
+    configurator.add_route('api_v1_spec', '/api/v1/spec')
+
     configurator.add_route('api_v1_avatars', '/api/v1/avatars')
     configurator.add_route('api_v1_avatar', '/api/v1/avatars/{avatar}')
 
@@ -169,6 +177,13 @@ def add_routes(configurator):
                            '/api/v1/clouds/{cloud}/machines/{machine}/rdp')
     configurator.add_route('api_v1_machine_rdp',
                            '/api/v1/machines/{machine_uuid}/rdp')
+
+    configurator.add_route(
+        'api_v1_cloud_machine_console',
+        '/api/v1/clouds/{cloud}/machines/{machine}/console'
+    )
+    configurator.add_route('api_v1_machine_console',
+                           '/api/v1/machines/{machine_uuid}/console')
 
     configurator.add_route('api_v1_machine_tags',
                            '/api/v1/clouds/{cloud}/machines/{machine}/tags')
@@ -204,21 +219,6 @@ def add_routes(configurator):
 
     configurator.add_route('api_v1_ping', '/api/v1/ping')
 
-    configurator.add_route('api_v1_monitoring', '/api/v1/monitoring')
-    configurator.add_route(
-        'api_v1_update_monitoring',
-        '/api/v1/clouds/{cloud}/machines/{machine}/monitoring'
-    )
-    configurator.add_route('api_v1_stats',
-                           '/api/v1/clouds/{cloud}/machines/{machine}/stats')
-    configurator.add_route('api_v1_metrics',
-                           '/api/v1/clouds/{cloud}/machines/{machine}/metrics')
-    configurator.add_route('api_v1_metric', '/api/v1/metrics/{metric}')
-    configurator.add_route(
-        'api_v1_deploy_plugin',
-        '/api/v1/clouds/{cloud}/machines/{machine}/plugins/{plugin}'
-    )
-
     configurator.add_route('api_v1_images', '/api/v1/clouds/{cloud}/images')
     configurator.add_route('api_v1_image',
                            '/api/v1/clouds/{cloud}/images/{image}')
@@ -248,9 +248,16 @@ def add_routes(configurator):
     configurator.add_route('api_v1_key_association',
                            '/api/v1/machines/{machine_uuid}/keys/{key}')
 
+    # Rules.
     configurator.add_route('api_v1_rules', '/api/v1/rules')
     configurator.add_route('api_v1_rule', '/api/v1/rules/{rule}')
-    configurator.add_route('api_v1_check_auth', '/api/v1/auth')
+    configurator.add_route('api_v1_rule_triggered', '/api/v1/rule-triggered')
+
+    # Metering.
+    configurator.add_route('api_v1_metering', '/api/v1/metering')
+
+    # Ownership
+    configurator.add_route('api_v1_ownership', '/api/v1/ownership')
 
     configurator.add_route('api_v1_zones',
                            '/api/v1/clouds/{cloud}/dns/zones')
@@ -294,6 +301,11 @@ def add_routes(configurator):
         '/api/v1/org/{org_id}/teams/{team_id}/members/{user_id}'
     )
 
+    configurator.add_route('delete_account', '/delete_account/{email}')
+
+    # Account page.
+    configurator.add_route('api_v1_account', '/api/v1/account')
+
     configurator.add_route('api_v1_user_whitelist_ip',
                            '/api/v1/whitelist')
 
@@ -302,18 +314,51 @@ def add_routes(configurator):
     configurator.add_route('api_v1_job', '/api/v1/jobs/{job_id}')
     configurator.add_route('api_v1_story', '/api/v1/stories/{story_id}')
 
+    # Monitoring API endpoints.
+    configurator.add_route('api_v1_home_dashboard', '/api/v1/dashboard')
+    configurator.add_route(
+        'api_v1_cloud_machine_dashboard',
+        '/api/v1/clouds/{cloud}/machines/{machine}/dashboard')
+    configurator.add_route('api_v1_machine_dashboard',
+                           '/api/v1/machines/{machine}/dashboard')
+    configurator.add_route('api_v1_monitoring', '/api/v1/monitoring')
+    configurator.add_route(
+        'api_v1_cloud_machine_monitoring',
+        '/api/v1/clouds/{cloud}/machines/{machine}/monitoring')
+    configurator.add_route('api_v1_machine_monitoring',
+                           '/api/v1/machines/{machine}/monitoring')
+    configurator.add_route(
+        'api_v1_cloud_metrics',
+        '/api/v1/clouds/{cloud}/machines/{machine}/metrics')
+    configurator.add_route('api_v1_metrics',
+                           '/api/v1/machines/{machine}/metrics')
+    configurator.add_route('api_v1_metric', '/api/v1/metrics/{metric}')
+    configurator.add_route(
+        'api_v1_cloud_deploy_plugin',
+        '/api/v1/clouds/{cloud}/machines/{machine}/plugins/{plugin}')
+    configurator.add_route(
+        'api_v1_deploy_plugin',
+        '/api/v1/machines/{machine}/plugins/{plugin}')
+    configurator.add_route(
+        'api_v1_cloud_stats',
+        '/api/v1/clouds/{cloud}/machines/{machine}/stats')
+    configurator.add_route('api_v1_stats', '/api/v1/machines/{machine}/stats')
+    configurator.add_route('api_v1_load', '/api/v1/machines/stats/load')
+
     # Notifications
     configurator.add_route(
         'api_v1_dismiss_notification',
         '/api/v1/notifications/{notification_id}')
-
     configurator.add_route(
         'api_v1_notification_override',
-        '/api/v1/notification-overrides/{notification_id}')
-
+        '/api/v1/notification-overrides/{override_id}')
     configurator.add_route(
         'api_v1_notification_overrides',
         '/api/v1/notification-overrides')
+
+    # Notifications - Unsubscribe
+    configurator.add_route('unsubscribe_page', '/unsubscribe')
+    configurator.add_route('unsubscribe', '/api/v1/unsubscribe')
 
     configurator.add_route('user_invitations', '/user_invitations')
 
@@ -321,4 +366,6 @@ def add_routes(configurator):
 
     # DEV ENDPOINT
     configurator.add_route('api_v1_dev_register', '/api/v1/dev/register')
+    configurator.add_route('api_v1_dev_add_user_to_team',
+                           '/api/v1/dev/orgs/{org_id}/teams/{team_id}')
     configurator.add_route('api_v1_dev_users', '/api/v1/dev/users')

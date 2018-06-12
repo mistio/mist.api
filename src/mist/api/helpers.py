@@ -14,12 +14,10 @@ could easily use in some other unrelated project.
 import os
 import re
 import sys
-import uuid
 import json
 import string
 import random
 import socket
-import shutil
 import smtplib
 import logging
 import datetime
@@ -34,9 +32,6 @@ from base64 import urlsafe_b64encode
 
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-
-from pymongo import MongoClient
-from bson.objectid import ObjectId
 
 from contextlib import contextmanager
 from email.utils import formatdate, make_msgid
@@ -65,19 +60,15 @@ from elasticsearch import Elasticsearch
 from elasticsearch_tornado import EsClient
 
 import mist.api.users.models
-from mist.api.auth.models import ApiToken, SessionToken, datetime_to_str
+from mist.api.auth.models import ApiToken, datetime_to_str
 
 from mist.api.exceptions import MistError, NotFoundError
 from mist.api.exceptions import RequiredParameterMissingError
 
 from mist.api import config
 
-try:
-    from mist.core.rbac.tokens import SuperToken
-except ImportError:
-    SUPER_EXISTS = False
-else:
-    SUPER_EXISTS = True
+if config.HAS_RBAC:
+    from mist.rbac.tokens import SuperToken
 
 
 logging.basicConfig(level=config.PY_LOG_LEVEL,
@@ -121,6 +112,17 @@ def atomic_write_file(path, content):
         os.rename(tmp_path, path)
 
 
+def is_email_valid(email):
+    """E-mail address validator.
+
+    Ensure the e-mail is a valid expression and the provider is not banned.
+
+    """
+    match = re.match(r'^[\w\.-]+@([a-zA-Z0-9-]+)(\.[a-zA-Z0-9-]+)+$', email)
+    return (match and
+            ''.join(match.groups()) not in config.BANNED_EMAIL_PROVIDERS)
+
+
 def params_from_request(request):
     """Get the parameters dict from request.
 
@@ -133,22 +135,6 @@ def params_from_request(request):
     except:
         params = request.params
     return params or {}
-
-
-def b58_encode(num):
-    """Returns num in a base58-encoded string."""
-    alphabet = '123456789abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ'
-    base_count = len(alphabet)
-    encode = ''
-    if (num < 0):
-        return ''
-    while (num >= base_count):
-        mod = num % base_count
-        encode = alphabet[mod] + encode
-        num = num / base_count
-    if (num):
-        encode = alphabet[num] + encode
-    return encode
 
 
 def get_auth_header(user):
@@ -165,7 +151,19 @@ def parse_os_release(os_release):
     os = ''
     os_version = ''
     os_release = os_release.replace('"', '')
+    distro = ''
     lines = os_release.split("\n")
+
+    # ClearOS specific
+    # Needs a general update. We should find the whole distro string and
+    # extract more specific information like os = linux, os_family = red_hat
+    # etc.
+    for line in lines:
+        if 'clearos' in line.lower():
+            distro = line
+            os = 'clearos'
+            os_version = line.partition(" ")[-1]
+            return os, os_version, distro
 
     # Find ID which corresponds to the OS's name
     re_id = r'^ID=(.*)'
@@ -181,7 +179,7 @@ def parse_os_release(os_release):
         if match_version:
             os_version = match_version.group(1)
 
-    return os, os_version
+    return os, os_version, distro
 
 
 def dirty_cow(os, os_version, kernel_version):
@@ -219,7 +217,8 @@ def dirty_cow(os, os_version, kernel_version):
         },
     }
 
-    # If version is lower that min_patched_version it is most probably vulnerable
+    # If version is lower that min_patched_version it is most probably
+    # vulnerable
     if LooseVersion(kernel_version) < LooseVersion(min_patched_version):
         return True
 
@@ -258,7 +257,8 @@ def amqp_publish(exchange, routing_key, data,
         close = True
     channel = connection.channel()
     if ex_declare:
-        channel.exchange_declare(exchange=exchange, type=ex_type, auto_delete=auto_delete)
+        channel.exchange_declare(exchange=exchange, type=ex_type,
+                                 auto_delete=auto_delete)
     msg = Message(json.dumps(data))
     channel.basic_publish(msg, exchange=exchange, routing_key=routing_key)
     channel.close()
@@ -537,7 +537,7 @@ def get_datetime(timestamp):
     if isinstance(timestamp, datetime.datetime):
         # Timestamp is already a datetime object.
         return timestamp
-    if isinstance(timestamp, (int, float)):
+    elif isinstance(timestamp, (int, float)):
         try:
             # Handle Unix timestamps.
             return datetime.datetime.fromtimestamp(timestamp)
@@ -548,14 +548,14 @@ def get_datetime(timestamp):
             return datetime.datetime.fromtimestamp(timestamp / 1000)
         except ValueError:
             pass
-    if isinstance(timestamp, basestring):
+    elif isinstance(timestamp, basestring):
         try:
             timestamp = float(timestamp)
         except (ValueError, TypeError):
             pass
         else:
             # Timestamp is probably Unix timestamp given as string.
-            return parse_timestamp_to_datetime(timestamp)
+            return get_datetime(timestamp)
         try:
             # Try to parse as string date in common formats.
             return iso8601.parse_date(timestamp)
@@ -624,7 +624,7 @@ def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3,
     if html_body:
         msg = MIMEMultipart('alternative')
     else:
-        msg = MIMEText(body, 'plain')
+        msg = MIMEText(body.encode('utf-8', 'ignore'), 'plain')
 
     msg["Subject"] = subject
     msg["From"] = sender
@@ -685,11 +685,21 @@ rtype_to_classpath = {
     'record': 'mist.api.dns.models.Record',
     'script': 'mist.api.scripts.models.Script',
     'key': 'mist.api.keys.models.Key',
-    'template': 'mist.core.orchestration.models.Template',
-    'stack': 'mist.core.orchestration.models.Stack',
     'schedule': 'mist.api.schedules.models.Schedule',
-    'tunnel': 'mist.core.vpn.models.Tunnel',
+    'network': 'mist.api.networks.models.Network',
+    'subnet': 'mist.api.networks.models.Subnet',
 }
+
+if config.HAS_VPN:
+    rtype_to_classpath.update(
+        {'tunnel': 'mist.vpn.models.Tunnel'}
+    )
+
+if config.HAS_ORCHESTRATION:
+    rtype_to_classpath.update(
+        {'template': 'mist.orchestration.models.Template',
+         'stack': 'mist.orchestration.models.Stack'}
+    )
 
 
 def get_resource_model(rtype):
@@ -730,6 +740,11 @@ def ts_to_str(timestamp):
         return date_string
     except:
         return None
+
+
+def iso_to_seconds(iso):
+    """Attempt to transform a time representation into seconds."""
+    return get_datetime(iso).strftime('%s')
 
 
 def encrypt(plaintext, key=config.SECRET, key_salt='', no_iv=False):
@@ -811,15 +826,14 @@ def logging_view_decorator(func):
         if not hasattr(request, 'real_view_name'):
             request.real_view_name = func.func_name
 
-
         # check if exception occurred
         try:
             response = func(context, request)
         except HTTPError as e:
             if request.path_info.startswith('/social_auth/complete'):
-                log.info("There was a bad error during SSO connection: %s, and "
-                         "request was %s" % (repr(e), request.__dict__))
-            raise e
+                log.info("There was a bad error during SSO connection: %s, "
+                         "and request was %s" % (repr(e), request.__dict__))
+            raise
         # check if exception occured
         exc_flag = (config.LOG_EXCEPTIONS and
                     isinstance(context, Exception) and
@@ -868,7 +882,7 @@ def logging_view_decorator(func):
                     log_dict['experiment'] = session.experiment
                 if session.choice:
                     log_dict['choice'] = session.choice
-            except AttributeError: # in case of ApiToken
+            except AttributeError:  # in case of ApiToken
                 pass
 
         # log user
@@ -886,14 +900,14 @@ def logging_view_decorator(func):
             log_dict['owner_id'] = None
 
         if isinstance(session, ApiToken):
-            if not 'dummy' in session.name:
+            if 'dummy' not in session.name:
                 log_dict['api_token_id'] = str(session.id)
                 log_dict['api_token_name'] = session.name
                 log_dict['api_token'] = session.token[:4] + '***CENSORED***'
                 log_dict['token_expires'] = datetime_to_str(session.expires())
 
         # Log special Token.
-        if SUPER_EXISTS and isinstance(session, SuperToken):
+        if config.HAS_RBAC and isinstance(session, SuperToken):
             log_dict['setuid'] = True
             log_dict['api_token_id'] = str(session.id)
             log_dict['api_token_name'] = session.name
@@ -901,7 +915,8 @@ def logging_view_decorator(func):
         # log matchdict and params
         params = dict(params_from_request(request))
         for key in ['email', 'cloud', 'machine', 'rule', 'script_id',
-                    'tunnel_id', 'story_id', 'stack_id', 'template_id']:
+                    'tunnel_id', 'story_id', 'stack_id', 'template_id',
+                    'zone', 'record', 'network', 'subnet']:
             if key != 'email' and key in request.matchdict:
                 if not key.endswith('_id'):
                     log_dict[key + '_id'] = request.matchdict[key]
@@ -923,9 +938,9 @@ def logging_view_decorator(func):
         if machine_id and not log_dict.get('machine_id'):
             log_dict['machine_id'] = request.environ.get('machine_id')
 
-        machine_uuid = request.matchdict.get('machine_uuid') or \
-                       params.get('machine_uuid') or \
-                       request.environ.get('machine_uuid')
+        machine_uuid = (request.matchdict.get('machine_uuid') or
+                        params.get('machine_uuid') or
+                        request.environ.get('machine_uuid'))
         if machine_uuid and not log_dict.get('machine_uuid'):
             log_dict['machine_uuid'] = machine_uuid
 
@@ -1008,7 +1023,8 @@ def logging_view_decorator(func):
         if not exc_flag:
             return response
 
-        # Publish traceback in rabbitmq, for heka to parse and forward to elastic
+        # Publish traceback in rabbitmq, for heka to parse and forward to
+        # elastic
         log.info("Bad exception occured, logging to rabbitmq")
         es_dict = log_dict.copy()
         es_dict.pop('_exc_type')
@@ -1151,7 +1167,7 @@ def mac_sign(kwargs=None, expires=None, key='', mac_len=0, mac_format='hex'):
         raise Exception('No message provided to be signed')
     if expires:
         kwargs['_expires'] = int(time() + expires)
-    parts = ["%s=%s" % (key, kwargs[key]) for key in sorted(kwargs.keys())]
+    parts = ["%s=%s" % (k, kwargs[k]) for k in sorted(kwargs.keys())]
     msg = "&".join(parts)
     hmac = HMAC(str(key), msg=str(msg), digestmod=SHA256Hash())
     if mac_format == 'b64':
@@ -1182,3 +1198,84 @@ def mac_verify(kwargs=None, key='', mac_len=0, mac_format='hex'):
     for kw in ('_expires', '_mac'):
         if kw in kwargs:
             del kwargs[kw]
+
+
+def maybe_submit_cloud_task(cloud, task_name):
+    """Decide whether a task should be submitted to celery
+
+    This method helps us prevent submitting new celery tasks, which are
+    guaranteed to return/exit immediately without performing any actual
+    actions.
+
+    For instance, such cases include async tasks for listing DNS zones
+    for clouds that have no DNS support or DNS is temporarily disabled.
+
+    Note that this is just a helper method used to make an initial decision.
+
+    The `cloud` argument must be a `mist.api.clouds.models.Cloud` mongoengine
+    objects and `task_name` must be the name/identifier of the corresponding
+    celery task.
+
+    """
+    if task_name == 'list_zones':
+        if not (hasattr(cloud.ctl, 'dns') and cloud.dns_enabled):
+            return False
+    if task_name == 'list_networks':
+        if not hasattr(cloud.ctl, 'network'):
+            return False
+    if task_name == 'list_projects':
+        if cloud.ctl.provider != 'packet':
+            return False
+    if task_name in ('list_resource_groups', 'list_storage_accounts', ):
+        if cloud.ctl.provider != 'azure_arm':
+            return False
+    return True
+
+
+def subscribe_log_events_raw(callback=None, routing_keys=('#')):
+    raise NotImplementedError()  # change email to owner.id etc
+
+    def preparse_event_dec(func):
+        def wrapped(msg):
+            try:
+                # bring extra key-value pairs to top level
+                for key, val in json.loads(msg.body.pop('extra')).items():
+                    msg.body[key] = val
+            except:
+                pass
+            return func(msg)
+        return wrapped
+
+    def echo(msg):
+        event = msg.body
+        # print msg.delivery_info.get('routing_key'),
+        try:
+            if 'email' in event and 'type' in event and 'action' in event:
+                print event.pop('email'), event.pop('type'), \
+                    event.pop('action')
+            err = event.pop('error', False)
+            if err:
+                print '  error:', err
+            time = event.pop('time')
+            if time:
+                print '  date:', datetime.datetime.fromtimestamp(time)
+            for key, val in event.items():
+                print '  %s: %s' % (key, val)
+        except:
+            print event
+
+    if callback is None:
+        callback = echo
+    callback = preparse_event_dec(callback)
+    log.info('Subscribing to log events with routing keys %s', routing_keys)
+    mist.api.helpers.amqp_subscribe('events', callback, ex_type='topic',
+                                    routing_keys=routing_keys)
+
+
+def subscribe_log_events(callback=None, email='*', event_type='*', action='*',
+                         error='*'):
+    raise NotImplementedError()  # change email to owner.id etc
+    keys = [str(var).lower().replace('.', '^')
+            for var in (email, event_type, action, error)]
+    routing_key = '.'.join(keys)
+    subscribe_log_events_raw(callback, [routing_key])

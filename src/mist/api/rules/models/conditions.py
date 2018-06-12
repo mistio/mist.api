@@ -98,6 +98,10 @@ class BasePeriodType(me.EmbeddedDocument):
         return self.period[:-1]
 
     @property
+    def period_short(self):
+        return self.period[0]
+
+    @property
     def timedelta(self):
         raise NotImplementedError()
 
@@ -113,7 +117,7 @@ class BasePeriodType(me.EmbeddedDocument):
     def clean(self):
         if self.timedelta.total_seconds() < 60:
             raise me.ValidationError("%s's timedelta cannot be less than "
-                                     "a minute", self.__class__.__name__)
+                                     "a minute" % self.__class__.__name__)
 
 
 class Window(BasePeriodType):
@@ -171,6 +175,11 @@ class TriggerOffset(BasePeriodType):
     def clean(self):
         if self.offset:
             super(TriggerOffset, self).clean()
+            q, r = divmod(self.timedelta.total_seconds(),
+                          self._instance.frequency.timedelta.total_seconds())
+            if not q or r:
+                raise me.ValidationError("The trigger offset must be a"
+                                         " multiple of the rule's frequency")
 
     def as_dict(self):
         return {'offset': self.offset, 'period': self.period}
