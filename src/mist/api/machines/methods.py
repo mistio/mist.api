@@ -122,7 +122,7 @@ def list_machines(owner, cloud_id, cached=False):
     return [machine.as_dict() for machine in machines]
 
 
-def create_machine(owner, cloud_id, key_id, machine_name, location_id,
+def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                    image_id, size, image_extra=None, disk=None,
                    image_name=None, size_name=None, location_name=None,
                    ips=None, monitoring=False,
@@ -170,13 +170,15 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
     # or monitoring are supplied, this will run after both finish
     # post_script_params: extra params, for post_script_id
     log.info('Creating machine %s on cloud %s' % (machine_name, cloud_id))
-    cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
+    cloud = Cloud.objects.get(owner=auth_context.owner,
+                              id=cloud_id, deleted=None)
     conn = connect_provider(cloud)
 
     machine_name = machine_name_validator(conn.type, machine_name)
     key = None
     if key_id:
-        key = Key.objects.get(owner=owner, id=key_id, deleted=None)
+        key = Key.objects.get(owner=auth_context.owner,
+                              id=key_id, deleted=None)
 
     # if key_id not provided, search for default key
     if conn.type not in [Provider.LIBVIRT,
@@ -184,7 +186,8 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
                          Provider.ONAPP,
                          Provider.AZURE_ARM]:
         if not key_id:
-            key = Key.objects.get(owner=owner, default=True, deleted=None)
+            key = Key.objects.get(owner=auth_context.owner,
+                                  default=True, deleted=None)
             key_id = key.name
     if key:
         private_key = key.private
@@ -359,7 +362,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
     elif conn.type == Provider.AZURE_ARM:
         image = conn.get_image(image_id, location)
         node = _create_machine_azure_arm(
-            owner, cloud_id, conn, public_key, machine_name,
+            auth_context.owner, cloud_id, conn, public_key, machine_name,
             image, size, location, networks,
             ex_storage_account, machine_password, ex_resource_group,
             create_network, new_network,
@@ -422,6 +425,10 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
         except me.NotUniqueError:
             machine = Machine.objects.get(cloud=cloud, machine_id=node.id)
 
+        # Assign machine's owner/creator.
+        machine.assign_to(auth_context.user)
+
+        # Associate key.
         username = node.extra.get('username', '')
         machine.ctl.associate_key(key, username=username,
                                   port=ssh_port, no_connect=True)
@@ -431,7 +438,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
         # for Azure, connect with the generated password, deploy the ssh key
         # when this is ok, it calls post_deploy for script/monitoring
         mist.api.tasks.azure_post_create_steps.delay(
-            owner.id, cloud_id, node.id, monitoring, key_id,
+            auth_context.owner.id, cloud_id, node.id, monitoring, key_id,
             node.extra.get('username'), node.extra.get('password'), public_key,
             script=script,
             script_id=script_id, script_params=script_params, job_id=job_id,
@@ -440,9 +447,9 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
         )
     elif conn.type == Provider.OPENSTACK:
         if associate_floating_ip:
-            networks = list_networks(owner, cloud_id)
+            networks = list_networks(auth_context.owner, cloud_id)
             mist.api.tasks.openstack_post_create_steps.delay(
-                owner.id, cloud_id, node.id, monitoring, key_id,
+                auth_context.owner.id, cloud_id, node.id, monitoring, key_id,
                 node.extra.get('username'), node.extra.get('password'),
                 public_key, script=script, script_id=script_id,
                 script_params=script_params,
@@ -455,7 +462,7 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
         # created we have the generated password, so deploy the ssh key
         # when this is ok and call post_deploy for script/monitoring
         mist.api.tasks.rackspace_first_gen_post_create_steps.delay(
-            owner.id, cloud_id, node.id, monitoring, key_id,
+            auth_context.owner.id, cloud_id, node.id, monitoring, key_id,
             node.extra.get('password'), public_key, script=script,
             script_id=script_id, script_params=script_params,
             job_id=job_id, job=job, hostname=hostname, plugins=plugins,
@@ -465,15 +472,15 @@ def create_machine(owner, cloud_id, key_id, machine_name, location_id,
 
     elif key_id:
         mist.api.tasks.post_deploy_steps.delay(
-            owner.id, cloud_id, node.id, monitoring, script=script,
-            key_id=key_id, script_id=script_id, script_params=script_params,
-            job_id=job_id, job=job, hostname=hostname, plugins=plugins,
-            post_script_id=post_script_id,
+            auth_context.owner.id, cloud_id, node.id, monitoring,
+            script=script, key_id=key_id, script_id=script_id,
+            script_params=script_params, job_id=job_id, job=job,
+            hostname=hostname, plugins=plugins, post_script_id=post_script_id,
             post_script_params=post_script_params, schedule=schedule,
         )
 
     if tags:
-        resolve_id_and_set_tags(owner, 'machine', node.id, tags,
+        resolve_id_and_set_tags(auth_context.owner, 'machine', node.id, tags,
                                 cloud_id=cloud_id)
 
     ret = {'id': node.id,

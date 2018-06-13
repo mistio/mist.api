@@ -9,7 +9,7 @@
 class AsyncPermissionMapper(object):
     """This class provides a dummy interface to handle RBAC operations."""
 
-    def __init__(self, org):
+    def __init__(self, org, *args, **kwargs):
         self.org = org
 
     def update(self, *args, **kwargs):
@@ -20,6 +20,10 @@ class AsyncPermissionMapper(object):
 
     def get_resources(self, *args, **kwargs):
         return {}
+
+
+class OwnershipMapper(AsyncPermissionMapper):
+    pass
 
 
 # Dummy RBAC Mapping, due to the absence of RBAC in open-source Mist.io.
