@@ -1308,7 +1308,7 @@ HAS_RBAC = 'rbac' in PLUGINS
 HAS_INSIGHTS = 'insights' in PLUGINS
 HAS_ORCHESTRATION = 'orchestration' in PLUGINS
 HAS_CLOUDIFY_INSIGHTS = HAS_INSIGHTS and HAS_ORCHESTRATION \
-    and 'cloudify_insights' in PLUGINS
+    and HAS_RBAC and 'cloudify_insights' in PLUGINS
 HAS_VPN = 'vpn' in PLUGINS
 HAS_EXPERIMENTS = 'experiments' in PLUGINS
 HAS_MANAGE = 'manage' in PLUGINS
