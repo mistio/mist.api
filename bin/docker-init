@@ -18,6 +18,18 @@ if [ ! -e clean ]; then
     pip install -e $DIR/../src/
     pip install -r $DIR/../requirements.txt
     set +x
+    for plugin in $($DIR/list-plugins 2>/dev/null); do
+        echo "Will try to install plugin $plugin."
+        if [ -f /opt/$plugin/setup.py ]; then
+            echo "  Found in /opt/$plugin/"
+            pip install -e /opt/$plugin/
+        elif [ -f /opt/$plugin/src/setup.py ]; then
+            echo "  Found in /opt/$plugin/src/"
+            pip install -e /opt/$plugin/src/
+        else
+            echo "  WARNING: Not Found"
+        fi
+    done
 fi
 
 # Create settings.py file from template if missing...
