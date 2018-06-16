@@ -123,7 +123,7 @@ def get_notification_overrides(request):
         np = UserNotificationPolicy.objects.get(owner=auth_context.owner,
                                                 user_id=auth_context.user.id)
     except UserNotificationPolicy.DoesNotExist:
-        raise NotFoundError()
+        return []
     return [o.as_dict() for o in np.overrides]
 
 
