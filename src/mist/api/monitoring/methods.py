@@ -182,7 +182,6 @@ def check_monitoring(owner):
                 machines = custom_metrics[metric_id]['machines']
                 machines.append((machine.cloud.id, machine.machine_id))
 
-
     ret = {
         'machines': monitored_machines,
         'monitored_machines': monitored_machines_2,
