@@ -33,7 +33,8 @@ def get_usage(owner_id='', full_days=6):
     query = "SELECT"
     query += " MAX(cores) AS cores,"
     query += " NON_NEGATIVE_DERIVATIVE(MAX(checks)) AS checks,"
-    query += " NON_NEGATIVE_DERIVATIVE(MAX(datapoints)) AS datapoints "
+    query += " NON_NEGATIVE_DERIVATIVE(MAX(datapoints)) AS datapoints, "
+    query += " MAX(cost) AS cost "
     query += "FROM usage"
     query += " WHERE time >= '%s'" % start.isoformat(sep=' ')
     if owner_id:
@@ -73,7 +74,14 @@ def get_usage(owner_id='', full_days=6):
                         data[date][k] = v
                     elif v is not None:
                         data[date][k] += v
-    return [{'date': d, 'usage': data[d]} for d in sorted(data)]
+
+    return [
+        {
+            'date': d,
+            'cost': data[d].get('cost', 0),
+            'usage': data[d]
+        } for d in sorted(data)
+    ]
 
 
 def get_current_portal_usage():
