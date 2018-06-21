@@ -313,6 +313,13 @@ class BaseComputeController(BaseController):
         for size in CloudSize.objects(cloud=self.cloud):
             sizes_map[size.external_id] = size
             sizes_map[size.name] = size
+        from mist.api.networks.models import Network
+        networks_map = {}
+        subnets_map = {}
+        for network in Network.objects(cloud=self.cloud):
+            networks_map[network.network_id] = network
+            networks_map[network.name] = network
+            subnets_map.update(self._list_machines__set_subnets_map(network))
 
         from mist.api.machines.models import Machine
         # Process each machine in returned list.
@@ -359,21 +366,12 @@ class BaseComputeController(BaseController):
                     machine.size = self._list_machines__get_custom_size(node)
             except Exception as exc:
                 log.error("Error getting size of %s: %r", machine, exc)
-
             # Discover network of machine.
             try:
                 network_id = self._list_machines__get_network(node)
             except Exception as exc:
                 log.error("Error getting network of %s: %r", machine, exc)
             else:
-                from mist.api.networks.models import Network
-                networks_map = {}
-                subnets_map = {}
-                for network in Network.objects(cloud=self.cloud):
-                    networks_map[network.network_id] = network
-                    networks_map[network.name] = network
-                    subnets_map.update(self._list_machines__set_subnets_map(network))
-
                 machine.network = networks_map.get(network_id)
 
             # Discover subnet of machine.
@@ -382,12 +380,6 @@ class BaseComputeController(BaseController):
             except Exception as exc:
                 log.error("Error getting subnet of %s: %r", machine, exc)
             else:
-                if not subnets_map:
-                    from mist.api.networks.models import Network
-                    subnets_map = {}
-                    for network in Network.objects(cloud=self.cloud):
-                        subnets_map.update(self._list_machines__set_subnets_map(network))
-
                 machine.subnet = subnets_map.get(subnet)
 
             machine.name = node.name
