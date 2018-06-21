@@ -62,6 +62,8 @@ def delete_account(request):
              renderer='json')
 def update_user_settings(request):
     """
+    Tags: users
+    ---
     User related actions
     Edit name, Update password
     """
