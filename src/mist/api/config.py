@@ -530,7 +530,8 @@ CELERY_SETTINGS = {
         'mist.api.rules.tasks.evaluate': {'queue': 'rules'},
 
         # Core tasks
-        'mist.core.insights.tasks.list_deployments': {'queue': 'deployments'},
+        'mist.cloudify_insights.tasks.list_deployments':
+        {'queue': 'deployments'},
         'mist.rbac.tasks.update_mappings': {'queue': 'mappings'},
         'mist.rbac.tasks.remove_mappings': {'queue': 'mappings'},
     },
@@ -1192,25 +1193,80 @@ else:
     print >> sys.stderr, "Couldn't find core config in %s" % CORE_CONFIG_PATH
     HAS_CORE = False
 
+CONFIG_OVERRIDE_FILES = []
+
+# Load defaults file if defined
+DEFAULTS_FILE = os.getenv('DEFAULTS_FILE')
+if DEFAULTS_FILE:
+    CONFIG_OVERRIDE_FILES.append(os.path.abspath(DEFAULTS_FILE))
+
+# Get settings from settings file.
+SETTINGS_FILE = os.path.abspath(os.getenv('SETTINGS_FILE') or 'settings.py')
+CONFIG_OVERRIDE_FILES.append(SETTINGS_FILE)
+
+# Load all config override files. SETTINGS_FILE should be the last one to load
+# This first pass will get us the list of configured plugins.
+# We will load the plugin configs and then we'll reload the config overrides
+for override_file in CONFIG_OVERRIDE_FILES:
+    if os.path.exists(override_file):
+        print >> sys.stderr, "Reading settings from %s" % override_file
+        CONF = {}
+        execfile(override_file, CONF)
+        for key in CONF:
+            if isinstance(locals().get(key), dict) and isinstance(CONF[key],
+                                                                  dict):
+                locals()[key].update(CONF[key])
+            else:
+                locals()[key] = CONF[key]
+    else:
+        print >> sys.stderr, ("Couldn't find settings file in %s" %
+                              override_file)
+
+# Load all plugin config files. Plugins may define vars that can be overriden
+# by environmental variables
+PLUGIN_ENV_STRINGS = []
+PLUGIN_ENV_INTS = []
+PLUGIN_ENV_BOOLS = []
+PLUGIN_ENV_ARRAYS = []
+
+for plugin in PLUGINS:
+    try:
+        plugin_env = {}
+        exec('from mist.%s.config import *' % plugin, plugin_env)
+        for key in plugin_env:
+            # Allow plugins to define vars that can be overriden by env
+            if key in ['PLUGIN_ENV_STRINGS', 'PLUGIN_ENV_INTS',
+                       'PLUGIN_ENV_BOOLS', 'PLUGIN_ENV_ARRAYS']:
+                locals()[key] += plugin_env[key]
+            elif isinstance(locals().get(key), dict) and \
+                    isinstance(plugin_env[key], dict):
+                locals()[key].update(plugin_env[key])
+            else:
+                locals()[key] = plugin_env[key]
+        print >> sys.stderr, "Imported config of `%s` plugin" % plugin
+    except Exception as exc:
+        if exc.message != 'No module named config':
+            print >> sys.stderr, "Failed to import config of `%s` plugin" % \
+                plugin
 
 # Get settings from environmental variables.
 FROM_ENV_STRINGS = [
     'AMQP_URI', 'BROKER_URL', 'CORE_URI', 'MONGO_URI', 'MONGO_DB', 'DOCKER_IP',
     'DOCKER_PORT', 'DOCKER_TLS_KEY', 'DOCKER_TLS_CERT', 'DOCKER_TLS_CA',
     'UI_TEMPLATE_URL', 'LANDING_TEMPLATE_URL', 'THEME',
-    'DEFAULT_MONITORING_METHOD', 'LICENSE_KEY',
-]
+    'DEFAULT_MONITORING_METHOD', 'LICENSE_KEY'
+] + PLUGIN_ENV_STRINGS
 FROM_ENV_INTS = [
     'SHARD_MANAGER_MAX_SHARD_PERIOD', 'SHARD_MANAGER_MAX_SHARD_CLAIMS',
     'SHARD_MANAGER_INTERVAL',
-]
+] + PLUGIN_ENV_INTS
 FROM_ENV_BOOLS = [
     'SSL_VERIFY', 'ALLOW_CONNECT_LOCALHOST', 'ALLOW_CONNECT_PRIVATE',
     'ALLOW_LIBVIRT_LOCALHOST', 'JS_BUILD', 'VERSION_CHECK', 'USAGE_SURVEY',
-]
+] + PLUGIN_ENV_BOOLS
 FROM_ENV_ARRAYS = [
     'MEMCACHED_HOST', 'PLUGINS'
-]
+] + PLUGIN_ENV_ARRAYS
 print >> sys.stderr, "Reading settings from environmental variables."
 for key in FROM_ENV_STRINGS:
     if os.getenv(key):
@@ -1230,18 +1286,8 @@ for key in FROM_ENV_ARRAYS:
         locals()[key] = os.getenv(key).split(',')
 
 
-CONFIG_OVERRIDE_FILES = []
-
-# Load defaults file if defined
-DEFAULTS_FILE = os.getenv('DEFAULTS_FILE')
-if DEFAULTS_FILE:
-    CONFIG_OVERRIDE_FILES.append(os.path.abspath(DEFAULTS_FILE))
-
-# Get settings from settings file.
-SETTINGS_FILE = os.path.abspath(os.getenv('SETTINGS_FILE') or 'settings.py')
-CONFIG_OVERRIDE_FILES.append(SETTINGS_FILE)
-
-# Load all config override files. SETTINGS_FILE should be the last one to load
+# Load all config override files one last time after loading plugins.
+# SETTINGS_FILE should be the last one to load
 for override_file in CONFIG_OVERRIDE_FILES:
     if os.path.exists(override_file):
         print >> sys.stderr, "Reading settings from %s" % override_file
@@ -1261,6 +1307,8 @@ HAS_BILLING = 'billing' in PLUGINS
 HAS_RBAC = 'rbac' in PLUGINS
 HAS_INSIGHTS = 'insights' in PLUGINS
 HAS_ORCHESTRATION = 'orchestration' in PLUGINS
+HAS_CLOUDIFY_INSIGHTS = HAS_INSIGHTS and HAS_ORCHESTRATION \
+    and HAS_RBAC and 'cloudify_insights' in PLUGINS
 HAS_VPN = 'vpn' in PLUGINS
 HAS_EXPERIMENTS = 'experiments' in PLUGINS
 HAS_MANAGE = 'manage' in PLUGINS
