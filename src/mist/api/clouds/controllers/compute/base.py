@@ -360,29 +360,31 @@ class BaseComputeController(BaseController):
             except Exception as exc:
                 log.error("Error getting size of %s: %r", machine, exc)
 
-            from mist.api.networks.models import Network
-            networks_map = {}
-            subnets_map = {}
-            for network in Network.objects(cloud=self.cloud):
-                networks_map[network.network_id] = network
-                networks_map[network.name] = network
-                subnets_map.update(self._list_machines__set_subnets_map(network))
+            if not machine.network:
 
-            # Discover network of machine.
-            try:
-                network_id = self._list_machines__get_network(node)
-            except Exception as exc:
-                log.error("Error getting network of %s: %r", machine, exc)
-            else:
-                machine.network = networks_map.get(network_id)
+                from mist.api.networks.models import Network
+                networks_map = {}
+                subnets_map = {}
+                for network in Network.objects(cloud=self.cloud):
+                    networks_map[network.network_id] = network
+                    networks_map[network.name] = network
+                    subnets_map.update(self._list_machines__set_subnets_map(network))
 
-            # Discover subnet of machine.
-            try:
-                subnet = self._list_machines__get_subnet(node)
-            except Exception as exc:
-                log.error("Error getting subnet of %s: %r", machine, exc)
-            else:
-                machine.subnet = subnets_map.get(subnet)
+                # Discover network of machine.
+                try:
+                    network_id = self._list_machines__get_network(node)
+                except Exception as exc:
+                    log.error("Error getting network of %s: %r", machine, exc)
+                else:
+                    machine.network = networks_map.get(network_id)
+
+                # Discover subnet of machine.
+                try:
+                    subnet = self._list_machines__get_subnet(node)
+                except Exception as exc:
+                    log.error("Error getting subnet of %s: %r", machine, exc)
+                else:
+                    machine.subnet = subnets_map.get(subnet)
 
             machine.name = node.name
             machine.image_id = image_id
