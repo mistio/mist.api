@@ -779,6 +779,8 @@ class LogsConnection(MistConnection):
         default, the log entry is returned as is.
 
         """
+        if event.get('su') and not self.auth_context.user.role == 'Admin':
+            return None
         if config.HAS_RBAC:
             return filter_log_event(self.auth_context, event)
         return event

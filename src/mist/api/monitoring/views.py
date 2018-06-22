@@ -54,17 +54,22 @@ def _machine_from_matchdict(request, deleted=False):
         except Machine.DoesNotExist:
             raise NotFoundError("Machine %s doesn't exist" %
                                 request.matchdict['machine'])
+        # used by logging_view_decorator
+        request.environ['machine_uuid'] = machine.id
     else:
         clouds = Cloud.objects(owner=auth_context.owner, deleted=None)
         try:
             machine = Machine.objects.get(
                 cloud__in=clouds,
-                id=request.matchdict['machine'],
+                id=request.matchdict['machine_uuid'],
                 state__ne='terminated'
             )
         except Machine.DoesNotExist:
             raise NotFoundError("Machine %s doesn't exist" %
                                 request.matchdict['machine'])
+        # used by logging_view_decorator
+        request.environ['machine_id'] = machine.machine_id
+        request.environ['cloud_id'] = machine.cloud.id
     auth_context.check_perm('cloud', 'read', machine.cloud.id)
     return machine
 

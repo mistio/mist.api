@@ -69,12 +69,15 @@ def log_event(owner_id, event_type, action, error=None, **kwargs):
             'error': error if error else False,
             'extra': json.dumps(kwargs, default=_default)
         }
+
         # Bring more key-value pairs to the top level.
         for key in FIELDS:
             if key in kwargs:
                 event[key] = kwargs.pop(key)
+
         if 'story_id' in kwargs:
             event['story_id'] = kwargs.pop('story_id')
+
         if 'user_id' in event:
             try:
                 event['email'] = User.objects.get(id=event['user_id']).email
@@ -89,19 +92,22 @@ def log_event(owner_id, event_type, action, error=None, **kwargs):
                 event.update({'story_id': event[key], 'stories': []})
                 associate_stories(event)
                 break
-        else:
-            # Special case for closing stories unless an error has been raised,
-            # such as PolicyUnauthorizedError.
-            # TODO: Can be used to close any type of story, not only incidents.
-            if action in ('close_story', ) and not error:
-                event['stories'] = [('closes', 'incident', event['story_id'])]
-            # Attempt to close open incidents.
-            if action in CLOSES_INCIDENT:
-                try:
-                    close_open_incidents(event)
-                except Exception as exc:
-                    log.error('Event %s failed to close open incidents: %s',
-                              event['log_id'], exc)
+
+        # Special case for closing stories unless an error has been raised,
+        # such as PolicyUnauthorizedError.
+        # TODO: Can be used to close any type of story, not only incidents.
+        if action in ('close_story', ) and not error:
+            story = ('closes', 'incident', event['story_id'])
+            event.setdefault('stories', []).append(story)
+
+        # Attempt to close open incidents.
+        if action in CLOSES_INCIDENT:
+            try:
+                close_open_incidents(event)
+            except Exception as exc:
+                log_id = event.get('log_id')
+                log.error('Log %s failed to close incidents: %r', log_id, exc)
+
         # Cross populate session-log data.
         try:
             cross_populate_session_data(event, kwargs)
@@ -139,6 +145,7 @@ def get_events(auth_context, owner_id='', user_id='', event_type='', action='',
     """
     # Restrict access to UI logs to Admins only.
     is_admin = auth_context and auth_context.user.role == 'Admin'
+
     # Attempt to enforce owner_id in case of non-Admins.
     if not is_admin and not owner_id:
         owner_id = auth_context.owner.id if auth_context else None
@@ -242,11 +249,12 @@ def get_events(auth_context, owner_id='', user_id='', event_type='', action='',
         try:
             extra = json.loads(event.pop('extra'))
         except Exception as exc:
-            log.error('Failed to parse extra of event %s [%s]: '
-                      '%s', event['log_id'], event['action'], exc)
+            log.error('Failed to parse extra of event %s: %r', event, exc)
         else:
             for key, value in extra.iteritems():
                 event[key] = value
+        if event.get('su') and not is_admin:
+            continue
         yield event
 
 
