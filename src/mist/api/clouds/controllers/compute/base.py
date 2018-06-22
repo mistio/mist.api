@@ -368,7 +368,8 @@ class BaseComputeController(BaseController):
                 for network in Network.objects(cloud=self.cloud):
                     networks_map[network.network_id] = network
                     networks_map[network.name] = network
-                    subnets_map.update(self._list_machines__set_subnets_map(network))
+                    subnets_map.update(
+                        self._list_machines__set_subnets_map(network))
 
                 # Discover network of machine.
                 try:
@@ -1091,7 +1092,6 @@ class BaseComputeController(BaseController):
         # way to solve this would be to move CloudLocation under its own dir.
         from mist.api.clouds.models import CloudLocation
         return CloudLocation.objects(cloud=self.cloud, missing_since=None)
-
 
     def _list_machines__get_location(self, node):
         """Find location code name/identifier from libcloud data

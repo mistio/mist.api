@@ -257,18 +257,21 @@ class BaseNetworkController(BaseController):
 
                 for subnet in network.ctl.list_subnets():
                     subnet_dict = subnet.as_dict()
-                    network_dict['subnets'].update({subnet_dict['id']: subnet_dict})
+                    network_dict['subnets'].update(
+                        {subnet_dict['id']: subnet_dict})
 
                 if not network_dict.get('router_external'):
-                    new_networks['private'].update({network_dict['id']: network_dict})
+                    new_networks['private'].update(
+                        {network_dict['id']: network_dict})
                 else:
-                    new_networks['public'].update({network_dict['id']: network_dict})
+                    new_networks['public'].update(
+                        {network_dict['id']: network_dict})
 
             if cached_networks and new_networks:
                 patch = {}
                 for key in cached_networks.keys():
-                    key_patch = jsonpatch.JsonPatch.from_diff(cached_networks.get(key),
-                                new_networks.get(key)).patch
+                    key_patch = jsonpatch.JsonPatch.from_diff(
+                        cached_networks.get(key), new_networks.get(key)).patch
 
                     if key_patch:
                         patch.update({key: key_patch})
@@ -287,7 +290,7 @@ class BaseNetworkController(BaseController):
                                   routing_key='list_networks',
                                   connection=amqp_conn,
                                   data={'cloud_id': self.cloud.id,
-                                        'networks': networks_dict})
+                                        'networks': new_networks})
         return networks
 
     @LibcloudExceptionHandler(mist.api.exceptions.NetworkListingError)
@@ -396,9 +399,10 @@ class BaseNetworkController(BaseController):
 
             for subnet in self.list_cached_subnets(network):
                 subnet_dict = subnet.as_dict()
-                network_dict['subnets'].update({subnet_dict['id']: subnet_dict})
+                network_dict['subnets'].update(
+                    {subnet_dict['id']: subnet_dict})
 
-            # TODO: Backwards-compatible network privacy detection, to be replaced
+        # TODO: Backwards-compatible network privacy detection, to be replaced
             if not network_dict.get('router_external'):
                 ret['private'].update({network_dict['id']: network_dict})
             else:
