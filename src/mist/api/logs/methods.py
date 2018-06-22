@@ -69,12 +69,15 @@ def log_event(owner_id, event_type, action, error=None, **kwargs):
             'error': error if error else False,
             'extra': json.dumps(kwargs, default=_default)
         }
+
         # Bring more key-value pairs to the top level.
         for key in FIELDS:
             if key in kwargs:
                 event[key] = kwargs.pop(key)
+
         if 'story_id' in kwargs:
             event['story_id'] = kwargs.pop('story_id')
+
         if 'user_id' in event:
             try:
                 event['email'] = User.objects.get(id=event['user_id']).email
@@ -89,19 +92,22 @@ def log_event(owner_id, event_type, action, error=None, **kwargs):
                 event.update({'story_id': event[key], 'stories': []})
                 associate_stories(event)
                 break
-        else:
-            # Special case for closing stories unless an error has been raised,
-            # such as PolicyUnauthorizedError.
-            # TODO: Can be used to close any type of story, not only incidents.
-            if action in ('close_story', ) and not error:
-                event['stories'] = [('closes', 'incident', event['story_id'])]
-            # Attempt to close open incidents.
-            if action in CLOSES_INCIDENT:
-                try:
-                    close_open_incidents(event)
-                except Exception as exc:
-                    log.error('Event %s failed to close open incidents: %s',
-                              event['log_id'], exc)
+
+        # Special case for closing stories unless an error has been raised,
+        # such as PolicyUnauthorizedError.
+        # TODO: Can be used to close any type of story, not only incidents.
+        if action in ('close_story', ) and not error:
+            story = ('closes', 'incident', event['story_id'])
+            event.setdefault('stories', []).append(story)
+
+        # Attempt to close open incidents.
+        if action in CLOSES_INCIDENT:
+            try:
+                close_open_incidents(event)
+            except Exception as exc:
+                log_id = event.get('log_id')
+                log.error('Log %s failed to close incidents: %r', log_id, exc)
+
         # Cross populate session-log data.
         try:
             cross_populate_session_data(event, kwargs)
