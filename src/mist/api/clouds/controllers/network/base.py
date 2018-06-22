@@ -243,20 +243,37 @@ class BaseNetworkController(BaseController):
         task_key = 'cloud:list_networks:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
         with task.task_runner(persist=persist):
-            cached_networks = {'%s' % n.id: n.as_dict()
-                               for n in self.list_cached_networks()}
-
+            cached_networks = self.list_cached_networks()
             networks = self._list_networks()
 
         # Initialize AMQP connection to reuse for multiple messages.
         amqp_conn = Connection(config.AMQP_URI)
         if amqp_owner_listening(self.cloud.owner.id):
-            networks_dict = [n.as_dict() for n in networks]
-            if cached_networks and networks_dict:
+            new_networks = {'public': {}, 'private': {}, 'routers': {}}
+
+            for network in networks:
+                network_dict = network.as_dict()
+                network_dict['subnets'] = {}
+
+                for subnet in network.ctl.list_subnets():
+                    subnet_dict = subnet.as_dict()
+                    network_dict['subnets'].update({subnet_dict['id']: subnet_dict})
+
+                if not network_dict.get('router_external'):
+                    new_networks['private'].update({network_dict['id']: network_dict})
+                else:
+                    new_networks['public'].update({network_dict['id']: network_dict})
+
+            if cached_networks and new_networks:
+                patch = {}
+                for key in cached_networks.keys():
+                    key_patch = jsonpatch.JsonPatch.from_diff(cached_networks.get(key),
+                                new_networks.get(key)).patch
+
+                    if key_patch:
+                        patch.update({key: key_patch})
+
                 # Publish patches to rabbitmq.
-                new_networks = {'%s' % n['id']: n for n in networks_dict}
-                patch = jsonpatch.JsonPatch.from_diff(cached_networks,
-                                                      new_networks).patch
                 if patch:
                     amqp_publish_user(self.cloud.owner.id,
                                       routing_key='patch_networks',
@@ -364,10 +381,30 @@ class BaseNetworkController(BaseController):
         """Returns networks stored in database
         for a specific cloud
         """
+        ret = {'public': {}, 'private': {}, 'routers': {}}
         # FIXME: Move these imports to the top of the file when circular
         # import issues are resolved
         from mist.api.networks.models import Network
-        return Network.objects(cloud=self.cloud, missing_since=None)
+        cached_networks = Network.objects(cloud=self.cloud, missing_since=None)
+
+        for network in cached_networks:
+            network_dict = network.as_dict()
+            if hasattr(network, 'location'):
+                network_dict['location'] = network.location
+
+            network_dict['subnets'] = {}
+
+            for subnet in self.list_cached_subnets(network):
+                subnet_dict = subnet.as_dict()
+                network_dict['subnets'].update({subnet_dict['id']: subnet_dict})
+
+            # TODO: Backwards-compatible network privacy detection, to be replaced
+            if not network_dict.get('router_external'):
+                ret['private'].update({network_dict['id']: network_dict})
+            else:
+                ret['public'].update({network_dict['id']: network_dict})
+
+        return ret
 
     def _list_networks__cidr_range(self, network, libcloud_network):
         """Returns the network's IP range in CIDR notation.
@@ -500,6 +537,15 @@ class BaseNetworkController(BaseController):
         raise NotImplementedError('The BaseNetworkController CANNOT perform '
                                   'subnet listings due to cloud-specific '
                                   'filtering needs.')
+
+    def list_cached_subnets(self, network):
+        """Returns subnets stored in database
+        for a specific network
+        """
+        # FIXME: Move these imports to the top of the file when circular
+        # import issues are resolved
+        from mist.api.networks.models import Subnet
+        return Subnet.objects(network=network, missing_since=None)
 
     def _list_subnets__cidr_range(self, subnet, libcloud_subnet):
         """Returns the subnet's IP range in CIDR notation.

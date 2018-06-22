@@ -299,6 +299,7 @@ class ListSizesPollingSchedule(CloudPollingSchedule):
 
 class ListNetworksPollingSchedule(CloudPollingSchedule):
 
+    # task below is polling both networks and subnets
     task = 'mist.api.poller.tasks.list_networks'
 
     def enabled(self):
