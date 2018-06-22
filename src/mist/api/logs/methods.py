@@ -139,6 +139,7 @@ def get_events(auth_context, owner_id='', user_id='', event_type='', action='',
     """
     # Restrict access to UI logs to Admins only.
     is_admin = auth_context and auth_context.user.role == 'Admin'
+
     # Attempt to enforce owner_id in case of non-Admins.
     if not is_admin and not owner_id:
         owner_id = auth_context.owner.id if auth_context else None
@@ -242,11 +243,12 @@ def get_events(auth_context, owner_id='', user_id='', event_type='', action='',
         try:
             extra = json.loads(event.pop('extra'))
         except Exception as exc:
-            log.error('Failed to parse extra of event %s [%s]: '
-                      '%s', event['log_id'], event['action'], exc)
+            log.error('Failed to parse extra of event %s: %r', event, exc)
         else:
             for key, value in extra.iteritems():
                 event[key] = value
+        if event.get('su') and not is_admin:
+            continue
         yield event
 
 
