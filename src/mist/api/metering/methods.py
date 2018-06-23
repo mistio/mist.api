@@ -78,7 +78,7 @@ def get_usage(owner_id='', full_days=6):
     return [
         {
             'date': d,
-            'cost': data[d].get('cost', 0),
+            'cost': data[d].pop('cost', 0),
             'usage': data[d]
         } for d in sorted(data)
     ]
