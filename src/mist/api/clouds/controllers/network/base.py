@@ -383,11 +383,7 @@ class BaseNetworkController(BaseController):
 
         for network in cached_networks:
             network_dict = network.as_dict()
-            if hasattr(network, 'location'):
-                network_dict['location'] = network.location
-
             network_dict['subnets'] = {}
-
             for subnet in self.list_cached_subnets(network):
                 subnet_dict = subnet.as_dict()
                 network_dict['subnets'].update(

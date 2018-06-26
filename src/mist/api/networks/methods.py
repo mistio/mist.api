@@ -24,9 +24,6 @@ def list_networks(owner, cloud_id):
     for network in networks:
 
         network_dict = network.as_dict()
-        if hasattr(network, 'location'):
-            network_dict['location'] = network.location
-
         network_dict['subnets'] = {}
         for subnet in network.ctl.list_subnets():
             subnet_dict = subnet.as_dict()
