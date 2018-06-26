@@ -383,11 +383,6 @@ class BaseNetworkController(BaseController):
 
         for network in cached_networks:
             network_dict = network.as_dict()
-            network_dict['subnets'] = {}
-            for subnet in self.list_cached_subnets(network):
-                subnet_dict = subnet.as_dict()
-                network_dict['subnets'].update(
-                    {subnet_dict['id']: subnet_dict})
 
         # TODO: Backwards-compatible network privacy detection, to be replaced
             if not network_dict.get('router_external'):
@@ -528,16 +523,6 @@ class BaseNetworkController(BaseController):
         raise NotImplementedError('The BaseNetworkController CANNOT perform '
                                   'subnet listings due to cloud-specific '
                                   'filtering needs.')
-
-    def list_cached_subnets(self, network):
-        """Returns subnets stored in database
-        for a specific network
-        """
-        assert self.cloud == network.cloud
-        # FIXME: Move these imports to the top of the file when circular
-        # import issues are resolved
-        from mist.api.networks.models import Subnet
-        return Subnet.objects(network=network, missing_since=None)
 
     def _list_subnets__cidr_range(self, subnet, libcloud_subnet):
         """Returns the subnet's IP range in CIDR notation.
