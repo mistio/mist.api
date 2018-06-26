@@ -533,6 +533,7 @@ class BaseNetworkController(BaseController):
         """Returns subnets stored in database
         for a specific network
         """
+        assert self.cloud == network.cloud
         # FIXME: Move these imports to the top of the file when circular
         # import issues are resolved
         from mist.api.networks.models import Subnet
