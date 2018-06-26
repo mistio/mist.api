@@ -24,10 +24,6 @@ def list_networks(owner, cloud_id):
     for network in networks:
 
         network_dict = network.as_dict()
-        network_dict['subnets'] = {}
-        for subnet in network.ctl.list_subnets():
-            subnet_dict = subnet.as_dict()
-            network_dict['subnets'].update({subnet_dict['id']: subnet_dict})
 
     # TODO: Backwards-compatible network privacy detection, to be replaced
         if not network_dict.get('router_external'):
