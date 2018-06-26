@@ -267,30 +267,21 @@ class BaseNetworkController(BaseController):
                     new_networks['public'].update(
                         {network_dict['id']: network_dict})
 
-            if cached_networks and new_networks:
-                patch = {}
-                for key in cached_networks.keys():
-                    key_patch = jsonpatch.JsonPatch.from_diff(
-                        cached_networks.get(key), new_networks.get(key)).patch
+            patch = {}
+            for key in cached_networks.keys():
+                key_patch = jsonpatch.JsonPatch.from_diff(
+                    cached_networks.get(key), new_networks.get(key)).patch
 
-                    if key_patch:
-                        patch.update({key: key_patch})
+                if key_patch:
+                    patch.update({key: key_patch})
 
-                # Publish patches to rabbitmq.
-                if patch:
-                    amqp_publish_user(self.cloud.owner.id,
-                                      routing_key='patch_networks',
-                                      connection=amqp_conn,
-                                      data={'cloud_id': self.cloud.id,
-                                            'patch': patch})
-            else:
-                # TODO: remove this block, once patches
-                # are implemented in the UI
+            # Publish patches to rabbitmq.
+            if patch:
                 amqp_publish_user(self.cloud.owner.id,
-                                  routing_key='list_networks',
+                                  routing_key='patch_networks',
                                   connection=amqp_conn,
                                   data={'cloud_id': self.cloud.id,
-                                        'networks': new_networks})
+                                        'patch': patch})
         return networks
 
     @LibcloudExceptionHandler(mist.api.exceptions.NetworkListingError)
