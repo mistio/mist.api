@@ -244,6 +244,17 @@ class BaseNetworkController(BaseController):
         task = PeriodicTaskInfo.get_or_add(task_key)
         with task.task_runner(persist=persist):
             cached_networks = self.list_cached_networks()
+            cached_networks_dict = {'public': {}, 'private': {}, 'routers': {}}
+            for network in cached_networks:
+                network_dict = network.as_dict()
+
+                if not network_dict.get('router_external'):
+                    cached_networks_dict['private'].update(
+                        {network_dict['id']: network_dict})
+                else:
+                    cached_networks_dict['public'].update(
+                        {network_dict['id']: network_dict})
+
             networks = self._list_networks()
 
         # Initialize AMQP connection to reuse for multiple messages.
@@ -268,9 +279,9 @@ class BaseNetworkController(BaseController):
                         {network_dict['id']: network_dict})
 
             patch = {}
-            for key in cached_networks.keys():
+            for key in cached_networks_dict.keys():
                 key_patch = jsonpatch.JsonPatch.from_diff(
-                    cached_networks.get(key), new_networks.get(key)).patch
+                    cached_networks_dict.get(key), new_networks.get(key)).patch
 
                 if key_patch:
                     patch.update({key: key_patch})
@@ -375,22 +386,10 @@ class BaseNetworkController(BaseController):
         """Returns networks stored in database
         for a specific cloud
         """
-        ret = {'public': {}, 'private': {}, 'routers': {}}
         # FIXME: Move these imports to the top of the file when circular
         # import issues are resolved
         from mist.api.networks.models import Network
-        cached_networks = Network.objects(cloud=self.cloud, missing_since=None)
-
-        for network in cached_networks:
-            network_dict = network.as_dict()
-
-        # TODO: Backwards-compatible network privacy detection, to be replaced
-            if not network_dict.get('router_external'):
-                ret['private'].update({network_dict['id']: network_dict})
-            else:
-                ret['public'].update({network_dict['id']: network_dict})
-
-        return ret
+        return Network.objects(cloud=self.cloud, missing_since=None)
 
     def _list_networks__cidr_range(self, network, libcloud_network):
         """Returns the network's IP range in CIDR notation.
