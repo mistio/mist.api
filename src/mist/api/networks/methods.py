@@ -9,7 +9,7 @@ from libcloud.compute.types import Provider
 
 def list_networks(owner, cloud_id):
     """List the networks of the specified cloud"""
-    ret = {'public': [], 'private': [], 'routers': []}  # FIXME
+    ret = {'public': {}, 'private': {}, 'routers': {}}  # FIXME
 
     try:
         cloud = Cloud.objects.get(owner=owner, id=cloud_id)
@@ -34,9 +34,9 @@ def list_networks(owner, cloud_id):
 
     # TODO: Backwards-compatible network privacy detection, to be replaced
         if not network_dict.get('router_external'):
-            ret['private'].append(network_dict)
+            ret['private'].update({network_dict['id']: network_dict})
         else:
-            ret['public'].append(network_dict)
+            ret['public'].update({network_dict['id']: network_dict})
     return ret
 
 
