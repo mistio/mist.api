@@ -258,6 +258,7 @@ class BaseNetworkController(BaseController):
             networks = self._list_networks()
 
         # Initialize AMQP connection to reuse for multiple messages.
+
         amqp_conn = Connection(config.AMQP_URI)
         if amqp_owner_listening(self.cloud.owner.id):
             new_networks = {'public': {}, 'private': {}, 'routers': {}}
@@ -506,6 +507,16 @@ class BaseNetworkController(BaseController):
         ).update(missing_since=datetime.datetime.utcnow())
 
         return subnets
+
+    def list_cached_subnets(self, network):
+        """Returns subnets stored in database
+        for a specific network
+        """
+        assert self.cloud == network.cloud
+        # FIXME: Move these imports to the top of the file when circular
+        # import issues are resolved
+        from mist.api.networks.models import Subnet
+        return Subnet.objects(network=network, missing_since=None)
 
     def _list_subnets__fetch_subnets(self, network):
         """Fetches a list of subnets.
