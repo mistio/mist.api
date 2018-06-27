@@ -301,6 +301,10 @@ class ListNetworksPollingSchedule(CloudPollingSchedule):
 
     task = 'mist.api.poller.tasks.list_networks'
 
+    def enabled(self):
+        return (super(ListNetworksPollingSchedule, self).enabled and
+                hasattr(self.cloud.ctl, 'network'))
+
 
 class MachinePollingSchedule(PollingSchedule):
 
