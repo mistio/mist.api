@@ -2,6 +2,8 @@ from mist.api.exceptions import CloudNotFoundError
 
 from mist.api.clouds.models import Cloud
 
+from mist.api.networks.models import Network
+
 from mist.api.methods import connect_provider
 
 from libcloud.compute.types import Provider
@@ -19,7 +21,7 @@ def list_networks(owner, cloud_id):
     if not hasattr(cloud.ctl, 'network'):
         return ret
 
-    networks = cloud.ctl.network.list_networks()
+    networks = Network.objects(cloud=cloud, missing_since=None)
 
     for network in networks:
 
