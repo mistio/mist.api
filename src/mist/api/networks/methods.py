@@ -42,12 +42,12 @@ def filter_list_networks(auth_context, cloud_id, networks=None, perm='read'):
     if not auth_context.is_owner():
         allowed_resources = auth_context.get_allowed_resources(perm)
         if cloud_id not in allowed_resources['clouds']:
-            return {'public': [], 'private': [], 'routers': []}
-        for key in ('public', 'private', ):
+            return {'public': {}, 'private': {}, 'routers': {}}
+        for key in ('public', 'private', 'routers'):
             if not networks.get(key):
                 continue
-            for i in xrange(len(networks[key]) - 1, -1, -1):
-                if networks[key][i]['id'] not in allowed_resources['networks']:
+            for i in networks[key].keys():
+                if i not in allowed_resources['networks']:
                     networks[key].pop(i)
     return networks
 
