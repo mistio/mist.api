@@ -128,7 +128,7 @@ class Network(OwnershipMixin, me.Document):
         """Returns the API representation of the `Network` object."""
         net_dict = {
             'id': self.id,
-            'subnets': {s['id']: s.as_dict() for s
+            'subnets': {s.id: s.as_dict() for s
                         in Subnet.objects(network=self, missing_since=None)},
             'cloud': self.cloud.id,
             'network_id': self.network_id,
