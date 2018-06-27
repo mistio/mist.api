@@ -279,13 +279,8 @@ class BaseNetworkController(BaseController):
                     new_networks['public'].update(
                         {network_dict['id']: network_dict})
 
-            patch = {}
-            for key in cached_networks_dict.keys():
-                key_patch = jsonpatch.JsonPatch.from_diff(
-                    cached_networks_dict.get(key), new_networks.get(key)).patch
-
-                if key_patch:
-                    patch.update({key: key_patch})
+            patch = jsonpatch.JsonPatch.from_diff(cached_networks_dict,
+                                                  new_networks).patch
 
             # Publish patches to rabbitmq.
             if patch:
