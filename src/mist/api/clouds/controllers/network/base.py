@@ -367,7 +367,7 @@ class BaseNetworkController(BaseController):
         # FIXME: Move these imports to the top of the file when circular
         # import issues are resolved
         from mist.api.networks.models import Network
-        return Network.objects(cloud=self.cloud)
+        return Network.objects(cloud=self.cloud, missing_since=None)
 
     def _list_networks__cidr_range(self, network, libcloud_network):
         """Returns the network's IP range in CIDR notation.
@@ -431,7 +431,7 @@ class BaseNetworkController(BaseController):
         libcloud_subnets = self._list_subnets__fetch_subnets(network)
 
         # List of Subnet mongoengine objects to be returned to the API.
-        subnets, new_subnets = [], []
+        subnets = []
         for libcloud_subnet in libcloud_subnets:
             try:
                 subnet = Subnet.objects.get(network=network,
@@ -439,7 +439,6 @@ class BaseNetworkController(BaseController):
             except Subnet.DoesNotExist:
                 subnet = SUBNETS[self.provider](network=network,
                                                 subnet_id=libcloud_subnet.id)
-                new_subnets.append(subnet)
 
             subnet.name = libcloud_subnet.name
             subnet.extra = copy.copy(libcloud_subnet.extra)
@@ -483,9 +482,6 @@ class BaseNetworkController(BaseController):
             network=network, id__nin=[s.id for s in subnets],
             missing_since=None
         ).update(missing_since=datetime.datetime.utcnow())
-
-        # Update RBAC Mappings given the list of new subnetworks.
-        self.cloud.owner.mapper.update(new_subnets, async=False)
 
         return subnets
 

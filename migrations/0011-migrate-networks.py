@@ -15,16 +15,13 @@ def trigger_network_polling_schedules():
     failed = 0
 
     for cloud in clouds:
+        if not hasattr(cloud.ctl, 'network'):
+            continue
         try:
-            schedule = ListNetworksPollingSchedule.add(cloud)
-            schedule.set_default_interval(60)
-            schedule.save()
-
-        except Exception as exc:
-            print 'Error: %s' % exc
+            ListNetworksPollingSchedule.add(cloud)
+        except Exception:
             traceback.print_exc()
             failed += 1
-            continue
 
     print ' ****** Failures: %d *********' % failed
 
