@@ -54,9 +54,6 @@ from mist.api.misc.cloud import CloudImage
 
 from mist.api.clouds.controllers.main.base import BaseComputeController
 
-from mist.api.networks.models import Network
-from mist.api.networks.models import Subnet
-
 from mist.api import config
 
 if config.HAS_VPN:
@@ -133,6 +130,7 @@ class AmazonComputeController(BaseComputeController):
         machine.extra['network_id'] = network_id
 
         # Discover network of machine.
+        from mist.api.networks.models import Network
         try:
             machine.network = Network.objects.get(cloud=self.cloud,
                                                   network_id=network_id,
@@ -144,6 +142,7 @@ class AmazonComputeController(BaseComputeController):
         machine.extra['subnet_id'] = subnet_id
 
         # Discover subnet of machine.
+        from mist.api.networks.models import Subnet
         try:
             machine.subnet = Subnet.objects.get(subnet_id=subnet_id,
                                                 missing_since=None)
@@ -565,6 +564,7 @@ class AzureArmComputeController(BaseComputeController):
         machine.extra['network_id'] = network_id
 
         # Discover network of machine.
+        from mist.api.networks.models import Network
         try:
             machine.network = Network.objects.get(cloud=self.cloud,
                                                   network_id=network_id,
