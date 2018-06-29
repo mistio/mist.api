@@ -54,6 +54,9 @@ from mist.api.misc.cloud import CloudImage
 
 from mist.api.clouds.controllers.main.base import BaseComputeController
 
+from mist.api.networks.models import Network
+from mist.api.networks.models import Subnet
+
 from mist.api import config
 
 if config.HAS_VPN:
@@ -126,6 +129,27 @@ class AmazonComputeController(BaseComputeController):
         except:
             machine.extra['network_interfaces'] = []
 
+        network_id = machine_libcloud.extra.get('vpc_id')
+        machine.extra['network_id'] = network_id
+
+        # Discover network of machine.
+        try:
+            machine.network = Network.objects.get(cloud=self.cloud,
+                                                  network_id=network_id,
+                                                  missing_since=None)
+        except Network.DoesNotExist:
+            machine.network = None
+
+        subnet_id = machine.extra.get('subnet_id')
+        machine.extra['subnet_id'] = subnet_id
+
+        # Discover subnet of machine.
+        try:
+            machine.subnet = Subnet.objects.get(subnet_id=subnet_id,
+                                                missing_since=None)
+        except:
+            machine.subnet = None
+
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         # TODO: stopped instances still charge for the EBS device
         # https://aws.amazon.com/ebs/pricing/
@@ -149,12 +173,6 @@ class AmazonComputeController(BaseComputeController):
 
     def _list_machines__get_size(self, node):
         return node.extra.get('instance_type')
-
-    def _list_machines__get_network(self, node):
-        return node.extra.get('vpc_id')
-
-    def _list_machines__get_subnet(self, node):
-        return node.extra.get('subnet_id')
 
     def _list_images__fetch_images(self, search=None):
         default_images = config.EC2_IMAGES[self.cloud.region]
@@ -542,6 +560,18 @@ class AzureArmComputeController(BaseComputeController):
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         machine.os_type = machine_libcloud.extra.get('os_type', 'linux')
 
+        net_id = machine_libcloud.extra.get('networkProfile')[0].get('id')
+        network_id = net_id.split('/')[-1] + '-vnet'
+        machine.extra['network_id'] = network_id
+
+        # Discover network of machine.
+        try:
+            machine.network = Network.objects.get(cloud=self.cloud,
+                                                  network_id=network_id,
+                                                  missing_since=None)
+        except Network.DoesNotExist:
+            machine.network = None
+
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         if machine_libcloud.state not in [NodeState.RUNNING, NodeState.PAUSED]:
             return 0, 0
@@ -555,10 +585,6 @@ class AzureArmComputeController(BaseComputeController):
 
     def _list_machines__get_location(self, node):
         return node.extra.get('location')
-
-    def _list_machines__get_network(self, node):
-        network = node.extra.get('networkProfile')[0].get('id')
-        return network.split('/')[-1] + '-vnet'
 
     def _list_images__fetch_images(self, search=None):
         # Fetch mist's recommended images
