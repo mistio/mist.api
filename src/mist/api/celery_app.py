@@ -14,6 +14,5 @@ app.autodiscover_tasks([
     'mist.api.rules',
     'mist.api.auth',
 ])
-if HAS_CORE:
-    app.autodiscover_tasks(['mist.core.*'])
+
 app.autodiscover_tasks(['mist.%s' % _plugin for _plugin in PLUGINS])
