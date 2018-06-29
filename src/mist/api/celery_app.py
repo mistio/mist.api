@@ -1,6 +1,6 @@
 from celery import Celery
 
-from mist.api.config import CELERY_SETTINGS, HAS_CORE, PLUGINS
+from mist.api.config import CELERY_SETTINGS, PLUGINS
 
 
 app = Celery('tasks')
