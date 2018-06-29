@@ -126,20 +126,21 @@ class AmazonComputeController(BaseComputeController):
         except:
             machine.extra['network_interfaces'] = []
 
-        network_id = machine_libcloud.extra.get('vpc_id')
-        machine.extra['network_id'] = network_id
+        if not machine.network:
+            network_id = machine_libcloud.extra.get('vpc_id')
+            machine.extra['network'] = network_id
 
-        # Discover network of machine.
-        from mist.api.networks.models import Network
-        try:
-            machine.network = Network.objects.get(cloud=self.cloud,
-                                                  network_id=network_id,
-                                                  missing_since=None)
-        except Network.DoesNotExist:
-            machine.network = None
+            # Discover network of machine.
+            from mist.api.networks.models import Network
+            try:
+                machine.network = Network.objects.get(cloud=self.cloud,
+                                                      network_id=network_id,
+                                                      missing_since=None)
+            except Network.DoesNotExist:
+                machine.network = None
 
         subnet_id = machine.extra.get('subnet_id')
-        machine.extra['subnet_id'] = subnet_id
+        machine.extra['subnet'] = subnet_id
 
         # Discover subnet of machine.
         from mist.api.networks.models import Subnet
@@ -559,18 +560,19 @@ class AzureArmComputeController(BaseComputeController):
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         machine.os_type = machine_libcloud.extra.get('os_type', 'linux')
 
-        net_id = machine_libcloud.extra.get('networkProfile')[0].get('id')
-        network_id = net_id.split('/')[-1] + '-vnet'
-        machine.extra['network_id'] = network_id
+        if not machine.network:
+            net_id = machine_libcloud.extra.get('networkProfile')[0].get('id')
+            network_id = net_id.split('/')[-1] + '-vnet'
+            machine.extra['network'] = network_id
 
-        # Discover network of machine.
-        from mist.api.networks.models import Network
-        try:
-            machine.network = Network.objects.get(cloud=self.cloud,
-                                                  network_id=network_id,
-                                                  missing_since=None)
-        except Network.DoesNotExist:
-            machine.network = None
+            # Discover network of machine.
+            from mist.api.networks.models import Network
+            try:
+                machine.network = Network.objects.get(cloud=self.cloud,
+                                                      network_id=network_id,
+                                                      missing_since=None)
+            except Network.DoesNotExist:
+                machine.network = None
 
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         if machine_libcloud.state not in [NodeState.RUNNING, NodeState.PAUSED]:
@@ -652,14 +654,6 @@ class GoogleComputeController(BaseComputeController):
             _size.save()
             return _size
 
-    def _list_machines__get_network(self, node):
-        network = node.extra.get('networkInterfaces')[0].get('network')
-        return network.split('/')[-1]
-
-    def _list_machines__get_subnet(self, node):
-        subnet = node.extra.get('networkInterfaces')[0].get('subnetwork')
-        return subnet.split('/')[-1], subnet.split('/')[-3]
-
     def _list_machines__set_subnets_map(self, network):
         from mist.api.networks.models import Subnet
         subnets_map = {}
@@ -722,6 +716,37 @@ class GoogleComputeController(BaseComputeController):
             log.exception("Couldn't parse machine type "
                           "for machine %s:%s for %s",
                           machine.id, machine.name, self.cloud)
+
+        network_interface = machine_libcloud.extra.get('networkInterfaces')[0]
+
+        if not machine.network:
+            network = network_interface.get('network')
+            network_name = network.split('/')[-1]
+            machine.extra['network'] = network_name
+
+            # Discover network of machine.
+            from mist.api.networks.models import Network
+            try:
+                machine.network = Network.objects.get(cloud=self.cloud,
+                                                      name=network_name,
+                                                      missing_since=None)
+            except Network.DoesNotExist:
+                machine.network = None
+
+        if not machine.subnet:
+            subnet = network_interface.get('subnetwork')
+            subnet_name = subnet.split('/')[-1]
+            subnet_region = subnet.split('/')[-3]
+            machine.extra['subnet_'] = (subnet_name, subnet_region)
+
+            # Discover subnet of machine.
+            from mist.api.networks.models import Subnet
+            try:
+                machine.subnet = Subnet.objects.get(name=subnet_name,
+                                                    region=subnet_region,
+                                                    missing_since=None)
+            except:
+                machine.subnet = None
 
     def _list_images__fetch_images(self, search=None):
         images = self.connection.list_images()
