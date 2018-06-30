@@ -243,34 +243,52 @@ class BaseNetworkController(BaseController):
         task_key = 'cloud:list_networks:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
         with task.task_runner(persist=persist):
-            cached_networks = {'%s' % n.id: n.as_dict()
-                               for n in self.list_cached_networks()}
+            cached_networks = self.list_cached_networks()
+            cached_networks_dict = {'public': {}, 'private': {}, 'routers': {}}
+            for network in cached_networks:
+                network_dict = network.as_dict()
+
+                if not network_dict.get('router_external'):
+                    cached_networks_dict['private'].update(
+                        {network_dict['id']: network_dict})
+                else:
+                    cached_networks_dict['public'].update(
+                        {network_dict['id']: network_dict})
 
             networks = self._list_networks()
 
         # Initialize AMQP connection to reuse for multiple messages.
+
         amqp_conn = Connection(config.AMQP_URI)
         if amqp_owner_listening(self.cloud.owner.id):
-            networks_dict = [n.as_dict() for n in networks]
-            if cached_networks and networks_dict:
-                # Publish patches to rabbitmq.
-                new_networks = {'%s' % n['id']: n for n in networks_dict}
-                patch = jsonpatch.JsonPatch.from_diff(cached_networks,
-                                                      new_networks).patch
-                if patch:
-                    amqp_publish_user(self.cloud.owner.id,
-                                      routing_key='patch_networks',
-                                      connection=amqp_conn,
-                                      data={'cloud_id': self.cloud.id,
-                                            'patch': patch})
-            else:
-                # TODO: remove this block, once patches
-                # are implemented in the UI
+            new_networks = {'public': {}, 'private': {}, 'routers': {}}
+
+            for network in networks:
+                network_dict = network.as_dict()
+                network_dict['subnets'] = {}
+
+                for subnet in network.ctl.list_subnets():
+                    subnet_dict = subnet.as_dict()
+                    network_dict['subnets'].update(
+                        {subnet_dict['id']: subnet_dict})
+
+                if not network_dict.get('router_external'):
+                    new_networks['private'].update(
+                        {network_dict['id']: network_dict})
+                else:
+                    new_networks['public'].update(
+                        {network_dict['id']: network_dict})
+
+            patch = jsonpatch.JsonPatch.from_diff(cached_networks_dict,
+                                                  new_networks).patch
+
+            # Publish patches to rabbitmq.
+            if patch:
                 amqp_publish_user(self.cloud.owner.id,
-                                  routing_key='list_networks',
+                                  routing_key='patch_networks',
                                   connection=amqp_conn,
                                   data={'cloud_id': self.cloud.id,
-                                        'networks': networks_dict})
+                                        'patch': patch})
         return networks
 
     @LibcloudExceptionHandler(mist.api.exceptions.NetworkListingError)
@@ -484,6 +502,16 @@ class BaseNetworkController(BaseController):
         ).update(missing_since=datetime.datetime.utcnow())
 
         return subnets
+
+    def list_cached_subnets(self, network):
+        """Returns subnets stored in database
+        for a specific network
+        """
+        assert self.cloud == network.cloud
+        # FIXME: Move these imports to the top of the file when circular
+        # import issues are resolved
+        from mist.api.networks.models import Subnet
+        return Subnet.objects(network=network, missing_since=None)
 
     def _list_subnets__fetch_subnets(self, network):
         """Fetches a list of subnets.
