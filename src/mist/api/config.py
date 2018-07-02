@@ -134,6 +134,74 @@ INFLUXDB_BUILTIN_METRICS = {
     },
 }
 
+GRAPHITE_BUILTIN_METRICS = {
+    'cpu.total.nonidle': {
+        'name': 'CPU',
+        'unit': '%',
+        'max_value': 100,
+        'min_value': 0,
+    },
+    'cpu_extra.total.user': {
+        'name': 'CPU user',
+        'unit': '%',
+        'max_value': 100,
+        'min_value': 0,
+    },
+    'cpu_extra.total.system': {
+        'name': 'CPU system',
+        'unit': '%',
+        'max_value': 100,
+        'min_value': 0,
+    },
+    'cpu_extra.total.idle': {
+        'name': 'CPU idle',
+        'unit': '%',
+        'max_value': 100,
+        'min_value': 0,
+    },
+    'load.shortterm': {
+        'name': 'Load',
+        'unit': '',
+        'max_value': 64,
+        'min_value': 0,
+    },
+    'memory.nonfree_percent': {
+        'name': 'RAM',
+        'unit': '%',
+        'max_value': 100,
+        'min_value': 0,
+    },
+    'memory_extra.available': {
+        'name': 'RAM available',
+        'unit': ''
+    },
+    'disk.total.disk_octets.read': {
+        'name': 'Disks Read',
+        'unit': 'B/s',
+        'max_value': 750000000,  # 6Gbps (SATA3)
+        'min_value': 0,
+    },
+    'disk.total.disk_octets.write': {
+        'name': 'Disks Write',
+        'unit': 'B/s',
+        'max_value': 750000000,
+        'min_value': 0,
+    },
+    'interface.total.if_octets.rx': {
+        'name': 'Ifaces Rx',
+        'unit': 'B/s',
+        'max_value': 1250000000,  # 10Gbps (10G eth)
+        'min_value': 0,
+    },
+    'interface.total.if_octets.tx': {
+        'name': 'Ifaces Tx',
+        'unit': 'B/s',
+        'max_value': 1250000000,
+        'min_value': 0,
+    },
+}
+
+
 # Default Dashboards.
 HOME_DASHBOARD_DEFAULT = {
     "meta": {},
@@ -327,6 +395,301 @@ INFLUXDB_MACHINE_DASHBOARD_DEFAULT = {
         "timezone": "browser"
     }
 }
+
+GRAPHITE_MACHINE_DASHBOARD_DEFAULT = {
+    "meta": {},
+    "dashboard": {
+        "id": 1,
+        "refresh": "10sec",
+        "rows": [{
+            "height": 300,
+            "panels": [{
+                "id": 0,
+                "title": "Load",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "A",
+                    "target": "load.*"
+                }],
+                "x-axis": True,
+                "y-axis": True
+            }, {
+                "id": 1,
+                "title": "MEM",
+                "type": "graph",
+                "span": 6,
+                "stack": True,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "D",
+                    "target": "memory.*"
+                }],
+                "yaxes": [{
+                    "label": "B"
+                }]
+            }, {
+                "id": 2,
+                "title": "CPU total",
+                "type": "graph",
+                "span": 6,
+                "stack": True,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "C",
+                    "target": "cpu.total.*"
+                }],
+                "yaxes": [{
+                    "label": "%"
+                }]
+            }, {
+                "id": 3,
+                "title": "CPU idle per core",
+                "type": "graph",
+                "span": 6,
+                "stack": True,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "Z",
+                    "target": "cpu.*.idle"
+                }],
+                "yaxes": [{
+                    "label": "%"
+                }]
+            }, {
+                "id": 4,
+                "title": "NET RX",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "G",
+                    "target": "interface.*.if_octets.rx"
+                }],
+                "yaxes": [{
+                    "label": "B/s"
+                }]
+            }, {
+                "id": 5,
+                "title": "NET TX",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "H",
+                    "target": "interface.*.if_octets.tx"
+                }],
+                "yaxes": [{
+                    "label": "B/s"
+                }]
+            }, {
+                "id": 6,
+                "title": "DISK READ",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "I",
+                    "target": "disk.*.disk_octets.read"
+                }],
+                "x-axis": True,
+                "y-axis": True,
+                "yaxes": [{
+                    "label": "B/s"
+                }]
+            }, {
+                "id": 7,
+                "title": "DISK WRITE",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "J",
+                    "target": "disk.*.disk_octets.write"
+                }],
+                "yaxes": [{
+                    "label": "B/s"
+                }]
+            }, {
+                "id": 8,
+                "title": "DF",
+                "type": "graph",
+                "span": 12,
+                "height": 400,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "D",
+                    "target": "df.*.df_complex.free"
+                }],
+                "yaxes": [{
+                    "label": "B"
+                }]
+            }],
+        }],
+        "time": {
+            "from": "now-10m",
+            "to": "now"
+        },
+        "timepicker": {
+            "now": True,
+            "refresh_intervals": [],
+            "time_options": [
+                "10m",
+                "1h",
+                "6h",
+                "24h",
+                "7d",
+                "30d"
+            ]
+        },
+        "timezone": "browser"
+    }
+}
+
+WINDOWS_MACHINE_DASHBOARD_DEFAULT = {
+    "meta": {},
+    "dashboard": {
+        "id": 1,
+        "refresh": "10sec",
+        "rows": [{
+            "height": 300,
+            "panels": [{
+                "id": 0,
+                "title": "MEM",
+                "type": "graph",
+                "span": 6,
+                "stack": True,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "A",
+                    "target": "memory.used"
+                },{
+                    "refId": "B",
+                    "target": "memory_extra.available"
+                }],
+                "yaxes": [{
+                    "label": "B"
+                }]
+            }, {
+                "id": 1,
+                "title": "CPU total",
+                "type": "graph",
+                "span": 6,
+                "stack": True,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "C",
+                    "target": "cpu_extra.total.user"
+                },
+                {
+                    "refId": "D",
+                    "target": "cpu_extra.total.system"
+                },
+                {
+                    "refId": "E",
+                    "target": "cpu_extra.total.idle"
+                }],
+                "yaxes": [{
+                    "label": "%"
+                }]
+            }, {
+                "id": 2,
+                "title": "Disks",
+                "type": "graph",
+                "span": 6,
+                "stack": True,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "F",
+                    "target": "disk.*.used_percent"
+                }],
+                "yaxes": [{
+                    "label": "%"
+                }]
+            }, {
+                "id": 4,
+                "title": "NET RX",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "F",
+                    "target": "net.*.bytes_recv"
+                }],
+                "yaxes": [{
+                    "label": "octets"
+                }]
+            }, {
+                "id": 5,
+                "title": "NET TX",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "G",
+                    "target": "net.*.bytes_sent"
+                }],
+                "yaxes": [{
+                    "label": "octets"
+                }]
+            }, {
+                "id": 6,
+                "title": "DISK READ",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "H",
+                    "target": "diskio.*.read_bytes"
+                }],
+                "x-axis": True,
+                "y-axis": True
+            }, {
+                "id": 7,
+                "title": "DISK WRITE",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "J",
+                    "target": "diskio.*.write_bytes"
+                }],
+                "yaxes": [{
+                    "label": "octets"
+                }]
+            }],
+        }],
+        "time": {
+            "from": "now-10m",
+            "to": "now"
+        },
+        "timepicker": {
+            "now": True,
+            "refresh_intervals": [],
+            "time_options": [
+                "10m",
+                "1h",
+                "6h",
+                "24h",
+                "7d",
+                "30d"
+            ]
+        },
+        "timezone": "browser"
+    }
+}
+
 
 MONITORING_METHODS = (
     'telegraf-influxdb',
