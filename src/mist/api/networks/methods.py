@@ -43,7 +43,7 @@ def filter_list_networks(auth_context, cloud_id, networks=None, perm='read'):
         allowed_resources = auth_context.get_allowed_resources(perm)
         if cloud_id not in allowed_resources['clouds']:
             return {'public': {}, 'private': {}, 'routers': {}}
-        for key in ('public', 'private', 'routers'):
+        for key in ('public', 'private'):
             if not networks.get(key):
                 continue
             for i in networks[key].keys():
