@@ -145,7 +145,7 @@ class AmazonComputeController(BaseComputeController):
         from mist.api.networks.models import Subnet
         try:
             machine.subnet = Subnet.objects.get(subnet_id=subnet_id,
-                                                network=network,
+                                                network=machine.network,
                                                 missing_since=None)
         except Subnet.DoesNotExist:
             machine.subnet = None
@@ -733,7 +733,7 @@ class GoogleComputeController(BaseComputeController):
         from mist.api.networks.models import Subnet
         try:
             machine.subnet = Subnet.objects.get(name=subnet_name,
-                                                network=network,
+                                                network=machine.network,
                                                 region=subnet_region,
                                                 missing_since=None)
         except Subnet.DoesNotExist:
