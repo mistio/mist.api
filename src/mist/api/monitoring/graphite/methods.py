@@ -1,8 +1,6 @@
 import time
 import logging
 
-import requests
-
 from mist.api import config
 
 from mist.api.exceptions import NotFoundError, ServiceUnavailableError
@@ -100,17 +98,11 @@ def _clean_monitor_metrics(owner, data):
 def find_metrics(machine):
     if not machine.monitoring.hasmonitoring:
         raise ForbiddenError("Machine doesn't have monitoring enabled.")
-    url = "%s/machines/%s/metrics" % (config.MONITOR_URI, machine.id)
-    try:
-        resp = requests.get(url)
-    except Exception as exc:
-        log.error("Exception finding metrics: %r", exc)
-        raise ServiceUnavailableError()
-    if not resp.ok:
-        log.error("Got error from monitor server: %s", resp.text)
-        raise ServiceUnavailableError()
-
-    metrics = _clean_monitor_metrics(machine.owner, resp.json())
+    metrics = MultiHandler(machine.id).find_metrics()
+    for item in metrics:
+        if item['alias'].rfind("%(head)s.") == 0:
+            item['alias'] = item['alias'][9:]
+    metrics = _clean_monitor_metrics(machine.owner, metrics)
     for metric_id in metrics:
         metrics[metric_id]['id'] = metric_id
 
