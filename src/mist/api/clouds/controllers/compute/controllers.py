@@ -877,6 +877,11 @@ class VSphereComputeController(BaseComputeController):
 
         return clusters or hosts
 
+    def _list_machines__fetch_machines(self):
+        """Perform the actual libcloud call to get list of nodes"""
+        return self.connection.list_nodes(
+            max_properties=self.cloud.max_properties_per_request)
+
 
 class VCloudComputeController(BaseComputeController):
 
