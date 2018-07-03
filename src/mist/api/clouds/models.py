@@ -415,6 +415,7 @@ class VSphereCloud(Cloud):
     host = me.StringField(required=True)
     username = me.StringField(required=True)
     password = me.StringField(required=True)
+    max_properties_per_requests = me.IntField(default=0)
 
     _private_fields = ('password', )
     _controller_cls = controllers.VSphereMainController
