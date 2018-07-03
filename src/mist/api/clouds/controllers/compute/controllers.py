@@ -884,6 +884,7 @@ class VSphereComputeController(BaseComputeController):
                 max_properties=self.cloud.max_properties_per_request)
         return self.connection.list_nodes()
 
+
 class VCloudComputeController(BaseComputeController):
 
     def _connect(self):
