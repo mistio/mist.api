@@ -15,16 +15,19 @@ import os
 import re
 import sys
 import json
+import shutil
 import string
 import random
 import socket
 import smtplib
 import logging
+import urlparse
 import datetime
 import tempfile
 import traceback
 import functools
 import jsonpickle
+import subprocess
 
 from time import time, strftime, sleep
 
@@ -75,6 +78,31 @@ logging.basicConfig(level=config.PY_LOG_LEVEL,
                     format=config.PY_LOG_FORMAT,
                     datefmt=config.PY_LOG_FORMAT_DATE)
 log = logging.getLogger(__name__)
+
+
+@contextmanager
+def get_cloned_git_path(repo, branch="master"):
+    """Create a temp dir to clone a git repo into.
+
+    The HEAD of the specified branch is cloned into a temp dir.
+
+    This method yields the path to the temporary directory. Once the `with`
+    block has been exited, the entire tree under `tmpdir` is removed.
+
+    """
+    tmpdir = tempfile.mkdtemp()
+    cmd = ["git", "clone", "--depth", "1", "--branch", branch, repo, tmpdir]
+    try:
+        subprocess.check_call(cmd)
+    except subprocess.CalledProcessError as err:
+        raise Exception("Error cloning %s in %s: %r" % (repo, tmpdir, err))
+    try:
+        yield tmpdir
+    finally:
+        try:
+            shutil.rmtree(tmpdir)
+        except:
+            pass
 
 
 @contextmanager
@@ -944,10 +972,13 @@ def logging_view_decorator(func):
         if machine_uuid and not log_dict.get('machine_uuid'):
             log_dict['machine_uuid'] = machine_uuid
 
+        # Attempt to hide passwords, API keys, certificates, etc.
         for key in ('priv', 'password', 'new_password', 'apikey', 'apisecret',
                     'cert_file', 'key_file'):
             if params.get(key):
                 params[key] = '***CENSORED***'
+
+        # Hide sensitive cloud credentials.
         if log_dict['action'] == 'add_cloud':
             provider = params.get('provider')
             censor = {'vcloud': 'password',
@@ -965,6 +996,16 @@ def logging_view_decorator(func):
                       'openstack': 'password'}.get(provider)
             if censor and censor in params:
                 params[censor] = '***CENSORED***'
+
+        # Hide password from Git URL, if exists.
+        if log_dict.get('action', '') == 'add_template':
+            if params.get('location_type') == 'github':
+                git_url = params.get('template_github', '')
+                git_password = urlparse.urlparse(git_url).password
+                if git_password:
+                    params['template_github'] = git_url.replace(git_password,
+                                                                '*password*')
+
         log_dict['request_params'] = params
 
         # log response body
