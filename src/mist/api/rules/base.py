@@ -41,6 +41,12 @@ CONDITIONS = {
     'machines': MachinesCondition,
 }
 
+TIMEPERIOD = {
+    'window': Window,
+    'frequency': Frequency,
+    'trigger_after': TriggerOffset,
+}
+
 
 class BaseController(object):
     """The base controller class for every rule type.
@@ -116,8 +122,7 @@ class BaseController(object):
             self.rule.actions = []
         for action in kwargs.pop('actions', []):
             if action.get('type') not in ACTIONS:
-                raise BadRequestError('Action type must be one of %s' %
-                                      ' | '.join(ACTIONS.keys()))
+                raise BadRequestError('Action must be in %s' % ACTIONS.keys())
             try:
                 action_cls = ACTIONS[action.pop('type')]()
                 action_cls.update(fail_on_error=fail_on_error, **action)
@@ -157,20 +162,15 @@ class BaseController(object):
             self.rule.queries.append(cond)
 
         # Update time parameters.
-        doc_classes = {
-            'window': Window,
-            'frequency': Frequency,
-            'trigger_after': TriggerOffset,
-        }
         for field, params in kwargs.iteritems():
-            if field not in doc_classes:
+            if field not in TIMEPERIOD:
                 log.error('%s found unsupported key "%s"',
                           self.__class__.__name__, field)
                 if fail_on_error:
                     raise BadRequestError('Unsupported field "%s"' % field)
                 continue
             try:
-                doc_cls = doc_classes[field]()
+                doc_cls = TIMEPERIOD[field]()
                 doc_cls.update(**params)
             except me.ValidationError as err:
                 raise BadRequestError({'msg': err.message,
@@ -283,8 +283,7 @@ class ArbitraryRuleController(BaseController):
             raise BadRequestError('Selectors may not be specified for '
                                   'arbitrary rules. Filtering is meant '
                                   'to be included as part of the query.')
-        super(ArbitraryRuleController, self).update(
-            fail_on_error=fail_on_error, **kwargs)
+        super(ArbitraryRuleController, self).update(fail_on_error, **kwargs)
 
 
 class ResourceRuleController(BaseController):
@@ -299,13 +298,11 @@ class ResourceRuleController(BaseController):
             self.rule.conditions = []
         for condition in kwargs.pop('selectors', []):
             if condition.get('type') not in CONDITIONS:
-                raise BadRequestError('Selector type must be one of %s' %
-                                      ' | '.join(CONDITIONS.keys()))
+                raise BadRequestError('Selector not in %s' % CONDITIONS.keys())
             cond_cls = CONDITIONS[condition.pop('type')]()
             cond_cls.update(**condition)
             self.rule.conditions.append(cond_cls)
-        super(ResourceRuleController, self).update(
-            fail_on_error=fail_on_error, **kwargs)
+        super(ResourceRuleController, self).update(fail_on_error, **kwargs)
 
     def evaluate(self, update_state=False, trigger_actions=False):
         if config.CILIA_MULTI:
@@ -393,16 +390,17 @@ class NoDataRuleController(ResourceRuleController):
                 'influxdb': InfluxDBNoDataPlugin}
 
     def update(self, fail_on_error=True, **kwargs):
-        raise BadRequestError('NoData rules may not be editted')
+        if set(TIMEPERIOD.keys()) ^ set(kwargs.keys()):
+            log.error('%s got kwargs=%s', self.__class__.__name__, kwargs)
+            if fail_on_error:
+                raise BadRequestError('May only edit %s' % TIMEPERIOD.keys())
+        super(NoDataRuleController, self).update(fail_on_error, **kwargs)
 
     def delete(self):
         raise BadRequestError('NoData rules may not be deleted')
 
     def rename(self, title):
         raise BadRequestError('NoData rules may not be renamed')
-
-    def disable(self):
-        raise BadRequestError('NoData rules may not be disabled')
 
     def auto_setup(self, backend='graphite'):
         """Idempotently setup a NoDataRule."""
@@ -431,8 +429,10 @@ class NoDataRuleController(ResourceRuleController):
         # The rule's time window and frequency. These denote the maximum
         # time window for which we tolerate the absence of points before
         # raising an alert.
-        self.rule.window = Window(start=2, period='minutes')
-        self.rule.frequency = Frequency(every=2, period='minutes')
+        if not self.rule.window:
+            self.rule.window = Window(start=2, period='minutes')
+        if not self.rule.frequency:
+            self.rule.frequency = Frequency(every=2, period='minutes')
 
         # The rule's single action.
         self.rule.actions = [NoDataAction()]
