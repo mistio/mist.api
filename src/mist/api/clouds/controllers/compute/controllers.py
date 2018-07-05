@@ -877,6 +877,11 @@ class VSphereComputeController(BaseComputeController):
 
         return clusters or hosts
 
+    def _list_machines__fetch_machines(self):
+        """Perform the actual libcloud call to get list of nodes"""
+        return self.connection.list_nodes(
+            max_properties=self.cloud.max_properties_per_request)
+
 
 class VCloudComputeController(BaseComputeController):
 
@@ -1342,6 +1347,8 @@ class LibvirtComputeController(BaseComputeController):
         self.connection.ex_suspend_node(machine_libcloud)
 
     def _undefine_machine(self, machine, machine_libcloud):
+        if machine.extra.get('active'):
+            raise BadRequestError('Cannot undefine an active domain')
         self.connection.ex_undefine_node(machine_libcloud)
 
     def _list_sizes__get_cpu(self, size):
