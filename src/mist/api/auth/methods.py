@@ -28,7 +28,7 @@ if config.HAS_RBAC:
 else:
     from mist.api.dummy.rbac import AuthContext
 
-if config.HAS_CORE:
+if 'auth' in config.PLUGINS:
     # Required to initialize OAuth2SessionToken model, subclass of AuthToken.
     from mist.auth.social.models import OAuth2SessionToken  # noqa: F401
 

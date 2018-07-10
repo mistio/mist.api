@@ -209,6 +209,10 @@ class OwnerPollingSchedule(PollingSchedule):
         schedule.save()
         return schedule
 
+    @property
+    def args(self):
+        return [str(self.owner.id)]
+
     def get_name(self):
         return '%s(%s)' % (super(OwnerPollingSchedule, self).get_name(),
                            self.owner)
@@ -219,10 +223,6 @@ class MeteringPollingSchedule(OwnerPollingSchedule):
     @property
     def task(self):
         return 'mist.api.metering.tasks.push_metering_info'
-
-    @property
-    def args(self):
-        return [str(self.owner.id)]
 
     @property
     def enabled(self):
@@ -300,6 +300,10 @@ class ListSizesPollingSchedule(CloudPollingSchedule):
 class ListNetworksPollingSchedule(CloudPollingSchedule):
 
     task = 'mist.api.poller.tasks.list_networks'
+
+    def enabled(self):
+        return (super(ListNetworksPollingSchedule, self).enabled and
+                hasattr(self.cloud.ctl, 'network'))
 
 
 class MachinePollingSchedule(PollingSchedule):

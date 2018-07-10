@@ -74,8 +74,6 @@ def get_stats(machine, start='', stop='', step='', metrics=None):
         metrics = [metrics]
 
     if machine.monitoring.method in ('telegraf-graphite'):
-        if not config.HAS_CORE:
-            raise Exception()
         return graphite_get_stats(
             machine, start=start, stop=stop, step=step, metrics=metrics,
         )
@@ -182,28 +180,21 @@ def check_monitoring(owner):
                 machines = custom_metrics[metric_id]['machines']
                 machines.append((machine.cloud.id, machine.machine_id))
 
-    if config.HAS_BILLING:
-        from mist.billing.methods import curr_plan_as_dict
-    else:
-        def curr_plan_as_dict(owner):
-            return {}
-
     ret = {
-        'current_plan': curr_plan_as_dict(owner),
         'machines': monitored_machines,
         'monitored_machines': monitored_machines_2,
         'rules': owner.get_rules_dict(),
         'alerts_email': owner.alerts_email,
         'custom_metrics': custom_metrics,
     }
-    if config.HAS_CORE:
+    if config.DEFAULT_MONITORING_METHOD.endswith('graphite'):
         ret.update({
             # Keep for backwards compatibility
             'builtin_metrics': config.GRAPHITE_BUILTIN_METRICS,
             'builtin_metrics_graphite': config.GRAPHITE_BUILTIN_METRICS,
             'builtin_metrics_influxdb': config.INFLUXDB_BUILTIN_METRICS,
         })
-    else:
+    elif config.DEFAULT_MONITORING_METHOD.endswith('influxdb'):
         ret.update({
             # Keep for backwards compatibility
             'builtin_metrics': config.INFLUXDB_BUILTIN_METRICS,
@@ -263,7 +254,6 @@ def enable_monitoring(owner, cloud_id, machine_id, no_ssh=False, dry=False,
         config.DEFAULT_MONITORING_METHOD
     )
     assert machine.monitoring.method in config.MONITORING_METHODS
-    assert machine.monitoring.method != 'collectd-graphite' or config.HAS_CORE
 
     if old_monitoring_method != machine.monitoring.method:
         machine.monitoring.method_since = datetime.datetime.now()
@@ -430,8 +420,6 @@ def find_metrics(machine):
         raise MethodNotAllowedError("Machine doesn't have monitoring enabled")
 
     if machine.monitoring.method in ('telegraf-graphite'):
-        if not config.HAS_CORE:
-            raise Exception()
         return graphite_find_metrics(machine)
     elif machine.monitoring.method == 'telegraf-influxdb':
         metrics = {}

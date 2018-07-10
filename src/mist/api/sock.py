@@ -386,7 +386,7 @@ class MainConnection(MistConnection):
         )
 
     def list_tunnels(self):
-        if not config.HAS_CORE:
+        if not config.HAS_VPN:
             return
         self.internal_request(
             'api/v1/tunnels',
