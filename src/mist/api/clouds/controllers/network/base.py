@@ -298,10 +298,10 @@ class BaseNetworkController(BaseController):
         from mist.api.networks.models import Network, NETWORKS
 
         try:
-            libcloud_nets = \
-                self.cloud.ctl.compute.connection.ex_list_networks()
+            libcloud_nets = self._list_networks__fetch_networks()
         except ConnectionError as e:
             raise mist.api.exceptions.CloudUnavailableError(e)
+
         # List of Network mongoengine objects to be returned to the API.
         networks, new_networks = [], []
         for net in libcloud_nets:
@@ -361,13 +361,15 @@ class BaseNetworkController(BaseController):
         return networks
 
     def list_cached_networks(self):
-        """Returns networks stored in database
-        for a specific cloud
-        """
+        """Returns networks stored in database for a specific cloud"""
         # FIXME: Move these imports to the top of the file when circular
         # import issues are resolved
         from mist.api.networks.models import Network
         return Network.objects(cloud=self.cloud)
+
+    def _list_networks__fetch_networks(self):
+        """Return the original list of libcloud Network objects"""
+        return self.cloud.ctl.compute.connection.ex_list_networks()
 
     def _list_networks__cidr_range(self, network, libcloud_network):
         """Returns the network's IP range in CIDR notation.
