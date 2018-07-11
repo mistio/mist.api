@@ -984,6 +984,8 @@ def _create_machine_libvirt(conn, machine_name, disk_size, ram, cpu,
     """
     # The libvirt drivers expects network names.
     from mist.api.networks.models import LibvirtNetwork
+    if not isinstance(networks, list):
+        networks = [networks]
     network_names = []
     for nid in (networks or []):
         try:
