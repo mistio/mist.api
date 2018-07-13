@@ -407,11 +407,10 @@ class NoDataRuleController(ResourceRuleController):
     def auto_setup(self, backend='graphite'):
         """Idempotently setup a NoDataRule."""
         assert backend in ('graphite', 'influxdb')
-        assert backend != 'graphite' or config.HAS_CORE
 
         # The rule's title. There should be a single NoDataRule per Org.
         title = 'NoData'
-        if config.HAS_CORE and config.CILIA_MULTI and backend == 'influxdb':
+        if config.CILIA_MULTI and backend == 'influxdb':
             title = backend.capitalize() + title
         self.rule.title = title
 
@@ -453,7 +452,7 @@ class NoDataRuleController(ResourceRuleController):
         # In case of a multi-monitoring setup with both Graphite and InfluxDB,
         # no-data checks are split into two discrete rules, each corresponding
         # to a monitoring method, as defined by `machine.monitoring.method`.
-        if config.HAS_CORE and config.CILIA_MULTI:
+        if config.CILIA_MULTI:
             if backend == 'graphite':
                 self.rule.conditions.append(
                     FieldCondition(
@@ -461,7 +460,7 @@ class NoDataRuleController(ResourceRuleController):
                         operator='ne', value='telegraf-influxdb'
                     )
                 )
-            if backend == 'influxdb':
+            elif backend == 'influxdb':
                 self.rule.conditions.append(
                     FieldCondition(
                         field='monitoring__method',

@@ -37,7 +37,7 @@ def add_nodata_rule(owner_id, backend='graphite'):
         # graphite-based monitoring system works in parallel with the newer,
         # influxdb-based.
         title = 'NoData'
-        if config.HAS_CORE and config.CILIA_MULTI and backend == 'influxdb':
+        if config.CILIA_MULTI and backend == 'influxdb':
             title = backend.capitalize() + title
         NoDataRule.objects.get(owner_id=owner_id, title=title)
     except NoDataRule.DoesNotExist:
