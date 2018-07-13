@@ -1,7 +1,5 @@
 import logging
 
-from mist.api import config
-
 from mist.api.celery_app import app
 
 from mist.api.rules.models import Rule
@@ -32,14 +30,7 @@ def add_nodata_rule(owner_id, backend='graphite'):
     """Idempotently setup a NoDataRule for the given Organization."""
     try:
         log.info('Adding %s no-data rule for Org %s', backend, owner_id)
-        # NOTE Allow a second NoDataRule in case of a mist.core installation
-        # that has `config.CILIA_MULTI=True`. This is necessary if the old
-        # graphite-based monitoring system works in parallel with the newer,
-        # influxdb-based.
-        title = 'NoData'
-        if config.CILIA_MULTI and backend == 'influxdb':
-            title = backend.capitalize() + title
-        NoDataRule.objects.get(owner_id=owner_id, title=title)
+        NoDataRule.objects.get(owner_id=owner_id, title='NoData')
     except NoDataRule.DoesNotExist:
         NoDataRule(owner_id=owner_id).ctl.auto_setup(backend=backend)
 
