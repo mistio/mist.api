@@ -544,7 +544,16 @@ class Organization(Owner):
         view["id"] = view_id
         view["members"] = []
         for member in self.members:
-            name = member.get_nice_name()
+            try:
+                name = member.get_nice_name()
+            except AttributeError:  # Cannot dereference member
+                try:
+                    self.members.remove(member)
+                    self.save()
+                except Exception as e:
+                    log.error("Failed to remove missing member from %s: %r" % (
+                        self.name, e))
+                continue
             view["members"].append({
                 "id": member.id,
                 "name": name,

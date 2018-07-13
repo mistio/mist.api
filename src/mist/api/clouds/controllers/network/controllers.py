@@ -169,6 +169,12 @@ class OpenStackNetworkController(BaseNetworkController):
 
 class LibvirtNetworkController(BaseNetworkController):
 
+    def _list_networks__fetch_networks(self):
+        networks = super(LibvirtNetworkController,
+                         self)._list_networks__fetch_networks()
+        networks.extend(self.cloud.ctl.compute.connection.ex_list_interfaces())
+        return networks
+
     def _list_subnets__fetch_subnets(self, network):
         return []
 
