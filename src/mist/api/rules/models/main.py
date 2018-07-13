@@ -387,6 +387,14 @@ class NoDataRule(MachineMetricRule):
 
     _controller_cls = NoDataRuleController
 
+    @property
+    def _backend_plugin(self):
+        if config.DEFAULT_MONITORING_METHOD.endswith('-graphite'):
+            return GraphiteNoDataPlugin
+        elif config.DEFAULT_MONITORING_METHOD.endswith('-influxdb'):
+            return InfluxDBNoDataPlugin
+        raise Exception()
+
     # FIXME All following properties are for backwards compatibility.
     # However, this rule is not meant to match any queries, but to be
     # used internally, thus the `None`s.
