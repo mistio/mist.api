@@ -706,7 +706,6 @@ WINDOWS_MACHINE_DASHBOARD_DEFAULT = {
 
 MONITORING_METHODS = (
     'telegraf-influxdb',
-    'telegraf-graphite',
 )
 DEFAULT_MONITORING_METHOD = 'telegraf-influxdb'
 
