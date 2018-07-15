@@ -376,8 +376,11 @@ class MachineMetricRule(ResourceRule):
 
     @property
     def _backend_plugin(self):
-        return (GraphiteBackendPlugin if config.HAS_CORE else
-                InfluxDBBackendPlugin)
+        if config.DEFAULT_MONITORING_METHOD.endswith('-graphite'):
+            return GraphiteBackendPlugin
+        if config.DEFAULT_MONITORING_METHOD.endswith('-influxdb'):
+            return InfluxDBBackendPlugin
+        raise Exception()
 
 
 class NoDataRule(MachineMetricRule):
@@ -386,8 +389,11 @@ class NoDataRule(MachineMetricRule):
 
     @property
     def _backend_plugin(self):
-        return (GraphiteNoDataPlugin if config.HAS_CORE else
-                InfluxDBNoDataPlugin)
+        if config.DEFAULT_MONITORING_METHOD.endswith('-graphite'):
+            return GraphiteNoDataPlugin
+        if config.DEFAULT_MONITORING_METHOD.endswith('-influxdb'):
+            return InfluxDBNoDataPlugin
+        raise Exception()
 
     # FIXME All following properties are for backwards compatibility.
     # However, this rule is not meant to match any queries, but to be

@@ -706,14 +706,12 @@ WINDOWS_MACHINE_DASHBOARD_DEFAULT = {
 
 MONITORING_METHODS = (
     'telegraf-influxdb',
-    'telegraf-graphite',
 )
 DEFAULT_MONITORING_METHOD = 'telegraf-influxdb'
 
 GRAPHITE_URI = "http://graphite"
 
 # Alert service's settings.
-CILIA_MULTI = False
 CILIA_TRIGGER_API = "http://api"
 CILIA_SECRET_KEY = ""
 CILIA_GRAPHITE_NODATA_TARGETS = (
