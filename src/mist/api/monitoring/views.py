@@ -66,7 +66,7 @@ def _machine_from_matchdict(request, deleted=False):
             )
         except Machine.DoesNotExist:
             raise NotFoundError("Machine %s doesn't exist" %
-                                request.matchdict['machine'])
+                                request.matchdict['machine_uuid'])
         # used by logging_view_decorator
         request.environ['machine_id'] = machine.machine_id
         request.environ['cloud_id'] = machine.cloud.id
