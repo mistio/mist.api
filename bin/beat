@@ -4,6 +4,8 @@ set -e
 
 LOGLEVEL="INFO"
 TASKS="${TASKS:-mist.api.tasks}"
+SCHEDULER="${SCHEDULER:-mist.api.portal.schedulers.RunImmediatelyPersistentScheduler}"
+
 
 USAGE="Usage: $0 [-h] [-l <LOGLEVEL>] [-t <TASKS_PATH>]
 
@@ -13,9 +15,10 @@ Options:
     -h              Show this help message and exit.
     -l <LOGLEVEL>   Log level. Defaults to $LOGLEVEL.
     -t <TASKS_PATH> Tasks file to import. Defaults to $TASKS.
+    -s <SCHEDULER>  Scheduler class. Defaults to $SCHEDULER.
 "
 
-while getopts "hl:t:" opt; do
+while getopts "hl:t:s:" opt; do
     case "$opt" in
         h)
             echo "$USAGE"
@@ -27,6 +30,8 @@ while getopts "hl:t:" opt; do
         t)
             TASKS=$OPTARG
             ;;
+        s)
+            SCHEDULER=$OPTARG
         \?)
             echo "Invalid option: -$OPTARG" >&2
             echo "$USAGE" >&2
@@ -38,6 +43,6 @@ set -x
 
 exec celery beat \
     -A $TASKS \
-    -S mist.api.portal.schedulers.RunImmediatelyPersistentScheduler \
+    -S $SCHEDULER \
     --pidfile= \
     -l $LOGLEVEL
