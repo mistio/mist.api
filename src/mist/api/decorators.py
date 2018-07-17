@@ -22,6 +22,5 @@ def require_cc(func):
         if config.HAS_BILLING and context.user.registration_method != 'dev':
             from mist.billing.methods import card_exists_or_raise
             card_exists_or_raise(context.owner)
-        func(request)
-
+        return func(request)
     return wrapper
