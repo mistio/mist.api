@@ -8,6 +8,8 @@ from mist.api.tasks import async_session_update
 from mist.api.helpers import trigger_session_update
 from mist.api.helpers import view_config, params_from_request
 
+from mist.api.decorators import require_cc
+
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import RequiredParameterMissingError, NotFoundError
 
@@ -18,6 +20,7 @@ from mist.api.clouds.methods import delete_cloud as m_delete_cloud
 from mist.api.tag.methods import add_tags_to_resource
 
 from mist.api import config
+
 
 logging.basicConfig(level=config.PY_LOG_LEVEL,
                     format=config.PY_LOG_FORMAT,
@@ -42,6 +45,7 @@ def list_clouds(request):
 
 @view_config(route_name='api_v1_clouds',
              request_method='POST', renderer='json')
+@require_cc
 def add_cloud(request):
     """
     Tags: clouds
