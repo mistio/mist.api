@@ -2306,3 +2306,16 @@ def openapi_spec(request):
 def version(request):
     """Return running version"""
     return {'version': config.VERSION}
+
+
+@view_config(route_name='api_v1_section', request_method='GET',
+             renderer='json')
+def section(request):
+    '''
+    Redirect to the static JSON file that corresponds to the requested section
+    '''
+    section_id = request.matchdict['section']
+
+    path = '/static/' + section_id.replace('--', '/sections/') + '.json'
+
+    return HTTPFound(path)
