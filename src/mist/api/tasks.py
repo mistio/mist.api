@@ -226,6 +226,17 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                               error=str(exc), **log_dict)
 
             error = False
+            try:
+                SET_HOSTNAME_ON_CLOUD = config.SET_HOSTNAME_ON_CLOUD
+            except AttributeError:
+                SET_HOSTNAME_ON_CLOUD = []
+            if cloud_id in SET_HOSTNAME_ON_CLOUD:
+                retval, output = shell.command(
+                    'hostname %s && echo %s >> /etc/hostname' % (
+                        node.name, node.name))
+                if retval > 0:
+                    notify_admin('Set hostname failed for machine %s'
+                                 % node.name)
             if script_id:
                 tmp_log('will run script_id %s', script_id)
                 ret = run_script.run(
