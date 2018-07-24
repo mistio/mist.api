@@ -13,7 +13,8 @@ class Tag(me.Document):
                                             'scripts', 'machine', 'machines',
                                             'template', 'stack', 'image',
                                             'network', 'tunnel', 'schedules',
-                                            'networks', 'zones', 'records'])
+                                            'networks', 'zones', 'records',
+                                            'volumes'])
 
     value = me.StringField()
     resource = me.GenericReferenceField()

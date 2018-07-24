@@ -179,6 +179,10 @@ class RecordNotFoundError(NotFoundError):
     msg = "No record found for the provided id"
 
 
+class VolumeNotFoundError(NotFoundError):
+    msg = "Volume not found"
+
+
 # Machine related exceptions
 class MachineUnauthorizedError(UnauthorizedError):
     msg = "Couldn't authenticate to machine"
@@ -229,6 +233,10 @@ class RecordExistsError(ConflictError):
     msg = "Record already exists"
 
 
+class VolumeExistsError(ConflictError):
+    msg = "Volume already exists"
+
+
 #  Rate Limit Error (translated as 429 in views)
 class RateLimitError(MistError):
     msg = "Rate Limit Error"
@@ -269,6 +277,8 @@ class NetworkDeletionError(InternalServerError):
 class SubnetCreationError(InternalServerError):
     msg = "Subnet creation failed"
 
+class VolumeCreationError(InternalServerError):
+    msg = "Volume creation failed"
 
 class SubnetListingError(InternalServerError):
     msg = "Error while getting a subnet listing"
@@ -277,6 +287,11 @@ class SubnetListingError(InternalServerError):
 class SubnetDeletionError(InternalServerError):
     msg = "Subnet deletion failed"
 
+class VolumeListingError(InternalServerError):
+    msg = "Error while getting a volume listing"
+
+class VolumeDeletionError(InternalServerError):
+    msg = "Volume deletion failed"
 
 #  BAD GATEWAY (translated as 502 in views)
 class BadGatewayError(MistError):
