@@ -39,6 +39,11 @@ class AmazonVolumeController(BaseVolumeController):
 			raise RequiredParameterMissingError('location')
 
 
+	def _attach_volume(self, libcloud_volume, libcloud_node, **kwargs):
+		device = kwargs['device']
+		self.cloud.ctl.compute.connection.attach_volume(libcloud_node, libcloud_volume, device)
+
+
 class DigitalOceanVolumeController(BaseVolumeController):
 	
 	def _list_volumes__postparse_volume(self, volume, libcloud_volume):
@@ -50,7 +55,6 @@ class OpenstackVolumeController(BaseVolumeController):
 	def _list_volumes__postparse_volume(self, volume, libcloud_volume):
 		volume.state = libcloud_volume.state
 		volume.location = libcloud_volume.extra.get('location', '')
-		volume.type = libcloud_volume.extra.get('volume_type')
 		
 
 class AzureVolumeController(BaseVolumeController):

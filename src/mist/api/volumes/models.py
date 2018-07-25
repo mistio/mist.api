@@ -65,7 +65,7 @@ class Volume(OwnershipMixin, me.Document):
                                         if field not in Volume._fields]
 
     @classmethod
-    def add(cls, cloud, name='', description='', id='', **kwargs):
+    def add(cls, cloud, name='', id='', **kwargs):
         """Add a Volume.
 
         This is a class method, meaning that it is meant to be called on the
@@ -146,8 +146,8 @@ class GoogleVolume(Volume):
 	disk_type = me.StringField(choices=('pd-standard', 'pd-ssd'))
 
 
-class OpenstackVolume(Volume):
-    volume_type = me.StringField()
+class OpenStackVolume(Volume):
+    pass
 
 
 _populate_class_mapping(VOLUMES, 'Volume', Volume)

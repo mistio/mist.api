@@ -242,13 +242,13 @@ class BaseVolumeController(BaseController):
 
         # Cloud-specific kwargs pre-processing.
         self._create_volume__prepare_args(kwargs)
-
         # Create the volume.
         libcloud_vol = self.cloud.ctl.compute.connection.create_volume(
             **kwargs)
 
         try:
             volume.volume_id = libcloud_vol.id
+            volume.size = libcloud_vol.size
             volume.save()
         except mongoengine.errors.ValidationError as exc:
             log.error("Error saving %s: %s", volume, exc.to_dict())
@@ -305,9 +305,39 @@ class BaseVolumeController(BaseController):
         self._delete_volume(libcloud_volume)
 
 
-    # applicable for GCE
     def _delete_volume(self, libcloud_volume):
         self.cloud.ctl.compute.connection.destroy_volume(libcloud_volume)
+
+
+    @LibcloudExceptionHandler(mist.api.exceptions.VolumeAttachmentError)
+    def attach_volume(self, volume, machine, **kwargs):
+        """Attaches a volume to a node.
+
+        Subclasses SHOULD NOT override or extend this method.
+
+        If a subclass needs to override the way volumes are deleted, it
+        should override the private method `_attach_volume` instead.
+        """
+        assert volume.cloud == self.cloud
+
+        libcloud_volume = self.get_libcloud_volume(volume)
+        # get libcloud node
+        libcloud_node = None
+        for node in self.cloud.ctl.compute._list_machines__fetch_machines():
+            if node.id == machine.machine_id:
+                libcloud_node = node
+                break
+
+        if libcloud_node == None:
+            raise MachineNotFoundError(
+                "Machine with machine_id '%s'." % machine.machine_id
+            )
+
+        self._attach_volume(libcloud_volume, libcloud_node, **kwargs)
+
+
+    def _attach_volume(self, libcloud_volume, libcloud_node, **kwargs):
+        self.cloud.ctl.compute.connection.attach_volume(libcloud_node, libcloud_volume)
 
 
     def get_libcloud_volume(self, volume):

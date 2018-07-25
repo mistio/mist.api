@@ -3,6 +3,7 @@ from pyramid.response import Response
 
 from mist.api.clouds.models import Cloud
 from mist.api.volumes.models import Volume, VOLUMES
+from mist.api.machines.models import Machine
 
 from mist.api.volumes.methods import filter_list_volumes
 
@@ -11,6 +12,7 @@ from mist.api.auth.methods import auth_context_from_request
 
 from mist.api.exceptions import CloudNotFoundError
 from mist.api.exceptions import VolumeNotFoundError
+from mist.api.exceptions import MachineNotFoundError
 from mist.api.exceptions import RequiredParameterMissingError
 
 from mist.api.helpers import params_from_request, view_config
@@ -171,3 +173,66 @@ def delete_volume(request):
     trigger_session_update(auth_context.owner, ['clouds'])
 
     return OK
+
+
+@view_config(route_name='api_v1_attach_volume',request_method='POST', renderer='json')
+def attach_volume(request):
+    """
+    Tags: volumes
+    ---
+    Attach a volume to a machine.
+
+    READ permission required on cloud.
+    READ permission required on volume.
+    ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    volume:
+      in: path
+      required: true
+      type: string
+    machine:
+      in: path
+      required: true
+      type: string
+    device:
+      type: string
+      description: The name of the device, eg /dev/sdh. Required for EC2.
+    """
+
+    cloud_id = request.matchdict['cloud']
+    volume_id = request.matchdict['volume']
+    machine_id = request.matchdict['machine']
+
+    params = params_from_request(request)
+
+    auth_context = auth_context_from_request(request)
+
+    try:
+        cloud = Cloud.objects.get(id=cloud_id, owner=auth_context.owner)
+    except Cloud.DoesNotExist:
+        raise CloudNotFoundError()
+    try:
+        volume = Volume.objects.get(id=volume_id, cloud=cloud)
+    except me.DoesNotExist:
+        raise VolumeNotFoundError()
+    try:
+        machine = Machine.objects.get(id=machine_id, owner=auth_context.owner)
+    except Machine.DoesNotExist:
+        raise MachineNotFoundError()
+
+    auth_context.check_perm("cloud", "read", cloud_id)
+    auth_context.check_perm("volume", "read", volume_id)
+
+    if not hasattr(cloud.ctl, 'volume'):
+        raise NotImplementedError()
+
+    # FIXME: Also update machine's/volume's model
+    volume.ctl.attach(machine, **params)
+
+    # Schedule a UI update
+    trigger_session_update(auth_context.owner, ['clouds'])
+
+    return volume.as_dict()
