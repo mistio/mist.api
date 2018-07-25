@@ -826,7 +826,8 @@ def machine_console(request):
     auth_context.check_perm("machine", "read", machine.id)
 
     if machine.cloud.ctl.provider not in ['vsphere', 'openstack']:
-        raise NotImplementedError("VNC console only supported for vSphere and OpenStack")
+        raise NotImplementedError(
+            "VNC console only supported for vSphere and OpenStack")
 
     console_uri = machine.cloud.ctl.compute.connection.ex_open_console(
         machine.machine_id
