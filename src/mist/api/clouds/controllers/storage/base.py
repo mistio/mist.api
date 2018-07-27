@@ -18,13 +18,15 @@ from mist.api.clouds.controllers.base import BaseController
 
 from mist.api.concurrency.models import PeriodicTaskInfo
 
+from mist.api.exceptions import MachineNotFoundError
+
 from mist.api.helpers import amqp_publish_user
 from mist.api.helpers import amqp_owner_listening
 
 log = logging.getLogger(__name__)
 
 
-class BaseVolumeController(BaseController):
+class BaseStorageController(BaseController):
     """Abstract base class for volume-specific subcontrollers.
 
     This base controller factors out all the steps common to all or most
@@ -44,18 +46,18 @@ class BaseVolumeController(BaseController):
     Any methods and attributes that don't start with an underscore are the
     controller's public API.
 
-    In the `BaseVolumeController`, these public methods will contain all steps
+    In the `BaseStorageController`, these public methods will contain all steps
     for volume object management which are common to all cloud types.In almost
     all cases, subclasses SHOULD NOT override or extend the public methods of
-    `BaseVolumeController`. To account for cloud/subclass specific behaviour,
+    `BaseStorageController`. To account for cloud/subclass specific behaviour,
     one is expected to override the internal/private methods of the
-    `BaseVolumeController`.
+    `BaseStorageController`.
 
     Any methods and attributes that start with an underscore are the
     controller's internal/private API.
 
     To account for cloud/subclass specific behaviour, the public methods of
-    `BaseVolumeController` call a number of private methods. These methods
+    `BaseStorageController` call a number of private methods. These methods
     will always start with an underscore. When an internal method is only ever
     used in the process of one public method, it is prefixed as such to make
     identification and purpose more obvious.
@@ -80,7 +82,7 @@ class BaseVolumeController(BaseController):
         task = PeriodicTaskInfo.get_or_add(task_key)
         with task.task_runner(persist=persist):
             cached_volumes = {'%s' % n.id: n.as_dict()
-                               for n in self.list_cached_volumes()}
+                              for n in self.list_cached_volumes()}
 
             volumes = self._list_volumes()
 
@@ -106,7 +108,6 @@ class BaseVolumeController(BaseController):
                                   data={'cloud_id': self.cloud.id,
                                         'volumes': volumes_dict})
         return volumes
-
 
     @LibcloudExceptionHandler(mist.api.exceptions.VolumeListingError)
     def _list_volumes(self):
@@ -192,7 +193,6 @@ class BaseVolumeController(BaseController):
 
         return volumes
 
-
     def list_cached_volumes(self):
         """Returns volumes stored in database for a specific cloud"""
         # FIXME: Move these imports to the top of the file when circular
@@ -200,11 +200,9 @@ class BaseVolumeController(BaseController):
         from mist.api.volumes.models import Volume
         return Volume.objects(cloud=self.cloud, missing_since=None)
 
-
     def _list_volumes__fetch_volumes(self):
         """Return the original list of libcloud Volume objects"""
         return self.cloud.ctl.compute.connection.list_volumes()
-
 
     @LibcloudExceptionHandler(mist.api.exceptions.VolumeCreationError)
     def create_volume(self, volume, **kwargs):
@@ -259,7 +257,6 @@ class BaseVolumeController(BaseController):
 
         return volume
 
-
     # no needed if only checks location param
     def _create_volume__prepare_args(self, kwargs):
         """Parses keyword arguments on behalf of `self.create_volume`.
@@ -270,7 +267,6 @@ class BaseVolumeController(BaseController):
         Subclasses MAY override this method.
         """
         return
-
 
     def _list_volumes__postparse_volume(self, volume, libcloud_volume):
         """Parses a libcloud volume object on behalf of `self._list_volumes`.
@@ -289,7 +285,6 @@ class BaseVolumeController(BaseController):
         """
         return
 
-
     @LibcloudExceptionHandler(mist.api.exceptions.VolumeDeletionError)
     def delete_volume(self, volume):
         """Deletes a volume.
@@ -304,10 +299,8 @@ class BaseVolumeController(BaseController):
         libcloud_volume = self.get_libcloud_volume(volume)
         self._delete_volume(libcloud_volume)
 
-
     def _delete_volume(self, libcloud_volume):
         self.cloud.ctl.compute.connection.destroy_volume(libcloud_volume)
-
 
     @LibcloudExceptionHandler(mist.api.exceptions.VolumeAttachmentError)
     def attach_volume(self, volume, machine, **kwargs):
@@ -328,17 +321,46 @@ class BaseVolumeController(BaseController):
                 libcloud_node = node
                 break
 
-        if libcloud_node == None:
+        if libcloud_node is None:
             raise MachineNotFoundError(
                 "Machine with machine_id '%s'." % machine.machine_id
             )
 
         self._attach_volume(libcloud_volume, libcloud_node, **kwargs)
 
-
     def _attach_volume(self, libcloud_volume, libcloud_node, **kwargs):
-        self.cloud.ctl.compute.connection.attach_volume(libcloud_node, libcloud_volume)
+        self.cloud.ctl.compute.connection.attach_volume(libcloud_node,
+                                                        libcloud_volume)
 
+    @LibcloudExceptionHandler(mist.api.exceptions.VolumeAttachmentError)
+    def detach_volume(self, volume, machine):
+        """Detaches a volume to a node.
+
+        Subclasses SHOULD NOT override or extend this method.
+
+        If a subclass needs to override the way volumes are deleted, it
+        should override the private method `_detach_volume` instead.
+        """
+        assert volume.cloud == self.cloud
+
+        libcloud_volume = self.get_libcloud_volume(volume)
+        # get libcloud node
+        libcloud_node = None
+        for node in self.cloud.ctl.compute._list_machines__fetch_machines():
+            if node.id == machine.machine_id:
+                libcloud_node = node
+                break
+
+        if libcloud_node is None:
+            raise MachineNotFoundError(
+                "Machine with machine_id '%s'." % machine.machine_id
+            )
+
+        self._detach_volume(libcloud_volume, libcloud_node)
+
+    def _detach_volume(self, libcloud_volume, libcloud_node):
+        self.cloud.ctl.compute.connection.detach_volume(libcloud_volume,
+                                                        libcloud_node)
 
     def get_libcloud_volume(self, volume):
         """Returns an instance of a libcloud volume.

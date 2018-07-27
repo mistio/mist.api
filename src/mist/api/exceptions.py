@@ -285,11 +285,14 @@ class SubnetListingError(InternalServerError):
 class SubnetDeletionError(InternalServerError):
     msg = "Subnet deletion failed"
 
+
 class VolumeListingError(InternalServerError):
     msg = "Error while getting a volume listing"
 
+
 class VolumeCreationError(InternalServerError):
     msg = "Volume creation failed"
+
 
 class VolumeDeletionError(InternalServerError):
     msg = "Volume deletion failed"
@@ -297,6 +300,7 @@ class VolumeDeletionError(InternalServerError):
 
 class VolumeAttachmentError(InternalServerError):
     msg = "Volume attachment failed"
+
 
 #  BAD GATEWAY (translated as 502 in views)
 class BadGatewayError(MistError):

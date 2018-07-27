@@ -32,7 +32,7 @@ from mist.api.clouds.controllers.network.base import BaseNetworkController
 
 from mist.api.clouds.controllers.compute.base import BaseComputeController
 from mist.api.clouds.controllers.dns.base import BaseDNSController
-from mist.api.clouds.controllers.volume.base import BaseVolumeController
+from mist.api.clouds.controllers.storage.base import BaseStorageController
 
 
 log = logging.getLogger(__name__)
@@ -82,7 +82,7 @@ class BaseMainController(object):
     ComputeController = None
     NetworkController = None
     DnsController = None
-    VolumeController = None
+    StorageController = None
 
     def __init__(self, cloud):
         """Initialize main cloud controller given a cloud
@@ -118,9 +118,9 @@ class BaseMainController(object):
             self.network = self.NetworkController(self)
 
         # Initialize volume controller.
-        if self.VolumeController is not None:
-            assert issubclass(self.VolumeController, BaseVolumeController)
-            self.volume = self.VolumeController(self)
+        if self.StorageController is not None:
+            assert issubclass(self.StorageController, BaseStorageController)
+            self.volume = self.StorageController(self)
 
     def add(self, fail_on_error=True, fail_on_invalid_params=True, **kwargs):
         """Add new Cloud to the database

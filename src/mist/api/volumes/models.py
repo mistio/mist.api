@@ -6,11 +6,12 @@ from mist.api.tag.models import Tag
 
 from mist.api.ownership.mixins import OwnershipMixin
 
-from mist.api.volumes.controllers import VolumeController
+from mist.api.volumes.controllers import StorageController
 
 # Automatically populated mappings of all Volume subclasses,
 # keyed by their provider name.
 VOLUMES = {}
+
 
 def _populate_class_mapping(mapping, class_suffix, base_class):
     """Populates a dict that matches a provider name with its model class."""
@@ -31,7 +32,6 @@ class Volume(OwnershipMixin, me.Document):
     `Volume` contains all common, provider-independent fields and handlers.
     """
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
-    owner = me.ReferenceField('Organization')
     cloud = me.ReferenceField(Cloud, required=True)
     volume_id = me.StringField()
 
@@ -59,7 +59,7 @@ class Volume(OwnershipMixin, me.Document):
     def __init__(self, *args, **kwargs):
         super(Volume, self).__init__(*args, **kwargs)
         # Set `ctl` attribute.
-        self.ctl = VolumeController(self)
+        self.ctl = StorageController(self)
         # Calculate and store volume type specific fields.
         self._volume_specific_fields = [field for field in type(self)._fields
                                         if field not in Volume._fields]
@@ -116,7 +116,6 @@ class Volume(OwnershipMixin, me.Document):
             'extra': self.extra,
             'state': self.state,
             'tags': self.tags,
-            'owner': self.owner,
             'size': self.size,
             'location': self.location
         }
@@ -130,7 +129,8 @@ class Volume(OwnershipMixin, me.Document):
 
 
 class AmazonVolume(Volume):
-    volume_type = me.StringField(choices=('standard', 'gp2', 'io1', 'sc1', 'st1'))
+    volume_type = me.StringField(choices=('standard', 'gp2', 'io1',
+                                          'sc1', 'st1'))
     iops = me.IntField()    # only for 'io1' type
 
 
@@ -143,7 +143,7 @@ class DigitalOceanVolume(Volume):
 
 
 class GoogleVolume(Volume):
-	disk_type = me.StringField(choices=('pd-standard', 'pd-ssd'))
+    disk_type = me.StringField(choices=('pd-standard', 'pd-ssd'))
 
 
 class OpenStackVolume(Volume):

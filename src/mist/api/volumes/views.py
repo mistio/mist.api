@@ -45,14 +45,15 @@ def list_volumes(request):
     auth_context.check_perm('cloud', 'read', cloud_id)
 
     try:
-        cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id)
+        Cloud.objects.get(owner=auth_context.owner, id=cloud_id)
     except Cloud.DoesNotExist:
         raise CloudNotFoundError()
 
     return filter_list_volumes(auth_context, cloud_id)
 
 
-@view_config(route_name='api_v1_volumes',request_method='POST', renderer='json')
+@view_config(route_name='api_v1_volumes', request_method='POST',
+             renderer='json')
 def create_volume(request):
     """
     Tags: volumes
@@ -85,7 +86,7 @@ def create_volume(request):
       description: EC2-specific. One of 'standard', 'io1', 'gp2', 'sc1', 'st1'
     iops:
       type: string
-      description: EC2-specific. Needs to be specified only if volume_type='io1'
+      description: EC2-specific. Needs to be specified if volume_type='io1'
     """
 
     cloud_id = request.matchdict['cloud']
@@ -175,7 +176,8 @@ def delete_volume(request):
     return OK
 
 
-@view_config(route_name='api_v1_attach_volume',request_method='POST', renderer='json')
+@view_config(route_name='api_v1_attach_volume', request_method='POST',
+             renderer='json')
 def attach_volume(request):
     """
     Tags: volumes
@@ -236,3 +238,62 @@ def attach_volume(request):
     trigger_session_update(auth_context.owner, ['clouds'])
 
     return volume.as_dict()
+
+
+@view_config(route_name='api_v1_attach_volume', request_method='DELETE',
+             renderer='json')
+def detach_volume(request):
+    """
+    Tags: volumes
+    ---
+    Detach a volume from a machine.
+
+    READ permission required on cloud.
+    READ permission required on volume.
+    ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    volume:
+      in: path
+      required: true
+      type: string
+    machine:
+      in: path
+      required: true
+      type: string
+    """
+
+    cloud_id = request.matchdict['cloud']
+    volume_id = request.matchdict['volume']
+    machine_id = request.matchdict['machine']
+
+    auth_context = auth_context_from_request(request)
+
+    try:
+        cloud = Cloud.objects.get(id=cloud_id, owner=auth_context.owner)
+    except Cloud.DoesNotExist:
+        raise CloudNotFoundError()
+    try:
+        volume = Volume.objects.get(id=volume_id, cloud=cloud)
+    except me.DoesNotExist:
+        raise VolumeNotFoundError()
+    try:
+        machine = Machine.objects.get(id=machine_id, owner=auth_context.owner)
+    except Machine.DoesNotExist:
+        raise MachineNotFoundError()
+
+    auth_context.check_perm("cloud", "read", cloud_id)
+    auth_context.check_perm("volume", "read", volume_id)
+
+    if not hasattr(cloud.ctl, 'volume'):
+        raise NotImplementedError()
+
+    # FIXME: Also update machine's/volume's model
+    volume.ctl.detach(machine)
+
+    # Schedule a UI update
+    trigger_session_update(auth_context.owner, ['clouds'])
+
+    return OK

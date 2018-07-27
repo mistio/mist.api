@@ -47,7 +47,7 @@ from mist.api.clouds.controllers.main.base import BaseMainController
 from mist.api.clouds.controllers.compute import controllers as compute_ctls
 from mist.api.clouds.controllers.network import controllers as network_ctls
 from mist.api.clouds.controllers.dns import controllers as dns_ctls
-from mist.api.clouds.controllers.volume import controllers as volume_ctls
+from mist.api.clouds.controllers.storage import controllers as volume_ctls
 
 from mist.api import config
 
@@ -66,7 +66,7 @@ class AmazonMainController(BaseMainController):
     ComputeController = compute_ctls.AmazonComputeController
     NetworkController = network_ctls.AmazonNetworkController
     DnsController = dns_ctls.AmazonDNSController
-    VolumeController = volume_ctls.AmazonVolumeController
+    StorageController = volume_ctls.AmazonStorageController
 
     def _add__preparse_kwargs(self, kwargs):
         # Autofill apisecret from other Amazon Cloud.
@@ -85,7 +85,7 @@ class DigitalOceanMainController(BaseMainController):
     provider = 'digitalocean'
     ComputeController = compute_ctls.DigitalOceanComputeController
     DnsController = dns_ctls.DigitalOceanDNSController
-    VolumeController = volume_ctls.DigitalOceanVolumeController
+    StorageController = volume_ctls.DigitalOceanStorageController
 
 
 class LinodeMainController(BaseMainController):
@@ -134,7 +134,7 @@ class AzureMainController(BaseMainController):
 
     provider = 'azure'
     ComputeController = compute_ctls.AzureComputeController
-    VolumeController = volume_ctls.AzureVolumeController
+    StorageController = volume_ctls.AzureStorageController
 
 
 class AzureArmMainController(BaseMainController):
@@ -150,7 +150,7 @@ class GoogleMainController(BaseMainController):
     ComputeController = compute_ctls.GoogleComputeController
     NetworkController = network_ctls.GoogleNetworkController
     DnsController = dns_ctls.GoogleDNSController
-    VolumeController = volume_ctls.GoogleVolumeController
+    StorageController = volume_ctls.GoogleStorageController
 
     def _update__preparse_kwargs(self, kwargs):
         private_key = kwargs.get('private_key', self.cloud.private_key)
@@ -228,7 +228,7 @@ class OpenStackMainController(BaseMainController):
     provider = 'openstack'
     ComputeController = compute_ctls.OpenStackComputeController
     NetworkController = network_ctls.OpenStackNetworkController
-    VolumeController = volume_ctls.OpenstackVolumeController
+    StorageController = volume_ctls.OpenstackStorageController
 
     def _update__preparse_kwargs(self, kwargs):
         rename_kwargs(kwargs, 'auth_url', 'url')

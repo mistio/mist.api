@@ -1,7 +1,7 @@
-class VolumeController(object):
+class StorageController(object):
     def __init__(self, volume):
         """
-        Initialize the `VolumeController` given a volume.
+        Initialize the `StorageController` given a volume.
         """
         self.volume = volume
         self.cloud = volume.cloud
@@ -17,3 +17,7 @@ class VolumeController(object):
     def attach(self, node, **kwargs):
         """Attach `self.volume` to a node"""
         return self.cloud.ctl.volume.attach_volume(self.volume, node, **kwargs)
+
+    def detach(self, node):
+        """Detach `self.volume` from a node"""
+        return self.cloud.ctl.volume.detach_volume(self.volume, node)
