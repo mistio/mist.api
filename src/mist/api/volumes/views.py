@@ -201,7 +201,7 @@ def attach_volume(request):
       type: string
     device:
       type: string
-      description: The name of the device, eg /dev/sdh. Required for EC2.
+      description: The name of the device, eg /dev/sdh. Required for EC2, optional for OpenStack
     """
 
     cloud_id = request.matchdict['cloud']
