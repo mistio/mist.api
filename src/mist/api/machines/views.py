@@ -144,7 +144,7 @@ def create_machine(request):
       example: "da1df7d0402043b9a9c786b100992888"
     ex_disk_id:
       type: string
-      description: The id of the existing volume to be attached to the machine. GCE-specific
+      description: ID of volume to be attached to the machine. GCE-specific
     monitoring:
       type: boolean
       description: Enable monitoring on the machine

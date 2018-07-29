@@ -5,7 +5,6 @@ import mongoengine as me
 import time
 
 from libcloud.compute.base import NodeSize, NodeImage, NodeLocation, Node
-from libcloud.compute.base import StorageVolume
 from libcloud.compute.types import Provider
 from libcloud.container.types import Provider as Container_Provider
 from libcloud.container.base import ContainerImage
