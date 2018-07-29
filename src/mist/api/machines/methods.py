@@ -5,6 +5,7 @@ import mongoengine as me
 import time
 
 from libcloud.compute.base import NodeSize, NodeImage, NodeLocation, Node
+from libcloud.compute.base import StorageVolume
 from libcloud.compute.types import Provider
 from libcloud.container.types import Provider as Container_Provider
 from libcloud.container.base import ContainerImage
@@ -125,7 +126,7 @@ def list_machines(owner, cloud_id, cached=False):
 def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                    image_id, size, image_extra=None, disk=None,
                    image_name=None, size_name=None, location_name=None,
-                   ips=None, monitoring=False,
+                   ips=None, monitoring=False, ex_disk_id='',
                    ex_storage_account='', machine_password='',
                    ex_resource_group='', networks=[], subnetwork=None,
                    docker_env=[],
@@ -325,10 +326,33 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             if libcloud_size.id == size.id:
                 size = libcloud_size
                 break
+        ex_disk = None
+        if ex_disk_id:
+            # transform disk id to libcloud's StorageVolume object
+            try:
+                from mist.api.volumes.models import Volume
+                volume = Volume.objects.get(id=ex_disk_id)
+                ex_disk_id = volume.volume_id
+            except me.DoesNotExist:
+                # make sure mongo is up-to-date
+                cloud.ctl.volume.list_volumes()
+                try:
+                    volume = Volume.objects.get(id=ex_disk_id)
+                    ex_disk_id = volume.volume_id
+                except me.DoesNotExist:
+                    pass
+
+            # try to find disk using libcloud's id
+            libcloud_disks = conn.list_volumes()
+            for libcloud_disk in libcloud_disks:
+                if libcloud_disk.id == ex_disk_id:
+                    ex_disk = libcloud_disk
+                    break
+
         # FIXME: `networks` should always be an array, not a str like below
         node = _create_machine_gce(conn, key_id, private_key, public_key,
                                    machine_name, image, size, location,
-                                   networks, subnetwork, cloud_init)
+                                   networks, subnetwork, ex_disk, cloud_init)
     elif conn.type is Provider.SOFTLAYER:
         node = _create_machine_softlayer(
             conn, key_id, private_key, public_key,
@@ -1441,7 +1465,7 @@ def _create_machine_vsphere(conn, machine_name, image,
 
 
 def _create_machine_gce(conn, key_name, private_key, public_key, machine_name,
-                        image, size, location, network, subnetwork,
+                        image, size, location, network, subnetwork, ex_disk,
                         cloud_init):
     """Create a machine in GCE.
 
@@ -1469,7 +1493,8 @@ def _create_machine_gce(conn, key_name, private_key, public_key, machine_name,
             location=location,
             ex_metadata=metadata,
             ex_network=network,
-            ex_subnetwork=subnetwork
+            ex_subnetwork=subnetwork,
+            ex_boot_disk=ex_disk
         )
     except Exception as e:
         raise MachineCreationError(
