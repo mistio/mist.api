@@ -311,6 +311,10 @@ class AmazonCloud(Cloud):
     _controller_cls = controllers.AmazonMainController
 
 
+class AlibabaCloud(AmazonCloud):
+
+    _controller_cls = controllers.AlibabaMainController
+
 class DigitalOceanCloud(Cloud):
 
     token = me.StringField(required=True)

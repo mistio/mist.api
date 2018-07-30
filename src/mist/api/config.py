@@ -965,7 +965,7 @@ LINODE_DATACENTERS = {
     10: 'Frankfurt, DE'
 }
 
-SUPPORTED_PROVIDERS_V_2 = [
+SUPPORTED_PROVIDERS = [
     # BareMetal
     {
         'title': 'Other Server',
@@ -1045,6 +1045,17 @@ SUPPORTED_PROVIDERS_V_2 = [
                 'location': 'Mumbai',
                 'id': 'ap-south-1'
             },
+        ]
+    },
+    # Alibaba Aliyun
+    {
+        'title': 'Alibaba',
+        'provider': Provider.ALIYUN_ECS,
+        'regions': [
+            {
+                'location': 'China East 1 (Hangzhou)',
+                'id': 'cn-hangzhou'
+            }
         ]
     },
     # GCE

@@ -58,6 +58,10 @@ class AmazonDNSController(BaseDNSController):
             kwargs['data'] += '.'
 
 
+class AlibabaDNSController(AmazonDNSController):
+    pass
+
+
 class GoogleDNSController(BaseDNSController):
     """
     Google DNS provider specific overrides.
