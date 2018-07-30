@@ -44,6 +44,7 @@ python-memcached
 python-openid
 pyvmomi==6.5
 requests
+s3cmd
 sendgrid-python
 sockjs-tornado
 tornado

@@ -1336,6 +1336,15 @@ def set_missing_since(cloud_id):
 
 
 @app.task
+def create_backup():
+    """Create mongo backup if AWS creds are set.
+    """
+    os.system("mongodump --host %s --gzip --archive | s3cmd --access_key=%s \
+    --secret_key=%s put - s3://%s/spiros.gz" %(config.MONGO_URI, config.AWS_ACCESS_KEY,
+    config.AWS_SECRET_KEY, config.AWS_MONGO_BUCKET))
+
+
+@app.task
 def async_session_update(owner, sections=None):
     if sections is None:
         sections = [
