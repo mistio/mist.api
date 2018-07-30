@@ -1,7 +1,7 @@
 FROM mist/alpine:3.4
 
-RUN echo 'http://dl-4.alpinelinux.org/alpine/edge/main' >> /etc/apk/repositories && \
-    echo 'http://dl-4.alpinelinux.org/alpine/edge/community' >> /etc/apk/repositories
+RUN echo 'http://dl-5.alpinelinux.org/alpine/edge/main' >> /etc/apk/repositories && \
+    echo 'http://dl-5.alpinelinux.org/alpine/edge/community' >> /etc/apk/repositories
 
 # Install libvirt which requires system dependencies.
 RUN apk add --update --no-cache g++ gcc libvirt libvirt-dev libxml2-dev libxslt-dev
