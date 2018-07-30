@@ -252,8 +252,7 @@ def reissue_cookie_session(request, user_id='', su='', org=None, after=0,
     session = new_session
     if user_id or su:
         # A user will be set to the session
-        user_for_session = su if su else user_id
-        user_is_effective = not user_id
+        user_for_session = user_id
         if isinstance(user_for_session, basestring):
             # Get the user object if an id has been provided
             if '@' in user_for_session:
@@ -261,7 +260,7 @@ def reissue_cookie_session(request, user_id='', su='', org=None, after=0,
             else:
                 user_for_session = User.objects.get(id=user_for_session)
 
-        session.set_user(user_for_session, effective=user_is_effective)
+        session.set_user(user_for_session)
 
         if not org:
             # If no org is provided then get the org from the last session

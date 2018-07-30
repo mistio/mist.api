@@ -294,12 +294,11 @@ def su(request):
 
     """
     # SEC raise exception if user not admin
-    user = user_from_request(request, admin=True)
-
+    admin = user_from_request(request, admin=True)
     session = request.environ['session']
     if isinstance(session, ApiToken):
         raise ForbiddenError('Cannot do su when authenticated with api token')
-    real_email = user.email
+    real_email = admin.email
     params = params_from_request(request)
     email = params.get('email')
     if not email:
@@ -308,11 +307,13 @@ def su(request):
         user = User.objects.get(email=email)
     except (UserNotFoundError, User.DoesNotExist):
         raise UserUnauthorizedError()
-    reissue_cookie_session(request, real_email, su=user.id)
+    reissue_cookie_session(request, user.id, su=admin.id)
 
-    # alert admins
-    subject = "Some admin used su"
-    body = "Admin: %s\nUser: %s\nServer: %s" % (real_email, user.email,
-                                                config.CORE_URI)
-    send_email(subject, body, config.NOTIFICATION_EMAIL['ops'])
+    if config.NOTIFICATION_EMAIL.get('ops'):
+        # alert admins
+        subject = "Some admin used su"
+        body = "Admin: %s\nUser: %s\nServer: %s" % (real_email, user.email,
+                                                    config.CORE_URI)
+        send_email(subject, body, config.NOTIFICATION_EMAIL['ops'])
+
     return HTTPFound('/')

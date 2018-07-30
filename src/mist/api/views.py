@@ -432,7 +432,7 @@ def logout(request):
     real_user = session.get_user(effective=False)
     if user != real_user:
         log.warn("Su logout")
-        reissue_cookie_session(request, real_user)
+        reissue_cookie_session(request, real_user.id)
     else:
         reissue_cookie_session(request)
 

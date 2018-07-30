@@ -89,7 +89,7 @@ class AuthToken(me.Document):
         """Return `su` user, if `effective` else `user`"""
         if self.user_id:
             try:
-                if effective and self.su:
+                if not effective and self.su:
                     user = User.objects.get(id=self.su)
                 else:
                     user = User.objects.get(id=self.user_id)
