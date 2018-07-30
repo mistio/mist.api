@@ -1,13 +1,7 @@
 FROM mist/alpine:3.4
 
-RUN echo 'http://dl-5.alpinelinux.org/alpine/edge/main' >> /etc/apk/repositories && \
-    echo 'http://dl-5.alpinelinux.org/alpine/edge/community' >> /etc/apk/repositories
-
 # Install libvirt which requires system dependencies.
 RUN apk add --update --no-cache g++ gcc libvirt libvirt-dev libxml2-dev libxslt-dev
-
-# install mongodump
-RUN apk add mongodb-tools
 
 RUN pip install --no-cache-dir --upgrade pip
 RUN pip install --no-cache-dir --upgrade setuptools
@@ -54,6 +48,12 @@ ENV JS_BUILD=1 \
     VERSION_REPO=mistio/mist.api \
     VERSION_SHA=$API_VERSION_SHA \
     VERSION_NAME=$API_VERSION_NAME
+
+RUN echo 'http://dl-4.alpinelinux.org/alpine/edge/main' >> /etc/apk/repositories && \
+    echo 'http://dl-4.alpinelinux.org/alpine/edge/community' >> /etc/apk/repositories
+
+RUN apk update && \
+    apk add mongodb-tools gnupg curl
 
 RUN echo "{\"sha\":\"$VERSION_SHA\",\"name\":\"$VERSION_NAME\",\"repo\":\"$VERSION_REPO\",\"modified\":false}" \
         > /mist-version.json
