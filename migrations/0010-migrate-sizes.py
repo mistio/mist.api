@@ -4,7 +4,6 @@ from pymongo import MongoClient
 from mist.api.config import MONGO_URI
 
 from mist.api.clouds.models import Cloud
-from mist.api.machines.models import Machine
 
 from mist.api.poller.models import ListSizesPollingSchedule
 
