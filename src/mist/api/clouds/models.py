@@ -422,7 +422,7 @@ class VSphereCloud(Cloud):
     # happens. It's not clear if it's due a vSphere configuration. In most
     # cases this is not necessary. The default value will fetch all requested
     # properties at once
-    max_properties_per_requests = me.IntField(default=20)
+    max_properties_per_request = me.IntField(default=20)
 
     _private_fields = ('password', )
     _controller_cls = controllers.VSphereMainController
