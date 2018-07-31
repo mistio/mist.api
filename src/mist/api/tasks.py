@@ -183,6 +183,39 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
         try:
             from mist.api.shell import Shell
             shell = Shell(host)
+
+            try:
+                cloud_post_deploy_steps = config.CLOUD_POST_DEPLOY.get(cloud_id, [])
+            except AttributeError:
+                cloud_post_deploy_steps = []
+            for post_deploy_step in cloud_post_deploy_steps:
+                from mist.api.keys.models import Key
+                predeployed_key_id = post_deploy_step.get('key')
+                if predeployed_key_id:
+                    # Use predeployed key to deploy the user selected key
+                    shell.autoconfigure(
+                        owner, cloud_id, node.id, predeployed_key_id, username,
+                        password, port
+                    )
+                    retval, output = shell.command(
+                        'echo %s >> ~/.ssh/authorized_keys' % Key.objects.get(
+                            id=key_id).public)
+                    if retval > 0:
+                        notify_admin('Deploy user key failed for machine %s'
+                                    % node.name)
+
+                command = post_deploy_step.get('script', '').replace(
+                    '${node.name}', node.name)
+                if command:
+                    key_id, ssh_user = shell.autoconfigure(
+                        owner, cloud_id, node.id, key_id, username, password,
+                        port
+                    )
+                    retval, output = shell.command(command)
+                    if retval > 0:
+                        notify_admin('Set hostname failed for machine %s'
+                                    % node.name)
+
             # connect with ssh even if no command, to create association
             # to be able to enable monitoring
             tmp_log('attempting to connect to shell')
@@ -226,17 +259,6 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                               error=str(exc), **log_dict)
 
             error = False
-            try:
-                SET_HOSTNAME_ON_CLOUD = config.SET_HOSTNAME_ON_CLOUD
-            except AttributeError:
-                SET_HOSTNAME_ON_CLOUD = []
-            if cloud_id in SET_HOSTNAME_ON_CLOUD:
-                retval, output = shell.command(
-                    'hostname %s && echo %s >> /etc/hostname' % (
-                        node.name, node.name))
-                if retval > 0:
-                    notify_admin('Set hostname failed for machine %s'
-                                 % node.name)
             if script_id:
                 tmp_log('will run script_id %s', script_id)
                 ret = run_script.run(
