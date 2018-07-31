@@ -3,6 +3,7 @@
 import os
 import sys
 import time
+import pymongo
 import argparse
 import mongoengine as me
 
@@ -14,11 +15,8 @@ def main():
     # Parse command-line arguments.
     args = parse_args()
 
-    # Wait for mongodb to become responsive.
-    wait_mongo(args.mongo_timeout)
-
-    # Get Portal singleton.
-    portal = Portal.get_singleton()
+    # Wait for mongodb to become responsive. Get Portal singleton.
+    portal = load_current_portal(args.mongo_timeout)
 
     if args.status:
         migrations = portal.get_unapplied_migrations()
@@ -31,18 +29,15 @@ def main():
         portal.apply_migrations(exit_on_error=True)
 
 
-def wait_mongo(timeout):
+def load_current_portal(timeout):
     for _ in xrange(timeout):
         try:
-            me.connect(db=config.MONGO_DB, host=config.MONGO_URI)
+            return Portal.get_singleton()
         except Exception as exc:
             print "MongoDB at %s is not responsive yet.." % config.MONGO_URI
             time.sleep(1)
-        else:
-            break
-    else:
-        print "MongoDB did not respond within %s seconds" % timeout
-        raise exc
+    print "MongoDB did not respond within %s seconds" % timeout
+    raise exc
 
 
 def println(string=""):
