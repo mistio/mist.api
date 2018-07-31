@@ -78,13 +78,13 @@ def create_volume(request):
     location:
       required: true
       type: string
-    disk_type:
+    ex_disk_type:
       type: string
       description: GCE-specific. One of 'pd-standard'(default) or 'pd-ssd'
-    volume_type:
+    ex_volume_type:
       type: string
       description: EC2-specific. One of 'standard', 'io1', 'gp2', 'sc1', 'st1'
-    iops:
+    ex_iops:
       type: string
       description: EC2-specific. Needs to be specified if volume_type='io1'
     """
