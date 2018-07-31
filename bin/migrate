@@ -60,7 +60,8 @@ def parse_args():
               "the database's version based on the last applied migration")
     )
     argparser.add_argument(
-        "--mongo-timeout", default=os.getenv('MONGO_TIMEOUT', 30), type=int,
+        "--mongo-timeout",
+        type=int, default=int(os.getenv('MONGO_TIMEOUT') or 180),
         help=("The time to wait for the mongodb instance to become responsive")
     )
 
