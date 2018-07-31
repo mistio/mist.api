@@ -12,7 +12,12 @@ def migrate_rules():
     failed = 0
     migrated = 0
 
-    orgs = Organization.objects(rules__nin=[{}, None])
+    # If the migration has already been applied, then `rules` will
+    # not exist on Organization.
+    if 'rules' not in Organization._fields:
+        orgs = []
+    else:
+        orgs = Organization.objects(rules__nin=[{}, None])
 
     for o in orgs:
         for rule_id, rule in o.rules.iteritems():
