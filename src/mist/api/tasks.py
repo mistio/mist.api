@@ -183,7 +183,6 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
         try:
             from mist.api.shell import Shell
             shell = Shell(host)
-
             try:
                 cloud_post_deploy_steps = config.CLOUD_POST_DEPLOY.get(cloud_id, [])
             except AttributeError:
@@ -203,18 +202,18 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                     if retval > 0:
                         notify_admin('Deploy user key failed for machine %s'
                                     % node.name)
-
                 command = post_deploy_step.get('script', '').replace(
                     '${node.name}', node.name)
                 if command:
-                    key_id, ssh_user = shell.autoconfigure(
+                    tmp_log('Executing cloud post deploy cmd: %s' % command)
+                    shell.autoconfigure(
                         owner, cloud_id, node.id, key_id, username, password,
                         port
                     )
                     retval, output = shell.command(command)
                     if retval > 0:
-                        notify_admin('Set hostname failed for machine %s'
-                                    % node.name)
+                        notify_admin('Cloud post deploy command `%s` failed '
+                            'for machine %s' % (command, node.name))
 
             # connect with ssh even if no command, to create association
             # to be able to enable monitoring
