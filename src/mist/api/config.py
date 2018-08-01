@@ -49,9 +49,14 @@ GC_SCHEDULERS = True
 VERSION_CHECK = True
 USAGE_SURVEY = False
 ENABLE_METERING = True
+
+# backups
 AWS_ACCESS_KEY = ''
 AWS_SECRET_KEY = ''
 AWS_MONGO_BUCKET = 'mistio-backup/mongodumps'
+GPG = {
+    "recipient": '', 'key': ''
+}
 
 ELASTICSEARCH = {
     'elastic_host': 'elasticsearch',

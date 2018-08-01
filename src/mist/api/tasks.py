@@ -1339,10 +1339,20 @@ def set_missing_since(cloud_id):
 def create_backup():
     """Create mongo backup if AWS creds are set.
     """
-    os.system("mongodump --host %s --gzip --archive | s3cmd --access_key=%s \
-    --secret_key=%s put - s3://%s/%s" % (config.MONGO_URI,
-              config.AWS_ACCESS_KEY, config.AWS_SECRET_KEY,
-              config.AWS_MONGO_BUCKET, str(datetime.datetime.now())))
+    if all(value == '' for value in config.GPG.values()):
+        os.system("mongodump --host %s --gzip --archive | s3cmd --access_key=%s \
+        --secret_key=%s put - s3://%s/%s" % (config.MONGO_URI,
+                  config.AWS_ACCESS_KEY, config.AWS_SECRET_KEY,
+                  config.AWS_MONGO_BUCKET, str(datetime.datetime.now())))
+    else:
+        # encrypt with gpg
+        os.system("echo %s > pub.key && gpg --import pub.key && mongodump --host \
+         %s --gzip --archive | gpg --yes --trust-model always --encrypt \
+         --recipient %s | s3cmd --access_key=%s --secret_key=%s put - \
+                  s3://%s/%s" % (config.GPG['key'], config.GPG['recipient'],
+                  config.MONGO_URI, config.AWS_ACCESS_KEY,
+                  config.AWS_SECRET_KEY, config.AWS_MONGO_BUCKET,
+                  str(datetime.datetime.now())))
 
 
 @app.task
