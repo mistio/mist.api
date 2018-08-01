@@ -1164,7 +1164,7 @@ SUPPORTED_PROVIDERS_V_2 = [
         'title': 'Packet.net',
         'provider': Provider.PACKET,
         'regions': []
-    }
+    },
     # ClearVM
     {
         'title': 'ClearVM',
