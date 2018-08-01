@@ -77,6 +77,11 @@ class AmazonMainController(BaseMainController):
             if cloud is not None:
                 kwargs['apisecret'] = cloud.apisecret
 
+class ClearVMMainController(BaseMainController):
+
+    provider = 'clearvm'
+    ComputeController = compute_ctls.ClearVMComputeController
+
 
 class DigitalOceanMainController(BaseMainController):
 

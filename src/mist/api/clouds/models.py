@@ -311,6 +311,13 @@ class AmazonCloud(Cloud):
     _controller_cls = controllers.AmazonMainController
 
 
+class ClearVMCloud(Cloud):
+
+    apikey = me.StringField(required=True)
+
+    _controller_cls = controllers.ClearVMMainController
+
+
 class DigitalOceanCloud(Cloud):
 
     token = me.StringField(required=True)

@@ -218,6 +218,13 @@ class AmazonComputeController(BaseComputeController):
         return '%s - %s' % (size.id, size.name)
 
 
+class ClearVMComputeController(BaseComputeController):
+
+    # TODO: verify once authentication is implemented in api endpoint
+    def _connect(self):
+        return get_driver(Provider.ClearVM)(self.cloud.apikey)
+
+
 class DigitalOceanComputeController(BaseComputeController):
 
     def _connect(self):

@@ -1165,6 +1165,12 @@ SUPPORTED_PROVIDERS_V_2 = [
         'provider': Provider.PACKET,
         'regions': []
     }
+    # ClearVM
+    {
+        'title': 'ClearVM',
+        'provider': Provider.ClearVM,
+        'regions': []
+    }
 ]
 
 # Base AMIs
