@@ -1329,6 +1329,8 @@ def update_poller(org_id):
                                                 interval=300, ttl=120)
             SSHProbeMachinePollingSchedule.add(machine=machine,
                                                interval=300, ttl=120)
+    org.poller_updated = int(time())
+    org.save()
 
 
 @app.task

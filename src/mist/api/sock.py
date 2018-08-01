@@ -275,6 +275,8 @@ class LogsConsumer(Consumer):
 
 class MainConnection(MistConnection):
 
+    org = None
+
     def on_open(self, conn_info):
         log.info("************** Open!")
         super(MainConnection, self).on_open(conn_info)
@@ -313,7 +315,8 @@ class MainConnection(MistConnection):
         self.list_clouds()
         self.update_notifications()
         self.check_monitoring()
-        self.periodic_update_poller()
+        if self.org and self.org['poller_updated'] < int(time.time()) - 100:
+            self.periodic_update_poller()
         self.send_batch_update()
 
     @tornado.gen.coroutine
@@ -344,12 +347,12 @@ class MainConnection(MistConnection):
 
     def update_org(self):
         try:
-            org = filter_org(self.auth_context)
+            self.org = filter_org(self.auth_context)
         except:  # Forbidden
-            org = None
+            pass
 
-        if org:
-            self.send('org', org)
+        if self.org:
+            self.send('org', self.org)
 
     def list_keys(self):
         self.internal_request(
