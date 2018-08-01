@@ -306,7 +306,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         node = _create_machine_openstack(conn, private_key, public_key,
                                          key.name, machine_name, image, size,
                                          location, networks, cloud_init)
-    elif conn.type is Provider.EC2 and private_key:
+    elif conn.type is Provider.EC2 or conn.name == 'Aliyun ECS':
         locations = conn.list_locations()
         for loc in locations:
             if loc.id == location.id:
