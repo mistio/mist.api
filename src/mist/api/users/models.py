@@ -466,7 +466,7 @@ class Organization(Owner):
     super_org = me.BooleanField(default=False)
     parent = me.ReferenceField('Organization', required=False)
 
-    poller_updated = me.IntField(default=0)
+    poller_updated = me.DateTimeField()
 
     meta = {'indexes': ['name']}
 

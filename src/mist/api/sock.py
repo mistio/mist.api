@@ -315,8 +315,7 @@ class MainConnection(MistConnection):
         self.list_clouds()
         self.update_notifications()
         self.check_monitoring()
-        if self.org and self.org['poller_updated'] < int(time.time()) - 100:
-            self.periodic_update_poller()
+        self.periodic_update_poller()
         self.send_batch_update()
 
     @tornado.gen.coroutine
@@ -347,12 +346,12 @@ class MainConnection(MistConnection):
 
     def update_org(self):
         try:
-            self.org = filter_org(self.auth_context)
+            org = filter_org(self.auth_context)
         except:  # Forbidden
-            pass
+            org = None
 
-        if self.org:
-            self.send('org', self.org)
+        if org:
+            self.send('org', org)
 
     def list_keys(self):
         self.internal_request(
