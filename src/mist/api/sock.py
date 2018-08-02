@@ -275,8 +275,6 @@ class LogsConsumer(Consumer):
 
 class MainConnection(MistConnection):
 
-    org = None
-
     def on_open(self, conn_info):
         log.info("************** Open!")
         super(MainConnection, self).on_open(conn_info)
