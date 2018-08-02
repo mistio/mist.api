@@ -1055,6 +1055,10 @@ SUPPORTED_PROVIDERS = [
             {
                 'location': 'China East 1 (Hangzhou)',
                 'id': 'cn-hangzhou'
+            },
+            {
+                'location': 'EU Central 1 (Frankfurt)',
+                'id': 'eu-central-1'
             }
         ]
     },
