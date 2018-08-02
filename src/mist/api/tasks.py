@@ -1317,8 +1317,7 @@ def update_poller(org_id):
     update_threshold = datetime.datetime.now() - datetime.timedelta(
         seconds=100)
     if org.poller_updated and org.poller_updated > update_threshold:
-        # Poller was recently updated
-        return
+        return  # Poller was recently updated
     log.info("Updating poller for %s", org)
     for cloud in Cloud.objects(owner=org, deleted=None, enabled=True):
         log.info("Updating poller for cloud %s", cloud)
