@@ -75,7 +75,7 @@ pytest-cov==2.4.0
 python-gnupg==0.4.0
 python-memcached==1.58
 python-openid==2.2.5
-pytz==2018.4
+pytz==2018.5
 PyYAML==3.12
 repoze.lru==0.6
 requests==2.18.4
