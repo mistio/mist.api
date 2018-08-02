@@ -1,7 +1,11 @@
 FROM mist/alpine:3.4
 
 # Install libvirt which requires system dependencies.
-RUN apk add --update --no-cache g++ gcc libvirt libvirt-dev libxml2-dev libxslt-dev gnupg
+RUN apk add --update --no-cache g++ gcc libvirt libvirt-dev libxml2-dev libxslt-dev gnupg ca-certificates wget
+
+RUN wget https://dl.influxdata.com/influxdb/releases/influxdb-1.6.0-static_linux_amd64.tar.gz
+
+RUN tar xvfz influxdb-1.6.0-static_linux_amd64.tar.gz
 
 RUN pip install --no-cache-dir --upgrade pip
 RUN pip install --no-cache-dir --upgrade setuptools
