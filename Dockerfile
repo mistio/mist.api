@@ -1,7 +1,7 @@
 FROM mist/alpine:3.4
 
 # Install libvirt which requires system dependencies.
-RUN apk add --update --no-cache g++ gcc libvirt libvirt-dev libxml2-dev libxslt-dev
+RUN apk add --update --no-cache g++ gcc libvirt libvirt-dev libxml2-dev libxslt-dev wget
 
 RUN pip install --no-cache-dir --upgrade pip
 RUN pip install --no-cache-dir --upgrade setuptools
