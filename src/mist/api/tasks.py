@@ -1324,15 +1324,16 @@ def update_poller(org_id):
         ListMachinesPollingSchedule.add(cloud=cloud, interval=10, ttl=120)
         if hasattr(cloud.ctl, 'network'):
             ListNetworksPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
-        for machine in cloud.ctl.compute.list_cached_machines():
-            log.info("Updating poller for machine %s", machine)
-            FindCoresMachinePollingSchedule.add(machine=machine,
-                                                interval=600, ttl=360,
-                                                run_immediately=False)
-            PingProbeMachinePollingSchedule.add(machine=machine,
-                                                interval=300, ttl=120)
-            SSHProbeMachinePollingSchedule.add(machine=machine,
-                                               interval=300, ttl=120)
+        if ACEELERATE_MACHINE_POLLING:
+            for machine in cloud.ctl.compute.list_cached_machines():
+                log.info("Updating poller for machine %s", machine)
+                FindCoresMachinePollingSchedule.add(machine=machine,
+                                                    interval=600, ttl=360,
+                                                    run_immediately=False)
+                PingProbeMachinePollingSchedule.add(machine=machine,
+                                                    interval=300, ttl=120)
+                SSHProbeMachinePollingSchedule.add(machine=machine,
+                                                   interval=300, ttl=120)
     org.poller_updated = datetime.datetime.now()
     org.save()
 
