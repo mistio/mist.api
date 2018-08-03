@@ -313,7 +313,8 @@ class AmazonCloud(Cloud):
 
 class ClearVMCloud(Cloud):
 
-    apikey = me.StringField(required=True)
+    api_key = me.StringField(required=True)
+    url = me.StringField(required=True)
 
     _controller_cls = controllers.ClearVMMainController
 
