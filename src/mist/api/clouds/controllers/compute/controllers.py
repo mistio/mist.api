@@ -218,6 +218,24 @@ class AmazonComputeController(BaseComputeController):
         return '%s - %s' % (size.id, size.name)
 
 
+class AlibabaComputeController(AmazonComputeController):
+
+    def _connect(self):
+        return get_driver(Provider.ALIYUN_ECS)(self.cloud.apikey,
+                                               self.cloud.apisecret,
+                                               region=self.cloud.region)
+
+    def _list_machines__cost_machine(self, machine, machine_libcloud):
+        # TODO
+        return 0, 0
+
+    def _list_images__fetch_images(self, search=None):
+        return self.connection.list_images()
+
+    def image_is_default(self, image_id):
+        return True
+
+
 class DigitalOceanComputeController(BaseComputeController):
 
     def _connect(self):
