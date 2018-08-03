@@ -77,6 +77,7 @@ class AmazonMainController(BaseMainController):
             if cloud is not None:
                 kwargs['apisecret'] = cloud.apisecret
 
+
 class ClearVMMainController(BaseMainController):
 
     provider = 'clearvm'
