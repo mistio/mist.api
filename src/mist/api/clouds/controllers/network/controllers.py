@@ -85,10 +85,6 @@ class AmazonNetworkController(BaseNetworkController):
                                   (subnet.name, subnet.subnet_id))
 
 
-class AlibabaNetworkController(AmazonNetworkController):
-    pass
-
-
 class GoogleNetworkController(BaseNetworkController):
 
     def _create_subnet__prepare_args(self, subnet, kwargs):
