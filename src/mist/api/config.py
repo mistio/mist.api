@@ -1168,7 +1168,7 @@ SUPPORTED_PROVIDERS_V_2 = [
     # ClearVM
     {
         'title': 'ClearVM',
-        'provider': Provider.ClearVM,
+        'provider': Provider.CLEARVM,
         'regions': []
     }
 ]
