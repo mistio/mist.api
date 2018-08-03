@@ -918,6 +918,9 @@ class VCloudComputeController(BaseComputeController):
             machine.actions.start = True
             machine.actions.stop = True
 
+    def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        machine.os_type = machine.extra.get('os_type')
+
 
 class OpenStackComputeController(BaseComputeController):
 
