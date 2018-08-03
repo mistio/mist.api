@@ -605,9 +605,7 @@ def _create_machine_aliyun(conn, key_name, public_key,
                            user_data):
     """Create a machine in Alibaba Aliyun ECS.
     """
-    key = public_key.replace('\n', '')
-
-    auth = NodeAuthSSHKey(pubkey=public_key)
+    auth = NodeAuthSSHKey(pubkey=public_key.replace('\n', ''))
 
     kwargs = {
         'auth': auth,
