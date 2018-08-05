@@ -1315,7 +1315,7 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
 def update_poller(org_id):
     org = Organization.objects.get(id=org_id)
     update_threshold = datetime.datetime.now() - datetime.timedelta(
-        seconds=10)
+        seconds=60)
     if org.poller_updated and org.poller_updated > update_threshold:
         return  # Poller was recently updated
     log.info("Updating poller for %s", org)
