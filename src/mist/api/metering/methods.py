@@ -57,7 +57,7 @@ def _query_datapoints(start, end, owner_id=''):
     while start < end:
         stop = start + datetime.timedelta(days=1)
         results = _query_influxdb(
-            _get_datapoints_query('datapoints', start, stop, owner_id),
+            _get_datapoints_query(start, stop, owner_id),
             owner_id
         )
         series.append(('%sZ' % start.isoformat(), results))
@@ -70,7 +70,7 @@ def _get_datapoints_query(start, end, owner_id=''):
     assert isinstance(end, datetime.datetime)
     if owner_id:
         lines = (
-            "SELECT MEAN(rate) * 60 * 60 * 24 AS datapoints ",
+            "SELECT MEAN(rate) * 60 * 60 * 24 AS {field}",
             "FROM ( ",
             "  SELECT SUM(partial_rate) AS rate FROM (",
             "    SELECT NON_NEGATIVE_DERIVATIVE({field}, 1s) as partial_rate",
@@ -83,7 +83,7 @@ def _get_datapoints_query(start, end, owner_id=''):
         )
     else:
         lines = (
-            "SELECT MEAN(rate) * 60 * 60 * 24 AS datapoints ",
+            "SELECT MEAN(rate) * 60 * 60 * 24 AS {field}",
             "FROM ( ",
             "  SELECT SUM(partial_rate) AS rate FROM (",
             "    SELECT NON_NEGATIVE_DERIVATIVE({field}, 1s) as partial_rate",
@@ -95,7 +95,8 @@ def _get_datapoints_query(start, end, owner_id=''):
             ")",
             "GROUP BY owner",
         )
-    return '\n'.join(lines).format(start=start.isoformat(sep=' '),
+    return '\n'.join(lines).format(field='datapoints',
+                                   start=start.isoformat(sep=' '),
                                    end=end.isoformat(sep=' '),
                                    owner=owner_id)
 
