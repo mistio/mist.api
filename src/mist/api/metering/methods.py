@@ -57,12 +57,47 @@ def _query_datapoints(start, end, owner_id=''):
     while start < end:
         stop = start + datetime.timedelta(days=1)
         results = _query_influxdb(
-            _get_checks_or_datapoints_query('datapoints',
-                                            start, stop, owner_id), owner_id
+            _get_datapoints_query('datapoints', start, stop, owner_id),
+            owner_id
         )
         series.append(('%sZ' % start.isoformat(), results))
         start += datetime.timedelta(days=1)
     return _parse_checks_or_datapoints_series(series, 'datapoints', owner_id)
+
+
+def _get_datapoints_query(start, end, owner_id=''):
+    assert isinstance(start, datetime.datetime)
+    assert isinstance(end, datetime.datetime)
+    if owner_id:
+        lines = (
+            "SELECT MEAN(rate) * 60 * 60 * 24 AS datapoints ",
+            "FROM ( ",
+            "  SELECT SUM(partial_rate) AS rate FROM (",
+            "    SELECT NON_NEGATIVE_DERIVATIVE({field}, 1s) as partial_rate",
+            "    FROM usage",
+            "    WHERE time >= '{start}' AND time < '{end}'",
+            "      AND owner = '{owner}'",
+            "    GROUP BY gockyId",
+            "  ) ",
+            ")",
+        )
+    else:
+        lines = (
+            "SELECT MEAN(rate) * 60 * 60 * 24 AS datapoints ",
+            "FROM ( ",
+            "  SELECT SUM(partial_rate) AS rate FROM (",
+            "    SELECT NON_NEGATIVE_DERIVATIVE({field}, 1s) as partial_rate",
+            "    FROM usage",
+            "    WHERE time >= '{start}' AND time < '{end}'",
+            "    GROUP BY gockyId, owner",
+            "  ) ",
+            "  GROUP BY owner",
+            ")",
+            "GROUP BY owner",
+        )
+    return '\n'.join(lines).format(start=start.isoformat(sep=' '),
+                                   end=end.isoformat(sep=' '),
+                                   owner=owner_id)
 
 
 def _get_checks_or_datapoints_query(field, start, end, owner_id=''):
