@@ -318,7 +318,7 @@ class AlibabaCloud(AmazonCloud):
 
 class ClearVMCloud(Cloud):
 
-    api_key = me.StringField(required=True)
+    apikey = me.StringField(required=True)
     url = me.StringField(required=True)
 
     _controller_cls = controllers.ClearVMMainController
