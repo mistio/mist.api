@@ -26,8 +26,8 @@ class QueryFilter(me.EmbeddedDocument):
     """
 
     key = me.StringField(required=True)
-    value = me.StringField(required=True)
-    operator = me.DynamicField(required=True, choices=OPERATORS)
+    value = me.DynamicField(required=True)
+    operator = me.StringField(required=True, choices=OPERATORS)
 
     def as_dict(self):
         return {
