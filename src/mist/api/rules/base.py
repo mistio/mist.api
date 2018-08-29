@@ -20,7 +20,7 @@ from mist.api.rules.models import NoDataAction
 
 from mist.api.conditions.models import FieldCondition
 from mist.api.conditions.models import TaggingCondition
-from mist.api.conditions.models import MachinesCondition
+from mist.api.conditions.models import GenericResourceCondition
 
 if config.HAS_RBAC:
     from mist.rbac.methods import AuthContext
@@ -33,7 +33,7 @@ log = logging.getLogger(__name__)
 
 CONDITIONS = {
     'tags': TaggingCondition,
-    'machines': MachinesCondition,
+    'machines': GenericResourceCondition,
 }
 
 
@@ -305,7 +305,7 @@ class ResourceRuleController(BaseController):
         # Attempt to remove `resource` from any of the rule's conditions,
         # if `resource` is explicitly specified by its UUID.
         for condition in self.rule.conditions:
-            if isinstance(condition, MachinesCondition):
+            if isinstance(condition, GenericResourceCondition):
                 for i, rid in enumerate(condition.ids):
                     if rid == resource.id:
                         log.info('Removing %s from %s', resource, self.rule)
@@ -324,7 +324,7 @@ class ResourceRuleController(BaseController):
             return False
 
         # The rule does not refer to resources by their UUID.
-        if not isinstance(self.rule.conditions[0], MachinesCondition):
+        if not isinstance(self.rule.conditions[0], GenericResourceCondition):
             return False
 
         # The rule refers to multiple resources.
@@ -344,15 +344,15 @@ class ResourceRuleController(BaseController):
         if not self.rule.conditions:
             raise UnauthorizedError('Only Owners may edit global rules')
         for condition in self.rule.conditions:
-            # TODO Permissions checking shouldn't be limited to machines.
-            if not isinstance(condition, MachinesCondition):
+            if not isinstance(condition, GenericResourceCondition):
                 raise UnauthorizedError('Only Owners may edit rules on tags')
             for mid in condition.ids:
                 try:
                     Model = self.rule.condition_resource_cls
                     m = Model.objects.get(id=mid, owner=self.rule.owner_id)
                 except Model.DoesNotExist:
-                    raise NotFoundError(mid)
+                    raise NotFoundError('%s %s' % (Model, mid))
+                # TODO Permissions checking shouldn't be limited to machines.
                 self.auth_context.check_perm('cloud', 'read', m.cloud.id)
                 self.auth_context.check_perm('machine', 'edit_rules', m.id)
 

@@ -170,8 +170,6 @@ class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
 
     """
 
-    condition_resource_cls = Machine
-
     meta = {
         'collection': 'schedules',
         'allow_inheritance': True,
@@ -301,7 +299,6 @@ class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
         return fmt.format(self)
 
     def validate(self, clean=True):
-
         """
         Override mongoengine validate. We should validate crontab entry.
             Use crontab_parser for crontab expressions.
@@ -336,6 +333,10 @@ class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
                 raise me.ValidationError('Crontab entry is not valid:%s'
                                          % exc.message)
         super(Schedule, self).validate(clean=True)
+
+    def clean(self):
+        if self.resource_model_name != 'machine':
+            self.resource_model_name = 'machine'
 
     def delete(self):
         super(Schedule, self).delete()
