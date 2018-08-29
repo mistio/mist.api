@@ -240,7 +240,8 @@ class ClearVMComputeController(BaseComputeController):
 
     # TODO: verify once authentication is implemented in api endpoint
     def _connect(self):
-        return get_driver(Provider.CLEARVM)(self.cloud.apikey)
+        return get_driver(Provider.CLEARVM)(key=self.cloud.apikey,
+                                            url=self.cloud.url)
 
 
 class DigitalOceanComputeController(BaseComputeController):
