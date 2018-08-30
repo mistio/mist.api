@@ -14,3 +14,4 @@ def escape_dots_and_dollars_from_dict(value):
     for key in list(value.keys()):
         k = key.replace('.', '_').replace('$', '_')
         value[k] = escape_dots_and_dollars_from_dict(value.pop(key))
+    return value
