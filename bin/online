@@ -45,7 +45,7 @@ if __name__ == '__main__':
         hosts.append(entry.address)
 
     for h in hosts:
-        host = '%s:80' % h
+        host = '%s:8081' % h
         try:
             query(host)
         except Exception as exc:
