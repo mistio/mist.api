@@ -245,10 +245,15 @@ class ClearVMComputeController(BaseComputeController):
     def _list_machines__machine_actions(self, machine, machine_libcloud):
         super(ClearVMComputeController, self)._list_machines__machine_actions(
             machine, machine_libcloud)
-        import ipdb; ipdb.set_trace()
-        if machine_libcloud.state is NodeState.PAUSED:
-            machine.actions.start = True
+        machine.actions.reboot = False
+        machine.actions.destroy = False
 
+        if machine_libcloud.state is NodeState.RUNNING:
+            machine.actions.stop = True
+            machine.actions.start = False
+        else:
+            machine.actions.start = True
+            machine.actions.stop = False
 
 
 class DigitalOceanComputeController(BaseComputeController):
