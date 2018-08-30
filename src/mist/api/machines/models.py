@@ -8,6 +8,7 @@ import mongoengine as me
 
 import mist.api.tag.models
 
+from mist.api.mongoengine_extras import MistDictField
 from mist.api.keys.models import Key
 from mist.api.machines.controllers import MachineController
 from mist.api.ownership.mixins import OwnershipMixin
@@ -270,7 +271,7 @@ class Machine(OwnershipMixin, me.Document):
     os_type = me.StringField(default='unix', choices=OS_TYPES)
     rdp_port = me.IntField(default=3389)
     actions = me.EmbeddedDocumentField(Actions, default=lambda: Actions())
-    extra = me.DictField()
+    extra = MistDictField()
     cost = me.EmbeddedDocumentField(Cost, default=lambda: Cost())
     image_id = me.StringField()
     # libcloud.compute.types.NodeState
