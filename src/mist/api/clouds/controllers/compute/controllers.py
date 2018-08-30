@@ -238,10 +238,17 @@ class AlibabaComputeController(AmazonComputeController):
 
 class ClearVMComputeController(BaseComputeController):
 
-    # TODO: verify once authentication is implemented in api endpoint
     def _connect(self):
         return get_driver(Provider.CLEARVM)(key=self.cloud.apikey,
                                             url=self.cloud.url)
+
+    def _list_machines__machine_actions(self, machine, machine_libcloud):
+        super(ClearVMComputeController, self)._list_machines__machine_actions(
+            machine, machine_libcloud)
+        import ipdb; ipdb.set_trace()
+        if machine_libcloud.state is NodeState.PAUSED:
+            machine.actions.start = True
+
 
 
 class DigitalOceanComputeController(BaseComputeController):
