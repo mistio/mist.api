@@ -255,6 +255,9 @@ class ClearVMComputeController(BaseComputeController):
             machine.actions.start = True
             machine.actions.stop = False
 
+    def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        machine.machine_type = 'ilo-host'
+
 
 class DigitalOceanComputeController(BaseComputeController):
 
