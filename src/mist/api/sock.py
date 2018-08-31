@@ -432,6 +432,14 @@ class MainConnection(MistConnection):
                     {'cloud_id': cloud_id, 'networks': networks}
                 ),
             )
+            self.internal_request(
+                'api/v1/clouds/%s/volumes' % cloud.id,
+                params={'cached': True},
+                callback=lambda volumes, cloud_id=cloud.id: self.send(
+                    'list_volumes',
+                    {'cloud_id': cloud_id, 'volumes': volumes}
+                ),
+            )
 
         periodic_tasks.extend([('list_images', tasks.ListImages()),
                                ('list_zones', tasks.ListZones()),
