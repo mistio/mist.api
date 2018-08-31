@@ -134,7 +134,7 @@ def add_routes(configurator):
 
     def valid_ui_section(context, request):
         ui_sections = ['clouds', 'machines', 'images', 'keys', 'scripts',
-                       'templates', 'stacks', 'teams', 'networks', 'tunnels',
+                       'templates', 'stacks', 'teams', 'networks', 'volumes', 'tunnels',
                        'members', 'insights', 'my-account', 'schedules',
                        'zones']
         landing_sections = ['about', 'product', 'pricing',
