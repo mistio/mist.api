@@ -236,6 +236,29 @@ class AlibabaComputeController(AmazonComputeController):
         return True
 
 
+class ClearVMComputeController(BaseComputeController):
+
+    def _connect(self):
+        return get_driver(Provider.CLEARVM)(key=self.cloud.apikey,
+                                            url=self.cloud.url)
+
+    def _list_machines__machine_actions(self, machine, machine_libcloud):
+        super(ClearVMComputeController, self)._list_machines__machine_actions(
+            machine, machine_libcloud)
+        machine.actions.reboot = False
+        machine.actions.destroy = False
+
+        if machine_libcloud.state is NodeState.RUNNING:
+            machine.actions.stop = True
+            machine.actions.start = False
+        else:
+            machine.actions.start = True
+            machine.actions.stop = False
+
+    def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        machine.machine_type = 'ilo-host'
+
+
 class DigitalOceanComputeController(BaseComputeController):
 
     def _connect(self):
