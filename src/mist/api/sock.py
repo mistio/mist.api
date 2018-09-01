@@ -436,8 +436,7 @@ class MainConnection(MistConnection):
                 'api/v1/clouds/%s/volumes' % cloud.id,
                 params={'cached': True},
                 callback=lambda volumes, cloud_id=cloud.id: self.send(
-                    'list_volumes',
-                    {'cloud_id': cloud_id, 'volumes': volumes}
+                    'list_volumes', volumes
                 ),
             )
 
