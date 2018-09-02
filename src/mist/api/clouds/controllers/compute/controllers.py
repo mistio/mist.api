@@ -240,7 +240,7 @@ class ClearAPIComputeController(BaseComputeController):
 
     def _connect(self):
         return get_driver(Provider.CLEARAPI)(key=self.cloud.apikey,
-                                            url=self.cloud.url)
+                                             url=self.cloud.url)
 
     def _list_machines__machine_actions(self, machine, machine_libcloud):
         super(ClearAPIComputeController, self)._list_machines__machine_actions(
