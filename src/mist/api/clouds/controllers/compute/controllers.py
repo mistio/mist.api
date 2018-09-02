@@ -236,14 +236,14 @@ class AlibabaComputeController(AmazonComputeController):
         return True
 
 
-class ClearVMComputeController(BaseComputeController):
+class ClearAPIComputeController(BaseComputeController):
 
     def _connect(self):
-        return get_driver(Provider.CLEARVM)(key=self.cloud.apikey,
+        return get_driver(Provider.CLEARAPI)(key=self.cloud.apikey,
                                             url=self.cloud.url)
 
     def _list_machines__machine_actions(self, machine, machine_libcloud):
-        super(ClearVMComputeController, self)._list_machines__machine_actions(
+        super(ClearAPIComputeController, self)._list_machines__machine_actions(
             machine, machine_libcloud)
         machine.actions.reboot = False
         machine.actions.destroy = False

@@ -1180,10 +1180,10 @@ SUPPORTED_PROVIDERS = [
         'provider': Provider.PACKET,
         'regions': []
     },
-    # ClearVM
+    # ClearAPI
     {
-        'title': 'ClearVM',
-        'provider': Provider.CLEARVM,
+        'title': 'ClearAPI',
+        'provider': Provider.CLEARAPI,
         'regions': []
     }
 ]

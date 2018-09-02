@@ -316,12 +316,12 @@ class AlibabaCloud(AmazonCloud):
     _controller_cls = controllers.AlibabaMainController
 
 
-class ClearVMCloud(Cloud):
+class ClearAPICloud(Cloud):
 
     apikey = me.StringField(required=True)
     url = me.StringField(required=True)
 
-    _controller_cls = controllers.ClearVMMainController
+    _controller_cls = controllers.ClearAPIMainController
 
 
 class DigitalOceanCloud(Cloud):

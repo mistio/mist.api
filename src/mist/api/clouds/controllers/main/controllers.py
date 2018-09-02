@@ -86,10 +86,10 @@ class AlibabaMainController(AmazonMainController):
     DnsController = None
 
 
-class ClearVMMainController(BaseMainController):
+class ClearAPIMainController(BaseMainController):
 
-    provider = 'clearvm'
-    ComputeController = compute_ctls.ClearVMComputeController
+    provider = 'clearapi'
+    ComputeController = compute_ctls.ClearAPIComputeController
 
 
 class DigitalOceanMainController(BaseMainController):
