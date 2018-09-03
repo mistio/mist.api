@@ -86,6 +86,12 @@ class AlibabaMainController(AmazonMainController):
     DnsController = None
 
 
+class ClearAPIMainController(BaseMainController):
+
+    provider = 'clearapi'
+    ComputeController = compute_ctls.ClearAPIComputeController
+
+
 class DigitalOceanMainController(BaseMainController):
 
     provider = 'digitalocean'

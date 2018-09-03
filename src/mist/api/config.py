@@ -1179,6 +1179,12 @@ SUPPORTED_PROVIDERS = [
         'title': 'Packet.net',
         'provider': Provider.PACKET,
         'regions': []
+    },
+    # ClearAPI
+    {
+        'title': 'ClearAPI',
+        'provider': Provider.CLEARAPI,
+        'regions': []
     }
 ]
 
