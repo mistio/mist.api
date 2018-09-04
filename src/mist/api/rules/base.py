@@ -177,7 +177,7 @@ class BaseController(object):
             self.rule._backend_plugin.validate(self.rule)
         except AssertionError as err:
             log.error('%s: %r', type(self.rule._backend_plugin), err)
-            raise BadRequestError('Validation failed for %s' % self.rule)
+            raise BadRequestError('%s is invalid: %s' % self.rule, err)
 
         # Attempt to save self.rule.
         try:

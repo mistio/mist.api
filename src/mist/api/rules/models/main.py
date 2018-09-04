@@ -24,6 +24,7 @@ from mist.api.rules.plugins import GraphiteNoDataPlugin
 from mist.api.rules.plugins import GraphiteBackendPlugin
 from mist.api.rules.plugins import InfluxDBNoDataPlugin
 from mist.api.rules.plugins import InfluxDBBackendPlugin
+from mist.api.rules.plugins import ElasticSearchBackendPlugin
 
 
 class Rule(me.Document):
@@ -432,3 +433,13 @@ class NoDataRule(MachineMetricRule):
     @property
     def action(self):
         return ''
+
+
+class ResourceLogsRule(ResourceRule):
+
+    _backend_plugin = ElasticSearchBackendPlugin
+
+
+class ArbitraryLogsRule(ArbitraryRule):
+
+    _backend_plugin = ElasticSearchBackendPlugin

@@ -60,7 +60,8 @@ class QueryCondition(me.EmbeddedDocument):
 
     filters = me.EmbeddedDocumentListField(QueryFilter, default=lambda: [])
 
-    aggregation = me.StringField(default='all', choices=('all', 'any', 'avg'))
+    aggregation = me.StringField(default='all', choices=('all', 'any',
+                                                         'avg', 'count'))
 
     meta = {'allow_inheritance': True}
 
