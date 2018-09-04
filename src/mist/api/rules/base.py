@@ -390,7 +390,7 @@ class NoDataRuleController(ResourceRuleController):
                 'influxdb': InfluxDBNoDataPlugin}
 
     def update(self, fail_on_error=True, **kwargs):
-        if set(TIMEPERIOD.keys()) ^ set(kwargs.keys()):
+        if not all(key in TIMEPERIOD for key in kwargs):
             log.error('%s got kwargs=%s', self.__class__.__name__, kwargs)
             if fail_on_error:
                 raise BadRequestError('May only edit %s' % TIMEPERIOD.keys())
