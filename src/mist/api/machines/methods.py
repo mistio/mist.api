@@ -306,7 +306,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         node = _create_machine_openstack(conn, private_key, public_key,
                                          key.name, machine_name, image, size,
                                          location, networks, cloud_init)
-    elif conn.type is Provider.EC2 and private_key:
+    elif conn.type is Provider.EC2:
         locations = conn.list_locations()
         for loc in locations:
             if loc.id == location.id:
@@ -315,6 +315,10 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         node = _create_machine_ec2(conn, key_id, private_key, public_key,
                                    machine_name, image, size, ec2_location,
                                    subnet_id, cloud_init)
+    elif conn.name == 'Aliyun ECS':
+        node = _create_machine_aliyun(conn, key_id, public_key,
+                                      machine_name, image, size, location,
+                                      subnet_id, cloud_init)
     elif conn.type is Provider.NEPHOSCALE:
         node = _create_machine_nephoscale(conn, key_id, private_key,
                                           public_key, machine_name, image,
@@ -502,10 +506,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
 def _create_machine_rackspace(conn, public_key, machine_name,
                               image, size, location, user_data):
     """Create a machine in Rackspace.
-
-    Here there is no checking done, all parameters are expected to be
-    sanitized by create_machine.
-
     """
 
     key = str(public_key).replace('\n', '')
@@ -546,10 +546,6 @@ def _create_machine_openstack(conn, private_key, public_key, key_name,
                               machine_name, image, size, location, networks,
                               user_data):
     """Create a machine in Openstack.
-
-    Here there is no checking done, all parameters are expected to be
-    sanitized by create_machine.
-
     """
     key = str(public_key).replace('\n', '')
 
@@ -604,14 +600,38 @@ def _create_machine_openstack(conn, private_key, public_key, key_name,
     return node
 
 
+def _create_machine_aliyun(conn, key_name, public_key,
+                           machine_name, image, size, location, subnet_id,
+                           user_data):
+    """Create a machine in Alibaba Aliyun ECS.
+    """
+    auth = NodeAuthSSHKey(pubkey=public_key.replace('\n', ''))
+
+    kwargs = {
+        'auth': auth,
+        'name': machine_name,
+        'image': image,
+        'size': size,
+        'location': location,
+        'max_tries': 1,
+        'ex_keyname': key_name,
+        'ex_userdata': user_data,
+        'ex_security_group_id': conn.ex_create_security_group()
+    }
+
+    try:
+        node = conn.create_node(**kwargs)
+
+    except Exception as e:
+        raise MachineCreationError("Aliyun ECS, got exception %s" % e, e)
+
+    return node
+
+
 def _create_machine_ec2(conn, key_name, private_key, public_key,
                         machine_name, image, size, location, subnet_id,
                         user_data):
     """Create a machine in Amazon EC2.
-
-    Here there is no checking done, all parameters are expected to be
-    sanitized by create_machine.
-
     """
     with get_temp_file(public_key) as tmp_key_path:
         try:
@@ -691,12 +711,7 @@ def _create_machine_ec2(conn, key_name, private_key, public_key,
 
 def _create_machine_nephoscale(conn, key_name, private_key, public_key,
                                machine_name, image, size, location, ips):
-    """Create a machine in Nephoscale.
-
-    Here there is no checking done, all parameters are expected to be
-    sanitized by create_machine.
-
-    """
+    """Create a machine in Nephoscale."""
     machine_name = machine_name[:64].replace(' ', '-')
     # name in NephoScale must start with a letter, can contain mixed
     # alpha-numeric characters, hyphen ('-') and underscore ('_')
@@ -765,10 +780,6 @@ def _create_machine_softlayer(conn, key_name, private_key, public_key,
                               bare_metal, cloud_init, hourly,
                               softlayer_backend_vlan_id):
     """Create a machine in Softlayer.
-
-    Here there is no checking done, all parameters are expected to be
-    sanitized by create_machine.
-
     """
     key = str(public_key).replace('\n', '')
     try:
@@ -923,10 +934,6 @@ def _create_machine_digital_ocean(conn, key_name, private_key, public_key,
                                   machine_name, image, size,
                                   location, user_data):
     """Create a machine in Digital Ocean.
-
-    Here there is no checking done, all parameters are expected to be
-    sanitized by create_machine.
-
     """
     key = public_key.replace('\n', '')
     try:
@@ -984,6 +991,8 @@ def _create_machine_libvirt(conn, machine_name, disk_size, ram, cpu,
     """
     # The libvirt drivers expects network names.
     from mist.api.networks.models import LibvirtNetwork
+    if not isinstance(networks, list):
+        networks = [networks]
     network_names = []
     for nid in (networks or []):
         try:
@@ -1013,10 +1022,6 @@ def _create_machine_libvirt(conn, machine_name, disk_size, ram, cpu,
 def _create_machine_hostvirtual(conn, public_key,
                                 machine_name, image, size, location):
     """Create a machine in HostVirtual.
-
-    Here there is no checking done, all parameters are expected to be
-    sanitized by create_machine.
-
     """
     key = public_key.replace('\n', '')
 
@@ -1039,10 +1044,6 @@ def _create_machine_hostvirtual(conn, public_key,
 def _create_machine_packet(conn, public_key, machine_name, image,
                            size, location, cloud_init, project_id=None):
     """Create a machine in Packet.net.
-
-    Here there is no checking done, all parameters are expected to be
-    sanitized by create_machine.
-
     """
     key = public_key.replace('\n', '')
     try:
@@ -1091,10 +1092,6 @@ def _create_machine_packet(conn, public_key, machine_name, image,
 def _create_machine_vultr(conn, public_key, machine_name, image,
                           size, location, cloud_init):
     """Create a machine in Vultr.
-
-    Here there is no checking done, all parameters are expected to be
-    sanitized by create_machine.
-
     """
     key = public_key.replace('\n', '')
 

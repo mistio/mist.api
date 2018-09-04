@@ -46,7 +46,7 @@ def install_telegraf(machine_id, job=None, job_id=None, plugins=None):
         exit_code, stdout = shell.command(fetch(unix_install(machine)))
         shell.disconnect()  # Close the SSH connection.
 
-        err = exit_code or None
+        err = exit_code or ''
         stdout = stdout.encode('utf-8', 'ignore')
         stdout = stdout.replace('\r\n', '\n').replace('\r', '\n')
 

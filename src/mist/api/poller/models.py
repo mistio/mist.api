@@ -215,7 +215,7 @@ class OwnerPollingSchedule(PollingSchedule):
 
     def get_name(self):
         return '%s(%s)' % (super(OwnerPollingSchedule, self).get_name(),
-                           self.owner)
+                           self.owner.id)
 
 
 class MeteringPollingSchedule(OwnerPollingSchedule):
@@ -236,7 +236,7 @@ class CloudPollingSchedule(PollingSchedule):
 
     def get_name(self):
         return '%s(%s)' % (super(CloudPollingSchedule, self).get_name(),
-                           self.cloud)
+                           self.cloud.id)
 
     @classmethod
     def add(cls, cloud, run_immediately=True, interval=None, ttl=300):

@@ -218,6 +218,47 @@ class AmazonComputeController(BaseComputeController):
         return '%s - %s' % (size.id, size.name)
 
 
+class AlibabaComputeController(AmazonComputeController):
+
+    def _connect(self):
+        return get_driver(Provider.ALIYUN_ECS)(self.cloud.apikey,
+                                               self.cloud.apisecret,
+                                               region=self.cloud.region)
+
+    def _list_machines__cost_machine(self, machine, machine_libcloud):
+        # TODO
+        return 0, 0
+
+    def _list_images__fetch_images(self, search=None):
+        return self.connection.list_images()
+
+    def image_is_default(self, image_id):
+        return True
+
+
+class ClearAPIComputeController(BaseComputeController):
+
+    def _connect(self):
+        return get_driver(Provider.CLEARAPI)(key=self.cloud.apikey,
+                                             url=self.cloud.url)
+
+    def _list_machines__machine_actions(self, machine, machine_libcloud):
+        super(ClearAPIComputeController, self)._list_machines__machine_actions(
+            machine, machine_libcloud)
+        machine.actions.reboot = False
+        machine.actions.destroy = False
+
+        if machine_libcloud.state is NodeState.RUNNING:
+            machine.actions.stop = True
+            machine.actions.start = False
+        else:
+            machine.actions.start = True
+            machine.actions.stop = False
+
+    def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        machine.machine_type = 'ilo-host'
+
+
 class DigitalOceanComputeController(BaseComputeController):
 
     def _connect(self):
@@ -899,6 +940,9 @@ class VCloudComputeController(BaseComputeController):
             machine.actions.start = True
             machine.actions.stop = True
 
+    def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        machine.os_type = machine.extra.get('os_type')
+
 
 class OpenStackComputeController(BaseComputeController):
 
@@ -1347,6 +1391,8 @@ class LibvirtComputeController(BaseComputeController):
         self.connection.ex_suspend_node(machine_libcloud)
 
     def _undefine_machine(self, machine, machine_libcloud):
+        if machine.extra.get('active'):
+            raise BadRequestError('Cannot undefine an active domain')
         self.connection.ex_undefine_node(machine_libcloud)
 
     def _list_sizes__get_cpu(self, size):

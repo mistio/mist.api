@@ -1213,18 +1213,8 @@ def list_supported_providers(request):
     Lists supported providers.
     Return all of our SUPPORTED PROVIDERS
     ---
-    api_version:
-      enum:
-      - 1
-      - 2
-      in: header
-      type: integer
     """
-    api_version = request.headers.get('Api-Version', 1)
-    if int(api_version) == 2:
-        return {'supported_providers': config.SUPPORTED_PROVIDERS_V_2}
-    else:
-        return {'supported_providers': config.SUPPORTED_PROVIDERS}
+    return {'supported_providers': config.SUPPORTED_PROVIDERS}
 
 
 @view_config(route_name='api_v1_avatars',
@@ -2306,3 +2296,16 @@ def openapi_spec(request):
 def version(request):
     """Return running version"""
     return {'version': config.VERSION}
+
+
+@view_config(route_name='api_v1_section', request_method='GET',
+             renderer='json')
+def section(request):
+    '''
+    Redirect to the static JSON file that corresponds to the requested section
+    '''
+    section_id = request.matchdict['section']
+
+    path = '/static/' + section_id.replace('--', '/sections/') + '.json'
+
+    return HTTPFound(path)

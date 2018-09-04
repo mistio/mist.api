@@ -93,6 +93,13 @@ class MachineController(object):
                 }
             }
 
+        try:
+            host = self.machine.ctl.get_host()
+            if host in ['localhost', '127.0.0.1']:
+                return
+        except RuntimeError:
+            return
+
         old_probe_data = _get_probe_dict()
 
         task_key = 'machine:ping_probe:%s' % self.machine.id

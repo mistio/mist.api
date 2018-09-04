@@ -66,7 +66,7 @@ def _machine_from_matchdict(request, deleted=False):
             )
         except Machine.DoesNotExist:
             raise NotFoundError("Machine %s doesn't exist" %
-                                request.matchdict['machine'])
+                                request.matchdict['machine_uuid'])
         # used by logging_view_decorator
         request.environ['machine_id'] = machine.machine_id
         request.environ['cloud_id'] = machine.cloud.id
@@ -103,8 +103,6 @@ def machine_dashboard(request):
         raise MethodNotAllowedError("Machine doesn't have monitoring enabled")
 
     if machine.monitoring.method in ('telegraf-graphite'):
-        if not config.HAS_CORE:
-            raise Exception()
         if machine.os_type == "windows":
             ret = copy.deepcopy(config.WINDOWS_MACHINE_DASHBOARD_DEFAULT)
         else:
