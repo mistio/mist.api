@@ -1,5 +1,4 @@
 import os
-import sys
 import uuid
 import logging
 import datetime
@@ -92,7 +91,7 @@ class Portal(me.Document):
             log.info('No migrations to apply!')
         return migrations
 
-    def apply_migrations(self, exit_on_error=False):
+    def apply_migrations(self):
         for mig in self.get_unapplied_migrations():
             mig_num = int(mig.split('-')[0])
             log.info('Applying %s', mig)
@@ -100,10 +99,8 @@ class Portal(me.Document):
             proc = subprocess.Popen('python %s' % path, shell=True)
             proc.wait()
             if proc.returncode:
-                log.error('Error while applying migration %s!', mig_num)
-                if exit_on_error:
-                    sys.exit(1)
-                return proc.returncode
+                raise Exception('Error %s while applying migration '
+                                '%s' % (proc.returncode, mig_num))
             self.database_version = mig_num
             self.save()
 
