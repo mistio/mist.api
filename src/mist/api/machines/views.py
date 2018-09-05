@@ -666,6 +666,7 @@ def machine_actions(request):
             raise BadRequestError("You must give a name!")
         getattr(machine.ctl, action)(name)
     elif action == 'resize':
+	import ipdb; ipdb.set_trace();
         kwargs = {}
         if memory:
             kwargs['memory'] = memory

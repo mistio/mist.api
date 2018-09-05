@@ -833,12 +833,12 @@ class GoogleComputeController(BaseComputeController):
 
     def _resize_machine(self, machine, machine_libcloud, node_size, kwargs):
         # instance must be in stopped mode
-        #if machine_libcloud.state != NodeState.STOPPED:
-            #raise BadRequestError('The instance has to be stopped '
-             #                     'in order to be resized')
+        if machine_libcloud.state != NodeState.STOPPED:
+            raise BadRequestError('The instance has to be stopped '
+                                  'in order to be resized')
         try:
             self.connection.ex_set_machine_type(machine_libcloud,
-                                                node_size.id)
+                                                node_size.name)
             self.connection.ex_start_node(machine_libcloud)
         except Exception as exc:
             raise BadRequestError('Failed to resize node: %s' % exc)
