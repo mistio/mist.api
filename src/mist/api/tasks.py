@@ -183,6 +183,39 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
         try:
             from mist.api.shell import Shell
             shell = Shell(host)
+            try:
+                cloud_post_deploy_steps = config.CLOUD_POST_DEPLOY.get(
+                    cloud_id, [])
+            except AttributeError:
+                cloud_post_deploy_steps = []
+            for post_deploy_step in cloud_post_deploy_steps:
+                from mist.api.keys.models import Key
+                predeployed_key_id = post_deploy_step.get('key')
+                if predeployed_key_id:
+                    # Use predeployed key to deploy the user selected key
+                    shell.autoconfigure(
+                        owner, cloud_id, node.id, predeployed_key_id, username,
+                        password, port
+                    )
+                    retval, output = shell.command(
+                        'echo %s >> ~/.ssh/authorized_keys' % Key.objects.get(
+                            id=key_id).public)
+                    if retval > 0:
+                        notify_admin('Deploy user key failed for machine %s'
+                                     % node.name)
+                command = post_deploy_step.get('script', '').replace(
+                    '${node.name}', node.name)
+                if command:
+                    tmp_log('Executing cloud post deploy cmd: %s' % command)
+                    shell.autoconfigure(
+                        owner, cloud_id, node.id, key_id, username, password,
+                        port
+                    )
+                    retval, output = shell.command(command)
+                    if retval > 0:
+                        notify_admin('Cloud post deploy command `%s` failed '
+                                     'for machine %s' % (command, node.name))
+
             # connect with ssh even if no command, to create association
             # to be able to enable monitoring
             tmp_log('attempting to connect to shell')
@@ -1281,21 +1314,28 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
 @app.task
 def update_poller(org_id):
     org = Organization.objects.get(id=org_id)
+    update_threshold = datetime.datetime.now() - datetime.timedelta(
+        seconds=90)
+    if org.poller_updated and org.poller_updated > update_threshold:
+        return  # Poller was recently updated
     log.info("Updating poller for %s", org)
     for cloud in Cloud.objects(owner=org, deleted=None, enabled=True):
         log.info("Updating poller for cloud %s", cloud)
         ListMachinesPollingSchedule.add(cloud=cloud, interval=10, ttl=120)
         if hasattr(cloud.ctl, 'network'):
             ListNetworksPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
-        for machine in cloud.ctl.compute.list_cached_machines():
-            log.info("Updating poller for machine %s", machine)
-            FindCoresMachinePollingSchedule.add(machine=machine,
-                                                interval=600, ttl=360,
-                                                run_immediately=False)
-            PingProbeMachinePollingSchedule.add(machine=machine,
-                                                interval=300, ttl=120)
-            SSHProbeMachinePollingSchedule.add(machine=machine,
-                                               interval=300, ttl=120)
+        if config.ACCELERATE_MACHINE_POLLING:
+            for machine in cloud.ctl.compute.list_cached_machines():
+                log.info("Updating poller for machine %s", machine)
+                FindCoresMachinePollingSchedule.add(machine=machine,
+                                                    interval=600, ttl=360,
+                                                    run_immediately=False)
+                PingProbeMachinePollingSchedule.add(machine=machine,
+                                                    interval=300, ttl=120)
+                SSHProbeMachinePollingSchedule.add(machine=machine,
+                                                   interval=300, ttl=120)
+    org.poller_updated = datetime.datetime.now()
+    org.save()
 
 
 @app.task
