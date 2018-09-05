@@ -241,11 +241,12 @@ class BaseStorageController(BaseController):
         # FIXME
         from mist.api.clouds.models import CloudLocation
         try:
-            _location = CloudLocation.objects.get(id=kwargs['location'])
+            location = CloudLocation.objects.get(id=kwargs['location'])
         except CloudLocation.DoesNotExist:
             raise NotFoundError(
                 "Location with id '%s'." % kwargs['location']
             )
+        kwargs['location'] = location.external_id
         # Cloud-specific kwargs pre-processing.
         self._create_volume__prepare_args(kwargs)
         # Create the volume.
