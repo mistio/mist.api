@@ -18,7 +18,7 @@ from mist.api.clouds.controllers.base import BaseController
 
 from mist.api.concurrency.models import PeriodicTaskInfo
 
-from mist.api.exceptions import MachineNotFoundError
+from mist.api.exceptions import MachineNotFoundError, NotFoundError
 
 from mist.api.helpers import amqp_publish_user
 from mist.api.helpers import amqp_owner_listening
@@ -238,6 +238,14 @@ class BaseStorageController(BaseController):
 
         kwargs['name'] = volume.name
 
+        # FIXME
+        from mist.api.clouds.models import CloudLocation
+        try:
+            _location = CloudLocation.objects.get(id=kwargs['location'])
+        except CloudLocation.DoesNotExist:
+            raise NotFoundError(
+                "Location with id '%s'." % kwargs['location']
+            )
         # Cloud-specific kwargs pre-processing.
         self._create_volume__prepare_args(kwargs)
         # Create the volume.
