@@ -1037,7 +1037,7 @@ def run_machine_action(owner_id, action, name, machine_uuid):
         log_event(action=msg, **log_dict)
 
     if not log_dict.get('error'):
-        if action in ('start', 'stop', 'reboot', 'destroy'):
+        if action in ('start', 'stop', 'reboot', 'destroy', 'resize'):
             # call list machines here cause we don't have another way
             # to update machine state if user isn't logged in
             from mist.api.machines.methods import list_machines
@@ -1085,6 +1085,17 @@ def run_machine_action(owner_id, action, name, machine_uuid):
                     log_event(action='Destroy failed', **log_dict)
                 else:
                     log_event(action='Destroy succeeded', **log_dict)
+            elif action == 'resize':
+                log_event(action='Resize', **log_dict)
+                try:
+                    # dummy check!
+                    machine.ctl.start()
+                except Exception as exc:
+                    log_dict['error'] = '%s Machine in %s state' % (
+                        exc, machine.state)
+                    log_event(action='Resize failed', **log_dict)
+                else:
+                    log_event(action='Resize succeeded', **log_dict)
     # TODO markos asked this
     log_dict['started_at'] = started_at
     log_dict['finished_at'] = time()

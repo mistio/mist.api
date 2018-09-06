@@ -105,7 +105,7 @@ class BaseController(object):
 
         if kwargs.get('action'):
             if kwargs.get('action') not in ['reboot', 'destroy',
-                                            'start', 'stop']:
+                                            'start', 'stop', 'resize']:
                 raise BadRequestError("Action is not correct")
 
         script_id = kwargs.pop('script_id', '')
