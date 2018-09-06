@@ -14,7 +14,7 @@ from mist.api.exceptions import UnauthorizedError
 from mist.api.exceptions import RequiredParameterMissingError
 
 from mist.api.rules.models import Rule
-from mist.api.rules.models import MachineMetricRule
+from mist.api.rules.models import RULES
 
 from mist.api.auth.methods import auth_context_from_request
 
@@ -224,14 +224,28 @@ def add_rule(request):
     # Pyramid's `NestedMultiDict` is immutable.
     kwargs = dict(params.copy())
 
-    # FIXME Remove. Now there is a discrete API endpoint for updates.
-    if params.get('id'):
-        raise BadRequestError('POST to /api/v1/rules/<rule-id> for updates')
+    # If kwargs do not include a `selectors` key, then we assume that
+    # an arbitrary rule is defined. If a `selectors` list existed yet
+    # it was empty, then we would set up a resource-bound rule.
+    # FIXME This could also be defined explicitly in the request body.
+    arbitrary = 'selectors' not in kwargs
+
+    # The type of the requesting data, eg. metrics or logs. This helps
+    # as categorize our `Rule` subclasses better and pick the correct
+    # subclass when setting up a new rule.
+    data_type = kwargs.pop('data_type', 'metrics')
+
+    if data_type not in ('metrics', 'logs'):
+        raise BadRequestError('The data_type must be one of: metrics, logs')
+
+    # Get the proper Rule subclass.
+    rule_key = '%s-%s' % ('arbitrary' if arbitrary else 'resource', data_type)
+    rule_cls = RULES[rule_key]
 
     # Add new rule.
-    rule = MachineMetricRule.add(auth_context, **kwargs)
+    rule = rule_cls.add(auth_context, **kwargs)
 
-    # FIXME Keep this?
+    # Advance rule counter.
     auth_context.owner.rule_counter += 1
     auth_context.owner.save()
 

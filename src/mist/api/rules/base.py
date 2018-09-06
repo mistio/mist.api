@@ -33,7 +33,8 @@ log = logging.getLogger(__name__)
 
 CONDITIONS = {
     'tags': TaggingCondition,
-    'machines': GenericResourceCondition,
+    'machines': GenericResourceCondition,  # FIXME For backwards compatibility.
+    'resources': GenericResourceCondition,
 }
 
 
@@ -177,7 +178,7 @@ class BaseController(object):
             self.rule._backend_plugin.validate(self.rule)
         except AssertionError as err:
             log.error('%s: %r', type(self.rule._backend_plugin), err)
-            raise BadRequestError('%s is invalid: %s' % self.rule, err)
+            raise BadRequestError('%s is invalid: %s' % (self.rule, err))
 
         # Attempt to save self.rule.
         try:
@@ -283,6 +284,10 @@ class ArbitraryRuleController(BaseController):
 
 
 class ResourceRuleController(BaseController):
+
+    def add(self, fail_on_error=True, **kwargs):
+        self.rule.resource_model_name = kwargs.pop('resource_type', None)
+        super(ResourceRuleController, self).add(fail_on_error, **kwargs)
 
     def update(self, fail_on_error=True, **kwargs):
         if 'selectors' in kwargs:

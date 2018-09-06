@@ -2,8 +2,6 @@ import logging
 import datetime
 import elasticsearch.exceptions as eexc
 
-from mist.api import config
-
 from mist.api.helpers import es_client as es
 
 from mist.api.exceptions import NotFoundError
