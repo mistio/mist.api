@@ -163,7 +163,8 @@ class BaseController(object):
         if action:
             self.schedule.task_type = schedules.ActionTask(action=action)
         elif script_id:
-            self.schedule.task_type = schedules.ScriptTask(script_id=script_id)
+            self.schedule.task_type = schedules.ScriptTask(
+                script_id=script_id, params=kwargs.pop('params', ''))
 
         schedule_type = kwargs.pop('schedule_type', '')
 
