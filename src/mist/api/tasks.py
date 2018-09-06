@@ -1101,7 +1101,7 @@ def run_machine_action(owner_id, action, name, machine_uuid):
 
 
 @app.task
-def group_run_script(owner_id, script_id, name, machines_uuids):
+def group_run_script(owner_id, script_id, name, machines_uuids, params=''):
     """
     Accepts a list of lists in form  cloud_id,machine_id and pass them
     to run_machine_action like a group
@@ -1116,6 +1116,7 @@ def group_run_script(owner_id, script_id, name, machines_uuids):
     job_id = uuid.uuid4().hex
     for machine_uuid in machines_uuids:
             glist.append(run_script.s(owner_id, script_id, machine_uuid,
+                                      params=params,
                                       job_id=job_id, job='schedule'))
 
     schedule = Schedule.objects.get(owner=owner_id, name=name, deleted=None)
