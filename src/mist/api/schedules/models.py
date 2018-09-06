@@ -120,6 +120,10 @@ class BaseTaskType(me.EmbeddedDocument):
         raise NotImplementedError()
 
     @property
+    def kwargs(self):
+        raise NotImplementedError()
+
+    @property
     def task(self):
         raise NotImplementedError()
 
@@ -130,6 +134,10 @@ class ActionTask(BaseTaskType):
     @property
     def args(self):
         return self.action
+
+    @property
+    def kwargs(self):
+        return {}
 
     @property
     def task(self):
