@@ -836,8 +836,8 @@ class GoogleComputeController(BaseComputeController):
         if machine_libcloud.state != NodeState.STOPPED:
             raise BadRequestError('The instance has to be stopped '
                                   'in order to be resized')
-	# get size name as returned by libcloud
-	machine_type =  node_size.name.split(' ')[0]
+        # get size name as returned by libcloud
+        machine_type = node_size.name.split(' ')[0]
         try:
             self.connection.ex_set_machine_type(machine_libcloud,
                                                 machine_type)
