@@ -120,6 +120,10 @@ class BaseTaskType(me.EmbeddedDocument):
         raise NotImplementedError()
 
     @property
+    def kwargs(self):
+        raise NotImplementedError()
+
+    @property
     def task(self):
         raise NotImplementedError()
 
@@ -132,6 +136,10 @@ class ActionTask(BaseTaskType):
         return self.action
 
     @property
+    def kwargs(self):
+        return {}
+
+    @property
     def task(self):
         return 'mist.api.tasks.group_machines_actions'
 
@@ -141,10 +149,15 @@ class ActionTask(BaseTaskType):
 
 class ScriptTask(BaseTaskType):
     script_id = me.StringField()
+    params = me.StringField()
 
     @property
     def args(self):
         return self.script_id
+
+    @property
+    def kwargs(self):
+        return {'params': self.params}
 
     @property
     def task(self):
@@ -269,7 +282,7 @@ class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
 
     @property
     def kwargs(self):
-        return {}
+        return self.task_type.kwargs
 
     @property
     def task(self):

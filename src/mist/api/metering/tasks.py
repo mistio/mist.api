@@ -96,11 +96,19 @@ def push_metering_info(owner_id):
             log.error('Failed upon checks metering of %s: %r', rule.id, exc)
 
     # Datapoints
+    q = '\n'.join((
+        "SELECT SUM(partial_machine_counter) AS counter",
+        "FROM (",
+        "    SELECT MAX(counter) AS partial_machine_counter",
+        "    FROM datapoints",
+        "    WHERE owner = '{owner_id}' AND time >= now() - 30m",
+        "    GROUP BY machine,gockyId",
+        ")",
+        "GROUP BY machine",
+    )).format(owner_id=owner_id)
     try:
-        q = "SELECT MAX(counter) FROM datapoints "
-        q += "WHERE owner = '%s' AND time >= now() - 30m" % owner_id
-        q += " GROUP BY machine"
-        result = requests.get('%s/query?db=metering&q=%s' % (url, q)).json()
+        result = requests.post('%s/query?db=metering' % url,
+                               data={'q': q}).json()
         result = result['results'][0]['series']
         for series in result:
             metering[owner_id]['datapoints'] += series['values'][0][-1]

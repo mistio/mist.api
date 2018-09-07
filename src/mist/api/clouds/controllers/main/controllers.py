@@ -80,6 +80,20 @@ class AmazonMainController(BaseMainController):
                 kwargs['apisecret'] = cloud.apisecret
 
 
+class AlibabaMainController(AmazonMainController):
+
+    provider = 'aliyun_ecs'
+    ComputeController = compute_ctls.AlibabaComputeController
+    NetworkController = None
+    DnsController = None
+
+
+class ClearAPIMainController(BaseMainController):
+
+    provider = 'clearapi'
+    ComputeController = compute_ctls.ClearAPIComputeController
+
+
 class DigitalOceanMainController(BaseMainController):
 
     provider = 'digitalocean'
