@@ -436,7 +436,8 @@ class MainConnection(MistConnection):
                 'api/v1/clouds/%s/volumes' % cloud.id,
                 params={'cached': True},
                 callback=lambda volumes, cloud_id=cloud.id: self.send(
-                    'list_volumes', volumes
+                    'list_volumes',
+                    {'cloud_id': cloud_id, 'volumes': volumes}
                 ),
             )
 
@@ -475,12 +476,7 @@ class MainConnection(MistConnection):
                         if not (cached['networks']['public'] or
                                 cached['networks']['private']):
                             continue
-                    elif key == 'list_volumes':
-                        cached = filter_list_volumes(
-                            self.auth_context, cloud.id, cached['volumes']
-                        )
-                        if cached is None:
-                            continue
+
                     self.send(key, cached)
 
     def update_notifications(self):
