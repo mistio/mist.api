@@ -238,17 +238,8 @@ class BaseStorageController(BaseController):
 
         kwargs['name'] = volume.name
 
-        # FIXME
-        from mist.api.clouds.models import CloudLocation
-        try:
-            location = CloudLocation.objects.get(id=kwargs['location'])
-        except CloudLocation.DoesNotExist:
-            raise NotFoundError(
-                "Location with id '%s'." % kwargs['location']
-            )
-        kwargs['location'] = location.external_id
         # Cloud-specific kwargs pre-processing.
-        self._create_volume__prepare_args(kwargs, location)
+        self._create_volume__prepare_args(kwargs)
         # Create the volume.
         libcloud_vol = self.cloud.ctl.compute.connection.create_volume(
             **kwargs)
@@ -267,7 +258,7 @@ class BaseStorageController(BaseController):
         return volume
 
     # no needed if only checks location param
-    def _create_volume__prepare_args(self, kwargs, location):
+    def _create_volume__prepare_args(self, kwargs):
         """Parses keyword arguments on behalf of `self.create_volume`.
 
         Creates the parameter structure required by the libcloud method
