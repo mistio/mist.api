@@ -317,17 +317,9 @@ class BaseStorageController(BaseController):
         assert machine.cloud == self.cloud
 
         libcloud_volume = self.get_libcloud_volume(volume)
-        # get libcloud node
-        libcloud_node = None
-        for node in self.cloud.ctl.compute._list_machines__fetch_machines():
-            if node.id == machine.machine_id:
-                libcloud_node = node
-                break
 
-        if libcloud_node is None:
-            raise MachineNotFoundError(
-                "Machine with machine_id '%s'." % machine.machine_id
-            )
+        # get libcloud node
+        libcloud_node = self.cloud.compute._get_machine_libcloud()
 
         self._attach_volume(libcloud_volume, libcloud_node, **kwargs)
 
@@ -345,19 +337,12 @@ class BaseStorageController(BaseController):
         should override the private method `_detach_volume` instead.
         """
         assert volume.cloud == self.cloud
+        assert machine.cloud == self.cloud
 
         libcloud_volume = self.get_libcloud_volume(volume)
-        # get libcloud node
-        libcloud_node = None
-        for node in self.cloud.ctl.compute._list_machines__fetch_machines():
-            if node.id == machine.machine_id:
-                libcloud_node = node
-                break
 
-        if libcloud_node is None:
-            raise MachineNotFoundError(
-                "Machine with machine_id '%s'." % machine.machine_id
-            )
+        # get libcloud node
+        libcloud_node = self.cloud.compute._get_machine_libcloud()
 
         self._detach_volume(libcloud_volume, libcloud_node)
 
