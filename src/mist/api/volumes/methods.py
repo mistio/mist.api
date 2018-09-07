@@ -10,7 +10,7 @@ def list_volumes(owner, cloud_id):
     except Cloud.DoesNotExist:
         raise CloudNotFoundError()
 
-    if not hasattr(cloud.ctl, 'volume'):
+    if not hasattr(cloud.ctl, 'storage'):
         return []
 
     volumes = cloud.ctl.volume.list_volumes()

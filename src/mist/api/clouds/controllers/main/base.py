@@ -117,10 +117,10 @@ class BaseMainController(object):
             assert issubclass(self.NetworkController, BaseNetworkController)
             self.network = self.NetworkController(self)
 
-        # Initialize volume controller.
+        # Initialize storage controller.
         if self.StorageController is not None:
             assert issubclass(self.StorageController, BaseStorageController)
-            self.volume = self.StorageController(self)
+            self.storage = self.StorageController(self)
 
     def add(self, fail_on_error=True, fail_on_invalid_params=True, **kwargs):
         """Add new Cloud to the database
@@ -371,7 +371,7 @@ class BaseMainController(object):
             ListNetworksPollingSchedule.add(cloud=self.cloud)
 
         # Add volumes' polling schedule, if applicable.
-        if hasattr(self.cloud.ctl, 'volume'):
+        if hasattr(self.cloud.ctl, 'storage'):
             ListVolumesPollingSchedule.add(cloud=self.cloud)
 
         # Add extra cloud-level polling schedules with lower frequency. Such

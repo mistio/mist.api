@@ -112,7 +112,7 @@ def create_volume(request):
     except me.DoesNotExist:
         raise CloudNotFoundError()
 
-    if not hasattr(cloud.ctl, 'volume'):
+    if not hasattr(cloud.ctl, 'storage'):
         raise NotImplementedError()
 
     volume = VOLUMES[cloud.ctl.provider].add(cloud=cloud, **params)
@@ -228,7 +228,7 @@ def attach_volume(request):
     auth_context.check_perm("cloud", "read", cloud_id)
     auth_context.check_perm("volume", "read", volume_id)
 
-    if not hasattr(cloud.ctl, 'volume'):
+    if not hasattr(cloud.ctl, 'storage'):
         raise NotImplementedError()
 
     # FIXME: Also update machine's/volume's model
@@ -287,7 +287,7 @@ def detach_volume(request):
     auth_context.check_perm("cloud", "read", cloud_id)
     auth_context.check_perm("volume", "read", volume_id)
 
-    if not hasattr(cloud.ctl, 'volume'):
+    if not hasattr(cloud.ctl, 'storage'):
         raise NotImplementedError()
 
     # FIXME: Also update machine's/volume's model
