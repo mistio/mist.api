@@ -248,7 +248,7 @@ class BaseStorageController(BaseController):
             )
         kwargs['location'] = location.external_id
         # Cloud-specific kwargs pre-processing.
-        self._create_volume__prepare_args(kwargs)
+        self._create_volume__prepare_args(kwargs, location)
         # Create the volume.
         libcloud_vol = self.cloud.ctl.compute.connection.create_volume(
             **kwargs)
@@ -267,7 +267,7 @@ class BaseStorageController(BaseController):
         return volume
 
     # no needed if only checks location param
-    def _create_volume__prepare_args(self, kwargs):
+    def _create_volume__prepare_args(self, kwargs, location):
         """Parses keyword arguments on behalf of `self.create_volume`.
 
         Creates the parameter structure required by the libcloud method

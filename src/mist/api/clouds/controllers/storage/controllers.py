@@ -21,10 +21,10 @@ class GoogleStorageController(BaseStorageController):
         volume.location = libcloud_volume.extra.get('zone', '')
         volume.disk_type = libcloud_volume.extra.get('type', '')
 
-    def _create_volume__prepare_args(self, kwargs):
+    def _create_volume__prepare_args(self, kwargs, location):
         if kwargs.get('location') is None:
             raise RequiredParameterMissingError('location')
-
+	kwargs['location'] = location.name
 
 class AmazonStorageController(BaseStorageController):
 
@@ -34,7 +34,7 @@ class AmazonStorageController(BaseStorageController):
         volume.volume_type = libcloud_volume.extra.get('volume_type', '')
         volume.iops = libcloud_volume.extra.get('iops', '')
 
-    def _create_volume__prepare_args(self, kwargs):
+    def _create_volume__prepare_args(self, kwargs, location):
         if kwargs.get('location') is None:
             raise RequiredParameterMissingError('location')
 
