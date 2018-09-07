@@ -33,7 +33,7 @@ class Volume(OwnershipMixin, me.Document):
     """
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
     cloud = me.ReferenceField(Cloud, required=True)
-    volume_id = me.StringField()
+    external_id = me.StringField()
 
     name = me.StringField()
     size = me.IntField()
@@ -48,7 +48,7 @@ class Volume(OwnershipMixin, me.Document):
         'collection': 'volumes',
         'indexes': [
             {
-                'fields': ['cloud', 'volume_id'],
+                'fields': ['cloud', 'external_id'],
                 'sparse': False,
                 'unique': True,
                 'cls': False,
@@ -111,7 +111,7 @@ class Volume(OwnershipMixin, me.Document):
         volume_dict = {
             'id': self.id,
             'cloud': self.cloud.id,
-            'volume_id': self.volume_id,
+            'external_id': self.external_id,
             'name': self.name,
             'extra': self.extra,
             'state': self.state,
