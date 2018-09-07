@@ -25,6 +25,7 @@ from mist.api.exceptions import MachineNameValidationError
 from mist.api.exceptions import BadRequestError, MachineCreationError
 from mist.api.exceptions import CloudUnavailableError, InternalServerError
 from mist.api.exceptions import NotFoundError
+from mist.api.exceptions import VolumeNotFoundError
 
 from mist.api.helpers import get_temp_file
 
@@ -343,7 +344,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                     volume = Volume.objects.get(id=ex_disk_id)
                     ex_disk_id = volume.external_id
                 except me.DoesNotExist:
-                    pass
+                    raise VolumeNotFoundError
 
             # try to find disk using libcloud's id
             libcloud_disks = conn.list_volumes()
