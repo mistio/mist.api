@@ -54,7 +54,7 @@ class AmazonStorageController(BaseStorageController):
             raise NotFoundError(
                 "Location with id '%s'." % kwargs['location']
             )
-        kwargs['location'] = location.external_id
+        kwargs['location'] = location.name
 
     def _attach_volume(self, libcloud_volume, libcloud_node, **kwargs):
         device = kwargs['device']
