@@ -101,6 +101,8 @@ class BaseStorageController(BaseController):
                                       connection=amqp_conn,
                                       data={'cloud_id': self.cloud.id,
                                             'patch': patch})
+            # FIXME: remove this block, once patches
+            # are implemented in the UI
             else:
                 amqp_publish_user(self.cloud.owner.id,
                                   routing_key='list_volumes',
@@ -142,23 +144,23 @@ class BaseStorageController(BaseController):
             raise mist.api.exceptions.CloudUnavailableError(exc)
 
         volumes, new_volumes = [], []
-        for v in libcloud_volumes:
+        for libcloud_volume in libcloud_volumes:
             try:
                 volume = Volume.objects.get(cloud=self.cloud,
-                                            volume_id=v.id)
+                                            volume_id=libcloud_volume.id)
             except Volume.DoesNotExist:
                 volume = VOLUMES[self.provider](cloud=self.cloud,
-                                                volume_id=v.id)
+                                                volume_id=libcloud_volume.id)
                 new_volumes.append(volume)
 
-            volume.name = v.name
-            volume.size = v.size
-            volume.extra = copy.copy(v.extra)
+            volume.name = libcloud_volume.name
+            volume.size = libcloud_volume.size
+            volume.extra = copy.copy(libcloud_volume.extra)
             volume.missing_since = None
 
             # Apply cloud-specific processing.
             try:
-                self._list_volumes__postparse_volume(volume, v)
+                self._list_volumes__postparse_volume(volume, libcloud_volume)
             except Exception as exc:
                 log.exception('Error post-parsing %s: %s', volume, exc)
 
@@ -184,7 +186,7 @@ class BaseStorageController(BaseController):
 
         # Set missing_since for volumes not returned by libcloud.
         Volume.objects(
-            cloud=self.cloud, id__nin=[v.id for v in volumes],
+            cloud=self.cloud, id__nin=[libcloud_volume.id for libcloud_volume in volumes],
             missing_since=None
         ).update(missing_since=datetime.datetime.utcnow())
 
@@ -312,6 +314,7 @@ class BaseStorageController(BaseController):
         should override the private method `_attach_volume` instead.
         """
         assert volume.cloud == self.cloud
+        assert machine.cloud == self.cloud
 
         libcloud_volume = self.get_libcloud_volume(volume)
         # get libcloud node
