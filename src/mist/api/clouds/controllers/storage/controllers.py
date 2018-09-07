@@ -9,6 +9,7 @@ import logging
 from mist.api.clouds.controllers.storage.base import BaseStorageController
 
 from mist.api.exceptions import RequiredParameterMissingError
+from mist.api.exceptions import NotFoundError
 
 
 log = logging.getLogger(__name__)
@@ -34,6 +35,7 @@ class GoogleStorageController(BaseStorageController):
                 "Location with id '%s'." % kwargs['location']
             )
         kwargs['location'] = location.name
+
 
 class AmazonStorageController(BaseStorageController):
 

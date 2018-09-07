@@ -18,8 +18,6 @@ from mist.api.clouds.controllers.base import BaseController
 
 from mist.api.concurrency.models import PeriodicTaskInfo
 
-from mist.api.exceptions import MachineNotFoundError, NotFoundError
-
 from mist.api.helpers import amqp_publish_user
 from mist.api.helpers import amqp_owner_listening
 
