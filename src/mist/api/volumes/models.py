@@ -34,6 +34,7 @@ class Volume(OwnershipMixin, me.Document):
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
     cloud = me.ReferenceField(Cloud, required=True)
     external_id = me.StringField()
+    owner = me.ReferenceField('Organization')
 
     name = me.StringField()
     size = me.IntField()
@@ -114,6 +115,7 @@ class Volume(OwnershipMixin, me.Document):
             'external_id': self.external_id,
             'name': self.name,
             'extra': self.extra,
+            'owner': self.owner,
             'state': self.state,
             'tags': self.tags,
             'size': self.size,
