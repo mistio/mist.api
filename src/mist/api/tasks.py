@@ -941,7 +941,7 @@ def send_email(self, subject, body, recipients, sender=None, bcc=None,
 
 
 @app.task
-def group_machines_actions(owner_id, action, name, machines_uuids, params=''):
+def group_machines_actions(owner_id, action, name, machines_uuids, size_id=''):
     """
     Accepts a list of lists in form  cloud_id,machine_id and pass them
     to run_machine_action like a group
@@ -956,7 +956,7 @@ def group_machines_actions(owner_id, action, name, machines_uuids, params=''):
 
     for machine_uuid in machines_uuids:
         glist.append(run_machine_action.s(owner_id, action, name,
-                                          machine_uuid, params))
+                                          machine_uuid, size_id))
 
     schedule = Schedule.objects.get(owner=owner_id, name=name, deleted=None)
 
@@ -997,7 +997,7 @@ def group_machines_actions(owner_id, action, name, machines_uuids, params=''):
 
 
 @app.task(soft_time_limit=3600, time_limit=3630)
-def run_machine_action(owner_id, action, name, machine_uuid, params=''):
+def run_machine_action(owner_id, action, name, machine_uuid, size_id=''):
     """
     Calls specific action for a machine and log the info
     :param owner_id:
@@ -1089,7 +1089,7 @@ def run_machine_action(owner_id, action, name, machine_uuid, params=''):
                 log_event(action='Resize', **log_dict)
                 try:
                     # dummy check!
-                    machine.ctl.resize(size_id=params.get('plan_id'))
+                    machine.ctl.resize(size_id=params.get('size_id'))
                 except Exception as exc:
                     log_dict['error'] = '%s Machine in %s state' % (
                         exc, machine.state)

@@ -161,7 +161,7 @@ class BaseController(object):
 
         action = kwargs.pop('action', '')
         if action:
-            self.schedule.task_type = schedules.ActionTask(action=action, params=kwargs.pop('params', ''))
+            self.schedule.task_type = schedules.ActionTask(action=action, size_id=kwargs.pop('plan_id', ''))
         elif script_id:
             self.schedule.task_type = schedules.ScriptTask(
                 script_id=script_id, params=kwargs.pop('params', ''))
