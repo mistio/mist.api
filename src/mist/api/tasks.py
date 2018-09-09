@@ -1088,7 +1088,7 @@ def run_machine_action(owner_id, action, name, machine_uuid, size_id=''):
             elif action == 'resize':
                 log_event(action='Resize', **log_dict)
                 try:
-                    machine.ctl.resize(size_id=size_id)
+                    machine.ctl.resize(size_id=size_id, kwargs='')
                 except Exception as exc:
                     log_dict['error'] = '%s Machine in %s state' % (
                         exc, machine.state)
