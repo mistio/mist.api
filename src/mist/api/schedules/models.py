@@ -130,6 +130,7 @@ class BaseTaskType(me.EmbeddedDocument):
 
 class ActionTask(BaseTaskType):
     action = me.StringField()
+    params = me.StringField()
 
     @property
     def args(self):
@@ -137,7 +138,7 @@ class ActionTask(BaseTaskType):
 
     @property
     def kwargs(self):
-        return {}
+        return {'params': self.params}
 
     @property
     def task(self):

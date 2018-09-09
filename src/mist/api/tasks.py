@@ -997,7 +997,7 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
 
 
 @app.task(soft_time_limit=3600, time_limit=3630)
-def run_machine_action(owner_id, action, name, machine_uuid):
+def run_machine_action(owner_id, action, name, machine_uuid, params=''):
     """
     Calls specific action for a machine and log the info
     :param owner_id:
@@ -1089,7 +1089,7 @@ def run_machine_action(owner_id, action, name, machine_uuid):
                 log_event(action='Resize', **log_dict)
                 try:
                     # dummy check!
-                    machine.ctl.start()
+                    machine.ctl.resize(size_id=params.get('plan_id'))
                 except Exception as exc:
                     log_dict['error'] = '%s Machine in %s state' % (
                         exc, machine.state)
