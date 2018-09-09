@@ -13,7 +13,7 @@ def list_volumes(owner, cloud_id):
     if not hasattr(cloud.ctl, 'storage'):
         return []
 
-    volumes = cloud.ctl.volume.list_volumes()
+    volumes = cloud.ctl.storage.list_volumes()
     ret = []
 
     for volume in volumes:
