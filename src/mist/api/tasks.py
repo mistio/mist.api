@@ -941,7 +941,7 @@ def send_email(self, subject, body, recipients, sender=None, bcc=None,
 
 
 @app.task
-def group_machines_actions(owner_id, action, name, machines_uuids):
+def group_machines_actions(owner_id, action, name, machines_uuids, params=''):
     """
     Accepts a list of lists in form  cloud_id,machine_id and pass them
     to run_machine_action like a group
@@ -956,7 +956,7 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
 
     for machine_uuid in machines_uuids:
         glist.append(run_machine_action.s(owner_id, action, name,
-                                          machine_uuid))
+                                          machine_uuid, params))
 
     schedule = Schedule.objects.get(owner=owner_id, name=name, deleted=None)
 
