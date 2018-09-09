@@ -74,7 +74,7 @@ def list_volumes(schedule_id):
 
     from mist.api.poller.models import ListVolumesPollingSchedule
     sched = ListVolumesPollingSchedule.objects.get(id=schedule_id)
-    sched.cloud.ctl.volume.list_volumes(persist=False)
+    sched.cloud.ctl.storage.list_volumes(persist=False)
 
 
 @app.task(time_limit=45, soft_time_limit=40)
