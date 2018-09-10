@@ -24,15 +24,16 @@ class GoogleStorageController(BaseStorageController):
         machine_names = libcloud_volume.extra.get('users')
         # TODO: test when actually having an attached disk!
         import ipdb; ipdb.set_trace();
-        for machine_name in machine_names:
-            from mist.api.machines.models import Machine
-            try:
-                machine = Machine.objects.get(name=machine_name.split('/')[-1], cloud=self.cloud)
-            except Machine.DoesNotExist:
-                pass
-            else:
-                if machine.missing_since == None and machine not in volume.attached_to:
-                    volume.attached_to.append(machine)
+        if machine_names:
+            for machine_name in machine_names:
+                from mist.api.machines.models import Machine
+                try:
+                    machine = Machine.objects.get(name=machine_name.split('/')[-1], cloud=self.cloud)
+                except Machine.DoesNotExist:
+                    pass
+                else:
+                    if machine.missing_since == None and machine not in volume.attached_to:
+                        volume.attached_to.append(machine)
 
     def _create_volume__prepare_args(self, kwargs):
         if kwargs.get('location') is None:
