@@ -195,9 +195,10 @@ def attach_volume(request):
       in: path
       required: true
       type: string
-    machines:
+    machine:
+      in: path
       required: true
-      type: array
+      type: string
     device:
       type: string
       description: eg /dev/sdh. Required for EC2, optional for OpenStack
@@ -205,6 +206,7 @@ def attach_volume(request):
 
     cloud_id = request.matchdict['cloud']
     volume_id = request.matchdict['volume']
+    machine_id = request.matchdict['machine']
 
     params = params_from_request(request)
 
@@ -218,6 +220,10 @@ def attach_volume(request):
         volume = Volume.objects.get(id=volume_id, cloud=cloud)
     except me.DoesNotExist:
         raise VolumeNotFoundError()
+    try:
+        machine = Machine.objects.get(id=machine_id, owner=auth_context.owner)
+    except Machine.DoesNotExist:
+        raise MachineNotFoundError()
 
     auth_context.check_perm("cloud", "read", cloud_id)
     auth_context.check_perm("volume", "read", volume_id)
@@ -225,23 +231,11 @@ def attach_volume(request):
     if not hasattr(cloud.ctl, 'storage'):
         raise NotImplementedError()
 
-    machines = params.get('machines')
+    # FIXME: Also update machine's/volume's model
+    volume.ctl.attach(machine, **params)
 
-    if not machines:
-        raise RequiredParameterMissingError('machines')
-
-    for machine_id in machines:
-
-      try:
-          machine = Machine.objects.get(id=machine_id, owner=auth_context.owner)
-      except Machine.DoesNotExist:
-          raise MachineNotFoundError()
-
-      # FIXME: Also update machine's/volume's model
-      volume.ctl.attach(machine, **params)
-
-      # Schedule a UI update
-      trigger_session_update(auth_context.owner, ['clouds'])
+    # Schedule a UI update
+    trigger_session_update(auth_context.owner, ['clouds'])
 
     return volume.as_dict()
 
@@ -265,13 +259,15 @@ def detach_volume(request):
       in: path
       required: true
       type: string
-    machines:
+    machine:
+      in: path
       required: true
-      type: array
+      type: string
     """
 
     cloud_id = request.matchdict['cloud']
     volume_id = request.matchdict['volume']
+    machine_id = request.matchdict['machine']
 
     auth_context = auth_context_from_request(request)
 
@@ -283,6 +279,10 @@ def detach_volume(request):
         volume = Volume.objects.get(id=volume_id, cloud=cloud)
     except me.DoesNotExist:
         raise VolumeNotFoundError()
+    try:
+        machine = Machine.objects.get(id=machine_id, owner=auth_context.owner)
+    except Machine.DoesNotExist:
+        raise MachineNotFoundError()
 
     auth_context.check_perm("cloud", "read", cloud_id)
     auth_context.check_perm("volume", "read", volume_id)
@@ -290,22 +290,10 @@ def detach_volume(request):
     if not hasattr(cloud.ctl, 'storage'):
         raise NotImplementedError()
 
-    machines = params.get('machines')
+    # FIXME: Also update machine's/volume's model
+    volume.ctl.detach(machine)
 
-    if not machines:
-        raise RequiredParameterMissingError('machines')
-
-    for machine_id in machines:
-
-      try:
-          machine = Machine.objects.get(id=machine_id, owner=auth_context.owner)
-      except Machine.DoesNotExist:
-          raise MachineNotFoundError()
-
-      # FIXME: Also update machine's/volume's model
-      volume.ctl.detach(machine)
-
-      # Schedule a UI update
-      trigger_session_update(auth_context.owner, ['clouds'])
+    # Schedule a UI update
+    trigger_session_update(auth_context.owner, ['clouds'])
 
     return OK
