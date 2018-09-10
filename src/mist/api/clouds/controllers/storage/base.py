@@ -317,7 +317,7 @@ class BaseStorageController(BaseController):
         libcloud_volume = self.get_libcloud_volume(volume)
 
         # get libcloud node
-        libcloud_node = self.cloud.compute._get_machine_libcloud()
+        libcloud_node = self.cloud.ctl.compute._get_machine_libcloud()
 
         self._attach_volume(libcloud_volume, libcloud_node, **kwargs)
 
@@ -340,7 +340,7 @@ class BaseStorageController(BaseController):
         libcloud_volume = self.get_libcloud_volume(volume)
 
         # get libcloud node
-        libcloud_node = self.cloud.compute._get_machine_libcloud()
+        libcloud_node = self.cloud.ctl.compute._get_machine_libcloud()
 
         self._detach_volume(libcloud_volume, libcloud_node)
 
