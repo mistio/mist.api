@@ -7,7 +7,6 @@ from mist.api import config
 from mist.api.exceptions import BadRequestError
 
 from mist.api.users.models import Organization
-from mist.api.machines.models import Machine
 from mist.api.conditions.models import ConditionalClassMixin
 
 from mist.api.rules.base import NoDataRuleController
@@ -328,6 +327,12 @@ class ResourceRule(Rule, ConditionalClassMixin):
         return (super(ResourceRule, self).enabled and
                 bool(self.get_resources().count()))
 
+    def clean(self):
+        # Enforce singular resource types for uniformity.
+        if self.resource_model_name.endswith('s'):
+            self.resource_model_name = self.resource_model_name[:-1]
+        super(ResourceRule, self).clean()
+
     def as_dict(self):
         d = super(ResourceRule, self).as_dict()
         d['selectors'] = [cond.as_dict() for cond in self.conditions]
@@ -372,8 +377,6 @@ class ResourceRule(Rule, ConditionalClassMixin):
 
 class MachineMetricRule(ResourceRule):
 
-    condition_resource_cls = Machine
-
     @property
     def _backend_plugin(self):
         if config.DEFAULT_MONITORING_METHOD.endswith('-graphite'):
@@ -381,6 +384,13 @@ class MachineMetricRule(ResourceRule):
         if config.DEFAULT_MONITORING_METHOD.endswith('-influxdb'):
             return InfluxDBBackendPlugin
         raise Exception()
+
+    def clean(self):
+        super(MachineMetricRule, self).clean()
+        if self.resource_model_name != 'machine':
+            raise me.ValidationError(
+                'Invalid resource type "%s". %s can only operate on machines' %
+                (self.resource_model_name, self.__class__.__name__))
 
 
 class NoDataRule(MachineMetricRule):

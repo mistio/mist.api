@@ -4,7 +4,6 @@ from uuid import uuid4
 import celery.schedules
 import mongoengine as me
 from mist.api.tag.models import Tag
-from mist.api.machines.models import Machine
 from mist.api.exceptions import BadRequestError
 from mist.api.users.models import Organization
 from celerybeatmongo.schedulers import MongoScheduler
@@ -183,8 +182,6 @@ class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
 
     """
 
-    condition_resource_cls = Machine
-
     meta = {
         'collection': 'schedules',
         'allow_inheritance': True,
@@ -314,7 +311,6 @@ class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
         return fmt.format(self)
 
     def validate(self, clean=True):
-
         """
         Override mongoengine validate. We should validate crontab entry.
             Use crontab_parser for crontab expressions.
@@ -349,6 +345,10 @@ class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
                 raise me.ValidationError('Crontab entry is not valid:%s'
                                          % exc.message)
         super(Schedule, self).validate(clean=True)
+
+    def clean(self):
+        if self.resource_model_name != 'machine':
+            self.resource_model_name = 'machine'
 
     def delete(self):
         super(Schedule, self).delete()
