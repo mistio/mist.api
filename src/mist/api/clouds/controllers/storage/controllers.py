@@ -80,18 +80,17 @@ class DigitalOceanStorageController(BaseStorageController):
 
     def _list_volumes__postparse_volume(self, volume, libcloud_volume):
         volume.location = libcloud_volume.extra.get('region').get('name')
-	import ipdb; ipdb.set_trace();
 	machine_ids = libcloud_volume.extra.get('droplet_ids')
 	# TODO: test when actually having an attached disk!
 	for machine_id in machine_ids:
 		from mist.api.machines.models import Machine
 		try:
 			machine = Machine.objects.get(machine_id=machine_id, cloud=self.cloud)
-            	except Machine.DoesNotExist:
-                	pass
-            	else:
-                	if machine.missing_since == None and machine not in volume.attached_to:
-                        	volume.attached_to.append(machine)
+        except Machine.DoesNotExist:
+            pass
+     	else:
+            if machine.missing_since == None and machine not in volume.attached_to:
+               	volume.attached_to.append(machine)
 
     # check if needed
     def _create_volume__prepare_args(self, kwargs):
