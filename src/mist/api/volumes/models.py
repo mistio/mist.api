@@ -35,6 +35,7 @@ class Volume(OwnershipMixin, me.Document):
     cloud = me.ReferenceField(Cloud, required=True)
     external_id = me.StringField()
     owner = me.ReferenceField('Organization')
+    attached_to = me.ListField(me.ReferenceField('Machine'))
 
     name = me.StringField()
     size = me.IntField()
@@ -119,7 +120,8 @@ class Volume(OwnershipMixin, me.Document):
             'state': self.state,
             'tags': self.tags,
             'size': self.size,
-            'location': self.location
+            'location': self.location,
+            'attached_to': self.attached_to
         }
         volume_dict.update(
             {key: getattr(self, key) for key in self._volume_specific_fields}
