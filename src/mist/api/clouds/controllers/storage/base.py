@@ -134,7 +134,6 @@ class BaseStorageController(BaseController):
         from mist.api.volumes.models import Volume, VOLUMES
 
         try:
-            import ipdb; ipdb.set_trace();
             libcloud_volumes = self._list_volumes__fetch_volumes()
         except ConnectionError as e:
             raise mist.api.exceptions.CloudUnavailableError(e)
