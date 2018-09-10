@@ -339,10 +339,19 @@ class Machine(OwnershipMixin, me.Document):
         for ka in reversed(range(len(self.key_associations))):
             if self.key_associations[ka].keypair.deleted:
                 self.key_associations.pop(ka)
+
+        # Reset key_associations in case self goes missing/destroyed. This is
+        # going to prevent the machine from showing up as "missing" in the
+        # corresponding keys' associated machines list.
+        if self.missing_since:
+            self.key_associations = []
+
         # Populate owner field based on self.cloud.owner
         if not self.owner:
             self.owner = self.cloud.owner
+
         self.clean_os_type()
+
         if self.monitoring.method not in config.MONITORING_METHODS:
             self.monitoring.method = config.DEFAULT_MONITORING_METHOD
 

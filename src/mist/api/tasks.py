@@ -337,8 +337,6 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
         tmp_log(repr(exc))
         if str(exc).startswith('Retry'):
             raise
-        notify_user(owner,
-                    "Deployment script failed for machine %s" % machine_id)
         notify_admin("Deployment script failed for machine %s in cloud %s by "
                      "user %s" % (machine_id, cloud_id, str(owner)), repr(exc))
         log_event(
