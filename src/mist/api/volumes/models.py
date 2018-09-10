@@ -4,6 +4,8 @@ import mongoengine as me
 from mist.api.clouds.models import Cloud, CLOUDS
 from mist.api.tag.models import Tag
 
+from mist.api.machines.models import Machine
+
 from mist.api.ownership.mixins import OwnershipMixin
 
 from mist.api.volumes.controllers import StorageController
@@ -35,7 +37,7 @@ class Volume(OwnershipMixin, me.Document):
     cloud = me.ReferenceField(Cloud, required=True)
     external_id = me.StringField()
     owner = me.ReferenceField('Organization')
-    attached_to = me.ListField(me.ReferenceField('Machine'))
+    attached_to = me.ListField(me.ReferenceField(Machine))
 
     name = me.StringField()
     size = me.IntField()
