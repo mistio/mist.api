@@ -25,7 +25,6 @@ from paramiko.ssh_exception import SSHException
 
 from mist.api.exceptions import MistError, NotFoundError
 from mist.api.exceptions import ServiceUnavailableError
-from mist.api.exceptions import CloudNotFoundError
 from mist.api.shell import Shell
 
 from mist.api.users.models import User, Owner, Organization

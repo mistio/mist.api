@@ -73,7 +73,7 @@ def list_zones(schedule_id):
     """Perform list zones and records.
        Cloud controller stores results in mongodb.
     """
-    
+
     from mist.api.poller.models import ListZonesPollingSchedule
     sched = ListZonesPollingSchedule.objects.get(id=schedule_id)
     sched.cloud.ctl.dns.list_zones(persist=False)

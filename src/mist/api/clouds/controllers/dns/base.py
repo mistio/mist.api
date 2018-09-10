@@ -98,7 +98,7 @@ class BaseDNSController(BaseController):
         task = PeriodicTaskInfo.get_or_add(task_key)
         with task.task_runner(persist=persist):
             cached_zones = {'%s' % z.id: z.as_dict()
-                               for z in self.list_cached_zones()}
+                            for z in self.list_cached_zones()}
 
             zones = self._list_zones()
 
@@ -126,7 +126,6 @@ class BaseDNSController(BaseController):
                                   data={'cloud_id': self.cloud.id,
                                         'zones': zones_dict})
         return zones
-
 
     def _list_zones(self):
         """
