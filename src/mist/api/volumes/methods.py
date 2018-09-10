@@ -33,4 +33,4 @@ def filter_list_volumes(auth_context, cloud_id, volumes=None, perm='read'):
         for i in xrange(len(volumes) - 1, -1, -1):
             if volumes[i]['id'] not in allowed_resources['volumes']:
                 volumes.pop(i)
-    return volumes
+    return {'cloud_id': cloud_id, 'volumes': volumes}
