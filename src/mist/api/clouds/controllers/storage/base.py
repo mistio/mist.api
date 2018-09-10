@@ -145,10 +145,10 @@ class BaseStorageController(BaseController):
         for libcloud_volume in libcloud_volumes:
             try:
                 volume = Volume.objects.get(cloud=self.cloud,
-                                            external_id=libcloud_volume.id)
+                                            volume_id=libcloud_volume.id)
             except Volume.DoesNotExist:
                 volume = VOLUMES[self.provider](cloud=self.cloud,
-                                                external_id=libcloud_volume.id)
+                                                volume_id=libcloud_volume.id)
                 new_volumes.append(volume)
 
             volume.name = libcloud_volume.name
@@ -245,7 +245,7 @@ class BaseStorageController(BaseController):
             **kwargs)
 
         try:
-            volume.external_id = libcloud_vol.id
+            volume.volume_id = libcloud_vol.id
             volume.size = libcloud_vol.size
             volume.save()
         except mongoengine.errors.ValidationError as exc:
@@ -358,8 +358,8 @@ class BaseStorageController(BaseController):
         """
         volumes = self._list_volumes__fetch_volumes()
         for vol in volumes:
-            if vol.id == volume.external_id:
+            if vol.id == volume.volume_id:
                 return vol
         raise mist.api.exceptions.VolumeNotFoundError(
-            'Volume %s with external_id %s' %
-            (volume.name, volume.external_id))
+            'Volume %s with volume_id %s' %
+            (volume.name, volume.volume_id))

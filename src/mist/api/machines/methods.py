@@ -336,13 +336,13 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             try:
                 from mist.api.volumes.models import Volume
                 volume = Volume.objects.get(id=ex_disk_id)
-                ex_disk_id = volume.external_id
+                ex_disk_id = volume.volume_id
             except me.DoesNotExist:
                 # make sure mongo is up-to-date
                 cloud.ctl.volume.list_volumes()
                 try:
                     volume = Volume.objects.get(id=ex_disk_id)
-                    ex_disk_id = volume.external_id
+                    ex_disk_id = volume.volume_id
                 except me.DoesNotExist:
                     raise VolumeNotFoundError
 
