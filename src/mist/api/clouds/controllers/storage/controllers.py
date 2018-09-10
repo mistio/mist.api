@@ -58,8 +58,8 @@ class AmazonStorageController(BaseStorageController):
         volume.volume_type = libcloud_volume.extra.get('volume_type', '')
         volume.iops = libcloud_volume.extra.get('iops', '')
         # always returns one instance
-	    machine_id = libcloud_volume.extra.get('instance_id', '')
-        if machine_id:
+	machine_id = libcloud_volume.extra.get('instance_id', '')
+	if machine_id:
             from mist.api.machines.models import Machine
             try:
                 machine = Machine.objects.get(machine_id=machine_id, cloud=self.cloud)
