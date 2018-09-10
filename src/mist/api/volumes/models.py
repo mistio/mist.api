@@ -36,7 +36,7 @@ class Volume(OwnershipMixin, me.Document):
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
     cloud = me.ReferenceField(Cloud, required=True)
     owner = me.ReferenceField('Organization')
-    attached_to = me.ListField(me.ReferenceField(Machine))
+    attached_to = me.ListField(me.ReferenceField(Machine, reverse_delete_rule=me.PULL))
     volume_id = me.StringField()
     name = me.StringField()
     size = me.IntField()
@@ -99,8 +99,8 @@ class Volume(OwnershipMixin, me.Document):
         return [{'key': tag.key,
                  'value': tag.value} for tag in Tag.objects(resource=self)]
 
-#    def clean(self):
-#        self.owner = self.owner or self.cloud.owner
+    def clean(self):
+        self.owner = self.owner or self.cloud.owner
 
     def delete(self):
         super(Volume, self).delete()
