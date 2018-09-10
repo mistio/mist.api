@@ -22,6 +22,7 @@ class GoogleStorageController(BaseStorageController):
         volume.location = libcloud_volume.extra.get('zone', '')
         volume.disk_type = libcloud_volume.extra.get('type', '')
         machine_names = libcloud_volume.extra.get('users')
+        volume.attached_to = []
         # TODO: test when actually having an attached disk!
         import ipdb; ipdb.set_trace();
         if machine_names:
@@ -57,8 +58,9 @@ class AmazonStorageController(BaseStorageController):
         volume.location = libcloud_volume.extra.get('zone', '')
         volume.volume_type = libcloud_volume.extra.get('volume_type', '')
         volume.iops = libcloud_volume.extra.get('iops', '')
+        volume.attached_to = []
         # always returns one instance
-	    machine_id = libcloud_volume.extra.get('instance_id', '')
+        machine_id = libcloud_volume.extra.get('instance_id', '')
         if machine_id:
             from mist.api.machines.models import Machine
             try:
@@ -93,6 +95,7 @@ class DigitalOceanStorageController(BaseStorageController):
 
     def _list_volumes__postparse_volume(self, volume, libcloud_volume):
         volume.location = libcloud_volume.extra.get('region').get('name')
+        volume.attached_to = []
         machine_ids = libcloud_volume.extra.get('droplet_ids')
         # TODO: test when actually having an attached disk!
         for machine_id in machine_ids:
@@ -125,6 +128,7 @@ class OpenstackStorageController(BaseStorageController):
     def _list_volumes__postparse_volume(self, volume, libcloud_volume):
         volume.state = libcloud_volume.state
         volume.location = libcloud_volume.extra.get('location', '')
+        # TODO: set attached to!
 
 
 class AzureStorageController(BaseStorageController):
