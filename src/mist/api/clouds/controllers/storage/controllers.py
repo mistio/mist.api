@@ -44,6 +44,14 @@ class AmazonStorageController(BaseStorageController):
         volume.location = libcloud_volume.extra.get('zone', '')
         volume.volume_type = libcloud_volume.extra.get('volume_type', '')
         volume.iops = libcloud_volume.extra.get('iops', '')
+        machine_id = libcloud_volume.extra.get('instance_id', '')
+        if machine_id:
+            try:
+                machine = Machine.objects.get(machine_id=machine_id, owner=auth_context.owner)
+            except Machine.DoesNotExist:
+                pass
+            else:
+                volume.attached_to.append(machine)
 
     def _create_volume__prepare_args(self, kwargs):
         if kwargs.get('location') is None:
