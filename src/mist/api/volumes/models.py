@@ -101,6 +101,10 @@ class Volume(OwnershipMixin, me.Document):
 
     def clean(self):
         self.owner = self.owner or self.cloud.owner
+        # make sure that machines with disk attached aren't missing
+        for machine in self.attached_to:
+            if machine.missing_since != None:
+                self.attached_to.pop(machine)
 
     def delete(self):
         super(Volume, self).delete()
