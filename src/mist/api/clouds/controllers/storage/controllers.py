@@ -21,13 +21,13 @@ class GoogleStorageController(BaseStorageController):
         volume.state = libcloud_volume.extra.get('status', '')
         volume.location = libcloud_volume.extra.get('zone', '')
         volume.disk_type = libcloud_volume.extra.get('type', '')
-        machine_ids = libcloud_volume.extra.get('users')
+        machine_names = libcloud_volume.extra.get('users')
         # TODO: test when actually having an attached disk!
         import ipdb; ipdb.set_trace();
-        for machine_id in machine_ids:
+        for machine_name in machine_names:
             from mist.api.machines.models import Machine
             try:
-                machine = Machine.objects.get(machine_id=machine_id, cloud=self.cloud)
+                machine = Machine.objects.get(name=machine_name.split('/')[-1], cloud=self.cloud)
             except Machine.DoesNotExist:
                 pass
             else:
