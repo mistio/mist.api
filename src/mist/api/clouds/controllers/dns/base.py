@@ -8,10 +8,20 @@ with libcloud's DNS API.
 import ssl
 import logging
 import datetime
+import jsonpatch
 
 import mongoengine as me
 
+from amqp.connection import Connection
+
+from mist.api import config
+
+from mist.api.concurrency.models import PeriodicTaskInfo
+
 from mist.api.clouds.controllers.base import BaseController
+
+from mist.api.helpers import amqp_publish_user
+from mist.api.helpers import amqp_owner_listening
 
 from libcloud.common.types import InvalidCredsError
 from libcloud.dns.types import ZoneDoesNotExistError, RecordDoesNotExistError
@@ -72,9 +82,55 @@ class BaseDNSController(BaseController):
 
     """
 
-    def list_zones(self):
+    def list_zones(self, persist=True):
+        """Return list of zones for cloud
+
+        A list of zones is fetched from libcloud, data is processed, stored
+        on zone models, and a list of zone models is returned.
+
+        Subclasses SHOULD NOT override or extend this method.
+
+        This method wraps `_list_zones` which contains the core
+        implementation.
+
         """
-        This is the public method to call when requesting all the DNS zones
+        task_key = 'cloud:list_zones:%s' % self.cloud.id
+        task = PeriodicTaskInfo.get_or_add(task_key)
+        with task.task_runner(persist=persist):
+            cached_zones = {'%s' % z.id: z.as_dict()
+                               for z in self.list_cached_zones()}
+
+            zones = self._list_zones()
+
+        # Initialize AMQP connection to reuse for multiple messages.
+        amqp_conn = Connection(config.AMQP_URI)
+        if amqp_owner_listening(self.cloud.owner.id):
+            zones_dict = [z.as_dict() for z in zones]
+            if cached_zones and zones_dict:
+                # Publish patches to rabbitmq.
+                new_zones = {'%s' % z['id']: z for z in zones_dict}
+                patch = jsonpatch.JsonPatch.from_diff(cached_zones,
+                                                      new_zones).patch
+                if patch:
+                    amqp_publish_user(self.cloud.owner.id,
+                                      routing_key='patch_zones',
+                                      connection=amqp_conn,
+                                      data={'cloud_id': self.cloud.id,
+                                            'patch': patch})
+            else:
+                # TODO: remove this block, once patches
+                # are implemented in the UI
+                amqp_publish_user(self.cloud.owner.id,
+                                  routing_key='list_zones',
+                                  connection=amqp_conn,
+                                  data={'cloud_id': self.cloud.id,
+                                        'zones': zones_dict})
+        return zones
+
+
+    def _list_zones(self):
+        """
+        Requesting all the DNS zones
         under a specific cloud.
         """
 
@@ -130,6 +186,15 @@ class BaseDNSController(BaseController):
 
         # Format zone information.
         return zones
+
+    def list_cached_zones(self):
+        """Returns zones stored in database
+        for a specific cloud
+        """
+        # FIXME: Move these imports to the top of the file when circular
+        # import issues are resolved
+        from mist.api.zones.models import Zone
+        return Zone.objects(cloud=self.cloud)
 
     def _list_zones__fetch_zones(self):
         """

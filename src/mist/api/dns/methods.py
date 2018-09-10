@@ -5,6 +5,8 @@ from mist.api.exceptions import PolicyUnauthorizedError
 
 from mist.api import config
 
+from mist.api.dns.models import Zone
+
 import logging
 
 logging.basicConfig(level=config.PY_LOG_LEVEL,
@@ -24,7 +26,7 @@ def list_zones(owner, cloud_id):
         return []
     else:
         zones_ret = []
-        zones = cloud.ctl.dns.list_zones()
+        zones = Zone.objects(cloud=cloud)
         for zone in zones:
             zone_dict = zone.as_dict()
             zone_dict['records'] = list_records(owner, zone)

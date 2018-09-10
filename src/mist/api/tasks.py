@@ -31,6 +31,7 @@ from mist.api.shell import Shell
 from mist.api.users.models import User, Owner, Organization
 from mist.api.clouds.models import Cloud, DockerCloud, CloudLocation, CloudSize
 from mist.api.networks.models import Network
+from mist.api.dns.models import Zone
 from mist.api.machines.models import Machine
 from mist.api.scripts.models import Script
 from mist.api.schedules.models import Schedule
@@ -41,6 +42,7 @@ from mist.api.rules.models import NoDataRule
 from mist.api.poller.models import PollingSchedule
 from mist.api.poller.models import ListMachinesPollingSchedule
 from mist.api.poller.models import ListNetworksPollingSchedule
+from mist.api.poller.models import ListZonesPollingSchedule
 from mist.api.poller.models import FindCoresMachinePollingSchedule
 from mist.api.poller.models import PingProbeMachinePollingSchedule
 from mist.api.poller.models import SSHProbeMachinePollingSchedule
@@ -723,33 +725,6 @@ class UserTask(Task):
             return 60 * 10  # Retry in 10mins after the third error
 
 
-class ListZones(UserTask):
-    abstract = False
-    task_key = 'list_zones'
-    result_expires = 60 * 60 * 24
-    result_fresh = 0
-    polling = False
-    soft_time_limit = 60
-
-    def execute(self, owner_id, cloud_id):
-        owner = Owner.objects.get(id=owner_id)
-        log.warn('Running list zones for user %s cloud %s'
-                 % (owner.id, cloud_id))
-        from mist.api.dns.methods import list_zones
-        try:
-            cloud = Cloud.objects.get(owner=owner, id=cloud_id)
-        except Cloud.DoesNotExist:
-            raise CloudNotFoundError()
-        if not hasattr(cloud.ctl, 'dns'):
-            return {'cloud_id': cloud_id, 'zones': []}
-        ret = []
-        if cloud.dns_enabled:
-            ret = list_zones(owner, cloud.id)
-            log.warn('Returning list zones for user %s cloud %s'
-                     % (owner.id, cloud_id))
-        return {'cloud_id': cloud_id, 'zones': ret}
-
-
 class ListImages(UserTask):
     abstract = False
     task_key = 'list_images'
@@ -1325,6 +1300,8 @@ def update_poller(org_id):
         ListMachinesPollingSchedule.add(cloud=cloud, interval=10, ttl=120)
         if hasattr(cloud.ctl, 'network'):
             ListNetworksPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
+        if hasattr(cloud.ctl, 'dns'):
+            ListZonesPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
         if config.ACCELERATE_MACHINE_POLLING:
             for machine in cloud.ctl.compute.list_cached_machines():
                 log.info("Updating poller for machine %s", machine)
@@ -1370,7 +1347,7 @@ def gc_schedulers():
 
 @app.task
 def set_missing_since(cloud_id):
-    for Model in (Machine, CloudLocation, CloudSize, Network):
+    for Model in (Machine, CloudLocation, CloudSize, Network, Zone):
         Model.objects(cloud=cloud_id, missing_since=None).update(
             missing_since=datetime.datetime.utcnow()
         )

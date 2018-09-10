@@ -354,6 +354,7 @@ class BaseMainController(object):
         from mist.api.poller.models import ListNetworksPollingSchedule
         from mist.api.poller.models import ListLocationsPollingSchedule
         from mist.api.poller.models import ListSizesPollingSchedule
+        from mist.api.poller.models import ListZonesPollingSchedule
 
         # Add machines' polling schedule.
         ListMachinesPollingSchedule.add(cloud=self.cloud)
@@ -361,6 +362,10 @@ class BaseMainController(object):
         # Add networks' polling schedule, if applicable.
         if hasattr(self.cloud.ctl, 'network'):
             ListNetworksPollingSchedule.add(cloud=self.cloud)
+
+        # Add zones' polling schedule, if applicable.
+        if hasattr(self.cloud.ctl, 'dns'):
+            ListZonesPollingSchedule.add(cloud=self.cloud)
 
         # Add extra cloud-level polling schedules with lower frequency. Such
         # schedules poll resources that should hardly ever change. Thus, we

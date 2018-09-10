@@ -115,6 +115,8 @@ class Zone(OwnershipMixin, me.Document):
             'cloud': self.cloud.id,
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
+            'records': {r.id: r.as_dict() for r
+                        in Record.objects(zone=self)},
         }
 
     def clean(self):
