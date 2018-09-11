@@ -23,7 +23,6 @@ class GoogleStorageController(BaseStorageController):
         volume.disk_type = libcloud_volume.extra.get('type', '')
         machine_names = libcloud_volume.extra.get('users')
         volume.attached_to = []
-        # TODO: test when actually having an attached disk!
         if machine_names:
             for machine_name in machine_names:
                 from mist.api.machines.models import Machine
@@ -96,7 +95,6 @@ class DigitalOceanStorageController(BaseStorageController):
         volume.location = libcloud_volume.extra.get('region').get('name')
         volume.attached_to = []
         machine_ids = libcloud_volume.extra.get('droplet_ids')
-        # TODO: test when actually having an attached disk!
         for machine_id in machine_ids:
             from mist.api.machines.models import Machine
             try:
@@ -107,7 +105,6 @@ class DigitalOceanStorageController(BaseStorageController):
                 if machine.missing_since == None and machine not in volume.attached_to:
                     volume.attached_to.append(machine)
 
-    # check if needed
     def _create_volume__prepare_args(self, kwargs):
         if kwargs.get('location') is None:
             raise RequiredParameterMissingError('location')
