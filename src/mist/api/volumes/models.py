@@ -37,7 +37,7 @@ class Volume(OwnershipMixin, me.Document):
     cloud = me.ReferenceField(Cloud, required=True)
     owner = me.ReferenceField('Organization')
     attached_to = me.ListField(me.ReferenceField(Machine, reverse_delete_rule=me.PULL))
-    volume_id = me.StringField()
+    external_id = me.StringField()
     name = me.StringField()
     size = me.IntField()
     location = me.StringField()
@@ -51,7 +51,7 @@ class Volume(OwnershipMixin, me.Document):
         'collection': 'volumes',
         'indexes': [
             {
-                'fields': ['cloud', 'volume_id'],
+                'fields': ['cloud', 'external_id'],
                 'sparse': False,
                 'unique': True,
                 'cls': False,
@@ -118,7 +118,7 @@ class Volume(OwnershipMixin, me.Document):
         volume_dict = {
             'id': self.id,
             'cloud': self.cloud.id,
-            'volume_id': self.volume_id,
+            'external_id': self.external_id,
             'name': self.name,
             'extra': self.extra,
             'owner': self.owner,

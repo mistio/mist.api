@@ -150,21 +150,21 @@ def delete_volume(request):
         type: string
     """
     cloud_id = request.matchdict['cloud']
-    volume_id = request.matchdict['volume']
+    external_id = request.matchdict['volume']
 
     auth_context = auth_context_from_request(request)
 
     # SEC
     auth_context.check_perm('cloud', 'read', cloud_id)
-    auth_context.check_perm('volume', 'read', volume_id)
-    auth_context.check_perm('volume', 'remove', volume_id)
+    auth_context.check_perm('volume', 'read', external_id)
+    auth_context.check_perm('volume', 'remove', external_id)
 
     try:
         cloud = Cloud.objects.get(id=cloud_id, owner=auth_context.owner)
     except Cloud.DoesNotExist:
         raise CloudNotFoundError()
     try:
-        volume = Volume.objects.get(id=volume_id, cloud=cloud)
+        volume = Volume.objects.get(id=external_id, cloud=cloud)
     except me.DoesNotExist:
         raise VolumeNotFoundError()
 
@@ -205,7 +205,7 @@ def attach_volume(request):
     """
 
     cloud_id = request.matchdict['cloud']
-    volume_id = request.matchdict['volume']
+    external_id = request.matchdict['volume']
     machine_id = request.matchdict['machine']
 
     params = params_from_request(request)
@@ -217,7 +217,7 @@ def attach_volume(request):
     except Cloud.DoesNotExist:
         raise CloudNotFoundError()
     try:
-        volume = Volume.objects.get(id=volume_id, cloud=cloud)
+        volume = Volume.objects.get(id=external_id, cloud=cloud)
     except me.DoesNotExist:
         raise VolumeNotFoundError()
     try:
@@ -226,7 +226,7 @@ def attach_volume(request):
         raise MachineNotFoundError()
 
     auth_context.check_perm("cloud", "read", cloud_id)
-    auth_context.check_perm("volume", "read", volume_id)
+    auth_context.check_perm("volume", "read", external_id)
 
     if not hasattr(cloud.ctl, 'storage'):
         raise NotImplementedError()
