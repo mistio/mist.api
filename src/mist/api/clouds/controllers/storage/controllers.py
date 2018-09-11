@@ -73,7 +73,7 @@ class AmazonStorageController(BaseStorageController):
     def _create_volume__prepare_args(self, kwargs):
         if kwargs.get('location') is None:
             raise RequiredParameterMissingError('location')
-        # FIXME
+        # FIXME: circular import
         from mist.api.clouds.models import CloudLocation
         try:
             location = CloudLocation.objects.get(id=kwargs['location'])
@@ -127,7 +127,19 @@ class OpenstackStorageController(BaseStorageController):
     def _list_volumes__postparse_volume(self, volume, libcloud_volume):
         volume.state = libcloud_volume.state
         volume.location = libcloud_volume.extra.get('location', '')
-        # TODO: set attached to!
+        volume.attached_to = []
+
+        attachments = libcloud_volume.extra.get('attachments', '')
+        for attachment in attachments:
+            machine_id = attachment.get('serverId')
+            from mist.api.machines.models import Machine
+            try:
+                machine = Machine.objects.get(machine_id=machine_id, cloud=self.cloud)
+            except Machine.DoesNotExist:
+                pass
+            else:
+                if machine.missing_since == None and machine not in volume.attached_to:
+                    volume.attached_to.append(machine)
 
 
 class AzureStorageController(BaseStorageController):
