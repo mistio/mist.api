@@ -241,19 +241,10 @@ class BaseStorageController(BaseController):
         # Cloud-specific kwargs pre-processing.
         self._create_volume__prepare_args(kwargs)
         # Create the volume.
-        libcloud_vol = self.cloud.ctl.compute.connection.create_volume(
-            **kwargs)
+        self.cloud.ctl.compute.connection.create_volume(**kwargs)
 
-        try:
-            volume.external_id = libcloud_vol.id
-            volume.size = libcloud_vol.size
-            volume.save()
-        except mongoengine.errors.ValidationError as exc:
-            log.error("Error saving %s: %s", volume, exc.to_dict())
-            raise mist.api.exceptions.VolumeCreationError(exc.message)
-        except mongoengine.errors.NotUniqueError as exc:
-            log.error("Volume %s not unique error: %s", volume.name, exc)
-            raise mist.api.exceptions.VolumeExistsError()
+        # call _list_volumes to populate the db
+        self._list_volumes()
 
         return volume
 
