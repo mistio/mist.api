@@ -1325,14 +1325,15 @@ def update_poller(org_id):
             ListNetworksPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
         if config.ACCELERATE_MACHINE_POLLING:
             for machine in cloud.ctl.compute.list_cached_machines():
-                log.info("Updating poller for machine %s", machine)
-                FindCoresMachinePollingSchedule.add(machine=machine,
-                                                    interval=600, ttl=360,
-                                                    run_immediately=False)
-                PingProbeMachinePollingSchedule.add(machine=machine,
-                                                    interval=300, ttl=120)
-                SSHProbeMachinePollingSchedule.add(machine=machine,
-                                                   interval=300, ttl=120)
+                if machine.machine_type != 'container':
+                    log.info("Updating poller for machine %s", machine)
+                    FindCoresMachinePollingSchedule.add(machine=machine,
+                                                        interval=600, ttl=360,
+                                                        run_immediately=False)
+                    PingProbeMachinePollingSchedule.add(machine=machine,
+                                                        interval=300, ttl=120)
+                    SSHProbeMachinePollingSchedule.add(machine=machine,
+                                                       interval=300, ttl=120)
     org.poller_updated = datetime.datetime.now()
     org.save()
 
