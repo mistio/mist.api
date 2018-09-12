@@ -126,7 +126,7 @@ class Volume(OwnershipMixin, me.Document):
             'tags': self.tags,
             'size': self.size,
             'location': self.location,
-            'attached_to': self.attached_to
+            'attached_to': [m.as_dict() for m in self.attached_to]
         }
         volume_dict.update(
             {key: getattr(self, key) for key in self._volume_specific_fields}
