@@ -76,13 +76,17 @@ class NotificationAction(BaseAlertAction):
     teams = me.ListField(me.StringField(), default=lambda: [])
     emails = me.ListField(me.StringField(), default=lambda: [])
 
-    def run(self, machine, value, triggered, timestamp, incident_id, action='',
-            notification_level=0):
-        # FIXME Imported here due to circular dependency issues.
-        from mist.api.notifications.methods import send_alert_email
-        # TODO Shouldn't be specific to machines.
-        assert isinstance(machine, Machine)
-        assert machine.owner == self._instance.owner
+    def run(self, resource, value, triggered, timestamp, incident_id,
+            action=''):
+        # Validate `resource` based on the rule's type. The `resource` must
+        # be a me.Document subclass, if the corresponding rule is resource-
+        # bound, otherwise None.
+        if resource is not None:
+            assert isinstance(resource, me.Document)
+            assert resource.owner == self._instance.owner
+        else:
+            assert self._instance.is_arbitrary()
+
         emails = set(self.emails)
         user_ids = set(self.users)
         if not (self.users or self.teams):
@@ -98,10 +102,11 @@ class NotificationAction(BaseAlertAction):
                 emails |= set([member.email for member in team.members])
             except me.DoesNotExist:
                 continue
-        send_alert_email(machine.owner, self._instance.id, value,
-                         triggered, timestamp, incident_id, emails,
-                         cloud_id=machine.cloud.id,
-                         machine_id=machine.machine_id, action=action)
+
+        # FIXME Imported here due to circular dependency issues.
+        from mist.api.notifications.methods import send_alert_email
+        send_alert_email(self._instance, resource, incident_id, value,
+                         triggered, timestamp, emails, action=action)
 
     def clean(self):
         """Perform e-mail address validation."""
@@ -133,12 +138,10 @@ class NoDataAction(NotificationAction):
                 incident_id=incident_id
             )
             action = 'Disable Monitoring'
-            notification_level = 0
         else:
             action = 'Alert'
-            notification_level = kwargs.get('notification_level', 0)
         super(NoDataAction, self).run(machine, value, triggered, timestamp,
-                                      incident_id, action, notification_level)
+                                      incident_id, action)
 
 
 class CommandAction(BaseAlertAction):
