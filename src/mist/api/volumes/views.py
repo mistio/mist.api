@@ -231,7 +231,6 @@ def attach_volume(request):
     if not hasattr(cloud.ctl, 'storage'):
         raise NotImplementedError()
 
-    # FIXME: Also update machine's/volume's model
     volume.ctl.attach(machine, **params)
 
     # Schedule a UI update
@@ -290,7 +289,6 @@ def detach_volume(request):
     if not hasattr(cloud.ctl, 'storage'):
         raise NotImplementedError()
 
-    # FIXME: Also update machine's/volume's model
     volume.ctl.detach(machine)
 
     # Schedule a UI update
