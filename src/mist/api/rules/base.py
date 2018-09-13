@@ -33,7 +33,8 @@ log = logging.getLogger(__name__)
 
 CONDITIONS = {
     'tags': TaggingCondition,
-    'machines': GenericResourceCondition,
+    'machines': GenericResourceCondition,  # FIXME For backwards compatibility.
+    'resources': GenericResourceCondition,
 }
 
 
@@ -177,7 +178,7 @@ class BaseController(object):
             self.rule._backend_plugin.validate(self.rule)
         except AssertionError as err:
             log.error('%s: %r', type(self.rule._backend_plugin), err)
-            raise BadRequestError('%s is invalid: %s' % self.rule, err)
+            raise BadRequestError('%s is invalid: %s' % (self.rule, err))
 
         # Attempt to save self.rule.
         try:
@@ -284,6 +285,10 @@ class ArbitraryRuleController(BaseController):
 
 class ResourceRuleController(BaseController):
 
+    def add(self, fail_on_error=True, **kwargs):
+        self.rule.resource_model_name = kwargs.pop('resource_type', None)
+        super(ResourceRuleController, self).add(fail_on_error, **kwargs)
+
     def update(self, fail_on_error=True, **kwargs):
         if 'selectors' in kwargs:
             self.rule.conditions = []
@@ -352,9 +357,13 @@ class ResourceRuleController(BaseController):
                     m = Model.objects.get(id=mid, owner=self.rule.owner_id)
                 except Model.DoesNotExist:
                     raise NotFoundError('%s %s' % (Model, mid))
-                # TODO Permissions checking shouldn't be limited to machines.
-                self.auth_context.check_perm('cloud', 'read', m.cloud.id)
-                self.auth_context.check_perm('machine', 'edit_rules', m.id)
+                read_perm = (
+                    'read' if self.rule._data_type_str == 'metrics' else
+                    'read_logs'  # For rules on logs.
+                )
+                for perm in (read_perm, 'edit_rules'):
+                    self.auth_context.check_perm(self.resource_model_namem,
+                                                 perm, m.id)
 
 
 class NoDataRuleController(ResourceRuleController):

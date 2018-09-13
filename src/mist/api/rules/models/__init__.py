@@ -15,3 +15,4 @@ from mist.api.rules.models.main import NoDataRule  # noqa
 from mist.api.rules.models.main import ResourceLogsRule  # noqa
 from mist.api.rules.models.main import ArbitraryLogsRule  # noqa
 from mist.api.rules.models.main import MachineMetricRule  # noqa
+from mist.api.rules.models.main import RULES  # noqa
