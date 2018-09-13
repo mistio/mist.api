@@ -131,7 +131,7 @@ class BaseStorageController(BaseController):
         """
         # FIXME: Move these imports to the top of the file when circular
         # import issues are resolved
-        from mist.api.volumes.models import Volume, VOLUMES
+        from mist.api.volumes.models import Volume
 
         try:
             libcloud_volumes = self._list_volumes__fetch_volumes()
@@ -147,8 +147,8 @@ class BaseStorageController(BaseController):
                 volume = Volume.objects.get(cloud=self.cloud,
                                             external_id=libcloud_volume.id)
             except Volume.DoesNotExist:
-                volume = VOLUMES[self.provider](cloud=self.cloud,
-                                                external_id=libcloud_volume.id)
+                volume = Volume(cloud=self.cloud,
+                                external_id=libcloud_volume.id)
                 new_volumes.append(volume)
 
             volume.name = libcloud_volume.name
