@@ -716,6 +716,7 @@ rtype_to_classpath = {
     'schedule': 'mist.api.schedules.models.Schedule',
     'network': 'mist.api.networks.models.Network',
     'subnet': 'mist.api.networks.models.Subnet',
+    'volume': 'mist.api.volumes.models.Volume'
 }
 
 if config.HAS_VPN:
@@ -944,7 +945,7 @@ def logging_view_decorator(func):
         params = dict(params_from_request(request))
         for key in ['email', 'cloud', 'machine', 'rule', 'script_id',
                     'tunnel_id', 'story_id', 'stack_id', 'template_id',
-                    'zone', 'record', 'network', 'subnet']:
+                    'zone', 'record', 'network', 'subnet', 'volume']:
             if key != 'email' and key in request.matchdict:
                 if not key.endswith('_id'):
                     log_dict[key + '_id'] = request.matchdict[key]
@@ -1022,7 +1023,7 @@ def logging_view_decorator(func):
                 log_dict['machine_id'] = bdict['machine']
             # Match resource type based on the action performed.
             for rtype in ['cloud', 'machine', 'key', 'script', 'tunnel',
-                          'stack', 'template', 'schedule']:
+                          'stack', 'template', 'schedule', 'volume']:
                 if rtype in log_dict['action']:
                     if 'id' in bdict and '%s_id' % rtype not in log_dict:
                         log_dict['%s_id' % rtype] = bdict['id']
