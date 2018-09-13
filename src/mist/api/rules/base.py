@@ -357,9 +357,13 @@ class ResourceRuleController(BaseController):
                     m = Model.objects.get(id=mid, owner=self.rule.owner_id)
                 except Model.DoesNotExist:
                     raise NotFoundError('%s %s' % (Model, mid))
-                # TODO Permissions checking shouldn't be limited to machines.
-                self.auth_context.check_perm('cloud', 'read', m.cloud.id)
-                self.auth_context.check_perm('machine', 'edit_rules', m.id)
+                read_perm = (
+                    'read' if self.rule._data_type_str == 'metrics' else
+                    'read_logs'  # For rules on logs.
+                )
+                for perm in (read_perm, 'edit_rules'):
+                    self.auth_context.check_perm(self.resource_model_namem,
+                                                 perm, m.id)
 
 
 class NoDataRuleController(ResourceRuleController):
