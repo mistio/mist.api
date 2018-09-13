@@ -184,7 +184,8 @@ class BaseStorageController(BaseController):
 
         # Set missing_since for volumes not returned by libcloud.
         Volume.objects(
-            cloud=self.cloud, id__nin=[libcloud_volume.id for libcloud_volume in volumes],
+            cloud=self.cloud,
+            id__nin=[libcloud_volume.id for libcloud_volume in volumes],
             missing_since=None
         ).update(missing_since=datetime.datetime.utcnow())
 

@@ -24,14 +24,16 @@ class GoogleStorageController(BaseStorageController):
         machine_names = libcloud_volume.extra.get('users')
         volume.attached_to = []
         if machine_names:
-            for machine_name in machine_names:
+            for _machine in machine_names:
                 from mist.api.machines.models import Machine
                 try:
-                    machine = Machine.objects.get(name=machine_name.split('/')[-1], cloud=self.cloud)
+                    machine = Machine.objects.get(name=_machine.split('/')[-1],
+                                                  cloud=self.cloud)
                 except Machine.DoesNotExist:
                     pass
                 else:
-                    if machine.missing_since == None and machine not in volume.attached_to:
+                    if machine.missing_since is None and \
+                       machine not in volume.attached_to:
                         volume.attached_to.append(machine)
 
     def _create_volume__prepare_args(self, kwargs):
@@ -62,11 +64,13 @@ class AmazonStorageController(BaseStorageController):
         if machine_id:
             from mist.api.machines.models import Machine
             try:
-                machine = Machine.objects.get(machine_id=machine_id, cloud=self.cloud)
+                machine = Machine.objects.get(machine_id=machine_id,
+                                              cloud=self.cloud)
             except Machine.DoesNotExist:
                 pass
             else:
-                if machine.missing_since == None and machine not in volume.attached_to:
+                if machine.missing_since is None and \
+                   machine not in volume.attached_to:
                     volume.attached_to.append(machine)
 
     def _create_volume__prepare_args(self, kwargs):
@@ -98,11 +102,13 @@ class DigitalOceanStorageController(BaseStorageController):
         for machine_id in machine_ids:
             from mist.api.machines.models import Machine
             try:
-                machine = Machine.objects.get(machine_id=machine_id, cloud=self.cloud)
+                machine = Machine.objects.get(machine_id=machine_id,
+                                              cloud=self.cloud)
             except Machine.DoesNotExist:
                 pass
             else:
-                if machine.missing_since == None and machine not in volume.attached_to:
+                if machine.missing_since is None and \
+                   machine not in volume.attached_to:
                     volume.attached_to.append(machine)
 
     def _create_volume__prepare_args(self, kwargs):
@@ -131,11 +137,13 @@ class OpenstackStorageController(BaseStorageController):
             machine_id = attachment.get('serverId')
             from mist.api.machines.models import Machine
             try:
-                machine = Machine.objects.get(machine_id=machine_id, cloud=self.cloud)
+                machine = Machine.objects.get(machine_id=machine_id,
+                                              cloud=self.cloud)
             except Machine.DoesNotExist:
                 pass
             else:
-                if machine.missing_since == None and machine not in volume.attached_to:
+                if machine.missing_since is None and \
+                   machine not in volume.attached_to:
                     volume.attached_to.append(machine)
 
 

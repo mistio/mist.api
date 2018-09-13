@@ -16,7 +16,8 @@ class StorageController(object):
 
     def attach(self, node, **kwargs):
         """Attach `self.volume` to a node"""
-        return self.cloud.ctl.storage.attach_volume(self.volume, node, **kwargs)
+        return self.cloud.ctl.storage.attach_volume(self.volume, node,
+                                                    **kwargs)
 
     def detach(self, node):
         """Detach `self.volume` from a node"""

@@ -1,7 +1,7 @@
 import uuid
 import mongoengine as me
 
-from mist.api.clouds.models import Cloud, CLOUDS
+from mist.api.clouds.models import Cloud
 from mist.api.tag.models import Tag
 
 from mist.api.machines.models import Machine
@@ -22,7 +22,8 @@ class Volume(OwnershipMixin, me.Document):
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
     cloud = me.ReferenceField(Cloud, required=True)
     owner = me.ReferenceField('Organization')
-    attached_to = me.ListField(me.ReferenceField(Machine, reverse_delete_rule=me.PULL))
+    attached_to = me.ListField(me.ReferenceField(Machine,
+                                                 reverse_delete_rule=me.PULL))
     external_id = me.StringField()
     name = me.StringField()
     size = me.IntField()
@@ -39,7 +40,6 @@ class Volume(OwnershipMixin, me.Document):
     volume_type = me.StringField(choices=('standard', 'gp2', 'io1',
                                           'sc1', 'st1'))
     iops = me.IntField()    # only for 'io1' type
-
 
     meta = {
         'allow_inheritance': True,
@@ -95,7 +95,7 @@ class Volume(OwnershipMixin, me.Document):
         self.owner = self.owner or self.cloud.owner
         # make sure that machines with disk attached aren't missing
         for machine in self.attached_to:
-            if machine.missing_since != None:
+            if machine.missing_since is not None:
                 self.attached_to.pop(machine)
 
     def delete(self):
