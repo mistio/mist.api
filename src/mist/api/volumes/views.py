@@ -2,7 +2,7 @@ import mongoengine as me
 from pyramid.response import Response
 
 from mist.api.clouds.models import Cloud
-from mist.api.volumes.models import Volume, VOLUMES
+from mist.api.volumes.models import Volume
 from mist.api.machines.models import Machine
 
 from mist.api.volumes.methods import filter_list_volumes
@@ -115,7 +115,7 @@ def create_volume(request):
     if not hasattr(cloud.ctl, 'storage'):
         raise NotImplementedError()
 
-    volume = VOLUMES[cloud.ctl.provider].add(cloud=cloud, **params)
+    volume = Volume.add(cloud=cloud, **params)
 
     if tags:
         add_tags_to_resource(auth_context.owner, volume, tags)
