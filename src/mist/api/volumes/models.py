@@ -10,20 +10,6 @@ from mist.api.ownership.mixins import OwnershipMixin
 
 from mist.api.volumes.controllers import StorageController
 
-# Automatically populated mappings of all Volume subclasses,
-# keyed by their provider name.
-VOLUMES = {}
-
-
-def _populate_class_mapping(mapping, class_suffix, base_class):
-    """Populates a dict that matches a provider name with its model class."""
-    for key, value in globals().items():
-        if key.endswith(class_suffix) and key != class_suffix:
-            if issubclass(value, base_class) and value is not base_class:
-                for provider, cls in CLOUDS.items():
-                    if key.replace(class_suffix, '') in repr(cls):
-                        mapping[provider] = value
-
 
 class Volume(OwnershipMixin, me.Document):
     """The basic Volume model.
@@ -46,6 +32,15 @@ class Volume(OwnershipMixin, me.Document):
     extra = me.DictField()
     missing_since = me.DateTimeField()
 
+    # GCE-specific
+    disk_type = me.StringField(choices=('pd-standard', 'pd-ssd'))
+
+    # EC2-specific
+    volume_type = me.StringField(choices=('standard', 'gp2', 'io1',
+                                          'sc1', 'st1'))
+    iops = me.IntField()    # only for 'io1' type
+
+
     meta = {
         'allow_inheritance': True,
         'collection': 'volumes',
@@ -63,9 +58,6 @@ class Volume(OwnershipMixin, me.Document):
         super(Volume, self).__init__(*args, **kwargs)
         # Set `ctl` attribute.
         self.ctl = StorageController(self)
-        # Calculate and store volume type specific fields.
-        self._volume_specific_fields = [field for field in type(self)._fields
-                                        if field not in Volume._fields]
 
     @classmethod
     def add(cls, cloud, name='', id='', **kwargs):
@@ -126,37 +118,13 @@ class Volume(OwnershipMixin, me.Document):
             'tags': self.tags,
             'size': self.size,
             'location': self.location,
-            'attached_to': [m.as_dict() for m in self.attached_to]
+            'attached_to': [m.as_dict() for m in self.attached_to],
+            'disk_type': self.disk_type,
+            'iops': self.iops,
+            'volume_type': self.volume_type
         }
-        volume_dict.update(
-            {key: getattr(self, key) for key in self._volume_specific_fields}
-        )
+
         return volume_dict
 
     def __str__(self):
         return '%s "%s" (%s)' % (self.__class__.__name__, self.name, self.id)
-
-
-class AmazonVolume(Volume):
-    volume_type = me.StringField(choices=('standard', 'gp2', 'io1',
-                                          'sc1', 'st1'))
-    iops = me.IntField()    # only for 'io1' type
-
-
-class AzureVolume(Volume):
-    pass
-
-
-class DigitalOceanVolume(Volume):
-    pass
-
-
-class GoogleVolume(Volume):
-    disk_type = me.StringField(choices=('pd-standard', 'pd-ssd'))
-
-
-class OpenStackVolume(Volume):
-    pass
-
-
-_populate_class_mapping(VOLUMES, 'Volume', Volume)
