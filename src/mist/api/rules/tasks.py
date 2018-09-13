@@ -8,6 +8,7 @@ from mist.api.helpers import rtype_to_classpath
 from mist.api.rules.models import Rule
 from mist.api.rules.models import NoDataRule
 
+from mist.api.exceptions import MistError
 from mist.api.exceptions import CloudUnavailableError
 from mist.api.exceptions import ServiceUnavailableError
 from mist.api.exceptions import MachineUnauthorizedError
@@ -56,7 +57,7 @@ def run_action_by_id(self, rule_id, incident_id, action_id,
 
     """
     rule = Rule.objects.get(id=rule_id)
-    action = rule.get_action(action_id)
+    action = rule.actions.get(id=action_id)
 
     if rule.is_arbitrary():
         resource = None
@@ -69,9 +70,7 @@ def run_action_by_id(self, rule_id, incident_id, action_id,
         action.run(resource, value, triggered, timestamp, incident_id)
     except (ServiceUnavailableError, CloudUnavailableError) as err:
         # Catch errors due to SSH connectivity issues and the cloud provider's
-        # API being unresponsive.
-        log.error('Error running %s: %r', action, err)
-        # Log the failure, if there are no more retries.
+        # API being unresponsive. Log the failure if there are no more retries.
         if self.request.retries >= self.max_retries:
             _log_alert(resource, rule, value, triggered,
                        timestamp, incident_id, error=str(err))
@@ -82,15 +81,16 @@ def run_action_by_id(self, rule_id, incident_id, action_id,
         # exception.
         self.retry(exc=err, countdown=countdown)
     except MachineUnauthorizedError as err:
-        # Catch exception, log it, and re-raise to improve auditing.
-        log.error("Error running %s: %r", action, err)
+        # Catch exception, log it, and re-raise to improve auditing. Re-raising
+        # the exception is important in order to stop the chain's execution.
         _log_alert(resource, rule, value, triggered, timestamp, incident_id,
                    error=str(err))
-        # Re-raising the exception is important in order to stop the chain's
-        # execution.
+        raise
+    except MistError as exc:
+        log.error("Error running %s: %r", action, exc)
+        _log_alert(resource, rule, value, triggered, timestamp, incident_id,
+                   error=str(err))
         raise
     except Exception as exc:
         log.error("Error running %s: %r", action, exc)
-        _log_alert(resource, rule, value, triggered, timestamp, incident_id,
-                   error='%s failed' % action)
         raise

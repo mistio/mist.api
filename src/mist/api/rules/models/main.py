@@ -253,15 +253,6 @@ class Rule(me.Document):
         """
         return celery.schedules.schedule(self.frequency.timedelta)
 
-    def get_action(self, action_id):
-        """Return the action given its UUID.
-
-        If the action does not exist, a me.DoesNotExist exception will be
-        thrown. Exception handling should be taken care of by the caller.
-
-        """
-        return self.actions.get(id=action_id)
-
     def is_arbitrary(self):
         """Return True if self is arbitrary.
 
