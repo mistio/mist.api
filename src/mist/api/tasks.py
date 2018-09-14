@@ -31,6 +31,7 @@ from mist.api.shell import Shell
 from mist.api.users.models import User, Owner, Organization
 from mist.api.clouds.models import Cloud, DockerCloud, CloudLocation, CloudSize
 from mist.api.networks.models import Network
+from mist.api.volumes.models import Volume
 from mist.api.machines.models import Machine
 from mist.api.scripts.models import Script
 from mist.api.schedules.models import Schedule
@@ -828,7 +829,7 @@ class ListStorageAccounts(UserTask):
 def create_machine_async(
     auth_context_serialized, cloud_id, key_id, machine_name, location_id,
     image_id, size, image_extra, disk,
-    image_name, size_name, location_name, ips, monitoring,
+    image_name, size_name, location_name, ips, monitoring, ex_disk_id,
     ex_storage_account, machine_password, ex_resource_group,
     networks, subnetwork, docker_env, docker_command, script='',
     script_id='', script_params='',
@@ -877,7 +878,7 @@ def create_machine_async(
         specs.append((
             (auth_context, cloud_id, key_id, name, location_id, image_id,
              size, image_extra, disk, image_name, size_name,
-             location_name, ips, monitoring, ex_storage_account,
+             location_name, ips, monitoring, ex_disk_id, ex_storage_account,
              machine_password, ex_resource_group, networks, subnetwork,
              docker_env, docker_command, 22, script, script_id, script_params,
              job_id, job),
@@ -1369,7 +1370,7 @@ def gc_schedulers():
 
 @app.task
 def set_missing_since(cloud_id):
-    for Model in (Machine, CloudLocation, CloudSize, Network):
+    for Model in (Machine, CloudLocation, CloudSize, Network, Volume):
         Model.objects(cloud=cloud_id, missing_since=None).update(
             missing_since=datetime.datetime.utcnow()
         )
