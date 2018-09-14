@@ -56,7 +56,7 @@ class RuleState(me.EmbeddedDocument):
     def as_dict(self):
         return {
             'value': self.value,
-            'resource': self.resource,
+            'resource': self.resource or '',
             'firing_since': str(self.firing_since or ''),
             'pending_since': str(self.pending_since or ''),
             'resolved_since': str(self.resolved_since or ''),

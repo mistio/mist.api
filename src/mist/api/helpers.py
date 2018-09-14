@@ -1274,6 +1274,31 @@ def maybe_submit_cloud_task(cloud, task_name):
     return True
 
 
+def is_resource_missing(obj):
+    """Return True if either resource or its parent is missing or has been
+    deleted. Note that `obj` is meant to be a subclass of me.Document."""
+    try:
+        if getattr(obj, 'deleted', None):
+            return True
+        if getattr(obj, 'missing_since', None):
+            return True
+        if getattr(obj, 'cloud', None) and obj.cloud.deleted:
+            return True
+        if getattr(obj, 'zone', None) and obj.zone.missing_since:
+            return True
+        if getattr(obj, 'network', None) and obj.network.missing_since:
+            return True
+    except Exception as exc:
+        try:
+            log.error('Error trying to decide if %s is missing: %r', obj, exc)
+        except Exception as exc:
+            # This extra try/except statement could help catch DBRef errors,
+            # which most likely mean that the resource is indeed missing, as
+            # its related object has already been deleted.
+            log.error('Error trying to display the canonical repr: %r', exc)
+    return False
+
+
 def subscribe_log_events_raw(callback=None, routing_keys=('#')):
     raise NotImplementedError()  # change email to owner.id etc
 
