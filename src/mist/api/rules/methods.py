@@ -1,7 +1,7 @@
 import operator
 import logging
 
-from mist.api.exceptions import NotFoundError
+from mist.api.exceptions import RuleNotFoundError
 from mist.api.rules.tasks import run_action_by_id
 from mist.api.rules.models import Rule
 from mist.api.rules.models import NotificationAction
@@ -10,8 +10,8 @@ from mist.api.rules.models import NotificationAction
 log = logging.getLogger(__name__)
 
 
-def run_chained_actions(rule_id, machine, value, triggered, timestamp,
-                        notification_level, incident_id):
+def run_chained_actions(rule_id, incident_id, resource_id, resource_type,
+                        value, triggered, triggered_now, timestamp):
     """Run a Rule's actions.
 
     Runs actions based on the rule's state. This method will initially check
@@ -32,18 +32,18 @@ def run_chained_actions(rule_id, machine, value, triggered, timestamp,
 
     """
     try:
-        rule = Rule.objects.get(owner_id=machine.owner.id, title=rule_id)
+        rule = Rule.objects.get(id=rule_id)
     except Rule.DoesNotExist:
-        raise NotFoundError()
+        raise RuleNotFoundError()
 
     # If the rule got un-triggered or re-triggered, just send a notification
     # if a NotificationAction has been specified.
-    if not triggered or notification_level > 0:
+    if not (triggered and triggered_now):
         action = rule.actions[0]
         if isinstance(action, NotificationAction):
             run_action_by_id.delay(
-                machine.owner.id, rule_id, action.id, machine.id, value,
-                triggered, timestamp, notification_level, incident_id
+                rule_id, incident_id, action.id, resource_id,
+                resource_type, value, triggered, timestamp,
             )
         return
 
@@ -51,8 +51,8 @@ def run_chained_actions(rule_id, machine, value, triggered, timestamp,
     chain = []
     for action in rule.actions[1:]:
         task = run_action_by_id.si(
-            machine.owner.id, rule_id, action.id, machine.id, value,
-            triggered, timestamp, notification_level, incident_id
+            rule_id, incident_id, action.id, resource_id,
+            resource_type, value, triggered, timestamp,
         )
         chain.append(task)
 
@@ -63,8 +63,8 @@ def run_chained_actions(rule_id, machine, value, triggered, timestamp,
     # Get the task signature of the first action, which was omitted above.
     action = rule.actions[0]
     task = run_action_by_id.si(
-        machine.owner.id, rule_id, action.id, machine.id, value,
-        triggered, timestamp, notification_level, incident_id
+        rule_id, incident_id, action.id, resource_id,
+        resource_type, value, triggered, timestamp,
     )
 
     # Apply all tasks asynchronously. There are 3 scenarios here:

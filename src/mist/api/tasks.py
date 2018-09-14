@@ -338,8 +338,6 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
         tmp_log(repr(exc))
         if str(exc).startswith('Retry'):
             raise
-        notify_user(owner,
-                    "Deployment script failed for machine %s" % machine_id)
         notify_admin("Deployment script failed for machine %s in cloud %s by "
                      "user %s" % (machine_id, cloud_id, str(owner)), repr(exc))
         log_event(
@@ -1328,14 +1326,15 @@ def update_poller(org_id):
             ListNetworksPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
         if config.ACCELERATE_MACHINE_POLLING:
             for machine in cloud.ctl.compute.list_cached_machines():
-                log.info("Updating poller for machine %s", machine)
-                FindCoresMachinePollingSchedule.add(machine=machine,
-                                                    interval=600, ttl=360,
-                                                    run_immediately=False)
-                PingProbeMachinePollingSchedule.add(machine=machine,
-                                                    interval=300, ttl=120)
-                SSHProbeMachinePollingSchedule.add(machine=machine,
-                                                   interval=300, ttl=120)
+                if machine.machine_type != 'container':
+                    log.info("Updating poller for machine %s", machine)
+                    FindCoresMachinePollingSchedule.add(machine=machine,
+                                                        interval=600, ttl=360,
+                                                        run_immediately=False)
+                    PingProbeMachinePollingSchedule.add(machine=machine,
+                                                        interval=300, ttl=120)
+                    SSHProbeMachinePollingSchedule.add(machine=machine,
+                                                       interval=300, ttl=120)
     org.poller_updated = datetime.datetime.now()
     org.save()
 
