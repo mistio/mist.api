@@ -40,6 +40,7 @@ from mist.api.amqp_tornado import Consumer
 from mist.api.clouds.methods import filter_list_clouds
 from mist.api.machines.methods import filter_list_machines, filter_machine_ids
 from mist.api.networks.methods import filter_list_networks
+from mist.api.volumes.methods import filter_list_volumes
 from mist.api.dns.methods import filter_list_zones
 
 from mist.api import tasks
@@ -431,6 +432,13 @@ class MainConnection(MistConnection):
                     {'cloud_id': cloud_id, 'networks': networks}
                 ),
             )
+            self.internal_request(
+                'api/v1/clouds/%s/volumes' % cloud.id,
+                params={'cached': True},
+                callback=lambda volumes, cloud_id=cloud.id: self.send(
+                    'list_volumes', volumes
+                ),
+            )
 
         periodic_tasks.extend([('list_images', tasks.ListImages()),
                                ('list_zones', tasks.ListZones()),
@@ -467,6 +475,7 @@ class MainConnection(MistConnection):
                         if not (cached['networks']['public'] or
                                 cached['networks']['private']):
                             continue
+
                     self.send(key, cached)
 
     def update_notifications(self):
@@ -586,6 +595,14 @@ class MainConnection(MistConnection):
                 )
                 self.send(routing_key, {'cloud_id': cloud_id,
                                         'networks': filtered_networks})
+            elif routing_key == 'list_volumes':
+                volumes = result['volumes']
+                cloud_id = result['cloud_id']
+                filtered_volumes = filter_list_volumes(
+                    self.auth_context, cloud_id, volumes
+                )
+                self.send(routing_key, {'cloud_id': cloud_id,
+                                        'volumes': filtered_volumes})
             else:
                 self.send(routing_key, result)
 

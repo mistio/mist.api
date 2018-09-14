@@ -738,6 +738,11 @@ class GoogleComputeController(BaseComputeController):
                           "for machine %s:%s for %s",
                           machine.id, machine.name, self.cloud)
 
+    def _list_machines__machine_actions(self, machine, machine_libcloud):
+        super(GoogleComputeController,
+              self)._list_machines__machine_actions(machine, machine_libcloud)
+        machine.actions.resize = True
+
     def _list_images__fetch_images(self, search=None):
         images = self.connection.list_images()
         # GCE has some objects in extra so we make sure they are not passed.
@@ -825,6 +830,20 @@ class GoogleComputeController(BaseComputeController):
 
     def _list_sizes__get_cpu(self, size):
         return size.extra.get('guestCpus')
+
+    def _resize_machine(self, machine, machine_libcloud, node_size, kwargs):
+        # instance must be in stopped mode
+        if machine_libcloud.state != NodeState.STOPPED:
+            raise BadRequestError('The instance has to be stopped '
+                                  'in order to be resized')
+        # get size name as returned by libcloud
+        machine_type = node_size.name.split(' ')[0]
+        try:
+            self.connection.ex_set_machine_type(machine_libcloud,
+                                                machine_type)
+            self.connection.ex_start_node(machine_libcloud)
+        except Exception as exc:
+            raise BadRequestError('Failed to resize node: %s' % exc)
 
 
 class HostVirtualComputeController(BaseComputeController):

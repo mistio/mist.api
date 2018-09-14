@@ -1,8 +1,15 @@
 import re
+import sys
 import argparse
 import traceback
 
-from mist.api.scripts.models import CollectdScript
+try:
+    from mist.api.scripts.models import CollectdScript
+except ImportError as err:
+    # Newer versions of mist.io do not have a CollectdScript model anymore.
+    print '\nImport error: %s\n' % err
+    sys.exit(0)
+
 from mist.api.scripts.models import TelegrafScript
 
 
