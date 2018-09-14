@@ -9,7 +9,9 @@ from mist.api.machines.models import Machine
 def parse_args():
     argparser = argparse.ArgumentParser(
         description="Set all machines' monitoring method.")
-    argparser.add_argument('method', choices=config.MONITORING_METHODS,
+    argparser.add_argument('method', nargs='?',
+                           choices=config.MONITORING_METHODS,
+                           default=config.DEFAULT_MONITORING_METHOD,
                            help="Monitoring method to set.")
     return argparser.parse_args()
 

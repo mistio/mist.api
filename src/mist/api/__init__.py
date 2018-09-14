@@ -3,6 +3,7 @@
 import os
 import time
 import logging
+import importlib
 
 from pyramid.config import Configurator
 from pyramid.renderers import JSON
@@ -104,11 +105,21 @@ def main(global_config, **settings):
         configurator.include('mist.%s.add_routes' % plugin)
         configurator.scan('mist.%s' % plugin)
 
-    return mist.api.auth.middleware.AuthMiddleware(
+    app = mist.api.auth.middleware.AuthMiddleware(
         mist.api.auth.middleware.CsrfMiddleware(
             configurator.make_wsgi_app()
         )
     )
+
+    for plugin in config.PLUGINS:
+        try:
+            module = importlib.import_module('mist.%s.middleware' % plugin)
+            for middleware in module.CHAIN:
+                app = middleware(app)
+        except ImportError:
+            pass
+
+    return app
 
 
 def add_routes(configurator):
@@ -123,9 +134,9 @@ def add_routes(configurator):
 
     def valid_ui_section(context, request):
         ui_sections = ['clouds', 'machines', 'images', 'keys', 'scripts',
-                       'templates', 'stacks', 'teams', 'networks', 'tunnels',
-                       'members', 'insights', 'my-account', 'schedules',
-                       'zones']
+                       'templates', 'stacks', 'teams', 'networks', 'volumes',
+                       'tunnels', 'members', 'insights', 'my-account',
+                       'schedules', 'zones']
         landing_sections = ['about', 'product', 'pricing',
                             'sign-up', 'sign-in', 'forgot-password',
                             'error', 'index']
@@ -155,6 +166,8 @@ def add_routes(configurator):
 
     # openapi endpoint
     configurator.add_route('api_v1_spec', '/api/v1/spec')
+
+    configurator.add_route('api_v1_section', '/api/v1/section/{section}')
 
     configurator.add_route('api_v1_avatars', '/api/v1/avatars')
     configurator.add_route('api_v1_avatar', '/api/v1/avatars/{avatar}')
@@ -237,6 +250,15 @@ def add_routes(configurator):
         '/api/v1/clouds/{cloud}/networks/{network}/subnets/{subnet}'
     )
 
+    # Volumes
+    configurator.add_route('api_v1_volumes',
+                           '/api/v1/clouds/{cloud}/volumes')
+    configurator.add_route('api_v1_volume',
+                           '/api/v1/clouds/{cloud}/volumes/{volume}')
+    configurator.add_route(
+        'api_v1_attach_volume',
+        '/api/v1/clouds/{cloud}/volumes/{volume}/machines/{machine}')
+
     configurator.add_route('api_v1_keys', '/api/v1/keys')
     configurator.add_route('api_v1_key_action', '/api/v1/keys/{key}')
     configurator.add_route('api_v1_key_public', '/api/v1/keys/{key}/public')
@@ -248,12 +270,12 @@ def add_routes(configurator):
     configurator.add_route('api_v1_key_association',
                            '/api/v1/machines/{machine_uuid}/keys/{key}')
 
-    # Rules.
+    # Rules
     configurator.add_route('api_v1_rules', '/api/v1/rules')
     configurator.add_route('api_v1_rule', '/api/v1/rules/{rule}')
     configurator.add_route('api_v1_rule_triggered', '/api/v1/rule-triggered')
 
-    # Metering.
+    # Metering
     configurator.add_route('api_v1_metering', '/api/v1/metering')
 
     # Ownership

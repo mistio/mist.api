@@ -236,6 +236,47 @@ class AmazonComputeController(BaseComputeController):
         return '%s - %s' % (size.id, size.name)
 
 
+class AlibabaComputeController(AmazonComputeController):
+
+    def _connect(self):
+        return get_driver(Provider.ALIYUN_ECS)(self.cloud.apikey,
+                                               self.cloud.apisecret,
+                                               region=self.cloud.region)
+
+    def _list_machines__cost_machine(self, machine, machine_libcloud):
+        # TODO
+        return 0, 0
+
+    def _list_images__fetch_images(self, search=None):
+        return self.connection.list_images()
+
+    def image_is_default(self, image_id):
+        return True
+
+
+class ClearAPIComputeController(BaseComputeController):
+
+    def _connect(self):
+        return get_driver(Provider.CLEARAPI)(key=self.cloud.apikey,
+                                             url=self.cloud.url)
+
+    def _list_machines__machine_actions(self, machine, machine_libcloud):
+        super(ClearAPIComputeController, self)._list_machines__machine_actions(
+            machine, machine_libcloud)
+        machine.actions.reboot = False
+        machine.actions.destroy = False
+
+        if machine_libcloud.state is NodeState.RUNNING:
+            machine.actions.stop = True
+            machine.actions.start = False
+        else:
+            machine.actions.start = True
+            machine.actions.stop = False
+
+    def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        machine.machine_type = 'ilo-host'
+
+
 class DigitalOceanComputeController(BaseComputeController):
 
     def _connect(self):
@@ -739,6 +780,11 @@ class GoogleComputeController(BaseComputeController):
         except Subnet.DoesNotExist:
             machine.subnet = None
 
+    def _list_machines__machine_actions(self, machine, machine_libcloud):
+        super(GoogleComputeController,
+              self)._list_machines__machine_actions(machine, machine_libcloud)
+        machine.actions.resize = True
+
     def _list_images__fetch_images(self, search=None):
         images = self.connection.list_images()
         # GCE has some objects in extra so we make sure they are not passed.
@@ -826,6 +872,20 @@ class GoogleComputeController(BaseComputeController):
 
     def _list_sizes__get_cpu(self, size):
         return size.extra.get('guestCpus')
+
+    def _resize_machine(self, machine, machine_libcloud, node_size, kwargs):
+        # instance must be in stopped mode
+        if machine_libcloud.state != NodeState.STOPPED:
+            raise BadRequestError('The instance has to be stopped '
+                                  'in order to be resized')
+        # get size name as returned by libcloud
+        machine_type = node_size.name.split(' ')[0]
+        try:
+            self.connection.ex_set_machine_type(machine_libcloud,
+                                                machine_type)
+            self.connection.ex_start_node(machine_libcloud)
+        except Exception as exc:
+            raise BadRequestError('Failed to resize node: %s' % exc)
 
 
 class HostVirtualComputeController(BaseComputeController):
@@ -940,6 +1000,9 @@ class VCloudComputeController(BaseComputeController):
         if machine_libcloud.state is NodeState.PENDING:
             machine.actions.start = True
             machine.actions.stop = True
+
+    def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        machine.os_type = machine.extra.get('os_type')
 
 
 class OpenStackComputeController(BaseComputeController):

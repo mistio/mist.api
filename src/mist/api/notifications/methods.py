@@ -6,48 +6,58 @@ from chameleon import PageTemplateFile
 from mist.api.rules.models import Rule
 from mist.api.users.models import User
 
-from mist.api.machines.models import Machine
-
 from mist.api.notifications.models import EmailAlert
 from mist.api.notifications.models import InAppRecommendation
 
 from mist.api.notifications.helpers import _log_alert
-from mist.api.notifications.helpers import _alert_pretty_details
+from mist.api.notifications.helpers import _get_alert_details
 
 
 log = logging.getLogger(__name__)
 
 
-# TODO: Shouldn't be specific to machines. Should pass in a (resource_type,
-# resource_id) tuple in order to fetch the corresponding mongoengine object
-# and the verify ownership.
-def send_alert_email(owner, rule_id, value, triggered, timestamp, incident_id,
-                     emails, cloud_id, machine_id, action=''):
-    """Notify owner that alert was triggered.
+def send_alert_email(rule, resource, incident_id, value, triggered, timestamp,
+                     emails, action=''):
+    """Send an alert e-mail to notify users that a rule was triggered.
 
-    params:
-        owner: The owner object of the owner whose alert is being triggered.
-        rule_id: The id of the rule triggered. None if it's a dummy rule.
-        value: The current value of the rules metric. None if no data alert.
-        cloud_id, machine_id: Required iff rule_id is None.
-        action: Optional, will override the action string sent by email
-        trigger: Not sure what this is, but it sure is required.
+    Arguments:
+
+        rule:        The mist.api.rules.models.Rule instance that got
+                     triggered.
+        resource:    The resource for which the rule got triggered.
+                     For a subclass of `ResourceRule` his has to be a
+                     `me.Document` subclass. If the rule is arbitrary,
+                     then this argument must be set to None.
+        incident_id: The UUID of the incident. Each new incident gets
+                     assigned a UUID.
+        value:       The value yielded by the rule's evaluation. This
+                     is the value that's exceeded the given threshold.
+        triggered:   True, if the rule has been triggered. Otherwise,
+                     False.
+        timestamp:   The UNIX timestamp at which the state of the rule
+                     changed, went from triggered to un-triggered or
+                     vice versa.
+        emails:      A list of e-mails to push notifications to.
+        action:      An optional action to replace the default "alert".
+
+    Note that alerts aren't sent out every time a rule gets triggered,
+    rather they obey the `EmailAlert.reminder_schedule` schedule that
+    denotes how often an e-mail may be sent.
+
     """
-    # Get rule.
-    rule = Rule.objects.get(id=rule_id, owner_id=owner.id)
+    assert isinstance(rule, Rule), type(rule)
+    assert resource or rule.is_arbitrary(), type(resource)
 
-    # Get resource. FIXME: Shouldn't be specific to machines.
-    machine = Machine.objects.get(owner=owner, machine_id=machine_id)
-
-    # FIXME: This should be deprecated and replaced with a more generic one.
-    info = _alert_pretty_details(owner, rule.title, value, triggered,
-                                 timestamp, cloud_id, machine_id, action)
+    # Get dict with alert details.
+    info = _get_alert_details(resource, rule, incident_id, value,
+                              triggered, timestamp, action)
 
     # Create a new EmailAlert if the alert has just been triggered.
     try:
-        alert = EmailAlert.objects.get(owner=owner, incident_id=incident_id)
+        alert = EmailAlert.objects.get(owner=rule.owner_id,
+                                       incident_id=incident_id)
     except EmailAlert.DoesNotExist:
-        alert = EmailAlert(owner=owner, incident_id=incident_id)
+        alert = EmailAlert(owner=rule.owner, incident_id=incident_id)
         # Allows unsubscription from alerts on a per-rule basis.
         alert.rid = rule.id
         alert.rtype = 'rule'
@@ -62,7 +72,7 @@ def send_alert_email(owner, rule_id, value, triggered, timestamp, incident_id,
 
     # Check whether an alert has to be sent in case of a (re)triggered rule.
     if triggered and not alert.is_due():
-        log.debug('Alert for %s is due in %s', rule, alert.due_in())
+        log.info('Alert for %s is due in %s', rule, alert.due_in())
         return
 
     # Create the e-mail body.
@@ -89,12 +99,10 @@ def send_alert_email(owner, rule_id, value, triggered, timestamp, incident_id,
     else:
         alert.delete()
 
-    # Log (un)triggered alert. FIXME Needs to be able to log event for a
-    # variety of resource, not just machines. Replace `title` with `rule.id`.
+    # Log (un)triggered alert.
     if skip_log is False:
-        _log_alert(machine.owner, rule.title, value, triggered, timestamp,
-                   incident_id, cloud_id=machine.cloud.id,
-                   machine_id=machine.machine_id)
+        _log_alert(resource, rule, value, triggered, timestamp, incident_id,
+                   action)
 
 
 def dismiss_scale_notifications(machine, feedback='NEUTRAL'):

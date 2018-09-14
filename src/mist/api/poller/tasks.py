@@ -69,6 +69,15 @@ def list_networks(schedule_id):
     sched.cloud.ctl.network.list_networks(persist=False)
 
 
+@app.task(time_limit=60, soft_time_limit=55)
+def list_volumes(schedule_id):
+    """Perform list volumes. Cloud controller stores results in mongodb."""
+
+    from mist.api.poller.models import ListVolumesPollingSchedule
+    sched = ListVolumesPollingSchedule.objects.get(id=schedule_id)
+    sched.cloud.ctl.storage.list_volumes(persist=False)
+
+
 @app.task(time_limit=45, soft_time_limit=40)
 def ping_probe(schedule_id):
     """Perform ping probe"""
@@ -78,7 +87,9 @@ def ping_probe(schedule_id):
     from mist.api.poller.models import PingProbeMachinePollingSchedule
     sched = PingProbeMachinePollingSchedule.objects.get(id=schedule_id)
     try:
-        sched.machine.ctl.ping_probe(persist=False)
+        if sched.machine.state not in ['stopped', 'error'] \
+                and sched.machine.machine_type != 'container':
+            sched.machine.ctl.ping_probe(persist=False)
     except Exception as exc:
         log.error("Error while ping-probing %s: %r", sched.machine, exc)
 
@@ -92,6 +103,8 @@ def ssh_probe(schedule_id):
     from mist.api.poller.models import SSHProbeMachinePollingSchedule
     sched = SSHProbeMachinePollingSchedule.objects.get(id=schedule_id)
     try:
-        sched.machine.ctl.ssh_probe(persist=False)
+        if sched.machine.state not in ['stopped', 'error'] \
+                and sched.machine.machine_type != 'container':
+            sched.machine.ctl.ssh_probe(persist=False)
     except Exception as exc:
         log.error("Error while ssh-probing %s: %r", sched.machine, exc)

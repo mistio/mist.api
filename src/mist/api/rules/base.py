@@ -18,14 +18,9 @@ from mist.api.rules.models import QueryCondition
 from mist.api.rules.models import ACTIONS
 from mist.api.rules.models import NoDataAction
 
-from mist.api.rules.plugins import GraphiteNoDataPlugin
-from mist.api.rules.plugins import GraphiteBackendPlugin
-from mist.api.rules.plugins import InfluxDBNoDataPlugin
-from mist.api.rules.plugins import InfluxDBBackendPlugin
-
 from mist.api.conditions.models import FieldCondition
 from mist.api.conditions.models import TaggingCondition
-from mist.api.conditions.models import MachinesCondition
+from mist.api.conditions.models import GenericResourceCondition
 
 if config.HAS_RBAC:
     from mist.rbac.methods import AuthContext
@@ -38,7 +33,8 @@ log = logging.getLogger(__name__)
 
 CONDITIONS = {
     'tags': TaggingCondition,
-    'machines': MachinesCondition,
+    'machines': GenericResourceCondition,  # FIXME For backwards compatibility.
+    'resources': GenericResourceCondition,
 }
 
 
@@ -182,7 +178,7 @@ class BaseController(object):
             self.rule._backend_plugin.validate(self.rule)
         except AssertionError as err:
             log.error('%s: %r', type(self.rule._backend_plugin), err)
-            raise BadRequestError('Validation failed for %s' % self.rule)
+            raise BadRequestError('%s is invalid: %s' % (self.rule, err))
 
         # Attempt to save self.rule.
         try:
@@ -289,10 +285,9 @@ class ArbitraryRuleController(BaseController):
 
 class ResourceRuleController(BaseController):
 
-    @property
-    def plugins(self):
-        return {'graphite': GraphiteBackendPlugin,
-                'influxdb': InfluxDBBackendPlugin}
+    def add(self, fail_on_error=True, **kwargs):
+        self.rule.resource_model_name = kwargs.pop('resource_type', None)
+        super(ResourceRuleController, self).add(fail_on_error, **kwargs)
 
     def update(self, fail_on_error=True, **kwargs):
         if 'selectors' in kwargs:
@@ -307,24 +302,6 @@ class ResourceRuleController(BaseController):
         super(ResourceRuleController, self).update(
             fail_on_error=fail_on_error, **kwargs)
 
-    def evaluate(self, update_state=False, trigger_actions=False):
-        if config.CILIA_MULTI:
-            graphite_ids, influxdb_ids = [], []
-            for machine in self.rule.get_resources():
-                if machine.monitoring.method.endswith('graphite'):
-                    graphite_ids.append(machine.id)
-                elif machine.monitoring.method.endswith('influxdb'):
-                    influxdb_ids.append(machine.id)
-            if graphite_ids:
-                plugin = self.plugins['graphite'](self.rule, graphite_ids)
-                plugin.run(update_state, trigger_actions)
-            if influxdb_ids:
-                plugin = self.plugins['influxdb'](self.rule, influxdb_ids)
-                plugin.run(update_state, trigger_actions)
-        else:
-            super(ResourceRuleController, self).evaluate(update_state,
-                                                         trigger_actions)
-
     def maybe_remove(self, resource):
         # The rule does not refer to resources of the given type.
         if not isinstance(resource, self.rule.condition_resource_cls):
@@ -333,7 +310,7 @@ class ResourceRuleController(BaseController):
         # Attempt to remove `resource` from any of the rule's conditions,
         # if `resource` is explicitly specified by its UUID.
         for condition in self.rule.conditions:
-            if isinstance(condition, MachinesCondition):
+            if isinstance(condition, GenericResourceCondition):
                 for i, rid in enumerate(condition.ids):
                     if rid == resource.id:
                         log.info('Removing %s from %s', resource, self.rule)
@@ -352,7 +329,7 @@ class ResourceRuleController(BaseController):
             return False
 
         # The rule does not refer to resources by their UUID.
-        if not isinstance(self.rule.conditions[0], MachinesCondition):
+        if not isinstance(self.rule.conditions[0], GenericResourceCondition):
             return False
 
         # The rule refers to multiple resources.
@@ -372,25 +349,24 @@ class ResourceRuleController(BaseController):
         if not self.rule.conditions:
             raise UnauthorizedError('Only Owners may edit global rules')
         for condition in self.rule.conditions:
-            # TODO Permissions checking shouldn't be limited to machines.
-            if not isinstance(condition, MachinesCondition):
+            if not isinstance(condition, GenericResourceCondition):
                 raise UnauthorizedError('Only Owners may edit rules on tags')
             for mid in condition.ids:
                 try:
                     Model = self.rule.condition_resource_cls
                     m = Model.objects.get(id=mid, owner=self.rule.owner_id)
                 except Model.DoesNotExist:
-                    raise NotFoundError(mid)
-                self.auth_context.check_perm('cloud', 'read', m.cloud.id)
-                self.auth_context.check_perm('machine', 'edit_rules', m.id)
+                    raise NotFoundError('%s %s' % (Model, mid))
+                read_perm = (
+                    'read' if self.rule._data_type_str == 'metrics' else
+                    'read_logs'  # For rules on logs.
+                )
+                for perm in (read_perm, 'edit_rules'):
+                    self.auth_context.check_perm(self.resource_model_namem,
+                                                 perm, m.id)
 
 
 class NoDataRuleController(ResourceRuleController):
-
-    @property
-    def plugins(self):
-        return {'graphite': GraphiteNoDataPlugin,
-                'influxdb': InfluxDBNoDataPlugin}
 
     def update(self, fail_on_error=True, **kwargs):
         raise BadRequestError('NoData rules may not be editted')
@@ -407,13 +383,9 @@ class NoDataRuleController(ResourceRuleController):
     def auto_setup(self, backend='graphite'):
         """Idempotently setup a NoDataRule."""
         assert backend in ('graphite', 'influxdb')
-        assert backend != 'graphite' or config.HAS_CORE
 
         # The rule's title. There should be a single NoDataRule per Org.
-        title = 'NoData'
-        if config.HAS_CORE and config.CILIA_MULTI and backend == 'influxdb':
-            title = backend.capitalize() + title
-        self.rule.title = title
+        self.rule.title = 'NoData'
 
         # The list of query conditions to evaluate. If at least one of
         # the following metrics returns non-None datapoints, the rule
@@ -450,23 +422,5 @@ class NoDataRuleController(ResourceRuleController):
                 operator='gt', value=0
             )
         ]
-        # In case of a multi-monitoring setup with both Graphite and InfluxDB,
-        # no-data checks are split into two discrete rules, each corresponding
-        # to a monitoring method, as defined by `machine.monitoring.method`.
-        if config.HAS_CORE and config.CILIA_MULTI:
-            if backend == 'graphite':
-                self.rule.conditions.append(
-                    FieldCondition(
-                        field='monitoring__method',
-                        operator='ne', value='telegraf-influxdb'
-                    )
-                )
-            if backend == 'influxdb':
-                self.rule.conditions.append(
-                    FieldCondition(
-                        field='monitoring__method',
-                        operator='eq', value='telegraf-influxdb'
-                    )
-                )
 
         self.rule.save()

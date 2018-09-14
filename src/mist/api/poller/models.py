@@ -307,6 +307,15 @@ class ListNetworksPollingSchedule(CloudPollingSchedule):
                 hasattr(self.cloud.ctl, 'network'))
 
 
+class ListVolumesPollingSchedule(CloudPollingSchedule):
+
+    task = 'mist.api.poller.tasks.list_volumes'
+
+    def enabled(self):
+        return (super(ListVolumesPollingSchedule, self).enabled and
+                hasattr(self.cloud.ctl, 'volume'))
+
+
 class MachinePollingSchedule(PollingSchedule):
 
     machine_id = me.StringField(required=True)

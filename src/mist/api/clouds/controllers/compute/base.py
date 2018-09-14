@@ -82,7 +82,7 @@ def _decide_machine_cost(machine, tags=None, cost=(0, 0)):
 
     # Get machine tags from db
     tags = tags or {tag.key: tag.value for tag in Tag.objects(
-        owner=machine.cloud.owner, resource=machine,
+        resource=machine,
     )}
 
     try:

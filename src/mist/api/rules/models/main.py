@@ -7,7 +7,6 @@ from mist.api import config
 from mist.api.exceptions import BadRequestError
 
 from mist.api.users.models import Organization
-from mist.api.machines.models import Machine
 from mist.api.conditions.models import ConditionalClassMixin
 
 from mist.api.rules.base import NoDataRuleController
@@ -25,6 +24,7 @@ from mist.api.rules.plugins import GraphiteNoDataPlugin
 from mist.api.rules.plugins import GraphiteBackendPlugin
 from mist.api.rules.plugins import InfluxDBNoDataPlugin
 from mist.api.rules.plugins import InfluxDBBackendPlugin
+from mist.api.rules.plugins import ElasticSearchBackendPlugin
 
 
 class Rule(me.Document):
@@ -125,6 +125,7 @@ class Rule(me.Document):
 
     _controller_cls = None
     _backend_plugin = None
+    _data_type_str = None
 
     def __init__(self, *args, **kwargs):
         super(Rule, self).__init__(*args, **kwargs)
@@ -141,6 +142,14 @@ class Rule(me.Document):
                 "Cannot instantiate self. %s does not define a backend_plugin "
                 "in order to evaluate rules against the corresponding backend "
                 "storage." % self.__class__.__name__
+            )
+        if self._data_type_str not in ('metrics', 'logs', ):
+            raise TypeError(
+                "Cannot instantiate self. %s is a base class and cannot be "
+                "used to insert or update rules. Use a subclass of self that "
+                "defines a `_backend_plugin` class attribute, as well as the "
+                "requested data's type via the `_data_type_str` attribute, "
+                "instead." % self.__class__.__name__
             )
         self.ctl = self._controller_cls(self)
 
@@ -244,15 +253,6 @@ class Rule(me.Document):
         """
         return celery.schedules.schedule(self.frequency.timedelta)
 
-    def get_action(self, action_id):
-        """Return the action given its UUID.
-
-        If the action does not exist, a me.DoesNotExist exception will be
-        thrown. Exception handling should be taken care of by the caller.
-
-        """
-        return self.actions.get(id=action_id)
-
     def is_arbitrary(self):
         """Return True if self is arbitrary.
 
@@ -281,6 +281,7 @@ class Rule(me.Document):
             'trigger_after': self.trigger_after.as_dict(),
             'actions': [action.as_dict() for action in self.actions],
             'disabled': self.disabled,
+            'data_type': self._data_type_str,
         }
 
     def __str__(self):
@@ -328,9 +329,16 @@ class ResourceRule(Rule, ConditionalClassMixin):
         return (super(ResourceRule, self).enabled and
                 bool(self.get_resources().count()))
 
+    def clean(self):
+        # Enforce singular resource types for uniformity.
+        if self.resource_model_name.endswith('s'):
+            self.resource_model_name = self.resource_model_name[:-1]
+        super(ResourceRule, self).clean()
+
     def as_dict(self):
         d = super(ResourceRule, self).as_dict()
         d['selectors'] = [cond.as_dict() for cond in self.conditions]
+        d['resource_type'] = self.resource_model_name
         return d
 
     # FIXME All following properties are for backwards compatibility.
@@ -372,12 +380,22 @@ class ResourceRule(Rule, ConditionalClassMixin):
 
 class MachineMetricRule(ResourceRule):
 
-    condition_resource_cls = Machine
+    _data_type_str = 'metrics'
 
     @property
     def _backend_plugin(self):
-        return (GraphiteBackendPlugin if config.HAS_CORE else
-                InfluxDBBackendPlugin)
+        if config.DEFAULT_MONITORING_METHOD.endswith('-graphite'):
+            return GraphiteBackendPlugin
+        if config.DEFAULT_MONITORING_METHOD.endswith('-influxdb'):
+            return InfluxDBBackendPlugin
+        raise Exception()
+
+    def clean(self):
+        super(MachineMetricRule, self).clean()
+        if self.resource_model_name != 'machine':
+            raise me.ValidationError(
+                'Invalid resource type "%s". %s can only operate on machines' %
+                (self.resource_model_name, self.__class__.__name__))
 
 
 class NoDataRule(MachineMetricRule):
@@ -386,8 +404,11 @@ class NoDataRule(MachineMetricRule):
 
     @property
     def _backend_plugin(self):
-        return (GraphiteNoDataPlugin if config.HAS_CORE else
-                InfluxDBNoDataPlugin)
+        if config.DEFAULT_MONITORING_METHOD.endswith('-graphite'):
+            return GraphiteNoDataPlugin
+        if config.DEFAULT_MONITORING_METHOD.endswith('-influxdb'):
+            return InfluxDBNoDataPlugin
+        raise Exception()
 
     # FIXME All following properties are for backwards compatibility.
     # However, this rule is not meant to match any queries, but to be
@@ -416,3 +437,65 @@ class NoDataRule(MachineMetricRule):
     @property
     def action(self):
         return ''
+
+
+class ResourceLogsRule(ResourceRule):
+
+    _data_type_str = 'logs'
+    _backend_plugin = ElasticSearchBackendPlugin
+
+    def clean(self):
+        super(ResourceLogsRule, self).clean()
+        if not (
+            len(self.actions) is 1 and
+            isinstance(self.actions[0], NotificationAction)
+        ):
+            raise me.ValidationError('Only a single notification action may '
+                                     'be performed by this type of rule')
+
+
+class ArbitraryLogsRule(ArbitraryRule):
+
+    _data_type_str = 'logs'
+    _backend_plugin = ElasticSearchBackendPlugin
+
+    def clean(self):
+        super(ArbitraryLogsRule, self).clean()
+        if not (
+            len(self.actions) is 1 and
+            isinstance(self.actions[0], NotificationAction)
+        ):
+            raise me.ValidationError('Only a single notification action may '
+                                     'be performed by this type of rule')
+
+
+def _populate_rules():
+    """Populate RULES with mappings from rule type to rule subclass.
+
+    RULES is a mapping (dict) from rule types to subclasses of Rule.
+    A rule's type is the concat of two strings: <str1>-<str2>, where
+    str1 denotes whether the rule is arbitrary or not and str2 equals
+    the `_data_type_str` class attribute of the rule, which is simply
+    the type of the requesting data, like logs or monitoring metrics.
+
+    The aforementioned concatenation is simply a way to categorize a
+    rule, such as saying a rule on arbitrary logs or a resource-bound
+    rule referring to the monitoring data of machine A.
+
+    """
+    public_rule_map = {}
+    hidden_rule_cls = (ArbitraryRule, ResourceRule, NoDataRule, )
+    for key, value in globals().items():
+        if not key.endswith('Rule'):
+            continue
+        if value in hidden_rule_cls:
+            continue
+        if not issubclass(value, (ArbitraryRule, ResourceRule, )):
+            continue
+        str1 = 'resource' if issubclass(value, ResourceRule) else 'arbitrary'
+        rule_key = '%s-%s' % (str1, value._data_type_str)
+        public_rule_map[rule_key] = value
+    return public_rule_map
+
+
+RULES = _populate_rules()
