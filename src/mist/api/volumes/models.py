@@ -116,7 +116,7 @@ class Volume(OwnershipMixin, me.Document):
             'owner': self.owner,
             'state': self.state,
             'tags': self.tags,
-            'size': self.size,
+            'size': int(self.size),
             'location': self.location,
             'attached_to': [m.as_dict() for m in self.attached_to],
             'disk_type': self.disk_type,
