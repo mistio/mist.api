@@ -9,7 +9,9 @@ class MistDictField(me.DictField):
 
 
 def escape_dots_and_dollars_from_dict(value):
-    if not isinstance(value, dict):
+    if isinstance(value, list):
+        return [escape_dots_and_dollars_from_dict(v) for v in value]
+    elif not isinstance(value, dict):
         return value
     for key in list(value.keys()):
         k = key.replace('.', '_').replace('$', '_')
