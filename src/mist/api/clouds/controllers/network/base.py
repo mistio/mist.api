@@ -19,10 +19,6 @@ from requests import ConnectionError
 
 import mist.api.exceptions
 
-from amqp.connection import Connection
-
-from mist.api import config
-
 from mist.api.clouds.utils import LibcloudExceptionHandler
 from mist.api.clouds.controllers.base import BaseController
 
@@ -248,8 +244,6 @@ class BaseNetworkController(BaseController):
 
             networks = self._list_networks()
 
-        # Initialize AMQP connection to reuse for multiple messages.
-        amqp_conn = Connection(config.AMQP_URI)
         if amqp_owner_listening(self.cloud.owner.id):
             networks_dict = [n.as_dict() for n in networks]
             if cached_networks and networks_dict:
@@ -260,7 +254,6 @@ class BaseNetworkController(BaseController):
                 if patch:
                     amqp_publish_user(self.cloud.owner.id,
                                       routing_key='patch_networks',
-                                      connection=amqp_conn,
                                       data={'cloud_id': self.cloud.id,
                                             'patch': patch})
             else:
@@ -268,7 +261,6 @@ class BaseNetworkController(BaseController):
                 # are implemented in the UI
                 amqp_publish_user(self.cloud.owner.id,
                                   routing_key='list_networks',
-                                  connection=amqp_conn,
                                   data={'cloud_id': self.cloud.id,
                                         'networks': networks_dict})
         return networks
