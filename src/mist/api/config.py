@@ -867,17 +867,22 @@ USE_EXTERNAL_AUTHENTICATION = False
 
 # celery settings
 CELERY_SETTINGS = {
-    'BROKER_URL': BROKER_URL,
-    'CELERY_TASK_SERIALIZER': 'json',
-    'CELERYD_LOG_FORMAT': PY_LOG_FORMAT,
-    'CELERYD_TASK_LOG_FORMAT': PY_LOG_FORMAT,
-    'CELERYD_CONCURRENCY': 8,
-    'CELERYD_MAX_TASKS_PER_CHILD': 32,
-    'CELERYD_MAX_MEMORY_PER_CHILD': 204800,  # 20480 KiB - 200 MiB
-    'CELERY_MONGODB_SCHEDULER_DB': 'mist2',
-    'CELERY_MONGODB_SCHEDULER_COLLECTION': 'schedules',
-    'CELERY_MONGODB_SCHEDULER_URL': MONGO_URI,
-    'CELERY_ROUTES': {
+    'broker_url': BROKER_URL,
+    # Disable heartbeats because celery workers & beat fail to actually send
+    # them and the connection dies.
+    'broker_heartbeat': 0,
+    'task_serializer': 'json',
+    # Disable custom log format because we miss out on worker/task specific
+    # metadata.
+    # 'worker_log_format': PY_LOG_FORMAT,
+    # 'worker_task_log_format': PY_LOG_FORMAT,
+    'worker_concurrency': 8,
+    'worker_max_tasks_per_child': 32,
+    'worker_max_memory_per_child': 204800,  # 204800 KiB - 200 MiB
+    'mongodb_scheduler_db': 'mist2',
+    'mongodb_scheduler_collection': 'schedules',
+    'mongodb_scheduler_url': MONGO_URI,
+    'task_routes': {
 
         # Command queue
         'mist.api.tasks.ssh_command': {'queue': 'command'},
@@ -904,8 +909,8 @@ CELERY_SETTINGS = {
         'mist.api.rules.tasks.evaluate': {'queue': 'rules'},
 
         # Core tasks
-        'mist.cloudify_insights.tasks.list_deployments':
-        {'queue': 'deployments'},
+        'mist.cloudify_insights.tasks.list_deployments': {
+            'queue': 'deployments'},
         'mist.rbac.tasks.update_mappings': {'queue': 'mappings'},
         'mist.rbac.tasks.remove_mappings': {'queue': 'mappings'},
     },
@@ -1721,10 +1726,12 @@ if not TELEGRAF_TARGET:
 
 # Update celery settings.
 CELERY_SETTINGS.update({
-    'BROKER_URL': BROKER_URL,
-    'CELERY_MONGODB_SCHEDULER_URL': MONGO_URI,
-    'CELERYD_LOG_FORMAT': PY_LOG_FORMAT,
-    'CELERYD_TASK_LOG_FORMAT': PY_LOG_FORMAT,
+    'broker_url': BROKER_URL,
+    'mongodb_scheduler_url': MONGO_URI,
+    # Disable custom log format because we miss out on worker/task specific
+    # metadata.
+    # 'worker_log_format': PY_LOG_FORMAT,
+    # 'worker_task_log_format': PY_LOG_FORMAT,
 })
 _schedule = {}
 if VERSION_CHECK:
@@ -1751,7 +1758,7 @@ if ENABLE_MONITORING:
     }
 
 if _schedule:
-    CELERY_SETTINGS.update({'CELERYBEAT_SCHEDULE': _schedule})
+    CELERY_SETTINGS.update({'beat_schedule': _schedule})
 
 
 # Configure libcloud to not verify certain hosts.

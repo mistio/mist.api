@@ -9,10 +9,6 @@ from requests import ConnectionError
 
 import mist.api.exceptions
 
-from amqp.connection import Connection
-
-from mist.api import config
-
 from mist.api.clouds.utils import LibcloudExceptionHandler
 from mist.api.clouds.controllers.base import BaseController
 
@@ -84,8 +80,6 @@ class BaseStorageController(BaseController):
 
             volumes = self._list_volumes()
 
-        # Initialize AMQP connection to reuse for multiple messages.
-        amqp_conn = Connection(config.AMQP_URI)
         if amqp_owner_listening(self.cloud.owner.id):
             volumes_dict = [v.as_dict() for v in volumes]
             if cached_volumes and volumes_dict:
@@ -96,7 +90,6 @@ class BaseStorageController(BaseController):
                 if patch:
                     amqp_publish_user(self.cloud.owner.id,
                                       routing_key='patch_volumes',
-                                      connection=amqp_conn,
                                       data={'cloud_id': self.cloud.id,
                                             'patch': patch})
             # FIXME: remove this block, once patches
@@ -104,7 +97,6 @@ class BaseStorageController(BaseController):
             else:
                 amqp_publish_user(self.cloud.owner.id,
                                   routing_key='list_volumes',
-                                  connection=amqp_conn,
                                   data={'cloud_id': self.cloud.id,
                                         'volumes': volumes_dict})
         return volumes
