@@ -31,6 +31,7 @@ from mist.api.users.models import User, Owner, Organization
 from mist.api.clouds.models import Cloud, DockerCloud, CloudLocation, CloudSize
 from mist.api.networks.models import Network
 from mist.api.dns.models import Zone
+from mist.api.volumes.models import Volume
 from mist.api.machines.models import Machine
 from mist.api.scripts.models import Script
 from mist.api.schedules.models import Schedule
@@ -338,8 +339,6 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
         tmp_log(repr(exc))
         if str(exc).startswith('Retry'):
             raise
-        notify_user(owner,
-                    "Deployment script failed for machine %s" % machine_id)
         notify_admin("Deployment script failed for machine %s in cloud %s by "
                      "user %s" % (machine_id, cloud_id, str(owner)), repr(exc))
         log_event(
@@ -804,7 +803,7 @@ class ListStorageAccounts(UserTask):
 def create_machine_async(
     auth_context_serialized, cloud_id, key_id, machine_name, location_id,
     image_id, size, image_extra, disk,
-    image_name, size_name, location_name, ips, monitoring,
+    image_name, size_name, location_name, ips, monitoring, ex_disk_id,
     ex_storage_account, machine_password, ex_resource_group,
     networks, subnetwork, docker_env, docker_command, script='',
     script_id='', script_params='',
@@ -853,7 +852,7 @@ def create_machine_async(
         specs.append((
             (auth_context, cloud_id, key_id, name, location_id, image_id,
              size, image_extra, disk, image_name, size_name,
-             location_name, ips, monitoring, ex_storage_account,
+             location_name, ips, monitoring, ex_disk_id, ex_storage_account,
              machine_password, ex_resource_group, networks, subnetwork,
              docker_env, docker_command, 22, script, script_id, script_params,
              job_id, job),
@@ -1303,14 +1302,15 @@ def update_poller(org_id):
             ListZonesPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
         if config.ACCELERATE_MACHINE_POLLING:
             for machine in cloud.ctl.compute.list_cached_machines():
-                log.info("Updating poller for machine %s", machine)
-                FindCoresMachinePollingSchedule.add(machine=machine,
-                                                    interval=600, ttl=360,
-                                                    run_immediately=False)
-                PingProbeMachinePollingSchedule.add(machine=machine,
-                                                    interval=300, ttl=120)
-                SSHProbeMachinePollingSchedule.add(machine=machine,
-                                                   interval=300, ttl=120)
+                if machine.machine_type != 'container':
+                    log.info("Updating poller for machine %s", machine)
+                    FindCoresMachinePollingSchedule.add(machine=machine,
+                                                        interval=600, ttl=360,
+                                                        run_immediately=False)
+                    PingProbeMachinePollingSchedule.add(machine=machine,
+                                                        interval=300, ttl=120)
+                    SSHProbeMachinePollingSchedule.add(machine=machine,
+                                                       interval=300, ttl=120)
     org.poller_updated = datetime.datetime.now()
     org.save()
 
@@ -1346,7 +1346,7 @@ def gc_schedulers():
 
 @app.task
 def set_missing_since(cloud_id):
-    for Model in (Machine, CloudLocation, CloudSize, Network, Zone):
+    for Model in (Machine, CloudLocation, CloudSize, Network, Volume, Zone):
         Model.objects(cloud=cloud_id, missing_since=None).update(
             missing_since=datetime.datetime.utcnow()
         )

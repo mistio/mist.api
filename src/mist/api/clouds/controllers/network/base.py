@@ -57,7 +57,7 @@ class BaseNetworkController(BaseController):
     In the `BaseNetworkController`, these public methods will contain all steps
     for network object management which are common to all cloud types.In almost
     all cases, subclasses SHOULD NOT override or extend the public methods of
-    `BaseComputeController`. To account for cloud/subclass specific behaviour,
+    `BaseNetworkController`. To account for cloud/subclass specific behaviour,
     one is expected to override the internal/private methods of the
     `BaseNetworkController`.
 
