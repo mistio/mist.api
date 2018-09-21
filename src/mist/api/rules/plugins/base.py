@@ -44,6 +44,7 @@ class BaseBackendPlugin(object):
         self.rids = rids
         if self.rids is None:
             self.rids = rule.get_ids() if not rule.is_arbitrary() else [None]
+        self.rtype = None if rule.is_arbitrary() else rule.resource_model_name
 
     def run(self, update_state=False, trigger_actions=False):
         """Run a single evaluation cycle.
@@ -159,7 +160,8 @@ class BaseBackendPlugin(object):
                 if offset.total_seconds() < elapsed.total_seconds():
                     state.firing_since = datetime.datetime.utcnow()
 
-        log.info("%s's %s for resource %s", self.rule.name, state or 'OK', rid)
+        log.info("%s %s for %s %s", self.rule.name, state or 'OK', self.rtype,
+                 rid)
 
         if state and not state.is_pending() and trigger_actions is True:
             self.trigger(triggered, incident, state)

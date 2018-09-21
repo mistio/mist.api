@@ -160,11 +160,12 @@ def add_cloud(request):
       - hostvirtual
       - vultr
       - clearcenter
+      - aliyun_ecs
       required: true
       type: string
     region:
       type: string
-      description: Required for Ec2, Rackspace. Optional for Openstack
+      description: Required for Ec2, Alibaba, Rackspace. Optional for Openstack
     remove_on_error:
       type: string
     secret:

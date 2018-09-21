@@ -606,11 +606,3 @@ def create_dns_a_record(owner, domain_name, ip_addr):
         raise MistError(msg + " failed: %r" % repr(exc))
     log.info(msg + " succeeded.")
     return record
-
-
-# FIXME DEPRECATED
-def rule_triggered(machine, rule_id, value, triggered, timestamp,
-                   notification_level, incident_id):
-    from mist.api.rules.methods import run_chained_actions
-    run_chained_actions(rule_id, machine, value, triggered, timestamp,
-                        notification_level, incident_id)

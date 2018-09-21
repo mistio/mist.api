@@ -148,6 +148,8 @@ def main():
     routes = []
     paths = {}
     app = mist.api.main({}).app.app
+    while not hasattr(app, 'registry'):
+        app = app.app
     for v in app.registry.introspector.get_category('views'):
         vi = v['introspectable']
         (route_name, request_method, func) = (vi['route_name'],

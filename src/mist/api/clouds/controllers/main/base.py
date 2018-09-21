@@ -32,6 +32,7 @@ from mist.api.clouds.controllers.network.base import BaseNetworkController
 
 from mist.api.clouds.controllers.compute.base import BaseComputeController
 from mist.api.clouds.controllers.dns.base import BaseDNSController
+from mist.api.clouds.controllers.storage.base import BaseStorageController
 
 
 log = logging.getLogger(__name__)
@@ -81,6 +82,7 @@ class BaseMainController(object):
     ComputeController = None
     NetworkController = None
     DnsController = None
+    StorageController = None
 
     def __init__(self, cloud):
         """Initialize main cloud controller given a cloud
@@ -114,6 +116,11 @@ class BaseMainController(object):
         if self.NetworkController is not None:
             assert issubclass(self.NetworkController, BaseNetworkController)
             self.network = self.NetworkController(self)
+
+        # Initialize storage controller.
+        if self.StorageController is not None:
+            assert issubclass(self.StorageController, BaseStorageController)
+            self.storage = self.StorageController(self)
 
     def add(self, fail_on_error=True, fail_on_invalid_params=True, **kwargs):
         """Add new Cloud to the database
@@ -354,6 +361,7 @@ class BaseMainController(object):
         from mist.api.poller.models import ListNetworksPollingSchedule
         from mist.api.poller.models import ListLocationsPollingSchedule
         from mist.api.poller.models import ListSizesPollingSchedule
+        from mist.api.poller.models import ListVolumesPollingSchedule
 
         # Add machines' polling schedule.
         ListMachinesPollingSchedule.add(cloud=self.cloud)
@@ -361,6 +369,10 @@ class BaseMainController(object):
         # Add networks' polling schedule, if applicable.
         if hasattr(self.cloud.ctl, 'network'):
             ListNetworksPollingSchedule.add(cloud=self.cloud)
+
+        # Add volumes' polling schedule, if applicable.
+        if hasattr(self.cloud.ctl, 'storage'):
+            ListVolumesPollingSchedule.add(cloud=self.cloud)
 
         # Add extra cloud-level polling schedules with lower frequency. Such
         # schedules poll resources that should hardly ever change. Thus, we

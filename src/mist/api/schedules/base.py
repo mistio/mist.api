@@ -18,7 +18,7 @@ from mist.api.exceptions import ScheduleNameExistsError
 from mist.api.machines.models import Machine
 from mist.api.exceptions import NotFoundError
 
-from mist.api.conditions.models import FieldCondition, MachinesCondition
+from mist.api.conditions.models import FieldCondition, GenericResourceCondition
 from mist.api.conditions.models import TaggingCondition, MachinesAgeCondition
 
 import mist.api.schedules.models as schedules
@@ -163,7 +163,8 @@ class BaseController(object):
         if action:
             self.schedule.task_type = schedules.ActionTask(action=action)
         elif script_id:
-            self.schedule.task_type = schedules.ScriptTask(script_id=script_id)
+            self.schedule.task_type = schedules.ScriptTask(
+                script_id=script_id, params=kwargs.pop('params', ''))
 
         schedule_type = kwargs.pop('schedule_type', '')
 
@@ -252,7 +253,7 @@ class BaseController(object):
 
         """
         cond_cls = {'tags': TaggingCondition,
-                    'machines': MachinesCondition,
+                    'machines': GenericResourceCondition,
                     'field': FieldCondition,
                     'age': MachinesAgeCondition}
 

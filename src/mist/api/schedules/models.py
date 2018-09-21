@@ -4,7 +4,6 @@ from uuid import uuid4
 import celery.schedules
 import mongoengine as me
 from mist.api.tag.models import Tag
-from mist.api.machines.models import Machine
 from mist.api.exceptions import BadRequestError
 from mist.api.users.models import Organization
 from celerybeatmongo.schedulers import MongoScheduler
@@ -120,6 +119,10 @@ class BaseTaskType(me.EmbeddedDocument):
         raise NotImplementedError()
 
     @property
+    def kwargs(self):
+        raise NotImplementedError()
+
+    @property
     def task(self):
         raise NotImplementedError()
 
@@ -132,6 +135,10 @@ class ActionTask(BaseTaskType):
         return self.action
 
     @property
+    def kwargs(self):
+        return {}
+
+    @property
     def task(self):
         return 'mist.api.tasks.group_machines_actions'
 
@@ -141,10 +148,15 @@ class ActionTask(BaseTaskType):
 
 class ScriptTask(BaseTaskType):
     script_id = me.StringField()
+    params = me.StringField()
 
     @property
     def args(self):
         return self.script_id
+
+    @property
+    def kwargs(self):
+        return {'params': self.params}
 
     @property
     def task(self):
@@ -169,8 +181,6 @@ class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
         Schedule.objects(owner=owner).count()
 
     """
-
-    condition_resource_cls = Machine
 
     meta = {
         'collection': 'schedules',
@@ -269,7 +279,7 @@ class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
 
     @property
     def kwargs(self):
-        return {}
+        return self.task_type.kwargs
 
     @property
     def task(self):
@@ -301,7 +311,6 @@ class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
         return fmt.format(self)
 
     def validate(self, clean=True):
-
         """
         Override mongoengine validate. We should validate crontab entry.
             Use crontab_parser for crontab expressions.
@@ -336,6 +345,10 @@ class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
                 raise me.ValidationError('Crontab entry is not valid:%s'
                                          % exc.message)
         super(Schedule, self).validate(clean=True)
+
+    def clean(self):
+        if self.resource_model_name != 'machine':
+            self.resource_model_name = 'machine'
 
     def delete(self):
         super(Schedule, self).delete()
