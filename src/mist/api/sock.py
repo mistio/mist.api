@@ -398,7 +398,6 @@ class MainConnection(MistConnection):
         self.update_poller()
         self.send('list_clouds', filter_list_clouds(self.auth_context))
         clouds = Cloud.objects(owner=self.owner, enabled=True, deleted=None)
-        periodic_tasks = []
         for cloud in clouds:
             self.internal_request(
                 'api/v1/clouds/%s/machines' % cloud.id,
@@ -440,14 +439,10 @@ class MainConnection(MistConnection):
                 ),
             )
 
-        periodic_tasks.extend([('list_images', tasks.ListImages()),
-                               ('list_zones', tasks.ListZones()),
-                               ('list_resource_groups',
-                                tasks.ListResourceGroups()),
-                               ('list_storage_accounts',
-                                tasks.ListStorageAccounts()),
-                               ('list_projects', tasks.ListProjects())])
-        for key, task in periodic_tasks:
+        # Old Periodic Tasks (must be replaced by poller tasks and api calls.
+        for key in ('list_images', 'list_zones', 'list_resource_groups',
+                    'list_storage_accounts', 'list_projects'):
+            task = getattr(tasks, key)
             for cloud in clouds:
                 # Avoid submitting new celery tasks, when it's certain that
                 # they will exit immediately without performing any actions.
