@@ -336,3 +336,39 @@ class InAppRecommendation(InAppNotification):
         d.update({'model_id': self.model_id,
                   'model_output': self.model_output})
         return d
+
+
+class NoDataRuleTracker(me.Document):
+    """Tracks no-data alerts' triggers"""
+
+    rule_id = me.StringField(required=True)
+    machine_id = me.StringField(required=True)
+
+    meta = {
+        'indexes': [
+            {
+                'fields': ['rule_id', 'machine_id'],
+                'sparse': False,
+                'unique': True,
+                'cls': False,
+            },
+        ],
+    }
+
+    @classmethod
+    def add(cls, rule_id, machine_id):
+        try:
+            cls.objects.get(rule_id=rule_id, machine_id=machine_id)
+        except cls.DoesNotExist:
+            cls(rule_id=rule_id, machine_id=machine_id).save()
+
+    @classmethod
+    def remove(cls, rule_id, machine_id):
+        try:
+            cls.objects.get(rule_id=rule_id, machine_id=machine_id).delete()
+        except cls.DoesNotExist:
+            pass
+
+    @classmethod
+    def get_frequencies(cls):
+        return cls.objects.item_frequencies('rule_id')

@@ -726,6 +726,12 @@ SHARD_MANAGER_INTERVAL = 10
 SHARD_MANAGER_MAX_SHARD_PERIOD = 60
 SHARD_MANAGER_MAX_SHARD_CLAIMS = 500
 
+# NoData alert suppression.
+NO_DATA_ALERT_SUPPRESSION = False
+NO_DATA_ALERT_BUFFER_PERIOD = 45
+NO_DATA_RULES_RATIO = .2
+NO_DATA_MACHINES_RATIO = .2
+
 # number of api tokens user can have
 ACTIVE_APITOKEN_NUM = 20
 ALLOW_CONNECT_LOCALHOST = True
@@ -904,8 +910,7 @@ CELERY_SETTINGS = {
         'mist.api.rules.tasks.evaluate': {'queue': 'rules'},
 
         # Core tasks
-        'mist.cloudify_insights.tasks.list_deployments':
-        {'queue': 'deployments'},
+        'mist.cloudify_insights.tasks.list_deployments': {'queue': 'deployments'},  # noqa
         'mist.rbac.tasks.update_mappings': {'queue': 'mappings'},
         'mist.rbac.tasks.remove_mappings': {'queue': 'mappings'},
     },
@@ -1548,6 +1553,16 @@ The mist.io team
 
 --
 %s
+"""
+
+NO_DATA_ALERT_SUPPRESSION_SUBJECT = "Suppressed no-data rule"
+
+NO_DATA_ALERT_SUPPRESSION_BODY = """
+           ********** %(rule)s triggered and suppressed **********
+
+%(nodata_rules_firing)d/%(total_number_of_nodata_rules)d of no-data rules have been triggered (%(rules_percentage)d%%).  # noqa
+
+%(mon_machines_firing)d/%(total_num_monitored_machines)d of monitored machines have no monitoring data available (%(machines_percentage)d%%).  # noqa
 """
 
 CTA = {
