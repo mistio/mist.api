@@ -15,4 +15,5 @@ app.autodiscover_tasks([
     'mist.api.auth',
 ])
 
-app.autodiscover_tasks(['mist.%s' % _plugin for _plugin in PLUGINS])
+if PLUGINS:
+    app.autodiscover_tasks(['mist.%s' % _plugin for _plugin in PLUGINS])

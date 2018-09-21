@@ -25,7 +25,6 @@ import urlparse
 import datetime
 import tempfile
 import traceback
-import functools
 import jsonpickle
 import subprocess
 
@@ -53,8 +52,8 @@ from Crypto.Hash.SHA256 import SHA256Hash
 from Crypto.Hash.HMAC import HMAC
 from Crypto.Random import get_random_bytes
 
-from amqp import Message
-from amqp.connection import Connection
+import kombu
+import kombu.pools
 from amqp.exceptions import NotFound as AmqpNotFound
 
 from distutils.version import LooseVersion
@@ -277,55 +276,34 @@ def dirty_cow(os, os_version, kernel_version):
 
 
 def amqp_publish(exchange, routing_key, data,
-                 ex_type='fanout', ex_declare=False, auto_delete=True,
-                 connection=None):
-    close = False
-    if connection is None:
-        connection = Connection(config.AMQP_URI)
-        close = True
-    channel = connection.channel()
-    if ex_declare:
-        channel.exchange_declare(exchange=exchange, type=ex_type,
-                                 auto_delete=auto_delete)
-    msg = Message(json.dumps(data))
-    channel.basic_publish(msg, exchange=exchange, routing_key=routing_key)
-    channel.close()
-    if close:
-        connection.close()
+                 ex_type='fanout', ex_declare=False,
+                 durable=False, auto_delete=True):
+    exchange = kombu.Exchange(exchange, type=ex_type, auto_delete=auto_delete,
+                              durable=False)
+    with kombu.pools.producers[kombu.Connection(config.BROKER_URL)].acquire(
+            block=True, timeout=10) as producer:
+        producer.publish(data, exchange=exchange, routing_key=routing_key,
+                         declare=[exchange] if ex_declare else [],
+                         serializer='json', retry=True)
 
 
 def amqp_subscribe(exchange, callback, queue='',
-                   ex_type='fanout', routing_keys=None):
-    def json_parse_dec(func):
-        @functools.wraps(func)
-        def wrapped(msg):
-            try:
-                msg.body = json.loads(msg.body)
-            except:
-                pass
-            return func(msg)
-        return wrapped
-
-    connection = Connection(config.AMQP_URI)
-    channel = connection.channel()
-    channel.exchange_declare(exchange=exchange, type=ex_type, auto_delete=True)
-    resp = channel.queue_declare(queue, exclusive=True)
-    if not routing_keys:
-        channel.queue_bind(resp.queue, exchange)
-    else:
-        for routing_key in routing_keys:
-            channel.queue_bind(resp.queue, exchange, routing_key=routing_key)
-    channel.basic_consume(queue=queue,
-                          callback=json_parse_dec(callback),
-                          no_ack=True)
-    try:
-        while True:
-            channel.wait()
-    except BaseException as exc:
-        # catch BaseException so that it catches KeyboardInterrupt
-        channel.close()
-        connection.close()
-        amqp_log("SUBSCRIPTION ENDED: %s %s %r" % (exchange, queue, exc))
+                   ex_type='fanout', routing_keys=None, durable=False,
+                   auto_delete=True):
+    with kombu.pools.connections[kombu.Connection(config.BROKER_URL)].acquire(
+            block=True, timeout=10) as connection:
+        exchange = kombu.Exchange(exchange, type=ex_type, durable=durable,
+                                  auto_delete=auto_delete)
+        if not routing_keys:
+            queue = kombu.Queue(queue, exchange, exclusive=True)
+        else:
+            queue = kombu.Queue(queue,
+                                [kombu.binding(exchange, routing_key=key)
+                                 for key in routing_keys],
+                                exclusive=True)
+        with connection.Consumer([queue], callbacks=[callback], no_ack=True):
+            while True:
+                connection.drain_events()
 
 
 def _amqp_owner_exchange(owner):
@@ -339,10 +317,9 @@ def _amqp_owner_exchange(owner):
     return "owner_%s" % owner.id
 
 
-def amqp_publish_user(owner, routing_key, data, connection=None):
+def amqp_publish_user(owner, routing_key, data):
     try:
-        amqp_publish(_amqp_owner_exchange(owner), routing_key, data,
-                     connection=connection)
+        amqp_publish(_amqp_owner_exchange(owner), routing_key, data)
     except AmqpNotFound:
         return False
     except Exception:
@@ -355,18 +332,15 @@ def amqp_subscribe_user(owner, queue, callback):
 
 
 def amqp_owner_listening(owner):
-    connection = Connection(config.AMQP_URI)
-    channel = connection.channel()
-    try:
-        channel.exchange_declare(exchange=_amqp_owner_exchange(owner),
-                                 type='fanout', passive=True)
-    except AmqpNotFound:
-        return False
-    else:
-        return True
-    finally:
-        channel.close()
-        connection.close()
+    exchange = kombu.Exchange(_amqp_owner_exchange(owner), type='fanout')
+    with kombu.pools.connections[kombu.Connection(config.BROKER_URL)].acquire(
+            block=True, timeout=10) as connection:
+        try:
+            exchange(connection).declare(passive=True)
+        except AmqpNotFound:
+            return False
+        else:
+            return True
 
 
 def trigger_session_update(owner, sections=['clouds', 'keys', 'monitoring',
@@ -386,9 +360,9 @@ def amqp_log(msg):
 
 
 def amqp_log_listen():
-    def echo(msg):
-        # print msg.delivery_info.get('routing_key')
-        print msg.body
+    def echo(body, msg):
+        print(body)
+        print(msg)
 
     amqp_subscribe('mist_debug', echo)
 
@@ -1197,7 +1171,6 @@ def get_file(url, filename, update=True):
                 log.error(err)
             else:
                 atomic_write_file(path, data)
-    print 'path'
     return path
 
 
