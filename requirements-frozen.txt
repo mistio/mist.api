@@ -40,7 +40,7 @@ Jinja2==2.10
 jsonpatch==1.23
 jsonpickle==0.9.6
 jsonpointer==2.0
-kombu==4.2.1
+https://github.com/auvipy/kombu/archive/retry.zip
 Logbook==1.4.0
 lxml==4.2.5
 Mako==1.0.7
