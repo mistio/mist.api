@@ -12,7 +12,6 @@ backports-abc==0.5
 backports.shutil-get-terminal-size==1.0.0
 bcrypt==3.1.4
 billiard==3.5.0.4
-celery==4.2.1
 certifi==2018.8.24
 cffi==1.11.5
 Chameleon==3.4
@@ -40,7 +39,6 @@ Jinja2==2.10
 jsonpatch==1.23
 jsonpickle==0.9.6
 jsonpointer==2.0
-kombu==4.2.1
 Logbook==1.4.0
 lxml==4.2.5
 Mako==1.0.7
