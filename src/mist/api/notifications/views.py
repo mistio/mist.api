@@ -19,6 +19,7 @@ from mist.api.auth.methods import get_csrf_token
 from mist.api.auth.methods import auth_context_from_request
 
 from mist.api.users.models import Organization
+from mist.api.portal.models import Portal
 
 from mist.api.notifications.models import Notification
 from mist.api.notifications.models import InAppNotification
@@ -158,7 +159,13 @@ def request_unsubscription(request):
     template, with a link and another token to confirm unsubscribing.
     ---
     """
-    params = params_from_request(request)
+    params = dict(params_from_request(request).copy())
+
+    # Verify HMAC.
+    try:
+        mac_verify(params)
+    except Exception as exc:
+        raise BadRequestError(exc)
 
     # Decrypt URL params.
     try:
@@ -167,12 +174,6 @@ def request_unsubscription(request):
     except Exception as exc:
         log.exception(repr(exc))
         raise BadRequestError(ERROR_MSG)
-
-    # Verify HMAC.
-    try:
-        mac_verify(decrypted_json)
-    except Exception as exc:
-        raise BadRequestError(exc)
 
     try:
         org_id = decrypted_json["org_id"]
@@ -235,10 +236,10 @@ def request_unsubscription(request):
     # Render template to unsubscribe.
     try:
         hmac_params = decrypted_json.copy()
-        mac_sign(hmac_params)
-        encrypted = encrypt(json.dumps(hmac_params))
+        token = {'token': encrypt(json.dumps(hmac_params))}
+        mac_sign(token)
+        inputs.update(token)
         inputs.update({
-            "token": encrypted,
             # TODO Make the template customizable/dynamic based on the action.
             "action": decrypted_json["action"],
             "csrf_token": get_csrf_token(request),
@@ -260,7 +261,13 @@ def confirm_unsubscription(request):
     creating a new override policy if it does not exist.
     ---
     """
-    params = params_from_request(request)
+    params = dict(params_from_request(request).copy())
+
+    try:
+        mac_verify(params)
+    except Exception as exc:
+        raise BadRequestError(exc)
+
     try:
         decrypted_str = decrypt(params["token"])
         decrypted_json = json.loads(decrypted_str)
@@ -271,11 +278,6 @@ def confirm_unsubscription(request):
     option = params.get("option")
     if not option:
         raise RequiredParameterMissingError("option")
-
-    try:
-        mac_verify(decrypted_json)
-    except Exception as exc:
-        raise BadRequestError(exc)
 
     try:
         org_id = decrypted_json["org_id"]
@@ -324,3 +326,37 @@ def confirm_unsubscription(request):
         log.critical("Failed to save %s: %r", np, err)
         raise BadRequestError(ERROR_MSG)
     return json.dumps({"response": "override_added"})
+
+
+@view_config(route_name='suppressed', request_method='GET', renderer='json')
+def suppressed_emails(request):
+
+    params = dict(params_from_request(request).copy())
+
+    try:
+        mac_verify(params)
+    except Exception as exc:
+        raise BadRequestError(str(exc))
+
+    try:
+        decrypted_str = decrypt(params['token'])
+        decrypted_json = json.loads(decrypted_str)
+    except Exception as exc:
+        log.exception(repr(exc))
+        raise BadRequestError()
+
+    if decrypted_json.get('key') != Portal.get_singleton().external_api_key:
+        raise NotFoundError()
+
+    action = decrypted_json.get('action')
+    if not action:
+        raise RequiredParameterMissingError('action')
+
+    if action == 'delete':
+        Notification.objects(suppressed=True).delete()
+    elif action == 'unsuppress':
+        Notification.objects.update(suppressed=False)
+    else:
+        raise BadRequestError('Action "%s" not supported' % action)
+
+    return Response("OK", 200)

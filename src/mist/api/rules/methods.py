@@ -1,9 +1,13 @@
 import operator
 import logging
 
+from mist.api import config
+
 from mist.api.exceptions import RuleNotFoundError
+
 from mist.api.rules.tasks import run_action_by_id
 from mist.api.rules.models import Rule
+from mist.api.rules.models import NoDataAction
 from mist.api.rules.models import NotificationAction
 
 
@@ -66,6 +70,10 @@ def run_chained_actions(rule_id, incident_id, resource_id, resource_type,
         rule_id, incident_id, action.id, resource_id,
         resource_type, value, triggered, timestamp,
     )
+
+    # Buffer no-data alerts so that we can decide on false-positives.
+    if isinstance(action, NoDataAction):
+        task.set(countdown=config.NO_DATA_ALERT_BUFFER_PERIOD)
 
     # Apply all tasks asynchronously. There are 3 scenarios here:
     # a. If there's only a single task, and not a celery chain, just apply
