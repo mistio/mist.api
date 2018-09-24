@@ -192,7 +192,7 @@ class BaseDNSController(BaseController):
         """
         # FIXME: Move these imports to the top of the file when circular
         # import issues are resolved
-        from mist.api.zones.models import Zone
+        from mist.api.dns.models import Zone
         return Zone.objects(cloud=self.cloud)
 
     def _list_zones__fetch_zones(self):

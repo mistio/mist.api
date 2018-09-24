@@ -434,7 +434,7 @@ class MainConnection(MistConnection):
             )
 
             self.internal_request(
-                'api/v1/clouds/%s/zones' % cloud.id,
+                'api/v1/clouds/%s/dns/zones' % cloud.id,
                 params={'cached': True},
                 callback=lambda zones, cloud_id=cloud.id: self.send(
                     'list_zones',
@@ -688,7 +688,7 @@ class MainConnection(MistConnection):
                 elif routing_key == 'patch_networks':
                     line['path'] = '/clouds/%s/networks/%s' % (cloud_id, _id)
                 elif routing_key == 'patch_zones':
-                    line['path'] = '/clouds/%s/zones/%s' % (cloud_id, _id)
+                    line['path'] = '/clouds/%s/dns/zones/%s' % (cloud_id, _id)
                 elif routing_key == 'patch_volumes':
                     line['path'] = '/clouds/%s/volumes/%s' % (cloud_id, _id)
             if patch:
