@@ -591,10 +591,11 @@ class MainConnection(MistConnection):
             elif routing_key == 'list_zones':
                 zones = result['zones']
                 cloud_id = result['cloud_id']
-                filtered_zones = filter_list_zones(
-                    self.auth_context, cloud_id, zones
-                )
-                self.send(routing_key, filtered_zones)
+                #filtered_zones = filter_list_zones(
+                #    self.auth_context, cloud_id, zones
+                #)
+                self.send(routing_key, {'cloud_id': cloud_id,
+                                        'zones': zones})
             elif routing_key == 'list_networks':
                 networks = result['networks']
                 cloud_id = result['cloud_id']
