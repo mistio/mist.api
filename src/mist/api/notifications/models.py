@@ -289,10 +289,10 @@ class EmailNotification(Notification):
     def get_unsub_link(self, user_id, email=None):
         params = self.unsub_params
         params.update({'user_id': user_id, 'email': email})
-        mac_sign(params)
-        encrypted = {'token': encrypt(json.dumps(params))}
+        token = {'token': encrypt(json.dumps(params))}
+        mac_sign(token)
         return '%s/unsubscribe?%s' % (config.CORE_URI,
-                                      urllib.urlencode(encrypted))
+                                      urllib.urlencode(token))
 
 
 class EmailReport(EmailNotification):

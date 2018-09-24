@@ -69,6 +69,8 @@ def send_alert_email(rule, resource, incident_id, value, triggered, timestamp,
         alert = EmailAlert.objects.get(owner=rule.owner_id,
                                        incident_id=incident_id)
     except EmailAlert.DoesNotExist:
+        if not triggered:
+            return
         alert = EmailAlert(owner=rule.owner, incident_id=incident_id)
         # Allows unsubscription from alerts on a per-rule basis.
         alert.rid = rule.id
@@ -160,10 +162,10 @@ def suppress_nodata_alert(rule):
         assert action in ('unsuppress', 'delete', )
         params = {'action': action,
                   'key': Portal.get_singleton().external_api_key}
-        mac_sign(params)
-        encrypted = {'token': encrypt(json.dumps(params))}
+        token = {'token': encrypt(json.dumps(params))}
+        mac_sign(token)
         return '%s/suppressed-alerts?%s' % (config.CORE_URI,
-                                            urllib.urlencode(encrypted))
+                                            urllib.urlencode(token))
 
     # Otherwise, suppress e-mail notification and notify the portal's admins.
     d = {

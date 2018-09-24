@@ -159,7 +159,13 @@ def request_unsubscription(request):
     template, with a link and another token to confirm unsubscribing.
     ---
     """
-    params = params_from_request(request)
+    params = dict(params_from_request(request).copy())
+
+    # Verify HMAC.
+    try:
+        mac_verify(params)
+    except Exception as exc:
+        raise BadRequestError(exc)
 
     # Decrypt URL params.
     try:
@@ -168,12 +174,6 @@ def request_unsubscription(request):
     except Exception as exc:
         log.exception(repr(exc))
         raise BadRequestError(ERROR_MSG)
-
-    # Verify HMAC.
-    try:
-        mac_verify(decrypted_json)
-    except Exception as exc:
-        raise BadRequestError(exc)
 
     try:
         org_id = decrypted_json["org_id"]
@@ -236,10 +236,10 @@ def request_unsubscription(request):
     # Render template to unsubscribe.
     try:
         hmac_params = decrypted_json.copy()
-        mac_sign(hmac_params)
-        encrypted = encrypt(json.dumps(hmac_params))
+        token = {'token': encrypt(json.dumps(hmac_params))}
+        mac_sign(token)
+        inputs.update(token)
         inputs.update({
-            "token": encrypted,
             # TODO Make the template customizable/dynamic based on the action.
             "action": decrypted_json["action"],
             "csrf_token": get_csrf_token(request),
@@ -261,7 +261,13 @@ def confirm_unsubscription(request):
     creating a new override policy if it does not exist.
     ---
     """
-    params = params_from_request(request)
+    params = dict(params_from_request(request).copy())
+
+    try:
+        mac_verify(params)
+    except Exception as exc:
+        raise BadRequestError(exc)
+
     try:
         decrypted_str = decrypt(params["token"])
         decrypted_json = json.loads(decrypted_str)
@@ -272,11 +278,6 @@ def confirm_unsubscription(request):
     option = params.get("option")
     if not option:
         raise RequiredParameterMissingError("option")
-
-    try:
-        mac_verify(decrypted_json)
-    except Exception as exc:
-        raise BadRequestError(exc)
 
     try:
         org_id = decrypted_json["org_id"]
@@ -330,18 +331,18 @@ def confirm_unsubscription(request):
 @view_config(route_name='suppressed', request_method='GET', renderer='json')
 def suppressed_emails(request):
 
-    params = params_from_request(request)
+    params = dict(params_from_request(request).copy())
+
+    try:
+        mac_verify(params)
+    except Exception as exc:
+        raise BadRequestError(str(exc))
 
     try:
         decrypted_str = decrypt(params['token'])
         decrypted_json = json.loads(decrypted_str)
     except Exception as exc:
         log.exception(repr(exc))
-        raise BadRequestError()
-
-    try:
-        mac_verify(decrypted_json)
-    except Exception as exc:
         raise BadRequestError()
 
     if decrypted_json.get('key') != Portal.get_singleton().external_api_key:
