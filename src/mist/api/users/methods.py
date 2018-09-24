@@ -122,6 +122,7 @@ def get_user_data(auth_context):
         o_dict = {
             'id': org.id,
             'name': org.name,
+            'avatar': org.avatar,
             'members': len(org.members),
             'isOwner': user in org.get_team('Owners').members,
             'super_org': org.super_org
