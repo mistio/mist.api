@@ -168,6 +168,8 @@ class Notification(me.Document):
 
     created_at = me.DateTimeField(default=lambda: datetime.datetime.utcnow())
 
+    suppressed = me.BooleanField()
+
     meta = {
         'strict': False,
         'allow_inheritance': True,

@@ -384,6 +384,9 @@ def add_routes(configurator):
     configurator.add_route('unsubscribe_page', '/unsubscribe')
     configurator.add_route('unsubscribe', '/api/v1/unsubscribe')
 
+    # Notifications - Unsuppress
+    configurator.add_route('suppressed', '/suppressed-alerts')
+
     configurator.add_route('user_invitations', '/user_invitations')
 
     configurator.add_route('su', '/su')

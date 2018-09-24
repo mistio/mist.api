@@ -19,6 +19,7 @@ from mist.api.auth.methods import get_csrf_token
 from mist.api.auth.methods import auth_context_from_request
 
 from mist.api.users.models import Organization
+from mist.api.portal.models import Portal
 
 from mist.api.notifications.models import Notification
 from mist.api.notifications.models import InAppNotification
@@ -324,3 +325,37 @@ def confirm_unsubscription(request):
         log.critical("Failed to save %s: %r", np, err)
         raise BadRequestError(ERROR_MSG)
     return json.dumps({"response": "override_added"})
+
+
+@view_config(route_name='suppressed', request_method='GET', renderer='json')
+def suppressed_emails(request):
+
+    params = params_from_request(request)
+
+    try:
+        decrypted_str = decrypt(params['token'])
+        decrypted_json = json.loads(decrypted_str)
+    except Exception as exc:
+        log.exception(repr(exc))
+        raise BadRequestError()
+
+    try:
+        mac_verify(decrypted_json)
+    except Exception as exc:
+        raise BadRequestError()
+
+    if decrypted_json.get('key') != Portal.get_singleton().external_api_key:
+        raise NotFoundError()
+
+    action = decrypted_json.get('action')
+    if not action:
+        raise RequiredParameterMissingError('action')
+
+    if action == 'delete':
+        Notification.objects(suppressed=True).delete()
+    elif action == 'unsuppress':
+        Notification.objects.update(suppressed=False)
+    else:
+        raise BadRequestError('Action "%s" not supported' % action)
+
+    return Response("OK", 200)

@@ -1560,9 +1560,20 @@ NO_DATA_ALERT_SUPPRESSION_SUBJECT = "Suppressed no-data rule"
 NO_DATA_ALERT_SUPPRESSION_BODY = """
            ********** %(rule)s triggered and suppressed **********
 
-%(nodata_rules_firing)d/%(total_number_of_nodata_rules)d of no-data rules have been triggered (%(rules_percentage)d%%).  # noqa
+%(nodata_rules_firing)d/%(total_number_of_nodata_rules)d of no-data rules
+(%(rules_percentage)d%%) have been triggered.
 
-%(mon_machines_firing)d/%(total_num_monitored_machines)d of monitored machines have no monitoring data available (%(machines_percentage)d%%).  # noqa
+%(mon_machines_firing)d/%(total_num_monitored_machines)d of monitored machines
+(%(machines_percentage)d%%) have no monitoring data available.
+
+Click the link below to delete and completely forget all suppressed alerts:
+%(delete_alerts_link)s
+
+Click the link below to unsuppress all suppressed alerts:
+%(unsuppress_alerts_link)s
+
+Note that the above action will actually send the alerts, if the corresponding
+rules are re-triggered during the next evaluation cycle.
 """
 
 CTA = {
