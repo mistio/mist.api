@@ -20,7 +20,7 @@ def list_networks(owner, cloud_id, cached=False):
         return ret
 
     if cached:
-        networks = cloud.ctl.compute.list_cached_networks()
+        networks = cloud.ctl.network.list_cached_networks()
     else:
         networks = cloud.ctl.network.list_networks()
 
