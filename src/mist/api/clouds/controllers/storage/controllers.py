@@ -9,6 +9,7 @@ import logging
 from mist.api.clouds.controllers.storage.base import BaseStorageController
 
 from mist.api.exceptions import RequiredParameterMissingError
+from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import NotFoundError
 
 
@@ -29,7 +30,6 @@ class GoogleStorageController(BaseStorageController):
                 cloud=self.cloud, missing_since=None
             )
         except CloudLocation.DoesNotExist:
-            log.warning('No location "%s" in %s', location_name, self.cloud)
             volume.location = None
 
         # Find the machines to which the volume is attached.
@@ -42,7 +42,7 @@ class GoogleStorageController(BaseStorageController):
                 continue
             try:
                 machine = Machine.objects.get(name=name, cloud=self.cloud)
-                attached_to.append(machine)
+                volume.attached_to.append(machine)
             except Machine.DoesNotExist:
                 log.error('%s attached to unknown machine "%s"', volume, name)
                 pass
@@ -73,7 +73,6 @@ class AmazonStorageController(BaseStorageController):
                 cloud=self.cloud, missing_since=None
             )
         except CloudLocation.DoesNotExist:
-            log.warning('No location "%s" in %s', location_name, self.cloud)
             volume.location = None
 
         # Find the machine to which the volume is attached. NOTE that a just
@@ -86,7 +85,8 @@ class AmazonStorageController(BaseStorageController):
                                               cloud=self.cloud)
                 volume.attached_to = [machine]
             except Machine.DoesNotExist:
-                log.error('%s attached to unknown machine "%s"', volume, name)
+                log.error('%s attached to unknown machine "%s"', volume,
+                          machine_id)
                 pass
 
     def _create_volume__prepare_args(self, kwargs):
@@ -122,7 +122,6 @@ class DigitalOceanStorageController(BaseStorageController):
                 cloud=self.cloud, missing_since=None
             )
         except CloudLocation.DoesNotExist:
-            log.warning('No location "%s" in %s', location_name, self.cloud)
             volume.location = None
 
         # Find the machines to which the volume is attached.
@@ -133,7 +132,8 @@ class DigitalOceanStorageController(BaseStorageController):
                                               cloud=self.cloud)
                 volume.attached_to.append(machine)
             except Machine.DoesNotExist:
-                log.error('%s attached to unknown machine "%s"', volume, name)
+                log.error('%s attached to unknown machine "%s"', volume,
+                          machine_id)
                 pass
 
     def _create_volume__prepare_args(self, kwargs):
@@ -162,7 +162,6 @@ class OpenstackStorageController(BaseStorageController):
                 cloud=self.cloud, missing_since=None
             )
         except CloudLocation.DoesNotExist:
-            log.warning('No location "%s" in %s', location_name, self.cloud)
             volume.location = None
 
         # Find the machines to which the volume is attached.
@@ -174,7 +173,8 @@ class OpenstackStorageController(BaseStorageController):
                                               cloud=self.cloud)
                 volume.attached_to.append(machine)
             except Machine.DoesNotExist:
-                log.error('%s attached to unknown machine "%s"', volume, name)
+                log.error('%s attached to unknown machine "%s"', volume,
+                          machine_id)
                 pass
 
 
@@ -182,7 +182,6 @@ class AzureStorageController(BaseStorageController):
 
     def _list_volumes__postparse_volume(self, volume, libcloud_volume):
         # FIXME Imported here due to circular dependency issues.
-        from mist.api.machines.models import Machine
         from mist.api.clouds.models import CloudLocation
 
         # Find the volume's location.
@@ -192,7 +191,6 @@ class AzureStorageController(BaseStorageController):
                 cloud=self.cloud, missing_since=None
             )
         except CloudLocation.DoesNotExist:
-            log.warning('No location "%s" in %s', location_name, self.cloud)
             volume.location = None
 
     def _create_volume__prepare_args(self, volume, libcloud_volume):

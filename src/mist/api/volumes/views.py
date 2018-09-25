@@ -10,6 +10,7 @@ from mist.api.volumes.methods import filter_list_volumes
 from mist.api.tag.methods import add_tags_to_resource
 from mist.api.auth.methods import auth_context_from_request
 
+from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import CloudNotFoundError
 from mist.api.exceptions import VolumeNotFoundError
 from mist.api.exceptions import MachineNotFoundError
@@ -37,10 +38,12 @@ def list_volumes(request):
       required: true
       type: string
     """
+    auth_context = auth_context_from_request(request)
+
+    params = params_from_request(request)
+
     cloud_id = request.matchdict['cloud']
     cached = bool(params.get('cached', False))
-
-    auth_context = auth_context_from_request(request)
 
     try:
         Cloud.objects.get(owner=auth_context.owner, id=cloud_id, deleted=None)
