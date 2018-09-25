@@ -38,18 +38,19 @@ def list_volumes(request):
       type: string
     """
     cloud_id = request.matchdict['cloud']
+    cached = bool(params.get('cached', False))
 
     auth_context = auth_context_from_request(request)
+
+    try:
+        Cloud.objects.get(owner=auth_context.owner, id=cloud_id, deleted=None)
+    except Cloud.DoesNotExist:
+        raise CloudNotFoundError()
 
     # SEC
     auth_context.check_perm('cloud', 'read', cloud_id)
 
-    try:
-        Cloud.objects.get(owner=auth_context.owner, id=cloud_id)
-    except Cloud.DoesNotExist:
-        raise CloudNotFoundError()
-
-    return filter_list_volumes(auth_context, cloud_id)
+    return filter_list_volumes(auth_context, cloud_id, cached)
 
 
 @view_config(route_name='api_v1_volumes', request_method='POST',
@@ -62,6 +63,7 @@ def create_volume(request):
 
     READ permission required on cloud.
     CREATE_RESOURCES permission required on cloud
+    ADD permission required on volumes
     ---
     cloud:
       in: path
@@ -103,19 +105,20 @@ def create_volume(request):
     if not size:
         raise RequiredParameterMissingError('size')
 
+    try:
+        cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
+                                  deleted=None)
+    except me.DoesNotExist:
+        raise CloudNotFoundError()
+
     auth_context.check_perm("cloud", "read", cloud_id)
     auth_context.check_perm("cloud", "create_resources", cloud_id)
     tags = auth_context.check_perm("volume", "add", None) or {}
 
-    try:
-        cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id)
-    except me.DoesNotExist:
-        raise CloudNotFoundError()
-
     if not hasattr(cloud.ctl, 'storage'):
         raise NotImplementedError()
 
-    volume = Volume.add(cloud=cloud, **params)
+    volume = cloud.ctl.storage.create_volume(**params)
 
     if tags:
         add_tags_to_resource(auth_context.owner, volume, tags)
@@ -154,19 +157,22 @@ def delete_volume(request):
 
     auth_context = auth_context_from_request(request)
 
-    # SEC
-    auth_context.check_perm('cloud', 'read', cloud_id)
-    auth_context.check_perm('volume', 'read', external_id)
-    auth_context.check_perm('volume', 'remove', external_id)
-
     try:
-        cloud = Cloud.objects.get(id=cloud_id, owner=auth_context.owner)
+        cloud = Cloud.objects.get(id=cloud_id, owner=auth_context.owner,
+                                  deleted=None)
     except Cloud.DoesNotExist:
         raise CloudNotFoundError()
+
     try:
-        volume = Volume.objects.get(id=external_id, cloud=cloud)
+        volume = Volume.objects.get(external_id=external_id, cloud=cloud,
+                                    missing_since=None)
     except me.DoesNotExist:
         raise VolumeNotFoundError()
+
+    # SEC
+    auth_context.check_perm('cloud', 'read', cloud.id)
+    auth_context.check_perm('volume', 'read', volume.id)
+    auth_context.check_perm('volume', 'remove', volume.id)
 
     volume.ctl.delete()
 
@@ -176,16 +182,17 @@ def delete_volume(request):
     return OK
 
 
-@view_config(route_name='api_v1_attach_volume', request_method='POST',
-             renderer='json')
-def attach_volume(request):
+# FIXME: rename to attach/detach in logs
+@view_config(route_name='api_v1_volume', request_method='PUT', renderer='json')
+def volume_action(request):
     """
     Tags: volumes
     ---
-    Attach a volume to a machine.
+    Attach or detach a volume to/from a machine.
 
     READ permission required on cloud.
     READ permission required on volume.
+    ATTACH or DETACH permission required on volume.
     ---
     cloud:
       in: path
@@ -196,100 +203,56 @@ def attach_volume(request):
       required: true
       type: string
     machine:
-      in: path
+      in: query
       required: true
       type: string
     device:
+      in: query
       type: string
       description: eg /dev/sdh. Required for EC2, optional for OpenStack
     """
-
-    cloud_id = request.matchdict['cloud']
-    external_id = request.matchdict['volume']
-    machine_id = request.matchdict['machine']
+    auth_context = auth_context_from_request(request)
 
     params = params_from_request(request)
 
-    auth_context = auth_context_from_request(request)
-
-    try:
-        cloud = Cloud.objects.get(id=cloud_id, owner=auth_context.owner)
-    except Cloud.DoesNotExist:
-        raise CloudNotFoundError()
-    try:
-        volume = Volume.objects.get(id=external_id, cloud=cloud)
-    except me.DoesNotExist:
-        raise VolumeNotFoundError()
-    try:
-        machine = Machine.objects.get(id=machine_id, owner=auth_context.owner)
-    except Machine.DoesNotExist:
-        raise MachineNotFoundError()
-
-    auth_context.check_perm("cloud", "read", cloud_id)
-    auth_context.check_perm("volume", "read", external_id)
-
-    if not hasattr(cloud.ctl, 'storage'):
-        raise NotImplementedError()
-
-    volume.ctl.attach(machine, **params)
-
-    # Schedule a UI update
-    trigger_session_update(auth_context.owner, ['clouds'])
-
-    return volume.as_dict()
-
-
-@view_config(route_name='api_v1_attach_volume', request_method='DELETE',
-             renderer='json')
-def detach_volume(request):
-    """
-    Tags: volumes
-    ---
-    Detach a volume from a machine.
-
-    READ permission required on cloud.
-    READ permission required on volume.
-    ---
-    cloud:
-      in: path
-      required: true
-      type: string
-    volume:
-      in: path
-      required: true
-      type: string
-    machine:
-      in: path
-      required: true
-      type: string
-    """
-
     cloud_id = request.matchdict['cloud']
-    volume_id = request.matchdict['volume']
-    machine_id = request.matchdict['machine']
+    external_id = request.matchdict['volume']
 
-    auth_context = auth_context_from_request(request)
+    action = params.pop('action', '')
+    machine_uuid = params.pop('machine', '')
+
+    if action not in ('attach', 'detach'):
+        raise BadRequestError()
+
+    if not machine_uuid:
+        raise RequiredParameterMissingError('machine')
 
     try:
-        cloud = Cloud.objects.get(id=cloud_id, owner=auth_context.owner)
+        cloud = Cloud.objects.get(id=cloud_id, owner=auth_context.owner,
+                                  deleted=None)
     except Cloud.DoesNotExist:
         raise CloudNotFoundError()
+
     try:
-        volume = Volume.objects.get(id=volume_id, cloud=cloud)
+        volume = Volume.objects.get(external_id=external_id, cloud=cloud,
+                                    missing_since=None)
     except me.DoesNotExist:
         raise VolumeNotFoundError()
+
     try:
-        machine = Machine.objects.get(id=machine_id, owner=auth_context.owner)
+        machine = Machine.objects.get(id=machine_uuid, cloud=cloud,
+                                      missing_since=None)
     except Machine.DoesNotExist:
         raise MachineNotFoundError()
 
-    auth_context.check_perm("cloud", "read", cloud_id)
-    auth_context.check_perm("volume", "read", volume_id)
+    auth_context.check_perm("cloud", "read", cloud.id)
+    auth_context.check_perm("volume", "read", volume.id)
+    auth_context.check_perm("volume", action, volume.id)
 
     if not hasattr(cloud.ctl, 'storage'):
         raise NotImplementedError()
 
-    volume.ctl.detach(machine)
+    getattr(volume.ctl, action)(machine, **params)
 
     # Schedule a UI update
     trigger_session_update(auth_context.owner, ['clouds'])

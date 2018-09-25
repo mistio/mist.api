@@ -312,7 +312,7 @@ class ListVolumesPollingSchedule(CloudPollingSchedule):
 
     def enabled(self):
         return (super(ListVolumesPollingSchedule, self).enabled and
-                hasattr(self.cloud.ctl, 'volume'))
+                hasattr(self.cloud.ctl, 'storage'))
 
 
 class MachinePollingSchedule(PollingSchedule):
