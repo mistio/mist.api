@@ -41,8 +41,10 @@ def list_networks(request):
         type: string
     """
     cloud_id = request.matchdict['cloud']
+    params = params_from_request(request)
+    cached = bool(params.get('cached', False))
     auth_context = auth_context_from_request(request)
-    return filter_list_networks(auth_context, cloud_id)
+    return filter_list_networks(auth_context, cloud_id, cached=cached)
 
 
 @view_config(route_name='api_v1_networks',
