@@ -42,6 +42,7 @@ class Portal(me.Document):
 
     # Keys & settings unique per portal
     internal_api_key = me.StringField()
+    external_api_key = me.StringField()
     database_version = me.IntField(default=0, min_value=0)
 
     # This field has a uniqueness constraint and always has the same value.
@@ -63,11 +64,16 @@ class Portal(me.Document):
                 log.info("Generating internal api key.")
                 portal.internal_api_key = _generate_secret_key()
                 portal.save()
+            if not portal.external_api_key:
+                log.info("Generating external api key.")
+                portal.external_api_key = _generate_secret_key()
+                portal.save()
         except me.DoesNotExist:
             log.info("No portal info found in db, will try to initialize.")
             try:
                 portal = cls()
                 portal.internal_api_key = _generate_secret_key()
+                portal.external_api_key = _generate_secret_key()
                 portal.save()
                 log.info("Initialized portal info.")
             except me.NotUniqueError:

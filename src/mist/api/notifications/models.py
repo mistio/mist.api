@@ -168,6 +168,8 @@ class Notification(me.Document):
 
     created_at = me.DateTimeField(default=lambda: datetime.datetime.utcnow())
 
+    suppressed = me.BooleanField()
+
     meta = {
         'strict': False,
         'allow_inheritance': True,
@@ -287,10 +289,10 @@ class EmailNotification(Notification):
     def get_unsub_link(self, user_id, email=None):
         params = self.unsub_params
         params.update({'user_id': user_id, 'email': email})
-        mac_sign(params)
-        encrypted = {'token': encrypt(json.dumps(params))}
+        token = {'token': encrypt(json.dumps(params))}
+        mac_sign(token)
         return '%s/unsubscribe?%s' % (config.CORE_URI,
-                                      urllib.urlencode(encrypted))
+                                      urllib.urlencode(token))
 
 
 class EmailReport(EmailNotification):
@@ -336,3 +338,39 @@ class InAppRecommendation(InAppNotification):
         d.update({'model_id': self.model_id,
                   'model_output': self.model_output})
         return d
+
+
+class NoDataRuleTracker(me.Document):
+    """Tracks no-data alerts' triggers"""
+
+    rule_id = me.StringField(required=True)
+    machine_id = me.StringField(required=True)
+
+    meta = {
+        'indexes': [
+            {
+                'fields': ['rule_id', 'machine_id'],
+                'sparse': False,
+                'unique': True,
+                'cls': False,
+            },
+        ],
+    }
+
+    @classmethod
+    def add(cls, rule_id, machine_id):
+        try:
+            cls.objects.get(rule_id=rule_id, machine_id=machine_id)
+        except cls.DoesNotExist:
+            cls(rule_id=rule_id, machine_id=machine_id).save()
+
+    @classmethod
+    def remove(cls, rule_id, machine_id):
+        try:
+            cls.objects.get(rule_id=rule_id, machine_id=machine_id).delete()
+        except cls.DoesNotExist:
+            pass
+
+    @classmethod
+    def get_frequencies(cls):
+        return cls.objects.item_frequencies('rule_id')

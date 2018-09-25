@@ -1030,6 +1030,11 @@ def logging_view_decorator(func):
                 log_dict['action'] = 'enable_monitoring'
             else:
                 log_dict['action'] = 'disable_monitoring'
+        elif log_dict['action'] == 'volume_action':
+            if log_dict['request_params'].pop('action', None) == 'attach':
+                log_dict['action'] = 'attach_volume'
+            else:
+                log_dict['action'] = 'detach_volume'
 
         # we save log_dict in mongo logging collection
         from mist.api.logs.methods import log_event as log_event_to_es

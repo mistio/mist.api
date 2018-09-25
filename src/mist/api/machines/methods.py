@@ -344,7 +344,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                     volume = Volume.objects.get(id=ex_disk_id)
                     ex_disk_id = volume.external_id
                 except me.DoesNotExist:
-                    raise VolumeNotFoundError
+                    raise VolumeNotFoundError()
 
             # try to find disk using libcloud's id
             libcloud_disks = conn.list_volumes()

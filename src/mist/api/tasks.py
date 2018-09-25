@@ -42,6 +42,7 @@ from mist.api.rules.models import NoDataRule
 from mist.api.poller.models import PollingSchedule
 from mist.api.poller.models import ListMachinesPollingSchedule
 from mist.api.poller.models import ListNetworksPollingSchedule
+from mist.api.poller.models import ListVolumesPollingSchedule
 from mist.api.poller.models import FindCoresMachinePollingSchedule
 from mist.api.poller.models import PingProbeMachinePollingSchedule
 from mist.api.poller.models import SSHProbeMachinePollingSchedule
@@ -1325,6 +1326,8 @@ def update_poller(org_id):
         ListMachinesPollingSchedule.add(cloud=cloud, interval=10, ttl=120)
         if hasattr(cloud.ctl, 'network'):
             ListNetworksPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
+        if hasattr(cloud.ctl, 'storage'):
+            ListVolumesPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
         if config.ACCELERATE_MACHINE_POLLING:
             for machine in cloud.ctl.compute.list_cached_machines():
                 if machine.machine_type != 'container':
