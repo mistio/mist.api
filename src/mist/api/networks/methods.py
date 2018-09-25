@@ -7,7 +7,7 @@ from mist.api.methods import connect_provider
 from libcloud.compute.types import Provider
 
 
-def list_networks(owner, cloud_id):
+def list_networks(owner, cloud_id, cached=False):
     """List the networks of the specified cloud"""
     ret = {'public': [], 'private': [], 'routers': []}  # FIXME
 
@@ -19,7 +19,10 @@ def list_networks(owner, cloud_id):
     if not hasattr(cloud.ctl, 'network'):
         return ret
 
-    networks = cloud.ctl.network.list_networks()
+    if cached:
+        networks = cloud.ctl.compute.list_cached_networks()
+    else:
+        networks = cloud.ctl.network.list_networks()
 
     for network in networks:
 
@@ -37,10 +40,11 @@ def list_networks(owner, cloud_id):
     return ret
 
 
-def filter_list_networks(auth_context, cloud_id, networks=None, perm='read'):
+def filter_list_networks(auth_context, cloud_id, networks=None, perm='read',
+                         cached=False):
     """Filter the networks of the specific cloud based on RBAC policy"""
     if networks is None:
-        networks = list_networks(auth_context.owner, cloud_id)
+        networks = list_networks(auth_context.owner, cloud_id, cached=cached)
     if not auth_context.is_owner():
         allowed_resources = auth_context.get_allowed_resources(perm)
         if cloud_id not in allowed_resources['clouds']:
