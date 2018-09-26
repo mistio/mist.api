@@ -325,7 +325,16 @@ def amqp_publish_user(owner, routing_key, data):
                 data, exchange=kombu.Exchange(_amqp_owner_exchange(owner)),
                 routing_key=routing_key, serializer='json', retry=True
             )
-            connection.drain_events(timeout=0.1)
+            started_at = time()
+            while True:
+                try:
+                    connection.drain_events(timeout=0.1)
+                except AmqpNotFound:
+                    raise
+                except:
+                    pass
+                if time() - started_at >= 0.1:
+                    break
         except AmqpNotFound:
             return False
         else:
