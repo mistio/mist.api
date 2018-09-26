@@ -51,8 +51,7 @@ def list_volumes(request):
 
     # SEC
     auth_context.check_perm('cloud', 'read', cloud_id)
-
-    return filter_list_volumes(auth_context, cloud_id, cached)
+    return filter_list_volumes(auth_context, cloud_id, cached=cached)
 
 
 @view_config(route_name='api_v1_volumes', request_method='POST',
