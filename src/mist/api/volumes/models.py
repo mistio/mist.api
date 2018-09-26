@@ -69,7 +69,6 @@ class Volume(OwnershipMixin, me.Document):
             'external_id': self.external_id,
             'name': self.name,
             'extra': self.extra,
-            'state': self.state,
             'tags': self.tags,
             'size': self.size,
             'location': self.location.id if self.location else None,

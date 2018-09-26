@@ -17,7 +17,6 @@ from mist.api.exceptions import MachineNotFoundError
 from mist.api.exceptions import RequiredParameterMissingError
 
 from mist.api.helpers import params_from_request, view_config
-from mist.api.helpers import trigger_session_update
 
 
 OK = Response("OK", 200)
@@ -52,8 +51,7 @@ def list_volumes(request):
 
     # SEC
     auth_context.check_perm('cloud', 'read', cloud_id)
-
-    return filter_list_volumes(auth_context, cloud_id, cached)
+    return filter_list_volumes(auth_context, cloud_id, cached=cached)
 
 
 @view_config(route_name='api_v1_volumes', request_method='POST',
@@ -126,9 +124,6 @@ def create_volume(request):
     if tags:
         add_tags_to_resource(auth_context.owner, volume, tags)
 
-    # Schedule a UI update
-    trigger_session_update(auth_context.owner, ['clouds'])
-
     return volume.as_dict()
 
 
@@ -178,9 +173,6 @@ def delete_volume(request):
     auth_context.check_perm('volume', 'remove', volume.id)
 
     volume.ctl.delete()
-
-    # Schedule a UI update
-    trigger_session_update(auth_context.owner, ['clouds'])
 
     return OK
 
@@ -256,8 +248,5 @@ def volume_action(request):
         raise NotImplementedError()
 
     getattr(volume.ctl, action)(machine, **params)
-
-    # Schedule a UI update
-    trigger_session_update(auth_context.owner, ['clouds'])
 
     return OK
