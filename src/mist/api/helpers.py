@@ -318,13 +318,20 @@ def _amqp_owner_exchange(owner):
 
 
 def amqp_publish_user(owner, routing_key, data):
-    try:
-        amqp_publish(_amqp_owner_exchange(owner), routing_key, data)
-    except AmqpNotFound:
-        return False
-    except Exception:
-        return False
-    return True
+    with kombu.Connection(config.BROKER_URL) as connection:
+        channel = connection.channel()
+        try:
+            kombu.Producer(channel).publish(
+                data, exchange=kombu.Exchange(_amqp_owner_exchange(owner)),
+                routing_key=routing_key, serializer='json', retry=True
+            )
+            connection.drain_events(timeout=0.1)
+        except AmqpNotFound:
+            return False
+        else:
+            return True
+        finally:
+            channel.close()
 
 
 def amqp_subscribe_user(owner, queue, callback):
