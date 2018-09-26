@@ -30,5 +30,13 @@ class MachinePollingScheduler(MongoScheduler):
     UPDATE_INTERVAL = datetime.timedelta(seconds=20)
 
 
+class ShardedOwnerScheduler(ShardManagerMixin, OwnerPollingScheduler):
+    pass
+
+
 class ShardedCloudScheduler(ShardManagerMixin, CloudPollingScheduler):
+    pass
+
+
+class ShardedMachineScheduler(ShardManagerMixin, MachinePollingScheduler):
     pass
