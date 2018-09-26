@@ -335,12 +335,13 @@ def amqp_owner_listening(owner):
     exchange = kombu.Exchange(_amqp_owner_exchange(owner), type='fanout')
     with kombu.pools.connections[kombu.Connection(config.BROKER_URL)].acquire(
             block=True, timeout=10) as connection:
-        try:
-            exchange(connection).declare(passive=True)
-        except AmqpNotFound:
-            return False
-        else:
-            return True
+        with connection.channel() as channel:
+            try:
+                exchange(connection.channel).declare(passive=True)
+            except AmqpNotFound:
+                return False
+            else:
+                return True
 
 
 def trigger_session_update(owner, sections=['clouds', 'keys', 'monitoring',
