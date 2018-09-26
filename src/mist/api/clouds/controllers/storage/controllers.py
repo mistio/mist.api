@@ -41,7 +41,8 @@ class GoogleStorageController(BaseStorageController):
                 log.error('Failed to parse machine name: %s', libcloud_name)
                 continue
             try:
-                machine = Machine.objects.get(name=name, cloud=self.cloud)
+                machine = Machine.objects.get(name=name, cloud=self.cloud,
+                                              missing_since=None)
                 volume.attached_to.append(machine)
             except Machine.DoesNotExist:
                 log.error('%s attached to unknown machine "%s"', volume, name)
@@ -81,8 +82,9 @@ class AmazonStorageController(BaseStorageController):
         machine_id = libcloud_volume.extra.get('instance_id', '')
         if machine_id:
             try:
-                machine = Machine.objects.get(machine_id=machine_id,
-                                              cloud=self.cloud)
+                machine = Machine.objects.get(
+                    machine_id=machine_id, cloud=self.cloud, missing_since=None
+                )
                 volume.attached_to = [machine]
             except Machine.DoesNotExist:
                 log.error('%s attached to unknown machine "%s"', volume,
@@ -128,8 +130,9 @@ class DigitalOceanStorageController(BaseStorageController):
         volume.attached_to = []
         for machine_id in libcloud_volume.extra.get('droplet_ids', []):
             try:
-                machine = Machine.objects.get(machine_id=machine_id,
-                                              cloud=self.cloud)
+                machine = Machine.objects.get(
+                    machine_id=machine_id, cloud=self.cloud, missing_since=None
+                )
                 volume.attached_to.append(machine)
             except Machine.DoesNotExist:
                 log.error('%s attached to unknown machine "%s"', volume,
