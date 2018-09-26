@@ -328,12 +328,12 @@ def amqp_publish_user(owner, routing_key, data):
             started_at = time()
             while True:
                 try:
-                    connection.drain_events(timeout=0.1)
+                    connection.drain_events(timeout=0.5)
                 except AmqpNotFound:
                     raise
                 except:
                     pass
-                if time() - started_at >= 0.1:
+                if time() - started_at >= 0.5:
                     break
         except AmqpNotFound:
             return False
