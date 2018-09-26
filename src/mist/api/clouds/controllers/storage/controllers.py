@@ -25,7 +25,7 @@ class GoogleStorageController(BaseStorageController):
 
         # Find the volume's location.
         try:
-            volume.location = CloudLocation.objects(
+            volume.location = CloudLocation.objects.get(
                 name=libcloud_volume.extra.get('zone', ''),
                 cloud=self.cloud, missing_since=None
             )
@@ -68,7 +68,7 @@ class AmazonStorageController(BaseStorageController):
 
         # Find the volume's location.
         try:
-            volume.location = CloudLocation.objects(
+            volume.location = CloudLocation.objects.get(
                 name=libcloud_volume.extra.get('zone', ''),
                 cloud=self.cloud, missing_since=None
             )
@@ -117,7 +117,7 @@ class DigitalOceanStorageController(BaseStorageController):
 
         # Find the volume's location.
         try:
-            volume.location = CloudLocation.objects(
+            volume.location = CloudLocation.objects.get(
                 name=libcloud_volume.extra.get('region', {}).get('name'),
                 cloud=self.cloud, missing_since=None
             )
@@ -157,7 +157,7 @@ class OpenstackStorageController(BaseStorageController):
 
         # Find the volume's location.
         try:
-            volume.location = CloudLocation.objects(
+            volume.location = CloudLocation.objects.get(
                 name=libcloud_volume.extra.get('location', ''),
                 cloud=self.cloud, missing_since=None
             )
@@ -186,7 +186,7 @@ class AzureStorageController(BaseStorageController):
 
         # Find the volume's location.
         try:
-            volume.location = CloudLocation.objects(
+            volume.location = CloudLocation.objects.get(
                 name=libcloud_volume.extra.get('location', ''),
                 cloud=self.cloud, missing_since=None
             )
