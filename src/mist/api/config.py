@@ -919,6 +919,12 @@ CELERY_SETTINGS = {
             'queue': 'deployments'},
         'mist.rbac.tasks.update_mappings': {'queue': 'mappings'},
         'mist.rbac.tasks.remove_mappings': {'queue': 'mappings'},
+
+        # List networks
+        'mist.api.poller.tasks.list_networks': {'queue': 'networks'},
+
+        # List volumes
+        'mist.api.poller.tasks.list_volumes': {'queue': 'volumes'},
     },
 }
 
