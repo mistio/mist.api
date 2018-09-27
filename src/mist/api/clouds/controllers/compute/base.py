@@ -24,6 +24,7 @@ from libcloud.common.types import InvalidCredsError
 from libcloud.compute.types import NodeState
 from libcloud.compute.base import NodeLocation, Node, NodeSize
 from libcloud.common.exceptions import BaseHTTPError
+from mist.api.clouds.utils import LibcloudExceptionHandler
 
 from mist.api import config
 
@@ -725,6 +726,7 @@ class BaseComputeController(BaseController):
             pass
         return False
 
+    @LibcloudExceptionHandler(CloudUnavailableError)
     def list_images(self, search=None):
         """Return list of images for cloud
 

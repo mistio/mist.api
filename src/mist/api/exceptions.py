@@ -214,7 +214,7 @@ class CloudNameExistsError(ConflictError):
 
 
 class CloudUnauthorizedError(UnauthorizedError):
-    msg = "Invalid cloud credentials"
+    msg = "Unauthorized cloud credentials"
 
 
 class NetworkExistsError(ConflictError):
