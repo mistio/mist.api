@@ -45,6 +45,7 @@ from mist.api.dns.methods import filter_list_zones
 
 from mist.api import tasks
 from mist.api.hub.tornado_shell_client import ShellHubClient
+from mist.api.hub.tornado_shell_client import SshTunnelHubClient
 
 from mist.api.notifications.models import InAppNotification
 
@@ -225,6 +226,52 @@ class ShellConnection(MistConnection):
         if self.hub_client:
             self.hub_client.stop()
         super(ShellConnection, self).on_close(stale=stale)
+
+
+class SshTunnelConnection(MistConnection):
+    def on_open(self, conn_info):
+        super(SshTunnelConnection, self).on_open(conn_info)
+        self.hub_client = None
+        self.ssh_info = {}
+
+    def on_ssh_open(self, data):
+        if self.ssh_info:
+            self.close()
+        try:
+            m = Machine.objects.get(cloud=data['cloud_id'],
+                                    machine_id=data['machine_id'])
+            self.auth_context.check_perm('machine', 'open_shell', m.id)
+        except PolicyUnauthorizedError as err:
+            self.emit_ssh_data('%s' % err)
+            self.close()
+            return
+        self.ssh_info = {
+            'cloud_id': data.get('cloud_id', ''),
+            'machine_id': data.get('machine_id', ''),
+            'host': data.get('host'),
+            'ip': self.ip,
+            'user_agent': self.user_agent,
+            'owner_id': self.auth_context.owner.id,
+            'user_id': self.user.id,
+            'provider': data.get('provider', ''),
+            'target_host': data.get('target_host'),
+            'target_port': data.get('target_port'),
+        }
+        self.hub_client = SshTunnelHubClient(worker_kwargs=self.ssh_info)
+        self.hub_client.on_data = self.emit_ssh_data
+        self.hub_client.start()
+        log.info('on_ssh_open finished')
+
+    def on_ssh_data(self, data):
+        self.hub_client.send_data(data)
+
+    def emit_ssh_data(self, data):
+        self.send('ssh_data', data)
+
+    def on_close(self, stale=False):
+        if self.hub_client:
+            self.hub_client.stop()
+        super(SshTunnelConnection, self).on_close(stale=stale)
 
 
 class OwnerUpdatesConsumer(Consumer):
@@ -815,6 +862,7 @@ def make_router():
         'main': MainConnection,
         'logs': LogsConnection,
         'shell': ShellConnection,
+        'ssh-tunnel': SshTunnelConnection,
     }
     if config.HAS_MANAGE:
         from mist.manage.sock import ManageLogsConnection

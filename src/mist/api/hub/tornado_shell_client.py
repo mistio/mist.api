@@ -23,3 +23,19 @@ class ShellHubClient(HubClient):
     def stop(self):
         self.send_to_worker('close')
         super(ShellHubClient, self).stop()
+
+
+class SshTunnelHubClient(HubClient):
+    def __init__(self, exchange='hub', key='hub', worker_kwargs=None):
+        super(SshTunnelHubClient, self).__init__(exchange, key, ':sh-tunnel',
+                                                 worker_kwargs)
+
+    def send_data(self, msg):
+        self.send_to_worker('data', msg)
+
+    def on_data(self, msg):
+        print msg
+
+    def stop(self):
+        self.send_to_worker('close')
+        super(SshTunnelHubClient, self).stop()

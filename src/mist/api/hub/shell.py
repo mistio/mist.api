@@ -16,6 +16,82 @@ from mist.api.misc.shell import ShellCapture
 log = logging.getLogger(__name__)
 
 
+class SshTunnelHubWorker(mist.api.hub.main.HubWorker):
+    def __init__(self, *args, **kwargs):
+        super(SshTunnelHubWorker, self).__init__(*args, **kwargs)
+        self.shell = None
+        self.channel = None
+        for key in ('owner_id', 'cloud_id', 'machine_id', 'host',
+                    'target_host', 'target_port'):
+            if not self.params.get(key):
+                err = "%s: Param '%s' missing from worker kwargs." % (self.lbl,
+                                                                      key)
+                log.error(err)
+                self.stop()
+                raise Exception(err)
+        self.owner = mist.api.users.models.Owner(id=self.params['owner_id'])
+
+    def on_ready(self, body='', msg=''):
+        super(SshTunnelHubWorker, self).on_ready(body, msg)
+        self.connect()
+
+    def connect(self):
+        """Connect to shell"""
+        if self.shell is not None:
+            log.error("%s: Can't call on_connect twice.", self.lbl)
+            return
+        data = self.params
+        try:
+            self.shell = mist.api.shell.ParamikoShell(data['host'])
+            key_id, ssh_user = self.shell.autoconfigure(
+                self.owner, data['cloud_id'], data['machine_id']
+            )
+        except Exception as exc:
+            log.warning("%s: Couldn't connect with SSH, error %r.",
+                        self.lbl, exc)
+            if isinstance(exc,
+                          mist.api.exceptions.MachineUnauthorizedError):
+                err = 'Permission denied (publickey).'
+            else:
+                err = str(exc)
+            self.emit_ssh_data(err)
+            self.params['error'] = err
+            self.stop()
+            return
+        self.params.update(key_id=key_id, ssh_user=ssh_user)
+        self.channel = self.shell.command_stream(
+            'nc %s %s' % (data['target_host'], data['target_port'])
+        )[3]
+        self.greenlets['read_stdout'] = gevent.spawn(self.get_ssh_data)
+
+    def on_data(self, body, msg):
+        """Received data that must be forwarded to shell's stdin"""
+        self.channel.send(body.encode('utf-8', 'ignore'))
+
+    def emit_ssh_data(self, data):
+        self.send_to_client('data', data)
+
+    def get_ssh_data(self):
+        try:
+            while True:
+                gevent.socket.wait_read(self.channel.fileno())
+                data = self.channel.recv(1024).decode('utf-8', 'ignore')
+                if not len(data):
+                    return
+                self.emit_ssh_data(data)
+        finally:
+            self.channel.close()
+
+    def stop(self):
+        super(SshTunnelHubWorker, self).stop()
+        if self.channel is not None:
+            self.channel.close()
+            self.channel = None
+        if self.shell is not None:
+            self.shell.disconnect()
+            self.shell = None
+
+
 class ShellHubWorker(mist.api.hub.main.HubWorker):
     def __init__(self, *args, **kwargs):
         super(ShellHubWorker, self).__init__(*args, **kwargs)
@@ -222,5 +298,37 @@ class ShellHubClient(mist.api.hub.main.HubClient):
         super(ShellHubClient, self).stop()
 
 
+class SshTunnelHubClient(mist.api.hub.main.HubClient):
+    def __init__(self, *args, **kwargs):
+        super(SshTunnelHubClient, self).__init__(
+            *args, worker_type='ssh-tunnel', **kwargs)
+
+    def start(self):
+        """Call super and also start stdin reader greenlet"""
+        super(SshTunnelHubClient, self).start()
+        gevent.sleep(1)
+        self.greenlets['stdin'] = gevent.spawn(self.send_stdin)
+
+    def send_stdin(self):
+        """Continuously read lines from stdin and send them to worker"""
+        while True:
+            gevent.socket.wait_read(sys.stdin.fileno())
+            self.send_data(sys.stdin.readline())
+            gevent.sleep(0)
+
+    def send_data(self, data):
+        self.send_to_worker('data', data)
+
+    def on_data(self, body, msg):
+        print(body)
+
+    def stop(self):
+        self.send_close()
+        super(SshTunnelHubClient, self).stop()
+
+
 if __name__ == "__main__":
-    mist.api.hub.main.main(workers={'shell': LoggingShellHubWorker})
+    mist.api.hub.main.main(workers={
+        'shell': LoggingShellHubWorker,
+        'ssh-tunnel': SshTunnelHubWorker,
+    })

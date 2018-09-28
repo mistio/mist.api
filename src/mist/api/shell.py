@@ -168,7 +168,8 @@ class ParamikoShell(object):
         """Helper method used by command and stream_command."""
         channel = self.ssh.get_transport().open_session()
         channel.settimeout(10800)
-        stdout = channel.makefile()
+        stdin = channel.makefile('wb')
+        stdout = channel.makefile('rb')
         stderr = channel.makefile_stderr()
         if pty:
             # this combines the stdout and stderr streams as if in a pty
@@ -177,7 +178,7 @@ class ParamikoShell(object):
             channel.get_pty()
         # command starts being executed in the background
         channel.exec_command(cmd)
-        return stdout, stderr, channel
+        return stdin, stdout, stderr, channel
 
     def command(self, cmd, pty=True):
         """Run command and return output.
@@ -190,7 +191,7 @@ class ParamikoShell(object):
 
         """
         log.info("running command: '%s'", cmd)
-        stdout, stderr, channel = self._command(cmd, pty)
+        stdin, stdout, stderr, channel = self._command(cmd, pty)
         line = stdout.readline()
         out = ''
         while line:
@@ -210,15 +211,20 @@ class ParamikoShell(object):
 
             return retval, out, err
 
-    def command_stream(self, cmd):
+    def command_stream(self, cmd, pty=False):
+        log.info("running command: '%s'", cmd)
+        stdin, stdout, stderr, channel = self._command(cmd, pty=pty)
+        return stdin, stdout, stderr, channel
+
+    def command_stream_lines(self, cmd):
         """Run command and stream output line by line.
 
         This function is a generator that returns the commands output line
-        by line. Use like: for line in command_stream(cmd): print line.
+        by line. Use like: for line in command_stream_lines(cmd): print line.
 
         """
         log.info("running command: '%s'", cmd)
-        stdout, stderr, channel = self._command(cmd)
+        stdin, stdout, stderr, channel = self._command(cmd)
         line = stdout.readline()
         while line:
             yield line
