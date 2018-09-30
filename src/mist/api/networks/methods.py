@@ -24,7 +24,7 @@ def list_networks(owner, cloud_id, cached=False):
     else:
         networks = cloud.ctl.network.list_networks()
 
-    return {network.id: network.as_dict() for network in networks}
+    return [n.as_dict() for n in networks]
 
 
 def filter_list_networks(auth_context, cloud_id, networks=None, perm='read',
@@ -32,14 +32,17 @@ def filter_list_networks(auth_context, cloud_id, networks=None, perm='read',
     """Filter the networks of the specific cloud based on RBAC policy"""
     if networks is None:
         networks = list_networks(auth_context.owner, cloud_id, cached=cached)
-    if not auth_context.is_owner():
+    if auth_context.is_owner():
+        return networks
+    else:
         allowed_resources = auth_context.get_allowed_resources(perm)
         if cloud_id not in allowed_resources['clouds']:
             return {}
-        for i in networks.keys():
-            if i not in allowed_resources['networks']:
-                networks.pop(i)
-    return networks
+        filtered = []
+        for n in networks:
+            if n['id'] in allowed_resources['networks']:
+                filtered.append(n)
+        return filtered
 
 
 def associate_ip(owner, cloud_id, network_id, ip,

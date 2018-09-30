@@ -238,32 +238,21 @@ class BaseNetworkController(BaseController):
         """
         task_key = 'cloud:list_networks:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
-        with task.task_runner(persist=persist):
-            # Get cached networks as dict
-            cached_networks = self.list_cached_networks()
-            cached_networks_dict = {}
-            for network in cached_networks:
-                network_dict = network.as_dict()
-                network_dict['subnets'] = {}
-                for subnet in network.ctl.list_subnets():
-                    subnet_dict = subnet.as_dict()
-                    network_dict['subnets'].update(
-                        {subnet_dict['id']: subnet_dict})
-                cached_networks_dict[network.id] = network_dict
-
-            networks = self._list_networks()
+        try:
+            with task.task_runner(persist=persist):
+                # Get cached networks as dict
+                cached_networks = {'%s-%s' % (n.id, n.external_id): n.as_dict()
+                                for m in self.list_cached_networks()}
+                networks = self._list_networks()
+        except PeriodicTaskThresholdExceeded:
+            self.cloud.ctl.disable()
+            raise
 
         if amqp_owner_listening(self.cloud.owner.id):
-            new_networks = {}
-            for network in networks:
-                network_dict = network.as_dict()
-                network_dict['subnets'] = {}
-                for subnet in network.ctl.list_subnets():
-                    subnet_dict = subnet.as_dict()
-                    network_dict['subnets'].update(
-                        {subnet_dict['id']: subnet_dict})
-                new_networks[network.id] = network_dict
-
+            # Publish patches to rabbitmq.
+            new_networks = {'%s-%s' % (n.id, n.external_id): n.as_dict()
+                            for n in networks}
+            # Exclude last seen and probe field
             if cached_networks and new_networks:
                 # Publish patches to rabbitmq.
                 patch = jsonpatch.JsonPatch.from_diff(cached_networks,
@@ -273,13 +262,6 @@ class BaseNetworkController(BaseController):
                                       routing_key='patch_networks',
                                       data={'cloud_id': self.cloud.id,
                                             'patch': patch})
-            else:
-                # TODO: remove this block, once patches
-                # are implemented in the UI
-                amqp_publish_user(self.cloud.owner.id,
-                                  routing_key='list_networks',
-                                  data={'cloud_id': self.cloud.id,
-                                        'patch': patch})
         return networks
 
     @LibcloudExceptionHandler(mist.api.exceptions.NetworkListingError)
