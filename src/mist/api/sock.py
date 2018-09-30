@@ -157,7 +157,7 @@ class MistConnection(SockJSConnection):
             Portal.get_singleton().internal_api_key, self.cookie_session_id)}
 
         tornado.httpclient.AsyncHTTPClient().fetch(
-            'http://api/%s' % path,
+            '%s/%s' % (config.INTERNAL_API_URL, path),
             headers=headers,
             callback=response_callback,
         )
