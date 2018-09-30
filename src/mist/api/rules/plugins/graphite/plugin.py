@@ -56,7 +56,7 @@ class GraphiteBackendPlugin(base.BaseBackendPlugin):
         assert round(frequency_seconds / (1. * window_seconds), 2) >= .25
 
         # Ensure a simple query condition with no additional filters.
-        assert len(rule.queries) is 1
+        # assert len(rule.queries) is 1
         assert not rule.queries[0].filters
 
     @property
