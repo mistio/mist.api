@@ -16,11 +16,13 @@ from mist.api.exceptions import RequiredParameterMissingError
 
 from mist.api.rules.models import Rule
 from mist.api.rules.models import RULES
+from mist.api.rules.models import NoDataRule
 from mist.api.rules.methods import run_chained_actions
 
 from mist.api.auth.methods import auth_context_from_request
 
 from mist.api.notifications.models import Notification
+from mist.api.notifications.models import NoDataRuleTracker
 
 from mist.api import config
 
@@ -544,6 +546,13 @@ def triggered(request):
             raise NotFoundError('%s is not being monitored' % resource)
     else:
         resource_type = resource_id = None
+
+    # Record the trigger, if it's a no-data, to refer to it later.
+    if isinstance(rule, NoDataRule):
+        if triggered:
+            NoDataRuleTracker.add(rule.id, resource.id)
+        else:
+            NoDataRuleTracker.remove(rule.id, resource.id)
 
     # Run chain of rule's actions.
     run_chained_actions(

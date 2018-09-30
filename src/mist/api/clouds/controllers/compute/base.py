@@ -24,8 +24,7 @@ from libcloud.common.types import InvalidCredsError
 from libcloud.compute.types import NodeState
 from libcloud.compute.base import NodeLocation, Node, NodeSize
 from libcloud.common.exceptions import BaseHTTPError
-
-from amqp.connection import Connection
+from mist.api.clouds.utils import LibcloudExceptionHandler
 
 from mist.api import config
 
@@ -208,14 +207,10 @@ class BaseComputeController(BaseController):
             self.cloud.ctl.disable()
             raise
 
-        # Initialize AMQP connection to reuse for multiple messages.
-        amqp_conn = Connection(config.AMQP_URI)
-
         if amqp_owner_listening(self.cloud.owner.id):
             if not config.MACHINE_PATCHES:
                 amqp_publish_user(self.cloud.owner.id,
                                   routing_key='list_machines',
-                                  connection=amqp_conn,
                                   data={'cloud_id': self.cloud.id,
                                         'machines': [machine.as_dict()
                                                      for machine in machines]})
@@ -235,7 +230,6 @@ class BaseComputeController(BaseController):
                 if patch:
                     amqp_publish_user(self.cloud.owner.id,
                                       routing_key='patch_machines',
-                                      connection=amqp_conn,
                                       data={'cloud_id': self.cloud.id,
                                             'patch': patch})
 
@@ -245,7 +239,7 @@ class BaseComputeController(BaseController):
                     'machine_id': machine.id,
                     'cost_per_month': machine.cost.monthly}
             amqp_publish(exchange='machines_inventory', routing_key='',
-                         auto_delete=False, data=data, connection=amqp_conn)
+                         auto_delete=False, data=data)
 
         return machines
 
@@ -682,6 +676,7 @@ class BaseComputeController(BaseController):
             pass
         return False
 
+    @LibcloudExceptionHandler(CloudUnavailableError)
     def list_images(self, search=None):
         """Return list of images for cloud
 
@@ -786,8 +781,6 @@ class BaseComputeController(BaseController):
                             for s in self.list_cached_sizes()}
             sizes = self._list_sizes()
 
-        # Initialize AMQP connection to reuse for multiple messages.
-        amqp_conn = Connection(config.AMQP_URI)
         if amqp_owner_listening(self.cloud.owner.id):
             if cached_sizes and sizes:
                 # Publish patches to rabbitmq.
@@ -797,7 +790,6 @@ class BaseComputeController(BaseController):
                 if patch:
                     amqp_publish_user(self.cloud.owner.id,
                                       routing_key='patch_sizes',
-                                      connection=amqp_conn,
                                       data={'cloud_id': self.cloud.id,
                                             'patch': patch})
 
@@ -806,7 +798,6 @@ class BaseComputeController(BaseController):
                 # are implemented in the UI
                 amqp_publish_user(self.cloud.owner.id,
                                   routing_key='list_sizes',
-                                  connection=amqp_conn,
                                   data={'cloud_id': self.cloud.id,
                                         'sizes': [s.as_dict() for s in sizes]})
         return sizes
@@ -926,8 +917,6 @@ class BaseComputeController(BaseController):
 
             locations = self._list_locations()
 
-        # Initialize AMQP connection to reuse for multiple messages.
-        amqp_conn = Connection(config.AMQP_URI)
         if amqp_owner_listening(self.cloud.owner.id):
             locations_dict = [l.as_dict() for l in locations]
             if cached_locations and locations_dict:
@@ -938,7 +927,6 @@ class BaseComputeController(BaseController):
                 if patch:
                     amqp_publish_user(self.cloud.owner.id,
                                       routing_key='patch_locations',
-                                      connection=amqp_conn,
                                       data={'cloud_id': self.cloud.id,
                                             'patch': patch})
             else:
@@ -946,7 +934,6 @@ class BaseComputeController(BaseController):
                 # are implemented in the UI
                 amqp_publish_user(self.cloud.owner.id,
                                   routing_key='list_locations',
-                                  connection=amqp_conn,
                                   data={'cloud_id': self.cloud.id,
                                         'locations': locations_dict})
         return locations

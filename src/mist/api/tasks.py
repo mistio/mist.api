@@ -42,6 +42,7 @@ from mist.api.rules.models import NoDataRule
 from mist.api.poller.models import PollingSchedule
 from mist.api.poller.models import ListMachinesPollingSchedule
 from mist.api.poller.models import ListNetworksPollingSchedule
+from mist.api.poller.models import ListVolumesPollingSchedule
 from mist.api.poller.models import FindCoresMachinePollingSchedule
 from mist.api.poller.models import PingProbeMachinePollingSchedule
 from mist.api.poller.models import SSHProbeMachinePollingSchedule
@@ -582,7 +583,6 @@ def rackspace_first_gen_post_create_steps(
 
 
 class UserTask(Task):
-    abstract = True
     task_key = ''
     result_expires = 0
     result_fresh = 0
@@ -723,7 +723,6 @@ class UserTask(Task):
 
 
 class ListZones(UserTask):
-    abstract = False
     task_key = 'list_zones'
     result_expires = 60 * 60 * 24
     result_fresh = 0
@@ -750,7 +749,6 @@ class ListZones(UserTask):
 
 
 class ListImages(UserTask):
-    abstract = False
     task_key = 'list_images'
     result_expires = 60 * 60 * 24 * 7
     result_fresh = 60 * 60
@@ -769,7 +767,6 @@ class ListImages(UserTask):
 
 
 class ListProjects(UserTask):
-    abstract = False
     task_key = 'list_projects'
     result_expires = 60 * 60 * 24 * 7
     result_fresh = 60 * 60
@@ -788,7 +785,6 @@ class ListProjects(UserTask):
 
 
 class ListResourceGroups(UserTask):
-    abstract = False
     task_key = 'list_resource_groups'
     result_expires = 60 * 60 * 24 * 7
     result_fresh = 60 * 60
@@ -807,7 +803,6 @@ class ListResourceGroups(UserTask):
 
 
 class ListStorageAccounts(UserTask):
-    abstract = False
     task_key = 'list_storage_accounts'
     result_expires = 60 * 60 * 24 * 7
     result_fresh = 60 * 60
@@ -823,6 +818,13 @@ class ListStorageAccounts(UserTask):
         log.warn('Returning list storage accounts for user %s cloud %s',
                  owner.id, cloud_id)
         return {'cloud_id': cloud_id, 'storage_accounts': storage_accounts}
+
+
+list_zones = app.register_task(ListZones())
+list_images = app.register_task(ListImages())
+list_projects = app.register_task(ListProjects())
+list_resource_groups = app.register_task(ListResourceGroups())
+list_storage_accounts = app.register_task(ListStorageAccounts())
 
 
 @app.task
@@ -1324,6 +1326,8 @@ def update_poller(org_id):
         ListMachinesPollingSchedule.add(cloud=cloud, interval=10, ttl=120)
         if hasattr(cloud.ctl, 'network'):
             ListNetworksPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
+        if hasattr(cloud.ctl, 'storage'):
+            ListVolumesPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
         if config.ACCELERATE_MACHINE_POLLING:
             for machine in cloud.ctl.compute.list_cached_machines():
                 if machine.machine_type != 'container':

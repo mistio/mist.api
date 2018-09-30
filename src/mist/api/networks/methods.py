@@ -9,10 +9,8 @@ from mist.api.methods import connect_provider
 from libcloud.compute.types import Provider
 
 
-def list_networks(owner, cloud_id):
+def list_networks(owner, cloud_id, cached=False):
     """List the networks of the specified cloud"""
-    ret = {'public': {}, 'private': {}, 'routers': {}}  # FIXME
-
     try:
         cloud = Cloud.objects.get(owner=owner, id=cloud_id)
     except Cloud.DoesNotExist:
@@ -21,34 +19,26 @@ def list_networks(owner, cloud_id):
     if not hasattr(cloud.ctl, 'network'):
         return ret
 
-    networks = Network.objects(cloud=cloud, missing_since=None)
+    if cached:
+        networks = cloud.ctl.network.list_cached_networks()
+    else:
+        networks = cloud.ctl.network.list_networks()
 
-    for network in networks:
-
-        network_dict = network.as_dict()
-
-    # TODO: Backwards-compatible network privacy detection, to be replaced
-        if not network_dict.get('router_external'):
-            ret['private'].update({network_dict['id']: network_dict})
-        else:
-            ret['public'].update({network_dict['id']: network_dict})
-    return ret
+    return {network.id: network.as_dict() for network in networks}
 
 
-def filter_list_networks(auth_context, cloud_id, networks=None, perm='read'):
+def filter_list_networks(auth_context, cloud_id, networks=None, perm='read',
+                         cached=False):
     """Filter the networks of the specific cloud based on RBAC policy"""
     if networks is None:
-        networks = list_networks(auth_context.owner, cloud_id)
+        networks = list_networks(auth_context.owner, cloud_id, cached=cached)
     if not auth_context.is_owner():
         allowed_resources = auth_context.get_allowed_resources(perm)
         if cloud_id not in allowed_resources['clouds']:
-            return {'public': {}, 'private': {}, 'routers': {}}
-        for key in ('public', 'private'):
-            if not networks.get(key):
-                continue
-            for i in networks[key].keys():
-                if i not in allowed_resources['networks']:
-                    networks[key].pop(i)
+            return {}
+        for i in networks.keys():
+            if i not in allowed_resources['networks']:
+                networks.pop(i)
     return networks
 
 

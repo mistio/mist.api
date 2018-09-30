@@ -1,12 +1,24 @@
 import os
+import json
+import urllib
 import logging
 
 from chameleon import PageTemplateFile
 
+from mist.api import config
+
+from mist.api.helpers import encrypt
+from mist.api.helpers import mac_sign
+from mist.api.methods import notify_admin
+
 from mist.api.rules.models import Rule
+from mist.api.rules.models import NoDataRule
 from mist.api.users.models import User
 
+from mist.api.portal.models import Portal
+
 from mist.api.notifications.models import EmailAlert
+from mist.api.notifications.models import NoDataRuleTracker
 from mist.api.notifications.models import InAppRecommendation
 
 from mist.api.notifications.helpers import _log_alert
@@ -57,18 +69,27 @@ def send_alert_email(rule, resource, incident_id, value, triggered, timestamp,
         alert = EmailAlert.objects.get(owner=rule.owner_id,
                                        incident_id=incident_id)
     except EmailAlert.DoesNotExist:
+        if not triggered:
+            return
         alert = EmailAlert(owner=rule.owner, incident_id=incident_id)
         # Allows unsubscription from alerts on a per-rule basis.
         alert.rid = rule.id
         alert.rtype = 'rule'
         # Allows reminder alerts to be sent.
         alert.reminder_enabled = True
+        # Suppress alert.
+        alert.suppressed = suppress_nodata_alert(rule)
+        alert.save()
         # Allows to log newly triggered incidents.
         skip_log = False
     else:
         skip_log = False if not triggered else True
         reminder = ' - Reminder %d' % alert.reminder_count if triggered else ''
         info['action'] += reminder
+
+    if alert.suppressed:
+        log.warning('Alert for %s suppressed since %s', rule, alert.created_at)
+        return
 
     # Check whether an alert has to be sent in case of a (re)triggered rule.
     if triggered and not alert.is_due():
@@ -103,6 +124,67 @@ def send_alert_email(rule, resource, incident_id, value, triggered, timestamp,
     if skip_log is False:
         _log_alert(resource, rule, value, triggered, timestamp, incident_id,
                    action)
+
+
+def suppress_nodata_alert(rule):
+
+    if not (isinstance(rule, NoDataRule) and config.NO_DATA_ALERT_SUPPRESSION):
+        return False
+
+    if EmailAlert.objects(rtype='rule', suppressed=True).count():
+        log.warning('Suppressed %s. Previous alerts suppressed, too', rule)
+        return True
+
+    # Get the number of no-data rules and of corresponding machines, which
+    # have fired a trigger.
+    freqs = NoDataRuleTracker.get_frequencies()
+    nodata_rules_firing = len(freqs)
+    mon_machines_firing = sum(freqs.values())
+
+    # Get the total number of no-data rules and the number of machines
+    # they're monitoring.
+    total_nodata_rules = NoDataRule.objects.count()
+    total_mon_machines = sum(r.get_resources().count() for
+                             r in NoDataRule.objects())
+
+    # If only a small number of no-data rules has been triggered, return.
+    rules_ratio = round(nodata_rules_firing / (1. * total_nodata_rules), 2)
+    if rules_ratio < config.NO_DATA_RULES_RATIO:
+        return False
+
+    # If a large enough number of no-data rules has been triggered, but
+    # only for a small subset of all monitored machines, return.
+    machines_ratio = round(mon_machines_firing / (1. * total_mon_machines), 2)
+    if machines_ratio < config.NO_DATA_MACHINES_RATIO:
+        return False
+
+    def get_unsuppress_link(action):
+        assert action in ('unsuppress', 'delete', )
+        params = {'action': action,
+                  'key': Portal.get_singleton().external_api_key}
+        token = {'token': encrypt(json.dumps(params))}
+        mac_sign(token)
+        return '%s/suppressed-alerts?%s' % (config.CORE_URI,
+                                            urllib.urlencode(token))
+
+    # Otherwise, suppress e-mail notification and notify the portal's admins.
+    d = {
+        'rule': rule,
+        'total_num_monitored_machines': total_mon_machines,
+        'total_number_of_nodata_rules': total_nodata_rules,
+        'mon_machines_firing': mon_machines_firing,
+        'nodata_rules_firing': nodata_rules_firing,
+        'machines_percentage': machines_ratio * 100,
+        'rules_percentage': rules_ratio * 100,
+        'delete_alerts_link': get_unsuppress_link(action='delete'),
+        'unsuppress_alerts_link': get_unsuppress_link(action='unsuppress'),
+    }
+    try:
+        notify_admin(title=config.NO_DATA_ALERT_SUPPRESSION_SUBJECT,
+                     message=config.NO_DATA_ALERT_SUPPRESSION_BODY % d)
+    except Exception as exc:
+        log.error('Suppressed %s. Failed to notify admins: %r', rule, exc)
+    return True
 
 
 def dismiss_scale_notifications(machine, feedback='NEUTRAL'):

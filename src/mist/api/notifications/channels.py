@@ -2,8 +2,6 @@ import urllib2
 import logging
 import jsonpatch
 
-from amqp.connection import Connection
-
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 from sendgrid.helpers.mail import Email
@@ -147,9 +145,6 @@ class InAppNotificationChannel(BaseNotificationChannel):
         if not amqp_owner_listening(self.ntf.owner.id):
             return
 
-        # Initialize AMQP connection to reuse for multiple messages.
-        amqp_conn = Connection(config.AMQP_URI)
-
         # Re-fetch all notifications in order to calculate the diff between
         # the two lists.
         owner_new_ntfs = list(InAppNotification.objects(owner=self.ntf.owner))
@@ -187,15 +182,8 @@ class InAppNotificationChannel(BaseNotificationChannel):
             if patch:
                 amqp_publish_user(self.ntf.owner.id,
                                   routing_key='patch_notifications',
-                                  connection=amqp_conn,
                                   data={'user': user.id,
                                         'patch': patch})
-
-        # Finally, try to close the AMQP connection.
-        try:
-            amqp_conn.close()
-        except Exception as exc:
-            log.exception(repr(exc))
 
     def dismiss(self, users=None):
         self.send(users, dismiss=True)

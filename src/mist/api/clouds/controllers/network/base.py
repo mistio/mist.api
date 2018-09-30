@@ -19,10 +19,6 @@ from requests import ConnectionError
 
 import mist.api.exceptions
 
-from amqp.connection import Connection
-
-from mist.api import config
-
 from mist.api.clouds.utils import LibcloudExceptionHandler
 from mist.api.clouds.controllers.base import BaseController
 
@@ -243,50 +239,45 @@ class BaseNetworkController(BaseController):
         task_key = 'cloud:list_networks:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
         with task.task_runner(persist=persist):
+            # Get cached networks as dict
             cached_networks = self.list_cached_networks()
-            cached_networks_dict = {'public': {}, 'private': {}, 'routers': {}}
+            cached_networks_dict = {}
             for network in cached_networks:
                 network_dict = network.as_dict()
-
-                if not network_dict.get('router_external'):
-                    cached_networks_dict['private'].update(
-                        {network_dict['id']: network_dict})
-                else:
-                    cached_networks_dict['public'].update(
-                        {network_dict['id']: network_dict})
-
-            networks = self._list_networks()
-
-        # Initialize AMQP connection to reuse for multiple messages.
-
-        amqp_conn = Connection(config.AMQP_URI)
-        if amqp_owner_listening(self.cloud.owner.id):
-            new_networks = {'public': {}, 'private': {}, 'routers': {}}
-
-            for network in networks:
-                network_dict = network.as_dict()
                 network_dict['subnets'] = {}
-
                 for subnet in network.ctl.list_subnets():
                     subnet_dict = subnet.as_dict()
                     network_dict['subnets'].update(
                         {subnet_dict['id']: subnet_dict})
+                cached_networks_dict[network.id] = network_dict
 
-                if not network_dict.get('router_external'):
-                    new_networks['private'].update(
-                        {network_dict['id']: network_dict})
-                else:
-                    new_networks['public'].update(
-                        {network_dict['id']: network_dict})
+            networks = self._list_networks()
 
-            patch = jsonpatch.JsonPatch.from_diff(cached_networks_dict,
-                                                  new_networks).patch
+        if amqp_owner_listening(self.cloud.owner.id):
+            new_networks = {}
+            for network in networks:
+                network_dict = network.as_dict()
+                network_dict['subnets'] = {}
+                for subnet in network.ctl.list_subnets():
+                    subnet_dict = subnet.as_dict()
+                    network_dict['subnets'].update(
+                        {subnet_dict['id']: subnet_dict})
+                new_networks[network.id] = network_dict
 
-            # Publish patches to rabbitmq.
-            if patch:
+            if cached_networks and new_networks:
+                # Publish patches to rabbitmq.
+                patch = jsonpatch.JsonPatch.from_diff(cached_networks,
+                                                      new_networks).patch
+                if patch:
+                    amqp_publish_user(self.cloud.owner.id,
+                                      routing_key='patch_networks',
+                                      data={'cloud_id': self.cloud.id,
+                                            'patch': patch})
+            else:
+                # TODO: remove this block, once patches
+                # are implemented in the UI
                 amqp_publish_user(self.cloud.owner.id,
-                                  routing_key='patch_networks',
-                                  connection=amqp_conn,
+                                  routing_key='list_networks',
                                   data={'cloud_id': self.cloud.id,
                                         'patch': patch})
         return networks

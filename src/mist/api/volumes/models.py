@@ -1,10 +1,7 @@
 import uuid
 import mongoengine as me
 
-from mist.api.clouds.models import Cloud
 from mist.api.tag.models import Tag
-
-from mist.api.machines.models import Machine
 
 from mist.api.ownership.mixins import OwnershipMixin
 
@@ -12,34 +9,23 @@ from mist.api.volumes.controllers import StorageController
 
 
 class Volume(OwnershipMixin, me.Document):
-    """The basic Volume model.
+    """The basic block storage (volume) model"""
 
-    This class is only meant to be used as a basic class for cloud-specific
-    `Volume` subclasses.
-
-    `Volume` contains all common, provider-independent fields and handlers.
-    """
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
-    cloud = me.ReferenceField(Cloud, required=True)
-    owner = me.ReferenceField('Organization')
-    attached_to = me.ListField(me.ReferenceField(Machine,
+
+    cloud = me.ReferenceField('Cloud', required=True)
+    owner = me.ReferenceField('Organization', required=True)
+    location = me.ReferenceField('CloudLocation')
+    attached_to = me.ListField(me.ReferenceField('Machine',
                                                  reverse_delete_rule=me.PULL))
-    external_id = me.StringField()
-    name = me.StringField()
+
     size = me.IntField()
-    location = me.StringField()
-    state = me.StringField()
+    name = me.StringField()
+    external_id = me.StringField(required=True)
 
     extra = me.DictField()
+
     missing_since = me.DateTimeField()
-
-    # GCE-specific
-    disk_type = me.StringField(choices=('pd-standard', 'pd-ssd'))
-
-    # EC2-specific
-    volume_type = me.StringField(choices=('standard', 'gp2', 'io1',
-                                          'sc1', 'st1'))
-    iops = me.IntField()    # only for 'io1' type
 
     meta = {
         'allow_inheritance': True,
@@ -59,32 +45,6 @@ class Volume(OwnershipMixin, me.Document):
         # Set `ctl` attribute.
         self.ctl = StorageController(self)
 
-    @classmethod
-    def add(cls, cloud, name='', id='', **kwargs):
-        """Add a Volume.
-
-        This is a class method, meaning that it is meant to be called on the
-        class itself and not on an instance of the class.
-
-        You're not meant to be calling this directly, but on a volume subclass
-        instead like this:
-
-            volume = AmazonVolume.add(cloud=cloud, name='MyAmazonVolume')
-
-        :param cloud: the Cloud on which the volume is going to be created.
-        :param name: the name to be assigned to the new volume.
-        :param description: an optional description.
-        :param id: a custom object id, passed in case of a migration.
-        :param kwargs: the kwargs to be passed to the corresponding controller.
-
-        """
-        assert isinstance(cloud, Cloud)
-        volume = cls(cloud=cloud, name=name)
-        if id:
-            volume.id = id
-        volume.ctl.create(**kwargs)
-        return volume
-
     @property
     def tags(self):
         """Return the tags of this volume."""
@@ -93,10 +53,6 @@ class Volume(OwnershipMixin, me.Document):
 
     def clean(self):
         self.owner = self.owner or self.cloud.owner
-        # make sure that machines with disk attached aren't missing
-        for machine in self.attached_to:
-            if machine.missing_since is not None:
-                self.attached_to.pop(machine)
 
     def delete(self):
         super(Volume, self).delete()
@@ -113,15 +69,10 @@ class Volume(OwnershipMixin, me.Document):
             'external_id': self.external_id,
             'name': self.name,
             'extra': self.extra,
-            'owner': self.owner,
-            'state': self.state,
             'tags': self.tags,
-            'size': int(self.size),
-            'location': self.location,
-            'attached_to': [m.as_dict() for m in self.attached_to],
-            'disk_type': self.disk_type,
-            'iops': self.iops,
-            'volume_type': self.volume_type
+            'size': self.size,
+            'location': self.location.id if self.location else None,
+            'attached_to': [m.id for m in self.attached_to],
         }
 
         return volume_dict
