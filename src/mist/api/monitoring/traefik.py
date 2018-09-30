@@ -44,7 +44,7 @@ def _gen_machine_config(machine):
     backend = {
         "servers": {
             "gocky": {
-                "url": "http://gocky:%d" % backend_port,
+                "url": "http://%s:%d" % (config.GOCKY_HOST, backend_port),
                 "weight": 10,
             },
         },

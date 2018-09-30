@@ -80,6 +80,9 @@ DOMAIN_VALIDATION_WHITELIST = []
 DOCS_URI = 'https://docs.mist.io/'
 SUPPORT_URI = 'https://docs.mist.io/contact'
 
+INTERNAL_API_URL = 'http://api'
+GOCKY_HOST = 'gocky'
+
 # InfluxDB
 INFLUX = {
     "host": "http://influxdb:8086", "db": "telegraf"
