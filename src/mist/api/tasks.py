@@ -976,7 +976,7 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
         'error': False,
     }
 
-    log_event(action='Schedule started', **log_dict)
+    log_event(action='schedule_started', **log_dict)
     log.info('Schedule action started: %s', log_dict)
     try:
         group(glist)()
@@ -987,7 +987,7 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
                     'total_run_count': schedule.total_run_count or 0,
                      'error': log_dict['error']}
                     )
-    log_event(action='Schedule finished', **log_dict)
+    log_event(action='schedule_finished', **log_dict)
     if log_dict['error']:
         log.info('Schedule action failed: %s', log_dict)
     else:
@@ -1139,7 +1139,7 @@ def group_run_script(owner_id, script_id, name, machines_uuids, params=''):
         'job_id': job_id,
     }
 
-    log_event(action='Schedule started', **log_dict)
+    log_event(action='schedule_started', **log_dict)
     log.info('Schedule started: %s', log_dict)
     try:
         group(glist)()
@@ -1150,7 +1150,7 @@ def group_run_script(owner_id, script_id, name, machines_uuids, params=''):
                      'total_run_count': schedule.total_run_count or 0,
                      'error': log_dict['error']}
                     )
-    log_event(action='Schedule finished', **log_dict)
+    log_event(action='schedule_finished', **log_dict)
     if log_dict['error']:
         log.info('Schedule run_script failed: %s', log_dict)
     else:
