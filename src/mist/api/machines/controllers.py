@@ -57,6 +57,34 @@ class MachineController(object):
     # def tag(self):
     #     return self.machine.cloud.ctl.compute.tag(self.machine)
 
+    def list_snapshots(self):
+        """List machine snapshots - used in vSphere"""
+        return self.machine.cloud.ctl.compute.list_machine_snapshots(
+            self.machine)
+
+    def create_snapshot(self, snapshot_name, description='',
+                        dump_memory=False, quiesce=False):
+        """Creates a snapshot for machine - used in vSphere"""
+        return self.machine.cloud.ctl.compute.create_machine_snapshot(
+            self.machine, snapshot_name, description, dump_memory, quiesce)
+
+    def remove_snapshot(self, snapshot_name=None):
+        """
+        Removes a machine snapshot - used in vSphere
+        If snapshot_name is None then removes the last one
+        """
+        return self.machine.cloud.ctl.compute.remove_machine_snapshot(
+            self.machine, snapshot_name)
+
+    def revert_to_snapshot(self, snapshot_name=None):
+        """
+        Reverts a machine to a specific snapshot - used in vSphere
+        If snapshot_name is None then reverts to the last one
+        """
+        return self.machine.cloud.ctl.compute.revert_machine_to_snapshot(
+            self.machine, snapshot_name)
+
+
     def undefine(self):
         """Undefines machine - used in KVM libvirt
         to destroy machine and delete XML conf"""
@@ -77,7 +105,6 @@ class MachineController(object):
         raise RuntimeError("Couldn't find machine host.")
 
     def ping_probe(self, persist=True):
-
         from mist.api.methods import ping
         from mist.api.machines.models import PingProbe
 

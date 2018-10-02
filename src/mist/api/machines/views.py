@@ -576,6 +576,9 @@ def machine_actions(request):
       - destroy
       - resize
       - rename
+      - create_snapshot
+      - remove_snapshot
+      - revert_to_snapshot
       required: true
       type: string
     name:
@@ -584,16 +587,29 @@ def machine_actions(request):
     size:
       description: The size id of the plan to resize
       type: string
+    snapshot_name:
+      description: The name of the snapshot to create/remove/revert_to
+    snapshot_description:
+      description: The description of the snapshot to create
+    snapshot_dump_memory:
+      description: Dump the machine's memory in the snapshot
+      default: false
+    snapshot_quiesce:
+
     """
     cloud_id = request.matchdict.get('cloud')
     params = params_from_request(request)
     action = params.get('action', '')
-    size_id = params.get('size', params.get('plan_id', ''))
+    name = params.get('name', '')
+    size_id = params.get('size', '')
     memory = params.get('memory', '')
     cpus = params.get('cpus', '')
     cpu_shares = params.get('cpu_shares', '')
     cpu_units = params.get('cpu_units', '')
-    name = params.get('name', '')
+    snapshot_name = params.get('snapshot_name')
+    snapshot_description = params.get('snapshot_description')
+    snapshot_dump_memory = params.get('snapshot_dump_memory')
+    snapshot_quiesce = params.get('snapshot_quiesce')
     auth_context = auth_context_from_request(request)
 
     if cloud_id:
@@ -633,7 +649,9 @@ def machine_actions(request):
     auth_context.check_perm("machine", action, machine.id)
 
     actions = ('start', 'stop', 'reboot', 'destroy', 'resize',
-               'rename', 'undefine', 'suspend', 'resume', 'remove')
+               'rename', 'undefine', 'suspend', 'resume', 'remove',
+               'list_snapshots', 'create_snapshot', 'remove_snapshot',
+               'revert_to_snapshot')
 
     if action not in actions:
         raise BadRequestError("Action '%s' should be "
@@ -683,7 +701,18 @@ def machine_actions(request):
         if cpu_units:
             kwargs['cpu_units'] = cpu_units
         getattr(machine.ctl, action)(size_id, kwargs)
-
+    elif action == 'list_snapshots':
+        return machine.ctl.action.list_snapshots()
+    elif action in ('create_snapshot', 'remove_snapshot',
+                    'revert_to_snapshot'):
+        kwargs = {}
+        if description:
+            kwargs['description'] = snapshot_description
+        if snapshot_dump_memory:
+            kwargs['dump_memory'] = bool(snapshot_dump_memory)
+        if quiesce:
+            kwargs['quiesce'] = bool(quiesce)
+        getattr(machine.ctl, action)(snapshot_name, kwargs)
     # TODO: We shouldn't return list_machines, just OK. Save the API!
     return methods.filter_list_machines(auth_context, cloud_id)
 
