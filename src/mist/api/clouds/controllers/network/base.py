@@ -11,6 +11,7 @@ are in `mist.api.clouds.controllers.network.controllers`.
 import json
 import copy
 import logging
+import time
 import datetime
 import mongoengine.errors
 
@@ -23,6 +24,7 @@ from mist.api.clouds.utils import LibcloudExceptionHandler
 from mist.api.clouds.controllers.base import BaseController
 
 from mist.api.concurrency.models import PeriodicTaskInfo
+from mist.api.concurrency.models import PeriodicTaskThresholdExceeded
 
 from mist.api.helpers import amqp_publish_user
 from mist.api.helpers import amqp_owner_listening
@@ -122,17 +124,14 @@ class BaseNetworkController(BaseController):
         libcloud_net = self.cloud.ctl.compute.connection.ex_create_network(
             **kwargs)
 
-        try:
-            network.network_id = libcloud_net.id
-            network.save()
-        except mongoengine.errors.ValidationError as exc:
-            log.error("Error saving %s: %s", network, exc.to_dict())
-            raise mist.api.exceptions.NetworkCreationError(exc.message)
-        except mongoengine.errors.NotUniqueError as exc:
-            log.error("Network %s not unique error: %s", network.name, exc)
-            raise mist.api.exceptions.NetworkExistsError()
-
-        return network
+        # Invoke `self.list_networks` to update the UI and return the Network
+        # object at the API. Try 3 times before failing
+        for _ in range(3):
+            for net in self.list_networks():
+                if net.network_id == libcloud_net.id:
+                    return net
+            time.sleep(1)
+        raise mist.api.exceptions.NetworkListingError()
 
     def _create_network__prepare_args(self, kwargs):
         """Parses keyword arguments on behalf of `self.create_network`.
@@ -199,7 +198,8 @@ class BaseNetworkController(BaseController):
         except mongoengine.errors.NotUniqueError as exc:
             log.error("Subnet %s is not unique: %s", subnet.name, exc)
             raise mist.api.exceptions.SubnetExistsError()
-
+        from mist.api.poller.models import ListNetworksPollingSchedule
+        ListNetworksPollingSchedule.add(cloud=self.cloud, interval=10, ttl=120)
         return subnet
 
     def _create_subnet(self, kwargs):
@@ -241,16 +241,15 @@ class BaseNetworkController(BaseController):
         try:
             with task.task_runner(persist=persist):
                 # Get cached networks as dict
-                cached_networks = {'%s-%s' % (n.id, n.external_id): n.as_dict()
-                                for m in self.list_cached_networks()}
+                cached_networks = {n.network_id: n.as_dict()
+                                   for n in self.list_cached_networks()}
                 networks = self._list_networks()
         except PeriodicTaskThresholdExceeded:
             self.cloud.ctl.disable()
             raise
-
         if amqp_owner_listening(self.cloud.owner.id):
             # Publish patches to rabbitmq.
-            new_networks = {'%s-%s' % (n.id, n.external_id): n.as_dict()
+            new_networks = {n.network_id: n.as_dict()
                             for n in networks}
             # Exclude last seen and probe field
             if cached_networks and new_networks:
@@ -555,6 +554,9 @@ class BaseNetworkController(BaseController):
 
         libcloud_network = self._get_libcloud_network(network)
         self._delete_network(network, libcloud_network)
+        self.list_networks()
+        from mist.api.poller.models import ListNetworksPollingSchedule
+        ListNetworksPollingSchedule.add(cloud=self.cloud, interval=10, ttl=120)
 
     def _delete_network(self, network, libcloud_network):
         """Performs the libcloud call that handles network deletion.
@@ -584,6 +586,8 @@ class BaseNetworkController(BaseController):
 
         libcloud_subnet = self._get_libcloud_subnet(subnet)
         self._delete_subnet(subnet, libcloud_subnet)
+        from mist.api.poller.models import ListNetworksPollingSchedule
+        ListNetworksPollingSchedule.add(cloud=self.cloud, interval=10, ttl=120)
 
     def _delete_subnet(self, subnet, libcloud_subnet):
         """Performs the libcloud call that handles subnet deletion.
