@@ -17,7 +17,6 @@ from mist.api.exceptions import NetworkNotFoundError
 from mist.api.exceptions import RequiredParameterMissingError
 
 from mist.api.helpers import params_from_request, view_config
-from mist.api.helpers import trigger_session_update
 
 
 OK = Response("OK", 200)
@@ -138,9 +137,6 @@ def create_network(request):
 
         network_dict['subnet'] = subnet.as_dict()
 
-    # Schedule a UI update
-    trigger_session_update(auth_context.owner, ['clouds'])
-
     return network_dict
 
 
@@ -188,9 +184,6 @@ def delete_network(request):
 
     # Delete the network
     network.ctl.delete()
-
-    # Schedule a UI update
-    trigger_session_update(auth_context.owner, ['clouds'])
 
     return OK
 
@@ -344,8 +337,6 @@ def delete_subnet(request):
     except Subnet.DoesNotExist:
         raise SubnetNotFoundError()
 
-    # Trigger a UI update.
-    trigger_session_update(auth_context.owner, ['clouds'])
     return OK
 
 
