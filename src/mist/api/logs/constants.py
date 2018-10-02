@@ -58,7 +58,7 @@ STARTS_STORY = (
     'connect',
     'rule_triggered',
     'workflow_started',
-    'Schedule started', ) + tuple(JOBS.keys())
+    'schedule_started', ) + tuple(JOBS.keys())
 
 # Actions that may close existing stories.
 CLOSES_STORY = (
@@ -66,7 +66,7 @@ CLOSES_STORY = (
     'disconnect',
     'rule_untriggered',
     'workflow_finished',
-    'Schedule finished',
+    'schedule_finished',
 ) + tuple(a for v in JOBS.itervalues() for a in v) + ('end_job', )
 
 # Actions that can close an open incident.

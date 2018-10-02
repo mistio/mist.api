@@ -359,7 +359,7 @@ class ResourceRuleController(BaseController):
                     'read_logs'  # For rules on logs.
                 )
                 for perm in (read_perm, 'edit_rules'):
-                    self.auth_context.check_perm(self.resource_model_namem,
+                    self.auth_context.check_perm(self.resource_model_name,
                                                  perm, m.id)
 
 

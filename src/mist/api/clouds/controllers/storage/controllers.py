@@ -34,7 +34,7 @@ class GoogleStorageController(BaseStorageController):
 
         # Find the machines to which the volume is attached.
         volume.attached_to = []
-        for libcloud_name in libcloud_volume.extra.get('users', []):
+        for libcloud_name in libcloud_volume.extra.get('users') or []:
             try:
                 name = libcloud_name.split('/')[-1]
             except IndexError:
@@ -46,7 +46,6 @@ class GoogleStorageController(BaseStorageController):
                 volume.attached_to.append(machine)
             except Machine.DoesNotExist:
                 log.error('%s attached to unknown machine "%s"', volume, name)
-                pass
 
     def _create_volume__prepare_args(self, kwargs):
         # FIXME Imported here due to circular dependency issues.
@@ -89,7 +88,6 @@ class AmazonStorageController(BaseStorageController):
             except Machine.DoesNotExist:
                 log.error('%s attached to unknown machine "%s"', volume,
                           machine_id)
-                pass
 
     def _create_volume__prepare_args(self, kwargs):
         # FIXME Imported here due to circular dependency issues.
@@ -137,7 +135,6 @@ class DigitalOceanStorageController(BaseStorageController):
             except Machine.DoesNotExist:
                 log.error('%s attached to unknown machine "%s"', volume,
                           machine_id)
-                pass
 
     def _create_volume__prepare_args(self, kwargs):
         # FIXME Imported here due to circular dependency issues.
@@ -178,7 +175,6 @@ class OpenstackStorageController(BaseStorageController):
             except Machine.DoesNotExist:
                 log.error('%s attached to unknown machine "%s"', volume,
                           machine_id)
-                pass
 
 
 class AzureStorageController(BaseStorageController):
