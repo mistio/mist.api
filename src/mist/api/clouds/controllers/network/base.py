@@ -240,7 +240,7 @@ class BaseNetworkController(BaseController):
         with task.task_runner(persist=persist):
             # Get cached networks as dict
             cached_networks = {n.network_id: n.as_dict()
-                                for n in self.list_cached_networks()}
+                               for n in self.list_cached_networks()}
             networks = self._list_networks()
             for network in networks:
                 network.ctl.list_subnets()
