@@ -702,11 +702,11 @@ def machine_actions(request):
             kwargs['cpu_units'] = cpu_units
         getattr(machine.ctl, action)(size_id, kwargs)
     elif action == 'list_snapshots':
-        return machine.ctl.action.list_snapshots()
+        return machine.ctl.list_snapshots()
     elif action in ('create_snapshot', 'remove_snapshot',
                     'revert_to_snapshot'):
         kwargs = {}
-        if description:
+        if snapshot_description:
             kwargs['description'] = snapshot_description
         if snapshot_dump_memory:
             kwargs['dump_memory'] = bool(snapshot_dump_memory)
