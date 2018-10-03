@@ -711,8 +711,8 @@ def machine_actions(request):
             kwargs['description'] = snapshot_description
         if snapshot_dump_memory:
             kwargs['dump_memory'] = bool(snapshot_dump_memory)
-        if quiesce:
-            kwargs['quiesce'] = bool(quiesce)
+        if snapshot_quiesce:
+            kwargs['quiesce'] = bool(snapshot_quiesce)
         getattr(machine.ctl, action)(snapshot_name, **kwargs)
     # TODO: We shouldn't return list_machines, just OK. Save the API!
     return methods.filter_list_machines(auth_context, cloud_id)
