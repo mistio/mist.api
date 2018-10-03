@@ -547,23 +547,23 @@ class AzureComputeController(BaseComputeController):
 
     def _start_machine(self, machine, machine_libcloud):
         cloud_service = self._cloud_service(machine.machine_id)
-        self.connection.ex_start_node(machine_libcloud,
-                                      ex_cloud_service_name=cloud_service)
+        return self.connection.ex_start_node(
+            machine_libcloud, ex_cloud_service_name=cloud_service)
 
     def _stop_machine(self, machine, machine_libcloud):
         cloud_service = self._cloud_service(machine.machine_id)
-        self.connection.ex_stop_node(machine_libcloud,
-                                     ex_cloud_service_name=cloud_service)
+        return self.connection.ex_stop_node(
+            machine_libcloud, ex_cloud_service_name=cloud_service)
 
     def _reboot_machine(self, machine, machine_libcloud):
         cloud_service = self._cloud_service(machine.machine_id)
-        self.connection.reboot_node(machine_libcloud,
-                                    ex_cloud_service_name=cloud_service)
+        return self.connection.reboot_node(
+            machine_libcloud, ex_cloud_service_name=cloud_service)
 
     def _destroy_machine(self, machine, machine_libcloud):
         cloud_service = self._cloud_service(machine.machine_id)
-        self.connection.destroy_node(machine_libcloud,
-                                     ex_cloud_service_name=cloud_service)
+        return self.connection.destroy_node(
+            machine_libcloud, ex_cloud_service_name=cloud_service)
 
     def _list_machines__machine_actions(self, machine, machine_libcloud):
         super(AzureComputeController, self)._list_machines__machine_actions(
@@ -942,6 +942,37 @@ class VSphereComputeController(BaseComputeController):
         return self.connection.list_nodes(
             max_properties=self.cloud.max_properties_per_request)
 
+    def _list_machines__machine_actions(self, machine, machine_libcloud):
+        super(VSphereComputeController, self)._list_machines__machine_actions(
+            machine, machine_libcloud)
+        machine.actions.create_snapshot = True
+        if len(machine.extra.get('snapshots')):
+            machine.actions.remove_snapshot = True
+            machine.actions.revert_to_snapshot = True
+
+    def _create_machine_snapshot(self, machine, machine_libcloud,
+                                 snapshot_name, description='',
+                                 dump_memory=False, quiesce=False):
+        """Create a snapshot for a given machine"""
+        return self.connection.ex_create_snapshot(
+            machine_libcloud, snapshot_name, description,
+            dump_memory=dump_memory, quiesce=quiesce)
+
+    def _revert_machine_to_snapshot(self, machine, machine_libcloud,
+                                    snapshot_name=None):
+        """Revert a given machine to a previous snapshot"""
+        return self.connection.ex_revert_to_snapshot(machine_libcloud,
+                                                     snapshot_name)
+
+    def _remove_machine_snapshot(self, machine, machine_libcloud,
+                                 snapshot_name=None):
+        """Removes a given machine snapshot"""
+        return self.connection.ex_remove_snapshot(machine_libcloud,
+                                                  snapshot_name)
+
+    def _list_machine_snapshots(self, machine, machine_libcloud):
+        return self.connection.ex_list_snapshots(machine_libcloud)
+
 
 class VCloudComputeController(BaseComputeController):
 
@@ -995,11 +1026,11 @@ class OpenStackComputeController(BaseComputeController):
 
         try:
             sleep(5)
-            self.connection.ex_confirm_resize(machine_libcloud)
+            return self.connection.ex_confirm_resize(machine_libcloud)
         except Exception as exc:
             sleep(5)
             try:
-                self.connection.ex_confirm_resize(machine_libcloud)
+                return self.connection.ex_confirm_resize(machine_libcloud)
             except Exception as exc:
                 raise BadRequestError('Failed to resize node: %s' % exc)
 
@@ -1275,6 +1306,7 @@ class DockerComputeController(BaseComputeController):
         for key_assoc in machine.key_associations:
             key_assoc.port = port
         machine.save()
+        return True
 
     def _get_machine_libcloud(self, machine, no_fail=False):
         """Return an instance of a libcloud node
@@ -1302,8 +1334,9 @@ class DockerComputeController(BaseComputeController):
         )
 
     def _start_machine(self, machine, machine_libcloud):
-        self.connection.start_container(machine_libcloud)
+        ret = self.connection.start_container(machine_libcloud)
         self._action_change_port(machine, machine_libcloud)
+        return ret
 
     def reboot_machine(self, machine):
         if machine.machine_type == 'container-host':
@@ -1315,13 +1348,12 @@ class DockerComputeController(BaseComputeController):
         self._action_change_port(machine, machine_libcloud)
 
     def _stop_machine(self, machine, machine_libcloud):
-        self.connection.stop_container(machine_libcloud)
-        return True
+        return self.connection.stop_container(machine_libcloud)
 
     def _destroy_machine(self, machine, machine_libcloud):
         if machine_libcloud.state == ContainerState.RUNNING:
             self.connection.stop_container(machine_libcloud)
-        self.connection.destroy_container(machine_libcloud)
+        return self.connection.destroy_container(machine_libcloud)
 
     def _list_sizes__fetch_sizes(self):
         return []
@@ -1473,10 +1505,10 @@ class OnAppComputeController(BaseComputeController):
         return _size
 
     def _resume_machine(self, machine, machine_libcloud):
-        self.connection.ex_resume_node(machine_libcloud)
+        return self.connection.ex_resume_node(machine_libcloud)
 
     def _suspend_machine(self, machine, machine_libcloud):
-        self.connection.ex_suspend_node(machine_libcloud)
+        return self.connection.ex_suspend_node(machine_libcloud)
 
     def _resize_machine(self, machine, machine_libcloud, node_size, kwargs):
         # send only non empty valid args
@@ -1486,7 +1518,8 @@ class OnAppComputeController(BaseComputeController):
                     and kwargs[param]:
                     valid_kwargs[param] = kwargs[param]
         try:
-            self.connection.ex_resize_node(machine_libcloud, **valid_kwargs)
+            return self.connection.ex_resize_node(machine_libcloud,
+                                                  **valid_kwargs)
         except Exception as exc:
             raise BadRequestError('Failed to resize node: %s' % exc)
 
