@@ -965,7 +965,7 @@ class VSphereComputeController(BaseComputeController):
                                                      snapshot_name)
 
     def _remove_machine_snapshot(self, machine, machine_libcloud,
-                                    snapshot_name=None):
+                                 snapshot_name=None):
         """Removes a given machine snapshot"""
         return self.connection.ex_remove_snapshot(machine_libcloud,
                                                   snapshot_name)
@@ -1518,7 +1518,8 @@ class OnAppComputeController(BaseComputeController):
                     and kwargs[param]:
                     valid_kwargs[param] = kwargs[param]
         try:
-            return self.connection.ex_resize_node(machine_libcloud, **valid_kwargs)
+            return self.connection.ex_resize_node(machine_libcloud,
+                                                  **valid_kwargs)
         except Exception as exc:
             raise BadRequestError('Failed to resize node: %s' % exc)
 

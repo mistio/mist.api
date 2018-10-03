@@ -84,7 +84,6 @@ class MachineController(object):
         return self.machine.cloud.ctl.compute.revert_machine_to_snapshot(
             self.machine, snapshot_name)
 
-
     def undefine(self):
         """Undefines machine - used in KVM libvirt
         to destroy machine and delete XML conf"""
