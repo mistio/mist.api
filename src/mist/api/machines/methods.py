@@ -1019,10 +1019,20 @@ def _create_machine_libvirt(conn, machine_name, disk_size, ram, cpu,
         networks = [networks]
     network_names = []
     for nid in (networks or []):
+        if isinstance(nid, dict):
+            network_id = nid.get('network_id', '')
+        else:
+            network_id = nid
         try:
-            network_names.append(LibvirtNetwork.objects.get(id=nid).name)
+            network_name = LibvirtNetwork.objects.get(id=network_id).name
         except LibvirtNetwork.DoesNotExist:
             log.error('LibvirtNetwork %s does not exist' % nid)
+        else:
+            if isinstance(nid, dict):
+                nid.update({'network_name': network_name})
+                network_names.append(nid)
+            else:
+                network_names.append(network_name)
 
     try:
         node = conn.create_node(
