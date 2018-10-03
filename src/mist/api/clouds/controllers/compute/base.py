@@ -1589,8 +1589,9 @@ class BaseComputeController(BaseController):
         machine_libcloud = self._get_machine_libcloud(machine)
         try:
             return self._create_machine_snapshot(
-                machine, machine_libcloud, snapshot_name, description='',
-                dump_memory=False, quiesce=False)
+                machine, machine_libcloud, snapshot_name,
+                description=description, dump_memory=dump_memory,
+                quiesce=quiesce)
         except MistError as exc:
             log.error("Could not create snapshot for machine %s", machine)
             raise
@@ -1741,9 +1742,6 @@ class BaseComputeController(BaseController):
         """
         # assert isinstance(machine.cloud, Machine)
         assert self.cloud == machine.cloud
-        if not machine.actions.list_snapshots:
-            raise ForbiddenError(
-                "Machine doesn't support listing snapshots.")
         log.debug("Reverting machines %s to snapshot", machine)
 
         machine_libcloud = self._get_machine_libcloud(machine)

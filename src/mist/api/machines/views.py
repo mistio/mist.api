@@ -595,7 +595,8 @@ def machine_actions(request):
       description: Dump the machine's memory in the snapshot
       default: false
     snapshot_quiesce:
-
+      description: Enable guest file system quiescing
+      default: false
     """
     cloud_id = request.matchdict.get('cloud')
     params = params_from_request(request)
@@ -712,7 +713,7 @@ def machine_actions(request):
             kwargs['dump_memory'] = bool(snapshot_dump_memory)
         if quiesce:
             kwargs['quiesce'] = bool(quiesce)
-        getattr(machine.ctl, action)(snapshot_name, kwargs)
+        getattr(machine.ctl, action)(snapshot_name, **kwargs)
     # TODO: We shouldn't return list_machines, just OK. Save the API!
     return methods.filter_list_machines(auth_context, cloud_id)
 
