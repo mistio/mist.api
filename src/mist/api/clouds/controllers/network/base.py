@@ -24,7 +24,6 @@ from mist.api.clouds.utils import LibcloudExceptionHandler
 from mist.api.clouds.controllers.base import BaseController
 
 from mist.api.concurrency.models import PeriodicTaskInfo
-from mist.api.concurrency.models import PeriodicTaskThresholdExceeded
 
 from mist.api.helpers import amqp_publish_user
 from mist.api.helpers import amqp_owner_listening
@@ -238,15 +237,14 @@ class BaseNetworkController(BaseController):
         """
         task_key = 'cloud:list_networks:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
-        try:
-            with task.task_runner(persist=persist):
-                # Get cached networks as dict
-                cached_networks = {n.network_id: n.as_dict()
-                                   for n in self.list_cached_networks()}
-                networks = self._list_networks()
-        except PeriodicTaskThresholdExceeded:
-            self.cloud.ctl.disable()
-            raise
+        with task.task_runner(persist=persist):
+            # Get cached networks as dict
+            cached_networks = {n.network_id: n.as_dict()
+                                for n in self.list_cached_networks()}
+            networks = self._list_networks()
+            for network in networks:
+                network.ctl.list_subnets()
+
         if amqp_owner_listening(self.cloud.owner.id):
             # Publish patches to rabbitmq.
             new_networks = {n.network_id: n.as_dict()
