@@ -1134,7 +1134,7 @@ class BaseComputeController(BaseController):
             raise
         except Exception as exc:
             log.exception(exc)
-            raise BadRequestError(exc.message)
+            raise InternalServerError(exc.message)
 
     def _start_machine(self, machine, machine_libcloud):
         """Private method to start a given machine
@@ -1179,7 +1179,7 @@ class BaseComputeController(BaseController):
             raise
         except Exception as exc:
             log.exception(exc)
-            raise BadRequestError(exc=exc)
+            raise InternalServerError(exc=exc)
 
     def _stop_machine(self, machine, machine_libcloud):
         """Private method to stop a given machine
@@ -1257,7 +1257,7 @@ class BaseComputeController(BaseController):
             raise
         except Exception as exc:
             log.exception(exc)
-            raise BadRequestError(exc=exc)
+            raise InternalServerError(exc=exc)
 
     def destroy_machine(self, machine):
         """Destroy machine
@@ -1290,7 +1290,7 @@ class BaseComputeController(BaseController):
             raise
         except Exception as exc:
             log.exception(exc)
-            raise BadRequestError(exc=exc)
+            raise InternalServerError(exc=exc)
 
         while machine.key_associations:
             machine.key_associations.pop()
@@ -1406,7 +1406,7 @@ class BaseComputeController(BaseController):
             raise
         except Exception as exc:
             log.exception(exc)
-            raise BadRequestError(exc.message)
+            raise InternalServerError(exc.message)
 
     def _rename_machine(self, machine, machine_libcloud, name):
         """Private method to rename a given machine
@@ -1451,7 +1451,7 @@ class BaseComputeController(BaseController):
             raise
         except Exception as exc:
             log.exception(exc)
-            raise BadRequestError(exc=exc)
+            raise InternalServerError(exc=exc)
 
     def _resume_machine(self, machine, machine_libcloud):
         """Private method to resume a given machine
@@ -1498,7 +1498,7 @@ class BaseComputeController(BaseController):
             raise
         except Exception as exc:
             log.exception(exc)
-            raise BadRequestError(exc.message)
+            raise InternalServerError(exc.message)
 
     def _suspend_machine(self, machine, machine_libcloud):
         """Private method to suspend a given machine
@@ -1754,7 +1754,7 @@ class BaseComputeController(BaseController):
             raise
         except Exception as exc:
             log.exception(exc)
-            raise BadRequestError(exc.message)
+            raise InternalServerError(exc.message)
 
     def _list_machine_snapshots(self, machine, machine_libcloud):
         """Private method to list a given machine's snapshots
