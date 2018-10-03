@@ -75,6 +75,7 @@ class Actions(me.EmbeddedDocument):
     resume = me.BooleanField(default=False)
     suspend = me.BooleanField(default=False)
     undefine = me.BooleanField(default=False)
+    clone = me.BooleanField(default=False)
 
 
 class Monitoring(me.EmbeddedDocument):
