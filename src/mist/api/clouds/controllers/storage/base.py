@@ -1,6 +1,7 @@
 import logging
 import copy
 import json
+import time
 import datetime
 import jsonpatch
 import mongoengine.errors
@@ -233,10 +234,12 @@ class BaseStorageController(BaseController):
             raise mist.api.exceptions.CloudUnavailableError(exc=exc)
 
         # Invoke `self.list_volumes` to update the UI and return the Volume
-        # object at the API.
-        for volume in self.list_volumes():
-            if volume.external_id == libvol.id:
-                return volume
+        # object at the API. Try 3 times before failing
+        for _ in range(3):
+            for volume in self.list_volumes():
+                if volume.external_id == libvol.id:
+                    return volume
+            time.sleep(1)
         raise mist.api.exceptions.VolumeListingError()
 
     def _create_volume__prepare_args(self, kwargs):
@@ -278,6 +281,7 @@ class BaseStorageController(BaseController):
         assert volume.cloud == self.cloud
         libcloud_volume = self.get_libcloud_volume(volume)
         self._delete_volume(libcloud_volume)
+        self.list_volumes()
 
     def _delete_volume(self, libcloud_volume):
         self.cloud.ctl.compute.connection.destroy_volume(libcloud_volume)
