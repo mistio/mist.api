@@ -991,6 +991,9 @@ class VSphereComputeController(BaseComputeController):
         if len(machine.extra.get('snapshots')):
             machine.actions.remove_snapshot = True
             machine.actions.revert_to_snapshot = True
+        else:
+            machine.actions.remove_snapshot = False
+            machine.actions.revert_to_snapshot = False
 
     def _create_machine_snapshot(self, machine, machine_libcloud,
                                  snapshot_name, description='',
