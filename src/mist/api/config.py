@@ -67,7 +67,7 @@ PY_LOG_FORMAT = '%(asctime)s %(levelname)s %(threadName)s %(module)s - %(funcNam
 PY_LOG_FORMAT_DATE = "%Y-%m-%d %H:%M:%S"
 LOG_EXCEPTIONS = True
 
-JS_BUILD = True
+JS_BUILD = False
 JS_LOG_LEVEL = 3
 
 ENABLE_DEV_USERS = False
