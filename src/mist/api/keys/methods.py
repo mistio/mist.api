@@ -52,7 +52,7 @@ def list_keys(owner):
     :return:
     """
     #keys = Key.objects(owner=owner, deleted=None)
-    keys = Key.objects.all()
+    keys = Key.objects.filter(owner_id=owner.id, deleted=None)
     clouds = Cloud.objects(owner=owner, deleted=None)
     key_objects = []
     # FIXME: This must be taken care of in Keys.as_dict
@@ -61,7 +61,7 @@ def list_keys(owner):
         # FIXME: Need to optimize this! It's potentially invoked per ssh probe.
         # Can't we expose associations directly from Machine.key_associations?
         machines = Machine.objects(cloud__in=clouds,
-                                   key_associations__keypair__exact=key)
+                                   key_associations__keypair__exact=key.id)
         key_object["id"] = key.id
         key_object['name'] = key.name
         key_object['owned_by'] = key.owned_by if key.owned_by else ''
@@ -69,7 +69,8 @@ def list_keys(owner):
         key_object["isDefault"] = key.default
         key_object["machines"] = transform_key_machine_associations(machines,
                                                                     key)
-        key_object['tags'] = get_tags_for_resource(owner, key)
+        #key_object['tags'] = get_tags_for_resource(owner, key)
+        key_object['tags'] = []
         key_objects.append(key_object)
     return key_objects
 
