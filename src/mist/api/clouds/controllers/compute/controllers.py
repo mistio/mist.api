@@ -267,11 +267,22 @@ class ClearAPIComputeController(BaseComputeController):
         machine.actions.destroy = False
         machine.actions.start = False
         machine.actions.stop = False
-        machine.actions.power_reset = True
-        machine.actions.upload_firmware = True
-        machine.actions.put_firmware = True
-        machine.actions.delete_firmware = True
-        machine.actions.backup_firmware = True
+        if machine.actions.extra.get('power_reset_type'):
+            machine.actions.power_reset = True
+        else:
+            machine.actions.power_reset = False
+        if machine.actions.extra.get('firmware_list'):
+            machine.actions.put_firmware = True
+            machine.actions.delete_firmware = True
+        else:
+            machine.actions.put_firmware = False
+            machine.actions.delete_firmware = False
+        if machine.actions.extra.get('firmware_id'):
+            machine.actions.backup_firmware = True
+            machine.actions.upload_firmware = True
+        else:
+            machine.actions.backup_firmware = False
+            machine.actions.upload_firmware = False
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         machine.machine_type = 'ilo-host'
