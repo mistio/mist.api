@@ -490,14 +490,14 @@ class LibvirtCloud(Cloud):
     host = me.StringField(required=True)
     username = me.StringField(default='root')
     port = me.IntField(required=True, default=22)
-    key = me.ReferenceField(Key, required=False)
+    #key = me.ReferenceField(Key, required=False)
     images_location = me.StringField(default="/var/lib/libvirt/images")
 
     _controller_cls = controllers.LibvirtMainController
 
     def as_dict(self):
         cdict = super(LibvirtCloud, self).as_dict()
-        cdict['key'] = self.key.id
+        #cdict['key'] = self.key.id
         return cdict
 
 

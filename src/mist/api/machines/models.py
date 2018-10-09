@@ -20,7 +20,8 @@ log = logging.getLogger(__name__)
 
 
 class KeyAssociation(me.EmbeddedDocument):
-    keypair = me.ReferenceField(Key)
+    #keypair = me.ReferenceField(Key)
+    keypair = me.StringField()
     last_used = me.IntField(default=0)
     ssh_user = me.StringField()
     sudo = me.BooleanField()
