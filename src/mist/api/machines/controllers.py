@@ -91,6 +91,13 @@ class MachineController(object):
         return self.machine.cloud.ctl.compute.upload_firmware(
             self.machine, firmware_zip)
 
+    def power_reset(self, reset_type):
+        """
+        Perform power reset - used in ClearAPI iLO hosts
+        """
+        return self.machine.cloud.ctl.compute.power_reset(
+            self.machine, reset_type)
+
     def put_firmware(self, firmware_id):
         """
         Activate a firmware zip file - used in ClearAPI iLO hosts

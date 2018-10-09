@@ -579,6 +579,11 @@ def machine_actions(request):
       - create_snapshot
       - remove_snapshot
       - revert_to_snapshot
+      - power_reset
+      - put_firmware
+      - upload_firmware
+      - delete_firmware
+      - backup_firmware
       required: true
       type: string
     name:
@@ -661,7 +666,8 @@ def machine_actions(request):
     actions = ('start', 'stop', 'reboot', 'destroy', 'resize',
                'rename', 'undefine', 'suspend', 'resume', 'remove',
                'list_snapshots', 'create_snapshot', 'remove_snapshot',
-               'revert_to_snapshot')
+               'revert_to_snapshot', 'power_reset', 'upload_firmware',
+               'put_firmware', 'delete_firmware', 'backup_firmware')
 
     if action not in actions:
         raise BadRequestError("Action '%s' should be "
