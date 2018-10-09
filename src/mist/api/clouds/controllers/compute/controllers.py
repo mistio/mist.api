@@ -280,13 +280,15 @@ class ClearAPIComputeController(BaseComputeController):
         return self.connection.ex_put_firmware(machine_libcloud, firmware_id)
 
     def _delete_firmware(self, machine, machine_libcloud, firmware_id):
-        return self.connection.ex_delete_firmware(machine_libcloud, firmware_id)
+        return self.connection.ex_delete_firmware(machine_libcloud,
+                                                  firmware_id)
 
     def _backup_firmware(self, machine, machine_libcloud):
         return self.connection.ex_backup_firmware(machine_libcloud)
 
     def _upload_firmware(self, machine, machine_libcloud, firmware_zip):
-        return self.connection.ex_upload_firmware(machine_libcloud, firmware_zip)
+        return self.connection.ex_upload_firmware(machine_libcloud,
+                                                  firmware_zip)
 
     def _power_reset(self, machine, machine_libcloud, reset_type):
         return self.connection.ex_power_reset(machine_libcloud, reset_type)
