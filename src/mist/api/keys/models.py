@@ -78,19 +78,21 @@ class Key(djm.Model):
 
         # Set attribute `ctl` to an instance of the appropriate controller.
         if self._controller_cls is None:
-            raise NotImplementedError(
-                "Can't initialize %s. Key is an abstract base class and "
-                "shouldn't be used to create cloud instances. All Key "
-                "subclasses should define a `_controller_cls` class attribute "
-                "pointing to a `BaseController` subclass." % self
-            )
+            pass
+            #raise NotImplementedError(
+            #    "Can't initialize %s. Key is an abstract base class and "
+            #    "shouldn't be used to create cloud instances. All Key "
+            #    "subclasses should define a `_controller_cls` class attribute "
+            #    "pointing to a `BaseController` subclass." % self
+            #)
         elif not issubclass(self._controller_cls, BaseKeyController):
-            raise TypeError(
-                "Can't initialize %s.  All Key subclasses should define a"
-                " `_controller_cls` class attribute pointing to a "
-                "`BaseController` subclass." % self
-            )
-        self.ctl = self._controller_cls(self)
+            pass
+            #raise TypeError(
+            #    "Can't initialize %s.  All Key subclasses should define a"
+            #    " `_controller_cls` class attribute pointing to a "
+            #    "`BaseController` subclass." % self
+            #)
+        self.ctl = None
 
         # Calculate and store key type specific fields.
         self._key_specific_fields = [field.name for field in type(self)._meta.fields
@@ -168,6 +170,11 @@ class SSHKey(Key):
     _controller_cls = controllers.SSHKeyController
     _private_fields = ('private',)
 
+    def __init__(self, *args, **kwargs):
+        super(SSHKey, self).__init__(*args, **kwargs)
+        self.ctl = self._controller_cls(self)
+
+
     def clean(self):
         """Ensures that self is a valid RSA keypair."""
 
@@ -192,6 +199,10 @@ class SignedSSHKey(SSHKey):
     certificate = djm.TextField()
 
     _controller_cls = controllers.BaseKeyController
+
+    def __init__(self, *args, **kwargs):
+        super(SignedSSHKey, self).__init__(*args, **kwargs)
+        self.ctl = self._controller_cls(self)
 
     def clean(self):
         """

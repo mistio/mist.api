@@ -271,7 +271,7 @@ def get_private_key(request):
 
     auth_context = auth_context_from_request(request)
     try:
-        key = SSHKey.objects.get(owner=auth_context.owner,
+        key = SSHKey.objects.get(owner=auth_context.owner.id,
                                  id=key_id, deleted=None)
     except me.DoesNotExist:
         raise NotFoundError('Key id does not exist')
