@@ -267,17 +267,17 @@ class ClearAPIComputeController(BaseComputeController):
         machine.actions.destroy = False
         machine.actions.start = False
         machine.actions.stop = False
-        if machine.actions.extra.get('power_reset_type'):
+        if machine.extra.get('power_reset_type'):
             machine.actions.power_reset = True
         else:
             machine.actions.power_reset = False
-        if machine.actions.extra.get('firmware_list'):
+        if machine.extra.get('firmware_list'):
             machine.actions.put_firmware = True
             machine.actions.delete_firmware = True
         else:
             machine.actions.put_firmware = False
             machine.actions.delete_firmware = False
-        if machine.actions.extra.get('firmware_id'):
+        if machine.extra.get('firmware_id'):
             machine.actions.backup_firmware = True
             machine.actions.upload_firmware = True
         else:
