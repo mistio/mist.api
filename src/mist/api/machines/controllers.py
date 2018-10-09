@@ -84,6 +84,34 @@ class MachineController(object):
         return self.machine.cloud.ctl.compute.revert_machine_to_snapshot(
             self.machine, snapshot_name)
 
+    def upload_firmware(self, firmware_zip):
+        """
+        Uploads a new firmware zip file - used in ClearAPI iLO hosts
+        """
+        return self.machine.cloud.ctl.compute.upload_firmware(
+            self.machine, firmware_zip)
+
+    def put_firmware(self, firmware_id):
+        """
+        Activate a firmware zip file - used in ClearAPI iLO hosts
+        """
+        return self.machine.cloud.ctl.compute.put_firmware(
+            self.machine, firmware_id)
+
+    def delete_firmware(self, firmware_id):
+        """
+        Delete a firmware zip file - used in ClearAPI iLO hosts
+        """
+        return self.machine.cloud.ctl.compute.put_firmware(
+            self.machine, firmware_id)
+
+    def backup_firmware(self, firmware_id):
+        """
+        Backup currently active firmware - used in ClearAPI iLO hosts
+        """
+        return self.machine.cloud.ctl.compute.backup_firmware(
+            self.machine)
+
     def undefine(self):
         """Undefines machine - used in KVM libvirt
         to destroy machine and delete XML conf"""

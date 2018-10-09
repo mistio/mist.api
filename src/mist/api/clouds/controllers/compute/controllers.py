@@ -265,16 +265,31 @@ class ClearAPIComputeController(BaseComputeController):
             machine, machine_libcloud)
         machine.actions.reboot = False
         machine.actions.destroy = False
-
-        if machine_libcloud.state is NodeState.RUNNING:
-            machine.actions.stop = True
-            machine.actions.start = False
-        else:
-            machine.actions.start = True
-            machine.actions.stop = False
+        machine.actions.start = False
+        machine.actions.stop = False
+        machine.actions.power_reset = True
+        machine.actions.upload_firmware = True
+        machine.actions.put_firmware = True
+        machine.actions.delete_firmware = True
+        machine.actions.backup_firmware = True
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         machine.machine_type = 'ilo-host'
+
+    def _put_firmware(self, machine, machine_libcloud, firmware_id):
+        return self.connection.ex_put_firmware(machine_libcloud, firmware_id)
+
+    def _delete_firmware(self, machine, machine_libcloud, firmware_id):
+        return self.connection.ex_delete_firmware(machine_libcloud, firmware_id)
+
+    def _backup_firmware(self, machine, machine_libcloud):
+        return self.connection.ex_backup_firmware(machine_libcloud)
+
+    def _upload_firmware(self, machine, machine_libcloud, firmware_zip):
+        return self.connection.ex_upload_firmware(machine_libcloud, firmware_zip)
+
+    def _power_reset(self, machine, machine_libcloud, reset_type):
+        return self.connection.ex_power_reset(machine_libcloud, reset_type)
 
 
 class DigitalOceanComputeController(BaseComputeController):

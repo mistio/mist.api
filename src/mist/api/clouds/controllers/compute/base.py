@@ -1717,3 +1717,240 @@ class BaseComputeController(BaseController):
         is called by the public method `list_machine_snapshots`.
         """
         raise NotImplementedError()
+
+    def upload_firmware(self, machine, firmware_zip):
+        """Upload a new firmware zip file to  an iLO host
+
+        The param `machine` must be an instance of a machine model of this
+        cloud.
+
+        Not that the usual way to invoke that would be to run
+
+            machine.ctl.upload_firmware(firmware_zip)
+
+        which would in turn call this method, so that its cloud can customize
+        it as needed.
+
+        If a subclass of this controller wishes to override the way firmware
+        files are uploaded, it should override `_upload_firmware`
+        method instead.
+
+        """
+        # assert isinstance(machine.cloud, Machine)
+        assert self.cloud == machine.cloud
+        log.debug("Uploading firmware to iLO host %s", machine)
+
+        machine_libcloud = self._get_machine_libcloud(machine)
+        try:
+            return self._upload_firmware(machine, machine_libcloud,
+                                         firmware_zip)
+        except MistError as exc:
+            log.error("Could not upload firmware to machine %s", machine)
+            raise
+        except Exception as exc:
+            log.exception(exc)
+            raise InternalServerError(exc.message)
+
+    def _upload_firmware(self, machine, machine_libcloud, firmware_zip):
+        """Private method to upload a new firmware zip file to an iLO host
+
+        Only ClearApiComputeController subclass implements this method.
+
+        Params:
+            machine: instance of machine model of this cloud
+            machine_libcloud: instance of corresponding libcloud node
+            firmware_zip: zip file to upload
+
+        Different cloud controllers should override this private method, which
+        is called by the public method `upload_firmware`.
+        """
+        raise NotImplementedError()
+
+    def put_firmware(self, machine, firmware_id):
+        """Activate selected firmware zip file in an iLO host
+
+        The param `machine` must be an instance of a machine model of this
+        cloud.
+
+        Not that the usual way to invoke that would be to run
+
+            machine.ctl.put_firmware(firmware_id)
+
+        which would in turn call this method, so that its cloud can customize
+        it as needed.
+
+        If a subclass of this controller wishes to override the way firmware
+        files are activated, it should override `_put_firmware`
+        method instead.
+
+        """
+        # assert isinstance(machine.cloud, Machine)
+        assert self.cloud == machine.cloud
+        log.debug("Activating firmware on iLO host %s", machine)
+
+        machine_libcloud = self._get_machine_libcloud(machine)
+        try:
+            return self._put_firmware(machine, machine_libcloud,
+                                      firmware_id)
+        except MistError as exc:
+            log.error("Could not activate firmware on machine %s", machine)
+            raise
+        except Exception as exc:
+            log.exception(exc)
+            raise InternalServerError(exc.message)
+
+    def _put_firmware(self, machine, machine_libcloud, firmware_id):
+        """Private method to activate a firmware zip file on an iLO host
+
+        Only ClearApiComputeController subclass implements this method.
+
+        Params:
+            machine: instance of machine model of this cloud
+            machine_libcloud: instance of corresponding libcloud node
+            firmware_id: Id of firmware file to activate
+
+        Different cloud controllers should override this private method, which
+        is called by the public method `put_firmware`.
+        """
+        raise NotImplementedError()
+
+    def delete_firmware(self, machine, firmware_id):
+        """Delete selected firmware file from an iLO host
+
+        The param `machine` must be an instance of a machine model of this
+        cloud.
+
+        Not that the usual way to invoke that would be to run
+
+            machine.ctl.delete_firmware(firmware_id)
+
+        which would in turn call this method, so that its cloud can customize
+        it as needed.
+
+        If a subclass of this controller wishes to override the way firmware
+        files are deleted, it should override `_delete_firmware`
+        method instead.
+
+        """
+        # assert isinstance(machine.cloud, Machine)
+        assert self.cloud == machine.cloud
+        log.debug("Deleting firmware on iLO host %s", machine)
+
+        machine_libcloud = self._get_machine_libcloud(machine)
+        try:
+            return self._delete_firmware(machine, machine_libcloud,
+                                         firmware_id)
+        except MistError as exc:
+            log.error("Could not delete firmware on machine %s", machine)
+            raise
+        except Exception as exc:
+            log.exception(exc)
+            raise InternalServerError(exc.message)
+
+    def _delete_firmware(self, machine, machine_libcloud, firmware_id):
+        """Private method to delete a firmware zip file from an iLO host
+
+        Only ClearApiComputeController subclass implements this method.
+
+        Params:
+            machine: instance of machine model of this cloud
+            machine_libcloud: instance of corresponding libcloud node
+            firmware_id: Id of firmware file to delete
+
+        Different cloud controllers should override this private method, which
+        is called by the public method `delete_firmware`.
+        """
+        raise NotImplementedError()
+
+    def backup_firmware(self, machine):
+        """Backup currently active firmware in an iLO host
+
+        The param `machine` must be an instance of a machine model of this
+        cloud.
+
+        Not that the usual way to invoke that would be to run
+
+            machine.ctl.backup_firmware()
+
+        which would in turn call this method, so that its cloud can customize
+        it as needed.
+
+        If a subclass of this controller wishes to override the way firmware
+        files are backuped, it should override `_backup_firmware`
+        method instead.
+
+        """
+        # assert isinstance(machine.cloud, Machine)
+        assert self.cloud == machine.cloud
+        log.debug("Backing up firmware on iLO host %s", machine)
+
+        machine_libcloud = self._get_machine_libcloud(machine)
+        try:
+            return self._backup_firmware(machine, machine_libcloud)
+        except MistError as exc:
+            log.error("Could not backup firmware on machine %s", machine)
+            raise
+        except Exception as exc:
+            log.exception(exc)
+            raise InternalServerError(exc.message)
+
+    def _backup_firmware(self, machine, machine_libcloud):
+        """Private method to backup an active firmware on an iLO host
+
+        Only ClearApiComputeController subclass implements this method.
+
+        Params:
+            machine: instance of machine model of this cloud
+            machine_libcloud: instance of corresponding libcloud node
+
+        Different cloud controllers should override this private method, which
+        is called by the public method `backup_firmware`.
+        """
+        raise NotImplementedError()
+
+    def power_reset(self, machine, reset_type):
+        """Perform power reset on an iLO host
+
+        The param `machine` must be an instance of a machine model of this
+        cloud.
+
+        Not that the usual way to invoke that would be to run
+
+            machine.ctl.power_reset(reset_type)
+
+        which would in turn call this method, so that its cloud can customize
+        it as needed.
+
+        If a subclass of this controller wishes to override the way power
+        resets are performed, it should override `_power_reset`
+        method instead.
+
+        """
+        # assert isinstance(machine.cloud, Machine)
+        assert self.cloud == machine.cloud
+        log.debug("Power reset on iLO host %s", machine)
+
+        machine_libcloud = self._get_machine_libcloud(machine)
+        try:
+            return self._power_reset(machine, machine_libcloud, reset_type)
+        except MistError as exc:
+            log.error("Could not perform power reset on machine %s", machine)
+            raise
+        except Exception as exc:
+            log.exception(exc)
+            raise InternalServerError(exc.message)
+
+    def _power_reset(self, machine, machine_libcloud, reset_type):
+        """Private method to perform a power reset on an iLO host
+
+        Only ClearApiComputeController subclass implements this method.
+
+        Params:
+            machine: instance of machine model of this cloud
+            machine_libcloud: instance of corresponding libcloud node
+            reset_type: the type of power reset to perform
+
+        Different cloud controllers should override this private method, which
+        is called by the public method `power_reset`.
+        """
+        raise NotImplementedError()

@@ -78,6 +78,11 @@ class Actions(me.EmbeddedDocument):
     create_snapshot = me.BooleanField(default=False)
     remove_snapshot = me.BooleanField(default=False)
     revert_to_snapshot = me.BooleanField(default=False)
+    power_reset = me.BooleanField(default=False)
+    upload_firmware = me.BooleanField(default=False)
+    put_firmware = me.BooleanField(default=False)
+    backup_firmware = me.BooleanField(default=False)
+    delete_firmware = me.BooleanField(default=False)
 
 
 class Monitoring(me.EmbeddedDocument):

@@ -597,6 +597,12 @@ def machine_actions(request):
     snapshot_quiesce:
       description: Enable guest file system quiescing
       default: false
+    firmware_id:
+        description: The id of the firmware to activate/delete
+    firmware_zip:
+        description: The firmware zip file to upload
+    reset_type:
+        description: The power reset type to perform
     """
     cloud_id = request.matchdict.get('cloud')
     params = params_from_request(request)
@@ -611,6 +617,9 @@ def machine_actions(request):
     snapshot_description = params.get('snapshot_description')
     snapshot_dump_memory = params.get('snapshot_dump_memory')
     snapshot_quiesce = params.get('snapshot_quiesce')
+    firmware_id = params.get('firmware_id')
+    firmware_zip = params.get('firmware_zip')
+    reset_type = params.get('reset_type')
     auth_context = auth_context_from_request(request)
 
     if cloud_id:
@@ -714,6 +723,20 @@ def machine_actions(request):
         if snapshot_quiesce:
             kwargs['quiesce'] = bool(snapshot_quiesce)
         getattr(machine.ctl, action)(snapshot_name, **kwargs)
+    elif action in ('put_firmware', 'delete_firmware', 'backup_firmware',
+                    'upload_firmware'):
+        kwargs = {}
+        if firmware_id:
+            kwargs['firmware_id'] = firmware_id
+        if firmware_zip:
+            kwargs['firmware_zip'] = firmware_zip
+        getattr(machine.ctl, action)(**kwargs)
+    elif action == 'power_reset':
+        kwargs = {
+            'reset_type': reset_type
+        }
+        getattr(machine.ctl, action)(**kwargs)
+
     # TODO: We shouldn't return list_machines, just OK. Save the API!
     return methods.filter_list_machines(auth_context, cloud_id)
 
