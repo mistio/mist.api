@@ -22,7 +22,7 @@ class OwnershipMixin(object):
 
     owned_by = me.ReferenceField('User', reverse_delete_rule=me.NULLIFY)
     created_by = me.ReferenceField('User', reverse_delete_rule=me.NULLIFY)
-
+    
     def assign_to(self, user, assign_creator=True):
         """Assign the resource to `user`
 

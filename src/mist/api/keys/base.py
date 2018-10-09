@@ -4,6 +4,7 @@ from mist.api.exceptions import KeyExistsError
 from mist.api.exceptions import BadRequestError
 from mist.api.helpers import rename_kwargs
 from mist.api.helpers import trigger_session_update
+from django.core.exceptions import ValidationError
 
 log = logging.getLogger(__name__)
 
@@ -51,24 +52,28 @@ class BaseKeyController(object):
         for key, value in kwargs.iteritems():
             setattr(self.key, key, value)
 
-        if not Key.objects(owner=self.key.owner, default=True):
+        if not Key.objects.filter(owner_id=self.key.owner_id, 
+                                  default=True).exists():
             self.key.default = True
 
         try:
             self.key.save()
-        except me.ValidationError as exc:
-            log.error("Error adding %s: %s", self.key.name, exc.to_dict())
+            #TODO catch the appropriate exceptions
+            """except ValidationError as exc:
+            log.error("Error adding %s: %s", self.key.name, exc)
             raise BadRequestError({'msg': exc.message,
-                                   'errors': exc.to_dict()})
+                                   'errors': exc})
         except me.NotUniqueError as exc:
             log.error("Key %s not unique error: %s", self.key.name, exc)
-            raise KeyExistsError()
+            raise KeyExistsError()"""
+        except Exception as exc:
+            log.error("Error adding Key, %s", exc)
 
         # SEC
-        self.key.owner.mapper.update(self.key)
+        #self.key.owner.mapper.update(self.key)
 
         log.info("Added key with name '%s'", self.key.name)
-        trigger_session_update(self.key.owner, ['keys'])
+        trigger_session_update(self.key.owner_id, ['keys'])
 
     def generate(self):
         raise NotImplementedError()
@@ -83,7 +88,7 @@ class BaseKeyController(object):
         self.key.name = name
         self.key.save()
         log.info("Renamed key '%s' to '%s'.", self.key.name, name)
-        trigger_session_update(self.key.owner, ['keys'])
+        trigger_session_update(self.key.owner_id, ['keys'])
 
     def set_default(self):
         from mist.api.keys.models import Key
@@ -96,7 +101,7 @@ class BaseKeyController(object):
         self.key.save()
 
         log.info("Successfully set key with id '%s' as default.", self.key.id)
-        trigger_session_update(self.key.owner, ['keys'])
+        trigger_session_update(self.key.owner_id, ['keys'])
 
     def associate(self, machine, username='', port=22, no_connect=False):
         """Associates a key with a machine."""
@@ -137,7 +142,7 @@ class BaseKeyController(object):
                                    port=port)
         machine.key_associations.append(key_assoc)
         machine.save()
-        trigger_session_update(self.key.owner, ['keys'])
+        trigger_session_update(self.key.owner_id, ['keys'])
 
         return key_assoc
 
@@ -151,4 +156,4 @@ class BaseKeyController(object):
         if key_assoc:
             machine.key_associations.remove(key_assoc[0])
             machine.save()
-            trigger_session_update(self.key.owner, ['keys'])
+            trigger_session_update(self.key.owner_id, ['keys'])

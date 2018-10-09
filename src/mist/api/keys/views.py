@@ -81,7 +81,7 @@ def add_key(request):
 
     clouds = Cloud.objects(owner=auth_context.owner, deleted=None)
     machines = Machine.objects(cloud__in=clouds,
-                               key_associations__keypair__exact=key)
+                               key_associations__keypair__exact=key.id)
 
     assoc_machines = transform_key_machine_associations(machines, key)
 

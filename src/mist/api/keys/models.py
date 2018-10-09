@@ -17,7 +17,7 @@ from mist.api.ownership.mixins import OwnershipMixin
 log = logging.getLogger(__name__)
 
 
-class Key(OwnershipMixin, djm.Model):
+class Key(djm.Model):
     """Abstract base class for every key/machine attr mongoengine model.
 
     This class defines the fields common to all keys of all types. For each
@@ -60,10 +60,12 @@ class Key(OwnershipMixin, djm.Model):
 
     id = djm.TextField(primary_key=True)
     name = djm.TextField()
-    owner = djm.TextField()
+    owner_id = djm.TextField()
     default = djm.BooleanField(default=False)
     deleted = djm.DateTimeField(blank=True, null=True)
-    #Key._meta.get_fields()
+    #OwnersipMixin Fields
+    owned_by = djm.TextField(blank=True, null=True)
+    created_by = djm.TextField(blank=True, null=True)
 
     _private_fields = ()
     _controller_cls = None
@@ -111,18 +113,20 @@ class Key(OwnershipMixin, djm.Model):
             raise RequiredParameterMissingError('title')
         if not owner or not isinstance(owner, Owner):
             raise BadRequestError('owner')
-        key = cls(owner=owner, name=name)
+        
+        key = cls(owner_id=owner.id, name=name)
         if id:
             key.id = id
         key.ctl.add(**kwargs)
         return key
 
     def delete(self):
-        super(Key, self).delete()
-        mist.api.tag.models.Tag.objects(resource=self).delete()
-        self.owner.mapper.remove(self)
-        if self.owned_by:
-            self.owned_by.get_ownership_mapper(self.owner).remove(self)
+        #super(Key, self).delete()
+        #mist.api.tag.models.Tag.objects(resource=self).delete()
+        #self.owner.mapper.remove(self)
+        #if self.owned_by:
+        #    self.owned_by.get_ownership_mapper(self.owner).remove(self)
+        raise NotImplementedError
 
     def as_dict(self):
         # Return a dict as it will be returned to the API
@@ -142,7 +146,17 @@ class Key(OwnershipMixin, djm.Model):
 
     def __str__(self):
         return '%s key %s (%s) of %s' % (type(self), self.name,
-                                         self.id, self.owner)
+                                         self.id, self.owner_id)
+
+    def assign_to(self, user, assign_creator=True):
+        """ Overrides assign_to from ownership mixins """
+        #retrieve owner object from id
+        current_owner = Owner.objects().get(id=self.owner_id)
+        user.get_ownership_mapper(current_owner).update(self)
+        self.owned_by = user.id
+        if assign_creator is True:
+            self.created_by = user.id
+        self.save()
 
 
 class SSHKey(Key):
