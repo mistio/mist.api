@@ -2,6 +2,8 @@
 import logging
 from uuid import uuid4
 import mongoengine as me
+import django.db.models as djm
+from django.core.exceptions import ValidationError
 import mist.api.tag.models
 from Crypto.PublicKey import RSA
 
@@ -15,7 +17,7 @@ from mist.api.ownership.mixins import OwnershipMixin
 log = logging.getLogger(__name__)
 
 
-class Key(OwnershipMixin, me.Document):
+class Key(OwnershipMixin, djm.Model):
     """Abstract base class for every key/machine attr mongoengine model.
 
     This class defines the fields common to all keys of all types. For each
@@ -55,31 +57,22 @@ class Key(OwnershipMixin, me.Document):
         key.ctl.generate()
 
     """
-    meta = {
-        'allow_inheritance': True,
-        'collection': 'keys',
-        'indexes': [
-            {
-                'fields': ['owner', 'name', 'deleted'],
-                'sparse': False,
-                'unique': True,
-                'cls': False,
-            },
-        ],
-    }
 
-    id = me.StringField(primary_key=True,
-                        default=lambda: uuid4().hex)
-    name = me.StringField(required=True)
-    owner = me.ReferenceField(Owner)
-    default = me.BooleanField(default=False)
-    deleted = me.DateTimeField()
+    id = djm.TextField(primary_key=True)
+    name = djm.TextField()
+    owner = djm.TextField()
+    default = djm.BooleanField(default=False)
+    deleted = djm.DateTimeField(blank=True, null=True)
+    #Key._meta.get_fields()
 
     _private_fields = ()
     _controller_cls = None
 
     def __init__(self, *args, **kwargs):
         super(Key, self).__init__(*args, **kwargs)
+
+        if not self.id:
+            self.id = uuid4().hex
 
         # Set attribute `ctl` to an instance of the appropriate controller.
         if self._controller_cls is None:
@@ -98,8 +91,9 @@ class Key(OwnershipMixin, me.Document):
         self.ctl = self._controller_cls(self)
 
         # Calculate and store key type specific fields.
-        self._key_specific_fields = [field for field in type(self)._fields
-                                     if field not in Key._fields]
+        self._key_specific_fields = [field.name for field in type(self)._meta.fields
+                                     if field not in Key._meta.fields 
+                                     and '_ptr' not in field.name]
 
     @classmethod
     def add(cls, owner, name, id='', **kwargs):
@@ -135,10 +129,10 @@ class Key(OwnershipMixin, me.Document):
         mdict = {
             'id': self.id,
             'name': self.name,
-            'owner': self.owner.id,
+            'owner': self.owner,
             'default': self.default,
-            'owned_by': self.owned_by.id if self.owned_by else '',
-            'created_by': self.created_by.id if self.created_by else '',
+            #'owned_by': self.owned_by.id if self.owned_by else '',
+            #'created_by': self.created_by.id if self.created_by else '',
         }
 
         mdict.update({key: getattr(self, key)
@@ -154,8 +148,8 @@ class Key(OwnershipMixin, me.Document):
 class SSHKey(Key):
     """An ssh key."""
 
-    public = me.StringField(required=True)
-    private = me.StringField(required=True)
+    public = djm.TextField()
+    private = djm.TextField()
 
     _controller_cls = controllers.SSHKeyController
     _private_fields = ('private',)
@@ -167,7 +161,7 @@ class SSHKey(Key):
         Random.atfork()
 
         if 'RSA' not in self.private:
-            raise me.ValidationError("Private key is not a valid RSA key.")
+            raise ValidationError("Private key is not a valid RSA key.")
 
         # Generate public key from private key file.
         try:
@@ -176,12 +170,12 @@ class SSHKey(Key):
         except Exception:
             log.exception("Error while constructing public key "
                           "from private.")
-            raise me.ValidationError("Private key is not a valid RSA key.")
+            raise ValidationError("Private key is not a valid RSA key.")
 
 
 class SignedSSHKey(SSHKey):
     """An signed ssh key"""
-    certificate = me.StringField(required=True)
+    certificate = djm.TextField()
 
     _controller_cls = controllers.BaseKeyController
 
