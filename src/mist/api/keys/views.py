@@ -115,7 +115,7 @@ def delete_key(request):
         raise KeyParameterMissingError()
 
     try:
-        key = Key.objects.get(owner=auth_context.owner, id=key_id,
+        key = Key.objects.get(owner_id=auth_context.owner.id, id=key_id,
                               deleted=None)
     except me.DoesNotExist:
         raise NotFoundError('Key id does not exist')

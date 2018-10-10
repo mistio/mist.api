@@ -32,12 +32,16 @@ def delete_key(owner, key_id):
     """
     log.info("Deleting key with id '%s'.", key_id)
     try:
-        key = Key.objects.get(owner=owner, id=key_id, deleted=None)
+        key = Key.objects.get(owner_id=owner.id, id=key_id, deleted=None)
     except Key.DoesNotExist:
         raise KeyNotFoundError()
     default_key = key.default
-    key.update(set__deleted=datetime.utcnow())
-    other_key = Key.objects(owner=owner, id__ne=key_id, deleted=None).first()
+    #key.update(set__deleted=datetime.utcnow())
+    key.deleted = datetime.utcnow()
+    key.save()
+    #other_key = Key.objects(owner=owner, id__ne=key_id, deleted=None).first()
+    other_key = Key.objects.filter(owner_id = owner.id,
+                                   deleted=None).exclude(id=key.id).first()
     if default_key and other_key:
         other_key.default = True
         other_key.save()
