@@ -187,19 +187,9 @@ class BaseNetworkController(BaseController):
 
         # Create the subnet.
         libcloud_subnet = self._create_subnet(kwargs)
-
-        try:
-            subnet.subnet_id = libcloud_subnet.id
-            subnet.save()
-        except mongoengine.errors.ValidationError as exc:
-            log.error("Error saving %s: %s", subnet, exc.to_dict())
-            raise mist.api.exceptions.NetworkCreationError(exc.message)
-        except mongoengine.errors.NotUniqueError as exc:
-            log.error("Subnet %s is not unique: %s", subnet.name, exc)
-            raise mist.api.exceptions.SubnetExistsError()
         from mist.api.poller.models import ListNetworksPollingSchedule
         ListNetworksPollingSchedule.add(cloud=self.cloud, interval=10, ttl=120)
-        return subnet
+        return libcloud_subnet
 
     def _create_subnet(self, kwargs):
         """Performs the libcloud call that handles subnet creation.

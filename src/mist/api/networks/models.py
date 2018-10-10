@@ -99,8 +99,7 @@ class Network(OwnershipMixin, me.Document):
                       description=description)
         if id:
             network.id = id
-        network.ctl.create(**kwargs)
-        return network
+        return network.ctl.create(**kwargs)
 
     @property
     def tags(self):
@@ -281,8 +280,7 @@ class Subnet(me.Document):
                      description=description)
         if id:
             subnet.id = id
-        subnet.ctl.create(**kwargs)
-        return subnet
+        return subnet.ctl.create(**kwargs)
 
     @property
     def tags(self):
