@@ -623,9 +623,17 @@ def machine_actions(request):
     snapshot_dump_memory = params.get('snapshot_dump_memory')
     snapshot_quiesce = params.get('snapshot_quiesce')
     firmware_id = params.get('firmware_id')
-    firmware_zip = params.get('firmware_zip')
     reset_type = params.get('reset_type')
+
     auth_context = auth_context_from_request(request)
+    firmware_zip = None
+    if request.POST.get('firmware_zip') != None:
+        firmware_zip_file = request.POST['firmware_zip'].file.read()
+        if len(firmware_zip_file) > 256 * 1024 * 1024:
+            raise BadRequestError("File too large")
+        firmware_zip = (request.POST['firmware_zip'].filename,
+                        firmware_zip_file,
+                        request.POST['firmware_zip'].type)
 
     if cloud_id:
         # this is depracated, keep it for backwards compatibility

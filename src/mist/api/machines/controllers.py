@@ -112,7 +112,7 @@ class MachineController(object):
         return self.machine.cloud.ctl.compute.put_firmware(
             self.machine, firmware_id)
 
-    def backup_firmware(self, firmware_id):
+    def backup_firmware(self):
         """
         Backup currently active firmware - used in ClearAPI iLO hosts
         """
