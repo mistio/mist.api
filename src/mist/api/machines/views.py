@@ -627,7 +627,7 @@ def machine_actions(request):
 
     auth_context = auth_context_from_request(request)
     firmware_zip = None
-    if request.POST.get('firmware_zip') != None:
+    if request.POST.get('firmware_zip') is not None:
         firmware_zip_file = request.POST['firmware_zip'].file.read()
         if len(firmware_zip_file) > 256 * 1024 * 1024:
             raise BadRequestError("File too large")
