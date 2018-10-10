@@ -4,6 +4,7 @@ from uuid import uuid4
 import mongoengine as me
 import django.db.models as djm
 from django.core.exceptions import ValidationError
+from polymorphic.models import PolymorphicModel
 import mist.api.tag.models
 from Crypto.PublicKey import RSA
 
@@ -17,7 +18,7 @@ from mist.api.ownership.mixins import OwnershipMixin
 log = logging.getLogger(__name__)
 
 
-class Key(djm.Model):
+class Key(PolymorphicModel):
     """Abstract base class for every key/machine attr mongoengine model.
 
     This class defines the fields common to all keys of all types. For each

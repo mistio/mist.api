@@ -15,6 +15,8 @@ DATABASES = {
 
 INSTALLED_APPS = (
     'mist.api.keys',
+    'polymorphic',
+    'django.contrib.contenttypes',
 )
 
 SECRET_KEY = 'REPLACE_ME'
