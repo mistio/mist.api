@@ -185,11 +185,24 @@ class BaseNetworkController(BaseController):
         # Cloud-specific kwargs processing.
         self._create_subnet__prepare_args(subnet, kwargs)
 
-        # Create the subnet.
-        libcloud_subnet = self._create_subnet(kwargs)
+        # Increase network polling frequency
         from mist.api.poller.models import ListNetworksPollingSchedule
         ListNetworksPollingSchedule.add(cloud=self.cloud, interval=10, ttl=120)
-        return libcloud_subnet
+
+        # Create the subnet.
+        libcloud_subnet = self._create_subnet(kwargs)
+
+        # Invoke `self.list_networks` to update the UI and return the Network
+        # object at the API. Try 3 times before failing
+        from mist.api.networks.models import Subnet
+        for _ in range(3):
+            for n in self.list_networks():
+                if n.network_id == subnet.network.network_id:
+                    for s in Subnet.objects(network=n, missing_since=None):
+                        if s.subnet_id == libcloud_subnet.id:
+                            return s
+            time.sleep(1)
+        raise mist.api.exceptions.SubnetListingError()
 
     def _create_subnet(self, kwargs):
         """Performs the libcloud call that handles subnet creation.
