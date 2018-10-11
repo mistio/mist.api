@@ -1,4 +1,3 @@
-import mongoengine as me
 from pyramid.response import Response
 
 from mist.api.clouds.models import Cloud
@@ -117,7 +116,7 @@ def delete_key(request):
     try:
         key = Key.objects.get(owner_id=auth_context.owner.id, id=key_id,
                               deleted=None)
-    except me.DoesNotExist:
+    except Key.DoesNotExist:
         raise NotFoundError('Key id does not exist')
 
     auth_context.check_perm('key', 'remove', key.id)
@@ -159,7 +158,7 @@ def delete_keys(request):
         try:
             key = Key.objects.get(owner_id=auth_context.owner.id,
                                   id=key_id, deleted=None)
-        except me.DoesNotExist:
+        except Key.DoesNotExist:
             report[key_id] = 'not_found'
             continue
         try:
