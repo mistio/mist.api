@@ -152,7 +152,7 @@ class BaseKeyController(object):
         log.info("Disassociating key of machine '%s' " % machine.machine_id)
 
         # removing key association
-        key_assoc = machine.key_associations.filter(keypair=self.key)
+        key_assoc = machine.key_associations.filter(keypair=self.key.id)
         if key_assoc:
             machine.key_associations.remove(key_assoc[0])
             machine.save()

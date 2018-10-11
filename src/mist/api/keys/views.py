@@ -478,11 +478,11 @@ def disassociate_key(request):
 
     auth_context.check_perm("machine", "disassociate_key", machine.id)
 
-    key = Key.objects.get(owner=auth_context.owner, id=key_id, deleted=None)
+    key = Key.objects.get(owner_id=auth_context.owner.id, id=key_id, deleted=None)
     key.ctl.disassociate(machine)
     clouds = Cloud.objects(owner=auth_context.owner, deleted=None)
     machines = Machine.objects(cloud__in=clouds,
-                               key_associations__keypair__exact=key)
+                               key_associations__keypair__exact=key.id)
 
     assoc_machines = transform_key_machine_associations(machines, key)
     return assoc_machines

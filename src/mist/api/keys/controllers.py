@@ -93,7 +93,10 @@ class SSHKeyController(BaseKeyController):
         try:
             # FIXME
             from mist.api.methods import ssh_command
-            ssh_command(self.key.owner, machine.cloud.id,
+            #Retrieve key owner object
+            from mist.api.users.models import Owner
+            key_owner = Owner.objects().get(id=self.key.owner_id)
+            ssh_command(key_owner, machine.cloud.id,
                         machine.machine_id, machine.hostname, command)
         except Exception as exc:
             log.info("Undeploying key %s failed: %s", self.key.id, str(exc))
