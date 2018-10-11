@@ -96,7 +96,7 @@ class BaseKeyController(object):
 
         log.info("Setting key with id '%s' as default.", self.key.id)
 
-        Key.objects(owner=self.key.owner, default=True).update(default=False)
+        Key.objects.filter(owner_id=self.key.owner_id, default=True).update(default=False)
         self.key.default = True
         self.key.save()
 

@@ -157,7 +157,7 @@ def delete_keys(request):
     report = {}
     for key_id in key_ids:
         try:
-            key = Key.objects.get(owner=auth_context.owner,
+            key = Key.objects.get(owner_id=auth_context.owner.id,
                                   id=key_id, deleted=None)
         except me.DoesNotExist:
             report[key_id] = 'not_found'
@@ -208,9 +208,9 @@ def edit_key(request):
 
     auth_context = auth_context_from_request(request)
     try:
-        key = Key.objects.get(owner=auth_context.owner,
+        key = Key.objects.get(owner_id=auth_context.owner.id,
                               id=key_id, deleted=None)
-    except me.DoesNotExist:
+    except Key.DoesNotExist:
         raise NotFoundError('Key with that id does not exist')
     auth_context.check_perm('key', 'edit', key.id)
     key.ctl.rename(new_name)
@@ -236,9 +236,9 @@ def set_default_key(request):
 
     auth_context = auth_context_from_request(request)
     try:
-        key = Key.objects.get(owner=auth_context.owner,
+        key = Key.objects.get(owner_id=auth_context.owner.id,
                               id=key_id, deleted=None)
-    except me.DoesNotExist:
+    except Key.DoesNotExist:
         raise NotFoundError('Key id does not exist')
 
     auth_context.check_perm('key', 'edit', key.id)
@@ -303,6 +303,8 @@ def get_public_key(request):
     try:
         key = SSHKey.objects.get(owner_id=auth_context.owner.id,
                                  id=key_id, deleted=None)
+        if isinstance(key, SignedSSHKey):
+            raise NotFoundError('Key id does not exist')    
     except SSHKey.DoesNotExist:
         raise NotFoundError('Key id does not exist')
 
