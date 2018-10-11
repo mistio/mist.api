@@ -341,9 +341,12 @@ class Machine(OwnershipMixin, me.Document):
         # embedded documents in order to ensure that the most recent list is
         # always processed and saved.
         for ka in reversed(range(len(self.key_associations))):
-            if self.key_associations[ka].keypair.deleted:
+            #retrieve key object
+            key_id = self.key_associations[ka].keypair
+            #if self.key_associations[ka].keypair.deleted:
+            if Key.objects.get(id=key_id).deleted:
                 self.key_associations.pop(ka)
-
+            
         # Reset key_associations in case self goes missing/destroyed. This is
         # going to prevent the machine from showing up as "missing" in the
         # corresponding keys' associated machines list.

@@ -58,9 +58,13 @@ class SSHKeyController(BaseKeyController):
             if machine.key_associations[0].ssh_user != 'root':
                 username = machine.key_associations[0].ssh_user
 
+        #Retrieve key owner object
+        from mist.api.users.models import Owner
+        key_owner = Owner.objects().get(id=self.key.owner_id)
+        
         try:
             # Deploy key.
-            ssh_command(self.key.owner, machine.cloud.id, machine.machine_id,
+            ssh_command(key_owner, machine.cloud.id, machine.machine_id,
                         machine.hostname, command,
                         username=username, port=port)
             log.info("Key associated and deployed successfully.")
@@ -68,7 +72,7 @@ class SSHKeyController(BaseKeyController):
             # Couldn't deploy key, maybe key was already deployed?
             deploy_error = True
         try:
-            ssh_command(self.key.owner, machine.cloud.id, machine.machine_id,
+            ssh_command(key_owner, machine.cloud.id, machine.machine_id,
                         machine.hostname, 'uptime', key_id=self.key.id,
                         username=username, port=port)
         except MachineUnauthorizedError:

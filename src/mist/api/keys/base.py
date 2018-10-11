@@ -127,7 +127,7 @@ class BaseKeyController(object):
         # create the association.This is only needed if association doesn't
         # exist. Associations will otherwise be
         # created by shell.autoconfigure upon successful connection
-        key_assoc = machine.key_associations.filter(keypair=self.key,
+        key_assoc = machine.key_associations.filter(keypair=self.key.id,
                                                     ssh_user=username,
                                                     port=port)
         if key_assoc:
@@ -137,7 +137,7 @@ class BaseKeyController(object):
 
             return key_assoc[0]
 
-        key_assoc = KeyAssociation(keypair=self.key, last_used=0,
+        key_assoc = KeyAssociation(keypair=self.key.id, last_used=0,
                                    ssh_user=username, sudo=False,
                                    port=port)
         machine.key_associations.append(key_assoc)
