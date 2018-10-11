@@ -7,6 +7,11 @@ RUN pip install --no-cache-dir --upgrade pip
 RUN pip install --no-cache-dir --upgrade setuptools
 RUN pip install libvirt-python==2.4.0
 
+# Install Postgres dev tools
+RUN apk update && \
+    apk add --virtual build-deps gcc python-dev musl-dev && \
+    apk add postgresql-dev
+
 RUN pip install --no-cache-dir ipython ipdb flake8 pytest pytest-cov
 
 # Remove `-frozen` to build without strictly pinned dependencies.
