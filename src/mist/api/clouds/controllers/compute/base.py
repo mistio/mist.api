@@ -24,8 +24,7 @@ from libcloud.common.types import InvalidCredsError
 from libcloud.compute.types import NodeState
 from libcloud.compute.base import NodeLocation, Node, NodeSize
 from libcloud.common.exceptions import BaseHTTPError
-
-from amqp.connection import Connection
+from mist.api.clouds.utils import LibcloudExceptionHandler
 
 from mist.api import config
 
@@ -208,14 +207,10 @@ class BaseComputeController(BaseController):
             self.cloud.ctl.disable()
             raise
 
-        # Initialize AMQP connection to reuse for multiple messages.
-        amqp_conn = Connection(config.AMQP_URI)
-
         if amqp_owner_listening(self.cloud.owner.id):
             if not config.MACHINE_PATCHES:
                 amqp_publish_user(self.cloud.owner.id,
                                   routing_key='list_machines',
-                                  connection=amqp_conn,
                                   data={'cloud_id': self.cloud.id,
                                         'machines': [machine.as_dict()
                                                      for machine in machines]})
@@ -235,7 +230,6 @@ class BaseComputeController(BaseController):
                 if patch:
                     amqp_publish_user(self.cloud.owner.id,
                                       routing_key='patch_machines',
-                                      connection=amqp_conn,
                                       data={'cloud_id': self.cloud.id,
                                             'patch': patch})
 
@@ -245,7 +239,7 @@ class BaseComputeController(BaseController):
                     'machine_id': machine.id,
                     'cost_per_month': machine.cost.monthly}
             amqp_publish(exchange='machines_inventory', routing_key='',
-                         auto_delete=False, data=data, connection=amqp_conn)
+                         auto_delete=False, data=data)
 
         return machines
 
@@ -313,13 +307,6 @@ class BaseComputeController(BaseController):
         for size in CloudSize.objects(cloud=self.cloud):
             sizes_map[size.external_id] = size
             sizes_map[size.name] = size
-        from mist.api.networks.models import Network
-        networks_map = {}
-        subnets_map = {}
-        for network in Network.objects(cloud=self.cloud):
-            networks_map[network.network_id] = network
-            networks_map[network.name] = network
-            subnets_map.update(self._list_machines__set_subnets_map(network))
 
         from mist.api.machines.models import Machine
         # Process each machine in returned list.
@@ -366,21 +353,6 @@ class BaseComputeController(BaseController):
                     machine.size = self._list_machines__get_custom_size(node)
             except Exception as exc:
                 log.error("Error getting size of %s: %r", machine, exc)
-            # Discover network of machine.
-            try:
-                network_id = self._list_machines__get_network(node)
-            except Exception as exc:
-                log.error("Error getting network of %s: %r", machine, exc)
-            else:
-                machine.network = networks_map.get(network_id)
-
-            # Discover subnet of machine.
-            try:
-                subnet = self._list_machines__get_subnet(node)
-            except Exception as exc:
-                log.error("Error getting subnet of %s: %r", machine, exc)
-            else:
-                machine.subnet = subnets_map.get(subnet)
 
             machine.name = node.name
             machine.image_id = image_id
@@ -563,34 +535,6 @@ class BaseComputeController(BaseController):
         """Return size metadata for node"""
         return
 
-    def _list_machines__get_network(self, node):
-        """Return key of networks_map dict for a specific node
-
-        Subclasses MAY override this method.
-        """
-        return
-
-    def _list_machines__get_subnet(self, node):
-        """Return key of subnets_map dict for a specific node
-
-        Subclasses MAY override this method.
-        """
-        return
-
-    def _list_machines__set_subnets_map(self, network):
-        """Set the subnets_map dict for a specific network.
-        This method is needed because in some providers, such as GCE,
-        extra info is needed in order for the subnet a machine belongs to,
-        to be identified.
-        Subclasses MAY override this method.
-        """
-        from mist.api.networks.models import Subnet
-        subnets_map = {}
-        for subnet in Subnet.objects(network=network):
-            subnets_map[subnet.subnet_id] = subnet
-            subnets_map[subnet.name] = subnet
-        return subnets_map
-
     def _list_machines__fetch_machines(self):
         """Perform the actual libcloud call to get list of nodes"""
         return self.connection.list_nodes()
@@ -732,6 +676,7 @@ class BaseComputeController(BaseController):
             pass
         return False
 
+    @LibcloudExceptionHandler(CloudUnavailableError)
     def list_images(self, search=None):
         """Return list of images for cloud
 
@@ -836,8 +781,6 @@ class BaseComputeController(BaseController):
                             for s in self.list_cached_sizes()}
             sizes = self._list_sizes()
 
-        # Initialize AMQP connection to reuse for multiple messages.
-        amqp_conn = Connection(config.AMQP_URI)
         if amqp_owner_listening(self.cloud.owner.id):
             if cached_sizes and sizes:
                 # Publish patches to rabbitmq.
@@ -847,7 +790,6 @@ class BaseComputeController(BaseController):
                 if patch:
                     amqp_publish_user(self.cloud.owner.id,
                                       routing_key='patch_sizes',
-                                      connection=amqp_conn,
                                       data={'cloud_id': self.cloud.id,
                                             'patch': patch})
 
@@ -856,7 +798,6 @@ class BaseComputeController(BaseController):
                 # are implemented in the UI
                 amqp_publish_user(self.cloud.owner.id,
                                   routing_key='list_sizes',
-                                  connection=amqp_conn,
                                   data={'cloud_id': self.cloud.id,
                                         'sizes': [s.as_dict() for s in sizes]})
         return sizes
@@ -976,8 +917,6 @@ class BaseComputeController(BaseController):
 
             locations = self._list_locations()
 
-        # Initialize AMQP connection to reuse for multiple messages.
-        amqp_conn = Connection(config.AMQP_URI)
         if amqp_owner_listening(self.cloud.owner.id):
             locations_dict = [l.as_dict() for l in locations]
             if cached_locations and locations_dict:
@@ -988,7 +927,6 @@ class BaseComputeController(BaseController):
                 if patch:
                     amqp_publish_user(self.cloud.owner.id,
                                       routing_key='patch_locations',
-                                      connection=amqp_conn,
                                       data={'cloud_id': self.cloud.id,
                                             'patch': patch})
             else:
@@ -996,7 +934,6 @@ class BaseComputeController(BaseController):
                 # are implemented in the UI
                 amqp_publish_user(self.cloud.owner.id,
                                   routing_key='list_locations',
-                                  connection=amqp_conn,
                                   data={'cloud_id': self.cloud.id,
                                         'locations': locations_dict})
         return locations
@@ -1064,13 +1001,6 @@ class BaseComputeController(BaseController):
                                                     datetime.utcnow())
         return locations
 
-    def list_cached_locations(self):
-        """Return list of locations from database for a specific cloud"""
-        # FIXME Imported here due to circular dependency issues. Perhaps one
-        # way to solve this would be to move CloudLocation under its own dir.
-        from mist.api.clouds.models import CloudLocation
-        return CloudLocation.objects(cloud=self.cloud, missing_since=None)
-
     def _list_locations__fetch_locations(self):
         """Fetch location listing in a libcloud compatible format
 
@@ -1087,6 +1017,13 @@ class BaseComputeController(BaseController):
         except:
             return [NodeLocation('', name='default', country='',
                                  driver=self.connection)]
+
+    def list_cached_locations(self):
+        """Return list of locations from database for a specific cloud"""
+        # FIXME Imported here due to circular dependency issues. Perhaps one
+        # way to solve this would be to move CloudLocation under its own dir.
+        from mist.api.clouds.models import CloudLocation
+        return CloudLocation.objects(cloud=self.cloud, missing_since=None)
 
     def _list_machines__get_location(self, node):
         """Find location code name/identifier from libcloud data
@@ -1141,13 +1078,13 @@ class BaseComputeController(BaseController):
 
         machine_libcloud = self._get_machine_libcloud(machine)
         try:
-            self._start_machine(machine, machine_libcloud)
+            return self._start_machine(machine, machine_libcloud)
         except MistError as exc:
             log.error("Could not start machine %s", machine)
             raise
         except Exception as exc:
             log.exception(exc)
-            raise InternalServerError(exc=exc)
+            raise InternalServerError(exc.message)
 
     def _start_machine(self, machine, machine_libcloud):
         """Private method to start a given machine
@@ -1159,7 +1096,7 @@ class BaseComputeController(BaseController):
         Differnent cloud controllers should override this private method, which
         is called by the public method `start_machine`.
         """
-        self.connection.ex_start_node(machine_libcloud)
+        return self.connection.ex_start_node(machine_libcloud)
 
     def stop_machine(self, machine):
         """Stop machine
@@ -1186,7 +1123,7 @@ class BaseComputeController(BaseController):
 
         machine_libcloud = self._get_machine_libcloud(machine)
         try:
-            self._stop_machine(machine, machine_libcloud)
+            return self._stop_machine(machine, machine_libcloud)
         except MistError as exc:
             log.error("Could not stop machine %s", machine)
             raise
@@ -1204,8 +1141,7 @@ class BaseComputeController(BaseController):
         Differnent cloud controllers should override this private method, which
         is called by the public method `stop_machine`.
         """
-        self.connection.ex_stop_node(machine_libcloud)
-        return True
+        return self.connection.ex_stop_node(machine_libcloud)
 
     def reboot_machine(self, machine):
         """Reboot machine
@@ -1232,13 +1168,13 @@ class BaseComputeController(BaseController):
 
         machine_libcloud = self._get_machine_libcloud(machine)
         try:
-            self._reboot_machine(machine, machine_libcloud)
+            return self._reboot_machine(machine, machine_libcloud)
         except MistError as exc:
             log.error("Could not reboot machine %s", machine)
             raise
         except Exception as exc:
             log.exception(exc)
-            raise InternalServerError(exc=exc)
+            raise BadRequestError(exc=exc)
 
     def _reboot_machine(self, machine, machine_libcloud):
         """Private method to reboot a given machine
@@ -1250,7 +1186,7 @@ class BaseComputeController(BaseController):
         Differnent cloud controllers should override this private method, which
         is called by the public method `reboot_machine`.
         """
-        machine_libcloud.reboot()
+        return machine_libcloud.reboot()
 
     def reboot_machine_ssh(self, machine):
         """Reboot machine by running command over SSH"""
@@ -1264,8 +1200,8 @@ class BaseComputeController(BaseController):
             command = '$(command -v sudo) shutdown -r now'
             # TODO move it up
             from mist.api.methods import ssh_command
-            ssh_command(self.cloud.owner, self.cloud.id,
-                        machine.machine_id, hostname, command)
+            return ssh_command(self.cloud.owner, self.cloud.id,
+                               machine.machine_id, hostname, command)
         except MistError as exc:
             log.error("Could not reboot machine %s", machine)
             raise
@@ -1298,7 +1234,7 @@ class BaseComputeController(BaseController):
 
         machine_libcloud = self._get_machine_libcloud(machine)
         try:
-            self._destroy_machine(machine, machine_libcloud)
+            ret = self._destroy_machine(machine, machine_libcloud)
         except MistError as exc:
             log.error("Could not destroy machine %s", machine)
             raise
@@ -1310,6 +1246,7 @@ class BaseComputeController(BaseController):
             machine.key_associations.pop()
         machine.state = 'terminated'
         machine.save()
+        return ret
 
     def _destroy_machine(self, machine, machine_libcloud):
         """Private method to destroy a given machine
@@ -1322,7 +1259,7 @@ class BaseComputeController(BaseController):
         is called by the public method `destroy_machine`.
         """
         try:
-            machine_libcloud.destroy()
+            return machine_libcloud.destroy()
         except BaseHTTPError:
             raise ForbiddenError("Cannot destroy machine. Check the "
                                  "termination protection setting on your "
@@ -1419,7 +1356,7 @@ class BaseComputeController(BaseController):
             raise
         except Exception as exc:
             log.exception(exc)
-            raise InternalServerError(exc=exc)
+            raise InternalServerError(exc.message)
 
     def _rename_machine(self, machine, machine_libcloud, name):
         """Private method to rename a given machine
@@ -1505,13 +1442,13 @@ class BaseComputeController(BaseController):
 
         machine_libcloud = self._get_machine_libcloud(machine)
         try:
-            self._suspend_machine(machine, machine_libcloud)
+            return self._suspend_machine(machine, machine_libcloud)
         except MistError as exc:
             log.error("Could not suspend machine %s", machine)
             raise
         except Exception as exc:
             log.exception(exc)
-            raise InternalServerError(exc=exc)
+            raise InternalServerError(exc.message)
 
     def _suspend_machine(self, machine, machine_libcloud):
         """Private method to suspend a given machine
@@ -1552,13 +1489,13 @@ class BaseComputeController(BaseController):
 
         machine_libcloud = self._get_machine_libcloud(machine)
         try:
-            self._undefine_machine(machine, machine_libcloud)
+            return self._undefine_machine(machine, machine_libcloud)
         except MistError as exc:
             log.error("Could not undefine machine %s", machine)
             raise
         except Exception as exc:
             log.exception(exc)
-            raise InternalServerError(exc=exc)
+            raise BadRequestError(exc.message)
 
     def _undefine_machine(self, machine, machine_libcloud):
         """Private method to undefine a given machine
@@ -1569,7 +1506,214 @@ class BaseComputeController(BaseController):
             machine: instance of machine model of this cloud
             machine_libcloud: instance of corresponding libcloud node
 
-        Differnent cloud controllers should override this private method, which
+        Different cloud controllers should override this private method, which
         is called by the public method `undefine_machine`.
+        """
+        raise NotImplementedError()
+
+    def create_machine_snapshot(self, machine, snapshot_name, description='',
+                                dump_memory=False, quiesce=False):
+        """Create a snapshot for machine
+
+        The param `machine` must be an instance of a machine model of this
+        cloud.
+
+        Not that the usual way to undefine a machine would be to run
+
+            machine.ctl.create_snapshot()
+
+        which would in turn call this method, so that its cloud can customize
+        it as needed.
+
+        If a subclass of this controller wishes to override the way machines
+        snapshots are created, it should override `_create_machine_snapshot`
+        method instead.
+
+        """
+        # assert isinstance(machine.cloud, Machine)
+        assert self.cloud == machine.cloud
+        if not machine.actions.create_snapshot:
+            raise ForbiddenError("Machine doesn't support creating snapshots.")
+        log.debug("Creating snapshot for machine %s", machine)
+
+        machine_libcloud = self._get_machine_libcloud(machine)
+        try:
+            return self._create_machine_snapshot(
+                machine, machine_libcloud, snapshot_name,
+                description=description, dump_memory=dump_memory,
+                quiesce=quiesce)
+        except MistError as exc:
+            log.error("Could not create snapshot for machine %s", machine)
+            raise
+        except Exception as exc:
+            log.exception(exc)
+            raise BadRequestError(exc.message)
+
+    def _create_machine_snapshot(self, machine, machine_libcloud,
+                                 snapshot_name, description='',
+                                 dump_memory=False, quiesce=False):
+        """Private method to create a snapshot for a given machine
+
+        Only VSphereComputeController subclass implements this method.
+
+        Params:
+            machine: instance of machine model of this cloud
+            machine_libcloud: instance of corresponding libcloud node
+            snapshot_name: name of the snapshot to create
+            description: description of the snapshot
+            dump_memory: also dump the machine's memory
+            quiesce: quiesce guest file system
+
+        Different cloud controllers should override this private method, which
+        is called by the public method `create_machine_snapshot`.
+        """
+        raise NotImplementedError()
+
+    def remove_machine_snapshot(self, machine, snapshot_name=None):
+        """Remove a snapshot of a machine
+
+        The param `machine` must be an instance of a machine model of this
+        cloud.
+
+        Not that the usual way to undefine a machine would be to run
+
+            machine.ctl.remove_snapshot()
+
+        which would in turn call this method, so that its cloud can customize
+        it as needed.
+
+        If a subclass of this controller wishes to override the way machines
+        snapshots are created, it should override `_create_machine_snapshot`
+        method instead.
+
+        """
+        # assert isinstance(machine.cloud, Machine)
+        assert self.cloud == machine.cloud
+        if not machine.actions.remove_snapshot:
+            raise ForbiddenError("Machine doesn't support removing snapshots.")
+        log.debug("Removing snapshot for machine %s", machine)
+
+        machine_libcloud = self._get_machine_libcloud(machine)
+        try:
+            return self._remove_machine_snapshot(machine, machine_libcloud,
+                                                 snapshot_name)
+        except MistError as exc:
+            log.error("Could not remove snapshot of machine %s", machine)
+            raise
+        except Exception as exc:
+            log.exception(exc)
+            raise BadRequestError(exc.message)
+
+    def _remove_machine_snapshot(self, machine, machine_libcloud,
+                                 snapshot_name=None):
+        """Private method to remove a snapshot for a given machine
+
+        Only VSphereComputeController subclass implements this method.
+
+        Params:
+            machine: instance of machine model of this cloud
+            machine_libcloud: instance of corresponding libcloud node
+            snapshot_name: snapshot to remove, if None pick the last one
+
+        Different cloud controllers should override this private method, which
+        is called by the public method `remove_machine_snapshot`.
+        """
+        raise NotImplementedError()
+
+    def revert_machine_to_snapshot(self, machine, snapshot_name=None):
+        """Revert machine to selected snapshot
+
+        The param `machine` must be an instance of a machine model of this
+        cloud.
+
+        Not that the usual way to undefine a machine would be to run
+
+            machine.ctl.revert_to_snapshot()
+
+        which would in turn call this method, so that its cloud can customize
+        it as needed.
+
+        If a subclass of this controller wishes to override the way machines
+        snapshots are created, it should override `_revert_machine_to_snapshot`
+        method instead.
+
+        """
+        # assert isinstance(machine.cloud, Machine)
+        assert self.cloud == machine.cloud
+        if not machine.actions.revert_to_snapshot:
+            raise ForbiddenError(
+                "Machine doesn't support reverting to snapshot.")
+        log.debug("Reverting machines %s to snapshot", machine)
+
+        machine_libcloud = self._get_machine_libcloud(machine)
+        try:
+            return self._revert_machine_to_snapshot(machine, machine_libcloud,
+                                                    snapshot_name)
+        except MistError as exc:
+            log.error("Could not revert machine %s to snapshot", machine)
+            raise
+        except Exception as exc:
+            log.exception(exc)
+            raise BadRequestError(exc.message)
+
+    def _revert_machine_to_snapshot(self, machine, machine_libcloud,
+                                    snapshot_name=None):
+        """Private method to revert a given machine to a previous snapshot
+
+        Only VSphereComputeController subclass implements this method.
+
+        Params:
+            machine: instance of machine model of this cloud
+            machine_libcloud: instance of corresponding libcloud node
+            snapshot_name: snapshot to remove, if None pick the last one
+
+        Different cloud controllers should override this private method, which
+        is called by the public method `revert_machine_to_snapshot`.
+        """
+        raise NotImplementedError()
+
+    def list_machine_snapshots(self, machine):
+        """List snapshots of a machine
+
+        The param `machine` must be an instance of a machine model of this
+        cloud.
+
+        Not that the usual way to undefine a machine would be to run
+
+            machine.ctl.list_snapshots()
+
+        which would in turn call this method, so that its cloud can customize
+        it as needed.
+
+        If a subclass of this controller wishes to override the way machines
+        snapshots are created, it should override `_list_machine_snapshots`
+        method instead.
+
+        """
+        # assert isinstance(machine.cloud, Machine)
+        assert self.cloud == machine.cloud
+        log.debug("Reverting machines %s to snapshot", machine)
+
+        machine_libcloud = self._get_machine_libcloud(machine)
+        try:
+            return self._list_machine_snapshots(machine, machine_libcloud)
+        except MistError as exc:
+            log.error("Could not list snapshots for machine %s", machine)
+            raise
+        except Exception as exc:
+            log.exception(exc)
+            raise InternalServerError(exc.message)
+
+    def _list_machine_snapshots(self, machine, machine_libcloud):
+        """Private method to list a given machine's snapshots
+
+        Only VSphereComputeController subclass implements this method.
+
+        Params:
+            machine: instance of machine model of this cloud
+            machine_libcloud: instance of corresponding libcloud node
+
+        Different cloud controllers should override this private method, which
+        is called by the public method `list_machine_snapshots`.
         """
         raise NotImplementedError()

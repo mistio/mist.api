@@ -34,7 +34,7 @@ class _HubTornadoConsumer(mist.api.amqp_tornado.Consumer):
             queue=self.uuid,
             exchange_type='topic',
             routing_key=self.uuid,
-            exchange_kwargs={'auto_delete': True},
+            exchange_kwargs={'auto_delete': False, 'durable': False},
             queue_kwargs={'auto_delete': True, 'exclusive': True},
         )
         log.info("%s: Default ready callback.", self.lbl)

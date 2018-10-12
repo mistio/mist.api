@@ -222,12 +222,9 @@ class Owner(me.Document):
         super(Owner, self).clean()
 
     def get_rules_dict(self):
-        # FIXME In the future we should propagate no-data rules, as well,
-        # since we may allow limited actions to be performed on them by users.
-        from mist.api.rules.models import MachineMetricRule, NoDataRule
+        from mist.api.rules.models import MachineMetricRule
         return {rule.id: rule.as_dict()
-                for rule in MachineMetricRule.objects(owner_id=self.id)
-                if not isinstance(rule, NoDataRule)}
+                for rule in MachineMetricRule.objects(owner_id=self.id)}
 
     def get_metrics_dict(self):
         return {

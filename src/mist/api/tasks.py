@@ -43,6 +43,7 @@ from mist.api.poller.models import PollingSchedule
 from mist.api.poller.models import ListMachinesPollingSchedule
 from mist.api.poller.models import ListNetworksPollingSchedule
 from mist.api.poller.models import ListZonesPollingSchedule
+from mist.api.poller.models import ListVolumesPollingSchedule
 from mist.api.poller.models import FindCoresMachinePollingSchedule
 from mist.api.poller.models import PingProbeMachinePollingSchedule
 from mist.api.poller.models import SSHProbeMachinePollingSchedule
@@ -583,7 +584,6 @@ def rackspace_first_gen_post_create_steps(
 
 
 class UserTask(Task):
-    abstract = True
     task_key = ''
     result_expires = 0
     result_fresh = 0
@@ -724,7 +724,6 @@ class UserTask(Task):
 
 
 class ListImages(UserTask):
-    abstract = False
     task_key = 'list_images'
     result_expires = 60 * 60 * 24 * 7
     result_fresh = 60 * 60
@@ -743,7 +742,6 @@ class ListImages(UserTask):
 
 
 class ListProjects(UserTask):
-    abstract = False
     task_key = 'list_projects'
     result_expires = 60 * 60 * 24 * 7
     result_fresh = 60 * 60
@@ -762,7 +760,6 @@ class ListProjects(UserTask):
 
 
 class ListResourceGroups(UserTask):
-    abstract = False
     task_key = 'list_resource_groups'
     result_expires = 60 * 60 * 24 * 7
     result_fresh = 60 * 60
@@ -781,7 +778,6 @@ class ListResourceGroups(UserTask):
 
 
 class ListStorageAccounts(UserTask):
-    abstract = False
     task_key = 'list_storage_accounts'
     result_expires = 60 * 60 * 24 * 7
     result_fresh = 60 * 60
@@ -797,6 +793,13 @@ class ListStorageAccounts(UserTask):
         log.warn('Returning list storage accounts for user %s cloud %s',
                  owner.id, cloud_id)
         return {'cloud_id': cloud_id, 'storage_accounts': storage_accounts}
+
+
+list_zones = app.register_task(ListZones())
+list_images = app.register_task(ListImages())
+list_projects = app.register_task(ListProjects())
+list_resource_groups = app.register_task(ListResourceGroups())
+list_storage_accounts = app.register_task(ListStorageAccounts())
 
 
 @app.task
@@ -948,7 +951,7 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
         'error': False,
     }
 
-    log_event(action='Schedule started', **log_dict)
+    log_event(action='schedule_started', **log_dict)
     log.info('Schedule action started: %s', log_dict)
     try:
         group(glist)()
@@ -959,7 +962,7 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
                     'total_run_count': schedule.total_run_count or 0,
                      'error': log_dict['error']}
                     )
-    log_event(action='Schedule finished', **log_dict)
+    log_event(action='schedule_finished', **log_dict)
     if log_dict['error']:
         log.info('Schedule action failed: %s', log_dict)
     else:
@@ -1111,7 +1114,7 @@ def group_run_script(owner_id, script_id, name, machines_uuids, params=''):
         'job_id': job_id,
     }
 
-    log_event(action='Schedule started', **log_dict)
+    log_event(action='schedule_started', **log_dict)
     log.info('Schedule started: %s', log_dict)
     try:
         group(glist)()
@@ -1122,7 +1125,7 @@ def group_run_script(owner_id, script_id, name, machines_uuids, params=''):
                      'total_run_count': schedule.total_run_count or 0,
                      'error': log_dict['error']}
                     )
-    log_event(action='Schedule finished', **log_dict)
+    log_event(action='schedule_finished', **log_dict)
     if log_dict['error']:
         log.info('Schedule run_script failed: %s', log_dict)
     else:
@@ -1300,6 +1303,8 @@ def update_poller(org_id):
             ListNetworksPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
         if hasattr(cloud.ctl, 'dns'):
             ListZonesPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
+        if hasattr(cloud.ctl, 'storage'):
+            ListVolumesPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
         if config.ACCELERATE_MACHINE_POLLING:
             for machine in cloud.ctl.compute.list_cached_machines():
                 if machine.machine_type != 'container':

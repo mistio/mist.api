@@ -63,6 +63,8 @@ class LibcloudExceptionHandler(object):
             # exception class
             except BaseHTTPError as exc:
                 log.error("Bad request on running %s: %s", func.__name__, exc)
+                if 'unauthorized' in exc.message.lower():
+                    raise CloudUnauthorizedError(exc=exc, msg=exc.message)
                 raise BadRequestError(exc=exc,
                                       msg=exc.message)
             except LibcloudError as exc:

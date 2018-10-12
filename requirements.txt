@@ -8,12 +8,13 @@
 
 # amqp v2 requires explicit call to connect, and use of drain_events
 # see https://github.com/celery/py-amqp/issues/105
-amqp==1.4.9
+# compatible with kombu's requirement
+amqp<3.0
 # ansible v2 has a incompatible api
 # see https://serversforhackers.com/running-ansible-2-programmatically
 ansible==1.9.3
-# celerybeat-mongo doesn't work with celery4 yet
-celery<4.0.0
+# celery 5 will only support python3
+celery>=4.0,<5.0
 dnspython
 elasticsearch
 elasticsearch_tornado
@@ -25,6 +26,7 @@ ipython
 iso8601
 jsonpatch
 jsonpickle
+kombu
 mongoengine
 mongomock
 names

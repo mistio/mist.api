@@ -1,6 +1,7 @@
 import logging
 import copy
 import json
+import time
 import datetime
 import jsonpatch
 import mongoengine.errors
@@ -9,10 +10,6 @@ from requests import ConnectionError
 
 import mist.api.exceptions
 
-from amqp.connection import Connection
-
-from mist.api import config
-
 from mist.api.clouds.utils import LibcloudExceptionHandler
 from mist.api.clouds.controllers.base import BaseController
 
@@ -20,6 +17,7 @@ from mist.api.concurrency.models import PeriodicTaskInfo
 
 from mist.api.helpers import amqp_publish_user
 from mist.api.helpers import amqp_owner_listening
+
 
 log = logging.getLogger(__name__)
 
@@ -79,13 +77,11 @@ class BaseStorageController(BaseController):
         task_key = 'cloud:list_volumes:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
         with task.task_runner(persist=persist):
-            cached_volumes = {'%s' % n.id: n.as_dict()
-                              for n in self.list_cached_volumes()}
+            cached_volumes = {v.id: v.as_dict()
+                              for v in self.list_cached_volumes()}
 
             volumes = self._list_volumes()
 
-        # Initialize AMQP connection to reuse for multiple messages.
-        amqp_conn = Connection(config.AMQP_URI)
         if amqp_owner_listening(self.cloud.owner.id):
             volumes_dict = [v.as_dict() for v in volumes]
             if cached_volumes and volumes_dict:
@@ -96,7 +92,6 @@ class BaseStorageController(BaseController):
                 if patch:
                     amqp_publish_user(self.cloud.owner.id,
                                       routing_key='patch_volumes',
-                                      connection=amqp_conn,
                                       data={'cloud_id': self.cloud.id,
                                             'patch': patch})
             # FIXME: remove this block, once patches
@@ -104,7 +99,6 @@ class BaseStorageController(BaseController):
             else:
                 amqp_publish_user(self.cloud.owner.id,
                                   routing_key='list_volumes',
-                                  connection=amqp_conn,
                                   data={'cloud_id': self.cloud.id,
                                         'volumes': volumes_dict})
         return volumes
@@ -184,8 +178,7 @@ class BaseStorageController(BaseController):
 
         # Set missing_since for volumes not returned by libcloud.
         Volume.objects(
-            cloud=self.cloud,
-            id__nin=[libcloud_volume.id for libcloud_volume in volumes],
+            cloud=self.cloud, id__nin=[v.id for v in volumes],
             missing_since=None
         ).update(missing_since=datetime.datetime.utcnow())
 
@@ -206,14 +199,12 @@ class BaseStorageController(BaseController):
         return self.cloud.ctl.compute.connection.list_volumes()
 
     @LibcloudExceptionHandler(mist.api.exceptions.VolumeCreationError)
-    def create_volume(self, volume, **kwargs):
+    def create_volume(self, **kwargs):
         """Create a new volume.
 
-        This method receives a Volume mongoengine object, parses the arguments
-        provided and populates all cloud-specific fields, performs early field
-        validation using the constraints specified in the corresponding Volume
-        subclass, performs the necessary libcloud call, and, finally, saves the
-        Volume objects to the database.
+        This method parses and validates the arguments provided , performs
+        the necessary libcloud call, and returns the created volume object
+        after invoking `self.list_volumes` to update the db.
 
         Subclasses SHOULD NOT override or extend this method.
 
@@ -226,30 +217,31 @@ class BaseStorageController(BaseController):
         Subclasses that require special handling should override this, by
         default, dummy method. More private methods may be added in the future.
 
-        :param volume: A Volume mongoengine model. The model may not have yet
-                        been saved in the database.
-        :param kwargs:  A dict of parameters required for volume creation.
+        :param kwargs: A dict of parameters required for volume creation.
         """
-
-        # Perform early validation.
-        try:
-            volume.validate(clean=True)
-        except mongoengine.errors.ValidationError as err:
-            raise mist.api.exceptions.BadRequestError(err)
-
-        kwargs['name'] = volume.name
+        for param in ('name', 'size', ):
+            if not kwargs.get(param):
+                raise mist.api.exceptions.RequiredParameterMissingError(param)
 
         # Cloud-specific kwargs pre-processing.
         self._create_volume__prepare_args(kwargs)
+
         # Create the volume.
-        self.cloud.ctl.compute.connection.create_volume(**kwargs)
+        try:
+            libvol = self.cloud.ctl.compute.connection.create_volume(**kwargs)
+        except Exception as exc:
+            log.exception('Error creating volume in %s: %r', self.cloud, exc)
+            raise mist.api.exceptions.CloudUnavailableError(exc=exc)
 
-        # call _list_volumes to populate the db
-        self._list_volumes()
+        # Invoke `self.list_volumes` to update the UI and return the Volume
+        # object at the API. Try 3 times before failing
+        for _ in range(3):
+            for volume in self.list_volumes():
+                if volume.external_id == libvol.id:
+                    return volume
+            time.sleep(1)
+        raise mist.api.exceptions.VolumeListingError()
 
-        return volume
-
-    # no needed if only checks location param
     def _create_volume__prepare_args(self, kwargs):
         """Parses keyword arguments on behalf of `self.create_volume`.
 
@@ -287,9 +279,9 @@ class BaseStorageController(BaseController):
         should override the private method `_delete_volume` instead.
         """
         assert volume.cloud == self.cloud
-
         libcloud_volume = self.get_libcloud_volume(volume)
         self._delete_volume(libcloud_volume)
+        self.list_volumes()
 
     def _delete_volume(self, libcloud_volume):
         self.cloud.ctl.compute.connection.destroy_volume(libcloud_volume)
@@ -305,12 +297,8 @@ class BaseStorageController(BaseController):
         """
         assert volume.cloud == self.cloud
         assert machine.cloud == self.cloud
-
         libcloud_volume = self.get_libcloud_volume(volume)
-
-        # get libcloud node
         libcloud_node = self.cloud.ctl.compute._get_machine_libcloud(machine)
-
         self._attach_volume(libcloud_volume, libcloud_node, **kwargs)
 
     def _attach_volume(self, libcloud_volume, libcloud_node, **kwargs):
@@ -328,12 +316,8 @@ class BaseStorageController(BaseController):
         """
         assert volume.cloud == self.cloud
         assert machine.cloud == self.cloud
-
         libcloud_volume = self.get_libcloud_volume(volume)
-
-        # get libcloud node
         libcloud_node = self.cloud.ctl.compute._get_machine_libcloud(machine)
-
         self._detach_volume(libcloud_volume, libcloud_node)
 
     def _detach_volume(self, libcloud_volume, libcloud_node):
@@ -353,5 +337,5 @@ class BaseStorageController(BaseController):
             if vol.id == volume.external_id:
                 return vol
         raise mist.api.exceptions.VolumeNotFoundError(
-            'Volume %s with external_id %s' %
-            (volume.name, volume.external_id))
+            'Volume %s with external_id %s' % (volume.name, volume.external_id)
+        )
