@@ -461,26 +461,6 @@ class MainConnection(MistConnection):
                 cached = task.smart_delay(self.owner.id, cloud.id)
                 if cached is not None:
                     log.info("Emitting %s from cache", key)
-                    if key == 'list_machines':
-                        cached['machines'] = filter_list_machines(
-                            self.auth_context, **cached
-                        )
-                        if cached['machines'] is None:
-                            continue
-                    elif key == 'list_zones':
-                        cached = filter_list_zones(
-                            self.auth_context, cloud.id, cached['zones']
-                        )
-                        if cached is None:
-                            continue
-                    elif key == 'list_networks':
-                        cached['networks'] = filter_list_networks(
-                            self.auth_context, **cached
-                        )
-                        if not (cached['networks']['public'] or
-                                cached['networks']['private']):
-                            continue
-
                     self.send(key, cached)
 
     def update_notifications(self):
@@ -588,9 +568,9 @@ class MainConnection(MistConnection):
             elif routing_key == 'list_zones':
                 zones = result['zones']
                 cloud_id = result['cloud_id']
-                #filtered_zones = filter_list_zones(
-                #    self.auth_context, cloud_id, zones
-                #)
+                # filtered_zones = filter_list_zones(
+                #     self.auth_context, cloud_id, zones
+                # )
                 self.send(routing_key, {'cloud_id': cloud_id,
                                         'zones': zones})
             elif routing_key == 'list_networks':
