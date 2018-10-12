@@ -795,7 +795,6 @@ class ListStorageAccounts(UserTask):
         return {'cloud_id': cloud_id, 'storage_accounts': storage_accounts}
 
 
-list_zones = app.register_task(ListZones())
 list_images = app.register_task(ListImages())
 list_projects = app.register_task(ListProjects())
 list_resource_groups = app.register_task(ListResourceGroups())
