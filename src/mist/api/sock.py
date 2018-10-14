@@ -452,24 +452,11 @@ class MainConnection(MistConnection):
                 cached = task.smart_delay(self.owner.id, cloud.id)
                 if cached is not None:
                     log.info("Emitting %s from cache", key)
-                    if key == 'list_machines':
-                        cached['machines'] = filter_list_machines(
-                            self.auth_context, **cached
-                        )
-                        if cached['machines'] is None:
-                            continue
-                    elif key == 'list_zones':
+                    if key == 'list_zones':
                         cached = filter_list_zones(
                             self.auth_context, cloud.id, cached['zones']
                         )
                         if cached is None:
-                            continue
-                    elif key == 'list_networks':
-                        cached['networks'] = filter_list_networks(
-                            self.auth_context, **cached
-                        )
-                        if not (cached['networks']['public'] or
-                                cached['networks']['private']):
                             continue
 
                     self.send(key, cached)
