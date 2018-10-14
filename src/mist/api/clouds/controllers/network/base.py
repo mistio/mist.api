@@ -253,7 +253,7 @@ class BaseNetworkController(BaseController):
             new_networks = {n.network_id: n.as_dict()
                             for n in networks}
             # Exclude last seen and probe field
-            if cached_networks and new_networks:
+            if cached_networks or new_networks:
                 # Publish patches to rabbitmq.
                 patch = jsonpatch.JsonPatch.from_diff(cached_networks,
                                                       new_networks).patch
