@@ -372,7 +372,7 @@ class BaseMainController(object):
             ListNetworksPollingSchedule.add(cloud=self.cloud)
 
         # Add zones' polling schedule, if applicable.
-        if hasattr(self.cloud.ctl, 'dns'):
+        if hasattr(self.cloud.ctl, 'dns') and self.cloud.dns_enabled:
             ListZonesPollingSchedule.add(cloud=self.cloud)
 
         # Add volumes' polling schedule, if applicable.

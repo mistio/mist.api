@@ -315,7 +315,7 @@ class ListZonesPollingSchedule(CloudPollingSchedule):
 
     def enabled(self):
         return (super(ListZonesPollingSchedule, self).enabled and
-                hasattr(self.cloud.ctl, 'dns'))
+                hasattr(self.cloud.ctl, 'dns') and self.cloud.dns_enabled)
 
 
 class ListVolumesPollingSchedule(CloudPollingSchedule):

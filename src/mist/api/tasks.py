@@ -1300,7 +1300,7 @@ def update_poller(org_id):
         ListMachinesPollingSchedule.add(cloud=cloud, interval=10, ttl=120)
         if hasattr(cloud.ctl, 'network'):
             ListNetworksPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
-        if hasattr(cloud.ctl, 'dns'):
+        if hasattr(cloud.ctl, 'dns') and cloud.dns_enabled:
             ListZonesPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
         if hasattr(cloud.ctl, 'storage'):
             ListVolumesPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
