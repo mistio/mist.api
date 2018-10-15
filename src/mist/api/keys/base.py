@@ -4,7 +4,7 @@ import logging
 from mist.api.exceptions import BadRequestError
 from mist.api.helpers import rename_kwargs
 from mist.api.helpers import trigger_session_update
-# from django.core.exceptions import ValidationError
+from django.core.exceptions import ValidationError
 
 log = logging.getLogger(__name__)
 
@@ -58,16 +58,9 @@ class BaseKeyController(object):
 
         try:
             self.key.save()
-            # TODO catch the appropriate exceptions
-            """except ValidationError as exc:
+        except ValidationError as exc:
             log.error("Error adding %s: %s", self.key.name, exc)
-            raise BadRequestError({'msg': exc.message,
-                                   'errors': exc})
-        except me.NotUniqueError as exc:
-            log.error("Key %s not unique error: %s", self.key.name, exc)
-            raise KeyExistsError()"""
-        except Exception as exc:
-            log.error("Error adding Key, %s", exc)
+            raise BadRequestError({'msg': exc.messages[0]})
 
         # SEC
         # self.key.owner.mapper.update(self.key)

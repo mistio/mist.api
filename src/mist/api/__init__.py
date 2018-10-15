@@ -27,11 +27,18 @@ class Root(object):
 
 try:
     from django.core.wsgi import get_wsgi_application
+    from django.dispatch import receiver
+    from django.db.models.signals import pre_save
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "mist.api.settings")
     application = get_wsgi_application()
     log.info('Django orm is ready')
 except ImportError:
     log.info('Django is not installed')
+
+
+@receiver(pre_save)
+def pre_save_handler(sender, instance, *args, **kwargs):
+    instance.full_clean()
 
 
 def mongo_connect(*args, **kwargs):

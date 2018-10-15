@@ -176,7 +176,7 @@ class SSHKey(Key):
         super(SSHKey, self).__init__(*args, **kwargs)
         self.ctl = self._controller_cls(self)
 
-    def clean(self):
+    def clean_fields(self, exclude=None):
         """Ensures that self is a valid RSA keypair."""
 
         from Crypto import Random
@@ -193,6 +193,7 @@ class SSHKey(Key):
             log.exception("Error while constructing public key "
                           "from private.")
             raise ValidationError("Private key is not a valid RSA key.")
+        super(SSHKey, self).clean_fields(exclude)
 
 
 class SignedSSHKey(SSHKey):
@@ -205,10 +206,10 @@ class SignedSSHKey(SSHKey):
         super(SignedSSHKey, self).__init__(*args, **kwargs)
         self.ctl = self._controller_cls(self)
 
-    def clean(self):
+    def clean_fields(self, exclude=None):
         """
         # Checks if certificate is specific ssh-rsa-cert
            and ensures that self is a valid RSA keypair."""
-        super(SignedSSHKey, self).clean()
+        super(SignedSSHKey, self).clean_fields(exclude)
         if not self.certificate.startswith('ssh-rsa-cert-v01@openssh.com'):
             raise BadRequestError("Certificate is not a valid signed RSA key.")
