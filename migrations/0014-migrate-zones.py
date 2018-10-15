@@ -15,7 +15,7 @@ def trigger_zone_polling_schedules():
     failed = 0
 
     for cloud in clouds:
-        if not hasattr(cloud.ctl, 'dns'):
+        if not hasattr(cloud.ctl, 'dns') or not clout.dns_enabled:
             continue
         try:
             ListZonesPollingSchedule.add(cloud)
