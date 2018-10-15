@@ -103,6 +103,12 @@ class Zone(OwnershipMixin, me.Document):
         if self.owned_by:
             self.owned_by.get_ownership_mapper(self.owner).remove(self)
 
+    @property
+    def tags(self):
+        """Return the tags of this zone."""
+        return [{'key': tag.key,
+                 'value': tag.value} for tag in Tag.objects(resource=self)]
+
     def as_dict(self):
         """Return a dict with the model values."""
         return {
@@ -117,6 +123,7 @@ class Zone(OwnershipMixin, me.Document):
             'created_by': self.created_by.id if self.created_by else '',
             'records': {r.id: r.as_dict() for r
                         in Record.objects(zone=self)},
+            'tags': self.tags
         }
 
     def clean(self):
@@ -224,6 +231,12 @@ class Record(OwnershipMixin, me.Document):
         return 'Record %s (name:%s, type:%s) of %s' % (
             self.id, self.name, self.type, self.zone.domain)
 
+    @property
+    def tags(self):
+        """Return the tags of this record."""
+        return [{'key': tag.key,
+                 'value': tag.value} for tag in Tag.objects(resource=self)]
+
     def as_dict(self):
         """ Return a dict with the model values."""
         return {
@@ -237,6 +250,7 @@ class Record(OwnershipMixin, me.Document):
             'zone': self.zone.id,
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
+            'tags': self.tags
         }
 
 

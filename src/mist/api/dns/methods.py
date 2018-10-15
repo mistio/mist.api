@@ -15,25 +15,23 @@ logging.basicConfig(level=config.PY_LOG_LEVEL,
 log = logging.getLogger(__name__)
 
 
-def list_zones(owner, cloud_id):
-    """List zones returning all zones for an owner"""
+
+def list_zones(owner, cloud_id, cached=False):
+    """List the zones of the specified cloud"""
     try:
         cloud = Cloud.objects.get(owner=owner, id=cloud_id)
     except Cloud.DoesNotExist:
+        raise CloudNotFoundError()
+
+    if not hasattr(cloud.ctl, 'dns') or not cloud.dns_enabled:
         return []
-    log.warn('Running list zones for user %s, cloud %s', owner.id, cloud.id)
-    if not hasattr(cloud.ctl, 'dns'):
-        return []
+
+    if cached:
+        zones = cloud.ctl.dns.list_cached_zones()
     else:
-        zones_ret = []
-        zones = Zone.objects(cloud=cloud)
-        for zone in zones:
-            zone_dict = zone.as_dict()
-            zone_dict['records'] = list_records(owner, zone)
-            zone_dict['tags'] = get_tags_for_resource(owner, zone)
-            zones_ret.append(zone_dict)
-    log.warn('Returning list zones for user %s, cloud %s', owner.id, cloud.id)
-    return zones_ret
+        zones = cloud.ctl.dns.list_zones()
+
+    return [z.as_dict() for z in zones]
 
 
 def filter_list_zones(auth_context, cloud_id, zones=None, perm='read'):
@@ -62,17 +60,10 @@ def filter_list_zones(auth_context, cloud_id, zones=None, perm='read'):
     return {'cloud_id': cloud_id, 'zones': zones}
 
 
-def list_records(owner, zone):
+def list_records(owner, zone, cached=False):
     """List records returning all records for an owner"""
-    log.warn('Running list records for user %s, zone %s', owner.id, zone.id)
-    recs = []
-    records = zone.ctl.list_records()
-    for record in records:
-        record_dict = record.as_dict()
-        record_dict['tags'] = get_tags_for_resource(owner, record)
-        recs.append(record_dict)
-    log.warn('Returning list records for user %s, zone %s', owner.id, zone.id)
-    return recs
+    records = zone.ctl.list_records(cached=cached)
+    return [r.as_dict() for r in records]
 
 
 def filter_list_records(auth_context, zone, records=None, perm='read'):
