@@ -24,6 +24,7 @@ class Root(object):
     def __init__(self, request):
         self.request = request
 
+
 try:
     from django.core.wsgi import get_wsgi_application
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "mist.api.settings")
@@ -31,6 +32,7 @@ try:
     log.info('Django orm is ready')
 except ImportError:
     log.info('Django is not installed')
+
 
 def mongo_connect(*args, **kwargs):
     """Connect mongoengine to mongo db. This connection is reused everywhere"""

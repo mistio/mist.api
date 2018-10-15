@@ -1,10 +1,10 @@
 import logging
-import mongoengine as me
-from mist.api.exceptions import KeyExistsError
+# import mongoengine as me
+# from mist.api.exceptions import KeyExistsError
 from mist.api.exceptions import BadRequestError
 from mist.api.helpers import rename_kwargs
 from mist.api.helpers import trigger_session_update
-from django.core.exceptions import ValidationError
+# from django.core.exceptions import ValidationError
 
 log = logging.getLogger(__name__)
 
@@ -52,13 +52,13 @@ class BaseKeyController(object):
         for key, value in kwargs.iteritems():
             setattr(self.key, key, value)
 
-        if not Key.objects.filter(owner_id=self.key.owner_id, 
+        if not Key.objects.filter(owner_id=self.key.owner_id,
                                   default=True).exists():
             self.key.default = True
 
         try:
             self.key.save()
-            #TODO catch the appropriate exceptions
+            # TODO catch the appropriate exceptions
             """except ValidationError as exc:
             log.error("Error adding %s: %s", self.key.name, exc)
             raise BadRequestError({'msg': exc.message,
@@ -70,7 +70,7 @@ class BaseKeyController(object):
             log.error("Error adding Key, %s", exc)
 
         # SEC
-        #self.key.owner.mapper.update(self.key)
+        # self.key.owner.mapper.update(self.key)
 
         log.info("Added key with name '%s'", self.key.name)
         trigger_session_update(self.key.owner_id, ['keys'])
@@ -96,7 +96,8 @@ class BaseKeyController(object):
 
         log.info("Setting key with id '%s' as default.", self.key.id)
 
-        Key.objects.filter(owner_id=self.key.owner_id, default=True).update(default=False)
+        Key.objects.filter(owner_id=self.key.owner_id,
+                           default=True).update(default=False)
         self.key.default = True
         self.key.save()
 

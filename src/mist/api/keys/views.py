@@ -305,7 +305,7 @@ def get_public_key(request):
         key = SSHKey.objects.get(owner_id=auth_context.owner.id,
                                  id=key_id, deleted=None)
         if isinstance(key, SignedSSHKey):
-            raise NotFoundError('Key id does not exist')    
+            raise NotFoundError('Key id does not exist')
     except SSHKey.DoesNotExist:
         raise NotFoundError('Key id does not exist')
 
@@ -477,7 +477,8 @@ def disassociate_key(request):
 
     auth_context.check_perm("machine", "disassociate_key", machine.id)
 
-    key = Key.objects.get(owner_id=auth_context.owner.id, id=key_id, deleted=None)
+    key = Key.objects.get(owner_id=auth_context.owner.id,
+                          id=key_id, deleted=None)
     key.ctl.disassociate(machine)
     clouds = Cloud.objects(owner=auth_context.owner, deleted=None)
     machines = Machine.objects(cloud__in=clouds,

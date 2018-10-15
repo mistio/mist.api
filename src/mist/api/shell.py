@@ -103,7 +103,7 @@ class ParamikoShell(object):
 
         if key:
             if not isinstance(key, Key):
-                #retrieve key object
+                # retrieve key object
                 key = Key.objects.get(id=key)
             private = key.private
             if isinstance(key, SignedSSHKey) and cert_file:
@@ -245,11 +245,12 @@ class ParamikoShell(object):
         cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
         machine = Machine.objects.get(cloud=cloud, machine_id=machine_id)
         if key_id:
-            keys = [Key.objects.get(owner_id=owner.id, id=key_id, deleted=None)]
+            keys = [Key.objects.get(owner_id=owner.id, id=key_id,
+                                    deleted=None)]
         else:
             keys = [key_assoc.keypair
                     for key_assoc in machine.key_associations]
-                    #if isinstance(key_assoc.keypair, Key)]
+            # if isinstance(key_assoc.keypair, Key)]
         if username:
             users = [username]
         else:

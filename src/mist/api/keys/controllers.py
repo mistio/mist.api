@@ -58,10 +58,10 @@ class SSHKeyController(BaseKeyController):
             if machine.key_associations[0].ssh_user != 'root':
                 username = machine.key_associations[0].ssh_user
 
-        #Retrieve key owner object
+        # Retrieve key owner object
         from mist.api.users.models import Owner
         key_owner = Owner.objects().get(id=self.key.owner_id)
-        
+
         try:
             # Deploy key.
             ssh_command(key_owner, machine.cloud.id, machine.machine_id,
@@ -93,7 +93,7 @@ class SSHKeyController(BaseKeyController):
         try:
             # FIXME
             from mist.api.methods import ssh_command
-            #Retrieve key owner object
+            # Retrieve key owner object
             from mist.api.users.models import Owner
             key_owner = Owner.objects().get(id=self.key.owner_id)
             ssh_command(key_owner, machine.cloud.id,

@@ -4,7 +4,7 @@ from mist.api.keys.models import Key
 from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 
-from mist.api.tag.methods import get_tags_for_resource
+# from mist.api.tag.methods import get_tags_for_resource
 
 from mist.api.helpers import trigger_session_update
 from mist.api.helpers import transform_key_machine_associations
@@ -36,11 +36,11 @@ def delete_key(owner, key_id):
     except Key.DoesNotExist:
         raise KeyNotFoundError()
     default_key = key.default
-    #key.update(set__deleted=datetime.utcnow())
+    # key.update(set__deleted=datetime.utcnow())
     key.deleted = datetime.utcnow()
     key.save()
-    #other_key = Key.objects(owner=owner, id__ne=key_id, deleted=None).first()
-    other_key = Key.objects.filter(owner_id = owner.id,
+    # other_key = Key.objects(owner=owner, id__ne=key_id, deleted=None).first()
+    other_key = Key.objects.filter(owner_id=owner.id,
                                    deleted=None).exclude(id=key.id).first()
     if default_key and other_key:
         other_key.default = True
@@ -55,7 +55,7 @@ def list_keys(owner):
     :param owner:
     :return:
     """
-    #keys = Key.objects(owner=owner, deleted=None)
+    # keys = Key.objects(owner=owner, deleted=None)
     keys = Key.objects.filter(owner_id=owner.id, deleted=None)
     clouds = Cloud.objects(owner=owner, deleted=None)
     key_objects = []
@@ -73,7 +73,7 @@ def list_keys(owner):
         key_object["isDefault"] = key.default
         key_object["machines"] = transform_key_machine_associations(machines,
                                                                     key)
-        #key_object['tags'] = get_tags_for_resource(owner, key)
+        # key_object['tags'] = get_tags_for_resource(owner, key)
         key_object['tags'] = []
         key_objects.append(key_object)
     return key_objects

@@ -1,11 +1,11 @@
 """Key entity model"""
 import logging
 from uuid import uuid4
-import mongoengine as me
+# import mongoengine as me
 import django.db.models as djm
 from django.core.exceptions import ValidationError
 from polymorphic.models import PolymorphicModel
-import mist.api.tag.models
+# import mist.api.tag.models
 from Crypto.PublicKey import RSA
 
 from mist.api.users.models import Owner
@@ -13,7 +13,7 @@ from mist.api.exceptions import BadRequestError
 from mist.api.keys import controllers
 from mist.api.keys.base import BaseKeyController
 from mist.api.exceptions import RequiredParameterMissingError
-from mist.api.ownership.mixins import OwnershipMixin
+# from mist.api.ownership.mixins import OwnershipMixin
 
 log = logging.getLogger(__name__)
 
@@ -64,7 +64,7 @@ class Key(PolymorphicModel):
     owner_id = djm.TextField()
     default = djm.BooleanField(default=False)
     deleted = djm.DateTimeField(blank=True, null=True)
-    #OwnersipMixin Fields
+    # OwnersipMixin Fields
     owned_by = djm.TextField(blank=True, null=True)
     created_by = djm.TextField(blank=True, null=True)
 
@@ -80,25 +80,26 @@ class Key(PolymorphicModel):
         # Set attribute `ctl` to an instance of the appropriate controller.
         if self._controller_cls is None:
             pass
-            #raise NotImplementedError(
+            # raise NotImplementedError(
             #    "Can't initialize %s. Key is an abstract base class and "
             #    "shouldn't be used to create cloud instances. All Key "
-            #    "subclasses should define a `_controller_cls` class attribute "
-            #    "pointing to a `BaseController` subclass." % self
-            #)
+            #    "subclasses should define a `_controller_cls` class attribute"
+            #    " pointing to a `BaseController` subclass." % self
+            # )
         elif not issubclass(self._controller_cls, BaseKeyController):
             pass
-            #raise TypeError(
+            # raise TypeError(
             #    "Can't initialize %s.  All Key subclasses should define a"
             #    " `_controller_cls` class attribute pointing to a "
             #    "`BaseController` subclass." % self
-            #)
+            # )
         self.ctl = None
 
         # Calculate and store key type specific fields.
-        self._key_specific_fields = [field.name for field in type(self)._meta.fields
-                                     if field not in Key._meta.fields 
-                                     and '_ptr' not in field.name]
+        self._key_specific_fields = [field.name
+                                     for field in type(self)._meta.fields
+                                     if field not in Key._meta.fields and
+                                     '_ptr' not in field.name]
 
     @classmethod
     def add(cls, owner, name, id='', **kwargs):
@@ -116,7 +117,7 @@ class Key(PolymorphicModel):
             raise RequiredParameterMissingError('title')
         if not owner or not isinstance(owner, Owner):
             raise BadRequestError('owner')
-        
+
         key = cls(owner_id=owner.id, name=name)
         if id:
             key.id = id
@@ -124,10 +125,10 @@ class Key(PolymorphicModel):
         return key
 
     def delete(self):
-        #super(Key, self).delete()
-        #mist.api.tag.models.Tag.objects(resource=self).delete()
-        #self.owner.mapper.remove(self)
-        #if self.owned_by:
+        # super(Key, self).delete()
+        # mist.api.tag.models.Tag.objects(resource=self).delete()
+        # self.owner.mapper.remove(self)
+        # if self.owned_by:
         #    self.owned_by.get_ownership_mapper(self.owner).remove(self)
         raise NotImplementedError
 
@@ -138,8 +139,8 @@ class Key(PolymorphicModel):
             'name': self.name,
             'owner': self.owner,
             'default': self.default,
-            #'owned_by': self.owned_by.id if self.owned_by else '',
-            #'created_by': self.created_by.id if self.created_by else '',
+            # 'owned_by': self.owned_by.id if self.owned_by else '',
+            # 'created_by': self.created_by.id if self.created_by else '',
         }
 
         mdict.update({key: getattr(self, key)
@@ -153,7 +154,7 @@ class Key(PolymorphicModel):
 
     def assign_to(self, user, assign_creator=True):
         """ Overrides assign_to from ownership mixins """
-        #retrieve owner object from id
+        # retrieve owner object from id
         current_owner = Owner.objects().get(id=self.owner_id)
         user.get_ownership_mapper(current_owner).update(self)
         self.owned_by = user.id
@@ -174,7 +175,6 @@ class SSHKey(Key):
     def __init__(self, *args, **kwargs):
         super(SSHKey, self).__init__(*args, **kwargs)
         self.ctl = self._controller_cls(self)
-
 
     def clean(self):
         """Ensures that self is a valid RSA keypair."""
