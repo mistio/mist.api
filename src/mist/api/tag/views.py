@@ -24,6 +24,7 @@ from mist.api.auth.methods import auth_context_from_request
 from mist.api.helpers import get_resource_model
 from mist.api.helpers import view_config, params_from_request
 from mist.api.helpers import amqp_publish_user
+from mist.api.helpers import amqp_owner_listening
 
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import NotFoundError, BadRequestError
@@ -56,7 +57,6 @@ def tag_resources(request):
 
     # FIXME: This implementation is far from OK. We need to re-code the way
     # tags are handled and make sure that RBAC is properly enforced on tags
-
     for resource in params:
         # list of dicts of key-value pairs
         resource_tags = resource.get('tags', '')
@@ -77,7 +77,7 @@ def tag_resources(request):
         if cloud_id:
             auth_context.check_perm('cloud', 'read', cloud_id)
         elif resource_data['type'] in ['machine', 'image',
-                                       'network', 'location']:
+                                       'network', 'volume']:
             raise RequiredParameterMissingError("cloud_id")
         else:
             del resource_data['cloud_id']
@@ -127,17 +127,21 @@ def tag_resources(request):
             remove_tags_from_resource(auth_context.owner, resource_obj,
                                       tags_to_remove)
 
-        if config.MACHINE_PATCHES:
+        if rtype in ['machine', 'network', 'volume', 'zone', 'record']:
             new_tags = get_tags_for_resource(auth_context.owner, resource_obj)
-            if isinstance(resource_obj, Machine):
-                patch = jsonpatch.JsonPatch.from_diff(old_tags, new_tags).patch
-                for item in patch:
-                    item['path'] = '/%s-%s/tags%s' % (resource_obj.id,
-                                                      resource_obj.machine_id,
-                                                      item['path'])
+            try:
+                external_id = getattr(resource_obj, rtype + '_id')
+            except AttributeError:
+                external_id = getattr(resource_obj, 'external_id')
+            patch = jsonpatch.JsonPatch.from_diff(old_tags, new_tags).patch
+            for item in patch:
+                item['path'] = '/%s-%s/tags%s' % (resource_obj.id,
+                                                  external_id,
+                                                  item['path'])
+            if amqp_owner_listening(resource_obj.cloud.owner.id):
                 amqp_publish_user(auth_context.owner.id,
-                                  routing_key='patch_machines',
-                                  data={'cloud_id': resource_obj.cloud.id,
+                                    routing_key='patch_%ss' % rtype,
+                                    data={'cloud_id': resource_obj.cloud.id,
                                         'patch': patch})
     return OK
 

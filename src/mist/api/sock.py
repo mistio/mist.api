@@ -32,13 +32,14 @@ from mist.api.machines.models import Machine
 from mist.api.auth.methods import auth_context_from_session_id
 
 from mist.api.helpers import maybe_submit_cloud_task
+from mist.api.helpers import filter_resource_ids
 
 from mist.api.exceptions import UnauthorizedError, MistError
 from mist.api.exceptions import PolicyUnauthorizedError
 from mist.api.amqp_tornado import Consumer
 
 from mist.api.clouds.methods import filter_list_clouds
-from mist.api.machines.methods import filter_list_machines, filter_machine_ids
+from mist.api.machines.methods import filter_list_machines
 from mist.api.networks.methods import filter_list_networks
 from mist.api.volumes.methods import filter_list_volumes
 from mist.api.dns.methods import filter_list_zones
@@ -433,7 +434,7 @@ class MainConnection(MistConnection):
             )
 
             self.internal_request(
-                'api/v1/clouds/%s/dns/zones' % cloud.id,
+                'api/v1/clouds/%s/zones' % cloud.id,
                 params={'cached': True},
                 callback=lambda zones, cloud_id=cloud.id: self.send(
                     'list_zones',
@@ -603,14 +604,6 @@ class MainConnection(MistConnection):
                 self.list_scripts()
             if 'schedules' in sections:
                 self.list_schedules()
-            if 'zones' in sections:
-                task = tasks.ListZones()
-                clouds = Cloud.objects(owner=self.owner,
-                                       enabled=True,
-                                       deleted=None)
-                for cloud in clouds:
-                    if cloud.dns_enabled:
-                        task.smart_delay(self.owner.id, cloud.id)
             if 'templates' in sections:
                 self.list_templates()
             if 'stacks' in sections:
@@ -632,29 +625,34 @@ class MainConnection(MistConnection):
             if result.get('user') == self.user.id:
                 self.send('patch_notifications', result)
 
-        elif routing_key == 'patch_machines':
+        elif routing_key in ['patch_machines', 'patch_networks',
+                             'patch_volumes', 'patch_zones']:
             cloud_id = result['cloud_id']
             patch = result['patch']
-            machine_ids = []
+            rtype = routing_key.replace('patch_', '')
+            resource_ids = []
             for line in patch:
-                machine_id, line['path'] = line['path'][1:].split('-', 1)
-                machine_ids.append(machine_id)
+                if '-' in line['path']:
+                    resource_id, line['path'] = line['path'][1:].split('-', 1)
+                else:
+                    line['path'] = line['path'][1:]
+                    resource_id =  line['path'].split('/', 1)[0]
+                resource_ids.append(resource_id)
             if not self.auth_context.is_owner():
-                allowed_machine_ids = filter_machine_ids(self.auth_context,
-                                                         cloud_id, machine_ids)
+                allowed_resource_ids = filter_resource_ids(self.auth_context,
+                                                           cloud_id, rtype,
+                                                           resource_ids)
             else:
-                allowed_machine_ids = machine_ids
-            patch = [line for line, m_id in zip(patch, machine_ids)
-                     if m_id in allowed_machine_ids]
+                allowed_resource_ids = resource_ids
+            patch = [line for line, r_id in zip(patch, resource_ids)
+                     if r_id in allowed_resource_ids]
             for line in patch:
-                line['path'] = '/clouds/%s/machines/%s' % (cloud_id,
-                                                           line['path'])
+                line['path'] = '/clouds/%s/%s/%s' % (cloud_id, rtype,
+                                                     line['path'])
             if patch:
                 self.batch.extend(patch)
 
-        elif routing_key in ['patch_locations', 'patch_sizes',
-                             'patch_networks', 'patch_zones',
-                             'patch_volumes']:
+        elif routing_key in ['patch_locations', 'patch_sizes']:
             cloud_id = result['cloud_id']
             patch = result['patch']
             for line in patch:
@@ -666,7 +664,7 @@ class MainConnection(MistConnection):
                 elif routing_key == 'patch_networks':
                     line['path'] = '/clouds/%s/networks/%s' % (cloud_id, _id)
                 elif routing_key == 'patch_zones':
-                    line['path'] = '/clouds/%s/dns/zones/%s' % (cloud_id, _id)
+                    line['path'] = '/clouds/%s/zones/%s' % (cloud_id, _id)
                 elif routing_key == 'patch_volumes':
                     line['path'] = '/clouds/%s/volumes/%s' % (cloud_id, _id)
             if patch:

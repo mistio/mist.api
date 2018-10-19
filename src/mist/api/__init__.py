@@ -292,6 +292,16 @@ def add_routes(configurator):
         'api_v1_record',
         '/api/v1/clouds/{cloud}/dns/zones/{zone}/records/{record}'
     )
+    configurator.add_route('api_v1_cloud_zones',
+                           '/api/v1/clouds/{cloud}/zones')
+    configurator.add_route('api_v1_cloud_zone',
+                           '/api/v1/clouds/{cloud}/zones/{zone}')
+    configurator.add_route('api_v1_cloud_records',
+                           '/api/v1/clouds/{cloud}/zones/{zone}/records')
+    configurator.add_route(
+        'api_v1_cloud_record',
+        '/api/v1/clouds/{cloud}/zones/{zone}/records/{record}'
+    )
 
     configurator.add_route('api_v1_scripts', '/api/v1/scripts')
     configurator.add_route('api_v1_script', '/api/v1/scripts/{script_id}')

@@ -198,11 +198,11 @@ class Cloud(OwnershipMixin, me.Document):
             'dns_enabled': self.dns_enabled,
             'state': 'online' if self.enabled else 'offline',
             'polling_interval': self.polling_interval,
-            'tags': [
-                {'key': tag.key, 'value': tag.value}
+            'tags': {
+                tag.key: tag.value
                 for tag in Tag.objects(owner=self.owner,
                                        resource=self).only('key', 'value')
-            ],
+            },
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
         }

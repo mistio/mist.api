@@ -34,30 +34,25 @@ def list_zones(owner, cloud_id, cached=False):
     return [z.as_dict() for z in zones]
 
 
-def filter_list_zones(auth_context, cloud_id, zones=None, perm='read'):
-    """List zone entries based on the permissions granted to the user."""
-
+def filter_list_zones(auth_context, cloud_id, zones=None, perm='read',
+                         cached=False):
+    """Filter the zones of the specific cloud based on the RBAC policy"""
     if zones is None:
-        zones = list_zones(auth_context.owner, cloud_id)
-    if not zones:  # Exit early in case the cloud provider returned 0 zones.
-        return {'cloud_id': cloud_id, 'zones': []}
-    if not auth_context.is_owner():
-        return_zones = []
-        try:
-            auth_context.check_perm('cloud', 'read', cloud_id)
-        except PolicyUnauthorizedError:
-            return {'cloud_id': cloud_id, 'zones': []}
-        allowed_zones = set(auth_context.get_allowed_resources(rtype='zones'))
-        allowed_records = set(
-            auth_context.get_allowed_resources(rtype='records'))
-        for zone in zones:
-            if zone['id'] in allowed_zones:
-                for idx in reversed(range(len(zone['records']))):
-                    if zone['records'][idx]['id'] not in allowed_records:
-                        zone['records'].pop(idx)
-                return_zones.append(zone)
-        zones = return_zones
-    return {'cloud_id': cloud_id, 'zones': zones}
+        zones = list_zones(auth_context.owner, cloud_id, cached=cached)
+    if auth_context.is_owner():
+        return zones
+    else:
+        allowed_resources = auth_context.get_allowed_resources(perm)
+        if cloud_id not in allowed_resources['clouds']:
+            return []
+        filtered = []
+        for z in zones:
+            if z['id'] in allowed_resources['zones']:
+                for idx in reversed(range(len(z['records']))):
+                    if z['records'][idx]['id'] not in allowed_resources['records']:
+                        z['records'].pop(idx)
+                filtered.append(z)
+        return filtered
 
 
 def list_records(owner, zone, cached=False):

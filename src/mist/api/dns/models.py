@@ -93,8 +93,7 @@ class Zone(OwnershipMixin, me.Document):
         zone = cls(owner=owner, cloud=cloud, domain=kwargs['domain'])
         if id:
             zone.id = id
-        zone.ctl.create_zone(**kwargs)
-        return zone
+        return zone.ctl.create_zone(**kwargs)
 
     def delete(self):
         super(Zone, self).delete()
@@ -106,8 +105,7 @@ class Zone(OwnershipMixin, me.Document):
     @property
     def tags(self):
         """Return the tags of this zone."""
-        return [{'key': tag.key,
-                 'value': tag.value} for tag in Tag.objects(resource=self)]
+        return {tag.key: tag.value for tag in Tag.objects(resource=self)}
 
     def as_dict(self):
         """Return a dict with the model values."""
@@ -122,7 +120,7 @@ class Zone(OwnershipMixin, me.Document):
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
             'records': {r.id: r.as_dict() for r
-                        in Record.objects(zone=self)},
+                        in Record.objects(zone=self, deleted=None)},
             'tags': self.tags
         }
 
@@ -211,8 +209,7 @@ class Record(OwnershipMixin, me.Document):
         record = cls(zone=zone)
         if id:
             record.id = id
-        record.ctl.create_record(**kwargs)
-        return record
+        return record.ctl.create_record(**kwargs)
 
     def delete(self):
         super(Record, self).delete()
@@ -234,8 +231,7 @@ class Record(OwnershipMixin, me.Document):
     @property
     def tags(self):
         """Return the tags of this record."""
-        return [{'key': tag.key,
-                 'value': tag.value} for tag in Tag.objects(resource=self)]
+        return {tag.key: tag.value for tag in Tag.objects(resource=self)}
 
     def as_dict(self):
         """ Return a dict with the model values."""

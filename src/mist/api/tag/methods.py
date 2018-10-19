@@ -5,8 +5,8 @@ from mist.api.helpers import get_object_with_id
 
 
 def get_tags_for_resource(owner, resource_obj, *args, **kwargs):
-    return [{'key': tag.key, 'value': tag.value} for tag in
-            Tag.objects(owner=owner, resource=resource_obj)]
+    return {tag.key: tag.value for tag in
+            Tag.objects(owner=owner, resource=resource_obj)}
 
 
 def add_tags_to_resource(owner, resource_obj, tags, *args, **kwargs):

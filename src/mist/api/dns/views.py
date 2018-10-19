@@ -20,6 +20,8 @@ OK = Response("OK", 200)
 
 
 @view_config(route_name='api_v1_zones', request_method='GET', renderer='json')
+@view_config(route_name='api_v1_cloud_zones', request_method='GET',
+             renderer='json')
 def list_dns_zones(request):
     """
     Tags: dns
@@ -32,19 +34,16 @@ def list_dns_zones(request):
       required: true
       type: string
     """
-    auth_context = auth_context_from_request(request)
     cloud_id = request.matchdict['cloud']
-
-    try:
-        Cloud.objects.get(owner=auth_context.owner, id=cloud_id)
-    except me.DoesNotExist:
-        raise CloudNotFoundError
-
-    zones = filter_list_zones(auth_context, cloud_id)
-    return zones
+    params = params_from_request(request)
+    cached = bool(params.get('cached', False))
+    auth_context = auth_context_from_request(request)
+    return filter_list_zones(auth_context, cloud_id, cached=cached)
 
 
 @view_config(route_name='api_v1_records', request_method='GET',
+             renderer='json')
+@view_config(route_name='api_v1_cloud_records', request_method='GET',
              renderer='json')
 def list_dns_records(request):
     """
@@ -79,6 +78,8 @@ def list_dns_records(request):
 
 
 @view_config(route_name='api_v1_zones', request_method='POST', renderer='json')
+@view_config(route_name='api_v1_cloud_zones', request_method='POST',
+             renderer='json')
 def create_dns_zone(request):
     """
     Tags: dns
@@ -112,11 +113,12 @@ def create_dns_zone(request):
         resolve_id_and_set_tags(auth_context.owner, 'zone', new_zone.id,
                                 tags, cloud_id=cloud_id)
 
-    trigger_session_update(auth_context.owner, ['zones'])
     return new_zone.as_dict()
 
 
 @view_config(route_name='api_v1_records', request_method='POST',
+             renderer='json')
+@view_config(route_name='api_v1_cloud_records', request_method='POST',
              renderer='json')
 def create_dns_record(request):
     """
@@ -171,6 +173,8 @@ def create_dns_record(request):
 
 @view_config(route_name='api_v1_zone', request_method='DELETE',
              renderer='json')
+@view_config(route_name='api_v1_cloud_zone', request_method='DELETE',
+             renderer='json')
 def delete_dns_zone(request):
     """
     Tags: dns
@@ -205,11 +209,12 @@ def delete_dns_zone(request):
 
     zone.ctl.delete_zone()
 
-    trigger_session_update(auth_context.owner, ['zones'])
     return OK
 
 
 @view_config(route_name='api_v1_record', request_method='DELETE',
+             renderer='json')
+@view_config(route_name='api_v1_cloud_record', request_method='DELETE',
              renderer='json')
 def delete_dns_record(request):
     """
@@ -253,5 +258,4 @@ def delete_dns_record(request):
 
     record.ctl.delete_record()
 
-    trigger_session_update(auth_context.owner, ['zones'])
     return OK
