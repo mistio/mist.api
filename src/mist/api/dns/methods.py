@@ -1,11 +1,8 @@
 from mist.api.clouds.models import Cloud
-from mist.api.tag.methods import get_tags_for_resource
 
-from mist.api.exceptions import PolicyUnauthorizedError
+from mist.api.exceptions import PolicyUnauthorizedError, CloudNotFoundError
 
 from mist.api import config
-
-from mist.api.dns.models import Zone
 
 import logging
 
@@ -13,7 +10,6 @@ logging.basicConfig(level=config.PY_LOG_LEVEL,
                     format=config.PY_LOG_FORMAT,
                     datefmt=config.PY_LOG_FORMAT_DATE)
 log = logging.getLogger(__name__)
-
 
 
 def list_zones(owner, cloud_id, cached=False):
@@ -35,7 +31,7 @@ def list_zones(owner, cloud_id, cached=False):
 
 
 def filter_list_zones(auth_context, cloud_id, zones=None, perm='read',
-                         cached=False):
+                      cached=False):
     """Filter the zones of the specific cloud based on the RBAC policy"""
     if zones is None:
         zones = list_zones(auth_context.owner, cloud_id, cached=cached)
@@ -49,7 +45,8 @@ def filter_list_zones(auth_context, cloud_id, zones=None, perm='read',
         for z in zones:
             if z['id'] in allowed_resources['zones']:
                 for idx in reversed(range(len(z['records']))):
-                    if z['records'][idx]['id'] not in allowed_resources['records']:
+                    if z['records'][idx]['id'] not in \
+                            allowed_resources['records']:
                         z['records'].pop(idx)
                 filtered.append(z)
         return filtered

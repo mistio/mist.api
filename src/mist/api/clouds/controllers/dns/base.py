@@ -8,13 +8,13 @@ with libcloud's DNS API.
 import ssl
 import logging
 import datetime
+import time
+
 import jsonpatch
 
 import mongoengine as me
 
-from amqp.connection import Connection
-
-from mist.api import config
+import mist.api.exceptions
 
 from mist.api.concurrency.models import PeriodicTaskInfo
 
@@ -376,7 +376,7 @@ class BaseDNSController(BaseController):
                 if z.zone_id == libcloud_zone.id:
                     return z
             time.sleep(1)
-        raise mist.api.exceptions.NetworkListingError()
+        raise mist.api.exceptions.ZoneListingError()
 
     def _create_zone__prepare_args(self, kwargs):
         """ This private method to prepare the args for the zone creation."""
@@ -442,7 +442,7 @@ class BaseDNSController(BaseController):
                             from mist.api.dns.models import Record
                             return Record.objects.get(id=r)
             time.sleep(1)
-        raise mist.api.exceptions.NetworkListingError()
+        raise mist.api.exceptions.RecordListingError()
 
     def _create_record__for_zone(self, zone, **kwargs):
         """

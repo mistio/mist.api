@@ -540,9 +540,6 @@ class MainConnection(MistConnection):
                 if filtered_machines is not None:
                     self.send(routing_key, {'cloud_id': cloud_id,
                                             'machines': filtered_machines})
-                # update cloud machine count in multi-user setups
-                cloud = Cloud.objects.get(owner=self.owner, id=cloud_id,
-                                          deleted=None)
                 for machine in machines:
                     bmid = (cloud_id, machine['machine_id'])
                     if bmid in self.running_machines:
@@ -573,7 +570,7 @@ class MainConnection(MistConnection):
                     self.auth_context, cloud_id, zones
                 )
                 self.send(routing_key, {'cloud_id': cloud_id,
-                                        'zones': zones})
+                                        'zones': filtered_zones})
             elif routing_key == 'list_networks':
                 networks = result['networks']
                 cloud_id = result['cloud_id']
@@ -636,7 +633,7 @@ class MainConnection(MistConnection):
                     resource_id, line['path'] = line['path'][1:].split('-', 1)
                 else:
                     line['path'] = line['path'][1:]
-                    resource_id =  line['path'].split('/', 1)[0]
+                    resource_id = line['path'].split('/', 1)[0]
                 resource_ids.append(resource_id)
             if not self.auth_context.is_owner():
                 allowed_resource_ids = filter_resource_ids(self.auth_context,

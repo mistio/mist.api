@@ -140,8 +140,8 @@ def tag_resources(request):
                                                   item['path'])
             if amqp_owner_listening(resource_obj.cloud.owner.id):
                 amqp_publish_user(auth_context.owner.id,
-                                    routing_key='patch_%ss' % rtype,
-                                    data={'cloud_id': resource_obj.cloud.id,
+                                  routing_key='patch_%ss' % rtype,
+                                  data={'cloud_id': resource_obj.cloud.id,
                                         'patch': patch})
     return OK
 

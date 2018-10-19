@@ -270,6 +270,14 @@ class NetworkListingError(InternalServerError):
     msg = "Error while getting a network listing"
 
 
+class ZoneListingError(InternalServerError):
+    msg = "Error while getting a listing of DNS zones"
+
+
+class RecordListingError(InternalServerError):
+    msg = "Error while getting a listing of DNS records"
+
+
 class NetworkDeletionError(InternalServerError):
     msg = "Network deletion failed"
 
