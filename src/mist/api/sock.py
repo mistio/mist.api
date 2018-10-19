@@ -39,10 +39,6 @@ from mist.api.exceptions import PolicyUnauthorizedError
 from mist.api.amqp_tornado import Consumer
 
 from mist.api.clouds.methods import filter_list_clouds
-from mist.api.machines.methods import filter_list_machines
-from mist.api.networks.methods import filter_list_networks
-from mist.api.volumes.methods import filter_list_volumes
-from mist.api.dns.methods import filter_list_zones
 
 from mist.api import tasks
 from mist.api.hub.tornado_shell_client import ShellHubClient
@@ -526,69 +522,10 @@ class MainConnection(MistConnection):
             result = body
         log.info("Got %s", routing_key)
         if routing_key in set(['notify', 'probe', 'list_sizes', 'list_images',
-                               'list_networks', 'list_machines', 'list_zones',
                                'list_locations', 'list_projects', 'ping',
                                'list_resource_groups',
                                'list_storage_accounts']):
-            if routing_key == 'list_machines':
-                # probe newly discovered running machines
-                machines = result['machines']
-                cloud_id = result['cloud_id']
-                filtered_machines = filter_list_machines(
-                    self.auth_context, cloud_id, machines
-                )
-                if filtered_machines is not None:
-                    self.send(routing_key, {'cloud_id': cloud_id,
-                                            'machines': filtered_machines})
-                for machine in machines:
-                    bmid = (cloud_id, machine['machine_id'])
-                    if bmid in self.running_machines:
-                        # machine was running
-                        if machine['state'] != 'running':
-                            # machine no longer running
-                            self.running_machines.remove(bmid)
-                        continue
-                    if machine['state'] != 'running':
-                        # machine not running
-                        continue
-                    # machine just started running
-                    self.running_machines.add(bmid)
-
-                    ips = filter(lambda ip: ':' not in ip,
-                                 machine.get('public_ips', []))
-                    if not ips:
-                        # if not public IPs, search for private IPs, otherwise
-                        # continue iterating over the list of machines
-                        ips = filter(lambda ip: ':' not in ip,
-                                     machine.get('private_ips', []))
-                        if not ips:
-                            continue
-            elif routing_key == 'list_zones':
-                zones = result['zones']
-                cloud_id = result['cloud_id']
-                filtered_zones = filter_list_zones(
-                    self.auth_context, cloud_id, zones
-                )
-                self.send(routing_key, {'cloud_id': cloud_id,
-                                        'zones': filtered_zones})
-            elif routing_key == 'list_networks':
-                networks = result['networks']
-                cloud_id = result['cloud_id']
-                filtered_networks = filter_list_networks(
-                    self.auth_context, cloud_id, networks
-                )
-                self.send(routing_key, {'cloud_id': cloud_id,
-                                        'networks': filtered_networks})
-            elif routing_key == 'list_volumes':
-                volumes = result['volumes']
-                cloud_id = result['cloud_id']
-                filtered_volumes = filter_list_volumes(
-                    self.auth_context, cloud_id, volumes
-                )
-                self.send(routing_key, {'cloud_id': cloud_id,
-                                        'volumes': filtered_volumes})
-            else:
-                self.send(routing_key, result)
+            self.send(routing_key, result)
 
         elif routing_key == 'update':
             self.owner.reload()
