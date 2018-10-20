@@ -38,7 +38,10 @@ def list_dns_zones(request):
     params = params_from_request(request)
     cached = bool(params.get('cached', False))
     auth_context = auth_context_from_request(request)
-    return filter_list_zones(auth_context, cloud_id, cached=cached)
+    zones = filter_list_zones(auth_context, cloud_id, cached=cached)
+    if 'dns' in request.path:  # Backwards compatibility, deprecated endpoint
+        return {'cloud_id': cloud_id, 'zones': zones}
+    return zones
 
 
 @view_config(route_name='api_v1_records', request_method='GET',
@@ -167,7 +170,6 @@ def create_dns_record(request):
         resolve_id_and_set_tags(auth_context.owner, 'record', rec.id, tags,
                                 cloud_id=cloud_id, zone_id=zone_id)
 
-    trigger_session_update(auth_context.owner, ['zones'])
     return rec.as_dict()
 
 
