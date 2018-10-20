@@ -77,7 +77,7 @@ class BaseStorageController(BaseController):
         task_key = 'cloud:list_volumes:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
         with task.task_runner(persist=persist):
-            cached_volumes = {v.id: v.as_dict()
+            cached_volumes = {'%s-%s' % (v.id, v.external_id): v.as_dict()
                               for v in self.list_cached_volumes()}
 
             volumes = self._list_volumes()
@@ -86,7 +86,7 @@ class BaseStorageController(BaseController):
             volumes_dict = [v.as_dict() for v in volumes]
             if cached_volumes and volumes_dict:
                 # Publish patches to rabbitmq.
-                new_volumes = {'%s' % v['id']: v for v in volumes_dict}
+                new_volumes = {'%s-%s' % (v['id'], v['external_id']): v for v in volumes_dict}
                 patch = jsonpatch.JsonPatch.from_diff(cached_volumes,
                                                       new_volumes).patch
                 if patch:

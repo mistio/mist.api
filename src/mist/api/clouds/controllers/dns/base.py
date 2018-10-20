@@ -97,7 +97,7 @@ class BaseDNSController(BaseController):
         task_key = 'cloud:list_zones:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
         with task.task_runner(persist=persist):
-            cached_zones = {'%s' % z.zone_id: z.as_dict()
+            cached_zones = {'%s-%s' % (z.id, z.zone_id): z.as_dict()
                             for z in self.list_cached_zones()}
 
             zones = self._list_zones()
@@ -108,7 +108,8 @@ class BaseDNSController(BaseController):
             zones_dict = [z.as_dict() for z in zones]
             if cached_zones or zones_dict:
                 # Publish patches to rabbitmq.
-                new_zones = {z['zone_id']: z for z in zones_dict}
+                new_zones = {'%s-%s' % (z['id'], z['zone_id']): z
+                             for z in zones_dict}
                 patch = jsonpatch.JsonPatch.from_diff(cached_zones,
                                                       new_zones).patch
                 if patch:

@@ -242,7 +242,7 @@ class BaseNetworkController(BaseController):
         task = PeriodicTaskInfo.get_or_add(task_key)
         with task.task_runner(persist=persist):
             # Get cached networks as dict
-            cached_networks = {n.network_id: n.as_dict()
+            cached_networks = {'%s-%s' % (n.id, n.network_id): n.as_dict()
                                for n in self.list_cached_networks()}
             networks = self._list_networks()
             for network in networks:
@@ -250,7 +250,7 @@ class BaseNetworkController(BaseController):
 
         if amqp_owner_listening(self.cloud.owner.id):
             # Publish patches to rabbitmq.
-            new_networks = {n.network_id: n.as_dict()
+            new_networks = {'%s-%s' % (n.id, n.network_id): n.as_dict()
                             for n in networks}
             # Exclude last seen and probe field
             if cached_networks or new_networks:
