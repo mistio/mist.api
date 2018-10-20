@@ -928,6 +928,10 @@ CELERY_SETTINGS = {
 
         # List volumes
         'mist.api.poller.tasks.list_volumes': {'queue': 'volumes'},
+
+        # List zones
+        'mist.api.poller.tasks.list_zones': {'queue': 'zones'},
+
     },
 }
 

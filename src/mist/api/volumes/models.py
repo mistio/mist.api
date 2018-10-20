@@ -48,8 +48,7 @@ class Volume(OwnershipMixin, me.Document):
     @property
     def tags(self):
         """Return the tags of this volume."""
-        return [{'key': tag.key,
-                 'value': tag.value} for tag in Tag.objects(resource=self)]
+        return {tag.key: tag.value for tag in Tag.objects(resource=self)}
 
     def clean(self):
         self.owner = self.owner or self.cloud.owner

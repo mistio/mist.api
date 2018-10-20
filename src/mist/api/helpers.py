@@ -66,6 +66,7 @@ from mist.api.auth.models import ApiToken, datetime_to_str
 
 from mist.api.exceptions import MistError, NotFoundError
 from mist.api.exceptions import RequiredParameterMissingError
+from mist.api.exceptions import PolicyUnauthorizedError
 
 from mist.api import config
 
@@ -1340,3 +1341,25 @@ def subscribe_log_events(callback=None, email='*', event_type='*', action='*',
             for var in (email, event_type, action, error)]
     routing_key = '.'.join(keys)
     subscribe_log_events_raw(callback, [routing_key])
+
+
+# SEC
+def filter_resource_ids(auth_context, cloud_id, resource_type, resource_ids):
+
+    if not isinstance(resource_ids, set):
+        resource_ids = set(resource_ids)
+
+    if auth_context.is_owner():
+        return resource_ids
+
+    # NOTE: We can trust the RBAC Mappings in order to fetch the latest list of
+    # machines for the current user, since mongo has been updated by either the
+    # Poller or the above `list_machines`.
+
+    try:
+        auth_context.check_perm('cloud', 'read', cloud_id)
+    except PolicyUnauthorizedError:
+        return set()
+
+    allowed_ids = set(auth_context.get_allowed_resources(rtype='resources'))
+    return resource_ids & allowed_ids

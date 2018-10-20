@@ -383,15 +383,9 @@ class Machine(OwnershipMixin, me.Document):
 
     def as_dict(self):
         # Return a dict as it will be returned to the API
-
-        # tags as a list return for the ui
         tags = {tag.key: tag.value for tag in mist.api.tag.models.Tag.objects(
             resource=self
         ).only('key', 'value')}
-        # Optimize tags data structure for js...
-        if isinstance(tags, dict):
-            tags = [{'key': key, 'value': value}
-                    for key, value in tags.iteritems()]
         return {
             'id': self.id,
             'hostname': self.hostname,

@@ -25,12 +25,12 @@ from paramiko.ssh_exception import SSHException
 
 from mist.api.exceptions import MistError, NotFoundError
 from mist.api.exceptions import ServiceUnavailableError
-from mist.api.exceptions import CloudNotFoundError
 from mist.api.shell import Shell
 
 from mist.api.users.models import User, Owner, Organization
 from mist.api.clouds.models import Cloud, DockerCloud, CloudLocation, CloudSize
 from mist.api.networks.models import Network
+from mist.api.dns.models import Zone
 from mist.api.volumes.models import Volume
 from mist.api.machines.models import Machine
 from mist.api.scripts.models import Script
@@ -42,6 +42,7 @@ from mist.api.rules.models import NoDataRule
 from mist.api.poller.models import PollingSchedule
 from mist.api.poller.models import ListMachinesPollingSchedule
 from mist.api.poller.models import ListNetworksPollingSchedule
+from mist.api.poller.models import ListZonesPollingSchedule
 from mist.api.poller.models import ListVolumesPollingSchedule
 from mist.api.poller.models import FindCoresMachinePollingSchedule
 from mist.api.poller.models import PingProbeMachinePollingSchedule
@@ -722,32 +723,6 @@ class UserTask(Task):
             return 60 * 10  # Retry in 10mins after the third error
 
 
-class ListZones(UserTask):
-    task_key = 'list_zones'
-    result_expires = 60 * 60 * 24
-    result_fresh = 0
-    polling = False
-    soft_time_limit = 60
-
-    def execute(self, owner_id, cloud_id):
-        owner = Owner.objects.get(id=owner_id)
-        log.warn('Running list zones for user %s cloud %s'
-                 % (owner.id, cloud_id))
-        from mist.api.dns.methods import list_zones
-        try:
-            cloud = Cloud.objects.get(owner=owner, id=cloud_id)
-        except Cloud.DoesNotExist:
-            raise CloudNotFoundError()
-        if not hasattr(cloud.ctl, 'dns'):
-            return {'cloud_id': cloud_id, 'zones': []}
-        ret = []
-        if cloud.dns_enabled:
-            ret = list_zones(owner, cloud.id)
-            log.warn('Returning list zones for user %s cloud %s'
-                     % (owner.id, cloud_id))
-        return {'cloud_id': cloud_id, 'zones': ret}
-
-
 class ListImages(UserTask):
     task_key = 'list_images'
     result_expires = 60 * 60 * 24 * 7
@@ -820,7 +795,6 @@ class ListStorageAccounts(UserTask):
         return {'cloud_id': cloud_id, 'storage_accounts': storage_accounts}
 
 
-list_zones = app.register_task(ListZones())
 list_images = app.register_task(ListImages())
 list_projects = app.register_task(ListProjects())
 list_resource_groups = app.register_task(ListResourceGroups())
@@ -1326,6 +1300,8 @@ def update_poller(org_id):
         ListMachinesPollingSchedule.add(cloud=cloud, interval=10, ttl=120)
         if hasattr(cloud.ctl, 'network'):
             ListNetworksPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
+        if hasattr(cloud.ctl, 'dns') and cloud.dns_enabled:
+            ListZonesPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
         if hasattr(cloud.ctl, 'storage'):
             ListVolumesPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
         if config.ACCELERATE_MACHINE_POLLING:
@@ -1374,7 +1350,7 @@ def gc_schedulers():
 
 @app.task
 def set_missing_since(cloud_id):
-    for Model in (Machine, CloudLocation, CloudSize, Network, Volume):
+    for Model in (Machine, CloudLocation, CloudSize, Network, Volume, Zone):
         Model.objects(cloud=cloud_id, missing_since=None).update(
             missing_since=datetime.datetime.utcnow()
         )
