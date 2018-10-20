@@ -13,7 +13,6 @@ from mist.api.exceptions import CloudNotFoundError
 
 from mist.api.tag.methods import resolve_id_and_set_tags
 
-from mist.api.helpers import trigger_session_update
 from mist.api.helpers import params_from_request, view_config
 
 OK = Response("OK", 200)

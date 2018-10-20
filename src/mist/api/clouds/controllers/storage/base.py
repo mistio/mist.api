@@ -86,7 +86,8 @@ class BaseStorageController(BaseController):
             volumes_dict = [v.as_dict() for v in volumes]
             if cached_volumes and volumes_dict:
                 # Publish patches to rabbitmq.
-                new_volumes = {'%s-%s' % (v['id'], v['external_id']): v for v in volumes_dict}
+                new_volumes = {'%s-%s' % (v['id'], v['external_id']): v
+                               for v in volumes_dict}
                 patch = jsonpatch.JsonPatch.from_diff(cached_volumes,
                                                       new_volumes).patch
                 if patch:
