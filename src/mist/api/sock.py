@@ -26,7 +26,6 @@ from mist.api.logs.methods import log_event
 from mist.api.logs.methods import get_stories
 from mist.api.logs.methods import create_stories_patch
 
-from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 
 from mist.api.auth.methods import auth_context_from_session_id
@@ -393,8 +392,8 @@ class MainConnection(MistConnection):
 
     def list_clouds(self):
         self.update_poller()
-        self.send('list_clouds', filter_list_clouds(self.auth_context))
-        clouds = Cloud.objects(owner=self.owner, enabled=True, deleted=None)
+        clouds = filter_list_clouds(self.auth_context, as_dict=False)
+        self.send('list_clouds', [c.as_dict() for c in clouds])
         for cloud in clouds:
             self.internal_request(
                 'api/v1/clouds/%s/machines' % cloud.id,

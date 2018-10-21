@@ -1361,5 +1361,5 @@ def filter_resource_ids(auth_context, cloud_id, resource_type, resource_ids):
     except PolicyUnauthorizedError:
         return set()
 
-    allowed_ids = set(auth_context.get_allowed_resources(rtype='resources'))
+    allowed_ids = set(auth_context.get_allowed_resources(rtype=resource_type))
     return resource_ids & allowed_ids

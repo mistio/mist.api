@@ -11,6 +11,8 @@ RUN pip install --no-cache-dir ipython ipdb flake8 pytest pytest-cov
 
 # Remove `-frozen` to build without strictly pinned dependencies.
 COPY requirements-frozen.txt /mist.api/requirements.txt
+COPY requirements-frozen.txt /requirements-frozen-mist.api.txt
+COPY requirements.txt /requirements-mist.api.txt
 
 WORKDIR /mist.api/
 

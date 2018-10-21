@@ -31,7 +31,6 @@ from mist.api.helpers import get_temp_file
 
 from mist.api.methods import connect_provider
 from mist.api.networks.methods import list_networks
-from mist.api.tag.methods import resolve_id_and_set_tags
 
 from mist.api.monitoring.methods import disable_monitoring
 
@@ -440,28 +439,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     else:
         raise BadRequestError("Provider unknown.")
 
-    if key is not None:
-        # we did this change because there was race condition with
-        # list_machines
-        try:
-            machine = Machine(cloud=cloud, machine_id=node.id).save()
-            # Since this is the first time the new Machine object is persisted
-            # to mongodb, we need to also update the mappings. We cannot rely
-            # on list_machines, since the node will not be treated as seen for
-            # the first time and thus will not trigger an update.
-            machine.owner.mapper.update(machine)
-        except me.NotUniqueError:
-            machine = Machine.objects.get(cloud=cloud, machine_id=node.id)
-
-        # Assign machine's owner/creator.
-        machine.assign_to(auth_context.user)
-
-        # Associate key.
-        username = node.extra.get('username', '')
-        machine.ctl.associate_key(key, username=username,
-                                  port=ssh_port, no_connect=True)
-
-    # Call post_deploy_steps for every provider
+    # Call post_deploy_steps for every provider FIXME: Refactor
     if conn.type == Provider.AZURE:
         # for Azure, connect with the generated password, deploy the ssh key
         # when this is ok, it calls post_deploy for script/monitoring
@@ -472,6 +450,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             script_id=script_id, script_params=script_params, job_id=job_id,
             hostname=hostname, plugins=plugins, post_script_id=post_script_id,
             post_script_params=post_script_params, schedule=schedule, job=job,
+            tags=tags, creator=auth_context.user.id, ssh_port=ssh_port
         )
     elif conn.type == Provider.OPENSTACK:
         if associate_floating_ip:
@@ -484,6 +463,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                 job_id=job_id, job=job, hostname=hostname, plugins=plugins,
                 post_script_params=post_script_params,
                 networks=networks, schedule=schedule,
+                tags=tags, creator=auth_context.user.id, ssh_port=ssh_port
             )
     elif conn.type == Provider.RACKSPACE_FIRST_GEN:
         # for Rackspace First Gen, cannot specify ssh keys. When node is
@@ -495,21 +475,19 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             script_id=script_id, script_params=script_params,
             job_id=job_id, job=job, hostname=hostname, plugins=plugins,
             post_script_id=post_script_id,
-            post_script_params=post_script_params, schedule=schedule
+            post_script_params=post_script_params, schedule=schedule,
+            tags=tags, creator=auth_context.user.id, ssh_port=ssh_port
         )
 
-    elif key_id:
+    else:
         mist.api.tasks.post_deploy_steps.delay(
             auth_context.owner.id, cloud_id, node.id, monitoring,
             script=script, key_id=key_id, script_id=script_id,
             script_params=script_params, job_id=job_id, job=job,
             hostname=hostname, plugins=plugins, post_script_id=post_script_id,
             post_script_params=post_script_params, schedule=schedule,
+            tags=tags, creator=auth_context.user.id, ssh_port=ssh_port
         )
-
-    if tags:
-        resolve_id_and_set_tags(auth_context.owner, 'machine', node.id, tags,
-                                cloud_id=cloud_id)
 
     ret = {'id': node.id,
            'name': node.name,

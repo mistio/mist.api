@@ -301,7 +301,7 @@ def create_machine(request):
     script_params = params.get('script_params', '')
     post_script_id = params.get('post_script_id', '')
     post_script_params = params.get('post_script_params', '')
-    async = params.get('async', False)
+    run_async = params.get('async', False)
     quantity = params.get('quantity', 1)
     persist = params.get('persist', False)
     docker_port_bindings = params.get('docker_port_bindings', {})
@@ -437,7 +437,7 @@ def create_machine(request):
               'create_resource_group': create_resource_group,
               'new_resource_group': new_resource_group,
               'machine_username': machine_username}
-    if not async:
+    if not run_async:
         ret = methods.create_machine(auth_context, *args, **kwargs)
     else:
         args = (auth_context.serialize(), ) + args
