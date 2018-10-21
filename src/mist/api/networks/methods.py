@@ -35,7 +35,7 @@ def filter_list_networks(auth_context, cloud_id, networks=None, perm='read',
     else:
         allowed_resources = auth_context.get_allowed_resources(perm)
         if cloud_id not in allowed_resources['clouds']:
-            return {}
+            return []
         filtered = []
         for n in networks:
             if n['id'] in allowed_resources['networks']:
