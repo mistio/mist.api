@@ -200,38 +200,14 @@ class BaseComputeController(BaseController):
         task = PeriodicTaskInfo.get_or_add(task_key)
         try:
             with task.task_runner(persist=persist):
-                old_machines = {'%s-%s' % (m.id, m.machine_id): m.as_dict()
-                                for m in self.list_cached_machines()}
+                cached_machines = [m.as_dict()
+                                   for m in self.list_cached_machines()]
                 machines = self._list_machines()
         except PeriodicTaskThresholdExceeded:
             self.cloud.ctl.disable()
             raise
 
-        if amqp_owner_listening(self.cloud.owner.id):
-            if not config.MACHINE_PATCHES:
-                amqp_publish_user(self.cloud.owner.id,
-                                  routing_key='list_machines',
-                                  data={'cloud_id': self.cloud.id,
-                                        'machines': [machine.as_dict()
-                                                     for machine in machines]})
-            else:
-                # Publish patches to rabbitmq.
-                new_machines = {'%s-%s' % (m.id, m.machine_id): m.as_dict()
-                                for m in machines}
-                # Exclude last seen and probe fields from patch.
-                for md in old_machines, new_machines:
-                    for m in md.values():
-                        m.pop('last_seen')
-                        m.pop('probe')
-                        if m.get('extra') and m['extra'].get('ports'):
-                            m['extra']['ports'] = sorted(m['extra']['ports'])
-                patch = jsonpatch.JsonPatch.from_diff(old_machines,
-                                                      new_machines).patch
-                if patch:
-                    amqp_publish_user(self.cloud.owner.id,
-                                      routing_key='patch_machines',
-                                      data={'cloud_id': self.cloud.id,
-                                            'patch': patch})
+        self.produce_and_publish_patch(cached_machines, machines)
 
         # Push historic information for inventory and cost reporting.
         for machine in machines:
@@ -242,6 +218,29 @@ class BaseComputeController(BaseController):
                          auto_delete=False, data=data)
 
         return machines
+
+    def produce_and_publish_patch(self, cached_machines, fresh_machines):
+        if not amqp_owner_listening(self.cloud.owner.id):
+            return
+
+        old_machines = {'%s-%s' % (m['id'], m['machine_id']): m
+                        for m in cached_machines}
+        new_machines = {'%s-%s' % (m.id, m.machine_id): m.as_dict()
+                        for m in fresh_machines}
+        # Exclude last seen and probe fields from patch.
+        for md in old_machines, new_machines:
+            for m in md.values():
+                m.pop('last_seen')
+                m.pop('probe')
+                if m.get('extra') and m['extra'].get('ports'):
+                    m['extra']['ports'] = sorted(m['extra']['ports'])
+        patch = jsonpatch.JsonPatch.from_diff(old_machines,
+                                              new_machines).patch
+        if patch:  # Publish patches to rabbitmq.
+            amqp_publish_user(self.cloud.owner.id,
+                              routing_key='patch_machines',
+                              data={'cloud_id': self.cloud.id,
+                                    'patch': patch})
 
     def _list_machines(self):
         """Core logic of list_machines method

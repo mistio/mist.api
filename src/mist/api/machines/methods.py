@@ -34,6 +34,8 @@ from mist.api.networks.methods import list_networks
 
 from mist.api.monitoring.methods import disable_monitoring
 
+from mist.api.tag.methods import resolve_id_and_set_tags
+
 from mist.api import config
 
 import logging
@@ -274,6 +276,9 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                             ram=0, disk=0, bandwidth=0,
                             price=0, driver=conn)
 
+    cached_machines = [m.as_dict()
+                       for m in cloud.ctl.compute.list_cached_machines()]
+
     if conn.type is Container_Provider.DOCKER:
         if public_key:
             node = _create_machine_docker(
@@ -439,6 +444,26 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     else:
         raise BadRequestError("Provider unknown.")
 
+    try:
+        machine = Machine.objects.get(cloud=cloud, machine_id=node.id)
+    except me.DoesNotExist:
+        cloud.ctl.compute._list_machines()
+        machine = Machine.objects.get(cloud=cloud, machine_id=node.id)
+
+    # Assign machine's owner/creator
+    machine.assign_to(auth_context.user)
+
+    if key is not None:  # Associate key.
+        username = node.extra.get('username', '')
+        machine.ctl.associate_key(key, username=username,
+                                  port=ssh_port, no_connect=True)
+    if tags:
+        resolve_id_and_set_tags(auth_context. owner, 'machine', node.id, tags,
+                                cloud_id=cloud_id)
+    fresh_machines = cloud.ctl.compute.list_cached_machines()
+    cloud.ctl.compute.produce_and_publish_patch(cached_machines,
+                                                fresh_machines)
+
     # Call post_deploy_steps for every provider FIXME: Refactor
     if conn.type == Provider.AZURE:
         # for Azure, connect with the generated password, deploy the ssh key
@@ -450,7 +475,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             script_id=script_id, script_params=script_params, job_id=job_id,
             hostname=hostname, plugins=plugins, post_script_id=post_script_id,
             post_script_params=post_script_params, schedule=schedule, job=job,
-            tags=tags, creator=auth_context.user.id, ssh_port=ssh_port
         )
     elif conn.type == Provider.OPENSTACK:
         if associate_floating_ip:
@@ -463,7 +487,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                 job_id=job_id, job=job, hostname=hostname, plugins=plugins,
                 post_script_params=post_script_params,
                 networks=networks, schedule=schedule,
-                tags=tags, creator=auth_context.user.id, ssh_port=ssh_port
             )
     elif conn.type == Provider.RACKSPACE_FIRST_GEN:
         # for Rackspace First Gen, cannot specify ssh keys. When node is
@@ -476,7 +499,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             job_id=job_id, job=job, hostname=hostname, plugins=plugins,
             post_script_id=post_script_id,
             post_script_params=post_script_params, schedule=schedule,
-            tags=tags, creator=auth_context.user.id, ssh_port=ssh_port
         )
 
     else:
@@ -486,7 +508,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             script_params=script_params, job_id=job_id, job=job,
             hostname=hostname, plugins=plugins, post_script_id=post_script_id,
             post_script_params=post_script_params, schedule=schedule,
-            tags=tags, creator=auth_context.user.id, ssh_port=ssh_port
         )
 
     ret = {'id': node.id,
