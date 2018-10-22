@@ -1716,3 +1716,54 @@ class BaseComputeController(BaseController):
         is called by the public method `list_machine_snapshots`.
         """
         raise NotImplementedError()
+
+    def clone_machine(self, machine, name=None, resume=False):
+        """Clone machine
+
+        The param `machine` must be an instance of a machine model of this
+        cloud.
+
+        Not that the usual way to undefine a machine would be to run
+
+            machine.ctl.clone()
+
+        which would in turn call this method, so that its cloud can customize
+        it as needed.
+
+        If a subclass of this controller wishes to override the way machines
+        are undefineed, it should override `_clone_machine` method instead.
+
+        """
+        assert self.cloud == machine.cloud
+        if not machine.actions.clone:
+            raise ForbiddenError("Machine doesn't support clone.")
+
+        log.debug("Cloning %s", machine)
+
+        machine_libcloud = self._get_machine_libcloud(machine)
+        try:
+            self._clone_machine(machine, machine_libcloud, name, resume)
+        except MistError as exc:
+            log.error("Failed to clone %s", machine)
+            raise
+        except Exception as exc:
+            log.exception(exc)
+            raise InternalServerError(exc=exc)
+
+    def _clone_machine(self, machine, machine_libcloud, name=None,
+                       resume=False):
+        """Private method to clone a given machine
+
+        Only LibvirtComputeController subclass implements this method.
+
+        Params:
+            machine: instance of machine model of this cloud
+            machine_libcloud: instance of corresponding libcloud node
+            name: the clone's unique name
+            resume: denotes whether to resume the original node
+
+        Differnent cloud controllers should override this private method,
+        which is called by the public method `clone_machine`.
+
+        """
+        raise NotImplementedError()
