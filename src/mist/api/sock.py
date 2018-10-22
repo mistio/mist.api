@@ -395,6 +395,8 @@ class MainConnection(MistConnection):
         clouds = filter_list_clouds(self.auth_context, as_dict=False)
         self.send('list_clouds', [c.as_dict() for c in clouds])
         for cloud in clouds:
+            if not cloud.enabled:
+                continue
             self.internal_request(
                 'api/v1/clouds/%s/machines' % cloud.id,
                 params={'cached': True},

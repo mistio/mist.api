@@ -54,8 +54,6 @@ from mist.api.helpers import amqp_owner_listening
 from mist.api.helpers import amqp_log
 from mist.api.helpers import trigger_session_update
 
-from mist.api.tag.methods import resolve_id_and_set_tags
-
 from mist.api.auth.methods import AuthContext
 
 from mist.api.logs.methods import log_event
@@ -92,8 +90,7 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                       key_id=None, username=None, password=None, port=22,
                       script_id='', script_params='', job_id=None, job=None,
                       hostname='', plugins=None, script='',
-                      post_script_id='', post_script_params='', schedule={},
-                      tags=[], creator=None, ssh_port=22):
+                      post_script_id='', post_script_params='', schedule={}):
     # TODO: break into subtasks
     from mist.api.methods import connect_provider, probe_ssh_only
     from mist.api.methods import notify_user, notify_admin
@@ -127,28 +124,6 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
             tmp_log('Machine found, proceeding to post deploy steps\n%s' % msg)
         except:
             raise self.retry(exc=Exception(), countdown=10, max_retries=10)
-
-        try:
-            machine = Machine.objects.get(cloud=cloud, machine_id=node.id)
-        except me.DoesNotExist:
-            cloud.ctl.compute.list_machines()
-            machine = Machine.objects.get(cloud=cloud, machine_id=node.id)
-
-        # Assign machine's owner/creator
-        if creator:
-            user = User.objects.get(id=creator)
-            machine.assign_to(user)
-
-        # Associate key.
-        if key_id:
-            key = Key.objects.get(owner=owner, id=key_id, deleted=None)
-
-            username = node.extra.get('username', '')
-            machine.ctl.associate_key(key, username=username,
-                                      port=ssh_port, no_connect=True)
-        if tags:
-            resolve_id_and_set_tags(owner, 'machine', machine_id, tags,
-                                    cloud_id=cloud_id)
 
         if node and isinstance(node, Container):
             node = cloud.ctl.compute.inspect_node(node)
@@ -383,8 +358,7 @@ def openstack_post_create_steps(self, owner_id, cloud_id, machine_id,
                                 script_id='', script_params='', job_id=None,
                                 job=None, hostname='', plugins=None,
                                 post_script_id='', post_script_params='',
-                                networks=[], schedule={}, tags=[],
-                                creator=None, ssh_port=22):
+                                networks=[], schedule={}):
     from mist.api.methods import connect_provider
     owner = Owner.objects.get(id=owner_id)
 
@@ -407,7 +381,6 @@ def openstack_post_create_steps(self, owner_id, cloud_id, machine_id,
                 hostname=hostname, plugins=plugins,
                 post_script_id=post_script_id,
                 post_script_params=post_script_params, schedule=schedule,
-                tags=tags, creator=creator, ssh_port=ssh_port
             )
         else:
             try:
@@ -451,7 +424,6 @@ def openstack_post_create_steps(self, owner_id, cloud_id, machine_id,
                     job_id=job_id, job=job, hostname=hostname, plugins=plugins,
                     post_script_id=post_script_id,
                     post_script_params=post_script_params,
-                    tags=tags, creator=creator, ssh_port=ssh_port
                 )
 
             except:
@@ -467,8 +439,7 @@ def azure_post_create_steps(self, owner_id, cloud_id, machine_id, monitoring,
                             script_id='', script_params='', job_id=None,
                             job=None, hostname='', plugins=None,
                             post_script_id='', post_script_params='',
-                            schedule={}, tags=[], creator=None,
-                            ssh_port=22):
+                            schedule={}):
     from mist.api.methods import connect_provider
 
     owner = Owner.objects.get(id=owner_id)
@@ -533,7 +504,6 @@ def azure_post_create_steps(self, owner_id, cloud_id, machine_id, monitoring,
                 job_id=job_id, job=job, hostname=hostname, plugins=plugins,
                 post_script_id=post_script_id,
                 post_script_params=post_script_params, schedule=schedule,
-                tags=tags, creator=creator, ssh_port=ssh_port
             )
 
         except Exception as exc:
@@ -548,8 +518,7 @@ def rackspace_first_gen_post_create_steps(
         self, owner_id, cloud_id, machine_id, monitoring, key_id, password,
         public_key, username='root', script='', script_id='', script_params='',
         job_id=None, job=None, hostname='', plugins=None, post_script_id='',
-        post_script_params='', schedule={}, tags=[], creator=None,
-        ssh_port=22):
+        post_script_params='', schedule={}):
     from mist.api.methods import connect_provider
 
     owner = Owner.objects.get(id=owner_id)
@@ -599,7 +568,6 @@ def rackspace_first_gen_post_create_steps(
                 job_id=job_id, job=job, hostname=hostname, plugins=plugins,
                 post_script_id=post_script_id,
                 post_script_params=post_script_params, schedule=schedule,
-                tags=tags, creator=creator, ssh_port=ssh_port
             )
 
         except Exception as exc:
