@@ -299,12 +299,23 @@ class ListSizesPollingSchedule(CloudPollingSchedule):
 
 class ListNetworksPollingSchedule(CloudPollingSchedule):
 
+    # task below is polling both networks and subnets
     task = 'mist.api.poller.tasks.list_networks'
 
     @property
     def enabled(self):
         return (super(ListNetworksPollingSchedule, self).enabled and
                 hasattr(self.cloud.ctl, 'network'))
+
+
+class ListZonesPollingSchedule(CloudPollingSchedule):
+
+    # task below is polling both zones and records
+    task = 'mist.api.poller.tasks.list_zones'
+
+    def enabled(self):
+        return (super(ListZonesPollingSchedule, self).enabled and
+                hasattr(self.cloud.ctl, 'dns') and self.cloud.dns_enabled)
 
 
 class ListVolumesPollingSchedule(CloudPollingSchedule):

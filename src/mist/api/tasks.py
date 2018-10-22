@@ -23,14 +23,14 @@ from celery.exceptions import SoftTimeLimitExceeded
 
 from paramiko.ssh_exception import SSHException
 
-from mist.api.exceptions import MistError, NotFoundError
+from mist.api.exceptions import MistError
 from mist.api.exceptions import ServiceUnavailableError
-from mist.api.exceptions import CloudNotFoundError
 from mist.api.shell import Shell
 
 from mist.api.users.models import User, Owner, Organization
 from mist.api.clouds.models import Cloud, DockerCloud, CloudLocation, CloudSize
 from mist.api.networks.models import Network
+from mist.api.dns.models import Zone
 from mist.api.volumes.models import Volume
 from mist.api.machines.models import Machine
 from mist.api.scripts.models import Script
@@ -42,6 +42,7 @@ from mist.api.rules.models import NoDataRule
 from mist.api.poller.models import PollingSchedule
 from mist.api.poller.models import ListMachinesPollingSchedule
 from mist.api.poller.models import ListNetworksPollingSchedule
+from mist.api.poller.models import ListZonesPollingSchedule
 from mist.api.poller.models import ListVolumesPollingSchedule
 from mist.api.poller.models import FindCoresMachinePollingSchedule
 from mist.api.poller.models import PingProbeMachinePollingSchedule
@@ -91,10 +92,9 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                       hostname='', plugins=None, script='',
                       post_script_id='', post_script_params='', schedule={}):
     # TODO: break into subtasks
-
     from mist.api.methods import connect_provider, probe_ssh_only
     from mist.api.methods import notify_user, notify_admin
-
+    from mist.api.keys.models import Key
     from mist.api.monitoring.methods import enable_monitoring
 
     job_id = job_id or uuid.uuid4().hex
@@ -102,10 +102,8 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
 
     def tmp_log(msg, *args):
         log.error('Post deploy: %s' % msg, *args)
-
     tmp_log('Entering post deploy steps for %s %s %s',
             owner.id, cloud_id, machine_id)
-
     try:
         # find the node we're looking for and get its hostname
         node = None
@@ -121,7 +119,9 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                 if n.id == machine_id:
                     node = n
                     break
-            tmp_log('run list_machines')
+            msg = "Cloud:\n  Name: %s\n  Id: %s\n" % (cloud.title, cloud_id)
+            msg += "Machine:\n  Name: %s\n  Id: %s\n" % (node.name, node.id)
+            tmp_log('Machine found, proceeding to post deploy steps\n%s' % msg)
         except:
             raise self.retry(exc=Exception(), countdown=10, max_retries=10)
 
@@ -146,18 +146,17 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
         machine = Machine.objects.get(cloud=cloud, machine_id=machine_id,
                                       state__ne='terminated')
 
+        log_dict = {
+            'owner_id': owner.id,
+            'event_type': 'job',
+            'cloud_id': cloud_id,
+            'machine_id': machine_id,
+            'job_id': job_id,
+            'job': job,
+            'host': host,
+            'key_id': key_id,
+        }
         if schedule and schedule.get('name'):  # ugly hack to prevent dupes
-            log_dict = {
-                'owner_id': owner.id,
-                'event_type': 'job',
-                'cloud_id': cloud_id,
-                'machine_id': machine_id,
-                'job_id': job_id,
-                'job': job,
-                'host': host,
-                'key_id': key_id,
-            }
-
             try:
                 name = (schedule.get('action') + '-' + schedule.pop('name') +
                         '-' + machine_id[:4])
@@ -183,67 +182,6 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                           error=error, **log_dict)
 
         try:
-            from mist.api.shell import Shell
-            shell = Shell(host)
-            try:
-                cloud_post_deploy_steps = config.CLOUD_POST_DEPLOY.get(
-                    cloud_id, [])
-            except AttributeError:
-                cloud_post_deploy_steps = []
-            for post_deploy_step in cloud_post_deploy_steps:
-                from mist.api.keys.models import Key
-                predeployed_key_id = post_deploy_step.get('key')
-                if predeployed_key_id:
-                    # Use predeployed key to deploy the user selected key
-                    shell.autoconfigure(
-                        owner, cloud_id, node.id, predeployed_key_id, username,
-                        password, port
-                    )
-                    retval, output = shell.command(
-                        'echo %s >> ~/.ssh/authorized_keys' % Key.objects.get(
-                            id=key_id).public)
-                    if retval > 0:
-                        notify_admin('Deploy user key failed for machine %s'
-                                     % node.name)
-                command = post_deploy_step.get('script', '').replace(
-                    '${node.name}', node.name)
-                if command:
-                    tmp_log('Executing cloud post deploy cmd: %s' % command)
-                    shell.autoconfigure(
-                        owner, cloud_id, node.id, key_id, username, password,
-                        port
-                    )
-                    retval, output = shell.command(command)
-                    if retval > 0:
-                        notify_admin('Cloud post deploy command `%s` failed '
-                                     'for machine %s' % (command, node.name))
-
-            # connect with ssh even if no command, to create association
-            # to be able to enable monitoring
-            tmp_log('attempting to connect to shell')
-            key_id, ssh_user = shell.autoconfigure(
-                owner, cloud_id, node.id, key_id, username, password, port
-            )
-            tmp_log('connected to shell')
-            result = probe_ssh_only(owner, cloud_id, machine_id, host=None,
-                                    key_id=key_id, ssh_user=ssh_user,
-                                    shell=shell)
-            log_dict = {
-                'owner_id': owner.id,
-                'event_type': 'job',
-                'cloud_id': cloud_id,
-                'machine_id': machine_id,
-                'job_id': job_id,
-                'job': job,
-                'host': host,
-                'key_id': key_id,
-                'ssh_user': ssh_user,
-            }
-            log_event(action='probe', result=result, **log_dict)
-            cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
-            msg = "Cloud:\n  Name: %s\n  Id: %s\n" % (cloud.title, cloud_id)
-            msg += "Machine:\n  Name: %s\n  Id: %s\n" % (node.name, node.id)
-
             if hostname:
                 try:
                     kwargs = {}
@@ -259,6 +197,64 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                 except Exception as exc:
                     log_event(action='Create_A_record', hostname=hostname,
                               error=str(exc), **log_dict)
+
+            from mist.api.shell import Shell
+            shell = Shell(host)
+            try:
+                cloud_post_deploy_steps = config.CLOUD_POST_DEPLOY.get(
+                    cloud_id, [])
+            except AttributeError:
+                cloud_post_deploy_steps = []
+            for post_deploy_step in cloud_post_deploy_steps:
+                predeployed_key_id = post_deploy_step.get('key')
+                if predeployed_key_id and key_id:
+                    # Use predeployed key to deploy the user selected key
+                    shell.autoconfigure(
+                        owner, cloud_id, node.id, predeployed_key_id, username,
+                        password, port
+                    )
+                    retval, output = shell.command(
+                        'echo %s >> ~/.ssh/authorized_keys' % Key.objects.get(
+                            id=key_id).public)
+                    if retval > 0:
+                        notify_admin('Deploy user key failed for machine %s'
+                                     % node.name)
+                command = post_deploy_step.get('script', '').replace(
+                    '${node.name}', node.name)
+                if command and key_id:
+                    tmp_log('Executing cloud post deploy cmd: %s' % command)
+                    shell.autoconfigure(
+                        owner, cloud_id, node.id, key_id, username, password,
+                        port
+                    )
+                    retval, output = shell.command(command)
+                    if retval > 0:
+                        notify_admin('Cloud post deploy command `%s` failed '
+                                     'for machine %s' % (command, node.name))
+
+            if key_id:
+                # connect with ssh even if no command, to create association
+                # to be able to enable monitoring
+                tmp_log('attempting to connect to shell')
+                key_id, ssh_user = shell.autoconfigure(
+                    owner, cloud_id, node.id, key_id, username, password, port
+                )
+                tmp_log('connected to shell')
+                result = probe_ssh_only(owner, cloud_id, machine_id, host=None,
+                                        key_id=key_id, ssh_user=ssh_user,
+                                        shell=shell)
+                log_dict = {
+                    'owner_id': owner.id,
+                    'event_type': 'job',
+                    'cloud_id': cloud_id,
+                    'machine_id': machine_id,
+                    'job_id': job_id,
+                    'job': job,
+                    'host': host,
+                    'key_id': key_id,
+                    'ssh_user': ssh_user,
+                }
+                log_event(action='probe', result=result, **log_dict)
 
             error = False
             if script_id:
@@ -363,7 +359,6 @@ def openstack_post_create_steps(self, owner_id, cloud_id, machine_id,
                                 job=None, hostname='', plugins=None,
                                 post_script_id='', post_script_params='',
                                 networks=[], schedule={}):
-
     from mist.api.methods import connect_provider
     owner = Owner.objects.get(id=owner_id)
 
@@ -572,7 +567,7 @@ def rackspace_first_gen_post_create_steps(
                 script_id=script_id, script_params=script_params,
                 job_id=job_id, job=job, hostname=hostname, plugins=plugins,
                 post_script_id=post_script_id,
-                post_script_params=post_script_params, schedule=schedule
+                post_script_params=post_script_params, schedule=schedule,
             )
 
         except Exception as exc:
@@ -722,32 +717,6 @@ class UserTask(Task):
             return 60 * 10  # Retry in 10mins after the third error
 
 
-class ListZones(UserTask):
-    task_key = 'list_zones'
-    result_expires = 60 * 60 * 24
-    result_fresh = 0
-    polling = False
-    soft_time_limit = 60
-
-    def execute(self, owner_id, cloud_id):
-        owner = Owner.objects.get(id=owner_id)
-        log.warn('Running list zones for user %s cloud %s'
-                 % (owner.id, cloud_id))
-        from mist.api.dns.methods import list_zones
-        try:
-            cloud = Cloud.objects.get(owner=owner, id=cloud_id)
-        except Cloud.DoesNotExist:
-            raise CloudNotFoundError()
-        if not hasattr(cloud.ctl, 'dns'):
-            return {'cloud_id': cloud_id, 'zones': []}
-        ret = []
-        if cloud.dns_enabled:
-            ret = list_zones(owner, cloud.id)
-            log.warn('Returning list zones for user %s cloud %s'
-                     % (owner.id, cloud_id))
-        return {'cloud_id': cloud_id, 'zones': ret}
-
-
 class ListImages(UserTask):
     task_key = 'list_images'
     result_expires = 60 * 60 * 24 * 7
@@ -820,7 +789,6 @@ class ListStorageAccounts(UserTask):
         return {'cloud_id': cloud_id, 'storage_accounts': storage_accounts}
 
 
-list_zones = app.register_task(ListZones())
 list_images = app.register_task(ListImages())
 list_projects = app.register_task(ListProjects())
 list_resource_groups = app.register_task(ListResourceGroups())
@@ -1028,7 +996,7 @@ def run_machine_action(owner_id, action, name, machine_uuid):
         machine_id = machine.machine_id
         log_dict.update({'cloud_id': cloud_id,
                          'machine_id': machine_id})
-    except NotFoundError:
+    except me.DoesNotExist:
         log_dict['error'] = "Resource with that id does not exist."
         msg = action + ' failed'
         log_event(action=msg, **log_dict)
@@ -1326,6 +1294,8 @@ def update_poller(org_id):
         ListMachinesPollingSchedule.add(cloud=cloud, interval=10, ttl=120)
         if hasattr(cloud.ctl, 'network'):
             ListNetworksPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
+        if hasattr(cloud.ctl, 'dns') and cloud.dns_enabled:
+            ListZonesPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
         if hasattr(cloud.ctl, 'storage'):
             ListVolumesPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
         if config.ACCELERATE_MACHINE_POLLING:
@@ -1374,7 +1344,7 @@ def gc_schedulers():
 
 @app.task
 def set_missing_since(cloud_id):
-    for Model in (Machine, CloudLocation, CloudSize, Network, Volume):
+    for Model in (Machine, CloudLocation, CloudSize, Network, Volume, Zone):
         Model.objects(cloud=cloud_id, missing_since=None).update(
             missing_since=datetime.datetime.utcnow()
         )

@@ -1,6 +1,7 @@
 import logging
 import copy
 import json
+import time
 import datetime
 import jsonpatch
 import mongoengine.errors
@@ -76,7 +77,7 @@ class BaseStorageController(BaseController):
         task_key = 'cloud:list_volumes:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
         with task.task_runner(persist=persist):
-            cached_volumes = {v.id: v.as_dict()
+            cached_volumes = {'%s-%s' % (v.id, v.external_id): v.as_dict()
                               for v in self.list_cached_volumes()}
 
             volumes = self._list_volumes()
@@ -85,7 +86,8 @@ class BaseStorageController(BaseController):
             volumes_dict = [v.as_dict() for v in volumes]
             if cached_volumes and volumes_dict:
                 # Publish patches to rabbitmq.
-                new_volumes = {'%s' % v['id']: v for v in volumes_dict}
+                new_volumes = {'%s-%s' % (v['id'], v['external_id']): v
+                               for v in volumes_dict}
                 patch = jsonpatch.JsonPatch.from_diff(cached_volumes,
                                                       new_volumes).patch
                 if patch:
@@ -233,10 +235,12 @@ class BaseStorageController(BaseController):
             raise mist.api.exceptions.CloudUnavailableError(exc=exc)
 
         # Invoke `self.list_volumes` to update the UI and return the Volume
-        # object at the API.
-        for volume in self.list_volumes():
-            if volume.external_id == libvol.id:
-                return volume
+        # object at the API. Try 3 times before failing
+        for _ in range(3):
+            for volume in self.list_volumes():
+                if volume.external_id == libvol.id:
+                    return volume
+            time.sleep(1)
         raise mist.api.exceptions.VolumeListingError()
 
     def _create_volume__prepare_args(self, kwargs):
@@ -278,6 +282,7 @@ class BaseStorageController(BaseController):
         assert volume.cloud == self.cloud
         libcloud_volume = self.get_libcloud_volume(volume)
         self._delete_volume(libcloud_volume)
+        self.list_volumes()
 
     def _delete_volume(self, libcloud_volume):
         self.cloud.ctl.compute.connection.destroy_volume(libcloud_volume)

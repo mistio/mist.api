@@ -11,6 +11,7 @@ are in `mist.api.clouds.controllers.network.controllers`.
 import json
 import copy
 import logging
+import time
 import datetime
 import mongoengine.errors
 
@@ -122,17 +123,14 @@ class BaseNetworkController(BaseController):
         libcloud_net = self.cloud.ctl.compute.connection.ex_create_network(
             **kwargs)
 
-        try:
-            network.network_id = libcloud_net.id
-            network.save()
-        except mongoengine.errors.ValidationError as exc:
-            log.error("Error saving %s: %s", network, exc.to_dict())
-            raise mist.api.exceptions.NetworkCreationError(exc.message)
-        except mongoengine.errors.NotUniqueError as exc:
-            log.error("Network %s not unique error: %s", network.name, exc)
-            raise mist.api.exceptions.NetworkExistsError()
-
-        return network
+        # Invoke `self.list_networks` to update the UI and return the Network
+        # object at the API. Try 3 times before failing
+        for _ in range(3):
+            for net in self.list_networks():
+                if net.network_id == libcloud_net.id:
+                    return net
+            time.sleep(1)
+        raise mist.api.exceptions.NetworkListingError()
 
     def _create_network__prepare_args(self, kwargs):
         """Parses keyword arguments on behalf of `self.create_network`.
@@ -187,20 +185,24 @@ class BaseNetworkController(BaseController):
         # Cloud-specific kwargs processing.
         self._create_subnet__prepare_args(subnet, kwargs)
 
+        # Increase network polling frequency
+        from mist.api.poller.models import ListNetworksPollingSchedule
+        ListNetworksPollingSchedule.add(cloud=self.cloud, interval=10, ttl=120)
+
         # Create the subnet.
         libcloud_subnet = self._create_subnet(kwargs)
 
-        try:
-            subnet.subnet_id = libcloud_subnet.id
-            subnet.save()
-        except mongoengine.errors.ValidationError as exc:
-            log.error("Error saving %s: %s", subnet, exc.to_dict())
-            raise mist.api.exceptions.NetworkCreationError(exc.message)
-        except mongoengine.errors.NotUniqueError as exc:
-            log.error("Subnet %s is not unique: %s", subnet.name, exc)
-            raise mist.api.exceptions.SubnetExistsError()
-
-        return subnet
+        # Invoke `self.list_networks` to update the UI and return the Network
+        # object at the API. Try 3 times before failing
+        from mist.api.networks.models import Subnet
+        for _ in range(3):
+            for n in self.list_networks():
+                if n.network_id == subnet.network.network_id:
+                    for s in Subnet.objects(network=n, missing_since=None):
+                        if s.subnet_id == libcloud_subnet.id:
+                            return s
+            time.sleep(1)
+        raise mist.api.exceptions.SubnetListingError()
 
     def _create_subnet(self, kwargs):
         """Performs the libcloud call that handles subnet creation.
@@ -239,16 +241,20 @@ class BaseNetworkController(BaseController):
         task_key = 'cloud:list_networks:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
         with task.task_runner(persist=persist):
-            cached_networks = {'%s' % n.id: n.as_dict()
+            # Get cached networks as dict
+            cached_networks = {'%s-%s' % (n.id, n.network_id): n.as_dict()
                                for n in self.list_cached_networks()}
-
             networks = self._list_networks()
+            for network in networks:
+                network.ctl.list_subnets()
 
         if amqp_owner_listening(self.cloud.owner.id):
-            networks_dict = [n.as_dict() for n in networks]
-            if cached_networks and networks_dict:
+            # Publish patches to rabbitmq.
+            new_networks = {'%s-%s' % (n.id, n.network_id): n.as_dict()
+                            for n in networks}
+            # Exclude last seen and probe field
+            if cached_networks or new_networks:
                 # Publish patches to rabbitmq.
-                new_networks = {'%s' % n['id']: n for n in networks_dict}
                 patch = jsonpatch.JsonPatch.from_diff(cached_networks,
                                                       new_networks).patch
                 if patch:
@@ -256,13 +262,6 @@ class BaseNetworkController(BaseController):
                                       routing_key='patch_networks',
                                       data={'cloud_id': self.cloud.id,
                                             'patch': patch})
-            else:
-                # TODO: remove this block, once patches
-                # are implemented in the UI
-                amqp_publish_user(self.cloud.owner.id,
-                                  routing_key='list_networks',
-                                  data={'cloud_id': self.cloud.id,
-                                        'networks': networks_dict})
         return networks
 
     @LibcloudExceptionHandler(mist.api.exceptions.NetworkListingError)
@@ -479,6 +478,16 @@ class BaseNetworkController(BaseController):
 
         return subnets
 
+    def list_cached_subnets(self, network):
+        """Returns subnets stored in database
+        for a specific network
+        """
+        assert self.cloud == network.cloud
+        # FIXME: Move these imports to the top of the file when circular
+        # import issues are resolved
+        from mist.api.networks.models import Subnet
+        return Subnet.objects(network=network, missing_since=None)
+
     def _list_subnets__fetch_subnets(self, network):
         """Fetches a list of subnets.
 
@@ -546,6 +555,9 @@ class BaseNetworkController(BaseController):
 
         libcloud_network = self._get_libcloud_network(network)
         self._delete_network(network, libcloud_network)
+        self.list_networks()
+        from mist.api.poller.models import ListNetworksPollingSchedule
+        ListNetworksPollingSchedule.add(cloud=self.cloud, interval=10, ttl=120)
 
     def _delete_network(self, network, libcloud_network):
         """Performs the libcloud call that handles network deletion.
@@ -575,6 +587,8 @@ class BaseNetworkController(BaseController):
 
         libcloud_subnet = self._get_libcloud_subnet(subnet)
         self._delete_subnet(subnet, libcloud_subnet)
+        from mist.api.poller.models import ListNetworksPollingSchedule
+        ListNetworksPollingSchedule.add(cloud=self.cloud, interval=10, ttl=120)
 
     def _delete_subnet(self, subnet, libcloud_subnet):
         """Performs the libcloud call that handles subnet deletion.

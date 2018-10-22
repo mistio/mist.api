@@ -99,14 +99,12 @@ class Network(OwnershipMixin, me.Document):
                       description=description)
         if id:
             network.id = id
-        network.ctl.create(**kwargs)
-        return network
+        return network.ctl.create(**kwargs)
 
     @property
     def tags(self):
         """Return the tags of this network."""
-        return [{'key': tag.key,
-                 'value': tag.value} for tag in Tag.objects(resource=self)]
+        return {tag.key: tag.value for tag in Tag.objects(resource=self)}
 
     def clean(self):
         """Checks the CIDR to determine if it maps to a valid IPv4 network."""
@@ -128,6 +126,8 @@ class Network(OwnershipMixin, me.Document):
         """Returns the API representation of the `Network` object."""
         net_dict = {
             'id': self.id,
+            'subnets': {s.id: s.as_dict() for s
+                        in Subnet.objects(network=self, missing_since=None)},
             'cloud': self.cloud.id,
             'network_id': self.network_id,
             'name': self.name,
@@ -279,14 +279,12 @@ class Subnet(me.Document):
                      description=description)
         if id:
             subnet.id = id
-        subnet.ctl.create(**kwargs)
-        return subnet
+        return subnet.ctl.create(**kwargs)
 
     @property
     def tags(self):
         """Return the tags of this subnet."""
-        return [{'key': tag.key,
-                 'value': tag.value} for tag in Tag.objects(resource=self)]
+        return {tag.key: tag.value for tag in Tag.objects(resource=self)}
 
     def clean(self):
         """Checks the CIDR to determine if it maps to a valid IPv4 network."""
