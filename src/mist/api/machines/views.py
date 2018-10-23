@@ -652,7 +652,7 @@ def machine_actions(request):
     actions = ('start', 'stop', 'reboot', 'destroy', 'resize',
                'rename', 'undefine', 'suspend', 'resume', 'remove',
                'list_snapshots', 'create_snapshot', 'remove_snapshot',
-               'revert_to_snapshot')
+               'revert_to_snapshot', 'clone')
 
     if action not in actions:
         raise BadRequestError("Action '%s' should be "
