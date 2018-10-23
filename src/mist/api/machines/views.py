@@ -675,7 +675,8 @@ def machine_actions(request):
                'rename', 'undefine', 'suspend', 'resume', 'remove',
                'list_snapshots', 'create_snapshot', 'remove_snapshot',
                'revert_to_snapshot', 'power_reset', 'upload_firmware',
-               'put_firmware', 'delete_firmware', 'backup_firmware')
+               'put_firmware', 'delete_firmware', 'backup_firmware',
+               'clone')
 
     if action not in actions:
         raise BadRequestError("Action '%s' should be "
