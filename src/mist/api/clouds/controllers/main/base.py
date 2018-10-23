@@ -361,6 +361,7 @@ class BaseMainController(object):
         from mist.api.poller.models import ListNetworksPollingSchedule
         from mist.api.poller.models import ListLocationsPollingSchedule
         from mist.api.poller.models import ListSizesPollingSchedule
+        from mist.api.poller.models import ListZonesPollingSchedule
         from mist.api.poller.models import ListVolumesPollingSchedule
 
         # Add machines' polling schedule.
@@ -369,6 +370,10 @@ class BaseMainController(object):
         # Add networks' polling schedule, if applicable.
         if hasattr(self.cloud.ctl, 'network'):
             ListNetworksPollingSchedule.add(cloud=self.cloud)
+
+        # Add zones' polling schedule, if applicable.
+        if hasattr(self.cloud.ctl, 'dns') and self.cloud.dns_enabled:
+            ListZonesPollingSchedule.add(cloud=self.cloud)
 
         # Add volumes' polling schedule, if applicable.
         if hasattr(self.cloud.ctl, 'storage'):

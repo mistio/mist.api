@@ -31,9 +31,10 @@ from mist.api.helpers import get_temp_file
 
 from mist.api.methods import connect_provider
 from mist.api.networks.methods import list_networks
-from mist.api.tag.methods import resolve_id_and_set_tags
 
 from mist.api.monitoring.methods import disable_monitoring
+
+from mist.api.tag.methods import resolve_id_and_set_tags
 
 from mist.api import config
 
@@ -275,6 +276,9 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                             ram=0, disk=0, bandwidth=0,
                             price=0, driver=conn)
 
+    cached_machines = [m.as_dict()
+                       for m in cloud.ctl.compute.list_cached_machines()]
+
     if conn.type is Container_Provider.DOCKER:
         if public_key:
             node = _create_machine_docker(
@@ -440,28 +444,27 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     else:
         raise BadRequestError("Provider unknown.")
 
-    if key is not None:
-        # we did this change because there was race condition with
-        # list_machines
-        try:
-            machine = Machine(cloud=cloud, machine_id=node.id).save()
-            # Since this is the first time the new Machine object is persisted
-            # to mongodb, we need to also update the mappings. We cannot rely
-            # on list_machines, since the node will not be treated as seen for
-            # the first time and thus will not trigger an update.
-            machine.owner.mapper.update(machine)
-        except me.NotUniqueError:
-            machine = Machine.objects.get(cloud=cloud, machine_id=node.id)
+    try:
+        machine = Machine.objects.get(cloud=cloud, machine_id=node.id)
+    except me.DoesNotExist:
+        cloud.ctl.compute._list_machines()
+        machine = Machine.objects.get(cloud=cloud, machine_id=node.id)
 
-        # Assign machine's owner/creator.
-        machine.assign_to(auth_context.user)
+    # Assign machine's owner/creator
+    machine.assign_to(auth_context.user)
 
-        # Associate key.
+    if key is not None:  # Associate key.
         username = node.extra.get('username', '')
         machine.ctl.associate_key(key, username=username,
                                   port=ssh_port, no_connect=True)
+    if tags:
+        resolve_id_and_set_tags(auth_context. owner, 'machine', node.id, tags,
+                                cloud_id=cloud_id)
+    fresh_machines = cloud.ctl.compute.list_cached_machines()
+    cloud.ctl.compute.produce_and_publish_patch(cached_machines,
+                                                fresh_machines)
 
-    # Call post_deploy_steps for every provider
+    # Call post_deploy_steps for every provider FIXME: Refactor
     if conn.type == Provider.AZURE:
         # for Azure, connect with the generated password, deploy the ssh key
         # when this is ok, it calls post_deploy for script/monitoring
@@ -495,10 +498,10 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             script_id=script_id, script_params=script_params,
             job_id=job_id, job=job, hostname=hostname, plugins=plugins,
             post_script_id=post_script_id,
-            post_script_params=post_script_params, schedule=schedule
+            post_script_params=post_script_params, schedule=schedule,
         )
 
-    elif key_id:
+    else:
         mist.api.tasks.post_deploy_steps.delay(
             auth_context.owner.id, cloud_id, node.id, monitoring,
             script=script, key_id=key_id, script_id=script_id,
@@ -506,10 +509,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             hostname=hostname, plugins=plugins, post_script_id=post_script_id,
             post_script_params=post_script_params, schedule=schedule,
         )
-
-    if tags:
-        resolve_id_and_set_tags(auth_context.owner, 'machine', node.id, tags,
-                                cloud_id=cloud_id)
 
     ret = {'id': node.id,
            'name': node.name,
@@ -1019,10 +1018,20 @@ def _create_machine_libvirt(conn, machine_name, disk_size, ram, cpu,
         networks = [networks]
     network_names = []
     for nid in (networks or []):
+        if isinstance(nid, dict):
+            network_id = nid.get('network_id', '')
+        else:
+            network_id = nid
         try:
-            network_names.append(LibvirtNetwork.objects.get(id=nid).name)
+            network_name = LibvirtNetwork.objects.get(id=network_id).name
         except LibvirtNetwork.DoesNotExist:
             log.error('LibvirtNetwork %s does not exist' % nid)
+        else:
+            if isinstance(nid, dict):
+                nid.update({'network_name': network_name})
+                network_names.append(nid)
+            else:
+                network_names.append(network_name)
 
     try:
         node = conn.create_node(

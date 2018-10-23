@@ -185,21 +185,24 @@ class BaseNetworkController(BaseController):
         # Cloud-specific kwargs processing.
         self._create_subnet__prepare_args(subnet, kwargs)
 
+        # Increase network polling frequency
+        from mist.api.poller.models import ListNetworksPollingSchedule
+        ListNetworksPollingSchedule.add(cloud=self.cloud, interval=10, ttl=120)
+
         # Create the subnet.
         libcloud_subnet = self._create_subnet(kwargs)
 
-        try:
-            subnet.subnet_id = libcloud_subnet.id
-            subnet.save()
-        except mongoengine.errors.ValidationError as exc:
-            log.error("Error saving %s: %s", subnet, exc.to_dict())
-            raise mist.api.exceptions.NetworkCreationError(exc.message)
-        except mongoengine.errors.NotUniqueError as exc:
-            log.error("Subnet %s is not unique: %s", subnet.name, exc)
-            raise mist.api.exceptions.SubnetExistsError()
-        from mist.api.poller.models import ListNetworksPollingSchedule
-        ListNetworksPollingSchedule.add(cloud=self.cloud, interval=10, ttl=120)
-        return subnet
+        # Invoke `self.list_networks` to update the UI and return the Network
+        # object at the API. Try 3 times before failing
+        from mist.api.networks.models import Subnet
+        for _ in range(3):
+            for n in self.list_networks():
+                if n.network_id == subnet.network.network_id:
+                    for s in Subnet.objects(network=n, missing_since=None):
+                        if s.subnet_id == libcloud_subnet.id:
+                            return s
+            time.sleep(1)
+        raise mist.api.exceptions.SubnetListingError()
 
     def _create_subnet(self, kwargs):
         """Performs the libcloud call that handles subnet creation.
@@ -239,7 +242,7 @@ class BaseNetworkController(BaseController):
         task = PeriodicTaskInfo.get_or_add(task_key)
         with task.task_runner(persist=persist):
             # Get cached networks as dict
-            cached_networks = {n.network_id: n.as_dict()
+            cached_networks = {'%s-%s' % (n.id, n.network_id): n.as_dict()
                                for n in self.list_cached_networks()}
             networks = self._list_networks()
             for network in networks:
@@ -247,10 +250,10 @@ class BaseNetworkController(BaseController):
 
         if amqp_owner_listening(self.cloud.owner.id):
             # Publish patches to rabbitmq.
-            new_networks = {n.network_id: n.as_dict()
+            new_networks = {'%s-%s' % (n.id, n.network_id): n.as_dict()
                             for n in networks}
             # Exclude last seen and probe field
-            if cached_networks and new_networks:
+            if cached_networks or new_networks:
                 # Publish patches to rabbitmq.
                 patch = jsonpatch.JsonPatch.from_diff(cached_networks,
                                                       new_networks).patch

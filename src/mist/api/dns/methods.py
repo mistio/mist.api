@@ -1,7 +1,6 @@
 from mist.api.clouds.models import Cloud
-from mist.api.tag.methods import get_tags_for_resource
 
-from mist.api.exceptions import PolicyUnauthorizedError
+from mist.api.exceptions import PolicyUnauthorizedError, CloudNotFoundError
 
 from mist.api import config
 
@@ -13,64 +12,50 @@ logging.basicConfig(level=config.PY_LOG_LEVEL,
 log = logging.getLogger(__name__)
 
 
-def list_zones(owner, cloud_id):
-    """List zones returning all zones for an owner"""
+def list_zones(owner, cloud_id, cached=False):
+    """List the zones of the specified cloud"""
     try:
         cloud = Cloud.objects.get(owner=owner, id=cloud_id)
     except Cloud.DoesNotExist:
+        raise CloudNotFoundError()
+
+    if not hasattr(cloud.ctl, 'dns') or not cloud.dns_enabled:
         return []
-    log.warn('Running list zones for user %s, cloud %s', owner.id, cloud.id)
-    if not hasattr(cloud.ctl, 'dns'):
-        return []
+
+    if cached:
+        zones = cloud.ctl.dns.list_cached_zones()
     else:
-        zones_ret = []
         zones = cloud.ctl.dns.list_zones()
-        for zone in zones:
-            zone_dict = zone.as_dict()
-            zone_dict['records'] = list_records(owner, zone)
-            zone_dict['tags'] = get_tags_for_resource(owner, zone)
-            zones_ret.append(zone_dict)
-    log.warn('Returning list zones for user %s, cloud %s', owner.id, cloud.id)
-    return zones_ret
+
+    return [z.as_dict() for z in zones]
 
 
-def filter_list_zones(auth_context, cloud_id, zones=None, perm='read'):
-    """List zone entries based on the permissions granted to the user."""
-
+def filter_list_zones(auth_context, cloud_id, zones=None, perm='read',
+                      cached=False):
+    """Filter the zones of the specific cloud based on the RBAC policy"""
     if zones is None:
-        zones = list_zones(auth_context.owner, cloud_id)
-    if not zones:  # Exit early in case the cloud provider returned 0 zones.
-        return {'cloud_id': cloud_id, 'zones': []}
-    if not auth_context.is_owner():
-        return_zones = []
-        try:
-            auth_context.check_perm('cloud', 'read', cloud_id)
-        except PolicyUnauthorizedError:
-            return {'cloud_id': cloud_id, 'zones': []}
-        allowed_zones = set(auth_context.get_allowed_resources(rtype='zones'))
-        allowed_records = set(
-            auth_context.get_allowed_resources(rtype='records'))
-        for zone in zones:
-            if zone['id'] in allowed_zones:
-                for idx in reversed(range(len(zone['records']))):
-                    if zone['records'][idx]['id'] not in allowed_records:
-                        zone['records'].pop(idx)
-                return_zones.append(zone)
-        zones = return_zones
-    return {'cloud_id': cloud_id, 'zones': zones}
+        zones = list_zones(auth_context.owner, cloud_id, cached=cached)
+    if auth_context.is_owner():
+        return zones
+    else:
+        allowed_resources = auth_context.get_allowed_resources(perm)
+        if cloud_id not in allowed_resources['clouds']:
+            return []
+        filtered = []
+        for z in zones:
+            if z['id'] in allowed_resources['zones']:
+                for idx in reversed(range(len(z['records']))):
+                    if z['records'][idx]['id'] not in \
+                            allowed_resources['records']:
+                        z['records'].pop(idx)
+                filtered.append(z)
+        return filtered
 
 
-def list_records(owner, zone):
+def list_records(owner, zone, cached=False):
     """List records returning all records for an owner"""
-    log.warn('Running list records for user %s, zone %s', owner.id, zone.id)
-    recs = []
-    records = zone.ctl.list_records()
-    for record in records:
-        record_dict = record.as_dict()
-        record_dict['tags'] = get_tags_for_resource(owner, record)
-        recs.append(record_dict)
-    log.warn('Returning list records for user %s, zone %s', owner.id, zone.id)
-    return recs
+    records = zone.ctl.list_records(cached=cached)
+    return [r.as_dict() for r in records]
 
 
 def filter_list_records(auth_context, zone, records=None, perm='read'):

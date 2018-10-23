@@ -1464,6 +1464,7 @@ class LibvirtComputeController(BaseComputeController):
             for action in ('start', 'stop', 'destroy', 'rename'):
                 setattr(machine.actions, action, False)
         else:
+            machine.actions.clone = True
             machine.actions.undefine = True
             if machine_libcloud.state is NodeState.TERMINATED:
                 # In libvirt a terminated machine can be started.
@@ -1518,6 +1519,9 @@ class LibvirtComputeController(BaseComputeController):
         if machine.extra.get('active'):
             raise BadRequestError('Cannot undefine an active domain')
         self.connection.ex_undefine_node(machine_libcloud)
+
+    def _clone_machine(self, machine, machine_libcloud, name, resume):
+        self.connection.ex_clone_node(machine_libcloud, name, resume)
 
     def _list_sizes__get_cpu(self, size):
         return size.extra.get('cpu')

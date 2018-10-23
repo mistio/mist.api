@@ -200,38 +200,14 @@ class BaseComputeController(BaseController):
         task = PeriodicTaskInfo.get_or_add(task_key)
         try:
             with task.task_runner(persist=persist):
-                old_machines = {'%s-%s' % (m.id, m.machine_id): m.as_dict()
-                                for m in self.list_cached_machines()}
+                cached_machines = [m.as_dict()
+                                   for m in self.list_cached_machines()]
                 machines = self._list_machines()
         except PeriodicTaskThresholdExceeded:
             self.cloud.ctl.disable()
             raise
 
-        if amqp_owner_listening(self.cloud.owner.id):
-            if not config.MACHINE_PATCHES:
-                amqp_publish_user(self.cloud.owner.id,
-                                  routing_key='list_machines',
-                                  data={'cloud_id': self.cloud.id,
-                                        'machines': [machine.as_dict()
-                                                     for machine in machines]})
-            else:
-                # Publish patches to rabbitmq.
-                new_machines = {'%s-%s' % (m.id, m.machine_id): m.as_dict()
-                                for m in machines}
-                # Exclude last seen and probe fields from patch.
-                for md in old_machines, new_machines:
-                    for m in md.values():
-                        m.pop('last_seen')
-                        m.pop('probe')
-                        if m.get('extra') and m['extra'].get('ports'):
-                            m['extra']['ports'] = sorted(m['extra']['ports'])
-                patch = jsonpatch.JsonPatch.from_diff(old_machines,
-                                                      new_machines).patch
-                if patch:
-                    amqp_publish_user(self.cloud.owner.id,
-                                      routing_key='patch_machines',
-                                      data={'cloud_id': self.cloud.id,
-                                            'patch': patch})
+        self.produce_and_publish_patch(cached_machines, machines)
 
         # Push historic information for inventory and cost reporting.
         for machine in machines:
@@ -242,6 +218,29 @@ class BaseComputeController(BaseController):
                          auto_delete=False, data=data)
 
         return machines
+
+    def produce_and_publish_patch(self, cached_machines, fresh_machines):
+        if not amqp_owner_listening(self.cloud.owner.id):
+            return
+
+        old_machines = {'%s-%s' % (m['id'], m['machine_id']): m
+                        for m in cached_machines}
+        new_machines = {'%s-%s' % (m.id, m.machine_id): m.as_dict()
+                        for m in fresh_machines}
+        # Exclude last seen and probe fields from patch.
+        for md in old_machines, new_machines:
+            for m in md.values():
+                m.pop('last_seen')
+                m.pop('probe')
+                if m.get('extra') and m['extra'].get('ports'):
+                    m['extra']['ports'] = sorted(m['extra']['ports'])
+        patch = jsonpatch.JsonPatch.from_diff(old_machines,
+                                              new_machines).patch
+        if patch:  # Publish patches to rabbitmq.
+            amqp_publish_user(self.cloud.owner.id,
+                              routing_key='patch_machines',
+                              data={'cloud_id': self.cloud.id,
+                                    'patch': patch})
 
     def _list_machines(self):
         """Core logic of list_machines method
@@ -1059,7 +1058,7 @@ class BaseComputeController(BaseController):
         The param `machine` must be an instance of a machine model of this
         cloud.
 
-        Not that the usual way to start a machine would be to run
+        Note that the usual way to start a machine would be to run
 
             machine.ctl.start()
 
@@ -1093,7 +1092,7 @@ class BaseComputeController(BaseController):
             machine: instance of machine model of this cloud
             machine_libcloud: instance of corresponding libcloud node
 
-        Differnent cloud controllers should override this private method, which
+        Different cloud controllers should override this private method, which
         is called by the public method `start_machine`.
         """
         return self.connection.ex_start_node(machine_libcloud)
@@ -1104,7 +1103,7 @@ class BaseComputeController(BaseController):
         The param `machine` must be an instance of a machine model of this
         cloud.
 
-        Not that the usual way to stop a machine would be to run
+        Note that the usual way to stop a machine would be to run
 
             machine.ctl.stop()
 
@@ -1138,7 +1137,7 @@ class BaseComputeController(BaseController):
             machine: instance of machine model of this cloud
             machine_libcloud: instance of corresponding libcloud node
 
-        Differnent cloud controllers should override this private method, which
+        Different cloud controllers should override this private method, which
         is called by the public method `stop_machine`.
         """
         return self.connection.ex_stop_node(machine_libcloud)
@@ -1149,7 +1148,7 @@ class BaseComputeController(BaseController):
         The param `machine` must be an instance of a machine model of this
         cloud.
 
-        Not that the usual way to reboot a machine would be to run
+        Note that the usual way to reboot a machine would be to run
 
             machine.ctl.reboot()
 
@@ -1183,7 +1182,7 @@ class BaseComputeController(BaseController):
             machine: instance of machine model of this cloud
             machine_libcloud: instance of corresponding libcloud node
 
-        Differnent cloud controllers should override this private method, which
+        Different cloud controllers should override this private method, which
         is called by the public method `reboot_machine`.
         """
         return machine_libcloud.reboot()
@@ -1215,7 +1214,7 @@ class BaseComputeController(BaseController):
         The param `machine` must be an instance of a machine model of this
         cloud.
 
-        Not that the usual way to destroy a machine would be to run
+        Note that the usual way to destroy a machine would be to run
 
             machine.ctl.destroy()
 
@@ -1255,7 +1254,7 @@ class BaseComputeController(BaseController):
             machine: instance of machine model of this cloud
             machine_libcloud: instance of corresponding libcloud node
 
-        Differnent cloud controllers should override this private method, which
+        Different cloud controllers should override this private method, which
         is called by the public method `destroy_machine`.
         """
         try:
@@ -1275,7 +1274,7 @@ class BaseComputeController(BaseController):
         The param `machine` must be an instance of a machine model of this
         cloud.
 
-        Not that the usual way to resize a machine would be to run
+        Note that the usual way to resize a machine would be to run
 
             machine.ctl.resize(size_id)
 
@@ -1320,7 +1319,7 @@ class BaseComputeController(BaseController):
             machine: instance of machine model of this cloud
             machine_libcloud: instance of corresponding libcloud node
 
-        Differnent cloud controllers should override this private method, which
+        Different cloud controllers should override this private method, which
         is called by the public method `resize_machine`.
         """
         self.connection.ex_resize_node(machine_libcloud, node_size)
@@ -1331,7 +1330,7 @@ class BaseComputeController(BaseController):
         The param `machine` must be an instance of a machine model of this
         cloud.
 
-        Not that the usual way to rename a machine would be to run
+        Note that the usual way to rename a machine would be to run
 
             machine.ctl.rename(name)
 
@@ -1365,7 +1364,7 @@ class BaseComputeController(BaseController):
             machine: instance of machine model of this cloud
             machine_libcloud: instance of corresponding libcloud node
 
-        Differnent cloud controllers should override this private method, which
+        Different cloud controllers should override this private method, which
         is called by the public method `rename_machine`.
         """
         self.connection.ex_rename_node(machine_libcloud, name)
@@ -1376,7 +1375,7 @@ class BaseComputeController(BaseController):
         The param `machine` must be an instance of a machine model of this
         cloud.
 
-        Not that the usual way to resume a machine would be to run
+        Note that the usual way to resume a machine would be to run
 
             machine.ctl.resume()
 
@@ -1412,7 +1411,7 @@ class BaseComputeController(BaseController):
             machine: instance of machine model of this cloud
             machine_libcloud: instance of corresponding libcloud node
 
-        Differnent cloud controllers should override this private method, which
+        Different cloud controllers should override this private method, which
         is called by the public method `resume_machine`.
         """
         raise NotImplementedError()
@@ -1423,7 +1422,7 @@ class BaseComputeController(BaseController):
         The param `machine` must be an instance of a machine model of this
         cloud.
 
-        Not that the usual way to suspend a machine would be to run
+        Note that the usual way to suspend a machine would be to run
 
             machine.ctl.suspend()
 
@@ -1459,7 +1458,7 @@ class BaseComputeController(BaseController):
             machine: instance of machine model of this cloud
             machine_libcloud: instance of corresponding libcloud node
 
-        Differnent cloud controllers should override this private method, which
+        Different cloud controllers should override this private method, which
         is called by the public method `suspend_machine`.
         """
         raise NotImplementedError()
@@ -1470,7 +1469,7 @@ class BaseComputeController(BaseController):
         The param `machine` must be an instance of a machine model of this
         cloud.
 
-        Not that the usual way to undefine a machine would be to run
+        Note that the usual way to undefine a machine would be to run
 
             machine.ctl.undefine()
 
@@ -1518,7 +1517,7 @@ class BaseComputeController(BaseController):
         The param `machine` must be an instance of a machine model of this
         cloud.
 
-        Not that the usual way to undefine a machine would be to run
+        Note that the usual way to undefine a machine would be to run
 
             machine.ctl.create_snapshot()
 
@@ -1575,7 +1574,7 @@ class BaseComputeController(BaseController):
         The param `machine` must be an instance of a machine model of this
         cloud.
 
-        Not that the usual way to undefine a machine would be to run
+        Note that the usual way to undefine a machine would be to run
 
             machine.ctl.remove_snapshot()
 
@@ -1626,7 +1625,7 @@ class BaseComputeController(BaseController):
         The param `machine` must be an instance of a machine model of this
         cloud.
 
-        Not that the usual way to undefine a machine would be to run
+        Note that the usual way to undefine a machine would be to run
 
             machine.ctl.revert_to_snapshot()
 
@@ -1678,7 +1677,7 @@ class BaseComputeController(BaseController):
         The param `machine` must be an instance of a machine model of this
         cloud.
 
-        Not that the usual way to undefine a machine would be to run
+        Note that the usual way to undefine a machine would be to run
 
             machine.ctl.list_snapshots()
 
@@ -1718,13 +1717,64 @@ class BaseComputeController(BaseController):
         """
         raise NotImplementedError()
 
+    def clone_machine(self, machine, name=None, resume=False):
+        """Clone machine
+
+        The param `machine` must be an instance of a machine model of this
+        cloud.
+
+        Note that the usual way to undefine a machine would be to run
+
+            machine.ctl.clone()
+
+        which would in turn call this method, so that its cloud can customize
+        it as needed.
+
+        If a subclass of this controller wishes to override the way machines
+        are undefineed, it should override `_clone_machine` method instead.
+
+        """
+        assert self.cloud == machine.cloud
+        if not machine.actions.clone:
+            raise ForbiddenError("Machine doesn't support clone.")
+
+        log.debug("Cloning %s", machine)
+
+        machine_libcloud = self._get_machine_libcloud(machine)
+        try:
+            self._clone_machine(machine, machine_libcloud, name, resume)
+        except MistError as exc:
+            log.error("Failed to clone %s", machine)
+            raise
+        except Exception as exc:
+            log.exception(exc)
+            raise InternalServerError(exc=exc)
+
+    def _clone_machine(self, machine, machine_libcloud, name=None,
+                       resume=False):
+        """Private method to clone a given machine
+
+        Only LibvirtComputeController subclass implements this method.
+
+        Params:
+            machine: instance of machine model of this cloud
+            machine_libcloud: instance of corresponding libcloud node
+            name: the clone's unique name
+            resume: denotes whether to resume the original node
+
+        Different cloud controllers should override this private method,
+        which is called by the public method `clone_machine`.
+
+        """
+        raise NotImplementedError()
+
     def upload_firmware(self, machine, firmware_zip):
         """Upload a new firmware zip file to  an iLO host
 
         The param `machine` must be an instance of a machine model of this
         cloud.
 
-        Not that the usual way to invoke that would be to run
+        Note that the usual way to invoke that would be to run
 
             machine.ctl.upload_firmware(firmware_zip)
 
@@ -1772,7 +1822,7 @@ class BaseComputeController(BaseController):
         The param `machine` must be an instance of a machine model of this
         cloud.
 
-        Not that the usual way to invoke that would be to run
+        Note that the usual way to invoke that would be to run
 
             machine.ctl.put_firmware(firmware_id)
 
@@ -1820,7 +1870,7 @@ class BaseComputeController(BaseController):
         The param `machine` must be an instance of a machine model of this
         cloud.
 
-        Not that the usual way to invoke that would be to run
+        Note that the usual way to invoke that would be to run
 
             machine.ctl.delete_firmware(firmware_id)
 
@@ -1868,7 +1918,7 @@ class BaseComputeController(BaseController):
         The param `machine` must be an instance of a machine model of this
         cloud.
 
-        Not that the usual way to invoke that would be to run
+        Note that the usual way to invoke that would be to run
 
             machine.ctl.backup_firmware()
 
@@ -1914,7 +1964,7 @@ class BaseComputeController(BaseController):
         The param `machine` must be an instance of a machine model of this
         cloud.
 
-        Not that the usual way to invoke that would be to run
+        Note that the usual way to invoke that would be to run
 
             machine.ctl.power_reset(reset_type)
 

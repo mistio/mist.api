@@ -111,12 +111,10 @@ def create_network(request):
     if not hasattr(cloud.ctl, 'network'):
         raise NotImplementedError()
 
-    # Create a DB document for the new network and call libcloud to declare
-    # it on the cloud provider
+    # Create the new network
     network = NETWORKS[cloud.ctl.provider].add(cloud=cloud, **network_params)
     network.assign_to(auth_context.user)
 
-    network_dict = network.as_dict()
     if tags:
         add_tags_to_resource(auth_context.owner, network, tags)
 
@@ -126,8 +124,7 @@ def create_network(request):
         try:
             # Create a DB document for the new subnet and call libcloud to
             # declare it on the cloud provider
-            subnet = SUBNETS[cloud.ctl.provider].add(network=network,
-                                                     **subnet_params)
+            SUBNETS[cloud.ctl.provider].add(network=network, **subnet_params)
         except Exception as exc:
             # Cleaning up the network object in case subnet creation fails
             # for any reason
@@ -135,9 +132,7 @@ def create_network(request):
             network.delete()
             raise exc
 
-        network_dict['subnet'] = subnet.as_dict()
-
-    return network_dict
+    return network.as_dict()
 
 
 @view_config(route_name='api_v1_network', request_method='DELETE')
