@@ -697,7 +697,7 @@ def get_multi_uuid(uuids, target, start="", stop="", interval_str=""):
               ('from', start or None),
               ('until', stop or None),
               ('format', 'json')]
-    resp = requests.get('%s/render' % config.GRAPHITE_URI, params=params)
+    resp = requests.post('%s/render' % config.GRAPHITE_URI, data=params)
     if not resp.ok:
         log.error(resp.text)
         raise Exception(str(resp))

@@ -11,10 +11,13 @@ class ZoneController(object):
         """Create a zone under the specific cloud"""
         return self.zone.cloud.ctl.dns.create_zone(self.zone, **kwargs)
 
-    def list_records(self):
+    def list_records(self, cached=False):
         """Wrapper for the DNS cloud controller list_records() functionality
         """
-        return self.zone.cloud.ctl.dns.list_records(self.zone)
+        if cached:
+            return self.zone.cloud.ctl.dns.list_cached_records(self.zone)
+        else:
+            return self.zone.cloud.ctl.dns.list_records(self.zone)
 
     def delete_zone(self):
         """Wrapper for the DNS cloud controller delete_zone() functionality
@@ -31,8 +34,8 @@ class RecordController(object):
     def create_record(self, **kwargs):
         """Wrapper for the DNS cloud controller create_record() functionality
         """
-        return self.record.zone.cloud.ctl.dns.create_record(self.record,
-                                                            **kwargs)
+        return self.record.zone.cloud.ctl.dns.create_record(
+            self.record, **kwargs)
 
     def delete_record(self):
         """Wrapper for the delete_record DNSController functionality."""

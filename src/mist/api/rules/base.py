@@ -20,7 +20,7 @@ from mist.api.rules.models import NoDataAction
 
 from mist.api.conditions.models import FieldCondition
 from mist.api.conditions.models import TaggingCondition
-from mist.api.conditions.models import MachinesCondition
+from mist.api.conditions.models import GenericResourceCondition
 
 if config.HAS_RBAC:
     from mist.rbac.methods import AuthContext
@@ -33,7 +33,14 @@ log = logging.getLogger(__name__)
 
 CONDITIONS = {
     'tags': TaggingCondition,
-    'machines': MachinesCondition,
+    'machines': GenericResourceCondition,  # FIXME For backwards compatibility.
+    'resources': GenericResourceCondition,
+}
+
+TIMEPERIOD = {
+    'window': Window,
+    'frequency': Frequency,
+    'trigger_after': TriggerOffset,
 }
 
 
@@ -111,8 +118,7 @@ class BaseController(object):
             self.rule.actions = []
         for action in kwargs.pop('actions', []):
             if action.get('type') not in ACTIONS:
-                raise BadRequestError('Action type must be one of %s' %
-                                      ' | '.join(ACTIONS.keys()))
+                raise BadRequestError('Action must be in %s' % ACTIONS.keys())
             try:
                 action_cls = ACTIONS[action.pop('type')]()
                 action_cls.update(fail_on_error=fail_on_error, **action)
@@ -152,20 +158,15 @@ class BaseController(object):
             self.rule.queries.append(cond)
 
         # Update time parameters.
-        doc_classes = {
-            'window': Window,
-            'frequency': Frequency,
-            'trigger_after': TriggerOffset,
-        }
         for field, params in kwargs.iteritems():
-            if field not in doc_classes:
+            if field not in TIMEPERIOD:
                 log.error('%s found unsupported key "%s"',
                           self.__class__.__name__, field)
                 if fail_on_error:
                     raise BadRequestError('Unsupported field "%s"' % field)
                 continue
             try:
-                doc_cls = doc_classes[field]()
+                doc_cls = TIMEPERIOD[field]()
                 doc_cls.update(**params)
             except me.ValidationError as err:
                 raise BadRequestError({'msg': err.message,
@@ -177,7 +178,7 @@ class BaseController(object):
             self.rule._backend_plugin.validate(self.rule)
         except AssertionError as err:
             log.error('%s: %r', type(self.rule._backend_plugin), err)
-            raise BadRequestError('Validation failed for %s' % self.rule)
+            raise BadRequestError('%s is invalid: %s' % (self.rule, err))
 
         # Attempt to save self.rule.
         try:
@@ -278,24 +279,25 @@ class ArbitraryRuleController(BaseController):
             raise BadRequestError('Selectors may not be specified for '
                                   'arbitrary rules. Filtering is meant '
                                   'to be included as part of the query.')
-        super(ArbitraryRuleController, self).update(
-            fail_on_error=fail_on_error, **kwargs)
+        super(ArbitraryRuleController, self).update(fail_on_error, **kwargs)
 
 
 class ResourceRuleController(BaseController):
+
+    def add(self, fail_on_error=True, **kwargs):
+        self.rule.resource_model_name = kwargs.pop('resource_type', None)
+        super(ResourceRuleController, self).add(fail_on_error, **kwargs)
 
     def update(self, fail_on_error=True, **kwargs):
         if 'selectors' in kwargs:
             self.rule.conditions = []
         for condition in kwargs.pop('selectors', []):
             if condition.get('type') not in CONDITIONS:
-                raise BadRequestError('Selector type must be one of %s' %
-                                      ' | '.join(CONDITIONS.keys()))
+                raise BadRequestError('Selector not in %s' % CONDITIONS.keys())
             cond_cls = CONDITIONS[condition.pop('type')]()
             cond_cls.update(**condition)
             self.rule.conditions.append(cond_cls)
-        super(ResourceRuleController, self).update(
-            fail_on_error=fail_on_error, **kwargs)
+        super(ResourceRuleController, self).update(fail_on_error, **kwargs)
 
     def maybe_remove(self, resource):
         # The rule does not refer to resources of the given type.
@@ -305,7 +307,7 @@ class ResourceRuleController(BaseController):
         # Attempt to remove `resource` from any of the rule's conditions,
         # if `resource` is explicitly specified by its UUID.
         for condition in self.rule.conditions:
-            if isinstance(condition, MachinesCondition):
+            if isinstance(condition, GenericResourceCondition):
                 for i, rid in enumerate(condition.ids):
                     if rid == resource.id:
                         log.info('Removing %s from %s', resource, self.rule)
@@ -324,7 +326,7 @@ class ResourceRuleController(BaseController):
             return False
 
         # The rule does not refer to resources by their UUID.
-        if not isinstance(self.rule.conditions[0], MachinesCondition):
+        if not isinstance(self.rule.conditions[0], GenericResourceCondition):
             return False
 
         # The rule refers to multiple resources.
@@ -344,32 +346,37 @@ class ResourceRuleController(BaseController):
         if not self.rule.conditions:
             raise UnauthorizedError('Only Owners may edit global rules')
         for condition in self.rule.conditions:
-            # TODO Permissions checking shouldn't be limited to machines.
-            if not isinstance(condition, MachinesCondition):
+            if not isinstance(condition, GenericResourceCondition):
                 raise UnauthorizedError('Only Owners may edit rules on tags')
             for mid in condition.ids:
                 try:
                     Model = self.rule.condition_resource_cls
                     m = Model.objects.get(id=mid, owner=self.rule.owner_id)
                 except Model.DoesNotExist:
-                    raise NotFoundError(mid)
-                self.auth_context.check_perm('cloud', 'read', m.cloud.id)
-                self.auth_context.check_perm('machine', 'edit_rules', m.id)
+                    raise NotFoundError('%s %s' % (Model, mid))
+                read_perm = (
+                    'read' if self.rule._data_type_str == 'metrics' else
+                    'read_logs'  # For rules on logs.
+                )
+                for perm in (read_perm, 'edit_rules'):
+                    self.auth_context.check_perm(self.resource_model_name,
+                                                 perm, m.id)
 
 
 class NoDataRuleController(ResourceRuleController):
 
     def update(self, fail_on_error=True, **kwargs):
-        raise BadRequestError('NoData rules may not be editted')
+        if not all(key in TIMEPERIOD for key in kwargs):
+            log.error('%s got kwargs=%s', self.__class__.__name__, kwargs)
+            if fail_on_error:
+                raise BadRequestError('May only edit %s' % TIMEPERIOD.keys())
+        super(NoDataRuleController, self).update(fail_on_error, **kwargs)
 
     def delete(self):
         raise BadRequestError('NoData rules may not be deleted')
 
     def rename(self, title):
         raise BadRequestError('NoData rules may not be renamed')
-
-    def disable(self):
-        raise BadRequestError('NoData rules may not be disabled')
 
     def auto_setup(self, backend='graphite'):
         """Idempotently setup a NoDataRule."""
@@ -394,8 +401,10 @@ class NoDataRuleController(ResourceRuleController):
         # The rule's time window and frequency. These denote the maximum
         # time window for which we tolerate the absence of points before
         # raising an alert.
-        self.rule.window = Window(start=2, period='minutes')
-        self.rule.frequency = Frequency(every=2, period='minutes')
+        if not self.rule.window:
+            self.rule.window = Window(start=2, period='minutes')
+        if not self.rule.frequency:
+            self.rule.frequency = Frequency(every=2, period='minutes')
 
         # The rule's single action.
         self.rule.actions = [NoDataAction()]

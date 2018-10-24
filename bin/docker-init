@@ -16,7 +16,12 @@ if [ ! -e clean ]; then
     pip install -e $DIR/../libcloud/
     pip install -e $DIR/../celerybeat-mongo/
     pip install -e $DIR/../src/
-    pip install -r $DIR/../requirements.txt
+    set +e
+    diff /requirements-mist.api.txt $DIR/../requirements.txt
+    if [ $? -ne 0 ]; then
+        pip install -r $DIR/../requirements.txt
+    fi
+    set -e
     set +x
     for plugin in $($DIR/list-plugins 2>/dev/null); do
         echo "Will try to install plugin $plugin."

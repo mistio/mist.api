@@ -4,8 +4,9 @@ from pyramid.response import Response
 
 from mist.api.helpers import view_config
 from mist.api.helpers import get_datetime
+from mist.api.helpers import get_resource_model
 from mist.api.helpers import params_from_request
-from mist.api.methods import rule_triggered
+from mist.api.helpers import is_resource_missing
 
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import BadRequestError
@@ -14,13 +15,14 @@ from mist.api.exceptions import UnauthorizedError
 from mist.api.exceptions import RequiredParameterMissingError
 
 from mist.api.rules.models import Rule
-from mist.api.rules.models import MachineMetricRule
+from mist.api.rules.models import RULES
+from mist.api.rules.models import NoDataRule
+from mist.api.rules.methods import run_chained_actions
 
 from mist.api.auth.methods import auth_context_from_request
 
-from mist.api.machines.models import Machine
-
 from mist.api.notifications.models import Notification
+from mist.api.notifications.models import NoDataRuleTracker
 
 from mist.api import config
 
@@ -224,14 +226,28 @@ def add_rule(request):
     # Pyramid's `NestedMultiDict` is immutable.
     kwargs = dict(params.copy())
 
-    # FIXME Remove. Now there is a discrete API endpoint for updates.
-    if params.get('id'):
-        raise BadRequestError('POST to /api/v1/rules/<rule-id> for updates')
+    # If kwargs do not include a `selectors` key, then we assume that
+    # an arbitrary rule is defined. If a `selectors` list existed yet
+    # it was empty, then we would set up a resource-bound rule.
+    # FIXME This could also be defined explicitly in the request body.
+    arbitrary = 'selectors' not in kwargs
+
+    # The type of the requesting data, eg. metrics or logs. This helps
+    # as categorize our `Rule` subclasses better and pick the correct
+    # subclass when setting up a new rule.
+    data_type = kwargs.pop('data_type', 'metrics')
+
+    if data_type not in ('metrics', 'logs'):
+        raise BadRequestError('The data_type must be one of: metrics, logs')
+
+    # Get the proper Rule subclass.
+    rule_key = '%s-%s' % ('arbitrary' if arbitrary else 'resource', data_type)
+    rule_cls = RULES[rule_key]
 
     # Add new rule.
-    rule = MachineMetricRule.add(auth_context, **kwargs)
+    rule = rule_cls.add(auth_context, **kwargs)
 
-    # FIXME Keep this?
+    # Advance rule counter.
     auth_context.owner.rule_counter += 1
     auth_context.owner.save()
 
@@ -459,7 +475,6 @@ def triggered(request):
     keys = (
         'value',
         'incident',
-        'resource',
         'triggered',
         'triggered_now',
         'firing_since',
@@ -501,48 +516,47 @@ def triggered(request):
     triggered = int_to_bool(params['triggered'])
     triggered_now = int_to_bool(params['triggered_now'])
 
-    try:
-        machine = Machine.objects.get(id=resource_id)  # missing_since=None?
-    except Machine.DoesNotExist:
-        raise NotFoundError('Machine with id %s does not exist' % resource_id)
-
-    try:
-        machine.cloud.owner
-    except AttributeError:
-        raise NotFoundError('Machine with id %s does not exist' % resource_id)
-
-    if machine.cloud.deleted:
-        raise NotFoundError('Machine with id %s does not exist' % resource_id)
-
-    if machine.missing_since:
-        raise NotFoundError('Machine with id %s does not exist' % resource_id)
-
-    if machine.state == 'terminated':
-        raise NotFoundError('Machine with id %s is terminated' % resource_id)
-
-    if not machine.monitoring.hasmonitoring:
-        raise NotFoundError('%s does not have monitoring enabled' % machine)
-
-    try:
-        rule = Rule.objects.get(id=rule_id, owner_id=machine.owner.id)
-    except Rule.DoesNotExist:
-        raise NotFoundError('Rule with id %s does not exist' % rule_id)
-
-    # FIXME For backwards compatibility.
+    # Get the timestamp at which the rule's state changed.
     try:
         timestamp = resolved_since or firing_since
         timestamp = int(get_datetime(timestamp).strftime('%s'))
     except ValueError as err:
         log.error('Failed to cast datetime obj to unix timestamp: %r', err)
         raise BadRequestError(err)
-    if triggered_now or not triggered:
-        notification_level = 0
-    else:
-        import time
-        notification_level = int((time.time() - timestamp) /
-                                 rule.frequency.timedelta.total_seconds())
-    # /
 
-    rule_triggered(machine, rule.title, value, triggered, timestamp,
-                   notification_level, incident_id=incident_id)
+    try:
+        rule = Rule.objects.get(id=rule_id)
+    except Rule.DoesNotExist:
+        raise RuleNotFoundError()
+
+    # Validate resource, if the rule is resource-bound.
+    if not rule.is_arbitrary():
+        resource_type = rule.resource_model_name
+        Model = get_resource_model(resource_type)
+        try:
+            resource = Model.objects.get(id=resource_id, owner=rule.owner_id)
+        except Model.DoesNotExist:
+            raise NotFoundError('%s %s' % (resource_type, resource_id))
+        if is_resource_missing(resource):
+            raise NotFoundError('%s %s' % (resource_type, resource_id))
+        if (
+            resource_type == 'machine' and not
+            resource.monitoring.hasmonitoring
+        ):
+            raise NotFoundError('%s is not being monitored' % resource)
+    else:
+        resource_type = resource_id = None
+
+    # Record the trigger, if it's a no-data, to refer to it later.
+    if isinstance(rule, NoDataRule):
+        if triggered:
+            NoDataRuleTracker.add(rule.id, resource.id)
+        else:
+            NoDataRuleTracker.remove(rule.id, resource.id)
+
+    # Run chain of rule's actions.
+    run_chained_actions(
+        rule.id, incident_id, resource_id, resource_type,
+        value, triggered, triggered_now, timestamp,
+    )
     return Response('OK', 200)

@@ -134,9 +134,9 @@ def add_routes(configurator):
 
     def valid_ui_section(context, request):
         ui_sections = ['clouds', 'machines', 'images', 'keys', 'scripts',
-                       'templates', 'stacks', 'teams', 'networks', 'tunnels',
-                       'members', 'insights', 'my-account', 'schedules',
-                       'zones']
+                       'templates', 'stacks', 'teams', 'networks', 'volumes',
+                       'tunnels', 'members', 'insights', 'my-account',
+                       'schedules', 'zones']
         landing_sections = ['about', 'product', 'pricing',
                             'sign-up', 'sign-in', 'forgot-password',
                             'error', 'index']
@@ -250,6 +250,16 @@ def add_routes(configurator):
         '/api/v1/clouds/{cloud}/networks/{network}/subnets/{subnet}'
     )
 
+    # Volumes
+    configurator.add_route(
+        'api_v1_volumes',
+        '/api/v1/clouds/{cloud}/volumes'
+    )
+    configurator.add_route(
+        'api_v1_volume',
+        '/api/v1/clouds/{cloud}/volumes/{volume}'
+    )
+
     configurator.add_route('api_v1_keys', '/api/v1/keys')
     configurator.add_route('api_v1_key_action', '/api/v1/keys/{key}')
     configurator.add_route('api_v1_key_public', '/api/v1/keys/{key}/public')
@@ -261,12 +271,12 @@ def add_routes(configurator):
     configurator.add_route('api_v1_key_association',
                            '/api/v1/machines/{machine_uuid}/keys/{key}')
 
-    # Rules.
+    # Rules
     configurator.add_route('api_v1_rules', '/api/v1/rules')
     configurator.add_route('api_v1_rule', '/api/v1/rules/{rule}')
     configurator.add_route('api_v1_rule_triggered', '/api/v1/rule-triggered')
 
-    # Metering.
+    # Metering
     configurator.add_route('api_v1_metering', '/api/v1/metering')
 
     # Ownership
@@ -281,6 +291,16 @@ def add_routes(configurator):
     configurator.add_route(
         'api_v1_record',
         '/api/v1/clouds/{cloud}/dns/zones/{zone}/records/{record}'
+    )
+    configurator.add_route('api_v1_cloud_zones',
+                           '/api/v1/clouds/{cloud}/zones')
+    configurator.add_route('api_v1_cloud_zone',
+                           '/api/v1/clouds/{cloud}/zones/{zone}')
+    configurator.add_route('api_v1_cloud_records',
+                           '/api/v1/clouds/{cloud}/zones/{zone}/records')
+    configurator.add_route(
+        'api_v1_cloud_record',
+        '/api/v1/clouds/{cloud}/zones/{zone}/records/{record}'
     )
 
     configurator.add_route('api_v1_scripts', '/api/v1/scripts')
@@ -374,6 +394,9 @@ def add_routes(configurator):
     # Notifications - Unsubscribe
     configurator.add_route('unsubscribe_page', '/unsubscribe')
     configurator.add_route('unsubscribe', '/api/v1/unsubscribe')
+
+    # Notifications - Unsuppress
+    configurator.add_route('suppressed', '/suppressed-alerts')
 
     configurator.add_route('user_invitations', '/user_invitations')
 

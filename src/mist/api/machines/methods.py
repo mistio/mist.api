@@ -25,14 +25,16 @@ from mist.api.exceptions import MachineNameValidationError
 from mist.api.exceptions import BadRequestError, MachineCreationError
 from mist.api.exceptions import CloudUnavailableError, InternalServerError
 from mist.api.exceptions import NotFoundError
+from mist.api.exceptions import VolumeNotFoundError
 
 from mist.api.helpers import get_temp_file
 
 from mist.api.methods import connect_provider
 from mist.api.networks.methods import list_networks
-from mist.api.tag.methods import resolve_id_and_set_tags
 
 from mist.api.monitoring.methods import disable_monitoring
+
+from mist.api.tag.methods import resolve_id_and_set_tags
 
 from mist.api import config
 
@@ -125,7 +127,7 @@ def list_machines(owner, cloud_id, cached=False):
 def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                    image_id, size, image_extra=None, disk=None,
                    image_name=None, size_name=None, location_name=None,
-                   ips=None, monitoring=False,
+                   ips=None, monitoring=False, ex_disk_id='',
                    ex_storage_account='', machine_password='',
                    ex_resource_group='', networks=[], subnetwork=None,
                    docker_env=[],
@@ -274,6 +276,9 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                             ram=0, disk=0, bandwidth=0,
                             price=0, driver=conn)
 
+    cached_machines = [m.as_dict()
+                       for m in cloud.ctl.compute.list_cached_machines()]
+
     if conn.type is Container_Provider.DOCKER:
         if public_key:
             node = _create_machine_docker(
@@ -306,7 +311,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         node = _create_machine_openstack(conn, private_key, public_key,
                                          key.name, machine_name, image, size,
                                          location, networks, cloud_init)
-    elif conn.type is Provider.EC2 and private_key:
+    elif conn.type is Provider.EC2:
         locations = conn.list_locations()
         for loc in locations:
             if loc.id == location.id:
@@ -315,6 +320,10 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         node = _create_machine_ec2(conn, key_id, private_key, public_key,
                                    machine_name, image, size, ec2_location,
                                    subnet_id, cloud_init)
+    elif conn.name == 'Aliyun ECS':
+        node = _create_machine_aliyun(conn, key_id, public_key,
+                                      machine_name, image, size, location,
+                                      subnet_id, cloud_init)
     elif conn.type is Provider.NEPHOSCALE:
         node = _create_machine_nephoscale(conn, key_id, private_key,
                                           public_key, machine_name, image,
@@ -325,10 +334,33 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             if libcloud_size.id == size.id:
                 size = libcloud_size
                 break
+        ex_disk = None
+        if ex_disk_id:
+            # transform disk id to libcloud's StorageVolume object
+            try:
+                from mist.api.volumes.models import Volume
+                volume = Volume.objects.get(id=ex_disk_id)
+                ex_disk_id = volume.external_id
+            except me.DoesNotExist:
+                # make sure mongo is up-to-date
+                cloud.ctl.volume.list_volumes()
+                try:
+                    volume = Volume.objects.get(id=ex_disk_id)
+                    ex_disk_id = volume.external_id
+                except me.DoesNotExist:
+                    raise VolumeNotFoundError()
+
+            # try to find disk using libcloud's id
+            libcloud_disks = conn.list_volumes()
+            for libcloud_disk in libcloud_disks:
+                if libcloud_disk.id == ex_disk_id:
+                    ex_disk = libcloud_disk
+                    break
+
         # FIXME: `networks` should always be an array, not a str like below
         node = _create_machine_gce(conn, key_id, private_key, public_key,
                                    machine_name, image, size, location,
-                                   networks, subnetwork, cloud_init)
+                                   networks, subnetwork, ex_disk, cloud_init)
     elif conn.type is Provider.SOFTLAYER:
         node = _create_machine_softlayer(
             conn, key_id, private_key, public_key,
@@ -412,28 +444,27 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     else:
         raise BadRequestError("Provider unknown.")
 
-    if key is not None:
-        # we did this change because there was race condition with
-        # list_machines
-        try:
-            machine = Machine(cloud=cloud, machine_id=node.id).save()
-            # Since this is the first time the new Machine object is persisted
-            # to mongodb, we need to also update the mappings. We cannot rely
-            # on list_machines, since the node will not be treated as seen for
-            # the first time and thus will not trigger an update.
-            machine.owner.mapper.update(machine)
-        except me.NotUniqueError:
-            machine = Machine.objects.get(cloud=cloud, machine_id=node.id)
+    try:
+        machine = Machine.objects.get(cloud=cloud, machine_id=node.id)
+    except me.DoesNotExist:
+        cloud.ctl.compute._list_machines()
+        machine = Machine.objects.get(cloud=cloud, machine_id=node.id)
 
-        # Assign machine's owner/creator.
-        machine.assign_to(auth_context.user)
+    # Assign machine's owner/creator
+    machine.assign_to(auth_context.user)
 
-        # Associate key.
+    if key is not None:  # Associate key.
         username = node.extra.get('username', '')
         machine.ctl.associate_key(key, username=username,
                                   port=ssh_port, no_connect=True)
+    if tags:
+        resolve_id_and_set_tags(auth_context. owner, 'machine', node.id, tags,
+                                cloud_id=cloud_id)
+    fresh_machines = cloud.ctl.compute.list_cached_machines()
+    cloud.ctl.compute.produce_and_publish_patch(cached_machines,
+                                                fresh_machines)
 
-    # Call post_deploy_steps for every provider
+    # Call post_deploy_steps for every provider FIXME: Refactor
     if conn.type == Provider.AZURE:
         # for Azure, connect with the generated password, deploy the ssh key
         # when this is ok, it calls post_deploy for script/monitoring
@@ -467,10 +498,10 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             script_id=script_id, script_params=script_params,
             job_id=job_id, job=job, hostname=hostname, plugins=plugins,
             post_script_id=post_script_id,
-            post_script_params=post_script_params, schedule=schedule
+            post_script_params=post_script_params, schedule=schedule,
         )
 
-    elif key_id:
+    else:
         mist.api.tasks.post_deploy_steps.delay(
             auth_context.owner.id, cloud_id, node.id, monitoring,
             script=script, key_id=key_id, script_id=script_id,
@@ -478,10 +509,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             hostname=hostname, plugins=plugins, post_script_id=post_script_id,
             post_script_params=post_script_params, schedule=schedule,
         )
-
-    if tags:
-        resolve_id_and_set_tags(auth_context.owner, 'machine', node.id, tags,
-                                cloud_id=cloud_id)
 
     ret = {'id': node.id,
            'name': node.name,
@@ -502,10 +529,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
 def _create_machine_rackspace(conn, public_key, machine_name,
                               image, size, location, user_data):
     """Create a machine in Rackspace.
-
-    Here there is no checking done, all parameters are expected to be
-    sanitized by create_machine.
-
     """
 
     key = str(public_key).replace('\n', '')
@@ -546,10 +569,6 @@ def _create_machine_openstack(conn, private_key, public_key, key_name,
                               machine_name, image, size, location, networks,
                               user_data):
     """Create a machine in Openstack.
-
-    Here there is no checking done, all parameters are expected to be
-    sanitized by create_machine.
-
     """
     key = str(public_key).replace('\n', '')
 
@@ -604,14 +623,38 @@ def _create_machine_openstack(conn, private_key, public_key, key_name,
     return node
 
 
+def _create_machine_aliyun(conn, key_name, public_key,
+                           machine_name, image, size, location, subnet_id,
+                           user_data):
+    """Create a machine in Alibaba Aliyun ECS.
+    """
+    auth = NodeAuthSSHKey(pubkey=public_key.replace('\n', ''))
+
+    kwargs = {
+        'auth': auth,
+        'name': machine_name,
+        'image': image,
+        'size': size,
+        'location': location,
+        'max_tries': 1,
+        'ex_keyname': key_name,
+        'ex_userdata': user_data,
+        'ex_security_group_id': conn.ex_create_security_group()
+    }
+
+    try:
+        node = conn.create_node(**kwargs)
+
+    except Exception as e:
+        raise MachineCreationError("Aliyun ECS, got exception %s" % e, e)
+
+    return node
+
+
 def _create_machine_ec2(conn, key_name, private_key, public_key,
                         machine_name, image, size, location, subnet_id,
                         user_data):
     """Create a machine in Amazon EC2.
-
-    Here there is no checking done, all parameters are expected to be
-    sanitized by create_machine.
-
     """
     with get_temp_file(public_key) as tmp_key_path:
         try:
@@ -691,12 +734,7 @@ def _create_machine_ec2(conn, key_name, private_key, public_key,
 
 def _create_machine_nephoscale(conn, key_name, private_key, public_key,
                                machine_name, image, size, location, ips):
-    """Create a machine in Nephoscale.
-
-    Here there is no checking done, all parameters are expected to be
-    sanitized by create_machine.
-
-    """
+    """Create a machine in Nephoscale."""
     machine_name = machine_name[:64].replace(' ', '-')
     # name in NephoScale must start with a letter, can contain mixed
     # alpha-numeric characters, hyphen ('-') and underscore ('_')
@@ -765,10 +803,6 @@ def _create_machine_softlayer(conn, key_name, private_key, public_key,
                               bare_metal, cloud_init, hourly,
                               softlayer_backend_vlan_id):
     """Create a machine in Softlayer.
-
-    Here there is no checking done, all parameters are expected to be
-    sanitized by create_machine.
-
     """
     key = str(public_key).replace('\n', '')
     try:
@@ -923,10 +957,6 @@ def _create_machine_digital_ocean(conn, key_name, private_key, public_key,
                                   machine_name, image, size,
                                   location, user_data):
     """Create a machine in Digital Ocean.
-
-    Here there is no checking done, all parameters are expected to be
-    sanitized by create_machine.
-
     """
     key = public_key.replace('\n', '')
     try:
@@ -988,10 +1018,20 @@ def _create_machine_libvirt(conn, machine_name, disk_size, ram, cpu,
         networks = [networks]
     network_names = []
     for nid in (networks or []):
+        if isinstance(nid, dict):
+            network_id = nid.get('network_id', '')
+        else:
+            network_id = nid
         try:
-            network_names.append(LibvirtNetwork.objects.get(id=nid).name)
+            network_name = LibvirtNetwork.objects.get(id=network_id).name
         except LibvirtNetwork.DoesNotExist:
             log.error('LibvirtNetwork %s does not exist' % nid)
+        else:
+            if isinstance(nid, dict):
+                nid.update({'network_name': network_name})
+                network_names.append(nid)
+            else:
+                network_names.append(network_name)
 
     try:
         node = conn.create_node(
@@ -1015,10 +1055,6 @@ def _create_machine_libvirt(conn, machine_name, disk_size, ram, cpu,
 def _create_machine_hostvirtual(conn, public_key,
                                 machine_name, image, size, location):
     """Create a machine in HostVirtual.
-
-    Here there is no checking done, all parameters are expected to be
-    sanitized by create_machine.
-
     """
     key = public_key.replace('\n', '')
 
@@ -1041,10 +1077,6 @@ def _create_machine_hostvirtual(conn, public_key,
 def _create_machine_packet(conn, public_key, machine_name, image,
                            size, location, cloud_init, project_id=None):
     """Create a machine in Packet.net.
-
-    Here there is no checking done, all parameters are expected to be
-    sanitized by create_machine.
-
     """
     key = public_key.replace('\n', '')
     try:
@@ -1093,10 +1125,6 @@ def _create_machine_packet(conn, public_key, machine_name, image,
 def _create_machine_vultr(conn, public_key, machine_name, image,
                           size, location, cloud_init):
     """Create a machine in Vultr.
-
-    Here there is no checking done, all parameters are expected to be
-    sanitized by create_machine.
-
     """
     key = public_key.replace('\n', '')
 
@@ -1441,7 +1469,7 @@ def _create_machine_vsphere(conn, machine_name, image,
 
 
 def _create_machine_gce(conn, key_name, private_key, public_key, machine_name,
-                        image, size, location, network, subnetwork,
+                        image, size, location, network, subnetwork, ex_disk,
                         cloud_init):
     """Create a machine in GCE.
 
@@ -1469,7 +1497,8 @@ def _create_machine_gce(conn, key_name, private_key, public_key, machine_name,
             location=location,
             ex_metadata=metadata,
             ex_network=network,
-            ex_subnetwork=subnetwork
+            ex_subnetwork=subnetwork,
+            ex_boot_disk=ex_disk
         )
     except Exception as e:
         raise MachineCreationError(

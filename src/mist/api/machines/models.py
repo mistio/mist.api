@@ -8,6 +8,7 @@ import mongoengine as me
 
 import mist.api.tag.models
 
+from mist.api.mongoengine_extras import MistDictField
 from mist.api.keys.models import Key
 from mist.api.machines.controllers import MachineController
 from mist.api.ownership.mixins import OwnershipMixin
@@ -74,6 +75,10 @@ class Actions(me.EmbeddedDocument):
     resume = me.BooleanField(default=False)
     suspend = me.BooleanField(default=False)
     undefine = me.BooleanField(default=False)
+    clone = me.BooleanField(default=False)
+    create_snapshot = me.BooleanField(default=False)
+    remove_snapshot = me.BooleanField(default=False)
+    revert_to_snapshot = me.BooleanField(default=False)
 
 
 class Monitoring(me.EmbeddedDocument):
@@ -270,7 +275,7 @@ class Machine(OwnershipMixin, me.Document):
     os_type = me.StringField(default='unix', choices=OS_TYPES)
     rdp_port = me.IntField(default=3389)
     actions = me.EmbeddedDocumentField(Actions, default=lambda: Actions())
-    extra = me.DictField()
+    extra = MistDictField()
     cost = me.EmbeddedDocumentField(Cost, default=lambda: Cost())
     image_id = me.StringField()
     # libcloud.compute.types.NodeState
@@ -281,7 +286,8 @@ class Machine(OwnershipMixin, me.Document):
                                     'error', 'paused', 'reconfiguring'))
     machine_type = me.StringField(default='machine',
                                   choices=('machine', 'vm', 'container',
-                                           'hypervisor', 'container-host'))
+                                           'hypervisor', 'container-host',
+                                           'ilo-host'))
     parent = me.ReferenceField('Machine', required=False)
 
     # We should think this through a bit.
@@ -337,10 +343,19 @@ class Machine(OwnershipMixin, me.Document):
         for ka in reversed(range(len(self.key_associations))):
             if self.key_associations[ka].keypair.deleted:
                 self.key_associations.pop(ka)
+
+        # Reset key_associations in case self goes missing/destroyed. This is
+        # going to prevent the machine from showing up as "missing" in the
+        # corresponding keys' associated machines list.
+        if self.missing_since:
+            self.key_associations = []
+
         # Populate owner field based on self.cloud.owner
         if not self.owner:
             self.owner = self.cloud.owner
+
         self.clean_os_type()
+
         if self.monitoring.method not in config.MONITORING_METHODS:
             self.monitoring.method = config.DEFAULT_MONITORING_METHOD
 
@@ -369,15 +384,9 @@ class Machine(OwnershipMixin, me.Document):
 
     def as_dict(self):
         # Return a dict as it will be returned to the API
-
-        # tags as a list return for the ui
         tags = {tag.key: tag.value for tag in mist.api.tag.models.Tag.objects(
             resource=self
         ).only('key', 'value')}
-        # Optimize tags data structure for js...
-        if isinstance(tags, dict):
-            tags = [{'key': key, 'value': value}
-                    for key, value in tags.iteritems()]
         return {
             'id': self.id,
             'hostname': self.hostname,

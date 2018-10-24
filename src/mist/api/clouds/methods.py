@@ -94,17 +94,20 @@ def delete_cloud(owner, cloud_id):
 
 
 # SEC
-def filter_list_clouds(auth_context, perm='read'):
+def filter_list_clouds(auth_context, perm='read', as_dict=True):
     """Returns a list of clouds, which is filtered based on RBAC Mappings for
     non-Owners.
     """
-    clouds = list_clouds(auth_context.owner)
+    clouds = list_clouds(auth_context.owner, as_dict=as_dict)
     if not auth_context.is_owner():
         clouds = [cloud for cloud in clouds if cloud['id'] in
                   auth_context.get_allowed_resources(rtype='clouds')]
     return clouds
 
 
-def list_clouds(owner):
-    return [cloud.as_dict() for cloud in Cloud.objects(owner=owner,
-                                                       deleted=None)]
+def list_clouds(owner, as_dict=True):
+    clouds = Cloud.objects(owner=owner, deleted=None)
+    if as_dict:
+        return [cloud.as_dict() for cloud in clouds]
+    else:
+        return clouds

@@ -17,7 +17,6 @@ from mist.api.exceptions import NetworkNotFoundError
 from mist.api.exceptions import RequiredParameterMissingError
 
 from mist.api.helpers import params_from_request, view_config
-from mist.api.helpers import trigger_session_update
 
 
 OK = Response("OK", 200)
@@ -41,8 +40,10 @@ def list_networks(request):
         type: string
     """
     cloud_id = request.matchdict['cloud']
+    params = params_from_request(request)
+    cached = bool(params.get('cached', False))
     auth_context = auth_context_from_request(request)
-    return filter_list_networks(auth_context, cloud_id)
+    return filter_list_networks(auth_context, cloud_id, cached=cached)
 
 
 @view_config(route_name='api_v1_networks',
@@ -110,12 +111,10 @@ def create_network(request):
     if not hasattr(cloud.ctl, 'network'):
         raise NotImplementedError()
 
-    # Create a DB document for the new network and call libcloud to declare
-    # it on the cloud provider
+    # Create the new network
     network = NETWORKS[cloud.ctl.provider].add(cloud=cloud, **network_params)
     network.assign_to(auth_context.user)
 
-    network_dict = network.as_dict()
     if tags:
         add_tags_to_resource(auth_context.owner, network, tags)
 
@@ -125,8 +124,7 @@ def create_network(request):
         try:
             # Create a DB document for the new subnet and call libcloud to
             # declare it on the cloud provider
-            subnet = SUBNETS[cloud.ctl.provider].add(network=network,
-                                                     **subnet_params)
+            SUBNETS[cloud.ctl.provider].add(network=network, **subnet_params)
         except Exception as exc:
             # Cleaning up the network object in case subnet creation fails
             # for any reason
@@ -134,12 +132,7 @@ def create_network(request):
             network.delete()
             raise exc
 
-        network_dict['subnet'] = subnet.as_dict()
-
-    # Schedule a UI update
-    trigger_session_update(auth_context.owner, ['clouds'])
-
-    return network_dict
+    return network.as_dict()
 
 
 @view_config(route_name='api_v1_network', request_method='DELETE')
@@ -186,9 +179,6 @@ def delete_network(request):
 
     # Delete the network
     network.ctl.delete()
-
-    # Schedule a UI update
-    trigger_session_update(auth_context.owner, ['clouds'])
 
     return OK
 
@@ -342,8 +332,6 @@ def delete_subnet(request):
     except Subnet.DoesNotExist:
         raise SubnetNotFoundError()
 
-    # Trigger a UI update.
-    trigger_session_update(auth_context.owner, ['clouds'])
     return OK
 
 

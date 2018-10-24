@@ -5,14 +5,14 @@ from mist.api.helpers import get_object_with_id
 
 
 def get_tags_for_resource(owner, resource_obj, *args, **kwargs):
-    return [{'key': tag.key, 'value': tag.value} for tag in
-            Tag.objects(owner=owner, resource=resource_obj)]
+    return {tag.key: tag.value for tag in
+            Tag.objects(owner=owner, resource=resource_obj)}
 
 
 def add_tags_to_resource(owner, resource_obj, tags, *args, **kwargs):
     """
     This function get a list of tags in the form
-    [{'key': 'joe', 'value': 'schmoe'}] and will scan the list and update all
+    [{'joe': 'schmoe'), ...] and will scan the list and update all
     the tags whose keys are present but whose values are different and add all
     the missing ones
     :param owner: the resource owner
@@ -44,8 +44,11 @@ def add_tags_to_resource(owner, resource_obj, tags, *args, **kwargs):
     # for no f*** reason.
     rtype = resource_obj._meta["collection"]
 
-    trigger_session_update(owner,
-                           [rtype + 's' if not rtype.endswith('s') else rtype])
+    if rtype not in ['machine', 'zone', 'network', 'volume', 'image']:
+        trigger_session_update(
+            owner,
+            [rtype + 's' if not rtype.endswith('s') else rtype]
+        )
 
 
 def remove_tags_from_resource(owner, resource_obj, tags, *args, **kwargs):

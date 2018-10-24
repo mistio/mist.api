@@ -88,6 +88,9 @@ DOMAIN_VALIDATION_WHITELIST = []
 DOCS_URI = 'https://docs.mist.io/'
 SUPPORT_URI = 'https://docs.mist.io/contact'
 
+INTERNAL_API_URL = 'http://api'
+GOCKY_HOST = 'gocky'
+
 # InfluxDB
 INFLUX = {
     "host": "http://influxdb:8086", "db": "telegraf"
@@ -734,6 +737,12 @@ SHARD_MANAGER_INTERVAL = 10
 SHARD_MANAGER_MAX_SHARD_PERIOD = 60
 SHARD_MANAGER_MAX_SHARD_CLAIMS = 500
 
+# NoData alert suppression.
+NO_DATA_ALERT_SUPPRESSION = False
+NO_DATA_ALERT_BUFFER_PERIOD = 45
+NO_DATA_RULES_RATIO = .2
+NO_DATA_MACHINES_RATIO = .2
+
 # number of api tokens user can have
 ACTIVE_APITOKEN_NUM = 20
 ALLOW_CONNECT_LOCALHOST = True
@@ -875,17 +884,22 @@ USE_EXTERNAL_AUTHENTICATION = False
 
 # celery settings
 CELERY_SETTINGS = {
-    'BROKER_URL': BROKER_URL,
-    'CELERY_TASK_SERIALIZER': 'json',
-    'CELERYD_LOG_FORMAT': PY_LOG_FORMAT,
-    'CELERYD_TASK_LOG_FORMAT': PY_LOG_FORMAT,
-    'CELERYD_CONCURRENCY': 8,
-    'CELERYD_MAX_TASKS_PER_CHILD': 32,
-    'CELERYD_MAX_MEMORY_PER_CHILD': 204800,  # 20480 KiB - 200 MiB
-    'CELERY_MONGODB_SCHEDULER_DB': 'mist2',
-    'CELERY_MONGODB_SCHEDULER_COLLECTION': 'schedules',
-    'CELERY_MONGODB_SCHEDULER_URL': MONGO_URI,
-    'CELERY_ROUTES': {
+    'broker_url': BROKER_URL,
+    # Disable heartbeats because celery workers & beat fail to actually send
+    # them and the connection dies.
+    'broker_heartbeat': 0,
+    'task_serializer': 'json',
+    # Disable custom log format because we miss out on worker/task specific
+    # metadata.
+    # 'worker_log_format': PY_LOG_FORMAT,
+    # 'worker_task_log_format': PY_LOG_FORMAT,
+    'worker_concurrency': 8,
+    'worker_max_tasks_per_child': 32,
+    'worker_max_memory_per_child': 204800,  # 204800 KiB - 200 MiB
+    'mongodb_scheduler_db': 'mist2',
+    'mongodb_scheduler_collection': 'schedules',
+    'mongodb_scheduler_url': MONGO_URI,
+    'task_routes': {
 
         # Command queue
         'mist.api.tasks.ssh_command': {'queue': 'command'},
@@ -912,10 +926,20 @@ CELERY_SETTINGS = {
         'mist.api.rules.tasks.evaluate': {'queue': 'rules'},
 
         # Core tasks
-        'mist.cloudify_insights.tasks.list_deployments':
-        {'queue': 'deployments'},
+        'mist.cloudify_insights.tasks.list_deployments': {
+            'queue': 'deployments'},
         'mist.rbac.tasks.update_mappings': {'queue': 'mappings'},
         'mist.rbac.tasks.remove_mappings': {'queue': 'mappings'},
+
+        # List networks
+        'mist.api.poller.tasks.list_networks': {'queue': 'networks'},
+
+        # List volumes
+        'mist.api.poller.tasks.list_volumes': {'queue': 'volumes'},
+
+        # List zones
+        'mist.api.poller.tasks.list_zones': {'queue': 'zones'},
+
     },
 }
 
@@ -973,7 +997,7 @@ LINODE_DATACENTERS = {
     10: 'Frankfurt, DE'
 }
 
-SUPPORTED_PROVIDERS_V_2 = [
+SUPPORTED_PROVIDERS = [
     # BareMetal
     {
         'title': 'Other Server',
@@ -1053,6 +1077,21 @@ SUPPORTED_PROVIDERS_V_2 = [
                 'location': 'Mumbai',
                 'id': 'ap-south-1'
             },
+        ]
+    },
+    # Alibaba Aliyun
+    {
+        'title': 'Alibaba',
+        'provider': Provider.ALIYUN_ECS,
+        'regions': [
+            {
+                'location': 'China East 1 (Hangzhou)',
+                'id': 'cn-hangzhou'
+            },
+            {
+                'location': 'EU Central 1 (Frankfurt)',
+                'id': 'eu-central-1'
+            }
         ]
     },
     # GCE
@@ -1171,6 +1210,12 @@ SUPPORTED_PROVIDERS_V_2 = [
     {
         'title': 'Packet.net',
         'provider': Provider.PACKET,
+        'regions': []
+    },
+    # ClearAPI
+    {
+        'title': 'ClearAPI',
+        'provider': Provider.CLEARAPI,
         'regions': []
     }
 ]
@@ -1537,6 +1582,27 @@ The mist.io team
 %s
 """
 
+NO_DATA_ALERT_SUPPRESSION_SUBJECT = "Suppressed no-data rule"
+
+NO_DATA_ALERT_SUPPRESSION_BODY = """
+           ********** %(rule)s triggered and suppressed **********
+
+%(nodata_rules_firing)d/%(total_number_of_nodata_rules)d of no-data rules
+(%(rules_percentage)d%%) have been triggered.
+
+%(mon_machines_firing)d/%(total_num_monitored_machines)d of monitored machines
+(%(machines_percentage)d%%) have no monitoring data available.
+
+Click the link below to delete and completely forget all suppressed alerts:
+%(delete_alerts_link)s
+
+Click the link below to unsuppress all suppressed alerts:
+%(unsuppress_alerts_link)s
+
+Note that the above action will actually send the alerts, if the corresponding
+rules are re-triggered during the next evaluation cycle.
+"""
+
 CTA = {
     "rbac": {
         "action": "UPGRADE YOUR MIST.IO",
@@ -1559,7 +1625,7 @@ ENABLE_AB = False
 ENABLE_R12N = False
 ENABLE_MONITORING = True
 MACHINE_PATCHES = True
-
+ACCELERATE_MACHINE_POLLING = True
 PLUGINS = []
 
 # DO NOT PUT ANYTHING BELOW HERE UNLESS YOU KNOW WHAT YOU ARE DOING
@@ -1711,10 +1777,12 @@ if not TELEGRAF_TARGET:
 
 # Update celery settings.
 CELERY_SETTINGS.update({
-    'BROKER_URL': BROKER_URL,
-    'CELERY_MONGODB_SCHEDULER_URL': MONGO_URI,
-    'CELERYD_LOG_FORMAT': PY_LOG_FORMAT,
-    'CELERYD_TASK_LOG_FORMAT': PY_LOG_FORMAT,
+    'broker_url': BROKER_URL,
+    'mongodb_scheduler_url': MONGO_URI,
+    # Disable custom log format because we miss out on worker/task specific
+    # metadata.
+    # 'worker_log_format': PY_LOG_FORMAT,
+    # 'worker_task_log_format': PY_LOG_FORMAT,
 })
 _schedule = {}
 if VERSION_CHECK:
@@ -1746,7 +1814,7 @@ if ENABLE_BACKUPS:
     }
 
 if _schedule:
-    CELERY_SETTINGS.update({'CELERYBEAT_SCHEDULE': _schedule})
+    CELERY_SETTINGS.update({'beat_schedule': _schedule})
 
 
 # Configure libcloud to not verify certain hosts.

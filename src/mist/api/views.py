@@ -614,8 +614,8 @@ def forgot_password(request):
         user.activation_key = get_secure_rand_token()
         user.save()
         subject = config.CONFIRMATION_EMAIL_SUBJECT
-        body = config.CONFIRMATION_EMAIL_BODY % ((user.first_name + " " +
-                                                  user.last_name),
+        full_name = "%s %s" % (user.first_name or '', user.last_name or '')
+        body = config.CONFIRMATION_EMAIL_BODY % (full_name
                                                  config.CORE_URI,
                                                  user.activation_key,
                                                  ip_from_request(request),
@@ -1213,18 +1213,8 @@ def list_supported_providers(request):
     Lists supported providers.
     Return all of our SUPPORTED PROVIDERS
     ---
-    api_version:
-      enum:
-      - 1
-      - 2
-      in: header
-      type: integer
     """
-    api_version = request.headers.get('Api-Version', 1)
-    if int(api_version) == 2:
-        return {'supported_providers': config.SUPPORTED_PROVIDERS_V_2}
-    else:
-        return {'supported_providers': config.SUPPORTED_PROVIDERS}
+    return {'supported_providers': config.SUPPORTED_PROVIDERS}
 
 
 @view_config(route_name='api_v1_avatars',

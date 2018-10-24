@@ -103,7 +103,7 @@ def star_image(owner, cloud_id, image_id):
         if image_id in cloud.unstarred:
             cloud.unstarred.remove(image_id)
     cloud.save()
-    task = mist.api.tasks.ListImages()
+    task = mist.api.tasks.list_images
     task.clear_cache(owner.id, cloud_id)
     task.delay(owner.id, cloud_id)
     return not star
@@ -606,11 +606,3 @@ def create_dns_a_record(owner, domain_name, ip_addr):
         raise MistError(msg + " failed: %r" % repr(exc))
     log.info(msg + " succeeded.")
     return record
-
-
-# FIXME DEPRECATED
-def rule_triggered(machine, rule_id, value, triggered, timestamp,
-                   notification_level, incident_id):
-    from mist.api.rules.methods import run_chained_actions
-    run_chained_actions(rule_id, machine, value, triggered, timestamp,
-                        notification_level, incident_id)

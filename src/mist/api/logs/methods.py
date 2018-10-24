@@ -606,7 +606,10 @@ def close_open_incidents(event):
         'owner_id': event['owner_id'],
         'story_type': 'incident', 'pending': True,
     }
-    for key in ('rule_id', 'cloud_id', 'machine_id'):
+    for key in ('rule_id', 'cloud_id', 'machine_id', 'schedule_id',
+                'zone_id', 'record_id', 'subnet_id', 'network_id',
+                'script_id', 'stack_id', 'template_id', 'key_id',
+                'volume_id', ):
         if key in event:
             kwargs[key] = event[key]
     incidents = get_stories(**kwargs)

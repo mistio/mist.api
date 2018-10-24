@@ -198,11 +198,11 @@ class Cloud(OwnershipMixin, me.Document):
             'dns_enabled': self.dns_enabled,
             'state': 'online' if self.enabled else 'offline',
             'polling_interval': self.polling_interval,
-            'tags': [
-                {'key': tag.key, 'value': tag.value}
+            'tags': {
+                tag.key: tag.value
                 for tag in Tag.objects(owner=self.owner,
                                        resource=self).only('key', 'value')
-            ],
+            },
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
         }
@@ -309,6 +309,19 @@ class AmazonCloud(Cloud):
 
     _private_fields = ('apisecret', )
     _controller_cls = controllers.AmazonMainController
+
+
+class AlibabaCloud(AmazonCloud):
+
+    _controller_cls = controllers.AlibabaMainController
+
+
+class ClearAPICloud(Cloud):
+
+    apikey = me.StringField(required=True)
+    url = me.StringField(required=True)
+
+    _controller_cls = controllers.ClearAPIMainController
 
 
 class DigitalOceanCloud(Cloud):
@@ -422,7 +435,7 @@ class VSphereCloud(Cloud):
     # happens. It's not clear if it's due a vSphere configuration. In most
     # cases this is not necessary. The default value will fetch all requested
     # properties at once
-    max_properties_per_requests = me.IntField(default=20)
+    max_properties_per_request = me.IntField(default=20)
 
     _private_fields = ('password', )
     _controller_cls = controllers.VSphereMainController
