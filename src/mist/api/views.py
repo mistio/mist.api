@@ -615,7 +615,7 @@ def forgot_password(request):
         user.save()
         subject = config.CONFIRMATION_EMAIL_SUBJECT
         full_name = "%s %s" % (user.first_name or '', user.last_name or '')
-        body = config.CONFIRMATION_EMAIL_BODY % (full_name
+        body = config.CONFIRMATION_EMAIL_BODY % (full_name,
                                                  config.CORE_URI,
                                                  user.activation_key,
                                                  ip_from_request(request),
