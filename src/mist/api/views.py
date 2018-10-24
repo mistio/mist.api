@@ -614,8 +614,8 @@ def forgot_password(request):
         user.activation_key = get_secure_rand_token()
         user.save()
         subject = config.CONFIRMATION_EMAIL_SUBJECT
-        body = config.CONFIRMATION_EMAIL_BODY % ((user.first_name + " " +
-                                                  user.last_name),
+        full_name = "%s %s" % (user.first_name or '', user.last_name or '')
+        body = config.CONFIRMATION_EMAIL_BODY % (full_name
                                                  config.CORE_URI,
                                                  user.activation_key,
                                                  ip_from_request(request),
