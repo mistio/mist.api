@@ -50,6 +50,16 @@ VERSION_CHECK = True
 USAGE_SURVEY = False
 ENABLE_METERING = True
 
+# backups
+AWS_ACCESS_KEY = ''
+AWS_SECRET_KEY = ''
+AWS_MONGO_BUCKET = 'mist-backup/mongodumps'
+AWS_INFLUX_BUCKET = 'mist-backup/influxdumps'
+
+GPG = {
+    "recipient": '', 'key': ''
+}
+
 ELASTICSEARCH = {
     'elastic_host': 'elasticsearch',
     'elastic_port': '9200',
@@ -85,7 +95,7 @@ GOCKY_HOST = 'gocky'
 
 # InfluxDB
 INFLUX = {
-    "host": "http://influxdb:8086", "db": "telegraf"
+    "host": "http://influxdb:8086", "db": "telegraf", "backup": "influxdb:8088"
 }
 
 TELEGRAF_TARGET = ""
@@ -1694,7 +1704,8 @@ FROM_ENV_STRINGS = [
     'AMQP_URI', 'BROKER_URL', 'CORE_URI', 'MONGO_URI', 'MONGO_DB', 'DOCKER_IP',
     'DOCKER_PORT', 'DOCKER_TLS_KEY', 'DOCKER_TLS_CERT', 'DOCKER_TLS_CA',
     'UI_TEMPLATE_URL', 'LANDING_TEMPLATE_URL', 'THEME',
-    'DEFAULT_MONITORING_METHOD', 'LICENSE_KEY'
+    'DEFAULT_MONITORING_METHOD', 'LICENSE_KEY', 'AWS_ACCESS_KEY',
+    'AWS_SECRET_KEY', 'AWS_MONGO_BUCKET'
 ] + PLUGIN_ENV_STRINGS
 FROM_ENV_INTS = [
     'SHARD_MANAGER_MAX_SHARD_PERIOD', 'SHARD_MANAGER_MAX_SHARD_CLAIMS',
@@ -1753,6 +1764,8 @@ HAS_VPN = 'vpn' in PLUGINS
 HAS_EXPERIMENTS = 'experiments' in PLUGINS
 HAS_MANAGE = 'manage' in PLUGINS
 
+# enable backup feature if aws creds have been set
+ENABLE_BACKUPS = bool(AWS_ACCESS_KEY) and bool(AWS_SECRET_KEY)
 
 # Update TELEGRAF_TARGET.
 
@@ -1795,6 +1808,11 @@ if ENABLE_MONITORING:
     _schedule['reset-traefik'] = {
         'task': 'mist.api.monitoring.tasks.reset_traefik_config',
         'schedule': datetime.timedelta(seconds=90),
+    }
+if ENABLE_BACKUPS:
+    _schedule['backups'] = {
+        'task': 'mist.api.tasks.create_backup',
+        'schedule': datetime.timedelta(hours=1),
     }
 
 if _schedule:

@@ -1,7 +1,7 @@
 FROM mist/alpine:3.4
 
 # Install libvirt which requires system dependencies.
-RUN apk add --update --no-cache g++ gcc libvirt libvirt-dev libxml2-dev libxslt-dev
+RUN apk add --update --no-cache g++ gcc libvirt libvirt-dev libxml2-dev libxslt-dev gnupg ca-certificates wget
 
 RUN pip install --no-cache-dir --upgrade pip
 RUN pip install --no-cache-dir --upgrade setuptools
@@ -34,6 +34,11 @@ COPY . /mist.api/
 
 RUN pip install -e src/
 
+RUN wget https://dl.influxdata.com/influxdb/releases/influxdb-1.6.0-static_linux_amd64.tar.gz && \
+    tar xvfz influxdb-1.6.0-static_linux_amd64.tar.gz && rm influxdb-1.6.0-static_linux_amd64.tar.gz
+
+RUN ln -s /mist.api/influxdb-1.6.0-1/influxd /usr/local/bin/influxd
+
 # This file gets overwritten when mounting code, which lets us know code has
 # been mounted.
 RUN touch clean
@@ -50,6 +55,16 @@ ENV JS_BUILD=1 \
     VERSION_REPO=mistio/mist.api \
     VERSION_SHA=$API_VERSION_SHA \
     VERSION_NAME=$API_VERSION_NAME
+
+RUN echo 'http://dl-4.alpinelinux.org/alpine/edge/main' >> /etc/apk/repositories && \
+    echo 'http://dl-4.alpinelinux.org/alpine/edge/community' >> /etc/apk/repositories
+
+RUN apk update && \
+    apk add mongodb-tools
+
+RUN echo 'http://dl-cdn.alpinelinux.org/alpine/v3.4/main' > /etc/apk/repositories && \
+    echo 'http://dl-cdn.alpinelinux.org/alpine/v3.4/community' >> /etc/apk/repositories && \
+    apk update
 
 RUN echo "{\"sha\":\"$VERSION_SHA\",\"name\":\"$VERSION_NAME\",\"repo\":\"$VERSION_REPO\",\"modified\":false}" \
         > /mist-version.json
