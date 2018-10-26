@@ -3,11 +3,15 @@
    Also, the configuration from settings.py is exposed through this module.
 """
 import os
-import sys
 import ssl
 import json
 import logging
 import datetime
+
+# Python 2 and 3 support
+from future.standard_library import install_aliases
+install_aliases()
+
 import urllib.parse
 
 import libcloud.security
@@ -16,7 +20,7 @@ from libcloud.container.types import Provider as Container_Provider
 
 from libcloud.compute.types import NodeState
 
-
+log = logging.getLogger(__name__)
 libcloud.security.SSL_VERSION = ssl.PROTOCOL_TLSv1_2
 
 
@@ -29,7 +33,7 @@ def dirname(path, num=1):
 
 
 MIST_API_DIR = dirname(__file__, 4)
-print("MIST_API_DIR is %s" % MIST_API_DIR, file=sys.stderr)
+log.warn("MIST_API_DIR is %s" % MIST_API_DIR)
 
 
 ###############################################################################
@@ -1636,12 +1640,11 @@ PLUGINS = []
 CORE_CONFIG_PATH = os.path.join(dirname(MIST_API_DIR, 2),
                                 'src', 'mist', 'core', 'config.py')
 if os.path.exists(CORE_CONFIG_PATH):
-    print("Will load core config from %s" % CORE_CONFIG_PATH, file=sys.stderr)
+    log.warn("Will load core config from %s" % CORE_CONFIG_PATH)
     exec(compile(open(CORE_CONFIG_PATH).read(), CORE_CONFIG_PATH, 'exec'))
     HAS_CORE = True
 else:
-    print("Couldn't find core config in %s" % CORE_CONFIG_PATH,
-          file=sys.stderr)
+    log.error("Couldn't find core config in %s" % CORE_CONFIG_PATH)
     HAS_CORE = False
 
 CONFIG_OVERRIDE_FILES = []
@@ -1660,7 +1663,7 @@ CONFIG_OVERRIDE_FILES.append(SETTINGS_FILE)
 # We will load the plugin configs and then we'll reload the config overrides
 for override_file in CONFIG_OVERRIDE_FILES:
     if os.path.exists(override_file):
-        print("Reading settings from %s" % override_file, file=sys.stderr)
+        log.warn("Reading settings from %s" % override_file)
         CONF = {}
         exec(compile(open(override_file).read(), override_file, 'exec'), CONF)
         for key in CONF:
@@ -1670,8 +1673,7 @@ for override_file in CONFIG_OVERRIDE_FILES:
             else:
                 locals()[key] = CONF[key]
     else:
-        print(("Couldn't find settings file in %s" %
-               override_file), file=sys.stderr)
+        log.error("Couldn't find settings file in %s" % override_file)
 
 # Load all plugin config files. Plugins may define vars that can be overriden
 # by environmental variables
@@ -1694,11 +1696,11 @@ for plugin in PLUGINS:
                 locals()[key].update(plugin_env[key])
             else:
                 locals()[key] = plugin_env[key]
-        print("Imported config of `%s` plugin" % plugin, file=sys.stderr)
+        log.warn("Imported config of `%s` plugin" % plugin)
     except Exception as exc:
         if exc.message != 'No module named config':
-            print("Failed to import config of `%s` plugin" %
-                  plugin, file=sys.stderr)
+            log.error("Failed to import config of `%s` plugin" %
+                      plugin)
 
 # Get settings from environmental variables.
 FROM_ENV_STRINGS = [
@@ -1719,7 +1721,7 @@ FROM_ENV_BOOLS = [
 FROM_ENV_ARRAYS = [
     'MEMCACHED_HOST', 'PLUGINS'
 ] + PLUGIN_ENV_ARRAYS
-print("Reading settings from environmental variables.", file=sys.stderr)
+log.info("Reading settings from environmental variables.")
 for key in FROM_ENV_STRINGS:
     if os.getenv(key):
         locals()[key] = os.getenv(key)
@@ -1728,9 +1730,7 @@ for key in FROM_ENV_INTS:
         try:
             locals()[key] = int(os.getenv(key))
         except (KeyError, ValueError):
-            print("Invalid value for %s: %s" % (key,
-                                                os.getenv(key)),
-                  file=sys.stderr)
+            log.error("Invalid value for %s: %s" % (key, os.getenv(key)))
 for key in FROM_ENV_BOOLS:
     if os.getenv(key) is not None:
         locals()[key] = os.getenv(key) in ('1', 'true', 'True')
@@ -1743,7 +1743,7 @@ for key in FROM_ENV_ARRAYS:
 # SETTINGS_FILE should be the last one to load
 for override_file in CONFIG_OVERRIDE_FILES:
     if os.path.exists(override_file):
-        print("Reading settings from %s" % override_file, file=sys.stderr)
+        log.info("Reading settings from %s" % override_file)
         CONF = {}
         exec(compile(open(override_file).read(), override_file, 'exec'), CONF)
         for key in CONF:
@@ -1753,8 +1753,7 @@ for override_file in CONFIG_OVERRIDE_FILES:
             else:
                 locals()[key] = CONF[key]
     else:
-        print(("Couldn't find settings file in %s" %
-               override_file), file=sys.stderr)
+        log.error("Couldn't find settings file in %s" % override_file)
 
 HAS_BILLING = 'billing' in PLUGINS
 HAS_RBAC = 'rbac' in PLUGINS
@@ -1878,4 +1877,4 @@ try:
     with open('/mist-version.json', 'r') as fobj:
         VERSION = json.load(fobj)
 except Exception as exc:
-    print("Couldn't load version info.", file=sys.stderr)
+    log.error("Couldn't load version info.")

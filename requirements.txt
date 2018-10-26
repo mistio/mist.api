@@ -19,6 +19,7 @@ dnspython
 elasticsearch
 elasticsearch_tornado
 flake8
+future
 gevent
 greenlet
 ipaddress # requests needs this for dns matching

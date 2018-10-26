@@ -1,8 +1,13 @@
 import os
 import json
+
+# Python 2 and 3 support
+from future.standard_library import install_aliases
+install_aliases()
 import urllib.request
 import urllib.parse
 import urllib.error
+
 import logging
 
 from chameleon import PageTemplateFile

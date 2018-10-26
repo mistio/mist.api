@@ -1,6 +1,10 @@
+# Python 2 and 3 support
+from future.standard_library import install_aliases
+install_aliases()
 import urllib.request
 import urllib.error
 import urllib.parse
+
 import logging
 import jsonpatch
 
