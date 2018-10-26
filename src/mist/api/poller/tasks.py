@@ -25,7 +25,7 @@ def debug(schedule_id):
     sched = DebugPollingSchedule.objects.get(schedule_id)
     path = '/tmp/poller-debug.txt'
     msg = '%s - %s' % (datetime.datetime.now(), sched.value)
-    print msg
+    print(msg)
     with open(path, 'a') as fobj:
         fobj.write(msg)
 

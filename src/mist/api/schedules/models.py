@@ -325,7 +325,7 @@ class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
         if isinstance(self.schedule_type, Crontab):
             cronj_entry = self.schedule_type.as_dict()
             try:
-                for k, v in cronj_entry.items():
+                for k, v in list(cronj_entry.items()):
                     if k == 'minute':
                         celery.schedules.crontab_parser(60).parse(v)
                     elif k == 'hour':
@@ -368,7 +368,7 @@ class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
             'id': self.id,
             'name': self.name,
             'description': self.description or '',
-            'schedule': unicode(self.schedule_type),
+            'schedule': str(self.schedule_type),
             'schedule_type': self.schedule_type.type,
             'schedule_entry': self.schedule_type.as_dict(),
             'task_type': str(self.task_type),

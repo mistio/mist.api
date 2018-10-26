@@ -123,7 +123,7 @@ class PeriodicTaskInfo(me.Document):
     def acquire_lock(self, attempts=1, retry_sleep=1):
         """Acquire run lock"""
         # Is another same task running?
-        for i in xrange(attempts):
+        for i in range(attempts):
             if not self.lock:
                 break
             if self.break_lock_after:

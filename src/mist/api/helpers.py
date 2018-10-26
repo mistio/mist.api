@@ -21,7 +21,7 @@ import random
 import socket
 import smtplib
 import logging
-import urlparse
+import urllib.parse
 import datetime
 import tempfile
 import traceback
@@ -69,6 +69,7 @@ from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import PolicyUnauthorizedError
 
 from mist.api import config
+from functools import reduce
 
 if config.HAS_RBAC:
     from mist.rbac.tokens import SuperToken
@@ -263,10 +264,10 @@ def dirty_cow(os, os_version, kernel_version):
         else:
             return False
 
-    if os not in vulnerables.keys():
+    if os not in list(vulnerables.keys()):
         return None
 
-    if os_version not in vulnerables[os].keys():
+    if os_version not in list(vulnerables[os].keys()):
         return None
 
     vuln_version = vulnerables[os][os_version]
@@ -530,7 +531,7 @@ def check_host(host, allow_localhost=config.ALLOW_CONNECT_LOCALHOST):
         forbidden_subnets['127.0.0.0/8'] = ("used for loopback addresses "
                                             "to the local host")
 
-    cidr = netaddr.smallest_matching_cidr(ipaddr, forbidden_subnets.keys())
+    cidr = netaddr.smallest_matching_cidr(ipaddr, list(forbidden_subnets.keys()))
     if cidr:
         raise MistError("%s is not allowed. It belongs to '%s' "
                         "which is %s." % (msg, cidr,
@@ -567,7 +568,7 @@ def get_datetime(timestamp):
             return datetime.datetime.fromtimestamp(timestamp / 1000)
         except ValueError:
             pass
-    elif isinstance(timestamp, basestring):
+    elif isinstance(timestamp, str):
         try:
             timestamp = float(timestamp)
         except (ValueError, TypeError):
@@ -634,7 +635,7 @@ def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3,
 
     if not sender:
         sender = config.EMAIL_FROM
-    if isinstance(recipients, basestring):
+    if isinstance(recipients, str):
         recipients = [recipients]
 
     if isinstance(body, str):
@@ -774,7 +775,7 @@ def encrypt(plaintext, key=config.SECRET, key_salt='', no_iv=False):
     key = SHA256.new(key + key_salt).digest()
     if len(key) not in AES.key_size:
         raise Exception()
-    if isinstance(plaintext, unicode):
+    if isinstance(plaintext, str):
         plaintext = plaintext.encode('utf-8')
 
     # pad plaintext using PKCS7 padding scheme
@@ -844,7 +845,7 @@ def logging_view_decorator(func):
         # and handled by exception handler (otherwise we got exception_handler
         # as view_name)
         if not hasattr(request, 'real_view_name'):
-            request.real_view_name = func.func_name
+            request.real_view_name = func.__name__
 
         # check if exception occurred
         try:
@@ -993,7 +994,7 @@ def logging_view_decorator(func):
         if log_dict.get('action', '') == 'add_template':
             if params.get('location_type') == 'github':
                 git_url = params.get('template_github', '')
-                git_password = urlparse.urlparse(git_url).password
+                git_password = urllib.parse.urlparse(git_url).password
                 if git_password:
                     params['template_github'] = git_url.replace(git_password,
                                                                 '*password*')
@@ -1083,7 +1084,7 @@ def logging_view_decorator(func):
         lines.append("Exception type: %s" % log_dict.pop('_exc_type'))
         lines.append("Time: %s" % strftime("%Y-%m-%d %H:%M %Z"))
         lines += (
-            ["%s: %s" % (key, value) for key, value in log_dict.items()
+            ["%s: %s" % (key, value) for key, value in list(log_dict.items())
              if value and key != '_traceback']
         )
         for key in ('owner', 'user', 'sudoer'):
@@ -1301,7 +1302,7 @@ def subscribe_log_events_raw(callback=None, routing_keys=('#')):
         def wrapped(msg):
             try:
                 # bring extra key-value pairs to top level
-                for key, val in json.loads(msg.body.pop('extra')).items():
+                for key, val in list(json.loads(msg.body.pop('extra')).items()):
                     msg.body[key] = val
             except:
                 pass
@@ -1313,18 +1314,18 @@ def subscribe_log_events_raw(callback=None, routing_keys=('#')):
         # print msg.delivery_info.get('routing_key'),
         try:
             if 'email' in event and 'type' in event and 'action' in event:
-                print event.pop('email'), event.pop('type'), \
-                    event.pop('action')
+                print(event.pop('email'), event.pop('type'), \
+                    event.pop('action'))
             err = event.pop('error', False)
             if err:
-                print '  error:', err
+                print('  error:', err)
             time = event.pop('time')
             if time:
-                print '  date:', datetime.datetime.fromtimestamp(time)
-            for key, val in event.items():
-                print '  %s: %s' % (key, val)
+                print('  date:', datetime.datetime.fromtimestamp(time))
+            for key, val in list(event.items()):
+                print('  %s: %s' % (key, val))
         except:
-            print event
+            print(event)
 
     if callback is None:
         callback = echo

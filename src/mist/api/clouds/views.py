@@ -205,8 +205,8 @@ def add_cloud(request):
     # remove spaces from start/end of string fields that are often included
     # when pasting keys, preventing thus succesfull connection with the
     # cloud
-    for key in params.keys():
-        if type(params[key]) in [unicode, str]:
+    for key in list(params.keys()):
+        if type(params[key]) in [str, str]:
             params[key] = params[key].rstrip().lstrip()
 
     # api_version = request.headers.get('Api-Version', 1)
@@ -229,7 +229,7 @@ def add_cloud(request):
         cloud.ctl.set_polling_interval(1800)
 
     if cloud_tags:
-        add_tags_to_resource(owner, cloud, cloud_tags.items())
+        add_tags_to_resource(owner, cloud, list(cloud_tags.items()))
 
     # Set ownership.
     cloud.assign_to(auth_context.user)

@@ -139,7 +139,7 @@ class OpenIdMistStore(OpenIDStore):
             mist_nonces = []
 
         if len(mist_nonces) == 0:
-            print "Timestamp = %s" % timestamp
+            print("Timestamp = %s" % timestamp)
             MistNonce(
                 server_url=server_url, salt=salt, timestamp=timestamp
             ).save()

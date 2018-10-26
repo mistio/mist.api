@@ -9,6 +9,7 @@ from mist.api.rules.tasks import run_action_by_id
 from mist.api.rules.models import Rule
 from mist.api.rules.models import NoDataAction
 from mist.api.rules.models import NotificationAction
+from functools import reduce
 
 
 log = logging.getLogger(__name__)

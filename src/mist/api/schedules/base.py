@@ -219,7 +219,7 @@ class BaseController(object):
                 self.schedule.max_run_count = 1
 
         # set schedule attributes
-        for key, value in kwargs.iteritems():
+        for key, value in kwargs.items():
             if key in self.schedule._fields:
                 setattr(self.schedule, key, value)
 

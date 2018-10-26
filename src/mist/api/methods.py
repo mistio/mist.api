@@ -430,8 +430,8 @@ def run_playbook(owner, cloud_id, machine_id, playbook_path, extra_vars=None,
         ret_dict['error_msg'] = "Expected 1 host, found %s" % inventory.hosts
         ret_dict['finished_at'] = time()
         return ret_dict
-    ret_dict['host'] = inventory.hosts.values()[0]['ansible_ssh_host']
-    machine_name = inventory.hosts.keys()[0]
+    ret_dict['host'] = list(inventory.hosts.values())[0]['ansible_ssh_host']
+    machine_name = list(inventory.hosts.keys())[0]
     log_prefix = "Running playbook '%s' on machine '%s'" % (playbook_path,
                                                             machine_name)
     files = inventory.export(include_localhost=False)
@@ -442,11 +442,11 @@ def run_playbook(owner, cloud_id, machine_id, playbook_path, extra_vars=None,
     try:
         log.debug("%s: Saving inventory files", log_prefix)
         os.mkdir('id_rsa')
-        for name, data in files.items():
+        for name, data in list(files.items()):
             with open(name, 'w') as f:
                 f.write(data)
         for name in os.listdir('id_rsa'):
-            os.chmod('id_rsa/%s' % name, 0600)
+            os.chmod('id_rsa/%s' % name, 0o600)
         log.debug("%s: Inventory files ready", log_prefix)
 
         playbook_path = '%s/%s' % (old_dir, playbook_path)

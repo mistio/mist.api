@@ -130,8 +130,7 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
 
         if node:
             # filter out IPv6 addresses
-            ips = filter(lambda ip: ':' not in ip,
-                         node.public_ips + node.private_ips)
+            ips = [ip for ip in node.public_ips + node.private_ips if ':' not in ip]
             if not ips:
                 raise self.retry(exc=Exception(), countdown=60, max_retries=20)
             host = ips[0]
@@ -173,7 +172,7 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                 log_event(action='Add scheduler entry',
                           scheduler=schedule_info.as_dict(), **log_dict)
             except Exception as e:
-                print repr(e)
+                print(repr(e))
                 error = repr(e)
                 notify_user(owner, "add scheduler entry failed for "
                                    "machine %s" % machine_id, repr(e),
@@ -303,7 +302,7 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                         plugins=plugins, deploy_async=False,
                     )
                 except Exception as e:
-                    print repr(e)
+                    print(repr(e))
                     error = True
                     notify_user(
                         owner,
@@ -455,7 +454,7 @@ def azure_post_create_steps(self, owner_id, cloud_id, machine_id, monitoring,
                 break
         if node and node.state == NodeState.RUNNING and len(node.public_ips):
             # filter out IPv6 addresses
-            ips = filter(lambda ip: ':' not in ip, node.public_ips)
+            ips = [ip for ip in node.public_ips if ':' not in ip]
             host = ips[0]
         else:
             raise self.retry(exc=Exception(), max_retries=20)
@@ -535,7 +534,7 @@ def rackspace_first_gen_post_create_steps(
 
         if node and node.state == 0 and len(node.public_ips):
             # filter out IPv6 addresses
-            ips = filter(lambda ip: ':' not in ip, node.public_ips)
+            ips = [ip for ip in node.public_ips if ':' not in ip]
             host = ips[0]
         else:
             raise self.retry(exc=Exception(), max_retries=20)
@@ -933,7 +932,7 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
         'schedule_id': schedule.id,
         'schedule_name': schedule.name,
         'description': schedule.description or '',
-        'schedule_type': unicode(schedule.schedule_type or ''),
+        'schedule_type': str(schedule.schedule_type or ''),
         'owner_id': owner_id,
         'machines_match': schedule.get_ids(),
         'machine_action': action,
@@ -1094,7 +1093,7 @@ def group_run_script(owner_id, script_id, name, machines_uuids, params=''):
         'schedule_id': schedule.id,
         'schedule_name': schedule.name,
         'description': schedule.description or '',
-        'schedule_type': unicode(schedule.schedule_type or ''),
+        'schedule_type': str(schedule.schedule_type or ''),
         'owner_id': owner_id,
         'machines_match': schedule.get_ids(),
         'script_id': script_id,
@@ -1354,7 +1353,7 @@ def set_missing_since(cloud_id):
 def create_backup():
     """Create mongo backup if AWS creds are set.
     """
-    if all(value == '' for value in config.GPG.values()):
+    if all(value == '' for value in list(config.GPG.values())):
         os.system("mongodump --host %s --gzip --archive | s3cmd --access_key=%s \
         --secret_key=%s put - s3://%s/%s-%s" % (config.MONGO_URI,
                   config.AWS_ACCESS_KEY, config.AWS_SECRET_KEY,

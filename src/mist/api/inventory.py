@@ -30,7 +30,7 @@ class MistInventory(object):
                 name, ip_addr = self.find_machine_details(bid, mid)
                 key_id, ssh_user, port = self.find_ssh_settings(bid, mid)
             except Exception as exc:
-                print exc
+                print(exc)
                 continue
             ip_addr, port = dnat(self.owner, ip_addr, port)
             if key_id not in self.keys:
@@ -61,20 +61,20 @@ class MistInventory(object):
         ans_inv = ''
         if include_localhost:
             ans_inv += 'localhost\tansible_connection=local\n\n'
-        for name, host in self.hosts.items():
-            vars_part = ' '.join(["%s=%s" % item for item in host.items()])
+        for name, host in list(self.hosts.items()):
+            vars_part = ' '.join(["%s=%s" % item for item in list(host.items())])
             ans_inv += '%s\t%s\n' % (name, vars_part)
         ans_inv += ('\n[all:vars]\n'
                     'ansible_python_interpreter="/usr/bin/env python2"\n')
         ans_cfg = '[defaults]\nhostfile=./inventory\nhost_key_checking=False\n'
         files = {'ansible.cfg': ans_cfg, 'inventory': ans_inv}
-        for key_id, private_key in self.keys.items():
+        for key_id, private_key in list(self.keys.items()):
             files.update({'id_rsa/%s' % key_id: private_key})
         return files
 
     def _list_machines(self, cloud_id):
         if cloud_id not in self._cache:
-            print 'Actually doing list_machines for %s' % cloud_id
+            print('Actually doing list_machines for %s' % cloud_id)
             from mist.api.machines.methods import list_machines
             machines = list_machines(self.owner, cloud_id)
             self._cache[cloud_id] = machines

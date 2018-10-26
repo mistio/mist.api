@@ -30,7 +30,7 @@ log = logging.getLogger(__name__)
 
 def _populate_clouds():
     """Populates CLOUDS variable with mappings from providers to clouds"""
-    for key, value in globals().items():
+    for key, value in list(globals().items()):
         if key.endswith('Cloud') and key != 'Cloud':
             value = globals()[key]
             if issubclass(value, Cloud) and value is not Cloud:

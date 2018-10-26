@@ -1,6 +1,6 @@
 import uuid
 import json
-import urllib
+import urllib.request, urllib.parse, urllib.error
 
 import mongoengine as me
 from pyramid.response import Response
@@ -123,7 +123,7 @@ def add_script(request):
     script.assign_to(auth_context.user)
 
     if script_tags:
-        add_tags_to_resource(auth_context.owner, script, script_tags.items())
+        add_tags_to_resource(auth_context.owner, script, list(script_tags.items()))
 
     script = script.as_dict()
 
@@ -307,12 +307,10 @@ def delete_scripts(request):
         # /SEC
 
     # if no script id was valid raise exception
-    if len(filter(lambda script_id: report[script_id] == 'not_found',
-                  report)) == len(script_ids):
+    if len([script_id for script_id in report if report[script_id] == 'not_found']) == len(script_ids):
         raise NotFoundError('No valid script id provided')
     # if user was not authorized for any script raise exception
-    if len(filter(lambda script_id: report[script_id] == 'unauthorized',
-                  report)) == len(script_ids):
+    if len([script_id for script_id in report if report[script_id] == 'unauthorized']) == len(script_ids):
         raise UnauthorizedError("You don't have authorization for any of these"
                                 " scripts")
     return report
@@ -356,7 +354,7 @@ def edit_script(request):
 
     script.ctl.edit(new_name, new_description)
     ret = {'new_name': new_name}
-    if isinstance(new_description, basestring):
+    if isinstance(new_description, str):
         ret['new_description'] = new_description
     return ret
 
@@ -486,7 +484,7 @@ def url_script(request):
     mac_sign(hmac_params, expires_in)
 
     url = "%s/api/v1/fetch" % config.CORE_URI
-    encode_params = urllib.urlencode(hmac_params)
+    encode_params = urllib.parse.urlencode(hmac_params)
     r_url = url + '?' + encode_params
 
     return r_url

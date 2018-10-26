@@ -44,11 +44,11 @@ class BaseKeyController(object):
         if errors:
             log.error("Error adding %s: %s", self.key, errors)
             raise BadRequestError({
-                'msg': "Invalid parameters %s." % errors.keys(),
+                'msg': "Invalid parameters %s." % list(errors.keys()),
                 'errors': errors,
             })
 
-        for key, value in kwargs.iteritems():
+        for key, value in kwargs.items():
             setattr(self.key, key, value)
 
         if not Key.objects(owner=self.key.owner, default=True):
@@ -106,7 +106,7 @@ class BaseKeyController(object):
         log.info("Associating key %s to machine %s", self.key.id,
                  machine.machine_id)
 
-        if isinstance(port, basestring):
+        if isinstance(port, str):
             if port.isdigit():
                 port = int(port)
             elif not port:

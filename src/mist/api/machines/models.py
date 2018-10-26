@@ -224,7 +224,7 @@ class SSHProbe(me.EmbeddedDocument):
             val = data.get(strarr_attr)
             try:
                 assert isinstance(val, list)
-                assert all(isinstance(item, basestring) for item in val)
+                assert all(isinstance(item, str) for item in val)
                 setattr(self, strarr_attr, val)
             except Exception as exc:
                 log.error("Invalid %s '%s': %r", strarr_attr, val, exc)
@@ -340,7 +340,7 @@ class Machine(OwnershipMixin, me.Document):
         # self.key_associations list by iterating over it and popping matched
         # embedded documents in order to ensure that the most recent list is
         # always processed and saved.
-        for ka in reversed(range(len(self.key_associations))):
+        for ka in reversed(list(range(len(self.key_associations)))):
             if self.key_associations[ka].keypair.deleted:
                 self.key_associations.pop(ka)
 

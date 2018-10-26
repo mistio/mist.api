@@ -11,9 +11,10 @@ import time
 import calendar
 import logging
 import requests
-import HTMLParser
+import html.parser
 
 import mist.api.config as config
+from functools import reduce
 
 
 log = logging.getLogger(__name__)
@@ -62,7 +63,7 @@ class GenericHandler(object):
         return "bucky.%s" % self.uuid
 
     def get_data(self, targets, start="", stop="", interval_str=""):
-        if isinstance(targets, basestring):
+        if isinstance(targets, str):
             targets = [targets]
         clean_targets = []
         real_to_requested = {}
@@ -114,7 +115,7 @@ class GenericHandler(object):
                 search = re.search("(?:Exception|TypeError): (.*)", resp.text)
                 if search:
                     reason = search.groups()[0]
-                    reason = HTMLParser.HTMLParser().unescape(reason)
+                    reason = html.parser.HTMLParser().unescape(reason)
             except:
                 pass
             if reason == "reduce() of empty sequence with no initial value":
@@ -618,7 +619,7 @@ class MultiHandler(GenericHandler):
         return metrics
 
     def get_data(self, targets, start="", stop="", interval_str=""):
-        if isinstance(targets, basestring):
+        if isinstance(targets, str):
             targets = [targets]
         current_handlers = {}
         for target in targets:
@@ -629,12 +630,13 @@ class MultiHandler(GenericHandler):
         max_targets = 5  # max targets per http request
         started_at = time.time()
         run_args = []
-        for handler, targets in current_handlers.items():
+        for handler, targets in list(current_handlers.items()):
             while targets:
                 run_args.append((handler.get_data, targets[:max_targets]))
                 targets = targets[max_targets:]
 
-        def _run((func, targets)):
+        def _run(xxx_todo_changeme):
+            (func, targets) = xxx_todo_changeme
             try:
                 return func(targets, start=start, stop=stop,
                             interval_str=interval_str)
@@ -649,7 +651,7 @@ class MultiHandler(GenericHandler):
         # data = reduce(lambda x, y: x + y, parts)
         # pool.terminate()
 
-        parts = map(_run, run_args)
+        parts = list(map(_run, run_args))
         data = reduce(lambda x, y: x + y, parts)
 
         log.info("Multihandler get_data completed in: %.2f secs",

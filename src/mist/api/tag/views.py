@@ -107,13 +107,9 @@ def tag_resources(request):
 
         # split the tags into two lists: those that will be added and those
         # that will be removed
-        tags_to_add = [(tag['key'], tag['value']) for tag in filter(
-            lambda tag: tag.get('op', '+') == '+', resource_tags
-        )]
+        tags_to_add = [(tag['key'], tag['value']) for tag in [tag for tag in resource_tags if tag.get('op', '+') == '+']]
         # also extract the keys from all the tags to be deleted
-        tags_to_remove = map(lambda tag: tag['key'],
-                             filter(lambda tag: tag.get('op', '+') == '-',
-                                    resource_tags))
+        tags_to_remove = [tag['key'] for tag in [tag for tag in resource_tags if tag.get('op', '+') == '-']]
 
         # SEC only Org Owners may edit the secure tags
         tags = {tag[0]: tag[1] for tag in tags_to_add}
@@ -327,7 +323,7 @@ def set_cloud_tags(request):
     if not modify_security_tags(auth_context, tags, cloud):
         raise auth_context._raise('cloud', 'edit_security_tags')
 
-    return add_tags_to_resource(auth_context.owner, cloud, tags.items())
+    return add_tags_to_resource(auth_context.owner, cloud, list(tags.items()))
 
 
 @view_config(route_name='api_v1_machine_tags', request_method='POST',
@@ -379,7 +375,7 @@ def set_machine_tags(request):
     # tags without deleting any.
 
     old_tags = get_tags_for_resource(auth_context.owner, machine)
-    add_tags_to_resource(auth_context.owner, machine, tags.items())
+    add_tags_to_resource(auth_context.owner, machine, list(tags.items()))
 
     if config.MACHINE_PATCHES:
         new_tags = get_tags_for_resource(auth_context.owner, machine)
@@ -429,7 +425,7 @@ def set_schedule_tags(request):
     if not modify_security_tags(auth_context, tags, schedule):
         raise auth_context._raise('schedule', 'edit_security_tags')
 
-    return add_tags_to_resource(auth_context.owner, schedule, tags.items())
+    return add_tags_to_resource(auth_context.owner, schedule, list(tags.items()))
 
 
 @view_config(route_name='script_tags', request_method='POST', renderer='json')
@@ -465,7 +461,7 @@ def set_script_tags(request):
     if not modify_security_tags(auth_context, tags, script):
         raise auth_context._raise('script', 'edit_security_tags')
 
-    return add_tags_to_resource(auth_context.owner, script, tags.items())
+    return add_tags_to_resource(auth_context.owner, script, list(tags.items()))
 
 
 @view_config(route_name='key_tags', request_method='POST', renderer='json')
@@ -504,7 +500,7 @@ def set_key_tags(request):
     if not modify_security_tags(auth_context, tags, key):
         raise auth_context._raise('key', 'edit_security_tags')
 
-    return add_tags_to_resource(auth_context.owner, key, tags.items())
+    return add_tags_to_resource(auth_context.owner, key, list(tags.items()))
 
 
 @view_config(route_name='network_tags', request_method='POST', renderer='json')
@@ -549,7 +545,7 @@ def set_network_tags(request):
     if not modify_security_tags(auth_context, tags, network):
         raise auth_context._raise('network', 'edit_security_tags')
 
-    return add_tags_to_resource(auth_context.owner, network, tags.items())
+    return add_tags_to_resource(auth_context.owner, network, list(tags.items()))
 
 
 @view_config(route_name='schedule_tag', request_method='DELETE',

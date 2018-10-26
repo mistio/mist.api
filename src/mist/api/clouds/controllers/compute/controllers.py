@@ -176,7 +176,7 @@ class AmazonComputeController(BaseComputeController):
 
     def _list_images__fetch_images(self, search=None):
         default_images = config.EC2_IMAGES[self.cloud.region]
-        image_ids = default_images.keys() + self.cloud.starred
+        image_ids = list(default_images.keys()) + self.cloud.starred
         if not search:
             try:
                 # this might break if image_ids contains starred images
@@ -188,7 +188,7 @@ class AmazonComputeController(BaseComputeController):
                     self.cloud.starred.remove(bad_id)
                 self.cloud.save()
                 images = self.connection.list_images(None,
-                                                     default_images.keys() +
+                                                     list(default_images.keys()) +
                                                      self.cloud.starred)
             for image in images:
                 if image.id in default_images:
@@ -539,7 +539,7 @@ class AzureComputeController(BaseComputeController):
         for image in images:
             if image.name not in images_dict:
                 images_dict[image.name] = image
-        return images_dict.values()
+        return list(images_dict.values())
 
     def _cloud_service(self, machine_libcloud_id):
         """
@@ -632,7 +632,7 @@ class AzureArmComputeController(BaseComputeController):
         # Fetch mist's recommended images
         images = [NodeImage(id=image, name=name,
                             driver=self.connection, extra={})
-                  for image, name in config.AZURE_ARM_IMAGES.items()]
+                  for image, name in list(config.AZURE_ARM_IMAGES.items())]
         return images
 
     def _reboot_machine(self, machine, machine_libcloud):
@@ -671,7 +671,7 @@ class GoogleComputeController(BaseComputeController):
 
         extra = copy.copy(machine_libcloud.extra)
 
-        for key in extra.keys():
+        for key in list(extra.keys()):
             if key in ['metadata']:
                 del extra[key]
         return extra
@@ -1223,7 +1223,7 @@ class DockerComputeController(BaseComputeController):
         changed = False
         for attr, val in {'name': self.cloud.title,
                           'hostname': self.cloud.host,
-                          'machine_type': 'container-host'}.iteritems():
+                          'machine_type': 'container-host'}.items():
             if getattr(machine, attr) != val:
                 setattr(machine, attr, val)
                 changed = True
@@ -1314,7 +1314,7 @@ class DockerComputeController(BaseComputeController):
         images = [ContainerImage(id=image, name=name, path=None,
                                  version=None, driver=self.connection,
                                  extra={})
-                  for image, name in config.DOCKER_IMAGES.items()]
+                  for image, name in list(config.DOCKER_IMAGES.items())]
         # Add starred images
         images += [ContainerImage(id=image, name=image, path=None,
                                   version=None, driver=self.connection,

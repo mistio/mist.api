@@ -83,7 +83,7 @@ def add_schedule_entry(request):
 
     if schedule_tags:
         resolve_id_and_set_tags(auth_context.owner, 'schedule', schedule.id,
-                                schedule_tags.items())
+                                list(schedule_tags.items()))
     trigger_session_update(auth_context.owner, ['schedules'])
     return schedule.as_dict()
 

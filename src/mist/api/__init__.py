@@ -27,7 +27,7 @@ class Root(object):
 
 def mongo_connect(*args, **kwargs):
     """Connect mongoengine to mongo db. This connection is reused everywhere"""
-    for _ in xrange(30):
+    for _ in range(30):
         try:
             log.info("Attempting to connect to %s at %s...", config.MONGO_DB,
                      config.MONGO_URI)

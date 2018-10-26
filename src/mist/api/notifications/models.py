@@ -1,6 +1,6 @@
 import uuid
 import json
-import urllib
+import urllib.request, urllib.parse, urllib.error
 import datetime
 import mongoengine as me
 
@@ -219,7 +219,7 @@ class Notification(me.Document):
         # reminder intervals. Thus we avoid spamming users with back-to-back
         # reminders.
         schedule_size = len(self.reminder_schedule)
-        for c in xrange(schedule_size - 1, self.reminder_count, -1):
+        for c in range(schedule_size - 1, self.reminder_count, -1):
             timedelta = datetime.timedelta(seconds=self.reminder_schedule[c])
             if self.created_at + timedelta < datetime.datetime.utcnow():
                 self.reminder_count = c
@@ -292,7 +292,7 @@ class EmailNotification(Notification):
         token = {'token': encrypt(json.dumps(params))}
         mac_sign(token)
         return '%s/unsubscribe?%s' % (config.CORE_URI,
-                                      urllib.urlencode(token))
+                                      urllib.parse.urlencode(token))
 
 
 class EmailReport(EmailNotification):

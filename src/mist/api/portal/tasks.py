@@ -20,9 +20,9 @@ def get_version_params(portal=None):
         'created_at': str(portal.created_at),
         'license_key': config.LICENSE_KEY,
     }
-    for key, value in config.VERSION.iteritems():
+    for key, value in config.VERSION.items():
         params['version_%s' % key] = value
-    for key, value in get_current_portal_usage().items():
+    for key, value in list(get_current_portal_usage().items()):
         params['usage_%s' % key] = value
     return params
 

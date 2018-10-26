@@ -10,7 +10,7 @@ be performed inside the corresponding method functions.
 """
 
 import os
-import urllib
+import urllib.request, urllib.parse, urllib.error
 import json
 import netaddr
 import traceback
@@ -236,7 +236,7 @@ def login(request):
     service = request.matchdict.get('service') or params.get('service') or ''
     return_to = params.get('return_to')
     if return_to:
-        return_to = urllib.unquote(return_to)
+        return_to = urllib.parse.unquote(return_to)
     else:
         return_to = '/'
     token_from_params = params.get('token')
@@ -367,7 +367,7 @@ def switch_org(request):
         elif user not in org.members:
             raise ForbiddenError()
     reissue_cookie_session(request, user, org=org, after=1)
-    raise RedirectError(urllib.unquote(return_to) or '/')
+    raise RedirectError(urllib.parse.unquote(return_to) or '/')
 
 
 @view_config(route_name='login', request_method='GET',
@@ -404,7 +404,7 @@ def login_get(request):
     try:
         user_from_request(request)
         if not service:
-            return HTTPFound(urllib.unquote(return_to) or '/')
+            return HTTPFound(urllib.parse.unquote(return_to) or '/')
         raise BadRequestError("Invalid service '%s'." % service)
     except UserUnauthorizedError:
         path = "sign-in"
@@ -414,7 +414,7 @@ def login_get(request):
         if invitoken:
             query_params['invitoken'] = invitoken
         if query_params:
-            path += '?' + urllib.urlencode(query_params)
+            path += '?' + urllib.parse.urlencode(query_params)
         return HTTPFound(path)
 
 
@@ -463,7 +463,7 @@ def register(request):
     name = name.strip().split(" ", 1)
     email = email.strip().lower()
 
-    if type(name) == unicode:
+    if type(name) == str:
         name = name.encode('utf-8', 'ignore')
     if not request_beta:
         try:
@@ -1796,7 +1796,7 @@ def delete_teams(request):
             auth_context.org.id == org_id):
         raise OrganizationAuthorizationFailure()
 
-    if not isinstance(team_ids, (list, basestring)) or len(team_ids) == 0:
+    if not isinstance(team_ids, (list, str)) or len(team_ids) == 0:
         raise RequiredParameterMissingError('No team ids provided')
     # remove duplicate ids if there are any
     teams_ids = sorted(team_ids)
@@ -1824,16 +1824,13 @@ def delete_teams(request):
                 report[team_id] = 'deleted'
 
     # if no team id was valid raise exception
-    if len(filter(lambda team_id: report[team_id] == 'not_found',
-                  report)) == len(teams_ids):
+    if len([team_id for team_id in report if report[team_id] == 'not_found']) == len(teams_ids):
         raise NotFoundError('No valid team id provided')
     # if team is not empty raise exception
-    if len(filter(lambda team_id: report[team_id] == 'not_empty',
-                  report)) == len(teams_ids):
+    if len([team_id for team_id in report if report[team_id] == 'not_empty']) == len(teams_ids):
         raise BadRequestError('Delete only empty teams')
     # if user was not authorized for any team raise exception
-    if len(filter(lambda team_id: report[team_id] == 'forbidden',
-                  report)) == len(team_ids):
+    if len([team_id for team_id in report if report[team_id] == 'forbidden']) == len(team_ids):
         raise TeamForbidden()
 
     trigger_session_update(auth_context.owner, ['org'])

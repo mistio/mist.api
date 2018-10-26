@@ -161,7 +161,7 @@ class HubClient(object):
         if not self.consumer.worker_id:
             raise Exception("Routing key not yet received in RPC response.")
         routing_key = '%s.%s' % (self.consumer.worker_id, action)
-        if isinstance(msg, basestring):
+        if isinstance(msg, str):
             self.consumer._channel.basic_publish(exchange=self.exchange,
                                                  routing_key=routing_key,
                                                  body=msg)
@@ -193,11 +193,11 @@ class EchoHubClient(HubClient):
         self.timer.start()
 
     def ping(self):
-        print 'Sending echo request: ping'
+        print('Sending echo request: ping')
         self.send_to_worker('echo', 'ping')
 
     def on_echo(self, msg):
-        print 'Received message:', msg
+        print('Received message:', msg)
 
 
 def prepare_logging(verbosity=2):

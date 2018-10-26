@@ -1,4 +1,4 @@
-import urllib2
+import urllib.request, urllib.error, urllib.parse
 import logging
 import jsonpatch
 
@@ -108,7 +108,7 @@ class EmailNotificationChannel(BaseNotificationChannel):
                 # Attempt to send.
                 try:
                     sg.client.mail.send.post(request_body=mail.get())
-                except urllib2.URLError as exc:
+                except urllib.error.URLError as exc:
                     log.exception(repr(exc))
                 except Exception as exc:
                     log.exception(repr(exc))

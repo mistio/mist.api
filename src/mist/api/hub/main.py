@@ -114,7 +114,7 @@ class AmqpGeventBase(object):
                   self.lbl, routing_key, msg)
         kwargs.setdefault('retry', True)
         kwargs.setdefault('serializer',
-                          'raw' if isinstance(msg, basestring) else 'json')
+                          'raw' if isinstance(msg, str) else 'json')
         self.consumer.producer.publish(msg, exchange=self.exchange,
                                        routing_key=routing_key, **kwargs)
 
@@ -128,8 +128,8 @@ class AmqpGeventBase(object):
         if self.greenlets:
             log.debug("%s: Stopping all greenlets %s.",
                       self.lbl, tuple(self.greenlets.keys()))
-            gevent.killall(self.greenlets.values())
-            gevent.joinall(self.greenlets.values())
+            gevent.killall(list(self.greenlets.values()))
+            gevent.joinall(list(self.greenlets.values()))
             self.greenlets.clear()
         self.stopped = True
 
@@ -197,11 +197,11 @@ class HubServer(AmqpGeventBase):
         worker.start()
 
     def list_workers(self):
-        types_to_names = {val: key for key, val in self.worker_cls.items()}
+        types_to_names = {val: key for key, val in list(self.worker_cls.items())}
         workers_list = [{'uuid': uuid,
                          'type': types_to_names[type(worker)],
                          'params': worker.params}
-                        for uuid, worker in self.workers.items()]
+                        for uuid, worker in list(self.workers.items())]
         log.info("%s: Current workers: %s", self.lbl, workers_list)
         return workers_list
 
@@ -227,7 +227,7 @@ class HubServer(AmqpGeventBase):
         if self.workers:
             log.debug("%s: Stopping all workers %s.",
                       self.lbl, tuple(self.workers.keys()))
-            for worker_id in self.workers.keys():
+            for worker_id in list(self.workers.keys()):
                 self.workers[worker_id].stop()
         super(HubServer, self).stop()
 
@@ -283,7 +283,7 @@ class EchoHubWorker(HubWorker):
 
     def on_echo(self, body, msg):
         """Echo back messages sent with routing suffix 'echo'"""
-        print("%s: Received on_echo %r. Will echo back." % (self.lbl, body))
+        print(("%s: Received on_echo %r. Will echo back." % (self.lbl, body)))
         self.send_to_client('echo', body)
 
 
@@ -390,7 +390,7 @@ class EchoHubClient(HubClient):
 
     def on_echo(self, body, msg):
         """Called on echo event"""
-        print("%s: Received on_echo with msg body %r." % (self.lbl, msg.body))
+        print(("%s: Received on_echo with msg body %r." % (self.lbl, msg.body)))
 
     def send_echo_request(self, msg):
         """Sends an echo request the response to which will trigger on_echo"""

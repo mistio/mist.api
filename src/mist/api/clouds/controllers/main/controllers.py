@@ -430,7 +430,7 @@ class OtherMainController(BaseMainController):
             kwargs['os_type'] = 'unix'
         kwargs.pop('operating_system', None)
         errors = {}
-        for key in kwargs.keys():
+        for key in list(kwargs.keys()):
             if key not in ('host', 'ssh_user', 'ssh_port', 'ssh_key',
                            'os_type', 'rdp_port'):
                 error = "Invalid parameter %s=%r." % (key, kwargs[key])
@@ -447,9 +447,9 @@ class OtherMainController(BaseMainController):
             name = kwargs['host']
 
         if errors:
-            log.error("Invalid parameters %s." % errors.keys())
+            log.error("Invalid parameters %s." % list(errors.keys()))
             raise BadRequestError({
-                'msg': "Invalid parameters %s." % errors.keys(),
+                'msg': "Invalid parameters %s." % list(errors.keys()),
                 'errors': errors,
             })
 

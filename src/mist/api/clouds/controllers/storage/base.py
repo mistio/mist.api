@@ -158,7 +158,7 @@ class BaseStorageController(BaseController):
                 log.exception('Error post-parsing %s: %s', volume, exc)
 
             # Ensure JSON-encoding.
-            for key, value in volume.extra.iteritems():
+            for key, value in volume.extra.items():
                 try:
                     json.dumps(value)
                 except TypeError:

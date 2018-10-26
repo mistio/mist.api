@@ -5,7 +5,7 @@ import json
 import csv
 
 try:
-    from StringIO import StringIO  # python 2
+    from io import StringIO  # python 2
 except ImportError:
     from io import StringIO  # python 3
 
@@ -57,11 +57,11 @@ def json2csv(value, columns=None):
     """
     Transforms a serialized JSON object to CSV format
     """
-    if isinstance(value, basestring):
+    if isinstance(value, str):
         value = json.loads(value)
-    flat_value = map(lambda x: flattenjson(x, "__"), value)
+    flat_value = [flattenjson(x, "__") for x in value]
     if not columns:
-        columns = [x for row in flat_value for x in row.keys()]
+        columns = [x for row in flat_value for x in list(row.keys())]
     columns = list(set(columns))
     fout = StringIO()
     writer = csv.writer(fout, delimiter=',', quotechar='"',
@@ -69,7 +69,7 @@ def json2csv(value, columns=None):
 
     writer.writerow(columns)
     for row in flat_value:
-        writer.writerow(map(lambda x: row.get(x, ""), columns))
+        writer.writerow([row.get(x, "") for x in columns])
 
     return fout.getvalue()
 

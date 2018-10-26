@@ -213,7 +213,7 @@ class Owner(me.Document):
         # TODO: check if these are valid email addresses,
         # to avoid possible spam
         if self.alerts_email:
-            if isinstance(self.alerts_email, basestring):
+            if isinstance(self.alerts_email, str):
                 emails = []
                 for email in self.alerts_email.split(','):
                     if re.match("[^@]+@[^@]+\.[^@]+", email):

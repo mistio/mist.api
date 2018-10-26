@@ -31,7 +31,7 @@ def tags_to_dict(tags):
     for tag in tags:
         if isinstance(tag, dict):
             if len(tag) == 1:
-                key = tag.keys()[0]
+                key = list(tag.keys())[0]
                 tdict[tag] = tag[key]
             elif 'key' in tag:
                 tdict[tag['key']] = tag.get('value')

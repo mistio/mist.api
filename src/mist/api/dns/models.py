@@ -23,7 +23,7 @@ RECORDS = {}
 
 def _populate_records():
     """Populates RECORDS variable with mappings from types to records"""
-    for key, value in globals().items():
+    for key, value in list(globals().items()):
         if key.endswith('Record') and key != 'Record':
             value = globals()[key]
             if issubclass(value, Record) and value is not Record:

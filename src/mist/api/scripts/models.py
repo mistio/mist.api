@@ -3,7 +3,7 @@ import re
 from uuid import uuid4
 import mongoengine as me
 import mist.api.tag.models
-from urlparse import urlparse
+from urllib.parse import urlparse
 from mist.api.users.models import Owner
 from mist.api.exceptions import BadRequestError
 from mist.api.scripts.base import BaseScriptController

@@ -1,6 +1,6 @@
 import random
 import string
-import urllib
+import urllib.request, urllib.parse, urllib.error
 from mongoengine import DoesNotExist
 
 from mist.api.users.models import Organization, User
@@ -174,7 +174,7 @@ def user_from_request(request, admin=False, redirect=False):
                 query = ''
                 if request.query_string:
                     query = '?' + request.query_string
-                return_to = urllib.quote(request.path + query)
+                return_to = urllib.parse.quote(request.path + query)
                 url = "/login?return_to=" + return_to
                 raise RedirectError(url)
         raise UserUnauthorizedError()
@@ -254,7 +254,7 @@ def reissue_cookie_session(request, user_id='', su='', org=None, after=0,
         # A user will be set to the session
         user_for_session = su if su else user_id
         user_is_effective = not user_id
-        if isinstance(user_for_session, basestring):
+        if isinstance(user_for_session, str):
             # Get the user object if an id has been provided
             if '@' in user_for_session:
                 user_for_session = User.objects.get(email=user_for_session)

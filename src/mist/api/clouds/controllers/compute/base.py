@@ -89,7 +89,7 @@ def _decide_machine_cost(machine, tags=None, cost=(0, 0)):
         cpm = parse_num(tags.get('cost_per_month'))
         if not (cph or cpm) or cph > 100 or cpm > 100 * 24 * 31:
             log.debug("Invalid cost tags for machine %s", machine)
-            cph, cpm = map(parse_num, cost)
+            cph, cpm = list(map(parse_num, cost))
         if not cph:
             cph = float(cpm) / month_days / 24
         elif not cpm:
@@ -229,7 +229,7 @@ class BaseComputeController(BaseController):
                         for m in fresh_machines}
         # Exclude last seen and probe fields from patch.
         for md in old_machines, new_machines:
-            for m in md.values():
+            for m in list(md.values()):
                 m.pop('last_seen')
                 m.pop('probe')
                 if m.get('extra') and m['extra'].get('ports'):
@@ -364,7 +364,7 @@ class BaseComputeController(BaseController):
             # later on in the HTTP response.
             extra = self._list_machines__get_machine_extra(machine, node)
 
-            for key, val in extra.items():
+            for key, val in list(extra.items()):
                 try:
                     json.dumps(val)
                 except TypeError:
@@ -702,7 +702,7 @@ class BaseComputeController(BaseController):
 
         # Filter out duplicate images, if any.
         seen_ids = set()
-        for i in reversed(xrange(len(images))):
+        for i in reversed(range(len(images))):
             image = images[i]
             if image.id in seen_ids:
                 images.pop(i)
