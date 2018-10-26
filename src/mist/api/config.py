@@ -53,7 +53,9 @@ ENABLE_METERING = True
 # backups
 AWS_ACCESS_KEY = ''
 AWS_SECRET_KEY = ''
-AWS_MONGO_BUCKET = 'mistio-backup/mongodumps'
+AWS_MONGO_BUCKET = 'mist-backup/mongodumps'
+AWS_INFLUX_BUCKET = 'mist-backup/influxdumps'
+
 GPG = {
     "recipient": '', 'key': ''
 }
@@ -93,7 +95,7 @@ GOCKY_HOST = 'gocky'
 
 # InfluxDB
 INFLUX = {
-    "host": "http://influxdb:8086", "db": "telegraf"
+    "host": "http://influxdb:8086", "db": "telegraf", "backup": "influxdb:8088"
 }
 
 TELEGRAF_TARGET = ""

@@ -1356,18 +1356,40 @@ def create_backup():
     """
     if all(value == '' for value in config.GPG.values()):
         os.system("mongodump --host %s --gzip --archive | s3cmd --access_key=%s \
-        --secret_key=%s put - s3://%s/%s" % (config.MONGO_URI,
+        --secret_key=%s put - s3://%s/%s-%s" % (config.MONGO_URI,
                   config.AWS_ACCESS_KEY, config.AWS_SECRET_KEY,
-                  config.AWS_MONGO_BUCKET, str(datetime.datetime.now())))
+                  config.AWS_MONGO_BUCKET, config.CORE_URI.split('//')[1],
+                  datetime.datetime.now().strftime('%Y%m%d%H%M')))
+        if config.INFLUX.get('backup'):
+            os.system("influxd backup -portable -host %s ./influx-snapshot &&\
+            tar cv influx-snapshot | s3cmd --access_key=%s --secret_key=%s \
+            put - s3://%s/%s-%s && rm -rf influx-snapshot" % (
+                config.INFLUX.get('backup'), config.AWS_ACCESS_KEY,
+                config.AWS_SECRET_KEY, config.AWS_INFLUX_BUCKET,
+                config.CORE_URI.split('//')[1],
+                datetime.datetime.now().strftime('%Y%m%d%H%M')))
     else:
         # encrypt with gpg
-        os.system("echo %s > pub.key && gpg --import pub.key && mongodump --host \
-         %s --gzip --archive | gpg --yes --trust-model always --encrypt \
-         --recipient %s | s3cmd --access_key=%s --secret_key=%s put - \
-                  s3://%s/%s" % (config.GPG['key'], config.GPG['recipient'],
-                  config.MONGO_URI, config.AWS_ACCESS_KEY,
-                  config.AWS_SECRET_KEY, config.AWS_MONGO_BUCKET,
-                  str(datetime.datetime.now())))
+        f = open('pub.key', 'w+')
+        f.write(config.GPG['key'])
+        f.close()
+        os.system("gpg --import pub.key && mongodump \
+        --host %s --gzip --archive | gpg --yes --trust-model always \
+        --encrypt --recipient %s | s3cmd --access_key=%s --secret_key=%s put \
+        - s3://%s/%s-%s.gpg" % (
+            config.MONGO_URI, config.GPG['recipient'], config.AWS_ACCESS_KEY,
+            config.AWS_SECRET_KEY, config.AWS_MONGO_BUCKET,
+            config.CORE_URI.split('//')[1],
+            datetime.datetime.now().strftime('%Y%m%d%H%M')))
+        if config.INFLUX.get('backup'):
+            os.system("influxd backup -portable -host %s ./influx-snapshot \
+            && tar cv influx-snapshot | gpg --yes --trust-model always \
+            --encrypt --recipient %s | s3cmd --access_key=%s --secret_key=%s \
+            put - s3://%s/%s-%s.gpg" % (
+                config.INFLUX['backup'], config.GPG['recipient'],
+                config.AWS_ACCESS_KEY, config.AWS_SECRET_KEY,
+                config.AWS_INFLUX_BUCKET, config.CORE_URI.split('//')[1],
+                datetime.datetime.now().strftime('%Y%m%d%H%M')))
 
 
 @app.task
