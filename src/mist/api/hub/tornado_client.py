@@ -63,10 +63,12 @@ class _HubTornadoConsumer(mist.api.amqp_tornado.Consumer):
         super(_HubTornadoConsumer, self).on_message(
             unused_channel, basic_deliver, properties, body
         )
+        exc = None
         if properties.content_type == 'application/json':
             try:
                 body = json.loads(body)
-            except (ValueError, TypeError) as exc:
+            except (ValueError, TypeError) as e:
+                exc = e
                 log.error("%s: Error %s loading json msg %r.",
                           self.lbl, exc, body)
         routing_key = basic_deliver.routing_key

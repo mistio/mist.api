@@ -1,6 +1,8 @@
 import os
 import json
-import urllib.request, urllib.parse, urllib.error
+import urllib.request
+import urllib.parse
+import urllib.error
 import logging
 
 from chameleon import PageTemplateFile

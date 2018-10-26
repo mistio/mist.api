@@ -84,7 +84,8 @@ def get_stats(machine, start='', stop='', step='', metrics=None):
 
         # NOTE: For backwards compatibility.
         # Transform "min" and "sec" to "m" and "s", respectively.
-        start, stop, step = [re.sub('in|ec', repl='', string=x) for x in (start.strip('-'), stop.strip('-'), step)]
+        start, stop, step = [re.sub('in|ec', repl='', string=x) for x in (
+            start.strip('-'), stop.strip('-'), step)]
 
         # Fetch series.
         results = {}
@@ -129,7 +130,8 @@ def get_load(owner, start='', stop='', step='', uuids=None):
                                           step=step, uuids=graphite_uuids)
     if influx_uuids:
         # Transform "min" and "sec" to "m" and "s", respectively.
-        _start, _stop, _step = [re.sub('in|ec', repl='', string=x) for x in (start.strip('-'), stop.strip('-'), step)]
+        _start, _stop, _step = [re.sub('in|ec', repl='', string=x) for x in (
+            start.strip('-'), stop.strip('-'), step)]
         influx_data = InfluxMultiLoadHandler(influx_uuids).get_stats(
             metric='system.load1',
             start=_start, stop=_stop, step=_step,

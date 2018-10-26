@@ -197,7 +197,8 @@ class HubServer(AmqpGeventBase):
         worker.start()
 
     def list_workers(self):
-        types_to_names = {val: key for key, val in list(self.worker_cls.items())}
+        types_to_names = {val: key for key,
+                          val in list(self.worker_cls.items())}
         workers_list = [{'uuid': uuid,
                          'type': types_to_names[type(worker)],
                          'params': worker.params}
@@ -390,7 +391,8 @@ class EchoHubClient(HubClient):
 
     def on_echo(self, body, msg):
         """Called on echo event"""
-        print(("%s: Received on_echo with msg body %r." % (self.lbl, msg.body)))
+        print(("%s: Received on_echo with msg body %r." % (
+            self.lbl, msg.body)))
 
     def send_echo_request(self, msg):
         """Sends an echo request the response to which will trigger on_echo"""

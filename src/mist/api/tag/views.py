@@ -107,9 +107,11 @@ def tag_resources(request):
 
         # split the tags into two lists: those that will be added and those
         # that will be removed
-        tags_to_add = [(tag['key'], tag['value']) for tag in [tag for tag in resource_tags if tag.get('op', '+') == '+']]
+        tags_to_add = [(tag['key'], tag['value']) for tag in [
+            tag for tag in resource_tags if tag.get('op', '+') == '+']]
         # also extract the keys from all the tags to be deleted
-        tags_to_remove = [tag['key'] for tag in [tag for tag in resource_tags if tag.get('op', '+') == '-']]
+        tags_to_remove = [tag['key'] for tag in [
+            tag for tag in resource_tags if tag.get('op', '+') == '-']]
 
         # SEC only Org Owners may edit the secure tags
         tags = {tag[0]: tag[1] for tag in tags_to_add}
@@ -425,7 +427,8 @@ def set_schedule_tags(request):
     if not modify_security_tags(auth_context, tags, schedule):
         raise auth_context._raise('schedule', 'edit_security_tags')
 
-    return add_tags_to_resource(auth_context.owner, schedule, list(tags.items()))
+    return add_tags_to_resource(
+        auth_context.owner, schedule, list(tags.items()))
 
 
 @view_config(route_name='script_tags', request_method='POST', renderer='json')
@@ -545,7 +548,8 @@ def set_network_tags(request):
     if not modify_security_tags(auth_context, tags, network):
         raise auth_context._raise('network', 'edit_security_tags')
 
-    return add_tags_to_resource(auth_context.owner, network, list(tags.items()))
+    return add_tags_to_resource(
+        auth_context.owner, network, list(tags.items()))
 
 
 @view_config(route_name='schedule_tag', request_method='DELETE',

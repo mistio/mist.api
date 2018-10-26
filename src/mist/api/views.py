@@ -10,7 +10,9 @@ be performed inside the corresponding method functions.
 """
 
 import os
-import urllib.request, urllib.parse, urllib.error
+import urllib.request
+import urllib.parse
+import urllib.error
 import json
 import netaddr
 import traceback
@@ -1824,13 +1826,16 @@ def delete_teams(request):
                 report[team_id] = 'deleted'
 
     # if no team id was valid raise exception
-    if len([team_id for team_id in report if report[team_id] == 'not_found']) == len(teams_ids):
+    if len([team_id for team_id in report
+            if report[team_id] == 'not_found']) == len(teams_ids):
         raise NotFoundError('No valid team id provided')
     # if team is not empty raise exception
-    if len([team_id for team_id in report if report[team_id] == 'not_empty']) == len(teams_ids):
+    if len([team_id for team_id in report
+            if report[team_id] == 'not_empty']) == len(teams_ids):
         raise BadRequestError('Delete only empty teams')
     # if user was not authorized for any team raise exception
-    if len([team_id for team_id in report if report[team_id] == 'forbidden']) == len(team_ids):
+    if len([team_id for team_id in report
+            if report[team_id] == 'forbidden']) == len(team_ids):
         raise TeamForbidden()
 
     trigger_session_update(auth_context.owner, ['org'])

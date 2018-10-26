@@ -233,7 +233,8 @@ class BaseStatsHandler(object):
                         column = columns[index]
                         if tags:
                             id = '%s.%s.%s' % (measurement, tags, column)
-                            name += ' %s' % ' '.join(list(series['tags'].values()))
+                            name += ' %s' % ' '.join(
+                                list(series['tags'].values()))
                         else:
                             id = '%s.%s' % (measurement, column)
                         name += ' %s' % column.replace('_', ' ')

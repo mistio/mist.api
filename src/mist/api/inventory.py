@@ -62,7 +62,8 @@ class MistInventory(object):
         if include_localhost:
             ans_inv += 'localhost\tansible_connection=local\n\n'
         for name, host in list(self.hosts.items()):
-            vars_part = ' '.join(["%s=%s" % item for item in list(host.items())])
+            vars_part = ' '.join(["%s=%s" % item
+                                  for item in list(host.items())])
             ans_inv += '%s\t%s\n' % (name, vars_part)
         ans_inv += ('\n[all:vars]\n'
                     'ansible_python_interpreter="/usr/bin/env python2"\n')

@@ -27,15 +27,17 @@ class Root(object):
 
 def mongo_connect(*args, **kwargs):
     """Connect mongoengine to mongo db. This connection is reused everywhere"""
+    exc = None
     for _ in range(30):
         try:
             log.info("Attempting to connect to %s at %s...", config.MONGO_DB,
                      config.MONGO_URI)
             me.connect(db=config.MONGO_DB, host=config.MONGO_URI)
-        except Exception as exc:
+        except Exception as e:
             log.warning("Error connecting to mongo, will retry in 1 sec: %r",
-                        exc)
+                        e)
             time.sleep(1)
+            exc = e
         else:
             log.info("Connected...")
             break

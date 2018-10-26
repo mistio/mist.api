@@ -86,11 +86,11 @@ def run_action_by_id(self, rule_id, incident_id, action_id,
         _log_alert(resource, rule, value, triggered, timestamp, incident_id,
                    error=str(err))
         raise
-    except MistError as exc:
-        log.error("Error running %s: %r", action, exc)
+    except MistError as err:
+        log.error("Error running %s: %r", action, err)
         _log_alert(resource, rule, value, triggered, timestamp, incident_id,
                    error=str(err))
         raise
-    except Exception as exc:
-        log.error("Error running %s: %r", action, exc)
+    except Exception as err:
+        log.error("Error running %s: %r", action, err)
         raise

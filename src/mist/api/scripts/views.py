@@ -1,6 +1,8 @@
 import uuid
 import json
-import urllib.request, urllib.parse, urllib.error
+import urllib.request
+import urllib.parse
+import urllib.error
 
 import mongoengine as me
 from pyramid.response import Response
@@ -123,7 +125,8 @@ def add_script(request):
     script.assign_to(auth_context.user)
 
     if script_tags:
-        add_tags_to_resource(auth_context.owner, script, list(script_tags.items()))
+        add_tags_to_resource(auth_context.owner, script,
+                             list(script_tags.items()))
 
     script = script.as_dict()
 
@@ -307,10 +310,12 @@ def delete_scripts(request):
         # /SEC
 
     # if no script id was valid raise exception
-    if len([script_id for script_id in report if report[script_id] == 'not_found']) == len(script_ids):
+    if len([script_id for script_id in report
+            if report[script_id] == 'not_found']) == len(script_ids):
         raise NotFoundError('No valid script id provided')
     # if user was not authorized for any script raise exception
-    if len([script_id for script_id in report if report[script_id] == 'unauthorized']) == len(script_ids):
+    if len([script_id for script_id in report
+            if report[script_id] == 'unauthorized']) == len(script_ids):
         raise UnauthorizedError("You don't have authorization for any of these"
                                 " scripts")
     return report

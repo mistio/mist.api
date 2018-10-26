@@ -118,7 +118,8 @@ class BaseController(object):
             self.rule.actions = []
         for action in kwargs.pop('actions', []):
             if action.get('type') not in ACTIONS:
-                raise BadRequestError('Action must be in %s' % list(ACTIONS.keys()))
+                raise BadRequestError('Action must be in %s' %
+                                      list(ACTIONS.keys()))
             try:
                 action_cls = ACTIONS[action.pop('type')]()
                 action_cls.update(fail_on_error=fail_on_error, **action)
@@ -293,7 +294,8 @@ class ResourceRuleController(BaseController):
             self.rule.conditions = []
         for condition in kwargs.pop('selectors', []):
             if condition.get('type') not in CONDITIONS:
-                raise BadRequestError('Selector not in %s' % list(CONDITIONS.keys()))
+                raise BadRequestError('Selector not in %s' %
+                                      list(CONDITIONS.keys()))
             cond_cls = CONDITIONS[condition.pop('type')]()
             cond_cls.update(**condition)
             self.rule.conditions.append(cond_cls)
@@ -369,7 +371,8 @@ class NoDataRuleController(ResourceRuleController):
         if not all(key in TIMEPERIOD for key in kwargs):
             log.error('%s got kwargs=%s', self.__class__.__name__, kwargs)
             if fail_on_error:
-                raise BadRequestError('May only edit %s' % list(TIMEPERIOD.keys()))
+                raise BadRequestError('May only edit %s' %
+                                      list(TIMEPERIOD.keys()))
         super(NoDataRuleController, self).update(fail_on_error, **kwargs)
 
     def delete(self):

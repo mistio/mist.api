@@ -187,9 +187,8 @@ class AmazonComputeController(BaseComputeController):
                 for bad_id in bad_ids:
                     self.cloud.starred.remove(bad_id)
                 self.cloud.save()
-                images = self.connection.list_images(None,
-                                                     list(default_images.keys()) +
-                                                     self.cloud.starred)
+                images = self.connection.list_images(
+                    None, list(default_images.keys()) + self.cloud.starred)
             for image in images:
                 if image.id in default_images:
                     image.name = default_images[image.id]
@@ -649,9 +648,9 @@ class AzureArmComputeController(BaseComputeController):
         return size.extra.get('numberOfCores')
 
     def _list_sizes__get_name(self, size):
-            return size.name + ' ' + str(size.extra['numberOfCores']) \
-                             + ' cpus/' + str(size.ram / 1024) + 'G RAM/ ' \
-                             + str(size.disk) + 'GB SSD'
+        return size.name + ' ' + str(size.extra['numberOfCores']) \
+                         + ' cpus/' + str(size.ram / 1024) + 'G RAM/ ' \
+                         + str(size.disk) + 'GB SSD'
 
 
 class GoogleComputeController(BaseComputeController):
@@ -1565,7 +1564,7 @@ class OnAppComputeController(BaseComputeController):
         for param in kwargs:
             if param in ['memory', 'cpus', 'cpu_shares', 'cpu_units'] \
                     and kwargs[param]:
-                    valid_kwargs[param] = kwargs[param]
+                valid_kwargs[param] = kwargs[param]
         try:
             return self.connection.ex_resize_node(machine_libcloud,
                                                   **valid_kwargs)

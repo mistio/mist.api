@@ -130,7 +130,8 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
 
         if node:
             # filter out IPv6 addresses
-            ips = [ip for ip in node.public_ips + node.private_ips if ':' not in ip]
+            ips = [ip for ip in node.public_ips + node.private_ips
+                   if ':' not in ip]
             if not ips:
                 raise self.retry(exc=Exception(), countdown=60, max_retries=20)
             host = ips[0]

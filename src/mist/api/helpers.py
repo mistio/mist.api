@@ -531,7 +531,8 @@ def check_host(host, allow_localhost=config.ALLOW_CONNECT_LOCALHOST):
         forbidden_subnets['127.0.0.0/8'] = ("used for loopback addresses "
                                             "to the local host")
 
-    cidr = netaddr.smallest_matching_cidr(ipaddr, list(forbidden_subnets.keys()))
+    cidr = netaddr.smallest_matching_cidr(ipaddr,
+                                          list(forbidden_subnets.keys()))
     if cidr:
         raise MistError("%s is not allowed. It belongs to '%s' "
                         "which is %s." % (msg, cidr,
@@ -1302,8 +1303,8 @@ def subscribe_log_events_raw(callback=None, routing_keys=('#')):
         def wrapped(msg):
             try:
                 # bring extra key-value pairs to top level
-                for key, val in list(json.loads(msg.body.pop('extra')).items()):
-                    msg.body[key] = val
+                for k, v in list(json.loads(msg.body.pop('extra')).items()):
+                    msg.body[k] = v
             except:
                 pass
             return func(msg)
@@ -1314,8 +1315,8 @@ def subscribe_log_events_raw(callback=None, routing_keys=('#')):
         # print msg.delivery_info.get('routing_key'),
         try:
             if 'email' in event and 'type' in event and 'action' in event:
-                print(event.pop('email'), event.pop('type'), \
-                    event.pop('action'))
+                print(event.pop('email'), event.pop('type'),
+                      event.pop('action'))
             err = event.pop('error', False)
             if err:
                 print('  error:', err)

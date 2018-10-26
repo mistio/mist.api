@@ -44,8 +44,9 @@ class ConditionalClassMixin(object):
 
     conditions = me.EmbeddedDocumentListField(BaseCondition)
 
-    resource_model_name = me.StringField(required=True, default='machine',
-                                         choices=list(rtype_to_classpath.keys()))
+    resource_model_name = me.StringField(
+        required=True, default='machine',
+        choices=list(rtype_to_classpath.keys()))
 
     @property
     def condition_resource_cls(self):

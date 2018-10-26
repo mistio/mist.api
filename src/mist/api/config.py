@@ -1640,7 +1640,8 @@ if os.path.exists(CORE_CONFIG_PATH):
     exec(compile(open(CORE_CONFIG_PATH).read(), CORE_CONFIG_PATH, 'exec'))
     HAS_CORE = True
 else:
-    print("Couldn't find core config in %s" % CORE_CONFIG_PATH, file=sys.stderr)
+    print("Couldn't find core config in %s" % CORE_CONFIG_PATH,
+          file=sys.stderr)
     HAS_CORE = False
 
 CONFIG_OVERRIDE_FILES = []
@@ -1670,7 +1671,7 @@ for override_file in CONFIG_OVERRIDE_FILES:
                 locals()[key] = CONF[key]
     else:
         print(("Couldn't find settings file in %s" %
-                              override_file), file=sys.stderr)
+               override_file), file=sys.stderr)
 
 # Load all plugin config files. Plugins may define vars that can be overriden
 # by environmental variables
@@ -1696,8 +1697,8 @@ for plugin in PLUGINS:
         print("Imported config of `%s` plugin" % plugin, file=sys.stderr)
     except Exception as exc:
         if exc.message != 'No module named config':
-            print("Failed to import config of `%s` plugin" % \
-                plugin, file=sys.stderr)
+            print("Failed to import config of `%s` plugin" %
+                  plugin, file=sys.stderr)
 
 # Get settings from environmental variables.
 FROM_ENV_STRINGS = [
@@ -1728,7 +1729,8 @@ for key in FROM_ENV_INTS:
             locals()[key] = int(os.getenv(key))
         except (KeyError, ValueError):
             print("Invalid value for %s: %s" % (key,
-                                                               os.getenv(key)), file=sys.stderr)
+                                                os.getenv(key)),
+                  file=sys.stderr)
 for key in FROM_ENV_BOOLS:
     if os.getenv(key) is not None:
         locals()[key] = os.getenv(key) in ('1', 'true', 'True')
@@ -1752,7 +1754,7 @@ for override_file in CONFIG_OVERRIDE_FILES:
                 locals()[key] = CONF[key]
     else:
         print(("Couldn't find settings file in %s" %
-                              override_file), file=sys.stderr)
+               override_file), file=sys.stderr)
 
 HAS_BILLING = 'billing' in PLUGINS
 HAS_RBAC = 'rbac' in PLUGINS
@@ -1771,7 +1773,7 @@ ENABLE_BACKUPS = bool(AWS_ACCESS_KEY) and bool(AWS_SECRET_KEY)
 
 if not TELEGRAF_TARGET:
     if urllib.parse.urlparse(CORE_URI).hostname in ('localhost', '127.0.0.1',
-                                                '172.17.0.1'):
+                                                    '172.17.0.1'):
         TELEGRAF_TARGET = "http://traefik"
     else:
         TELEGRAF_TARGET = CORE_URI + '/ingress'

@@ -171,10 +171,12 @@ def delete_keys(request):
             report[key_id] = 'deleted'
 
     # if no key id was valid raise exception
-    if len([key_id for key_id in report if report[key_id] == 'not_found']) == len(key_ids):
+    if len([key_id for key_id in report
+            if report[key_id] == 'not_found']) == len(key_ids):
         raise NotFoundError('No valid key id provided')
     # if user was unauthorized for all keys
-    if len([key_id for key_id in report if report[key_id] == 'unauthorized']) == len(key_ids):
+    if len([key_id for key_id in report
+            if report[key_id] == 'unauthorized']) == len(key_ids):
         raise NotFoundError('Unauthorized to modify any of the keys')
     return report
 
