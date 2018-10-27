@@ -256,7 +256,7 @@ def reissue_cookie_session(request, user_id='', su='', org=None, after=0,
         # A user will be set to the session
         user_for_session = su if su else user_id
         user_is_effective = not user_id
-        if isinstance(user_for_session, str):
+        if isinstance(user_for_session, basestring):
             # Get the user object if an id has been provided
             if '@' in user_for_session:
                 user_for_session = User.objects.get(email=user_for_session)
