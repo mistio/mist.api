@@ -44,7 +44,7 @@ pymongo
 pyramid==1.4
 pytest
 python-memcached
-python-openid
+python3-openid
 pyvmomi==6.5
 requests
 s3cmd
