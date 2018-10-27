@@ -4,6 +4,8 @@ import time
 import logging
 import requests
 
+from future.utils import string_types
+
 from tornado.httputil import url_concat
 from tornado.httpclient import AsyncHTTPClient
 
@@ -69,7 +71,7 @@ def group(query, fields=None, step=None):
     """Group results by `fields` and/or `step`."""
     if fields is None:
         fields = []
-    if isinstance(fields, basestring):
+    if isinstance(fields, string_types):
         fields = [fields]
     fields = ['"%s"' % f for f in fields]
     if step:
@@ -227,7 +229,7 @@ class BaseStatsHandler(object):
                     for index, point in enumerate(value):
                         if index == 0:  # Skip the "time" column.
                             continue
-                        if isinstance(point, basestring):  # Skip tags.
+                        if isinstance(point, string_types):  # Skip tags.
                             continue
                         name = measurement.upper()
                         column = columns[index]

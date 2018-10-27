@@ -8,6 +8,8 @@ import tornado.ioloop
 import mist.api.amqp_tornado
 import mist.api.hub.main
 
+from future.utils import string_types
+
 from mist.api import config
 
 
@@ -163,7 +165,7 @@ class HubClient(object):
         if not self.consumer.worker_id:
             raise Exception("Routing key not yet received in RPC response.")
         routing_key = '%s.%s' % (self.consumer.worker_id, action)
-        if isinstance(msg, basestring):
+        if isinstance(msg, string_types):
             self.consumer._channel.basic_publish(exchange=self.exchange,
                                                  routing_key=routing_key,
                                                  body=msg)

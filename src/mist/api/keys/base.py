@@ -1,5 +1,8 @@
 import logging
 import mongoengine as me
+
+from future.utils import string_types
+
 from mist.api.exceptions import KeyExistsError
 from mist.api.exceptions import BadRequestError
 from mist.api.helpers import rename_kwargs
@@ -106,7 +109,7 @@ class BaseKeyController(object):
         log.info("Associating key %s to machine %s", self.key.id,
                  machine.machine_id)
 
-        if isinstance(port, basestring):
+        if isinstance(port, string_types):
             if port.isdigit():
                 port = int(port)
             elif not port:

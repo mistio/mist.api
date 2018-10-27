@@ -13,6 +13,8 @@ import logging
 import requests
 import html.parser
 
+from future.utils import string_types
+
 import mist.api.config as config
 from functools import reduce
 
@@ -63,7 +65,7 @@ class GenericHandler(object):
         return "bucky.%s" % self.uuid
 
     def get_data(self, targets, start="", stop="", interval_str=""):
-        if isinstance(targets, basestring):
+        if isinstance(targets, string_types):
             targets = [targets]
         clean_targets = []
         real_to_requested = {}
@@ -619,7 +621,7 @@ class MultiHandler(GenericHandler):
         return metrics
 
     def get_data(self, targets, start="", stop="", interval_str=""):
-        if isinstance(targets, basestring):
+        if isinstance(targets, string_types):
             targets = [targets]
         current_handlers = {}
         for target in targets:

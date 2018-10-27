@@ -4,6 +4,8 @@ import base64
 import mongoengine as me
 import time
 
+from future.utils import string_types
+
 from libcloud.compute.base import NodeSize, NodeImage, NodeLocation, Node
 from libcloud.compute.types import Provider
 from libcloud.container.types import Provider as Container_Provider
@@ -217,7 +219,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         port_speed = size.get('port_speed', 0)
         hypervisor_group_id = size.get('hypervisor_group_id')
     else:
-        if not isinstance(size, (basestring, int)):
+        if not isinstance(size, (string_types, int)):
             raise BadRequestError('Expected size to be an id.')
         size_id = size
     size = NodeSize(size_id, name=size_name, ram='', disk=disk,

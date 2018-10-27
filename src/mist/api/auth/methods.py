@@ -3,6 +3,9 @@ import string
 import urllib.request
 import urllib.parse
 import urllib.error
+
+from future.utils import string_types
+
 from mongoengine import DoesNotExist
 
 from mist.api.users.models import Organization, User
@@ -256,7 +259,7 @@ def reissue_cookie_session(request, user_id='', su='', org=None, after=0,
         # A user will be set to the session
         user_for_session = su if su else user_id
         user_is_effective = not user_id
-        if isinstance(user_for_session, basestring):
+        if isinstance(user_for_session, string_types):
             # Get the user object if an id has been provided
             if '@' in user_for_session:
                 user_for_session = User.objects.get(email=user_for_session)

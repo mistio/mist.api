@@ -12,6 +12,7 @@ be performed inside the corresponding method functions.
 import os
 
 # Python 2 and 3 support
+from future.utils import string_types
 from future.standard_library import install_aliases
 install_aliases()
 import urllib.request
@@ -1803,7 +1804,7 @@ def delete_teams(request):
             auth_context.org.id == org_id):
         raise OrganizationAuthorizationFailure()
 
-    if not isinstance(team_ids, (list, basestring)) or len(team_ids) == 0:
+    if not isinstance(team_ids, (list, string_types)) or len(team_ids) == 0:
         raise RequiredParameterMissingError('No team ids provided')
     # remove duplicate ids if there are any
     teams_ids = sorted(team_ids)

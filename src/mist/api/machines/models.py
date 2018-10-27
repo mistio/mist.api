@@ -8,6 +8,8 @@ import mongoengine as me
 
 import mist.api.tag.models
 
+from future.utils import string_types
+
 from mist.api.mongoengine_extras import MistDictField
 from mist.api.keys.models import Key
 from mist.api.machines.controllers import MachineController
@@ -224,7 +226,7 @@ class SSHProbe(me.EmbeddedDocument):
             val = data.get(strarr_attr)
             try:
                 assert isinstance(val, list)
-                assert all(isinstance(item, basestring) for item in val)
+                assert all(isinstance(item, string_types) for item in val)
                 setattr(self, strarr_attr, val)
             except Exception as exc:
                 log.error("Invalid %s '%s': %r", strarr_attr, val, exc)

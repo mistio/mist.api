@@ -4,6 +4,8 @@
 import json
 import csv
 
+from future.utils import string_types
+
 try:
     from io import StringIO  # python 2
 except ImportError:
@@ -57,7 +59,7 @@ def json2csv(value, columns=None):
     """
     Transforms a serialized JSON object to CSV format
     """
-    if isinstance(value, basestring):
+    if isinstance(value, string_types):
         value = json.loads(value)
     flat_value = [flattenjson(x, "__") for x in value]
     if not columns:

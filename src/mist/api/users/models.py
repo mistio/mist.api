@@ -7,6 +7,8 @@ import netaddr
 import datetime
 import mongoengine as me
 
+from future.utils import string_types
+
 from uuid import uuid4
 
 from passlib.context import CryptContext
@@ -213,7 +215,7 @@ class Owner(me.Document):
         # TODO: check if these are valid email addresses,
         # to avoid possible spam
         if self.alerts_email:
-            if isinstance(self.alerts_email, basestring):
+            if isinstance(self.alerts_email, string_types):
                 emails = []
                 for email in self.alerts_email.split(','):
                     if re.match("[^@]+@[^@]+\.[^@]+", email):

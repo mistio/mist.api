@@ -2,6 +2,7 @@ import uuid
 import json
 
 # Python 2 and 3 support
+from future.utils import string_types
 from future.standard_library import install_aliases
 install_aliases()
 import urllib.request
@@ -363,7 +364,7 @@ def edit_script(request):
 
     script.ctl.edit(new_name, new_description)
     ret = {'new_name': new_name}
-    if isinstance(new_description, basestring):
+    if isinstance(new_description, string_types):
         ret['new_description'] = new_description
     return ret
 

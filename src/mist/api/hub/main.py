@@ -7,6 +7,8 @@ import argparse
 import traceback
 import functools
 
+from future.utils import string_types
+
 import amqp
 import kombu
 import kombu.mixins
@@ -114,7 +116,7 @@ class AmqpGeventBase(object):
                   self.lbl, routing_key, msg)
         kwargs.setdefault('retry', True)
         kwargs.setdefault('serializer',
-                          'raw' if isinstance(msg, basestring) else 'json')
+                          'raw' if isinstance(msg, string_types) else 'json')
         self.consumer.producer.publish(msg, exchange=self.exchange,
                                        routing_key=routing_key, **kwargs)
 

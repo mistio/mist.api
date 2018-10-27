@@ -23,6 +23,7 @@ import smtplib
 import logging
 
 # Python 2 and 3 support
+from future.utils import string_types
 from future.standard_library import install_aliases
 install_aliases()
 import urllib.parse
@@ -574,7 +575,7 @@ def get_datetime(timestamp):
             return datetime.datetime.fromtimestamp(timestamp / 1000)
         except ValueError:
             pass
-    elif isinstance(timestamp, basestring):
+    elif isinstance(timestamp, string_types):
         try:
             timestamp = float(timestamp)
         except (ValueError, TypeError):
@@ -636,15 +637,15 @@ def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3,
     sender: the email address of the sender. default value taken from config
 
     """
-    if isinstance(subject, basestring):
+    if isinstance(subject, string_types):
         subject = subject.decode('utf-8', 'ignore')
 
     if not sender:
         sender = config.EMAIL_FROM
-    if isinstance(recipients, basestring):
+    if isinstance(recipients, string_types):
         recipients = [recipients]
 
-    if isinstance(body, basestring):
+    if isinstance(body, string_types):
         body = body.decode('utf8')
 
     if html_body:
@@ -781,7 +782,7 @@ def encrypt(plaintext, key=config.SECRET, key_salt='', no_iv=False):
     key = SHA256.new(key + key_salt).digest()
     if len(key) not in AES.key_size:
         raise Exception()
-    if isinstance(plaintext, basestring):
+    if isinstance(plaintext, string_types):
         plaintext = plaintext.encode('utf-8')
 
     # pad plaintext using PKCS7 padding scheme
