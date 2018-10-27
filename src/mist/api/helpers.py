@@ -125,7 +125,7 @@ def get_temp_file(content, dir=None):
     """
     (tmp_fd, tmp_path) = tempfile.mkstemp(dir=dir)
     f = os.fdopen(tmp_fd, 'w+b')
-    f.write(content)
+    f.write(bytes(content, 'utf-8'))
     f.close()
     try:
         yield tmp_path
