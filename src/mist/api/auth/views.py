@@ -106,14 +106,13 @@ def create_token(request):
       description: Org id if the token will be used in organizational context
       type: string
     """
-
     params = params_from_request(request)
     email = params.get('email', '').lower()
     password = params.get('password', '')
     api_token_name = params.get('name', '')
     org_id = params.get('org_id', '')
     ttl = params.get('ttl', 60 * 60)
-    if isinstance(ttl, str) and not ttl.isdigit():
+    if isinstance(ttl, basestring) and not ttl.isdigit():
         raise BadRequestError('Ttl must be a number greater than 0')
     ttl = int(ttl)
     if ttl < 0:

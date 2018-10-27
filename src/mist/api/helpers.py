@@ -574,7 +574,7 @@ def get_datetime(timestamp):
             return datetime.datetime.fromtimestamp(timestamp / 1000)
         except ValueError:
             pass
-    elif isinstance(timestamp, str):
+    elif isinstance(timestamp, basestring):
         try:
             timestamp = float(timestamp)
         except (ValueError, TypeError):
@@ -636,15 +636,15 @@ def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3,
     sender: the email address of the sender. default value taken from config
 
     """
-    if isinstance(subject, str):
+    if isinstance(subject, basestring):
         subject = subject.decode('utf-8', 'ignore')
 
     if not sender:
         sender = config.EMAIL_FROM
-    if isinstance(recipients, str):
+    if isinstance(recipients, basestring):
         recipients = [recipients]
 
-    if isinstance(body, str):
+    if isinstance(body, basestring):
         body = body.decode('utf8')
 
     if html_body:
@@ -781,7 +781,7 @@ def encrypt(plaintext, key=config.SECRET, key_salt='', no_iv=False):
     key = SHA256.new(key + key_salt).digest()
     if len(key) not in AES.key_size:
         raise Exception()
-    if isinstance(plaintext, str):
+    if isinstance(plaintext, basestring):
         plaintext = plaintext.encode('utf-8')
 
     # pad plaintext using PKCS7 padding scheme
