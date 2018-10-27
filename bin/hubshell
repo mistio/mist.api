@@ -31,4 +31,4 @@ done
 
 set -x
 
-exec python $SHELL_PATH server
+exec python3 $SHELL_PATH server
