@@ -1145,9 +1145,9 @@ class AsyncElasticsearch(EsClient):
         return super(AsyncElasticsearch, self).mk_req(url, **kwargs)
 
 
-def es_client(async=False):
+def es_client(asynchronous=False):
     """Returns an initialized Elasticsearch client."""
-    if not async:
+    if not asynchronous:
         return Elasticsearch(
             config.ELASTICSEARCH['elastic_host'],
             port=config.ELASTICSEARCH['elastic_port'],

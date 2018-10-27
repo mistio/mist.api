@@ -482,7 +482,7 @@ class BaseComputeController(BaseController):
                         missing_since=None).update(missing_since=now)
 
         # Update RBAC Mappings given the list of nodes seen for the first time.
-        self.cloud.owner.mapper.update(new_machines, async=False)
+        self.cloud.owner.mapper.update(new_machines, asynchronous=False)
 
         # Update machine counts on cloud and org.
         # FIXME: resolve circular import issues

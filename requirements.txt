@@ -51,6 +51,6 @@ s3cmd
 sendgrid-python
 sockjs-tornado
 tornado
-tornado_profile
+#tornado_profile
 uwsgidecorators
 websocket-client
