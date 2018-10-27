@@ -93,7 +93,7 @@ class Monitoring(me.EmbeddedDocument):
 
     def clean(self):
         if not self.collectd_password:
-            self.collectd_password = os.urandom(32).encode('hex')
+            self.collectd_password = os.urandom(32).hex()
 
     def get_commands(self):
         if self.method in ('telegraf-influxdb', 'telegraf-graphite'):

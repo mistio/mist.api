@@ -57,8 +57,8 @@ class OpenIdMistStore(OpenIDStore):
 
         mist_association = MistAssociation()
         mist_association.assoc_type = association.assoc_type
-        mist_association.handle = association.handle.encode('hex')
-        mist_association.secret = association.secret.encode('hex')
+        mist_association.handle = association.handle.hex()
+        mist_association.secret = association.secret.hex()
         mist_association.lifetime = association.lifetime
         mist_association.issued = association.issued
         mist_association.server_url = server_url
@@ -74,7 +74,7 @@ class OpenIdMistStore(OpenIDStore):
 
         query = {'server_url': server_url}
         if handle:
-            query.update({'handle': handle.encode('hex')})
+            query.update({'handle': handle.hex()})
         try:
             mist_associations = MistAssociation.objects(**query)
         except me.DoesNotExist:
@@ -111,7 +111,7 @@ class OpenIdMistStore(OpenIDStore):
 
         try:
             mist_associations = MistAssociation.objects(
-                server_url=server_url, handle=handle.encode('hex'))
+                server_url=server_url, handle=handle.hex())
         except me.DoesNotExist:
             return False
 

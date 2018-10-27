@@ -799,7 +799,7 @@ def encrypt(plaintext, key=config.SECRET, key_salt='', no_iv=False):
         ciphertext = iv + ciphertext
 
     # return ciphertext in hex encoding
-    return ciphertext.encode('hex')
+    return ciphertext.hex()
 
 
 def decrypt(ciphertext, key=config.SECRET, key_salt='', no_iv=False):
