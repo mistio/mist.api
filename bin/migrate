@@ -29,18 +29,18 @@ def main():
 
 
 def load_current_portal(timeout):
-    for _ in xrange(timeout):
+    for _ in range(timeout):
         try:
             return Portal.get_singleton()
         except Exception as exc:
-            print "MongoDB at %s is not responsive yet.." % config.MONGO_URI
+            print("MongoDB at %s is not responsive yet.." % config.MONGO_URI)
             time.sleep(1)
-    print "MongoDB did not respond within %s seconds" % timeout
+    print("MongoDB did not respond within %s seconds" % timeout)
     raise exc
 
 
 def println(string=""):
-    print >> sys.stderr, "%s\n" % string
+    print("%s\n" % string, file=sys.stderr)
 
 
 def parse_args():
