@@ -32,7 +32,7 @@ generate_api_spec:
   before_script:
     - cd /mist.api
   script:
-    - python openapi/generate_api_spec.py
+    - python3 openapi/generate_api_spec.py
     - ls -l openapi
 
 
