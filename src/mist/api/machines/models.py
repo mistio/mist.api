@@ -224,7 +224,7 @@ class SSHProbe(me.EmbeddedDocument):
             val = data.get(strarr_attr)
             try:
                 assert isinstance(val, list)
-                assert all(isinstance(item, str) for item in val)
+                assert all(isinstance(item, basestring) for item in val)
                 setattr(self, strarr_attr, val)
             except Exception as exc:
                 log.error("Invalid %s '%s': %r", strarr_attr, val, exc)

@@ -63,7 +63,7 @@ class GenericHandler(object):
         return "bucky.%s" % self.uuid
 
     def get_data(self, targets, start="", stop="", interval_str=""):
-        if isinstance(targets, str):
+        if isinstance(targets, basestring):
             targets = [targets]
         clean_targets = []
         real_to_requested = {}
@@ -619,7 +619,7 @@ class MultiHandler(GenericHandler):
         return metrics
 
     def get_data(self, targets, start="", stop="", interval_str=""):
-        if isinstance(targets, str):
+        if isinstance(targets, basestring):
             targets = [targets]
         current_handlers = {}
         for target in targets:

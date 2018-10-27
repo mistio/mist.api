@@ -69,7 +69,7 @@ def group(query, fields=None, step=None):
     """Group results by `fields` and/or `step`."""
     if fields is None:
         fields = []
-    if isinstance(fields, str):
+    if isinstance(fields, basestring):
         fields = [fields]
     fields = ['"%s"' % f for f in fields]
     if step:
@@ -227,7 +227,7 @@ class BaseStatsHandler(object):
                     for index, point in enumerate(value):
                         if index == 0:  # Skip the "time" column.
                             continue
-                        if isinstance(point, str):  # Skip tags.
+                        if isinstance(point, basestring):  # Skip tags.
                             continue
                         name = measurement.upper()
                         column = columns[index]

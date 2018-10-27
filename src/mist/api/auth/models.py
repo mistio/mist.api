@@ -106,7 +106,7 @@ class AuthToken(me.Document):
         """
         if isinstance(user, User):
             _user = user
-        elif isinstance(user, str):
+        elif isinstance(user, basestring):
             if '@' in user:
                 _user = User.objects.get(email=user)
             else:

@@ -217,7 +217,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         port_speed = size.get('port_speed', 0)
         hypervisor_group_id = size.get('hypervisor_group_id')
     else:
-        if not isinstance(size, (str, int)):
+        if not isinstance(size, (basestring, int)):
             raise BadRequestError('Expected size to be an id.')
         size_id = size
     size = NodeSize(size_id, name=size_name, ram='', disk=disk,

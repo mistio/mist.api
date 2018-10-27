@@ -57,7 +57,7 @@ def json2csv(value, columns=None):
     """
     Transforms a serialized JSON object to CSV format
     """
-    if isinstance(value, str):
+    if isinstance(value, basestring):
         value = json.loads(value)
     flat_value = [flattenjson(x, "__") for x in value]
     if not columns:

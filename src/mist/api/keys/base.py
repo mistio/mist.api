@@ -106,7 +106,7 @@ class BaseKeyController(object):
         log.info("Associating key %s to machine %s", self.key.id,
                  machine.machine_id)
 
-        if isinstance(port, str):
+        if isinstance(port, basestring):
             if port.isdigit():
                 port = int(port)
             elif not port:

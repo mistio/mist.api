@@ -114,7 +114,7 @@ class AmqpGeventBase(object):
                   self.lbl, routing_key, msg)
         kwargs.setdefault('retry', True)
         kwargs.setdefault('serializer',
-                          'raw' if isinstance(msg, str) else 'json')
+                          'raw' if isinstance(msg, basestring) else 'json')
         self.consumer.producer.publish(msg, exchange=self.exchange,
                                        routing_key=routing_key, **kwargs)
 

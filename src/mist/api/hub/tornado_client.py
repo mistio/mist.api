@@ -163,7 +163,7 @@ class HubClient(object):
         if not self.consumer.worker_id:
             raise Exception("Routing key not yet received in RPC response.")
         routing_key = '%s.%s' % (self.consumer.worker_id, action)
-        if isinstance(msg, str):
+        if isinstance(msg, basestring):
             self.consumer._channel.basic_publish(exchange=self.exchange,
                                                  routing_key=routing_key,
                                                  body=msg)

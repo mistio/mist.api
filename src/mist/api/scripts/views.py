@@ -363,7 +363,7 @@ def edit_script(request):
 
     script.ctl.edit(new_name, new_description)
     ret = {'new_name': new_name}
-    if isinstance(new_description, str):
+    if isinstance(new_description, basestring):
         ret['new_description'] = new_description
     return ret
 
