@@ -164,7 +164,7 @@ def main():
                 try:
                     operation = docstring_to_object(func.func_doc)
                 except:
-                    pass
+                    continue
                 if isinstance(request_method, tuple):
                     for method in request_method:
                         routes.append((route_path, method.lower(), operation))

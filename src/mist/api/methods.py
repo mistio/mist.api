@@ -18,12 +18,6 @@ from libcloud.dns.types import Provider as DnsProvider
 from libcloud.dns.types import RecordType
 from libcloud.dns.providers import get_driver as get_dns_driver
 
-import ansible.playbook
-import ansible.utils.template
-import ansible.callbacks
-import ansible.utils
-import ansible.constants
-
 from mist.api.shell import Shell
 
 from mist.api.exceptions import MistError
@@ -412,6 +406,11 @@ def notify_user(owner, title, message="", email_notify=True, **kwargs):
 
 def run_playbook(owner, cloud_id, machine_id, playbook_path, extra_vars=None,
                  force_handlers=False, debug=False):
+    import ansible.playbook
+    import ansible.utils.template
+    import ansible.callbacks
+    import ansible.utils
+    import ansible.constants
     if not extra_vars:
         extra_vars = None
     ret_dict = {
