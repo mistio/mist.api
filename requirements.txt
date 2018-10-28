@@ -39,6 +39,7 @@ pastescript  # Required for uwsgi paste logging, can probably be removed.
 pika
 pingparsing
 pretty
+pycryptodome
 pymongo
 # only tested with pyramid 1.4, possible incompatibilities with later versions
 pyramid==1.4

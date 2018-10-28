@@ -615,7 +615,7 @@ class UserTask(Task):
 
     def clear_cache(self, *args, **kwargs):
         id_str = json.dumps([self.task_key, args, kwargs])
-        cache_key = b64encode(id_str)
+        cache_key = b64encode(bytes(id_str, 'utf-8'))
         log.info("Clearing cache for '%s'", id_str)
         return self.memcache.delete(cache_key)
 
