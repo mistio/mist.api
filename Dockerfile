@@ -10,7 +10,7 @@ RUN ln -s /mist.api/influxdb-1.6.0-1/influxd /usr/local/bin/influxd
 
 RUN pip install --no-cache-dir --upgrade pip
 RUN pip install --no-cache-dir --upgrade setuptools
-#RUN pip install libvirt-python==2.4.0
+RUN pip install libvirt-python==4.8.0
 
 RUN pip install --no-cache-dir ipython ipdb flake8 pytest pytest-cov
 

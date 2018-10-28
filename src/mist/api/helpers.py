@@ -21,6 +21,7 @@ import random
 import socket
 import smtplib
 import logging
+import codecs
 
 # Python 2 and 3 support
 from future.utils import string_types
@@ -637,21 +638,21 @@ def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3,
     sender: the email address of the sender. default value taken from config
 
     """
-    if isinstance(subject, string_types):
-        subject = subject.decode('utf-8', 'ignore')
+    #if isinstance(subject, string_types):
+    #    subject = subject.decode('utf-8', 'ignore')
 
     if not sender:
         sender = config.EMAIL_FROM
     if isinstance(recipients, string_types):
         recipients = [recipients]
 
-    if isinstance(body, string_types):
-        body = body.decode('utf8')
+    #if isinstance(body, string_types):
+    #    body = body.decode('utf8')
 
     if html_body:
         msg = MIMEMultipart('alternative')
     else:
-        msg = MIMEText(body.encode('utf-8', 'ignore'), 'plain')
+        msg = MIMEText(body, 'plain')
 
     msg["Subject"] = subject
     msg["From"] = sender
@@ -779,7 +780,7 @@ def encrypt(plaintext, key=config.SECRET, key_salt='', no_iv=False):
     """Encrypt shit the right way"""
 
     # sanitize inputs
-    key = SHA256.new(key + key_salt).digest()
+    key = SHA256.new((key + key_salt).encode()).digest()
     if len(key) not in AES.key_size:
         raise Exception()
     if isinstance(plaintext, string_types):
@@ -787,10 +788,13 @@ def encrypt(plaintext, key=config.SECRET, key_salt='', no_iv=False):
 
     # pad plaintext using PKCS7 padding scheme
     padlen = AES.block_size - len(plaintext) % AES.block_size
-    plaintext += chr(padlen) * padlen
+    plaintext += (chr(padlen) * padlen).encode('utf-8')
 
     # generate random initialization vector using CSPRNG
-    iv = '\0' * AES.block_size if no_iv else get_random_bytes(AES.block_size)
+    if no_iv:
+        iv = ('\0' * AES.block_size).encode()
+    else:
+        iv = get_random_bytes(AES.block_size)
 
     # encrypt using AES in CFB mode
     ciphertext = AES.new(key, AES.MODE_CFB, iv).encrypt(plaintext)
@@ -813,7 +817,7 @@ def decrypt(ciphertext, key=config.SECRET, key_salt='', no_iv=False):
     if len(ciphertext) % AES.block_size:
         raise Exception()
     try:
-        ciphertext = ciphertext.decode('hex')
+        ciphertext = codecs.decode(ciphertext, 'hex')
     except TypeError:
         log.warning("Ciphertext wasn't given as a hexadecimal string.")
 
@@ -825,7 +829,7 @@ def decrypt(ciphertext, key=config.SECRET, key_salt='', no_iv=False):
         ciphertext = ciphertext[AES.block_size:]
 
     # decrypt ciphertext using AES in CFB mode
-    plaintext = AES.new(key, AES.MODE_CFB, iv).decrypt(ciphertext)
+    plaintext = AES.new(key, AES.MODE_CFB, iv).decrypt(ciphertext).decode()
 
     # validate padding using PKCS7 padding scheme
     padlen = ord(plaintext[-1])

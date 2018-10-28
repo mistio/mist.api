@@ -453,9 +453,9 @@ def register(request):
     New user signs up.
     """
     params = params_from_request(request)
-    email = params.get('email').encode('utf-8', 'ignore')
+    email = params.get('email')
     promo_code = params.get('promo_code')
-    name = params.get('name').encode('utf-8', 'ignore')
+    name = params.get('name')
     token = params.get('token')
     selected_plan = params.get('selected_plan')
     request_demo = params.get('request_demo', False)
