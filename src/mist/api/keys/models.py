@@ -172,7 +172,7 @@ class SSHKey(Key):
         # Generate public key from private key file.
         try:
             key = RSA.importKey(self.private)
-            self.public = key.publickey().exportKey('OpenSSH')
+            self.public = key.publickey().exportKey('OpenSSH').decode()
         except Exception:
             log.exception("Error while constructing public key "
                           "from private.")
