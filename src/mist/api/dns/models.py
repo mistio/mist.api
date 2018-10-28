@@ -258,7 +258,7 @@ class ARecord(Record):
         """Overriding the default clean method to implement param checking"""
         super(ARecord, self).clean()
         try:
-            ip_addr = self.rdata[0].decode('utf-8')
+            ip_addr = self.rdata[0]
             ip.ip_address(ip_addr)
         except ValueError:
             raise me.ValidationError('IPv4 address provided is not valid')
@@ -275,7 +275,7 @@ class AAAARecord(Record):
         """Overriding the default clean method to implement param checking"""
         super(AAAARecord, self).clean()
         try:
-            ip_addr = self.rdata[0].decode('utf-8')
+            ip_addr = self.rdata[0]
             ip.ip_address(ip_addr)
         except ValueError:
             raise me.ValidationError('IPv6 address provided is not valid')
