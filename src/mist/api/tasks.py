@@ -594,7 +594,7 @@ class UserTask(Task):
         """Return cached result if it exists, send job to celery if needed"""
         # check cache
         id_str = json.dumps([self.task_key, args, kwargs])
-        cache_key = b64encode(id_str)
+        cache_key = b64encode(id_str.encode()).decode()
         cached = self.memcache.get(cache_key)
         if cached:
             age = time() - cached['timestamp']
@@ -615,7 +615,7 @@ class UserTask(Task):
 
     def clear_cache(self, *args, **kwargs):
         id_str = json.dumps([self.task_key, args, kwargs])
-        cache_key = b64encode(bytes(id_str, 'utf-8'))
+        cache_key = b64encode(id_str.encode()).decode()
         log.info("Clearing cache for '%s'", id_str)
         return self.memcache.delete(cache_key)
 
@@ -630,7 +630,7 @@ class UserTask(Task):
         # same arguments. it is empty on first run, constant afterwards
         seq_id = kwargs.pop('seq_id', '')
         id_str = json.dumps([self.task_key, args, kwargs])
-        cache_key = b64encode(id_str)
+        cache_key = b64encode(id_str.encode()).decode()
         cached_err = self.memcache.get(cache_key + 'error')
         if cached_err:
             # task has been failing recently
