@@ -513,7 +513,7 @@ class AzureComputeController(BaseComputeController):
 
     def _connect(self):
         tmp_cert_file = tempfile.NamedTemporaryFile(delete=False)
-        tmp_cert_file.write(self.cloud.certificate)
+        tmp_cert_file.write(self.cloud.certificate.encode())
         tmp_cert_file.close()
         return get_driver(Provider.AZURE)(self.cloud.subscription_id,
                                           tmp_cert_file.name)
@@ -1114,15 +1114,15 @@ class DockerComputeController(BaseComputeController):
         # TLS authentication.
         if self.cloud.key_file and self.cloud.cert_file:
             key_temp_file = tempfile.NamedTemporaryFile(delete=False)
-            key_temp_file.write(self.cloud.key_file)
+            key_temp_file.write(self.cloud.key_file.encode())
             key_temp_file.close()
             cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
-            cert_temp_file.write(self.cloud.cert_file)
+            cert_temp_file.write(self.cloud.cert_file.encode())
             cert_temp_file.close()
             ca_cert = None
             if self.cloud.ca_cert_file:
                 ca_cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
-                ca_cert_temp_file.write(self.cloud.ca_cert_file)
+                ca_cert_temp_file.write(self.cloud.ca_cert_file.encode())
                 ca_cert_temp_file.close()
                 ca_cert = ca_cert_temp_file.name
 
