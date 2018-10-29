@@ -29,7 +29,7 @@ from mist.api.monitoring.influxdb.handlers \
     import MainStatsHandler as InfluxMainStatsHandler
 from mist.api.monitoring.influxdb.handlers \
     import MultiLoadHandler as InfluxMultiLoadHandler
-from mist.api.monitoring.timescaledb.handlers import dummy_handler
+from mist.api.monitoring.timescaledb.handlers import BasicHandler
 
 from mist.api.monitoring.graphite.methods \
     import get_stats as graphite_get_stats
@@ -113,8 +113,23 @@ def get_stats(machine, start='', stop='', step='', metrics=None):
         log.info("Get Stats from timescaledb")
         if not metrics:
             metrics = (config.INFLUXDB_BUILTIN_METRICS.keys() +
-                       machine.monitoring.metrics)
-        return dummy_handler(start=start,stop=stop,metrics=metrics)
+                    machine.monitoring.metrics)
+        # Parse metrics like influxdb
+        results = {}
+        for metric in metrics:
+            regex = r'^(?:\w+)\((.+)\)$'
+            match = re.match(regex, metric)
+            if not match:
+                groups = (metric, )
+            while match:
+                groups = match.groups()
+                match = re.match(regex, groups[0])
+            measurement, _ = groups[0].split('.', 1)
+            handler = BasicHandler(machine)
+            data = handler.get_stats(metric=metric)
+            if data:
+                results.update(data)
+        return results
     else:
         raise Exception("Invalid monitoring method")
 
