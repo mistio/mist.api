@@ -84,8 +84,20 @@ class BasicHandler(object):
 
         return result
 
+    def discover_fields(self, metric=None):
+        """ Returns available fields on a metric for a machine.
+            If metric is none, returns available fields for all metrics. """
+        query = """ SELECT DISTINCT(jsonb_object_keys(fields))
+                    FROM metrics"""
+        if metric is not None:
+            query = query + " WHERE name='%s'" % metric
+        
+        cur = get_db_cursor()
+        cur.execute(query)
+        return [value for value, in cur.fetchall()]
 
-def get_query_executor():
+
+def get_db_cursor():
     "Returns a postgres client executor"
     try:
         ps_client = psycopg2.connect(POSTGRES_CONNSTR)
@@ -103,7 +115,7 @@ def query_field(measurement, field, machine_id):
                 FROM metrics
                 WHERE fields ? %s AND name=%s
                 AND tags->>'machine_id'=%s """
-    cur = get_query_executor()
+    cur = get_db_cursor()
     cur.execute(query, [field, field, measurement, machine_id])
     rows = cur.fetchall()
 
