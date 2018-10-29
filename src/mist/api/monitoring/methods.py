@@ -113,7 +113,7 @@ def get_stats(machine, start='', stop='', step='', metrics=None):
         log.info("Get Stats from timescaledb")
         if not metrics:
             metrics = (config.INFLUXDB_BUILTIN_METRICS.keys() +
-                    machine.monitoring.metrics)
+                       machine.monitoring.metrics)
         # Parse metrics like influxdb
         results = {}
         for metric in metrics:
@@ -147,7 +147,7 @@ def get_load(owner, start='', stop='', step='', uuids=None):
     influx_uuids = [machine.id for machine in machines
                     if machine.monitoring.method.endswith('-influxdb')]
     timescale_uuids = [machine.id for machine in machines
-                         if machine.monitoring.method.endswith('-timescale')]
+                       if machine.monitoring.method.endswith('-timescale')]
 
     graphite_data = {}
     influx_data = {}
@@ -169,7 +169,7 @@ def get_load(owner, start='', stop='', step='', uuids=None):
         timescale_data = {}
 
     if graphite_data or influx_data or timescale_data:
-        return dict(graphite_data.items() + influx_data.items() + 
+        return dict(graphite_data.items() + influx_data.items() +
                     timescale_data.items())
     else:
         raise NotFoundError('No machine has monitoring enabled')

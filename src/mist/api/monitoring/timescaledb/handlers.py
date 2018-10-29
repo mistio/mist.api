@@ -66,11 +66,10 @@ class BasicHandler(object):
 
     def get_stats(self, start=None, stop=None, metric=None):
         log.info("Get Stats with args: start=%s,stop=%s,metrics=%s ",
-                  repr(start),repr(stop),repr(metric))
-        measurement, field, tags =  self.parse_path(metric)
-        
-        
-        metric= {}
+                 repr(start), repr(stop), repr(metric))
+        measurement, field, _ = self.parse_path(metric)
+
+        metric = {}
         metric['priority'] = 0
         metric['min_value'] = None
         metric['name'] = measurement.upper() + ' ' + field
@@ -81,9 +80,10 @@ class BasicHandler(object):
         metric['unit'] = ''
 
         result = {}
-        result[measurement+ '.' + field] = metric
+        result[measurement + '.' + field] = metric
 
         return result
+
 
 def get_query_executor():
     "Returns a postgres client executor"
@@ -92,6 +92,7 @@ def get_query_executor():
     except Exception:
         log.critical("Unable to make client for postgres")
     return ps_client.cursor()
+
 
 def query_field(measurement, field, machine_id):
     """Get metrics for a specific field,
