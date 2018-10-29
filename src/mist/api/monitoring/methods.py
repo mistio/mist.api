@@ -29,6 +29,7 @@ from mist.api.monitoring.influxdb.handlers \
     import MainStatsHandler as InfluxMainStatsHandler
 from mist.api.monitoring.influxdb.handlers \
     import MultiLoadHandler as InfluxMultiLoadHandler
+from mist.api.monitoring.timescaledb.handlers import dummy_handler
 
 from mist.api.monitoring.graphite.methods \
     import get_stats as graphite_get_stats
@@ -108,6 +109,12 @@ def get_stats(machine, start='', stop='', step='', metrics=None):
             if data:
                 results.update(data)
         return results
+    elif machine.monitoring.method == 'telegraf-timescale':
+        log.info("Get Stats from timescaledb")
+        if not metrics:
+            metrics = (config.INFLUXDB_BUILTIN_METRICS.keys() +
+                       machine.monitoring.metrics)
+        return dummy_handler(start=start,stop=stop,metrics=metrics)
     else:
         raise Exception("Invalid monitoring method")
 
@@ -124,9 +131,12 @@ def get_load(owner, start='', stop='', step='', uuids=None):
                       if machine.monitoring.method.endswith('-graphite')]
     influx_uuids = [machine.id for machine in machines
                     if machine.monitoring.method.endswith('-influxdb')]
+    timescale_uuids = [machine.id for machine in machines
+                         if machine.monitoring.method.endswith('-timescale')]
 
     graphite_data = {}
     influx_data = {}
+    timescale_data = {}
     if graphite_uuids:
         graphite_data = graphite_get_load(owner, start=start, stop=stop,
                                           step=step, uuids=graphite_uuids)
@@ -140,9 +150,12 @@ def get_load(owner, start='', stop='', step='', uuids=None):
             metric='system.load1',
             start=_start, stop=_stop, step=_step,
         )
+    if timescale_uuids:
+        timescale_data = {}
 
-    if graphite_data or influx_data:
-        return dict(graphite_data.items() + influx_data.items())
+    if graphite_data or influx_data or timescale_data:
+        return dict(graphite_data.items() + influx_data.items() + 
+                    timescale_data.items())
     else:
         raise NotFoundError('No machine has monitoring enabled')
 
@@ -258,8 +271,10 @@ def enable_monitoring(owner, cloud_id, machine_id, no_ssh=False, dry=False,
     if old_monitoring_method != machine.monitoring.method:
         machine.monitoring.method_since = datetime.datetime.now()
     # Extra vars
+    # Do i have to return influx host in timescale case?
     if machine.monitoring.method in ('telegraf-influxdb',
-                                     'telegraf-graphite'):
+                                     'telegraf-graphite',
+                                     'telegraf-timescale'):
         extra_vars = {'uuid': machine.id, 'monitor': config.INFLUX['host']}
     else:
         raise Exception("Invalid monitoring method")
@@ -288,7 +303,8 @@ def enable_monitoring(owner, cloud_id, machine_id, no_ssh=False, dry=False,
     # Attempt to contact monitor server and enable monitoring for the machine
     try:
         if machine.monitoring.method in ('telegraf-influxdb',
-                                         'telegraf-graphite'):
+                                         'telegraf-graphite',
+                                         'telegraf-timescale'):
             traefik.reset_config()
     except Exception as exc:
         machine.monitoring.installation_status.state = 'failed'
@@ -315,7 +331,8 @@ def enable_monitoring(owner, cloud_id, machine_id, no_ssh=False, dry=False,
             job = 'enable_monitoring'
         ret_dict['job'] = job
         if machine.monitoring.method in ('telegraf-influxdb',
-                                         'telegraf-graphite'):
+                                         'telegraf-graphite',
+                                         'telegraf-timescale'):
             # Install Telegraf
             func = mist.api.monitoring.tasks.install_telegraf
             if deploy_async:
@@ -363,7 +380,8 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=''):
         ret_dict['job'] = job
 
         if machine.monitoring.method in ('telegraf-influxdb',
-                                         'telegraf-graphite'):
+                                         'telegraf-graphite',
+                                         'telegraf-timescale'):
             # Schedule undeployment of Telegraf.
             mist.api.monitoring.tasks.uninstall_telegraf.delay(machine.id,
                                                                job, job_id)
@@ -387,7 +405,8 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=''):
     # tell monitor server to no longer monitor this uuid
     try:
         if machine.monitoring.method in ('telegraf-influxdb',
-                                         'telegraf-graphite'):
+                                         'telegraf-graphite',
+                                         'telegraf-timescale'):
             traefik.reset_config()
     except Exception as exc:
         log.error("Exception %s while asking monitor server in "
@@ -426,6 +445,9 @@ def find_metrics(machine):
         for metric in show_fields(show_measurements(machine.id)):
             metrics[metric['id']] = metric
         return metrics
+    elif machine.monitoring.method == 'telegraf-timescale':
+        # find all supported fields
+        return {}
     else:
         raise Exception("Invalid monitoring method")
 
