@@ -75,6 +75,8 @@ ENABLE_DEV_USERS = False
 MONGO_URI = "mongodb:27017"
 MONGO_DB = "mist2"
 
+POSTGRES_CONNSTR = "host=timescaledb dbname=tutorial user=root password=example sslmode=disable"
+
 DOMAIN_VALIDATION_WHITELIST = []
 
 DOCS_URI = 'https://docs.mist.io/'
