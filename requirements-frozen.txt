@@ -68,6 +68,7 @@ pingparsing==0.13.5
 pluggy==0.7.1
 pretty==0.1
 prompt-toolkit==1.0.15
+psycopg2==2.7.5
 ptyprocess==0.6.0
 py==1.6.0
 pyasn1==0.4.4
