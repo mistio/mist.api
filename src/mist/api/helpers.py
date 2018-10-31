@@ -638,16 +638,10 @@ def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3,
     sender: the email address of the sender. default value taken from config
 
     """
-    #if isinstance(subject, string_types):
-    #    subject = subject.decode('utf-8', 'ignore')
-
     if not sender:
         sender = config.EMAIL_FROM
     if isinstance(recipients, string_types):
         recipients = [recipients]
-
-    #if isinstance(body, string_types):
-    #    body = body.decode('utf8')
 
     if html_body:
         msg = MIMEMultipart('alternative')

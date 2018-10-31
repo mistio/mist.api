@@ -523,7 +523,6 @@ def prepare_logging(verbosity=0):
 
 
 def main(args=None, workers=None, client=EchoHubClient, worker_kwargs=None):
-    gevent.monkey.patch_all()
     args = args if args else prepare_argparse().parse_args()
     prepare_logging(args.verbose or 1)
 

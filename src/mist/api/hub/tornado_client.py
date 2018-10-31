@@ -66,6 +66,8 @@ class _HubTornadoConsumer(mist.api.amqp_tornado.Consumer):
             unused_channel, basic_deliver, properties, body
         )
         exc = None
+        if isinstance(body, bytes):
+            body = body.decode()
         if properties.content_type == 'application/json':
             try:
                 body = json.loads(body)
