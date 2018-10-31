@@ -232,9 +232,11 @@ class BaseComputeController(BaseController):
             for m in list(md.values()):
                 m.pop('last_seen')
                 m.pop('probe')
-                #if m.get('extra') and m['extra'].get('ports'):
-                #    import ipdb;ipdb.set_trace()
-                #    m['extra']['ports'] = sorted(m['extra']['ports'])
+                if m.get('extra') and m['extra'].get('ports'):
+                    m['extra']['ports'] = sorted(
+                        m['extra']['ports'],
+                        lambda x: x.get('PublicPort') * 100000 + x.get(
+                            'PrivatePort'))
         patch = jsonpatch.JsonPatch.from_diff(old_machines,
                                               new_machines).patch
         if patch:  # Publish patches to rabbitmq.
