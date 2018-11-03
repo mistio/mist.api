@@ -3,9 +3,9 @@ import os
 from mist.api import config
 
 if __name__ == '__main__':
-    os.system('s3cmd --access_key=%s --secret_key=%s ls s3://%s/' % (
-        config.AWS_ACCESS_KEY, config.AWS_SECRET_KEY,
-        config.AWS_MONGO_BUCKET))
-    os.system('s3cmd --access_key=%s --secret_key=%s ls s3://%s/' % (
-        config.AWS_ACCESS_KEY, config.AWS_SECRET_KEY,
-        config.AWS_INFLUX_BUCKET))
+    os.system('s3cmd --access_key=%s --secret_key=%s ls s3://%s/mongo/' % (
+        config.BACKUP['key'], config.BACKUP['secret'],
+        config.BACKUP['bucket']))
+    os.system('s3cmd --access_key=%s --secret_key=%s ls s3://%s/influx/' % (
+        config.BACKUP['key'], config.BACKUP['secret'],
+        config.BACKUP['bucket']))

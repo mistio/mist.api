@@ -13,7 +13,7 @@ def main():
     args = argparser.parse_args()
 
     cmd = 's3cmd --access_key=%s --secret_key=%s get %s' % (
-        config.AWS_ACCESS_KEY, config.AWS_SECRET_KEY,
+        config.BACKUP['key'], config.BACKUP['secret'],
         args.backup)
     os.system(cmd)
     dump_path = args.backup.split('/')[-1]

@@ -51,13 +51,15 @@ USAGE_SURVEY = False
 ENABLE_METERING = True
 
 # backups
-AWS_ACCESS_KEY = ''
-AWS_SECRET_KEY = ''
-AWS_MONGO_BUCKET = 'mist-backup/mongodumps'
-AWS_INFLUX_BUCKET = 'mist-backup/influxdumps'
-
-GPG = {
-    "recipient": '', 'key': ''
+BACKUP = {
+    'key': '',
+    'secret': '',
+    'bucket': 'mist-backup',
+    'gpg' : {
+        'recipient': '',
+        'public': '',
+        'private': '',
+    }
 }
 
 ELASTICSEARCH = {
@@ -1765,7 +1767,9 @@ HAS_EXPERIMENTS = 'experiments' in PLUGINS
 HAS_MANAGE = 'manage' in PLUGINS
 
 # enable backup feature if aws creds have been set
-ENABLE_BACKUPS = bool(AWS_ACCESS_KEY) and bool(AWS_SECRET_KEY)
+ENABLE_BACKUPS = bool(BACKUP['key']) and bool(BACKUP['secret'])
+
+POST_ACTION_HOOKS = {}
 
 # Update TELEGRAF_TARGET.
 
