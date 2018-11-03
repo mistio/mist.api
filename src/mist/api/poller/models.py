@@ -313,6 +313,7 @@ class ListZonesPollingSchedule(CloudPollingSchedule):
     # task below is polling both zones and records
     task = 'mist.api.poller.tasks.list_zones'
 
+    @property
     def enabled(self):
         return (super(ListZonesPollingSchedule, self).enabled and
                 hasattr(self.cloud.ctl, 'dns') and self.cloud.dns_enabled)
