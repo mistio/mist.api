@@ -55,7 +55,7 @@ BACKUP = {
     'key': '',
     'secret': '',
     'bucket': 'mist-backup',
-    'gpg' : {
+    'gpg': {
         'recipient': '',
         'public': '',
         'private': '',
