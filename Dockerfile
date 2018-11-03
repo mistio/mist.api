@@ -1,4 +1,4 @@
-FROM mist/alpine
+FROM mist/alpine:3.8
 
 # Install libvirt which requires system dependencies.
 RUN apk add --update --no-cache g++ gcc libvirt libvirt-dev libxml2-dev libxslt-dev gnupg ca-certificates wget mongodb-tools
