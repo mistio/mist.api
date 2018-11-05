@@ -1631,6 +1631,7 @@ ENABLE_MONITORING = True
 MACHINE_PATCHES = True
 ACCELERATE_MACHINE_POLLING = True
 PLUGINS = []
+POST_ACTION_HOOKS = {}
 
 # DO NOT PUT ANYTHING BELOW HERE UNLESS YOU KNOW WHAT YOU ARE DOING
 
@@ -1768,8 +1769,6 @@ HAS_MANAGE = 'manage' in PLUGINS
 
 # enable backup feature if aws creds have been set
 ENABLE_BACKUPS = bool(BACKUP['key']) and bool(BACKUP['secret'])
-
-POST_ACTION_HOOKS = {}
 
 # Update TELEGRAF_TARGET.
 
