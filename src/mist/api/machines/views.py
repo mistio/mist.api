@@ -659,39 +659,31 @@ def machine_actions(request):
         raise BadRequestError("Action '%s' should be "
                               "one of %s" % (action, actions))
     if action == 'destroy':
-        methods.destroy_machine(auth_context.owner, cloud_id,
-                                machine.machine_id)
+        result = methods.destroy_machine(auth_context.owner, cloud_id,
+                                         machine.machine_id)
     elif action == 'remove':
         log.info('Removing machine %s in cloud %s'
                  % (machine.machine_id, cloud_id))
 
-        if not machine.monitoring.hasmonitoring:
-            machine.ctl.remove()
-            # Schedule a UI update
-            trigger_session_update(auth_context.owner, ['clouds'])
-            return
-
-        # if machine has monitoring, disable it. the way we disable depends on
-        # whether this is a standalone io installation or not
-        try:
-            disable_monitoring(auth_context.owner, cloud_id, machine_id,
-                               no_ssh=True)
-        except Exception as exc:
-            log.warning("Didn't manage to disable monitoring, maybe the "
-                        "machine never had monitoring enabled. Error: %r", exc)
-
-        machine.ctl.remove()
-
+        # if machine has monitoring, disable it
+        if machine.monitoring.hasmonitoring:
+            try:
+                disable_monitoring(auth_context.owner, cloud_id, machine_id,
+                                   no_ssh=True)
+            except Exception as exc:
+                log.warning("Didn't manage to disable monitoring, maybe the "
+                            "machine never had monitoring enabled. Error: %r"
+                            % exc)
+        result = machine.ctl.remove()
         # Schedule a UI update
         trigger_session_update(auth_context.owner, ['clouds'])
-
     elif action in ('start', 'stop', 'reboot',
                     'undefine', 'suspend', 'resume'):
-        getattr(machine.ctl, action)()
+        result = getattr(machine.ctl, action)()
     elif action == 'rename':
         if not name:
             raise BadRequestError("You must give a name!")
-        getattr(machine.ctl, action)(name)
+        result = getattr(machine.ctl, action)(name)
     elif action == 'resize':
         kwargs = {}
         if memory:
@@ -702,7 +694,7 @@ def machine_actions(request):
             kwargs['cpu_shares'] = cpu_shares
         if cpu_units:
             kwargs['cpu_units'] = cpu_units
-        getattr(machine.ctl, action)(size_id, kwargs)
+        result = getattr(machine.ctl, action)(size_id, kwargs)
     elif action == 'list_snapshots':
         return machine.ctl.list_snapshots()
     elif action in ('create_snapshot', 'remove_snapshot',
@@ -714,7 +706,10 @@ def machine_actions(request):
             kwargs['dump_memory'] = bool(snapshot_dump_memory)
         if snapshot_quiesce:
             kwargs['quiesce'] = bool(snapshot_quiesce)
-        getattr(machine.ctl, action)(snapshot_name, **kwargs)
+        result = getattr(machine.ctl, action)(snapshot_name, **kwargs)
+
+    methods.run_post_action_hooks(machine, action, result)
+
     # TODO: We shouldn't return list_machines, just OK. Save the API!
     return methods.filter_list_machines(auth_context, cloud_id)
 

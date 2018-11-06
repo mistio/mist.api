@@ -6,7 +6,7 @@ RUN apk add --update --no-cache g++ gcc libvirt libvirt-dev libxml2-dev libxslt-
 RUN wget https://dl.influxdata.com/influxdb/releases/influxdb-1.6.0-static_linux_amd64.tar.gz && \
     tar xvfz influxdb-1.6.0-static_linux_amd64.tar.gz && rm influxdb-1.6.0-static_linux_amd64.tar.gz
 
-RUN ln -s /mist.api/influxdb-1.6.0-1/influxd /usr/local/bin/influxd
+RUN ln -s /influxdb-1.6.0-1/influxd /usr/local/bin/influxd
 
 RUN pip install --no-cache-dir --upgrade pip
 RUN pip install --no-cache-dir --upgrade setuptools
