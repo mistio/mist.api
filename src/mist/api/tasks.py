@@ -1368,7 +1368,7 @@ def create_backup():
                 config.BACKUP['secret'], config.BACKUP['bucket'],
                 config.CORE_URI.split('//')[1],
                 datetime.datetime.now().strftime('%Y%m%d%H%M')))
-    elif config.BACKUP['gpg'].get('public'):  # encrypt with gpg if key configured
+    elif config.BACKUP['gpg'].get('public'):  # encrypt with gpg if configured
         f = open('pub.key', 'w+')
         f.write(config.BACKUP['gpg']['public'])
         f.close()
