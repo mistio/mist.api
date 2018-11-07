@@ -1632,10 +1632,16 @@ def run_action_hooks(action_hooks, machine):
         hook_type = hook.get('type') or 'webhook'
         if hook_type == 'webhook':
             url = hook.get('url').replace('{cloud_id}', cloud_id).replace(
-                '{machine_id}', machine.machine_id)
+                '{machine_id}', machine.machine_id).replace(
+                    '{machine_name}', machine.name)
+            payload = hook.get('payload')
+            for k in payload:
+                payload[k].replace('{cloud_id}', cloud_id).replace(
+                    '{machine_id}', machine.machine_id).replace(
+                        '{machine_name}', machine.name)
             ret = requests.request(
                 hook.get('method'), url,
-                data=hook.get('payload'),
+                data=payload,
                 headers=hook.get('headers'))
             if ret.status_code >= 300:
                 msg = 'Webhook for cloud %s failed with response %s %s' % (
