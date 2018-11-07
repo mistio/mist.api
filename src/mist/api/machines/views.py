@@ -657,6 +657,10 @@ def machine_actions(request):
     if action not in actions:
         raise BadRequestError("Action '%s' should be "
                               "one of %s" % (action, actions))
+
+    if not methods.run_pre_action_hooks(machine, action):
+        return OK  # webhook requires stopping action propagation
+
     if action == 'destroy':
         result = methods.destroy_machine(auth_context.owner, cloud_id,
                                          machine.machine_id)
