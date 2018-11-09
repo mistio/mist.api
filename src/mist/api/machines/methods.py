@@ -1608,37 +1608,41 @@ def filter_list_machines(auth_context, cloud_id, machines=None, perm='read',
             if machine['id'] in allowed_machine_ids]
 
 
-def run_pre_action_hooks(machine, action):
+def run_pre_action_hooks(machine, action, user):
     # Look for configured post action hooks for this cloud
     cloud_id = machine.cloud.id
     cloud_pre_action_hooks = config.PRE_ACTION_HOOKS and \
         config.PRE_ACTION_HOOKS.get('cloud', {}).get(cloud_id, {}).get(
             action, [])
-    return run_action_hooks(cloud_pre_action_hooks, machine)
+    return run_action_hooks(cloud_pre_action_hooks, machine, user)
 
 
-def run_post_action_hooks(machine, action, result):
+def run_post_action_hooks(machine, action, user, result):
     # Look for configured post action hooks for this cloud
     cloud_id = machine.cloud.id
     cloud_post_action_hooks = config.POST_ACTION_HOOKS and \
         config.POST_ACTION_HOOKS.get('cloud', {}).get(cloud_id, {}).get(
             action, [])
-    return run_action_hooks(cloud_post_action_hooks, machine)
+    return run_action_hooks(cloud_post_action_hooks, machine, user)
 
 
-def run_action_hooks(action_hooks, machine):
+def run_action_hooks(action_hooks, machine, user):
     cloud_id = machine.cloud.id
     for hook in action_hooks:
         hook_type = hook.get('type') or 'webhook'
         if hook_type == 'webhook':
-            url = hook.get('url').replace('{cloud_id}', cloud_id).replace(
-                '{machine_id}', machine.machine_id).replace(
-                    '{machine_name}', machine.name)
+            url = hook.get('url').replace(
+                '{cloud_id}', cloud_id).replace(
+                    '{machine_id}', machine.machine_id).replace(
+                        '{machine_name}', machine.name).replace(
+                            '{user_email}', user.email)
             payload = hook.get('payload')
             for k in payload:
-                payload[k].replace('{cloud_id}', cloud_id).replace(
-                    '{machine_id}', machine.machine_id).replace(
-                        '{machine_name}', machine.name)
+                payload[k] = payload[k].replace(
+                    '{cloud_id}', cloud_id).replace(
+                        '{machine_id}', machine.machine_id).replace(
+                            '{machine_name}', machine.name).replace(
+                                '{user_email}', user.email)
             ret = requests.request(
                 hook.get('method'), url,
                 data=payload,

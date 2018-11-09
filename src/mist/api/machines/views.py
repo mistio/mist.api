@@ -658,7 +658,7 @@ def machine_actions(request):
         raise BadRequestError("Action '%s' should be "
                               "one of %s" % (action, actions))
 
-    if not methods.run_pre_action_hooks(machine, action):
+    if not methods.run_pre_action_hooks(machine, action, auth_context.user):
         return OK  # webhook requires stopping action propagation
 
     if action == 'destroy':
@@ -711,7 +711,7 @@ def machine_actions(request):
             kwargs['quiesce'] = bool(snapshot_quiesce)
         result = getattr(machine.ctl, action)(snapshot_name, **kwargs)
 
-    methods.run_post_action_hooks(machine, action, result)
+    methods.run_post_action_hooks(machine, action, auth_context.user, result)
 
     # TODO: We shouldn't return list_machines, just OK. Save the API!
     return methods.filter_list_machines(auth_context, cloud_id)
