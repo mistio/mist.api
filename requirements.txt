@@ -42,12 +42,11 @@ pretty
 pycryptodome
 pymongo
 pyyaml
-# only tested with pyramid 1.4, possible incompatibilities with later versions
-pyramid==1.4
+pyramid
 pytest
 python-memcached
 python3-openid
-pyvmomi==6.5
+pyvmomi
 requests
 s3cmd
 sendgrid-python
