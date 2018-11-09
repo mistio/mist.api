@@ -41,6 +41,7 @@ pingparsing
 pretty
 pycryptodome
 pymongo
+pyyaml
 # only tested with pyramid 1.4, possible incompatibilities with later versions
 pyramid==1.4
 pytest
