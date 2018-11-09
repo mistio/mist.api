@@ -1702,9 +1702,8 @@ for plugin in PLUGINS:
                 locals()[key] = plugin_env[key]
         log.warn("Imported config of `%s` plugin" % plugin)
     except Exception as exc:
-        if exc.message != 'No module named config':
-            log.error("Failed to import config of `%s` plugin" %
-                      plugin)
+        log.error("Failed to import config of `%s` plugin" %
+                    plugin)
 
 # Get settings from environmental variables.
 FROM_ENV_STRINGS = [
