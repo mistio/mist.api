@@ -1703,7 +1703,7 @@ for plugin in PLUGINS:
         log.warn("Imported config of `%s` plugin" % plugin)
     except Exception as exc:
         log.error("Failed to import config of `%s` plugin" %
-                    plugin)
+                  plugin)
 
 # Get settings from environmental variables.
 FROM_ENV_STRINGS = [
