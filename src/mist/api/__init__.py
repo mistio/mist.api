@@ -100,12 +100,13 @@ def main(global_config, **settings):
     # /FIXME
 
     configurator.include(add_routes)
-    configurator.scan()
+    configurator.scan(ignore=['mist.api.sock', 'mist.api.sockjs_mux'])
 
     for plugin in config.PLUGINS:
         log.info("Loading plugin mist.%s", plugin)
         configurator.include('mist.%s.add_routes' % plugin)
-        configurator.scan('mist.%s' % plugin)
+        ignore_modules = ['mist.%s.sock' % plugin, 'mist.%s.handler' % plugin]
+        configurator.scan('mist.%s' % plugin, ignore=ignore_modules)
 
     app = mist.api.auth.middleware.AuthMiddleware(
         mist.api.auth.middleware.CsrfMiddleware(
