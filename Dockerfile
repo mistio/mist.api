@@ -1,4 +1,4 @@
-FROM mist/python3
+FROM mist/python3:latest
 
 # Install libvirt which requires system dependencies.
 RUN apk add --update --no-cache g++ gcc libvirt libvirt-dev libxml2-dev libxslt-dev gnupg ca-certificates wget mongodb-tools
