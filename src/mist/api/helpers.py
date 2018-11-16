@@ -622,9 +622,9 @@ def snake_to_camel(s):
 
 def ip_from_request(request):
     """Extract IP address from HTTP Request headers."""
-    return (request.get('HTTP_X_REAL_IP') or
-            request.get('HTTP_X_FORWARDED_FOR') or
-            request.get('REMOTE_ADDR') or
+    return (request.environ.get('HTTP_X_REAL_IP') or
+            request.environ.get('HTTP_X_FORWARDED_FOR') or
+            request.environ.get('REMOTE_ADDR') or
             '0.0.0.0')
 
 
