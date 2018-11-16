@@ -401,7 +401,7 @@ class Machine(OwnershipMixin, me.Document):
             'machine_id': self.machine_id,
             'actions': {action: self.actions[action]
                         for action in self.actions},
-            'extra': self.extra,
+            'extra': dict(self.extra),
             'cost': self.cost.as_dict(),
             'image_id': self.image_id,
             'state': self.state,

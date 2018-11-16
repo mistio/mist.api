@@ -235,8 +235,8 @@ class BaseComputeController(BaseController):
                 if m.get('extra') and m['extra'].get('ports'):
                     m['extra']['ports'] = sorted(
                         m['extra']['ports'],
-                        lambda x: x.get('PublicPort') * 100000 + x.get(
-                            'PrivatePort'))
+                        key=lambda x: x.get('PublicPort', 0) * 100000 + x.get(
+                            'PrivatePort', 0))
         patch = jsonpatch.JsonPatch.from_diff(old_machines,
                                               new_machines).patch
         if patch:  # Publish patches to rabbitmq.
