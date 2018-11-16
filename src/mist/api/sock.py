@@ -746,4 +746,5 @@ def make_router():
         from mist.manage.sock import ManageLogsConnection
         conns['manage_logs'] = ManageLogsConnection
 
-    return SockJSRouter(MultiplexConnection.get(**conns), '/socket')
+    return SockJSRouter(MultiplexConnection.get(**conns), '/socket',
+                        user_settings={'verify_ip': False})
