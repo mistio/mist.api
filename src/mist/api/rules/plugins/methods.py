@@ -29,9 +29,9 @@ def compute(operator, aggregate, values, threshold):
         values = [float(sum(values)) / len(values)]
 
     if operator == 'gt':
-        states = {value: value > threshold for value in values}
+        states = {value: value > float(threshold) for value in values}
     elif operator == 'lt':
-        states = {value: value < threshold for value in values}
+        states = {value: value < float(threshold) for value in values}
 
     if aggregate == 'all':
         state = False not in states.values()

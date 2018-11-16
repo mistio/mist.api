@@ -37,8 +37,8 @@ class ShellHubWorker(mist.api.hub.main.HubWorker):
         self.provider = ''
         self.owner = mist.api.users.models.Owner(id=self.params['owner_id'])
 
-    def on_ready(self, msg=''):
-        super(ShellHubWorker, self).on_ready(msg)
+    def on_ready(self, body='', msg=''):
+        super(ShellHubWorker, self).on_ready(body, msg)
         self.connect()
 
     def connect(self):
@@ -78,15 +78,15 @@ class ShellHubWorker(mist.api.hub.main.HubWorker):
                                                data['columns'], data['rows'])
         self.greenlets['read_stdout'] = gevent.spawn(self.get_ssh_data)
 
-    def on_data(self, msg):
+    def on_data(self, body, msg):
         """Received data that must be forwarded to shell's stdin"""
-        self.channel.send(msg.body.encode('utf-8', 'ignore'))
+        self.channel.send(body.encode('utf-8', 'ignore'))
 
-    def on_resize(self, msg):
+    def on_resize(self, body, msg):
         """Received resize shell window command"""
-        if isinstance(msg.body, dict):
-            if 'columns' in msg.body and 'rows' in msg.body:
-                columns, rows = msg.body['columns'], msg.body['rows']
+        if isinstance(body, dict):
+            if 'columns' in body and 'rows' in body:
+                columns, rows = body['columns'], body['rows']
                 log.info("%s: Resizing shell to (%s, %s).",
                          self.lbl, columns, rows)
                 try:
@@ -136,8 +136,8 @@ class LoggingShellHubWorker(ShellHubWorker):
         self.capture_started_at = 0
         self.stopped = False
 
-    def on_ready(self, msg=''):
-        super(LoggingShellHubWorker, self).on_ready(msg)
+    def on_ready(self, body='', msg=''):
+        super(LoggingShellHubWorker, self).on_ready(body, msg)
         # Don't log cfy container log views
         if (
             self.params.get('provider') != 'docker' or
@@ -150,8 +150,8 @@ class LoggingShellHubWorker(ShellHubWorker):
         self.capture.append((time.time(), 'data', data))
         super(LoggingShellHubWorker, self).emit_shell_data(data)
 
-    def on_resize(self, msg):
-        res = super(LoggingShellHubWorker, self).on_resize(msg)
+    def on_resize(self, body, msg):
+        res = super(LoggingShellHubWorker, self).on_resize(body, msg)
         if res:
             self.capture.append((time.time(), 'resize', res))
 
@@ -191,10 +191,9 @@ class LoggingShellHubWorker(ShellHubWorker):
 
 
 class ShellHubClient(mist.api.hub.main.HubClient):
-    def __init__(self, exchange=mist.api.hub.main.EXCHANGE,
-                 key=mist.api.hub.main.REQUESTS_KEY, worker_kwargs=None):
-        super(ShellHubClient, self).__init__(exchange, key, 'shell',
-                                             worker_kwargs)
+    def __init__(self, *args, **kwargs):
+        super(ShellHubClient, self).__init__(*args, worker_type='shell',
+                                             **kwargs)
 
     def start(self):
         """Call super and also start stdin reader greenlet"""
@@ -215,8 +214,8 @@ class ShellHubClient(mist.api.hub.main.HubClient):
     def resize(self, columns, rows):
         self.send_to_worker('rezize', {'columns': columns, 'rows': rows})
 
-    def on_data(self, msg):
-        print msg.body
+    def on_data(self, body, msg):
+        print(body)
 
     def stop(self):
         self.send_close()

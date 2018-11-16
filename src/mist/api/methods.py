@@ -29,7 +29,6 @@ from mist.api.shell import Shell
 from mist.api.exceptions import MistError
 from mist.api.exceptions import RequiredParameterMissingError
 
-from mist.api.helpers import trigger_session_update
 from mist.api.helpers import amqp_publish_user
 from mist.api.helpers import StdStreamCapture
 
@@ -39,7 +38,6 @@ import mist.api.tasks
 import mist.api.inventory
 
 from mist.api.clouds.models import Cloud
-from mist.api.networks.models import SUBNETS
 from mist.api.machines.models import Machine
 
 from mist.api import config
@@ -105,27 +103,10 @@ def star_image(owner, cloud_id, image_id):
         if image_id in cloud.unstarred:
             cloud.unstarred.remove(image_id)
     cloud.save()
-    task = mist.api.tasks.ListImages()
+    task = mist.api.tasks.list_images
     task.clear_cache(owner.id, cloud_id)
     task.delay(owner.id, cloud_id)
     return not star
-
-
-def list_sizes(owner, cloud_id):
-    """List sizes (aka flavors) from each cloud"""
-    return Cloud.objects.get(owner=owner, id=cloud_id,
-                             deleted=None).ctl.compute.list_sizes()
-
-
-def list_subnets(cloud, network):
-    """List subnets for a particular network on a given cloud.
-    Currently EC2, Openstack and GCE clouds are supported. For other providers
-    this returns an empty list.
-    """
-    if not hasattr(cloud.ctl, 'network'):
-        return []
-    subnets = cloud.ctl.network.list_subnets(network=network)
-    return [subnet.as_dict() for subnet in subnets]
 
 
 def list_projects(owner, cloud_id):
@@ -207,36 +188,6 @@ def list_storage_accounts(owner, cloud_id):
         # close connection with libvirt
         conn.disconnect()
     return ret
-
-
-def create_subnet(owner, cloud, network, subnet_params):
-    """
-    Create a new subnet attached to the specified network ont he given cloud.
-    Subnet_params is a dict containing all the necessary values that describe a
-    subnet.
-    """
-    if not hasattr(cloud.ctl, 'network'):
-        raise NotImplementedError()
-
-    # Create a DB document for the new subnet and call libcloud
-    #  to declare it on the cloud provider
-    new_subnet = SUBNETS[cloud.ctl.provider].add(network=network,
-                                                 **subnet_params)
-
-    # Schedule a UI update
-    trigger_session_update(owner, ['clouds'])
-
-    return new_subnet
-
-
-def delete_subnet(owner, subnet):
-    """
-    Delete a subnet.
-    """
-    subnet.ctl.delete()
-
-    # Schedule a UI update
-    trigger_session_update(owner, ['clouds'])
 
 
 # TODO deprecate this!
@@ -354,8 +305,8 @@ def _ping_host(host, pkts=10):
 
 
 def ping(owner, host, pkts=10):
-    if config.HAS_CORE:
-        from mist.core.vpn.methods import super_ping
+    if config.HAS_VPN:
+        from mist.vpn.methods import super_ping
         result = super_ping(owner=owner, host=host, pkts=pkts)
     else:
         result = _ping_host(host, pkts=pkts)
@@ -454,40 +405,9 @@ def notify_user(owner, title, message="", email_notify=True, **kwargs):
     if email_notify:
         from mist.api.helpers import send_email
         email = owner.email if hasattr(owner, 'email') else owner.get_email()
-        send_email("[mist.io] %s" % title, body.encode('utf-8', 'ignore'),
+        send_email("[%s] %s" % (config.PORTAL_NAME, title),
+                   body.encode('utf-8', 'ignore'),
                    email)
-
-
-def undeploy_python_plugin(owner, cloud_id, machine_id, plugin_id, host):
-
-    # Sanity checks
-    if not plugin_id:
-        raise RequiredParameterMissingError('plugin_id')
-    if not host:
-        raise RequiredParameterMissingError('host')
-
-    # Iniatilize SSH connection
-    shell = Shell(host)
-    key_id, ssh_user = shell.autoconfigure(owner, cloud_id, machine_id)
-
-    # Prepare collectd.conf
-    script = """
-sudo=$(command -v sudo)
-cd /opt/mistio-collectd/
-
-echo "Removing Include line for plugin conf from plugins/mist-python/include.conf"
-$sudo grep -v 'Import %(plugin_id)s$' plugins/mist-python/include.conf > /tmp/include.conf
-$sudo mv /tmp/include.conf plugins/mist-python/include.conf
-
-echo "Restarting collectd"
-$sudo /opt/mistio-collectd/collectd.sh restart
-""" % {'plugin_id': plugin_id}  # noqa
-
-    retval, stdout = shell.command(script)
-
-    shell.disconnect()
-
-    return {'metric_id': None, 'stdout': stdout}
 
 
 def run_playbook(owner, cloud_id, machine_id, playbook_path, extra_vars=None,
@@ -596,59 +516,6 @@ def _notify_playbook_result(owner, res, cloud_id=None, machine_id=None,
     notify_user(owner, title, **kwargs)
 
 
-def deploy_collectd(owner, cloud_id, machine_id, extra_vars):
-    ret_dict = run_playbook(
-        owner, cloud_id, machine_id,
-        playbook_path='deploy_collectd/ansible/enable.yml',
-        extra_vars=extra_vars,
-        force_handlers=True,
-        # debug=True,
-    )
-    _notify_playbook_result(owner, ret_dict, cloud_id, machine_id,
-                            label='Collectd deployment')
-    return ret_dict
-
-
-def undeploy_collectd(owner, cloud_id, machine_id):
-    ret_dict = run_playbook(
-        owner, cloud_id, machine_id,
-        playbook_path='deploy_collectd/ansible/disable.yml',
-        force_handlers=True,
-        # debug=True,
-    )
-    _notify_playbook_result(owner, ret_dict, cloud_id, machine_id,
-                            label='Collectd undeployment')
-    return ret_dict
-
-
-def get_deploy_collectd_command_unix(uuid, password, monitor, port=25826):
-    url = "https://github.com/mistio/deploy_collectd/raw/master/local_run.py"
-    cmd = "wget -O mist_collectd.py %s && $(command -v sudo) python mist_collectd.py %s %s" % (  # noqa
-        url, uuid, password)
-    if monitor != 'monitor1.mist.api':
-        cmd += " -m %s" % monitor
-    if str(port) != '25826':
-        cmd += " -p %s" % port
-    return cmd
-
-
-def get_deploy_collectd_command_windows(uuid, password, monitor, port=25826):
-    return (
-        'Set-ExecutionPolicy -ExecutionPolicy RemoteSigned '
-        '-Scope CurrentUser -Force;(New-Object System.Net.WebClient).'
-        'DownloadFile(\'https://raw.githubusercontent.com/mistio/'
-        'deploy_collectm/master/collectm.remote.install.ps1\','
-        ' \'.\collectm.remote.install.ps1\');.\collectm.remote.install.ps1 '
-        '-SetupConfigFile -setupArgs \'-username "%s" -password "%s" '
-        '-servers @("%s:%s")\''
-    ) % (uuid, password, monitor, port)
-
-
-def get_deploy_collectd_command_coreos(uuid, password, monitor, port=25826):
-    return "sudo docker run -d -v /sys/fs/cgroup:/sys/fs/cgroup -e COLLECTD_USERNAME=%s -e COLLECTD_PASSWORD=%s -e MONITOR_SERVER=%s -e COLLECTD_PORT=%s mist/collectd" % (  # noqa
-        uuid, password, monitor, port)
-
-
 def create_dns_a_record(owner, domain_name, ip_addr):
     """Will try to create DNS A record for specified domain name and IP addr.
 
@@ -739,16 +606,3 @@ def create_dns_a_record(owner, domain_name, ip_addr):
         raise MistError(msg + " failed: %r" % repr(exc))
     log.info(msg + " succeeded.")
     return record
-
-
-# FIXME DEPRECATED
-def rule_triggered(machine, rule_id, value, triggered, timestamp,
-                   notification_level, incident_id):
-    from mist.api.rules.models import NoDataRule
-    from mist.api.rules.methods import run_chained_actions
-    if config.HAS_CORE and rule_id == 'nodata':
-        rule = NoDataRule.objects.get(owner_id=machine.owner.id,
-                                      title='NoData')
-        rule_id = rule.title
-    run_chained_actions(rule_id, machine, value, triggered, timestamp,
-                        notification_level, incident_id)

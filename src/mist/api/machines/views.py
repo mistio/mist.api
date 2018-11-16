@@ -26,8 +26,8 @@ from mist.api.monitoring.methods import disable_monitoring
 
 from mist.api import config
 
-if config.HAS_CORE:
-    from mist.core.vpn.methods import destination_nat as dnat
+if config.HAS_VPN:
+    from mist.vpn.methods import destination_nat as dnat
 else:
     from mist.api.dummy.methods import dnat
 
@@ -43,9 +43,12 @@ OK = Response("OK", 200)
              request_method='GET', renderer='json')
 def list_machines(request):
     """
-    List machines of all clouds
-    Gets machines and their metadata from all clouds
-    Check Permissions take place in filter_list_machines
+    Tags: machines
+    ---
+    Gets machines and their metadata from all clouds.
+    Check Permissions take place in filter_list_machines.
+    READ permission required on cloud.
+    READ permission required on machine.
     """
     auth_context = auth_context_from_request(request)
     params = params_from_request(request)
@@ -70,9 +73,10 @@ def list_machines(request):
              request_method='GET', renderer='json')
 def list_cloud_machines(request):
     """
-    List machines on cloud
-    Gets machines and their metadata from a cloud
-    Check Permissions take place in filter_list_machines
+    Tags: machines
+    ---
+    Lists machines on cloud along with their metadata.
+    Check Permissions takes place in filter_list_machines.
     READ permission required on cloud.
     READ permission required on machine.
     ---
@@ -102,115 +106,153 @@ def list_cloud_machines(request):
              renderer='json')
 def create_machine(request):
     """
-    Create machine(s) on cloud
+    Tags: machines
+    ---
     Creates one or more machines on the specified cloud. If async is true, a
     jobId will be returned.
     READ permission required on cloud.
-    CREATE_RESOURCES permissn required on cloud.
+    CREATE_RESOURCES permission required on cloud.
     CREATE permission required on machine.
     RUN permission required on script.
     READ permission required on key.
-
     ---
     cloud:
       in: path
       required: true
       type: string
-    async:
-      description: ' Create machines asynchronously, returning a jobId'
-      type: boolean
-    quantity:
-      description: ' The number of machines that will be created, async only'
-      type: integer
-    azure_port_bindings:
+    name:
       type: string
-    cloud_id:
-      description: The Cloud ID
+      description: Name of the machine
       required: true
-      type: string
-    disk:
-      description: ' Only required by Linode cloud'
-      type: string
-    docker_command:
-      type: string
-    docker_env:
-      items:
-        type: string
-      type: array
-    docker_exposed_ports:
-      type: object
-    docker_port_bindings:
-      type: object
-    hostname:
-      type: string
-    image_extra:
-      description: ' Needed only by Linode cloud'
-      type: string
+      example: "my-digital-ocean-machine"
     image:
-      description: ' Id of image to be used with the creation'
+      description: Provider's image id to be used on creation
       required: true
       type: string
-    image_name:
+      example: "17384153"
+    size:
       type: string
-    ips:
+      description: Provider's size id to be used on creation
+      example: "512mb"
+    location:
       type: string
-    job_id:
+      description: Mist internal location id
+      example: "3462b4dfbb434986a7dac362789bc402"
+    key:
+      description: Associate machine with this key. Mist internal key id
       type: string
-    key_id:
-      description: ' Associate machine with this key_id'
-      required: true
+      example: "da1df7d0402043b9a9c786b100992888"
+    ex_disk_id:
       type: string
-    location_id:
-      description: ' Id of the cloud''s location to create the machine'
-      required: true
-      type: string
-    location_name:
-      type: string
-    machine_name:
-      required: true
-      type: string
+      description: ID of volume to be attached to the machine. GCE-specific
     monitoring:
+      type: boolean
+      description: Enable monitoring on the machine
+      example: false
+    async:
+      description: Create machine asynchronously, returning a jobId
+      type: boolean
+      example: false
+    cloud_init:
+      description: Cloud Init script
       type: string
     networks:
+      type: array
       items:
         type: string
-      type: array
-    plugins:
-      items:
-        type: string
-      type: array
-    post_script_id:
+    subnet_id:
       type: string
-    post_script_params:
+      description: Optional for EC2
+    subnetwork:
       type: string
+    image_extra:
+      type: string
+      description: Required for GCE and Linode
+    schedule:
+      type: object
     script:
       type: string
     script_id:
       type: string
+      example: "e7ac65fb4b23453486778585616b2bb8"
     script_params:
       type: string
-    size_id:
-      description: ' Id of the size of the machine'
-      required: true
+    plugins:
+      type: array
+      items:
+        type: string
+    post_script_id:
       type: string
-    size_name:
+    post_script_params:
       type: string
-    ssh_port:
-      type: integer
+    associate_floating_ip:
+      type: boolean
+      description: Required for Openstack. Either 'true' or 'false'
+    azure_port_bindings:
+      type: string
+      description: Required for Azure
+    create_network:
+      type: boolean
+      description: Required for Azure_arm
+    create_resource_group:
+      type: boolean
+      description: Required for Azure_arm
+    create_storage_account:
+      type: boolean
+      description: Required for Azure_arm
+    ex_storage_account:
+      type: string
+      description: Required for Azure_arm if not create_storage_account
+    ex_resource_group:
+      type: string
+      description: Required for Azure_arm if not create_resource_group
+    machine_password:
+      type: string
+      description: Required for Azure_arm
+    machine_username:
+      type: string
+      description: Required for Azure_arm
+    new_network:
+      type: string
+      description: Required for Azure_arm if create_storage_account
+    new_storage_account:
+      type: string
+      description: Required for Azure_arm if create_storage_account
+    new_resource_group:
+      type: string
+      description: Required for Azure_arm if create_resource_group
+    bare_metal:
+      description: Needed only by SoftLayer cloud
+      type: boolean
+    billing:
+      description: Needed only by SoftLayer cloud
+      type: string
+      example: "hourly"
+    boot:
+      description: Required for OnApp
+      type: boolean
+    build:
+      description: Required for OnApp
+      type: boolean
+    docker_command:
+      type: string
+    docker_env:
+      type: array
+      items:
+        type: string
+    docker_exposed_ports:
+      type: object
+    docker_port_bindings:
+      type: object
+    project_id:
+      description: ' Needed only by Packet cloud'
+      type: string
     softlayer_backend_vlan_id:
       description: 'Specify id of a backend(private) vlan'
       type: integer
-    project_id:
-      description: ' Needed only by Packet.net cloud'
-      type: string
-    billing:
-      description: ' Needed only by SoftLayer cloud'
-      type: string
-    bare_metal:
-      description: ' Needed only by SoftLayer cloud'
-      type: string
-    schedule:
-      type: dict
+    ssh_port:
+      type: integer
+      example: 22
     """
 
     params = params_from_request(request)
@@ -222,13 +264,14 @@ def create_machine(request):
     key_id = params.get('key')
     machine_name = params['name']
     location_id = params.get('location', None)
+    ex_disk_id = params.get('ex_disk_id', None)
     image_id = params.get('image')
     if not image_id:
         raise RequiredParameterMissingError("image")
     # this is used in libvirt
     disk_size = int(params.get('libvirt_disk_size', 4))
     disk_path = params.get('libvirt_disk_path', '')
-    size_id = params['size']
+    size = params.get('size', None)
     # deploy_script received as unicode, but ScriptDeployment wants str
     script = str(params.get('script', ''))
     # these are required only for Linode/GCE, passing them anyway
@@ -250,13 +293,15 @@ def create_machine(request):
     create_network = params.get('create_network', False)
     new_network = params.get('new_network', '')
     networks = params.get('networks', [])
+    subnet_id = params.get('subnet_id', '')
+    subnetwork = params.get('subnetwork', None)
     docker_env = params.get('docker_env', [])
     docker_command = params.get('docker_command', None)
     script_id = params.get('script_id', '')
     script_params = params.get('script_params', '')
     post_script_id = params.get('post_script_id', '')
     post_script_params = params.get('post_script_params', '')
-    async = params.get('async', False)
+    run_async = params.get('async', False)
     quantity = params.get('quantity', 1)
     persist = params.get('persist', False)
     docker_port_bindings = params.get('docker_port_bindings', {})
@@ -279,7 +324,6 @@ def create_machine(request):
     hourly = params.get('hourly', True)
 
     job_id = params.get('job_id')
-    job_id = params.get('job_id')
     # The `job` variable points to the event that started the job. If a job_id
     # is not provided, then it means that this is the beginning of a new story
     # that starts with a `create_machine` event. If a job_id is provided that
@@ -291,26 +335,25 @@ def create_machine(request):
     else:
         job = None
 
-    # these are needed for OnApp
-    size_ram = params.get('size_ram', 256)
-    size_cpu = params.get('size_cpu', 1)
-    size_disk_primary = params.get('size_disk_primary', 5)
-    size_disk_swap = params.get('size_disk_swap', 1)
-    boot = params.get('boot', True)
-    build = params.get('build', True)
-    cpu_priority = params.get('cpu_priority', 1)
-    cpu_sockets = params.get('cpu_sockets', 1)
-    cpu_threads = params.get('cpu_threads', 1)
-    port_speed = params.get('port_speed', 0)
-    hypervisor_group_id = params.get('hypervisor_group_id')
-
     auth_context = auth_context_from_request(request)
 
     try:
-        Cloud.objects.get(owner=auth_context.owner,
-                          id=cloud_id, deleted=None)
+        cloud = Cloud.objects.get(owner=auth_context.owner,
+                                  id=cloud_id, deleted=None)
     except Cloud.DoesNotExist:
         raise NotFoundError('Cloud does not exist')
+
+    # FIXME For backwards compatibility.
+    if cloud.ctl.provider in ('vsphere', 'onapp', 'libvirt', ):
+        if not size or not isinstance(size, dict):
+            size = {}
+        for param in (
+            'size_ram', 'size_cpu', 'size_disk_primary', 'size_disk_swap',
+            'boot', 'build', 'cpu_priority', 'cpu_sockets', 'cpu_threads',
+            'port_speed', 'hypervisor_group_id',
+        ):
+            if param in params and params[param]:
+                size[param.replace('size_', '')] = params[param]
 
     # compose schedule as a dict from relative parameters
     if not params.get('schedule_type'):
@@ -362,11 +405,11 @@ def create_machine(request):
                               'dictionaries')
 
     args = (cloud_id, key_id, machine_name,
-            location_id, image_id, size_id,
+            location_id, image_id, size,
             image_extra, disk, image_name, size_name,
-            location_name, ips, monitoring,
+            location_name, ips, monitoring, ex_disk_id,
             ex_storage_account, machine_password, ex_resource_group, networks,
-            docker_env, docker_command)
+            subnetwork, docker_env, docker_command)
     kwargs = {'script_id': script_id,
               'script_params': script_params, 'script': script, 'job': job,
               'job_id': job_id, 'docker_port_bindings': docker_port_bindings,
@@ -378,6 +421,7 @@ def create_machine(request):
               'disk_size': disk_size,
               'disk_path': disk_path,
               'cloud_init': cloud_init,
+              'subnet_id': subnet_id,
               'associate_floating_ip': associate_floating_ip,
               'associate_floating_ip_subnet': associate_floating_ip_subnet,
               'project_id': project_id,
@@ -386,29 +430,17 @@ def create_machine(request):
               'hourly': hourly,
               'schedule': schedule,
               'softlayer_backend_vlan_id': softlayer_backend_vlan_id,
-              'size_ram': size_ram,
-              'size_cpu': size_cpu,
-              'size_disk_primary': size_disk_primary,
-              'size_disk_swap': size_disk_swap,
               'create_storage_account': create_storage_account,
               'new_storage_account': new_storage_account,
               'create_network': create_network,
               'new_network': new_network,
               'create_resource_group': create_resource_group,
               'new_resource_group': new_resource_group,
-              'boot': boot,
-              'build': build,
-              'cpu_priority': cpu_priority,
-              'cpu_sockets': cpu_sockets,
-              'cpu_threads': cpu_threads,
-              'port_speed': port_speed,
-              'hypervisor_group_id': hypervisor_group_id,
               'machine_username': machine_username}
-
-    if not async:
-        ret = methods.create_machine(auth_context.owner, *args, **kwargs)
+    if not run_async:
+        ret = methods.create_machine(auth_context, *args, **kwargs)
     else:
-        args = (auth_context.owner.id, ) + args
+        args = (auth_context.serialize(), ) + args
         kwargs.update({'quantity': quantity, 'persist': persist})
         tasks.create_machine_async.apply_async(args, kwargs, countdown=2)
         ret = {'job_id': job_id}
@@ -420,7 +452,31 @@ def create_machine(request):
              renderer='json')
 def add_machine(request):
     """
+    Tags: machines
+    ---
     Add a machine to an OtherServer Cloud. This works for bare_metal clouds.
+    ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    machine_ip:
+      type: string
+      required: true
+    operating_system:
+      type: string
+    machine_name:
+      type: string
+    machine_key:
+      type: string
+    machine_user:
+      type: string
+    machine_port:
+      type: string
+    remote_desktop_port:
+      type: string
+    monitoring:
+      type: boolean
     """
     cloud_id = request.matchdict.get('cloud')
     params = params_from_request(request)
@@ -501,11 +557,12 @@ def add_machine(request):
              request_method='POST', renderer='json')
 def machine_actions(request):
     """
-    Call an action on machine
-    Calls a machine action on cloud that support it
+    Tags: machines
+    ---
+    Calls a machine action on cloud that supports it.
     READ permission required on cloud.
     ACTION permission required on machine(ACTION can be START,
-    STOP, DESTROY, REBOOT).
+    STOP, DESTROY, REBOOT or RESIZE, RENAME for some providers).
     ---
     machine_uuid:
       in: path
@@ -519,6 +576,9 @@ def machine_actions(request):
       - destroy
       - resize
       - rename
+      - create_snapshot
+      - remove_snapshot
+      - revert_to_snapshot
       required: true
       type: string
     name:
@@ -527,16 +587,30 @@ def machine_actions(request):
     size:
       description: The size id of the plan to resize
       type: string
+    snapshot_name:
+      description: The name of the snapshot to create/remove/revert_to
+    snapshot_description:
+      description: The description of the snapshot to create
+    snapshot_dump_memory:
+      description: Dump the machine's memory in the snapshot
+      default: false
+    snapshot_quiesce:
+      description: Enable guest file system quiescing
+      default: false
     """
     cloud_id = request.matchdict.get('cloud')
     params = params_from_request(request)
     action = params.get('action', '')
-    plan_id = params.get('plan_id', '')
+    name = params.get('name', '')
+    size_id = params.get('size', '')
     memory = params.get('memory', '')
     cpus = params.get('cpus', '')
     cpu_shares = params.get('cpu_shares', '')
     cpu_units = params.get('cpu_units', '')
-    name = params.get('name', '')
+    snapshot_name = params.get('snapshot_name')
+    snapshot_description = params.get('snapshot_description')
+    snapshot_dump_memory = params.get('snapshot_dump_memory')
+    snapshot_quiesce = params.get('snapshot_quiesce')
     auth_context = auth_context_from_request(request)
 
     if cloud_id:
@@ -576,46 +650,43 @@ def machine_actions(request):
     auth_context.check_perm("machine", action, machine.id)
 
     actions = ('start', 'stop', 'reboot', 'destroy', 'resize',
-               'rename', 'undefine', 'suspend', 'resume', 'remove')
+               'rename', 'undefine', 'suspend', 'resume', 'remove',
+               'list_snapshots', 'create_snapshot', 'remove_snapshot',
+               'revert_to_snapshot', 'clone')
 
     if action not in actions:
         raise BadRequestError("Action '%s' should be "
                               "one of %s" % (action, actions))
+
+    if not methods.run_pre_action_hooks(machine, action, auth_context.user):
+        return OK  # webhook requires stopping action propagation
+
     if action == 'destroy':
-        methods.destroy_machine(auth_context.owner, cloud_id,
-                                machine.machine_id)
+        result = methods.destroy_machine(auth_context.owner, cloud_id,
+                                         machine.machine_id)
     elif action == 'remove':
         log.info('Removing machine %s in cloud %s'
                  % (machine.machine_id, cloud_id))
 
-        if not machine.monitoring.hasmonitoring:
-            machine.ctl.remove()
-            # Schedule a UI update
-            trigger_session_update(auth_context.owner, ['clouds'])
-            return
-
-        # if machine has monitoring, disable it. the way we disable depends on
-        # whether this is a standalone io installation or not
-        try:
-            # we don't actually bother to undeploy collectd
-            disable_monitoring(auth_context.owner, cloud_id, machine_id,
-                               no_ssh=True)
-        except Exception as exc:
-            log.warning("Didn't manage to disable monitoring, maybe the "
-                        "machine never had monitoring enabled. Error: %r", exc)
-
-        machine.ctl.remove()
-
+        # if machine has monitoring, disable it
+        if machine.monitoring.hasmonitoring:
+            try:
+                disable_monitoring(auth_context.owner, cloud_id, machine_id,
+                                   no_ssh=True)
+            except Exception as exc:
+                log.warning("Didn't manage to disable monitoring, maybe the "
+                            "machine never had monitoring enabled. Error: %r"
+                            % exc)
+        result = machine.ctl.remove()
         # Schedule a UI update
         trigger_session_update(auth_context.owner, ['clouds'])
-
     elif action in ('start', 'stop', 'reboot',
                     'undefine', 'suspend', 'resume'):
-        getattr(machine.ctl, action)()
+        result = getattr(machine.ctl, action)()
     elif action == 'rename':
         if not name:
             raise BadRequestError("You must give a name!")
-        getattr(machine.ctl, action)(name)
+        result = getattr(machine.ctl, action)(name)
     elif action == 'resize':
         kwargs = {}
         if memory:
@@ -626,7 +697,21 @@ def machine_actions(request):
             kwargs['cpu_shares'] = cpu_shares
         if cpu_units:
             kwargs['cpu_units'] = cpu_units
-        getattr(machine.ctl, action)(plan_id, kwargs)
+        result = getattr(machine.ctl, action)(size_id, kwargs)
+    elif action == 'list_snapshots':
+        return machine.ctl.list_snapshots()
+    elif action in ('create_snapshot', 'remove_snapshot',
+                    'revert_to_snapshot'):
+        kwargs = {}
+        if snapshot_description:
+            kwargs['description'] = snapshot_description
+        if snapshot_dump_memory:
+            kwargs['dump_memory'] = bool(snapshot_dump_memory)
+        if snapshot_quiesce:
+            kwargs['quiesce'] = bool(snapshot_quiesce)
+        result = getattr(machine.ctl, action)(snapshot_name, **kwargs)
+
+    methods.run_post_action_hooks(machine, action, auth_context.user, result)
 
     # TODO: We shouldn't return list_machines, just OK. Save the API!
     return methods.filter_list_machines(auth_context, cloud_id)
@@ -638,8 +723,10 @@ def machine_actions(request):
              request_method='GET', renderer='json')
 def machine_rdp(request):
     """
-    Rdp file for windows machines
-    Generate and return an rdp file for windows machines
+    Tags: machines
+    ---
+    Rdp file for windows machines.
+    Generates and returns an rdp file for windows machines.
     READ permission required on cloud.
     READ permission required on machine.
     ---
@@ -718,7 +805,9 @@ def machine_rdp(request):
              request_method='POST', renderer='json')
 def machine_console(request):
     """
-    Open VNC console
+    Tags: machines
+    ---
+    Open VNC console.
     Generate and return an URI to open a VNC console to target machine
     READ permission required on cloud.
     READ permission required on machine.
@@ -772,8 +861,9 @@ def machine_console(request):
 
     auth_context.check_perm("machine", "read", machine.id)
 
-    if machine.cloud.ctl.provider != 'vsphere':
-        raise NotImplementedError("VNC console only supported for vSphere")
+    if machine.cloud.ctl.provider not in ['vsphere', 'openstack']:
+        raise NotImplementedError(
+            "VNC console only supported for vSphere and OpenStack")
 
     console_uri = machine.cloud.ctl.compute.connection.ex_open_console(
         machine.machine_id

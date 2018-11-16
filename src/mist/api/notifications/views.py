@@ -19,6 +19,7 @@ from mist.api.auth.methods import get_csrf_token
 from mist.api.auth.methods import auth_context_from_request
 
 from mist.api.users.models import Organization
+from mist.api.portal.models import Portal
 
 from mist.api.notifications.models import Notification
 from mist.api.notifications.models import InAppNotification
@@ -40,7 +41,16 @@ ERROR_MSG += "Please contact support@mist.io, if the problem persists."
 @view_config(route_name='api_v1_dismiss_notification',
              request_method='DELETE', renderer='json')
 def dismiss_notification(request):
-    """Dismiss an in-app notification"""
+    """
+    Tags: notifications
+    ---
+    Dismiss an in-app notification
+    ---
+    notification:
+      in: path
+      type: string
+      required: true
+    """
     auth_context = auth_context_from_request(request)
     ntf_id = request.matchdict.get("notification_id")
     if not ntf_id:
@@ -55,16 +65,27 @@ def dismiss_notification(request):
     return Response("OK", 200)
 
 
-@view_config(route_name='api_v1_notification_override',
-             request_method='PUT', renderer='json')
+@view_config(route_name='api_v1_notification_overrides',
+             request_method='POST', renderer='json')
 def add_notification_override(request):
-    """Add a notification override with the specified properties"""
+    """
+    Tags: notifications
+    ---
+    Add a notification override with the specified properties
+    ---
+    notification:
+      in: path
+      type: string
+      required: true
+    """
     auth_context = auth_context_from_request(request)
-    ntf_id = request.matchdict.get("notification_id")
+    params = params_from_request(request)
+    ntf_id = params.get("notification_id")
     if not ntf_id:
         raise RequiredParameterMissingError("notification_id")
     try:
         ntf = Notification.objects.get(id=ntf_id, owner=auth_context.owner)
+        ntf.channel.dismiss(auth_context.user)
     except Notification.DoesNotExist:
         raise NotFoundError()
     try:
@@ -92,26 +113,32 @@ def add_notification_override(request):
 @view_config(route_name='api_v1_notification_overrides',
              request_method='GET', renderer='json')
 def get_notification_overrides(request):
-    """Get a user's notification policy"""
+    """
+    Tags: notifications
+    ---
+    Get notification overrides for user, org policy
+    ---
+    """
     auth_context = auth_context_from_request(request)
     try:
         np = UserNotificationPolicy.objects.get(owner=auth_context.owner,
                                                 user_id=auth_context.user.id)
     except UserNotificationPolicy.DoesNotExist:
-        raise NotFoundError()
-    return json.dumps(np.overrides, default=lambda x: x.as_dict())  # FIXME
+        return []
+    return [o.as_dict() for o in np.overrides]
 
 
-@view_config(route_name='api_v1_notification_overrides',
+@view_config(route_name='api_v1_notification_override',
              request_method='DELETE', renderer='json')
 def delete_notification_override(request):
-    """Delete a notification override"""
+    """
+    Tags: notifications
+    ---
+    Delete a notification override
+    ---
+    """
     auth_context = auth_context_from_request(request)
-    params = params_from_request(request)
-    override_id = params.get("override_id", {}).get("$oid")  # FIXME
-    if not override_id:
-        raise RequiredParameterMissingError("override_id")
-
+    override_id = request.matchdict.get("override_id")
     try:
         np = UserNotificationPolicy.objects.get(owner=auth_context.owner,
                                                 user_id=auth_context.user.id)
@@ -124,12 +151,21 @@ def delete_notification_override(request):
 
 @view_config(route_name='unsubscribe_page', request_method='GET')
 def request_unsubscription(request):
-    """Return an unsubscription request page
-
+    """
+    Tags: notifications
+    ---
+    Returns an unsubscription request page.
     Accepts a request, validates the unsubscribe token and returns a rendered
     template, with a link and another token to confirm unsubscribing.
+    ---
     """
-    params = params_from_request(request)
+    params = dict(params_from_request(request).copy())
+
+    # Verify HMAC.
+    try:
+        mac_verify(params)
+    except Exception as exc:
+        raise BadRequestError(exc)
 
     # Decrypt URL params.
     try:
@@ -138,12 +174,6 @@ def request_unsubscription(request):
     except Exception as exc:
         log.exception(repr(exc))
         raise BadRequestError(ERROR_MSG)
-
-    # Verify HMAC.
-    try:
-        mac_verify(decrypted_json)
-    except Exception as exc:
-        raise BadRequestError(exc)
 
     try:
         org_id = decrypted_json["org_id"]
@@ -206,10 +236,10 @@ def request_unsubscription(request):
     # Render template to unsubscribe.
     try:
         hmac_params = decrypted_json.copy()
-        mac_sign(hmac_params)
-        encrypted = encrypt(json.dumps(hmac_params))
+        token = {'token': encrypt(json.dumps(hmac_params))}
+        mac_sign(token)
+        inputs.update(token)
         inputs.update({
-            "token": encrypted,
             # TODO Make the template customizable/dynamic based on the action.
             "action": decrypted_json["action"],
             "csrf_token": get_csrf_token(request),
@@ -223,12 +253,21 @@ def request_unsubscription(request):
 
 @view_config(route_name='unsubscribe', request_method='PUT', renderer='json')
 def confirm_unsubscription(request):
-    """Create a new notification override
-
+    """
+    Tags: notifications
+    ---
+    Creates a new notification override.
     Accepts an override creation request and adds the corresponding override,
     creating a new override policy if it does not exist.
+    ---
     """
-    params = params_from_request(request)
+    params = dict(params_from_request(request).copy())
+
+    try:
+        mac_verify(params)
+    except Exception as exc:
+        raise BadRequestError(exc)
+
     try:
         decrypted_str = decrypt(params["token"])
         decrypted_json = json.loads(decrypted_str)
@@ -239,11 +278,6 @@ def confirm_unsubscription(request):
     option = params.get("option")
     if not option:
         raise RequiredParameterMissingError("option")
-
-    try:
-        mac_verify(decrypted_json)
-    except Exception as exc:
-        raise BadRequestError(exc)
 
     try:
         org_id = decrypted_json["org_id"]
@@ -292,3 +326,37 @@ def confirm_unsubscription(request):
         log.critical("Failed to save %s: %r", np, err)
         raise BadRequestError(ERROR_MSG)
     return json.dumps({"response": "override_added"})
+
+
+@view_config(route_name='suppressed', request_method='GET', renderer='json')
+def suppressed_emails(request):
+
+    params = dict(params_from_request(request).copy())
+
+    try:
+        mac_verify(params)
+    except Exception as exc:
+        raise BadRequestError(str(exc))
+
+    try:
+        decrypted_str = decrypt(params['token'])
+        decrypted_json = json.loads(decrypted_str)
+    except Exception as exc:
+        log.exception(repr(exc))
+        raise BadRequestError()
+
+    if decrypted_json.get('key') != Portal.get_singleton().external_api_key:
+        raise NotFoundError()
+
+    action = decrypted_json.get('action')
+    if not action:
+        raise RequiredParameterMissingError('action')
+
+    if action == 'delete':
+        Notification.objects(suppressed=True).delete()
+    elif action == 'unsuppress':
+        Notification.objects.update(suppressed=False)
+    else:
+        raise BadRequestError('Action "%s" not supported' % action)
+
+    return Response("OK", 200)

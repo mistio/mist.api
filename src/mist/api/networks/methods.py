@@ -1,99 +1,46 @@
-from mist.api.clouds.models import Cloud
-from mist.api.networks.models import NETWORKS, SUBNETS
-
 from mist.api.exceptions import CloudNotFoundError
-from mist.api.helpers import trigger_session_update
+
+from mist.api.clouds.models import Cloud
 
 from mist.api.methods import connect_provider
 
 from libcloud.compute.types import Provider
 
 
-def create_network(owner, cloud, network_params):
-    """
-    Creates a new network on the specified cloud.
-    Network_params is a dict containing all the necessary values that
-    describe a network.
-    """
-    if not hasattr(cloud.ctl, 'network'):
-        raise NotImplementedError()
-
-    # Create a DB document for the new network and call libcloud
-    #  to declare it on the cloud provider
-    new_network = NETWORKS[cloud.ctl.provider].add(cloud=cloud,
-                                                   **network_params)
-
-    # Schedule a UI update
-    trigger_session_update(owner, ['clouds'])
-
-    return new_network
-
-
-def delete_network(owner, network):
-    """
-    Delete a network.
-    All subnets attached to the network will be deleted before
-    the network itself.
-    """
-    network.ctl.delete()
-
-    # Schedule a UI update
-    trigger_session_update(owner, ['clouds'])
-
-
-def create_subnet(owner, cloud, network, subnet_params):
-    """
-    Create a new subnet attached to the specified network ont he given cloud.
-    Subnet_params is a dict containing all the necessary values that describe a
-    subnet.
-    """
-    if not hasattr(cloud.ctl, 'network'):
-        raise NotImplementedError()
-
-    # Create a DB document for the new subnet and call libcloud
-    #  to declare it on the cloud provider
-    new_subnet = SUBNETS[cloud.ctl.provider].add(network=network,
-                                                 **subnet_params)
-
-    # Schedule a UI update
-    trigger_session_update(owner, ['clouds'])
-
-    return new_subnet
-
-
-def list_networks(owner, cloud_id):
-    """List networks from each cloud.
-    Currently EC2, Openstack, Azure ARM and GCE clouds are supported.
-    For other providers this returns an empty list.
-    """
-    ret = {'public': [],
-           'private': [],
-           'routers': []}
-
+def list_networks(owner, cloud_id, cached=False):
+    """List the networks of the specified cloud"""
     try:
         cloud = Cloud.objects.get(owner=owner, id=cloud_id)
     except Cloud.DoesNotExist:
-        raise CloudNotFoundError
+        raise CloudNotFoundError()
 
     if not hasattr(cloud.ctl, 'network'):
-        return ret
+        return []
 
-    networks = cloud.ctl.network.list_networks()
+    if cached:
+        networks = cloud.ctl.network.list_cached_networks()
+    else:
+        networks = cloud.ctl.network.list_networks()
 
-    for network in networks:
+    return [n.as_dict() for n in networks]
 
-        network_dict = network.as_dict()
-        if hasattr(network, 'location'):
-            network_dict['location'] = network.location
-        network_dict['subnets'] = [subnet.as_dict() for
-                                   subnet in network.ctl.list_subnets()]
 
-    # TODO: Backwards-compatible network privacy detection, to be replaced
-        if not network_dict.get('router_external'):
-            ret['private'].append(network_dict)
-        else:
-            ret['public'].append(network_dict)
-    return ret
+def filter_list_networks(auth_context, cloud_id, networks=None, perm='read',
+                         cached=False):
+    """Filter the networks of the specific cloud based on RBAC policy"""
+    if networks is None:
+        networks = list_networks(auth_context.owner, cloud_id, cached=cached)
+    if auth_context.is_owner():
+        return networks
+    else:
+        allowed_resources = auth_context.get_allowed_resources(perm)
+        if cloud_id not in allowed_resources['clouds']:
+            return []
+        filtered = []
+        for n in networks:
+            if n['id'] in allowed_resources['networks']:
+                filtered.append(n)
+        return filtered
 
 
 def associate_ip(owner, cloud_id, network_id, ip,

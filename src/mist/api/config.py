@@ -38,6 +38,7 @@ print >> sys.stderr, "MIST_API_DIR is %s" % MIST_API_DIR
 
 PORTAL_NAME = "Mist.io"
 CORE_URI = "http://localhost"
+LICENSE_KEY = ""
 AMQP_URI = "rabbitmq:5672"
 MEMCACHED_HOST = ["memcached:11211"]
 BROKER_URL = "amqp://guest:guest@rabbitmq/"
@@ -47,6 +48,19 @@ THEME = ""
 GC_SCHEDULERS = True
 VERSION_CHECK = True
 USAGE_SURVEY = False
+ENABLE_METERING = True
+
+# backups
+BACKUP = {
+    'key': '',
+    'secret': '',
+    'bucket': 'mist-backup',
+    'gpg': {
+        'recipient': '',
+        'public': '',
+        'private': '',
+    }
+}
 
 ELASTICSEARCH = {
     'elastic_host': 'elasticsearch',
@@ -65,8 +79,7 @@ PY_LOG_FORMAT = '%(asctime)s %(levelname)s %(threadName)s %(module)s - %(funcNam
 PY_LOG_FORMAT_DATE = "%Y-%m-%d %H:%M:%S"
 LOG_EXCEPTIONS = True
 
-JS_BUILD = False
-CSS_BUILD = False
+JS_BUILD = True
 JS_LOG_LEVEL = 3
 
 ENABLE_DEV_USERS = False
@@ -76,9 +89,15 @@ MONGO_DB = "mist2"
 
 DOMAIN_VALIDATION_WHITELIST = []
 
+DOCS_URI = 'https://docs.mist.io/'
+SUPPORT_URI = 'https://docs.mist.io/contact'
+
+INTERNAL_API_URL = 'http://api'
+GOCKY_HOST = 'gocky'
+
 # InfluxDB
 INFLUX = {
-    "host": "http://influxdb:8086", "db": "telegraf"
+    "host": "http://influxdb:8086", "db": "telegraf", "backup": "influxdb:8088"
 }
 
 TELEGRAF_TARGET = ""
@@ -129,6 +148,74 @@ INFLUXDB_BUILTIN_METRICS = {
         'min_value': 0,
     },
 }
+
+GRAPHITE_BUILTIN_METRICS = {
+    'cpu.total.nonidle': {
+        'name': 'CPU',
+        'unit': '%',
+        'max_value': 100,
+        'min_value': 0,
+    },
+    'cpu_extra.total.user': {
+        'name': 'CPU user',
+        'unit': '%',
+        'max_value': 100,
+        'min_value': 0,
+    },
+    'cpu_extra.total.system': {
+        'name': 'CPU system',
+        'unit': '%',
+        'max_value': 100,
+        'min_value': 0,
+    },
+    'cpu_extra.total.idle': {
+        'name': 'CPU idle',
+        'unit': '%',
+        'max_value': 100,
+        'min_value': 0,
+    },
+    'load.shortterm': {
+        'name': 'Load',
+        'unit': '',
+        'max_value': 64,
+        'min_value': 0,
+    },
+    'memory.nonfree_percent': {
+        'name': 'RAM',
+        'unit': '%',
+        'max_value': 100,
+        'min_value': 0,
+    },
+    'memory_extra.available': {
+        'name': 'RAM available',
+        'unit': ''
+    },
+    'disk.total.disk_octets.read': {
+        'name': 'Disks Read',
+        'unit': 'B/s',
+        'max_value': 750000000,  # 6Gbps (SATA3)
+        'min_value': 0,
+    },
+    'disk.total.disk_octets.write': {
+        'name': 'Disks Write',
+        'unit': 'B/s',
+        'max_value': 750000000,
+        'min_value': 0,
+    },
+    'interface.total.if_octets.rx': {
+        'name': 'Ifaces Rx',
+        'unit': 'B/s',
+        'max_value': 1250000000,  # 10Gbps (10G eth)
+        'min_value': 0,
+    },
+    'interface.total.if_octets.tx': {
+        'name': 'Ifaces Tx',
+        'unit': 'B/s',
+        'max_value': 1250000000,
+        'min_value': 0,
+    },
+}
+
 
 # Default Dashboards.
 HOME_DASHBOARD_DEFAULT = {
@@ -245,7 +332,7 @@ INFLUXDB_MACHINE_DASHBOARD_DEFAULT = {
                     "target": "net.bytes_recv"
                 }],
                 "yaxes": [{
-                    "format": "octets"
+                    "format": "B/s"
                 }]
             }, {
                 "id": 5,
@@ -259,7 +346,7 @@ INFLUXDB_MACHINE_DASHBOARD_DEFAULT = {
                     "target": "net.bytes_sent"
                 }],
                 "yaxes": [{
-                    "format": "octets"
+                    "format": "B/s"
                 }]
             }, {
                 "id": 6,
@@ -286,7 +373,7 @@ INFLUXDB_MACHINE_DASHBOARD_DEFAULT = {
                     "target": "diskio.write_bytes"
                 }],
                 "yaxes": [{
-                    "format": "octets"
+                    "format": "B/s"
                 }]
             }, {
                 "id": 8,
@@ -324,18 +411,322 @@ INFLUXDB_MACHINE_DASHBOARD_DEFAULT = {
     }
 }
 
+GRAPHITE_MACHINE_DASHBOARD_DEFAULT = {
+    "meta": {},
+    "dashboard": {
+        "id": 1,
+        "refresh": "10sec",
+        "rows": [{
+            "height": 300,
+            "panels": [{
+                "id": 0,
+                "title": "Load",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "A",
+                    "target": "load.*"
+                }],
+                "x-axis": True,
+                "y-axis": True
+            }, {
+                "id": 1,
+                "title": "MEM",
+                "type": "graph",
+                "span": 6,
+                "stack": True,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "D",
+                    "target": "memory.*"
+                }],
+                "yaxes": [{
+                    "label": "B"
+                }]
+            }, {
+                "id": 2,
+                "title": "CPU total",
+                "type": "graph",
+                "span": 6,
+                "stack": True,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "C",
+                    "target": "cpu.total.*"
+                }],
+                "yaxes": [{
+                    "label": "%"
+                }]
+            }, {
+                "id": 3,
+                "title": "CPU idle per core",
+                "type": "graph",
+                "span": 6,
+                "stack": True,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "Z",
+                    "target": "cpu.*.idle"
+                }],
+                "yaxes": [{
+                    "label": "%"
+                }]
+            }, {
+                "id": 4,
+                "title": "NET RX",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "G",
+                    "target": "interface.*.if_octets.rx"
+                }],
+                "yaxes": [{
+                    "label": "B/s"
+                }]
+            }, {
+                "id": 5,
+                "title": "NET TX",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "H",
+                    "target": "interface.*.if_octets.tx"
+                }],
+                "yaxes": [{
+                    "label": "B/s"
+                }]
+            }, {
+                "id": 6,
+                "title": "DISK READ",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "I",
+                    "target": "disk.*.disk_octets.read"
+                }],
+                "x-axis": True,
+                "y-axis": True,
+                "yaxes": [{
+                    "label": "B/s"
+                }]
+            }, {
+                "id": 7,
+                "title": "DISK WRITE",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "J",
+                    "target": "disk.*.disk_octets.write"
+                }],
+                "yaxes": [{
+                    "label": "B/s"
+                }]
+            }, {
+                "id": 8,
+                "title": "DF",
+                "type": "graph",
+                "span": 12,
+                "height": 400,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "D",
+                    "target": "df.*.df_complex.free"
+                }],
+                "yaxes": [{
+                    "label": "B"
+                }]
+            }],
+        }],
+        "time": {
+            "from": "now-10m",
+            "to": "now"
+        },
+        "timepicker": {
+            "now": True,
+            "refresh_intervals": [],
+            "time_options": [
+                "10m",
+                "1h",
+                "6h",
+                "24h",
+                "7d",
+                "30d"
+            ]
+        },
+        "timezone": "browser"
+    }
+}
+
+WINDOWS_MACHINE_DASHBOARD_DEFAULT = {
+    "meta": {},
+    "dashboard": {
+        "id": 1,
+        "refresh": "10sec",
+        "rows": [{
+            "height": 300,
+            "panels": [
+                {
+                    "id": 0,
+                    "title": "MEM",
+                    "type": "graph",
+                    "span": 6,
+                    "stack": True,
+                    "datasource": "mist.monitor",
+                    "targets": [
+                        {
+                            "refId": "A",
+                            "target": "memory.used"
+                        },
+                        {
+                            "refId": "B",
+                            "target": "memory_extra.available"
+                        }
+                    ],
+                    "yaxes": [{
+                        "label": "B"
+                    }]
+                },
+                {
+                    "id": 1,
+                    "title": "CPU total",
+                    "type": "graph",
+                    "span": 6,
+                    "stack": True,
+                    "datasource": "mist.monitor",
+                    "targets": [
+                        {
+                            "refId": "C",
+                            "target": "cpu_extra.total.user"
+                        },
+                        {
+                            "refId": "D",
+                            "target": "cpu_extra.total.system"
+                        },
+                        {
+                            "refId": "E",
+                            "target": "cpu_extra.total.idle"
+                        }
+                    ],
+                    "yaxes": [{
+                        "label": "%"
+                    }]
+                },
+                {
+                    "id": 2,
+                    "title": "Disks",
+                    "type": "graph",
+                    "span": 6,
+                    "stack": True,
+                    "datasource": "mist.monitor",
+                    "targets": [{
+                        "refId": "F",
+                        "target": "disk.*.used_percent"
+                    }],
+                    "yaxes": [{
+                        "label": "%"
+                    }]
+                },
+                {
+                    "id": 4,
+                    "title": "NET RX",
+                    "type": "graph",
+                    "span": 6,
+                    "stack": False,
+                    "datasource": "mist.monitor",
+                    "targets": [{
+                        "refId": "F",
+                        "target": "net.*.bytes_recv"
+                    }],
+                    "yaxes": [{
+                        "label": "octets"
+                    }]
+                },
+                {
+                    "id": 5,
+                    "title": "NET TX",
+                    "type": "graph",
+                    "span": 6,
+                    "stack": False,
+                    "datasource": "mist.monitor",
+                    "targets": [{
+                        "refId": "G",
+                        "target": "net.*.bytes_sent"
+                    }],
+                    "yaxes": [{
+                        "label": "octets"
+                    }]
+                },
+                {
+                    "id": 6,
+                    "title": "DISK READ",
+                    "type": "graph",
+                    "span": 6,
+                    "stack": False,
+                    "datasource": "mist.monitor",
+                    "targets": [{
+                        "refId": "H",
+                        "target": "diskio.*.read_bytes"
+                    }],
+                    "x-axis": True,
+                    "y-axis": True
+                },
+                {
+                    "id": 7,
+                    "title": "DISK WRITE",
+                    "type": "graph",
+                    "span": 6,
+                    "stack": False,
+                    "datasource": "mist.monitor",
+                    "targets": [{
+                        "refId": "J",
+                        "target": "diskio.*.write_bytes"
+                    }],
+                    "yaxes": [{
+                        "label": "octets"
+                    }]
+                }
+            ],
+        }],
+        "time": {
+            "from": "now-10m",
+            "to": "now"
+        },
+        "timepicker": {
+            "now": True,
+            "refresh_intervals": [],
+            "time_options": [
+                "10m",
+                "1h",
+                "6h",
+                "24h",
+                "7d",
+                "30d"
+            ]
+        },
+        "timezone": "browser"
+    }
+}
+
+
 MONITORING_METHODS = (
-    'collectd-graphite',
     'telegraf-influxdb',
-    'telegraf-graphite',
 )
 DEFAULT_MONITORING_METHOD = 'telegraf-influxdb'
 
 GRAPHITE_URI = "http://graphite"
 
 # Alert service's settings.
-CILIA_MULTI = False
-CILIA_TRIGGER = True
 CILIA_TRIGGER_API = "http://api"
 CILIA_SECRET_KEY = ""
 CILIA_GRAPHITE_NODATA_TARGETS = (
@@ -344,6 +735,17 @@ CILIA_GRAPHITE_NODATA_TARGETS = (
 CILIA_INFLUXDB_NODATA_TARGETS = (
     "system.load1", "system.n_cpus", "cpu.cpu=cpu0.usage_user"
 )
+
+# Shard Manager settings. Can also be set through env variables.
+SHARD_MANAGER_INTERVAL = 10
+SHARD_MANAGER_MAX_SHARD_PERIOD = 60
+SHARD_MANAGER_MAX_SHARD_CLAIMS = 500
+
+# NoData alert suppression.
+NO_DATA_ALERT_SUPPRESSION = False
+NO_DATA_ALERT_BUFFER_PERIOD = 45
+NO_DATA_RULES_RATIO = .2
+NO_DATA_MACHINES_RATIO = .2
 
 # number of api tokens user can have
 ACTIVE_APITOKEN_NUM = 20
@@ -354,7 +756,7 @@ ALLOW_CONNECT_PRIVATE = True
 ALLOW_LIBVIRT_LOCALHOST = False
 
 # Docker related
-DOCKER_IP = "172.17.0.1"
+DOCKER_IP = "socat"
 DOCKER_PORT = "2375"
 DOCKER_TLS_KEY = ""
 DOCKER_TLS_CERT = ""
@@ -372,6 +774,9 @@ MAILER_SETTINGS = {
 EMAIL_FROM = "Mist.io team <we@mist.io>"
 EMAIL_ALERTS = "alert@mist.io"
 EMAIL_REPORTS = "reports@mist.io"
+EMAIL_INFO = "info@mist.io"
+EMAIL_SALES = "sales@mist.io"
+EMAIL_SUPPORT = "support@mist.io"
 EMAIL_NOTIFICATIONS = "notifications@mist.io"
 EMAIL_ALERTS_BCC = ""
 
@@ -477,26 +882,28 @@ NOTIFICATION_EMAIL = {
 SENDGRID_EMAIL_NOTIFICATIONS_KEY = ""
 
 # Monitoring Related
-COLLECTD_HOST = ""
-COLLECTD_PORT = ""
-
 GOOGLE_ANALYTICS_ID = ""
 
 USE_EXTERNAL_AUTHENTICATION = False
 
 # celery settings
 CELERY_SETTINGS = {
-    'BROKER_URL': BROKER_URL,
-    'CELERY_TASK_SERIALIZER': 'json',
-    'CELERYD_LOG_FORMAT': PY_LOG_FORMAT,
-    'CELERYD_TASK_LOG_FORMAT': PY_LOG_FORMAT,
-    'CELERYD_CONCURRENCY': 8,
-    'CELERYD_MAX_TASKS_PER_CHILD': 32,
-    'CELERYD_MAX_MEMORY_PER_CHILD': 204800,  # 20480 KiB - 200 MiB
-    'CELERY_MONGODB_SCHEDULER_DB': 'mist2',
-    'CELERY_MONGODB_SCHEDULER_COLLECTION': 'schedules',
-    'CELERY_MONGODB_SCHEDULER_URL': MONGO_URI,
-    'CELERY_ROUTES': {
+    'broker_url': BROKER_URL,
+    # Disable heartbeats because celery workers & beat fail to actually send
+    # them and the connection dies.
+    'broker_heartbeat': 0,
+    'task_serializer': 'json',
+    # Disable custom log format because we miss out on worker/task specific
+    # metadata.
+    # 'worker_log_format': PY_LOG_FORMAT,
+    # 'worker_task_log_format': PY_LOG_FORMAT,
+    'worker_concurrency': 8,
+    'worker_max_tasks_per_child': 32,
+    'worker_max_memory_per_child': 204800,  # 204800 KiB - 200 MiB
+    'mongodb_scheduler_db': 'mist2',
+    'mongodb_scheduler_collection': 'schedules',
+    'mongodb_scheduler_url': MONGO_URI,
+    'task_routes': {
 
         # Command queue
         'mist.api.tasks.ssh_command': {'queue': 'command'},
@@ -523,9 +930,20 @@ CELERY_SETTINGS = {
         'mist.api.rules.tasks.evaluate': {'queue': 'rules'},
 
         # Core tasks
-        'mist.core.insights.tasks.list_deployments': {'queue': 'deployments'},
+        'mist.cloudify_insights.tasks.list_deployments': {
+            'queue': 'deployments'},
         'mist.rbac.tasks.update_mappings': {'queue': 'mappings'},
         'mist.rbac.tasks.remove_mappings': {'queue': 'mappings'},
+
+        # List networks
+        'mist.api.poller.tasks.list_networks': {'queue': 'networks'},
+
+        # List volumes
+        'mist.api.poller.tasks.list_volumes': {'queue': 'volumes'},
+
+        # List zones
+        'mist.api.poller.tasks.list_zones': {'queue': 'zones'},
+
     },
 }
 
@@ -583,7 +1001,7 @@ LINODE_DATACENTERS = {
     10: 'Frankfurt, DE'
 }
 
-SUPPORTED_PROVIDERS_V_2 = [
+SUPPORTED_PROVIDERS = [
     # BareMetal
     {
         'title': 'Other Server',
@@ -663,6 +1081,21 @@ SUPPORTED_PROVIDERS_V_2 = [
                 'location': 'Mumbai',
                 'id': 'ap-south-1'
             },
+        ]
+    },
+    # Alibaba Aliyun
+    {
+        'title': 'Alibaba',
+        'provider': Provider.ALIYUN_ECS,
+        'regions': [
+            {
+                'location': 'China East 1 (Hangzhou)',
+                'id': 'cn-hangzhou'
+            },
+            {
+                'location': 'EU Central 1 (Frankfurt)',
+                'id': 'eu-central-1'
+            }
         ]
     },
     # GCE
@@ -781,6 +1214,12 @@ SUPPORTED_PROVIDERS_V_2 = [
     {
         'title': 'Packet.net',
         'provider': Provider.PACKET,
+        'regions': []
+    },
+    # ClearAPI
+    {
+        'title': 'ClearAPI',
+        'provider': Provider.CLEARAPI,
         'regions': []
     }
 ]
@@ -1147,22 +1586,53 @@ The mist.io team
 %s
 """
 
+NO_DATA_ALERT_SUPPRESSION_SUBJECT = "Suppressed no-data rule"
+
+NO_DATA_ALERT_SUPPRESSION_BODY = """
+           ********** %(rule)s triggered and suppressed **********
+
+%(nodata_rules_firing)d/%(total_number_of_nodata_rules)d of no-data rules
+(%(rules_percentage)d%%) have been triggered.
+
+%(mon_machines_firing)d/%(total_num_monitored_machines)d of monitored machines
+(%(machines_percentage)d%%) have no monitoring data available.
+
+Click the link below to delete and completely forget all suppressed alerts:
+%(delete_alerts_link)s
+
+Click the link below to unsuppress all suppressed alerts:
+%(unsuppress_alerts_link)s
+
+Note that the above action will actually send the alerts, if the corresponding
+rules are re-triggered during the next evaluation cycle.
+"""
+
+CTA = {
+    "rbac": {
+        "action": "UPGRADE YOUR MIST.IO",
+        "uri": "https://mist.io/get-started",
+        "description": "Role based access policies are available in the "
+                       "Enterprise Edition and the Hosted Service."
+    }
+}
+
 SHOW_FOOTER = False
+REDIRECT_HOME_TO_SIGNIN = False
 ALLOW_SIGNUP_EMAIL = True
 ALLOW_SIGNUP_GOOGLE = False
 ALLOW_SIGNUP_GITHUB = False
 ALLOW_SIGNIN_EMAIL = True
 ALLOW_SIGNIN_GOOGLE = False
 ALLOW_SIGNIN_GITHUB = False
-ENABLE_TUNNELS = False
-ENABLE_ORCHESTRATION = False
-ENABLE_INSIGHTS = False
 STRIPE_PUBLIC_APIKEY = False
 ENABLE_AB = False
+ENABLE_R12N = False
 ENABLE_MONITORING = True
 MACHINE_PATCHES = True
-
+ACCELERATE_MACHINE_POLLING = True
 PLUGINS = []
+PRE_ACTION_HOOKS = {}
+POST_ACTION_HOOKS = {}
 
 # DO NOT PUT ANYTHING BELOW HERE UNLESS YOU KNOW WHAT YOU ARE DOING
 
@@ -1177,22 +1647,81 @@ else:
     print >> sys.stderr, "Couldn't find core config in %s" % CORE_CONFIG_PATH
     HAS_CORE = False
 
+CONFIG_OVERRIDE_FILES = []
+
+# Load defaults file if defined
+DEFAULTS_FILE = os.getenv('DEFAULTS_FILE')
+if DEFAULTS_FILE:
+    CONFIG_OVERRIDE_FILES.append(os.path.abspath(DEFAULTS_FILE))
+
+# Get settings from settings file.
+SETTINGS_FILE = os.path.abspath(os.getenv('SETTINGS_FILE') or 'settings.py')
+CONFIG_OVERRIDE_FILES.append(SETTINGS_FILE)
+
+# Load all config override files. SETTINGS_FILE should be the last one to load
+# This first pass will get us the list of configured plugins.
+# We will load the plugin configs and then we'll reload the config overrides
+for override_file in CONFIG_OVERRIDE_FILES:
+    if os.path.exists(override_file):
+        print >> sys.stderr, "Reading settings from %s" % override_file
+        CONF = {}
+        execfile(override_file, CONF)
+        for key in CONF:
+            if isinstance(locals().get(key), dict) and isinstance(CONF[key],
+                                                                  dict):
+                locals()[key].update(CONF[key])
+            else:
+                locals()[key] = CONF[key]
+    else:
+        print >> sys.stderr, ("Couldn't find settings file in %s" %
+                              override_file)
+
+# Load all plugin config files. Plugins may define vars that can be overriden
+# by environmental variables
+PLUGIN_ENV_STRINGS = []
+PLUGIN_ENV_INTS = []
+PLUGIN_ENV_BOOLS = []
+PLUGIN_ENV_ARRAYS = []
+
+for plugin in PLUGINS:
+    try:
+        plugin_env = {}
+        exec('from mist.%s.config import *' % plugin, plugin_env)
+        for key in plugin_env:
+            # Allow plugins to define vars that can be overriden by env
+            if key in ['PLUGIN_ENV_STRINGS', 'PLUGIN_ENV_INTS',
+                       'PLUGIN_ENV_BOOLS', 'PLUGIN_ENV_ARRAYS']:
+                locals()[key] += plugin_env[key]
+            elif isinstance(locals().get(key), dict) and \
+                    isinstance(plugin_env[key], dict):
+                locals()[key].update(plugin_env[key])
+            else:
+                locals()[key] = plugin_env[key]
+        print >> sys.stderr, "Imported config of `%s` plugin" % plugin
+    except Exception as exc:
+        if exc.message != 'No module named config':
+            print >> sys.stderr, "Failed to import config of `%s` plugin" % \
+                plugin
 
 # Get settings from environmental variables.
 FROM_ENV_STRINGS = [
     'AMQP_URI', 'BROKER_URL', 'CORE_URI', 'MONGO_URI', 'MONGO_DB', 'DOCKER_IP',
     'DOCKER_PORT', 'DOCKER_TLS_KEY', 'DOCKER_TLS_CERT', 'DOCKER_TLS_CA',
-    'UI_TEMPLATE_URL', 'LANDING_TEMPLATE_URL', 'THEME'
-]
+    'UI_TEMPLATE_URL', 'LANDING_TEMPLATE_URL', 'THEME',
+    'DEFAULT_MONITORING_METHOD', 'LICENSE_KEY', 'AWS_ACCESS_KEY',
+    'AWS_SECRET_KEY', 'AWS_MONGO_BUCKET'
+] + PLUGIN_ENV_STRINGS
 FROM_ENV_INTS = [
-]
+    'SHARD_MANAGER_MAX_SHARD_PERIOD', 'SHARD_MANAGER_MAX_SHARD_CLAIMS',
+    'SHARD_MANAGER_INTERVAL',
+] + PLUGIN_ENV_INTS
 FROM_ENV_BOOLS = [
     'SSL_VERIFY', 'ALLOW_CONNECT_LOCALHOST', 'ALLOW_CONNECT_PRIVATE',
     'ALLOW_LIBVIRT_LOCALHOST', 'JS_BUILD', 'VERSION_CHECK', 'USAGE_SURVEY',
-]
+] + PLUGIN_ENV_BOOLS
 FROM_ENV_ARRAYS = [
-    'MEMCACHED_HOST',
-]
+    'MEMCACHED_HOST', 'PLUGINS'
+] + PLUGIN_ENV_ARRAYS
 print >> sys.stderr, "Reading settings from environmental variables."
 for key in FROM_ENV_STRINGS:
     if os.getenv(key):
@@ -1212,18 +1741,8 @@ for key in FROM_ENV_ARRAYS:
         locals()[key] = os.getenv(key).split(',')
 
 
-CONFIG_OVERRIDE_FILES = []
-
-# Load defaults file if defined
-DEFAULTS_FILE = os.getenv('DEFAULTS_FILE')
-if DEFAULTS_FILE:
-    CONFIG_OVERRIDE_FILES.append(os.path.abspath(DEFAULTS_FILE))
-
-# Get settings from settings file.
-SETTINGS_FILE = os.path.abspath(os.getenv('SETTINGS_FILE') or 'settings.py')
-CONFIG_OVERRIDE_FILES.append(SETTINGS_FILE)
-
-# Load all config override files. SETTINGS_FILE should be the last one to load
+# Load all config override files one last time after loading plugins.
+# SETTINGS_FILE should be the last one to load
 for override_file in CONFIG_OVERRIDE_FILES:
     if os.path.exists(override_file):
         print >> sys.stderr, "Reading settings from %s" % override_file
@@ -1241,12 +1760,22 @@ for override_file in CONFIG_OVERRIDE_FILES:
 
 HAS_BILLING = 'billing' in PLUGINS
 HAS_RBAC = 'rbac' in PLUGINS
+HAS_INSIGHTS = 'insights' in PLUGINS
+HAS_ORCHESTRATION = 'orchestration' in PLUGINS
+HAS_CLOUDIFY_INSIGHTS = HAS_INSIGHTS and HAS_ORCHESTRATION \
+    and HAS_RBAC and 'cloudify_insights' in PLUGINS
+HAS_VPN = 'vpn' in PLUGINS
+HAS_EXPERIMENTS = 'experiments' in PLUGINS
+HAS_MANAGE = 'manage' in PLUGINS
 
+# enable backup feature if aws creds have been set
+ENABLE_BACKUPS = bool(BACKUP['key']) and bool(BACKUP['secret'])
 
 # Update TELEGRAF_TARGET.
 
 if not TELEGRAF_TARGET:
-    if urlparse.urlparse(CORE_URI).hostname in ('localhost', '127.0.0.1'):
+    if urlparse.urlparse(CORE_URI).hostname in ('localhost', '127.0.0.1',
+                                                '172.17.0.1'):
         TELEGRAF_TARGET = "http://traefik"
     else:
         TELEGRAF_TARGET = CORE_URI + '/ingress'
@@ -1254,10 +1783,12 @@ if not TELEGRAF_TARGET:
 
 # Update celery settings.
 CELERY_SETTINGS.update({
-    'BROKER_URL': BROKER_URL,
-    'CELERY_MONGODB_SCHEDULER_URL': MONGO_URI,
-    'CELERYD_LOG_FORMAT': PY_LOG_FORMAT,
-    'CELERYD_TASK_LOG_FORMAT': PY_LOG_FORMAT,
+    'broker_url': BROKER_URL,
+    'mongodb_scheduler_url': MONGO_URI,
+    # Disable custom log format because we miss out on worker/task specific
+    # metadata.
+    # 'worker_log_format': PY_LOG_FORMAT,
+    # 'worker_task_log_format': PY_LOG_FORMAT,
 })
 _schedule = {}
 if VERSION_CHECK:
@@ -1280,10 +1811,16 @@ if GC_SCHEDULERS:
 if ENABLE_MONITORING:
     _schedule['reset-traefik'] = {
         'task': 'mist.api.monitoring.tasks.reset_traefik_config',
-        'schedule': datetime.timedelta(minutes=5),
+        'schedule': datetime.timedelta(seconds=90),
     }
+if ENABLE_BACKUPS:
+    _schedule['backups'] = {
+        'task': 'mist.api.tasks.create_backup',
+        'schedule': datetime.timedelta(hours=1),
+    }
+
 if _schedule:
-    CELERY_SETTINGS.update({'CELERYBEAT_SCHEDULE': _schedule})
+    CELERY_SETTINGS.update({'beat_schedule': _schedule})
 
 
 # Configure libcloud to not verify certain hosts.
@@ -1298,25 +1835,37 @@ WHITELIST_CIDR = [
 HOMEPAGE_INPUTS = {
     'portal_name': PORTAL_NAME,
     'theme': THEME,
-    'google_analytics_id': GOOGLE_ANALYTICS_ID,
-    'mixpanel_id': MIXPANEL_ID,
+    'cta': CTA,
+    'features': {
+        'monitoring': ENABLE_MONITORING,
+        'rbac': HAS_RBAC,
+        'orchestration': HAS_ORCHESTRATION,
+        'insights': HAS_INSIGHTS,
+        'billing': HAS_BILLING,
+        'tunnels': HAS_VPN,
+        'ab': ENABLE_AB,
+        'r12ns': ENABLE_R12N,
+        'signup_email': ALLOW_SIGNUP_EMAIL,
+        'signup_google': ALLOW_SIGNUP_GOOGLE,
+        'signup_github': ALLOW_SIGNUP_GITHUB,
+        'signin_email': ALLOW_SIGNIN_EMAIL,
+        'signin_google': ALLOW_SIGNIN_GOOGLE,
+        'signin_github': ALLOW_SIGNIN_GITHUB,
+        'signin_home': REDIRECT_HOME_TO_SIGNIN,
+        'landing_footer': SHOW_FOOTER,
+        'docs': DOCS_URI,
+        'support': SUPPORT_URI
+    },
+    'email': {
+        'info': EMAIL_INFO,
+        'support': EMAIL_SUPPORT,
+        'sales': EMAIL_SALES
+    },
     'fb_id': FB_ID,
     'olark_id': OLARK_ID,
-    'categories': LANDING_CATEGORIES,
-    'footer': SHOW_FOOTER,
-    'allow_signup_email': ALLOW_SIGNUP_EMAIL,
-    'allow_signup_google': ALLOW_SIGNUP_GOOGLE,
-    'allow_signup_github': ALLOW_SIGNUP_GITHUB,
-    'allow_signin_email': ALLOW_SIGNIN_EMAIL,
-    'allow_signin_google': ALLOW_SIGNIN_GOOGLE,
-    'allow_signin_github': ALLOW_SIGNIN_GITHUB,
-    'enable_rbac': HAS_RBAC,
-    'enable_tunnels': ENABLE_TUNNELS,
-    'enable_orchestration': ENABLE_ORCHESTRATION,
-    'enable_insights': ENABLE_INSIGHTS,
-    'enable_billing': HAS_BILLING,
-    'enable_ab': ENABLE_AB,
-    'enable_monitoring': ENABLE_MONITORING,
+    'google_analytics_id': GOOGLE_ANALYTICS_ID,
+    'mixpanel_id': MIXPANEL_ID,
+    'categories': LANDING_CATEGORIES
 }
 
 if HAS_BILLING and STRIPE_PUBLIC_APIKEY:

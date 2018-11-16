@@ -1,11 +1,11 @@
-import re
 import uuid
 import time
 import logging
 import mongoengine as me
 
-from mist.api import config
+from mist.api.helpers import is_email_valid
 from mist.api.logs.methods import log_event
+from mist.api.users.models import User
 from mist.api.machines.models import Machine
 
 
@@ -22,18 +22,6 @@ def _populate_actions():
             if issubclass(value, BaseAlertAction):
                 if value.atype not in (None, 'no_data', ):  # Exclude these.
                     ACTIONS[value.atype] = value
-
-
-def is_email_valid(email):
-    """E-mail address validator.
-
-    Ensure the e-mail is a valid expression and the provider is not banned.
-
-    """
-    # TODO Move this to mist.api.helpers.
-    regex = '(^[\w\.-]+@[a-zA-Z0-9-]+(\.[a-zA-Z0-9-.]+)+$)'
-    return (re.match(regex, email) and
-            email.split('@')[1] not in config.BANNED_EMAIL_PROVIDERS)
 
 
 class BaseAlertAction(me.EmbeddedDocument):
@@ -84,19 +72,41 @@ class NotificationAction(BaseAlertAction):
 
     atype = 'notification'
 
+    users = me.ListField(me.StringField(), default=lambda: [])
+    teams = me.ListField(me.StringField(), default=lambda: [])
     emails = me.ListField(me.StringField(), default=lambda: [])
 
-    def run(self, machine, value, triggered, timestamp, incident_id, action='',
-            notification_level=0):
+    def run(self, resource, value, triggered, timestamp, incident_id,
+            action=''):
+        # Validate `resource` based on the rule's type. The `resource` must
+        # be a me.Document subclass, if the corresponding rule is resource-
+        # bound, otherwise None.
+        if resource is not None:
+            assert isinstance(resource, me.Document)
+            assert resource.owner == self._instance.owner
+        else:
+            assert self._instance.is_arbitrary()
+
+        emails = set(self.emails)
+        user_ids = set(self.users)
+        if not (self.users or self.teams):
+            emails |= set(self._instance.owner.get_emails())
+            emails |= set(self._instance.owner.alerts_email)
+        if user_ids:
+            user_ids &= set([m.id for m in self._instance.owner.members])
+        for user in User.objects(id__in=user_ids):
+            emails.add(user.email)
+        for team_id in self.teams:
+            try:
+                team = self._instance.owner.teams.get(id=team_id)
+                emails |= set([member.email for member in team.members])
+            except me.DoesNotExist:
+                continue
+
         # FIXME Imported here due to circular dependency issues.
         from mist.api.notifications.methods import send_alert_email
-        # TODO Shouldn't be specific to machines.
-        assert isinstance(machine, Machine)
-        assert machine.owner == self._instance.owner
-        send_alert_email(machine.owner, self._instance.id, value,
-                         triggered, timestamp, incident_id, action=action,
-                         cloud_id=machine.cloud.id,
-                         machine_id=machine.machine_id)
+        send_alert_email(self._instance, resource, incident_id, value,
+                         triggered, timestamp, emails, action=action)
 
     def clean(self):
         """Perform e-mail address validation."""
@@ -105,7 +115,8 @@ class NotificationAction(BaseAlertAction):
                 raise me.ValidationError('Invalid e-mail address: %s' % email)
 
     def as_dict(self):
-        return {'type': self.atype, 'emails': self.emails}
+        return {'type': self.atype, 'emails': self.emails,
+                'users': self.users, 'teams': self.teams}
 
 
 class NoDataAction(NotificationAction):
@@ -127,12 +138,10 @@ class NoDataAction(NotificationAction):
                 incident_id=incident_id
             )
             action = 'Disable Monitoring'
-            notification_level = 0
         else:
             action = 'Alert'
-            notification_level = kwargs.get('notification_level', 0)
         super(NoDataAction, self).run(machine, value, triggered, timestamp,
-                                      incident_id, action, notification_level)
+                                      incident_id, action)
 
 
 class CommandAction(BaseAlertAction):

@@ -4,8 +4,6 @@ import time
 import logging
 import elasticsearch.exceptions as eexc
 
-from pymongo import MongoClient
-
 from mist.api import config
 
 from mist.api.helpers import es_client as es
@@ -24,8 +22,8 @@ from mist.api.logs.constants import FIELDS, JOBS
 from mist.api.logs.constants import EXCLUDED_BUCKETS, TYPES
 from mist.api.logs.constants import STARTS_STORY, CLOSES_STORY, CLOSES_INCIDENT
 
-if config.HAS_CORE:
-    from mist.core.experiments.helpers import cross_populate_session_data
+if config.HAS_EXPERIMENTS:
+    from mist.experiments.helpers import cross_populate_session_data
 else:
     from mist.api.dummy.methods import cross_populate_session_data
 
@@ -71,12 +69,15 @@ def log_event(owner_id, event_type, action, error=None, **kwargs):
             'error': error if error else False,
             'extra': json.dumps(kwargs, default=_default)
         }
+
         # Bring more key-value pairs to the top level.
         for key in FIELDS:
             if key in kwargs:
                 event[key] = kwargs.pop(key)
+
         if 'story_id' in kwargs:
             event['story_id'] = kwargs.pop('story_id')
+
         if 'user_id' in event:
             try:
                 event['email'] = User.objects.get(id=event['user_id']).email
@@ -91,19 +92,22 @@ def log_event(owner_id, event_type, action, error=None, **kwargs):
                 event.update({'story_id': event[key], 'stories': []})
                 associate_stories(event)
                 break
-        else:
-            # Special case for closing stories unless an error has been raised,
-            # such as PolicyUnauthorizedError.
-            # TODO: Can be used to close any type of story, not only incidents.
-            if action in ('close_story', ) and not error:
-                event['stories'] = [('closes', 'incident', event['story_id'])]
-            # Attempt to close open incidents.
-            if action in CLOSES_INCIDENT:
-                try:
-                    close_open_incidents(event)
-                except Exception as exc:
-                    log.error('Event %s failed to close open incidents: %s',
-                              event['log_id'], exc)
+
+        # Special case for closing stories unless an error has been raised,
+        # such as PolicyUnauthorizedError.
+        # TODO: Can be used to close any type of story, not only incidents.
+        if action in ('close_story', ) and not error:
+            story = ('closes', 'incident', event['story_id'])
+            event.setdefault('stories', []).append(story)
+
+        # Attempt to close open incidents.
+        if action in CLOSES_INCIDENT:
+            try:
+                close_open_incidents(event)
+            except Exception as exc:
+                log_id = event.get('log_id')
+                log.error('Log %s failed to close incidents: %r', log_id, exc)
+
         # Cross populate session-log data.
         try:
             cross_populate_session_data(event, kwargs)
@@ -112,12 +116,6 @@ def log_event(owner_id, event_type, action, error=None, **kwargs):
     except Exception as exc:
         log.error('Failed to log event %s: %s', event, exc)
     else:
-        # FIXME: Deprecate
-        conn = MongoClient(config.MONGO_URI)
-        coll = conn['mist'].logging
-        coll.save(event.copy())
-        conn.close()
-
         # Construct RabbitMQ routing key.
         keys = [str(owner_id), str(event_type), str(action)]
         keys.append('true' if error else 'false')
@@ -147,6 +145,7 @@ def get_events(auth_context, owner_id='', user_id='', event_type='', action='',
     """
     # Restrict access to UI logs to Admins only.
     is_admin = auth_context and auth_context.user.role == 'Admin'
+
     # Attempt to enforce owner_id in case of non-Admins.
     if not is_admin and not owner_id:
         owner_id = auth_context.owner.id if auth_context else None
@@ -250,11 +249,12 @@ def get_events(auth_context, owner_id='', user_id='', event_type='', action='',
         try:
             extra = json.loads(event.pop('extra'))
         except Exception as exc:
-            log.error('Failed to parse extra of event %s [%s]: '
-                      '%s', event['log_id'], event['action'], exc)
+            log.error('Failed to parse extra of event %s: %r', event, exc)
         else:
             for key, value in extra.iteritems():
                 event[key] = value
+        if event.get('su') and not is_admin:
+            continue
         yield event
 
 
@@ -288,7 +288,7 @@ def get_stories(story_type='', owner_id='', user_id='', sort_order=-1, limit=0,
     # in Tornado context. If the short version is requested, return only the
     # absolute necessary fields needed to create the story.
     if not expand:
-        includes = ["log_id", "stories", "error", "time"]
+        includes = ["log_id", "stories", "error", "time", "job"]
         if story_type == "incident":
             includes += list(FIELDS) + ["action", "extra"]
     else:
@@ -378,7 +378,7 @@ def get_stories(story_type='', owner_id='', user_id='', sort_order=-1, limit=0,
         result = _on_response_callback(response, tornado_async)
         return process_stories(
             buckets=result["aggregations"]["stories"]["buckets"],
-            callback=tornado_callback, type=story_type, pending=pending
+            callback=tornado_callback, type=story_type
         )
 
     # Fetch stories. Invoke callback to process and return results.
@@ -413,7 +413,7 @@ def get_stories(story_type='', owner_id='', user_id='', sort_order=-1, limit=0,
         return _on_request_callback(query)
 
 
-def process_stories(buckets, type=None, pending=None, callback=None):
+def process_stories(buckets, type=None, callback=None):
     """Process fetched logs.
 
     Process results of Elasticsearch aggregations on logs in order to create
@@ -422,7 +422,6 @@ def process_stories(buckets, type=None, pending=None, callback=None):
     Arguments:
         - buckets: buckets of logs returned by Elasticsearch aggregations.
         - type: the story's type - one of (job, shell, session, incident).
-        - pending: denotes whether we are processing stories still pending.
         - callback: the callback to be invoked, after processing, if provided.
 
     """
@@ -475,11 +474,10 @@ def process_stories(buckets, type=None, pending=None, callback=None):
 
             # Append the log to the story's `logs`.
             story['logs'].append(body)
-
         stories.append(story)
 
     if callback is not None:
-        return callback(stories, pending)
+        return callback(stories)
     return stories
 
 
@@ -517,6 +515,59 @@ def process_filters(query, filters, close=None, error=None):
             )
 
 
+def create_stories_patch(auth_context, event):
+    """Create a stories patch.
+
+    Generates a patch based on the `stories` included in `event`, which
+    describes the diff that should be applied on existing stories.
+
+    Each patch is meant to either describe newly created stories or update
+    existing ones simply based on a log entry's metadata.
+
+    The patch's schema conforms with `jsonpatch` (http://jsonpatch.com/).
+
+    """
+    patch = []
+    for action, stype, sid in event.get('stories', []):
+        if not auth_context.is_owner() and stype != 'incident':
+            continue
+        if action == 'opens':
+            story = {'error': event['error'],
+                     'story_id': sid, 'type': stype,
+                     'started_at': event['time'], 'finished_at': 0}
+            # Add event fields that must be present in the story.
+            for field in FIELDS:
+                if field in event and field not in story:
+                    story[field] = event[field]
+            # Include the entire log entry only in case of incidents.
+            if stype == 'incident':
+                story['logs'] = [event]
+            else:
+                story['logs'] = [{'log_id': event['log_id']}]
+            # Push an entirely new story as part of the patch.
+            patch.append({'op': 'add',
+                          'path': '/%ss/%s' % (stype, sid),
+                          'value': story})
+        else:
+            # NOTE: The - character is used instead of an index to insert
+            # an item at the end of an array.
+            patch.append({'op': 'add',
+                          'path': '/%ss/%s/logs/-' % (stype, sid),
+                          'value': event['log_id']})
+            if event['error']:
+                patch.append({'op': 'replace',
+                              'path': '/%ss/%s/error' % (stype, sid),
+                              'value': event['error']})
+            # If the latest log closes the story, instead of just updating
+            # it, notify the client-side to atomically update the story's
+            # finished_at timestamp, too.
+            if action == 'closes':
+                patch.append({'op': 'replace',
+                              'path': '/%ss/%s/finished_at' % (stype, sid),
+                              'value': event['time']})
+    return patch
+
+
 def associate_stories(event):
     """Associate potential stories to the event provided."""
     story_id = event['story_id']
@@ -526,6 +577,8 @@ def associate_stories(event):
     except Exception as exc:
         job = None
         log.warn('Failed to extract job param from extra: %s', exc)
+    if job:
+        event['job'] = job
 
     # Decide whether the event tends to open, update, or close a story.
     action = 'updates'
@@ -553,7 +606,10 @@ def close_open_incidents(event):
         'owner_id': event['owner_id'],
         'story_type': 'incident', 'pending': True,
     }
-    for key in ('rule_id', 'cloud_id', 'machine_id'):
+    for key in ('rule_id', 'cloud_id', 'machine_id', 'schedule_id',
+                'zone_id', 'record_id', 'subnet_id', 'network_id',
+                'script_id', 'stack_id', 'template_id', 'key_id',
+                'volume_id', ):
         if key in event:
             kwargs[key] = event[key]
     incidents = get_stories(**kwargs)

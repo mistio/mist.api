@@ -25,7 +25,7 @@ class PeriodicTaskInfo(me.Document):
         created_at = me.DateTimeField(default=datetime.datetime.now())
 
     # Unique task identifier.
-    key = me.StringField(primary=True)
+    key = me.StringField(primary_key=True)
 
     # Track successes/failures for autodisabling.
     last_success = me.DateTimeField()
@@ -49,12 +49,10 @@ class PeriodicTaskInfo(me.Document):
     max_failures_period = datetime.timedelta(days=2)
 
     # Lock will be broken if it was last acquired more than this time ago.
-    break_lock_after = datetime.timedelta(seconds=60)
+    break_lock_after = datetime.timedelta(seconds=300)
 
     # Abort task if previous attempt was in less than this time before.
     min_interval = datetime.timedelta(seconds=5)
-
-    meta = {'indexes': ['key']}
 
     @classmethod
     def get_or_add(cls, key):

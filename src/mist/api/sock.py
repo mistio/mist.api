@@ -24,27 +24,26 @@ from mist.api.sockjs_mux import MultiplexConnection
 
 from mist.api.logs.methods import log_event
 from mist.api.logs.methods import get_stories
+from mist.api.logs.methods import create_stories_patch
 
-from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 
 from mist.api.auth.methods import auth_context_from_session_id
+
+from mist.api.helpers import maybe_submit_cloud_task
+from mist.api.helpers import filter_resource_ids
 
 from mist.api.exceptions import UnauthorizedError, MistError
 from mist.api.exceptions import PolicyUnauthorizedError
 from mist.api.amqp_tornado import Consumer
 
 from mist.api.clouds.methods import filter_list_clouds
-from mist.api.machines.methods import filter_list_machines, filter_machine_ids
-from mist.api.dns.methods import filter_list_zones
 
 from mist.api import tasks
 from mist.api.hub.tornado_shell_client import ShellHubClient
 
 from mist.api.notifications.models import InAppNotification
 
-from mist.api.monitoring.methods import get_load
-from mist.api.monitoring.methods import get_stats
 from mist.api.monitoring.methods import check_monitoring
 
 from mist.api.users.methods import filter_org
@@ -54,10 +53,9 @@ from mist.api.portal.models import Portal
 
 from mist.api import config
 
-if config.HAS_CORE:
-    from mist.core.methods import filter_list_tags
-else:
-    from mist.api.dummy.methods import filter_list_tags
+if config.HAS_RBAC:
+    from mist.rbac.methods import filter_log_event
+
 
 logging.basicConfig(level=config.PY_LOG_LEVEL,
                     format=config.PY_LOG_FORMAT,
@@ -92,13 +90,9 @@ class MistConnection(SockJSConnection):
         log.info("%s: Initializing", self.__class__.__name__)
         self.ip, self.user_agent, self.cookie_session_id = get_conn_info(
             conn_info)
-        log.info("Got connection info: %s %s %s",
-                 self.ip, self.user_agent, self.cookie_session_id)
         try:
             self.auth_context = auth_context_from_session_id(
                 self.cookie_session_id)
-            log.info("Got auth context %s for session %s",
-                     self.auth_context.owner.id, self.cookie_session_id)
         except UnauthorizedError:
             log.error("%s: Unauthorized session_id", self.__class__.__name__)
             self.send('logout')
@@ -138,9 +132,11 @@ class MistConnection(SockJSConnection):
     def internal_request(self, path, params=None, callback=None):
         if path.startswith('/'):
             path = path[1:]
+        if isinstance(params, dict):
+            params = params.items()
         if params:
             path += '?' + '&'.join('%s=%s' % item
-                                   for item in params.iteritems())
+                                   for item in params)
 
         def response_callback(resp):
             if resp.code == 200:
@@ -157,7 +153,7 @@ class MistConnection(SockJSConnection):
             Portal.get_singleton().internal_api_key, self.cookie_session_id)}
 
         tornado.httpclient.AsyncHTTPClient().fetch(
-            'http://api/%s' % path,
+            '%s/%s' % (config.INTERNAL_API_URL, path),
             headers=headers,
             callback=response_callback,
         )
@@ -186,9 +182,9 @@ class ShellConnection(MistConnection):
             self.close()
         try:
             if not data.get('job_id'):
-                self.auth_context.check_perm(
-                    'machine', 'open_shell', data['machine_id']
-                )
+                m = Machine.objects.get(cloud=data['cloud_id'],
+                                        machine_id=data['machine_id'])
+                self.auth_context.check_perm('machine', 'open_shell', m.id)
         except PolicyUnauthorizedError as err:
             self.emit_shell_data('%s' % err)
             self.close()
@@ -281,6 +277,7 @@ class MainConnection(MistConnection):
         super(MainConnection, self).on_open(conn_info)
         self.running_machines = set()
         self.consumer = None
+        self.batch = []
         self.log_kwargs = {
             'ip': self.ip,
             'user_agent': self.user_agent,
@@ -291,9 +288,7 @@ class MainConnection(MistConnection):
         }
         if self.auth_context.token.su:
             self.log_kwargs['su'] = self.auth_context.token.su
-        log.info('About to log open event %s', self.auth_context.owner.id)
         log_event(action='connect', **self.log_kwargs)
-        log.info('Done %s', self.auth_context.owner.id)
 
     def on_ready(self):
         log.info("************** Ready to go! %s", self.auth_context.owner.id)
@@ -306,7 +301,6 @@ class MainConnection(MistConnection):
     def start(self):
         self.update_user()
         self.update_org()
-        self.list_tags()
         self.list_keys()
         self.list_scripts()
         self.list_schedules()
@@ -317,6 +311,18 @@ class MainConnection(MistConnection):
         self.update_notifications()
         self.check_monitoring()
         self.periodic_update_poller()
+        self.send_batch_update()
+
+    @tornado.gen.coroutine
+    def send_batch_update(self):
+        """Send model patches in batches."""
+        while True:
+            if self.closed:
+                break
+            if self.batch:
+                self.send('patch_model', self.batch)
+                self.batch = []
+            yield tornado.gen.sleep(5)
 
     @tornado.gen.coroutine
     def periodic_update_poller(self):
@@ -342,9 +348,6 @@ class MainConnection(MistConnection):
         if org:
             self.send('org', org)
 
-    def list_tags(self):
-        self.send('list_tags', filter_list_tags(self.auth_context))
-
     def list_keys(self):
         self.internal_request(
             'api/v1/keys',
@@ -364,7 +367,7 @@ class MainConnection(MistConnection):
         )
 
     def list_templates(self):
-        if not config.HAS_CORE:
+        if not config.HAS_ORCHESTRATION:
             return
         self.internal_request(
             'api/v1/templates',
@@ -372,7 +375,7 @@ class MainConnection(MistConnection):
         )
 
     def list_stacks(self):
-        if not config.HAS_CORE:
+        if not config.HAS_ORCHESTRATION:
             return
         self.internal_request(
             'api/v1/stacks',
@@ -380,7 +383,7 @@ class MainConnection(MistConnection):
         )
 
     def list_tunnels(self):
-        if not config.HAS_CORE:
+        if not config.HAS_VPN:
             return
         self.internal_request(
             'api/v1/tunnels',
@@ -389,11 +392,11 @@ class MainConnection(MistConnection):
 
     def list_clouds(self):
         self.update_poller()
-        self.send('list_clouds', filter_list_clouds(self.auth_context))
-        clouds = Cloud.objects(owner=self.owner, enabled=True, deleted=None)
-        log.info(clouds)
-        periodic_tasks = []
+        clouds = filter_list_clouds(self.auth_context, as_dict=False)
+        self.send('list_clouds', [c.as_dict() for c in clouds])
         for cloud in clouds:
+            if not cloud.enabled:
+                continue
             self.internal_request(
                 'api/v1/clouds/%s/machines' % cloud.id,
                 params={'cached': True},
@@ -410,33 +413,52 @@ class MainConnection(MistConnection):
                     {'cloud_id': cloud_id, 'locations': locations}
                 ),
             )
+            self.internal_request(
+                'api/v1/clouds/%s/sizes' % cloud.id,
+                params={'cached': True},
+                callback=lambda sizes, cloud_id=cloud.id: self.send(
+                    'list_sizes',
+                    {'cloud_id': cloud_id, 'sizes': sizes}
+                ),
+            )
+            self.internal_request(
+                'api/v1/clouds/%s/networks' % cloud.id,
+                params={'cached': True},
+                callback=lambda networks, cloud_id=cloud.id: self.send(
+                    'list_networks',
+                    {'cloud_id': cloud_id, 'networks': networks}
+                ),
+            )
 
-        periodic_tasks.extend([('list_images', tasks.ListImages()),
-                               ('list_sizes', tasks.ListSizes()),
-                               ('list_networks', tasks.ListNetworks()),
-                               ('list_zones', tasks.ListZones()),
-                               ('list_resource_groups',
-                                tasks.ListResourceGroups()),
-                               ('list_storage_accounts',
-                                tasks.ListStorageAccounts()),
-                               ('list_projects', tasks.ListProjects())])
-        for key, task in periodic_tasks:
+            self.internal_request(
+                'api/v1/clouds/%s/zones' % cloud.id,
+                params={'cached': True},
+                callback=lambda zones, cloud_id=cloud.id: self.send(
+                    'list_zones',
+                    {'cloud_id': cloud_id, 'zones': zones}
+                ),
+            )
+            self.internal_request(
+                'api/v1/clouds/%s/volumes' % cloud.id,
+                params={'cached': True},
+                callback=lambda volumes, cloud_id=cloud.id: self.send(
+                    'list_volumes',
+                    {'cloud_id': cloud_id, 'volumes': volumes}
+                ),
+            )
+
+        # Old Periodic Tasks (must be replaced by poller tasks and api calls.
+        for key in ('list_images', 'list_resource_groups',
+                    'list_storage_accounts', 'list_projects'):
+            task = getattr(tasks, key)
             for cloud in clouds:
+                # Avoid submitting new celery tasks, when it's certain that
+                # they will exit immediately without performing any actions.
+                if not maybe_submit_cloud_task(cloud, key):
+                    continue
                 cached = task.smart_delay(self.owner.id, cloud.id)
                 if cached is not None:
                     log.info("Emitting %s from cache", key)
-                    if key == 'list_machines':
-                        cached['machines'] = filter_list_machines(
-                            self.auth_context, **cached
-                        )
-                        if cached['machines'] is None:
-                            continue
-                    elif key == 'list_zones':
-                        cached = filter_list_zones(
-                            self.auth_context, cloud.id, cached['zones']
-                        )
-                        if cached is None:
-                            continue
                     self.send(key, cached)
 
     def update_notifications(self):
@@ -444,7 +466,7 @@ class MainConnection(MistConnection):
                          owner=self.auth_context.org,
                          dismissed_by__ne=self.auth_context.user.id)]
         log.info("Emitting notifications list")
-        self.send('notifications', json.dumps(notifications))  # FIXME dump?
+        self.send('notifications', notifications)
 
     def check_monitoring(self):
         try:
@@ -470,28 +492,24 @@ class MainConnection(MistConnection):
             self.send('stats', ret)
 
         try:
+            params = [(name, val)
+                      for name, val in (('start', start), ('stop', stop),
+                                        ('step', step)) if val]
             if not cloud_id and not machine_id and (
                 not metrics or metrics == ['load.shortterm']
             ):
-                get_load(self.owner, start, stop, step,
-                         tornado_callback=callback)
+                self.internal_request(
+                    'api/v1/machines/stats/load',
+                    params=params, callback=callback,
+                )
             else:
-                try:
-                    cloud = Cloud.objects.get(owner=self.owner, id=cloud_id,
-                                              deleted=None)
-                except Cloud.DoesNotExist:
-                    raise MistError("Cloud %s does not exist" % cloud_id)
-                try:
-                    machine = Machine.objects.get(
-                        cloud=cloud,
-                        machine_id=machine_id,
-                        state__ne='terminated',
-                    )
-                except Machine.DoesNotExist:
-                    raise MistError("Machine %s doesn't exist" % machine_id)
-                get_stats(machine, start, stop, step,
-                          metrics=metrics, callback=callback,
-                          tornado_async=True)
+                for metric in metrics or []:
+                    params.append(('metrics', metric))
+                self.internal_request(
+                    'api/v1/clouds/%s/machines/%s/stats' % (cloud_id,
+                                                            machine_id),
+                    params=params, callback=callback,
+                )
         except MistError as exc:
             callback([], str(exc))
         except Exception as exc:
@@ -505,56 +523,10 @@ class MainConnection(MistConnection):
             result = body
         log.info("Got %s", routing_key)
         if routing_key in set(['notify', 'probe', 'list_sizes', 'list_images',
-                               'list_networks', 'list_machines', 'list_zones',
                                'list_locations', 'list_projects', 'ping',
                                'list_resource_groups',
                                'list_storage_accounts']):
-            if routing_key == 'list_machines':
-                # probe newly discovered running machines
-                machines = result['machines']
-                cloud_id = result['cloud_id']
-                filtered_machines = filter_list_machines(
-                    self.auth_context, cloud_id, machines
-                )
-                if filtered_machines is not None:
-                    self.send(routing_key, {'cloud_id': cloud_id,
-                                            'machines': filtered_machines})
-                # update cloud machine count in multi-user setups
-                cloud = Cloud.objects.get(owner=self.owner, id=cloud_id,
-                                          deleted=None)
-                for machine in machines:
-                    bmid = (cloud_id, machine['machine_id'])
-                    if bmid in self.running_machines:
-                        # machine was running
-                        if machine['state'] != 'running':
-                            # machine no longer running
-                            self.running_machines.remove(bmid)
-                        continue
-                    if machine['state'] != 'running':
-                        # machine not running
-                        continue
-                    # machine just started running
-                    self.running_machines.add(bmid)
-
-                    ips = filter(lambda ip: ':' not in ip,
-                                 machine.get('public_ips', []))
-                    if not ips:
-                        # if not public IPs, search for private IPs, otherwise
-                        # continue iterating over the list of machines
-                        ips = filter(lambda ip: ':' not in ip,
-                                     machine.get('private_ips', []))
-                        if not ips:
-                            continue
-
-            elif routing_key == 'list_zones':
-                zones = result['zones']
-                cloud_id = result['cloud_id']
-                filtered_zones = filter_list_zones(
-                    self.auth_context, cloud_id, zones
-                )
-                self.send(routing_key, filtered_zones)
-            else:
-                self.send(routing_key, result)
+            self.send(routing_key, result)
 
         elif routing_key == 'update':
             self.owner.reload()
@@ -567,20 +539,10 @@ class MainConnection(MistConnection):
                 self.list_scripts()
             if 'schedules' in sections:
                 self.list_schedules()
-            if 'zones' in sections:
-                task = tasks.ListZones()
-                clouds = Cloud.objects(owner=self.owner,
-                                       enabled=True,
-                                       deleted=None)
-                for cloud in clouds:
-                    if cloud.dns_enabled:
-                        task.smart_delay(self.owner.id, cloud.id)
             if 'templates' in sections:
                 self.list_templates()
             if 'stacks' in sections:
                 self.list_stacks()
-            if 'tags' in sections:
-                self.list_tags()
             if 'tunnels' in sections:
                 self.list_tunnels()
             if 'notifications' in sections:
@@ -595,40 +557,53 @@ class MainConnection(MistConnection):
                 self.update_org()
 
         elif routing_key == 'patch_notifications':
-            if json.loads(result).get('user') == self.user.id:
+            if result.get('user') == self.user.id:
                 self.send('patch_notifications', result)
 
-        elif routing_key == 'patch_machines':
+        elif routing_key in ['patch_machines', 'patch_networks',
+                             'patch_volumes', 'patch_zones']:
             cloud_id = result['cloud_id']
             patch = result['patch']
-            machine_ids = []
+            rtype = routing_key.replace('patch_', '')
+            resource_ids = []
             for line in patch:
-                machine_id, line['path'] = line['path'][1:].split('-', 1)
-                machine_ids.append(machine_id)
+                if '-' in line['path']:
+                    resource_id, line['path'] = line['path'][1:].split('-', 1)
+                else:
+                    line['path'] = line['path'][1:]
+                    resource_id = line['path'].split('/', 1)[0]
+                resource_ids.append(resource_id)
             if not self.auth_context.is_owner():
-                allowed_machine_ids = filter_machine_ids(self.auth_context,
-                                                         cloud_id, machine_ids)
+                allowed_resource_ids = filter_resource_ids(self.auth_context,
+                                                           cloud_id, rtype,
+                                                           resource_ids)
             else:
-                allowed_machine_ids = machine_ids
-            patch = [line for line, m_id in zip(patch, machine_ids)
-                     if m_id in allowed_machine_ids]
+                allowed_resource_ids = resource_ids
+            patch = [line for line, r_id in zip(patch, resource_ids)
+                     if r_id in allowed_resource_ids]
             for line in patch:
-                line['path'] = '/clouds/%s/machines/%s' % (cloud_id,
-                                                           line['path'])
+                line['path'] = '/clouds/%s/%s/%s' % (cloud_id, rtype,
+                                                     line['path'])
             if patch:
-                self.send('patch_model', patch)
+                self.batch.extend(patch)
 
-        elif routing_key == 'patch_locations':
+        elif routing_key in ['patch_locations', 'patch_sizes']:
             cloud_id = result['cloud_id']
             patch = result['patch']
-
-            # remove '/'
             for line in patch:
-                location_id = line['path'][1:]
-                line['path'] = '/clouds/%s/locations/%s' % (cloud_id,
-                                                            location_id)
+                _id = line['path'][1:]
+                if routing_key == 'patch_locations':
+                    line['path'] = '/clouds/%s/locations/%s' % (cloud_id, _id)
+                elif routing_key == 'patch_sizes':
+                    line['path'] = '/clouds/%s/sizes/%s' % (cloud_id, _id)
+                elif routing_key == 'patch_networks':
+                    line['path'] = '/clouds/%s/networks/%s' % (cloud_id, _id)
+                elif routing_key == 'patch_zones':
+                    line['path'] = '/clouds/%s/zones/%s' % (cloud_id, _id)
+                elif routing_key == 'patch_volumes':
+                    line['path'] = '/clouds/%s/volumes/%s' % (cloud_id, _id)
             if patch:
-                self.send('patch_model', patch)
+                self.batch.extend(patch)
 
     def on_close(self, stale=False):
         if not self.closed:
@@ -678,46 +653,52 @@ class LogsConnection(MistConnection):
                 event[key] = value
         except:
             pass
-        for stype in set([stype for _, stype, _ in event.get('stories', [])]):
-            self.send_stories(stype)
         if self.filter_log(event):
             self.send('event', self.parse_log(event))
+        self.patch_stories(event)
 
     def send_stories(self, stype):
         """Send open stories of the specified type."""
 
-        def callback(stories, pending=False):
+        def callback(stories):
             email = self.auth_context.user.email
-            ename = '%s_%ss' % ('open' if pending else 'closed', stype)
+            ename = '%ss' % stype
             log.info('Will emit %d %s for %s', len(stories), ename, email)
             self.send(ename, stories)
 
         # Only send incidents for non-Owners.
         if not self.auth_context.is_owner() and stype != 'incident':
-            self.send('open_%ss' % stype, [])
-            return
+            return callback([])
 
         # Fetch the latest open stories.
         kwargs = {
             'story_type': stype,
-            'pending': True,
             'range': {
                 '@timestamp': {
                     'gte': int((time.time() - 7 * 24 * 60 * 60) * 1000)
                 }
             }
         }
-
         if self.enforce_logs_for is not None:
             kwargs['owner_id'] = self.enforce_logs_for
-
         get_stories(tornado_async=True, tornado_callback=callback, **kwargs)
 
-        # Fetch also the latest, closed incidents.
-        if stype == 'incident':
-            kwargs.update({'limit': 10, 'pending': False})
-            get_stories(tornado_async=True,
-                        tornado_callback=callback, **kwargs)
+    def patch_stories(self, event):
+        """Send a stories patch.
+
+        Push an update of stories by creating a patch based on the `stories`
+        included in `event`, which describes the diff that should be applied
+        on existing stories.
+
+        Each patch is meant to either push newly created stories or update
+        existing ones simply based on a log entry's metadata.
+
+        """
+        patch = create_stories_patch(self.auth_context, event)
+        if patch:
+            cls, email = self.__class__.__name__, self.auth_context.user.email
+            log.info('%s emitting %d patch(es) for %s', cls, len(patch), email)
+            self.send('patch_stories', patch)
 
     def parse_log(self, event):
         """Parse a single log.
@@ -727,7 +708,7 @@ class LogsConnection(MistConnection):
         Override this method in order to add/remove fields to/from a log entry.
 
         """
-        for param in ('@version', 'stories', 'tags', '_traceback', '_exc', ):
+        for param in ('@version', 'tags', '_traceback', '_exc', ):
             event.pop(param, None)
         return event
 
@@ -739,6 +720,10 @@ class LogsConnection(MistConnection):
         default, the log entry is returned as is.
 
         """
+        if event.get('su') and not self.auth_context.user.role == 'Admin':
+            return None
+        if config.HAS_RBAC:
+            return filter_log_event(self.auth_context, event)
         return event
 
     def on_close(self, stale=False):
@@ -752,11 +737,13 @@ class LogsConnection(MistConnection):
 
 
 def make_router():
-    return SockJSRouter(
-        MultiplexConnection.get(
-            main=MainConnection,
-            logs=LogsConnection,
-            shell=ShellConnection,
-        ),
-        '/socket'
-    )
+    conns = {
+        'main': MainConnection,
+        'logs': LogsConnection,
+        'shell': ShellConnection,
+    }
+    if config.HAS_MANAGE:
+        from mist.manage.sock import ManageLogsConnection
+        conns['manage_logs'] = ManageLogsConnection
+
+    return SockJSRouter(MultiplexConnection.get(**conns), '/socket')

@@ -3,6 +3,7 @@ variables:
 
 stages:
   - build
+  - generate_api_spec
   - test
 
 #################### BUILD STAGE ####################
@@ -24,6 +25,17 @@ build_mist_image:
   dependencies: []
 
 
+#################### GENERATE_API_SPEC STAGE ####################
+generate_api_spec:
+  stage: generate_api_spec
+  image: gcr.io/mist-ops/mist:$CI_COMMIT_SHA
+  before_script:
+    - cd /mist.api
+  script:
+    - python openapi/generate_api_spec.py
+    - ls -l openapi
+
+
 #################### TEST STAGE ####################
 flake8:
   stage: test
@@ -34,3 +46,13 @@ flake8:
     - cd /mist.api
   script:
     - flake8
+
+uniq:
+  stage: test
+  image: gcr.io/mist-ops/mist:$CI_COMMIT_SHA
+  variables:
+    GIT_STRATEGY: none
+  before_script:
+    - cd /mist.api
+  script:
+    - ls migrations/ | uniq -c -d -w 4 | grep . && exit 1 || exit 0

@@ -13,13 +13,15 @@ class Tag(me.Document):
                                             'scripts', 'machine', 'machines',
                                             'template', 'stack', 'image',
                                             'network', 'tunnel', 'schedules',
-                                            'zones', 'records'])
+                                            'networks', 'zones', 'records',
+                                            'volumes'])
 
     value = me.StringField()
     resource = me.GenericReferenceField()
 
     meta = {
         'indexes': [
+            'owner',
             {
                 'fields': ['resource', 'key'],
                 'sparse': False,

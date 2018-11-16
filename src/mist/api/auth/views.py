@@ -29,7 +29,9 @@ OK = Response("OK", 200)
 @view_config(route_name='api_v1_tokens', request_method='GET', renderer='json')
 def list_tokens(request):
     """
-    List user's api tokens
+    Tags: api_tokens
+    ---
+    Lists user's api tokens
     ---
     """
     # FIXME: should call an optimized methods.list_tokens
@@ -63,13 +65,14 @@ def list_tokens(request):
              renderer='json')
 def create_token(request):
     """
-    Create a new api token
+    Tags: api_tokens
+    ---
+    Creates a new api token.
     Used so that a user can send his credentials and produce a new api token.
-    They api token itself will be returned in a json document along with it's
+    The api token itself will be returned in a json document along with it's
     id and it's name.
-    If user has used su then he should provide his own credentials however the
-    api token will authenticate the user that he is impersonating.
-    User can also send as parameters the name and the ttl.
+    If user has used su then he should provide his own credentials.However, the
+    api token will authenticate the user he is impersonating.
     If name is not sent then a random one with the format api_token_xyz where
     xyz is a number will be produced.
     If the user provides a name then there must be no other token for that user
@@ -83,15 +86,16 @@ def create_token(request):
     If user is coming from oauth then he will be able to create a new token
     without a password provided he is authenticated somehow.
     If you are using the /auth route please switch to /api_v1_tokens route. The
-    /auth route is deprecated and will be removed completely in the future.
+    /auth route is deprecated.
     ---
     email:
       description: User's email
       type: string
+      required: true
     password:
       description: User's password
-      required: true
       type: string
+      required: true
     name:
       description: Api token name
       type: string
@@ -99,7 +103,7 @@ def create_token(request):
       description: Time to live for the token
       type: integer
     org_id:
-      description: Org id if this token is to be used in organizational context
+      description: Org id if the token will be used in organizational context
       type: string
     """
 
@@ -123,7 +127,7 @@ def create_token(request):
     except UserUnauthorizedError:
         # The following should apply, but currently it can't due to tests.
         # if not org_id:
-        #     raise RequiredParameterMissingError("No org_id provided")
+            # raise RequiredParameterMissingError("No org_id provided")
         if not email:
             raise RequiredParameterMissingError("No email provided")
         org = None
@@ -153,6 +157,8 @@ def create_token(request):
     if not user.check_password(password):
         raise UserUnauthorizedError('Wrong password')
 
+    if not org:
+        org = reissue_cookie_session(request, user.id).org
     # first check if the api token name is unique if it has been provided
     # otherwise produce a new one.
     if api_token_name:
@@ -187,7 +193,9 @@ def create_token(request):
              renderer='json')
 def list_sessions(request):
     """
-    List active sessions
+    Tags: sessions
+    ---
+    Lists active sessions
     ---
     """
     auth_context = auth_context_from_request(request)
@@ -224,10 +232,14 @@ def list_sessions(request):
 @view_config(route_name='api_v1_tokens', request_method='DELETE')
 def revoke_token(request):
     """
-    Revoke api token
+    Tags: api_tokens
+    ---
+    Revokes api token
     ---
     id:
       description: Api token ID
+      type: string
+      required: true
     """
     return revoke_session(request)
 
@@ -236,6 +248,8 @@ def revoke_token(request):
 @view_config(route_name='api_v1_sessions', request_method='DELETE')
 def revoke_session(request):
     """
+    Tags: sessions
+    ---
     Revoke an active session
     ---
     id:

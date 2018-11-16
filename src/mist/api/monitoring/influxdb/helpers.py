@@ -37,8 +37,12 @@ def show_measurements(machine_id=None):
 
 def show_fields(measurement=None):
     """Return field keys and their respective values, including tags."""
+    # Make sure measurement names are inside quotes to escape special
+    # characters, such as "." or "-".
     if isinstance(measurement, list):
-        measurement = ','.join(measurement)
+        measurement = ','.join(['"%s"' % m for m in measurement])
+    elif measurement:
+        measurement = '"%s"' % measurement
     q = 'SHOW FIELD KEYS'
     q += ' FROM %s' % measurement if measurement else ''
     url = '%(host)s/query?db=%(db)s' % INFLUX

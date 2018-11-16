@@ -2,6 +2,7 @@ import os
 import uuid
 import logging
 import datetime
+import subprocess
 
 import mongoengine as me
 
@@ -41,6 +42,8 @@ class Portal(me.Document):
 
     # Keys & settings unique per portal
     internal_api_key = me.StringField()
+    external_api_key = me.StringField()
+    database_version = me.IntField(default=0, min_value=0)
 
     # This field has a uniqueness constraint and always has the same value.
     # This is an extra check to ensure that we'll not end up with multiple
@@ -61,11 +64,16 @@ class Portal(me.Document):
                 log.info("Generating internal api key.")
                 portal.internal_api_key = _generate_secret_key()
                 portal.save()
+            if not portal.external_api_key:
+                log.info("Generating external api key.")
+                portal.external_api_key = _generate_secret_key()
+                portal.save()
         except me.DoesNotExist:
             log.info("No portal info found in db, will try to initialize.")
             try:
                 portal = cls()
                 portal.internal_api_key = _generate_secret_key()
+                portal.external_api_key = _generate_secret_key()
                 portal.save()
                 log.info("Initialized portal info.")
             except me.NotUniqueError:
@@ -80,6 +88,27 @@ class Portal(me.Document):
 
     def get_available_upgrades(self):
         return [upgrade.as_dict() for upgrade in self.available_upgrades]
+
+    def get_unapplied_migrations(self):
+        migrations = sorted(os.listdir('/mist.api/migrations'))
+        migrations = [mig for mig in migrations if
+                      int(mig.split('-')[0]) > self.database_version]
+        if not migrations:
+            log.info('No migrations to apply!')
+        return migrations
+
+    def apply_migrations(self):
+        for mig in self.get_unapplied_migrations():
+            mig_num = int(mig.split('-')[0])
+            log.info('Applying %s', mig)
+            path = os.path.join('/mist.api/migrations', mig)
+            proc = subprocess.Popen('python %s' % path, shell=True)
+            proc.wait()
+            if proc.returncode:
+                raise Exception('Error %s while applying migration '
+                                '%s' % (proc.returncode, mig_num))
+            self.database_version = mig_num
+            self.save()
 
     def as_dict(self):
         return {

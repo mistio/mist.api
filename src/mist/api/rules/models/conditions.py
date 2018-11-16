@@ -26,8 +26,8 @@ class QueryFilter(me.EmbeddedDocument):
     """
 
     key = me.StringField(required=True)
-    value = me.StringField(required=True)
-    operator = me.DynamicField(required=True, choices=OPERATORS)
+    value = me.DynamicField(required=True)
+    operator = me.StringField(required=True, choices=OPERATORS)
 
     def as_dict(self):
         return {
@@ -60,7 +60,8 @@ class QueryCondition(me.EmbeddedDocument):
 
     filters = me.EmbeddedDocumentListField(QueryFilter, default=lambda: [])
 
-    aggregation = me.StringField(default='all', choices=('all', 'any', 'avg'))
+    aggregation = me.StringField(default='all', choices=('all', 'any',
+                                                         'avg', 'count'))
 
     meta = {'allow_inheritance': True}
 
@@ -117,7 +118,7 @@ class BasePeriodType(me.EmbeddedDocument):
     def clean(self):
         if self.timedelta.total_seconds() < 60:
             raise me.ValidationError("%s's timedelta cannot be less than "
-                                     "a minute", self.__class__.__name__)
+                                     "a minute" % self.__class__.__name__)
 
 
 class Window(BasePeriodType):

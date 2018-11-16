@@ -9,6 +9,7 @@ be performed inside the corresponding method functions.
 
 """
 
+import os
 import urllib
 import json
 import netaddr
@@ -19,16 +20,15 @@ from time import time
 from datetime import datetime, timedelta
 
 from pyramid.response import Response
+from pyramid.response import FileResponse
 from pyramid.renderers import render_to_response
 from pyramid.httpexceptions import HTTPFound
 from pyramid.view import notfound_view_config
 
 import mist.api.tasks as tasks
-from mist.api.scripts.models import CollectdScript
 from mist.api.scripts.views import fetch_script
 from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
-from mist.api.networks.models import Network, Subnet
 from mist.api.users.models import Avatar, Owner, User, Organization
 from mist.api.users.models import MemberInvitation, Team
 from mist.api.users.models import WhitelistIP
@@ -43,9 +43,7 @@ from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import NotFoundError, BadRequestError, ForbiddenError
 from mist.api.exceptions import ServiceUnavailableError
 from mist.api.exceptions import MistError
-from mist.api.exceptions import PolicyUnauthorizedError, UnauthorizedError
-from mist.api.exceptions import CloudNotFoundError
-from mist.api.exceptions import NetworkNotFoundError, SubnetNotFoundError
+from mist.api.exceptions import UnauthorizedError
 from mist.api.exceptions import UserUnauthorizedError, RedirectError
 from mist.api.exceptions import UserNotFoundError, ConflictError
 from mist.api.exceptions import LoginThrottledError, TeamOperationError
@@ -351,7 +349,6 @@ def switch_org(request):
       description: The team's org id
       type: string
       required: true
-
     """
     org_id = request.matchdict.get('org_id')
     user = user_from_request(request)
@@ -547,7 +544,7 @@ def confirm(request):
     After registering, the user is sent a confirmation email to his email
     address with a link containing a token that directs the user to this view
     to confirm his email address.
-    If invitation token exists redirect to set_password
+    If invitation token exists redirect to set_password or to social auth
     """
     params = params_from_request(request)
     key = params.get('key')
@@ -575,7 +572,13 @@ def confirm(request):
     user.save()
 
     invitoken = params.get('invitoken')
-    url = request.route_url('set_password', _query={'key': key})
+    if config.ALLOW_SIGNIN_EMAIL:
+        url = request.route_url('set_password', _query={'key': key})
+    elif config.ALLOW_SIGNIN_GOOGLE:
+        url = '/social_auth/login/google-oauth2?key=%s' % key
+    elif config.ALLOW_SIGNIN_GITHUB:
+        url = '/social_auth/login/github-oauth2?key=%s' % key
+
     if invitoken:
         try:
             MemberInvitation.objects.get(token=invitoken)
@@ -611,8 +614,8 @@ def forgot_password(request):
         user.activation_key = get_secure_rand_token()
         user.save()
         subject = config.CONFIRMATION_EMAIL_SUBJECT
-        body = config.CONFIRMATION_EMAIL_BODY % ((user.first_name + " " +
-                                                  user.last_name),
+        full_name = "%s %s" % (user.first_name or '', user.last_name or '')
+        body = config.CONFIRMATION_EMAIL_BODY % (full_name,
                                                  config.CORE_URI,
                                                  user.activation_key,
                                                  ip_from_request(request),
@@ -710,6 +713,8 @@ def reset_password(request):
 @view_config(route_name='request_whitelist_ip', request_method='POST')
 def request_whitelist_ip(request):
     """
+    Tags: ip_whitelisting
+    ---
     User logs in successfully but it's from a non-whitelisted ip.
     They click on a link 'whitelist current ip', which sends an email
     to their account.
@@ -751,6 +756,8 @@ def request_whitelist_ip(request):
 @view_config(route_name='confirm_whitelist', request_method=('GET'))
 def confirm_whitelist(request):
     """
+    Tags: ip_whitelisting
+    ---
     User tries to login successfully but from a non-whitelisted IP.
     They get a link to request whitelisting their current IP and an email
     with a link is sent to their email address.
@@ -886,7 +893,6 @@ def confirm_invitation(request):
       description: member's invitation token
       type: string
       required: true
-
     """
     try:
         auth_context = auth_context_from_request(request)
@@ -959,6 +965,8 @@ def confirm_invitation(request):
              renderer='json')
 def whitelist_ip(request):
     """
+    Tags: ip_whitelisting
+    ---
     Whitelist IPs for specified user.
     """
     auth_context = auth_context_from_request(request)
@@ -978,16 +986,33 @@ def whitelist_ip(request):
              renderer='json')
 def list_specific_images(request):
     # FIXME: 1) i shouldn't exist, 2) i shouldn't be a post
+    """
+    Tags: images
+    ---
+    List images from each cloud. Furthermore if a search_term is provided, we
+    loop through each cloud and search for that term in the ids and the names
+    of the community images.
+    READ permission required on cloud.
+    ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    search_term:
+      type: string
+    """
     return list_images(request)
 
 
 @view_config(route_name='api_v1_images', request_method='GET', renderer='json')
 def list_images(request):
     """
-    List images of specified cloud
+    Tags: images
+    ---
+    List images of specified cloud.
     List images from each cloud. Furthermore if a search_term is provided, we
     loop through each cloud and search for that term in the ids and the names
-    of the community images
+    of the community images.
     READ permission required on cloud.
     ---
     cloud:
@@ -1015,8 +1040,10 @@ def list_images(request):
 @view_config(route_name='api_v1_image', request_method='POST', renderer='json')
 def star_image(request):
     """
-    Star/unstar an image
-    Toggle image star (star/unstar)
+    Tags: images
+    ---
+    Star/unstar an image.
+    Toggle image star (star/unstar).
     EDIT permission required on cloud.
     ---
     cloud:
@@ -1039,7 +1066,8 @@ def star_image(request):
 @view_config(route_name='api_v1_sizes', request_method='GET', renderer='json')
 def list_sizes(request):
     """
-    List sizes of a cloud
+    Tags: clouds
+    ---
     List sizes (aka flavors) from each cloud.
     READ permission required on cloud.
     ---
@@ -1050,15 +1078,24 @@ def list_sizes(request):
     """
     cloud_id = request.matchdict['cloud']
     auth_context = auth_context_from_request(request)
+    cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
+                              deleted=None)
     auth_context.check_perm("cloud", "read", cloud_id)
-    return methods.list_sizes(auth_context.owner, cloud_id)
+    params = params_from_request(request)
+    cached = bool(params.get('cached', False))
+    if cached:
+        sizes = cloud.ctl.compute.list_cached_sizes()
+    else:
+        sizes = cloud.ctl.compute.list_sizes()
+    return [size.as_dict() for size in sizes]
 
 
 @view_config(route_name='api_v1_locations', request_method='GET',
              renderer='json')
 def list_locations(request):
     """
-    List locations of cloud
+    Tags: clouds
+    ---
     List locations from each cloud. Locations mean different things in each cl-
     oud. e.g. EC2 uses it as a datacenter in a given availability zone, where-
     as Linode lists availability zones. However all responses share id, name
@@ -1086,147 +1123,14 @@ def list_locations(request):
     return [location.as_dict() for location in locations]
 
 
-@view_config(route_name='api_v1_subnets', request_method='GET',
-             renderer='json')
-def list_subnets(request):
-    """
-    List subnets of a cloud
-    Currently supports the EC2, GCE and OpenStack clouds.
-    For other providers this returns an empty list.
-    READ permission required on cloud.
-    ---
-    cloud:
-      in: path
-      required: true
-      type: string
-    network_id:
-      in: path
-      required: true
-      description: The DB ID of the network whose subnets will be returned
-      type: string
-    """
-
-    cloud_id = request.matchdict['cloud']
-    network_id = request.matchdict['network']
-    auth_context = auth_context_from_request(request)
-    auth_context.check_perm("cloud", "read", cloud_id)
-
-    try:
-        cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id)
-    except Cloud.DoesNotExist:
-        raise CloudNotFoundError
-
-    try:
-        network = Network.objects.get(cloud=cloud, id=network_id)
-    except Network.DoesNotExist:
-        raise NetworkNotFoundError
-
-    subnets = methods.list_subnets(cloud, network=network)
-
-    return subnets
-
-
-@view_config(route_name='api_v1_subnets', request_method='POST',
-             renderer='json')
-def create_subnet(request):
-    """
-    Create subnet on a given network on a cloud.
-    CREATE_RESOURCES permission required on cloud.
-    ---
-    cloud_id:
-      in: path
-      required: true
-      description: The Cloud ID
-      type: string
-    network_id:
-      in: path
-      required: true
-      description: The ID of the Network that will contain the new subnet
-      type: string
-    subnet:
-      required: true
-      type: dict
-    """
-    cloud_id = request.matchdict['cloud']
-    network_id = request.matchdict['network']
-
-    params = params_from_request(request)
-
-    auth_context = auth_context_from_request(request)
-
-    # TODO
-    if not auth_context.is_owner():
-        raise PolicyUnauthorizedError()
-
-    try:
-        cloud = Cloud.objects.get(id=cloud_id, owner=auth_context.owner)
-    except Cloud.DoesNotExist:
-        raise CloudNotFoundError
-    try:
-        network = Network.objects.get(id=network_id, cloud=cloud)
-    except Network.DoesNotExist:
-        raise NetworkNotFoundError
-
-    subnet = methods.create_subnet(auth_context.owner, cloud, network, params)
-
-    return subnet.as_dict()
-
-
-@view_config(route_name='api_v1_subnet', request_method='DELETE')
-def delete_subnet(request):
-    """
-    Delete a subnet.
-    CREATE_RESOURCES permission required on cloud.
-    ---
-    cloud_id:
-      in: path
-      required: true
-      type: string
-    network_id:
-      in: path
-      required: true
-      type: string
-    subnet_id:
-      in: path
-      required: true
-      type: string
-    """
-    cloud_id = request.matchdict['cloud']
-    subnet_id = request.matchdict['subnet']
-    network_id = request.matchdict['network']
-
-    auth_context = auth_context_from_request(request)
-
-    # TODO
-    if not auth_context.is_owner():
-        raise PolicyUnauthorizedError()
-
-    try:
-        cloud = Cloud.objects.get(id=cloud_id, owner=auth_context.owner)
-    except Cloud.DoesNotExist:
-        raise CloudNotFoundError
-
-    try:
-        network = Network.objects.get(id=network_id, cloud=cloud)
-    except Network.DoesNotExist:
-        raise NetworkNotFoundError
-
-    try:
-        subnet = Subnet.objects.get(id=subnet_id, network=network)
-    except Subnet.DoesNotExist:
-        raise SubnetNotFoundError
-
-    methods.delete_subnet(auth_context.owner, subnet)
-
-    return OK
-
-
 @view_config(route_name='api_v1_cloud_probe',
              request_method='POST', renderer='json')
 @view_config(route_name='api_v1_probe', request_method='POST', renderer='json')
 def probe(request):
     """
-    Probe a machine
+    Tags: machines
+    ---
+    Probes a machine.
     Ping and SSH to machine and collect various metrics.
     READ permission required on cloud.
     READ permission required on machine.
@@ -1289,6 +1193,8 @@ def probe(request):
              renderer='json')
 def ping(request):
     """
+    Tags: api_tokens
+    ---
     Check that an api token is correct.
     ---
     """
@@ -1298,230 +1204,28 @@ def ping(request):
     return {'hello': user.email}
 
 
-@view_config(route_name='api_v1_metric', request_method='PUT', renderer='json')
-def update_metric(request):
-    """
-    Update a metric configuration
-    Update a metric configuration
-    READ permission required on cloud.
-    EDIT_CUSTOM_METRICS required on machine.
-    ---
-    metric:
-      description: ' Metric_id (provided by self.get_stats() )'
-      in: path
-      required: true
-      type: string
-    cloud_id:
-      required: true
-      type: string
-    host:
-      type: string
-    machine_id:
-      required: true
-      type: string
-    name:
-      description: Name of the plugin
-      type: string
-    plugin_type:
-      type: string
-    unit:
-      description: ' Optional. If given the new plugin will be measured
-                    according to this unit'
-      type: string
-    """
-    raise NotImplementedError()
-
-    metric_id = request.matchdict['metric']
-    params = params_from_request(request)
-    machine_id = params.get('machine_id')
-    cloud_id = params.get('cloud_id')
-    auth_context = auth_context_from_request(request)
-    auth_context.check_perm("cloud", "read", cloud_id)
-    try:
-        machine = Machine.objects.get(cloud=cloud_id, machine_id=machine_id)
-        machine_uuid = machine.id
-    except me.DoesNotExist:
-        machine_uuid = ""
-    auth_context.check_perm("machine", "edit_custom_metrics", machine_uuid)
-    methods.update_metric(
-        auth_context.owner,
-        metric_id,
-        name=params.get('name'),
-        unit=params.get('unit'),
-        cloud_id=cloud_id,
-        machine_id=machine_id
-    )
-    return {}
-
-
-@view_config(route_name='api_v1_deploy_plugin', request_method='POST',
-             renderer='json')
-def deploy_plugin(request):
-    """
-    Deploy a plugin on a machine.
-    Deploy a plugin on the specific machine.
-    READ permission required on cloud.
-    EDIT_CUSTOM_METRICS required on machine.
-    ---
-    cloud:
-      in: path
-      required: true
-      type: string
-    machine:
-      in: path
-      required: true
-      type: string
-    plugin:
-      in: path
-      required: true
-      type: string
-    name:
-      required: true
-      type: string
-    plugin_type:
-      default: python
-      enum:
-      - python
-      required: true
-      type: string
-    read_function:
-      required: true
-      type: string
-    unit:
-      type: string
-    value_type:
-      default: gauge
-      type: string
-    """
-    raise NotImplementedError()
-
-    cloud_id = request.matchdict['cloud']
-    machine_id = request.matchdict['machine']
-    plugin_id = request.matchdict['plugin']
-    params = params_from_request(request)
-    plugin_type = params.get('plugin_type')
-    auth_context = auth_context_from_request(request)
-    # SEC check permission READ on cloud
-    auth_context.check_perm("cloud", "read", cloud_id)
-    try:
-        machine = Machine.objects.get(cloud=cloud_id, machine_id=machine_id)
-    except me.DoesNotExist:
-        raise NotFoundError("Machine %s doesn't exist" % machine_id)
-
-    # SEC check permission EDIT_CUSTOM_METRICS on machine
-    auth_context.check_perm("machine", "edit_custom_metrics", machine.id)
-
-    try:
-        Cloud.objects.get(owner=auth_context.owner, id=cloud_id)
-    except me.DoesNotExist:
-        raise NotFoundError('Cloud id %s does not exist' % cloud_id)
-
-    if not machine.monitoring.hasmonitoring:
-        raise NotFoundError("Machine doesn't seem to have monitoring enabled")
-
-    # create a collectdScript
-    extra = {'value_type': params.get('value_type', 'gauge'),
-             'value_unit': ''}
-    name = plugin_id
-    kwargs = {'location_type': 'inline',
-              'script': params.get('read_function'),
-              'extra': extra}
-    script = CollectdScript.add(auth_context.owner, name, **kwargs)
-
-    if plugin_type == 'python':
-        ret = script.ctl.deploy_python_plugin(machine)
-        methods.update_metric(
-            auth_context.owner,
-            metric_id=ret['metric_id'],
-            name=params.get('name'),
-            unit=params.get('unit'),
-            cloud_id=cloud_id,
-            machine_id=machine_id,
-        )
-        return ret
-    else:
-        raise BadRequestError("Invalid plugin_type: '%s'" % plugin_type)
-
-
-@view_config(route_name='api_v1_deploy_plugin',
-             request_method='DELETE', renderer='json')
-def undeploy_plugin(request):
-    """
-    Undeploy a plugin on a machine.
-    Undeploy a plugin on the specific machine.
-    READ permission required on cloud.
-    EDIT_CUSTOM_METRICS required on machine.
-    ---
-    cloud:
-      in: path
-      required: true
-      type: string
-    machine:
-      in: path
-      required: true
-      type: string
-    plugin:
-      in: path
-      required: true
-      type: string
-    host:
-      required: true
-      type: string
-    plugin_type:
-      default: python
-      enum:
-      - python
-      required: true
-      type: string
-    """
-    raise NotImplementedError()
-
-    cloud_id = request.matchdict['cloud']
-    machine_id = request.matchdict['machine']
-    plugin_id = request.matchdict['plugin']
-    params = params_from_request(request)
-    plugin_type = params.get('plugin_type')
-    host = params.get('host')
-    auth_context = auth_context_from_request(request)
-    auth_context.check_perm("cloud", "read", cloud_id)
-    try:
-        machine = Machine.objects.get(cloud=cloud_id, machine_id=machine_id)
-        machine_uuid = machine.id
-    except me.DoesNotExist:
-        machine_uuid = ""
-    auth_context.check_perm("machine", "edit_custom_metrics", machine_uuid)
-    if plugin_type == 'python':
-        ret = methods.undeploy_python_plugin(auth_context.owner, cloud_id,
-                                             machine_id, plugin_id, host)
-        return ret
-    else:
-        raise BadRequestError("Invalid plugin_type: '%s'" % plugin_type)
-
-
 @view_config(route_name='api_v1_providers', request_method='GET',
              renderer='json')
 def list_supported_providers(request):
     """
-    List supported providers
+    Tags: providers
+    ---
+    Lists supported providers.
     Return all of our SUPPORTED PROVIDERS
     ---
-    api_version:
-      enum:
-      - 1
-      - 2
-      in: header
-      type: integer
     """
-    api_version = request.headers.get('Api-Version', 1)
-    if int(api_version) == 2:
-        return {'supported_providers': config.SUPPORTED_PROVIDERS_V_2}
-    else:
-        return {'supported_providers': config.SUPPORTED_PROVIDERS}
+    return {'supported_providers': config.SUPPORTED_PROVIDERS}
 
 
 @view_config(route_name='api_v1_avatars',
              request_method='POST', renderer='json')
 def upload_avatar(request):
+    """
+    Tags: avatars
+    ---
+    Upload an avatar
+    ---
+    """
     user = user_from_request(request)
     body = request.POST['file'].file.read()
     if len(body) > 256 * 1024:
@@ -1537,6 +1241,8 @@ def upload_avatar(request):
 @view_config(route_name='api_v1_avatar', request_method='GET')
 def get_avatar(request):
     """
+    Tags: avatars
+    ---
     Returns the requested avatar
     ---
     avatar:
@@ -1559,6 +1265,8 @@ def get_avatar(request):
 @view_config(route_name='api_v1_avatar', request_method='DELETE')
 def delete_avatar(request):
     """
+    Tags: avatars
+    ---
     Deletes the requested avatar
     ---
     avatar:
@@ -1590,7 +1298,9 @@ def delete_avatar(request):
 @view_config(route_name='api_v1_orgs', request_method='GET', renderer='json')
 def list_user_organizations(request):
     """
-    List user's organizations
+    Tags: organizations
+    ---
+    List user's organizations.
     List all the organizations where user is a member
     """
     try:
@@ -1605,7 +1315,9 @@ def list_user_organizations(request):
 @view_config(route_name='api_v1_org', request_method='POST', renderer='json')
 def create_organization(request):
     """
-    Create organization.
+    Tags: organizations
+    ---
+    Creates organization.
     The user creating it will be assigned to the
     owners team. For now owner has only org
     ---
@@ -1654,6 +1366,8 @@ def create_organization(request):
 @view_config(route_name='api_v1_org', request_method='GET', renderer='json')
 def show_user_organization(request):
     """
+    Tags: organizations
+    ---
     Show user's organization.
     If user is organization owner then show everything
     If user is just a member then show just himself as a team member and the
@@ -1715,6 +1429,8 @@ def show_user_pending_invitations(request):
              renderer='json')
 def show_organization(request):
     """
+    Tags: organizations
+    ---
     Show organization.
     Details of org.
     ---
@@ -1740,18 +1456,20 @@ def show_organization(request):
              renderer='json')
 def edit_organization(request):
     """
-        Edit an organization entry in the db
-        Means rename.
-        Only available to organization owners.
-        ---
-        org_id:
-          description: The org's org id
-          type: string
-          required: true
-        name:
-          description: The team's name
-          type:string
-        """
+    Tags: organizations
+    ---
+    Edit an organization entry in the db
+    Means rename.
+    Only available to organization owners.
+    ---
+    org_id:
+      description: The org's org id
+      type: string
+      required: true
+    name:
+      description: The team's name
+      type: string
+    """
     auth_context = auth_context_from_request(request)
 
     if not auth_context.is_owner():
@@ -1772,7 +1490,7 @@ def edit_organization(request):
         auth_context.org.avatar = avatar
 
     if alerts_email and auth_context.is_owner():
-        from mist.core.methods import update_monitoring_options
+        from mist.api.monitoring.methods import update_monitoring_options
         update_monitoring_options(auth_context.owner, alerts_email)
 
     if not name and not alerts_email and not avatar:
@@ -1808,7 +1526,9 @@ def edit_organization(request):
 @view_config(route_name='api_v1_teams', request_method='POST', renderer='json')
 def add_team(request):
     """
-    Create new team.
+    Tags: teams
+    ---
+    Creates new team.
     Append it at org's teams list.
     Only available to organization owners.
     ---
@@ -1862,6 +1582,8 @@ def add_team(request):
 @view_config(route_name='api_v1_team', request_method='GET', renderer='json')
 def show_team(request):
     """
+    Tags: teams
+    ---
     Show team.
     Only available to organization owners.
     ---
@@ -1893,7 +1615,9 @@ def show_team(request):
 @view_config(route_name='api_v1_teams', request_method='GET', renderer='json')
 def list_teams(request):
     """
-    List teams of an org.
+    Tags: teams
+    ---
+    Lists teams of an org.
     Only available to organization owners.
     ---
     org_id:
@@ -1928,8 +1652,9 @@ def list_teams(request):
 @view_config(route_name='api_v1_team', request_method='PUT', renderer='json')
 def edit_team(request):
     """
-    Edit a team entry in the db
-    Means rename.
+    Tags: teams
+    ---
+    Renames a team entry in the db.
     Only available to organization owners.
     ---
     org_id:
@@ -1942,7 +1667,7 @@ def edit_team(request):
       required: true
     name:
       description: The team's name
-      type:string
+      type: string
     description:
       description: the teams's description
     """
@@ -1992,7 +1717,9 @@ def edit_team(request):
              renderer='json')
 def delete_team(request):
     """
-    Delete a team entry in the db.
+    Tags: teams
+    ---
+    Deletes a team entry in the db.
     Only available to organization owners.
     ---
     org_id:
@@ -2043,7 +1770,9 @@ def delete_team(request):
              renderer='json')
 def delete_teams(request):
     """
-    Delete multiple teams.
+    Tags: teams
+    ---
+    Deletes multiple teams.
     Provide a list of team ids to be deleted. The method will try to delete
     all of them and then return a json that describes for each team id
     whether or not it was deleted or the not_found if the team id could not
@@ -2054,9 +1783,8 @@ def delete_teams(request):
     team_ids:
       required: true
       type: array
-    items:
-      type: string
-      name: team_id
+      items:
+        type: string
     """
     auth_context = auth_context_from_request(request)
     org_id = request.matchdict['org_id']
@@ -2118,6 +1846,8 @@ def delete_teams(request):
              renderer='json')
 def invite_member_to_team(request):
     """
+    Tags: teams
+    ---
     Invite a member to team.
     For each user there can be one invitation per organization, but each
     invitation could be for multiple teams.
@@ -2293,6 +2023,8 @@ def invite_member_to_team(request):
              renderer='json')
 def delete_member_from_team(request):
     """
+    Tags: teams
+    ---
     Delete a team's member entry from the db.
     It means remove member from list and save org.
     Only available to organization owners.
@@ -2405,12 +2137,11 @@ def delete_member_from_team(request):
     return OK
 
 
-@view_config(route_name='api_v1_add_dev_user_to_team', request_method='POST',
+@view_config(route_name='api_v1_dev_add_user_to_team', request_method='POST',
              renderer='json')
 def add_dev_user_to_team(request):
     """
     Add user to team. This method is user by integration tests.
-
     It is enabled only if config.ENABLE_DEV_USERS is set to True (False by
     default).
     ---
@@ -2445,9 +2176,7 @@ def add_dev_user_to_team(request):
 def register_dev_user(request):
     """
     Automatically register users to be used by integration tests.
-
     It actually does what dbinit does but through the API.
-
     It is enabled only if config.ENABLE_DEV_USERS is set to True (False by
     default).
     ---
@@ -2545,8 +2274,8 @@ def fetch(request):
         raise RequiredParameterMissingError('No action specified')
 
     if action == 'vpn_script':
-        if config.HAS_CORE:
-            from mist.core.vpn.views import fetch_vpn_script
+        if config.HAS_VPN:
+            from mist.vpn.views import fetch_vpn_script
         else:
             raise NotImplementedError()
         return fetch_vpn_script(params.get('object_id'))
@@ -2556,7 +2285,27 @@ def fetch(request):
         raise NotImplementedError()
 
 
+@view_config(route_name='api_v1_spec', request_method='GET')
+def openapi_spec(request):
+    curr_dir = os.path.dirname(__file__)
+    spec = os.path.join(curr_dir, "../../../openapi/spec.yml")
+    return FileResponse(spec, request=request)
+
+
 @view_config(route_name='version', request_method='GET', renderer='json')
 def version(request):
     """Return running version"""
     return {'version': config.VERSION}
+
+
+@view_config(route_name='api_v1_section', request_method='GET',
+             renderer='json')
+def section(request):
+    '''
+    Redirect to the static JSON file that corresponds to the requested section
+    '''
+    section_id = request.matchdict['section']
+
+    path = '/static/' + section_id.replace('--', '/sections/') + '.json'
+
+    return HTTPFound(path)

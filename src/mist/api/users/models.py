@@ -166,44 +166,6 @@ class SocialAuthUser(me.Document):
         return 'SocialAuthUser for %s on %s' % (user, self.provider)
 
 
-class Rule(me.Document):
-    """The basic Rule Model."""
-
-    rule_action = me.StringField()
-    metric = me.StringField()  # metric_id for builtin or custom metric
-    value = me.FloatField()
-    cloud = me.StringField()
-    machine = me.StringField()
-    operator = me.StringField()
-    command = me.StringField()
-    action = me.StringField()
-    aggregate = me.StringField(default='all')  # must be in ('all','avg','any')
-    reminder_offset = me.IntField()  # seconds to wait
-    # before sending notifications
-    emails = me.ListField(me.StringField(), default=[])
-    # email to send the alerts. Can be a list of email addresses
-
-    migrated = me.BooleanField()
-
-    def clean(self):
-        # TODO: check if these are valid email addresses,
-        # to avoid possible spam
-        banned_mails_providers = config.BANNED_EMAIL_PROVIDERS
-
-        if self.emails:
-            if isinstance(self.emails, basestring):
-                emails = []
-                for email in self.emails.split(','):
-                    if re.match("[^@]+@[^@]+\.[^@]+", email):
-                        if email.split('@')[1] not in banned_mails_providers:
-                            emails.append(email.replace(' ', ''))
-                self.emails = emails
-        super(Rule, self).clean()
-
-    def as_dict(self):
-        return json.loads(self.to_json())
-
-
 class Owner(me.Document):
 
     id = me.StringField(primary_key=True,
@@ -214,7 +176,6 @@ class Owner(me.Document):
     rule_counter = me.IntField(default=0)
     total_machine_count = me.IntField()
 
-    rules = me.MapField(field=me.ReferenceField(Rule))
     alerts_email = me.ListField(me.StringField(), default=[])
 
     avatar = me.StringField(default='')
@@ -261,9 +222,9 @@ class Owner(me.Document):
         super(Owner, self).clean()
 
     def get_rules_dict(self):
-        from mist.api.rules.models import MachineMetricRule as Rule
-        return {rule.rule_id: rule.as_dict_old()
-                for rule in Rule.objects(owner_id=self.id)}
+        from mist.api.rules.models import MachineMetricRule
+        return {rule.id: rule.as_dict()
+                for rule in MachineMetricRule.objects(owner_id=self.id)}
 
     def get_metrics_dict(self):
         return {
@@ -383,6 +344,14 @@ class User(Owner):
         except AttributeError:
                 return self.email
 
+    def get_ownership_mapper(self, org):
+        """Return the `OwnershipMapper` in the specified Org context."""
+        if config.HAS_RBAC:
+            from mist.rbac.mappings import OwnershipMapper
+        else:
+            from mist.api.dummy.mappings import OwnershipMapper
+        return OwnershipMapper(self, org)
+
 
 class Avatar(me.Document):
     id = me.StringField(primary_key=True,
@@ -484,7 +453,8 @@ class Organization(Owner):
     default_monitoring_method = me.StringField(
         choices=config.MONITORING_METHODS)
 
-    insights_enabled = me.BooleanField(default=config.HAS_CORE)
+    insights_enabled = me.BooleanField(default=config.HAS_INSIGHTS)
+    ownership_enabled = me.BooleanField()
 
     created = me.DateTimeField(default=datetime.datetime.now)
     registered_by = me.StringField()
@@ -492,6 +462,10 @@ class Organization(Owner):
     # used to allow creation of sub-org
     super_org = me.BooleanField(default=False)
     parent = me.ReferenceField('Organization', required=False)
+
+    poller_updated = me.DateTimeField()
+
+    meta = {'indexes': ['name']}
 
     @property
     def mapper(self):
@@ -569,7 +543,16 @@ class Organization(Owner):
         view["id"] = view_id
         view["members"] = []
         for member in self.members:
-            name = member.get_nice_name()
+            try:
+                name = member.get_nice_name()
+            except AttributeError:  # Cannot dereference member
+                try:
+                    self.members.remove(member)
+                    self.save()
+                except Exception as e:
+                    log.error("Failed to remove missing member from %s: %r" % (
+                        self.name, e))
+                continue
             view["members"].append({
                 "id": member.id,
                 "name": name,
@@ -644,7 +627,8 @@ class Organization(Owner):
         if config.HAS_RBAC:
             # make sure owners policy allows all permissions
             if owners.policy.operator != 'ALLOW':
-                raise me.ValidationError("Owners policy must be set to ALLOW.")
+                owners.policy.operator = 'ALLOW'
+                log.warning("Owners policy must be set to ALLOW. Updating...")
 
             # make sure owners policy doesn't contain specific rules
             if owners.policy.rules:
@@ -659,6 +643,14 @@ class Organization(Owner):
 
         self.members_count = len(self.members)
         self.teams_count = len(self.teams)
+
+        # Add schedule for metering.
+        try:
+            from mist.api.poller.models import MeteringPollingSchedule
+            MeteringPollingSchedule.add(self, run_immediately=False)
+        except Exception as exc:
+            log.error('Error adding metering schedule for %s: %r', self, exc)
+
         super(Organization, self).clean()
 
 

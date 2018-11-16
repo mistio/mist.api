@@ -41,18 +41,18 @@ from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.helpers import sanitize_host, check_host
 
 from mist.api.keys.models import Key
-from mist.api.machines.models import Machine
 
 from mist.api.helpers import rename_kwargs
 from mist.api.clouds.controllers.main.base import BaseMainController
 from mist.api.clouds.controllers.compute import controllers as compute_ctls
 from mist.api.clouds.controllers.network import controllers as network_ctls
 from mist.api.clouds.controllers.dns import controllers as dns_ctls
+from mist.api.clouds.controllers.storage import controllers as storage_ctls
 
 from mist.api import config
 
-if config.HAS_CORE:
-    from mist.core.vpn.methods import to_tunnel
+if config.HAS_VPN:
+    from mist.vpn.methods import to_tunnel
 else:
     from mist.api.dummy.methods import to_tunnel
 
@@ -66,6 +66,7 @@ class AmazonMainController(BaseMainController):
     ComputeController = compute_ctls.AmazonComputeController
     NetworkController = network_ctls.AmazonNetworkController
     DnsController = dns_ctls.AmazonDNSController
+    StorageController = storage_ctls.AmazonStorageController
 
     def _add__preparse_kwargs(self, kwargs):
         # Autofill apisecret from other Amazon Cloud.
@@ -79,11 +80,26 @@ class AmazonMainController(BaseMainController):
                 kwargs['apisecret'] = cloud.apisecret
 
 
+class AlibabaMainController(AmazonMainController):
+
+    provider = 'aliyun_ecs'
+    ComputeController = compute_ctls.AlibabaComputeController
+    NetworkController = None
+    DnsController = None
+
+
+class ClearAPIMainController(BaseMainController):
+
+    provider = 'clearapi'
+    ComputeController = compute_ctls.ClearAPIComputeController
+
+
 class DigitalOceanMainController(BaseMainController):
 
     provider = 'digitalocean'
     ComputeController = compute_ctls.DigitalOceanComputeController
     DnsController = dns_ctls.DigitalOceanDNSController
+    StorageController = storage_ctls.DigitalOceanStorageController
 
 
 class LinodeMainController(BaseMainController):
@@ -132,6 +148,7 @@ class AzureMainController(BaseMainController):
 
     provider = 'azure'
     ComputeController = compute_ctls.AzureComputeController
+    StorageController = storage_ctls.AzureStorageController
 
 
 class AzureArmMainController(BaseMainController):
@@ -147,6 +164,7 @@ class GoogleMainController(BaseMainController):
     ComputeController = compute_ctls.GoogleComputeController
     NetworkController = network_ctls.GoogleNetworkController
     DnsController = dns_ctls.GoogleDNSController
+    StorageController = storage_ctls.GoogleStorageController
 
     def _update__preparse_kwargs(self, kwargs):
         private_key = kwargs.get('private_key', self.cloud.private_key)
@@ -224,6 +242,7 @@ class OpenStackMainController(BaseMainController):
     provider = 'openstack'
     ComputeController = compute_ctls.OpenStackComputeController
     NetworkController = network_ctls.OpenStackNetworkController
+    StorageController = storage_ctls.OpenstackStorageController
 
     def _update__preparse_kwargs(self, kwargs):
         rename_kwargs(kwargs, 'auth_url', 'url')
@@ -288,6 +307,7 @@ class LibvirtMainController(BaseMainController):
         # changing the cloud's host.
         # FIXME: Add type field to differentiate between actual vm's and the
         # host.
+        from mist.api.machines.models import Machine
 
         try:
             machine = Machine.objects.get(cloud=self.cloud,
@@ -469,6 +489,7 @@ class OtherMainController(BaseMainController):
             ssh_key = Key.objects.get(owner=self.cloud.owner, id=ssh_key,
                                       deleted=None)
 
+        from mist.api.machines.models import Machine
         # Create and save machine entry to database.
         machine = Machine(
             cloud=self.cloud,

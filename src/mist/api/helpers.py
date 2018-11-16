@@ -15,16 +15,18 @@ import os
 import re
 import sys
 import json
+import shutil
 import string
 import random
 import socket
 import smtplib
 import logging
+import urlparse
 import datetime
 import tempfile
 import traceback
-import functools
 import jsonpickle
+import subprocess
 
 from time import time, strftime, sleep
 
@@ -50,8 +52,8 @@ from Crypto.Hash.SHA256 import SHA256Hash
 from Crypto.Hash.HMAC import HMAC
 from Crypto.Random import get_random_bytes
 
-from amqp import Message
-from amqp.connection import Connection
+import kombu
+import kombu.pools
 from amqp.exceptions import NotFound as AmqpNotFound
 
 from distutils.version import LooseVersion
@@ -64,6 +66,7 @@ from mist.api.auth.models import ApiToken, datetime_to_str
 
 from mist.api.exceptions import MistError, NotFoundError
 from mist.api.exceptions import RequiredParameterMissingError
+from mist.api.exceptions import PolicyUnauthorizedError
 
 from mist.api import config
 
@@ -75,6 +78,31 @@ logging.basicConfig(level=config.PY_LOG_LEVEL,
                     format=config.PY_LOG_FORMAT,
                     datefmt=config.PY_LOG_FORMAT_DATE)
 log = logging.getLogger(__name__)
+
+
+@contextmanager
+def get_cloned_git_path(repo, branch="master"):
+    """Create a temp dir to clone a git repo into.
+
+    The HEAD of the specified branch is cloned into a temp dir.
+
+    This method yields the path to the temporary directory. Once the `with`
+    block has been exited, the entire tree under `tmpdir` is removed.
+
+    """
+    tmpdir = tempfile.mkdtemp()
+    cmd = ["git", "clone", "--depth", "1", "--branch", branch, repo, tmpdir]
+    try:
+        subprocess.check_call(cmd)
+    except subprocess.CalledProcessError as err:
+        raise Exception("Error cloning %s in %s: %r" % (repo, tmpdir, err))
+    try:
+        yield tmpdir
+    finally:
+        try:
+            shutil.rmtree(tmpdir)
+        except:
+            pass
 
 
 @contextmanager
@@ -112,6 +140,17 @@ def atomic_write_file(path, content):
         os.rename(tmp_path, path)
 
 
+def is_email_valid(email):
+    """E-mail address validator.
+
+    Ensure the e-mail is a valid expression and the provider is not banned.
+
+    """
+    match = re.match(r'^[\w\.-]+@([a-zA-Z0-9-]+)(\.[a-zA-Z0-9-]+)+$', email)
+    return (match and
+            ''.join(match.groups()) not in config.BANNED_EMAIL_PROVIDERS)
+
+
 def params_from_request(request):
     """Get the parameters dict from request.
 
@@ -124,22 +163,6 @@ def params_from_request(request):
     except:
         params = request.params
     return params or {}
-
-
-def b58_encode(num):
-    """Returns num in a base58-encoded string."""
-    alphabet = '123456789abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ'
-    base_count = len(alphabet)
-    encode = ''
-    if (num < 0):
-        return ''
-    while (num >= base_count):
-        mod = num % base_count
-        encode = alphabet[mod] + encode
-        num = num / base_count
-    if (num):
-        encode = alphabet[num] + encode
-    return encode
 
 
 def get_auth_header(user):
@@ -254,55 +277,34 @@ def dirty_cow(os, os_version, kernel_version):
 
 
 def amqp_publish(exchange, routing_key, data,
-                 ex_type='fanout', ex_declare=False, auto_delete=True,
-                 connection=None):
-    close = False
-    if connection is None:
-        connection = Connection(config.AMQP_URI)
-        close = True
-    channel = connection.channel()
-    if ex_declare:
-        channel.exchange_declare(exchange=exchange, type=ex_type,
-                                 auto_delete=auto_delete)
-    msg = Message(json.dumps(data))
-    channel.basic_publish(msg, exchange=exchange, routing_key=routing_key)
-    channel.close()
-    if close:
-        connection.close()
+                 ex_type='fanout', ex_declare=False,
+                 durable=False, auto_delete=True):
+    exchange = kombu.Exchange(exchange, type=ex_type, auto_delete=auto_delete,
+                              durable=False)
+    with kombu.pools.producers[kombu.Connection(config.BROKER_URL)].acquire(
+            block=True, timeout=10) as producer:
+        producer.publish(data, exchange=exchange, routing_key=routing_key,
+                         declare=[exchange] if ex_declare else [],
+                         serializer='json', retry=True)
 
 
 def amqp_subscribe(exchange, callback, queue='',
-                   ex_type='fanout', routing_keys=None):
-    def json_parse_dec(func):
-        @functools.wraps(func)
-        def wrapped(msg):
-            try:
-                msg.body = json.loads(msg.body)
-            except:
-                pass
-            return func(msg)
-        return wrapped
-
-    connection = Connection(config.AMQP_URI)
-    channel = connection.channel()
-    channel.exchange_declare(exchange=exchange, type=ex_type, auto_delete=True)
-    resp = channel.queue_declare(queue, exclusive=True)
-    if not routing_keys:
-        channel.queue_bind(resp.queue, exchange)
-    else:
-        for routing_key in routing_keys:
-            channel.queue_bind(resp.queue, exchange, routing_key=routing_key)
-    channel.basic_consume(queue=queue,
-                          callback=json_parse_dec(callback),
-                          no_ack=True)
-    try:
-        while True:
-            channel.wait()
-    except BaseException as exc:
-        # catch BaseException so that it catches KeyboardInterrupt
-        channel.close()
-        connection.close()
-        amqp_log("SUBSCRIPTION ENDED: %s %s %r" % (exchange, queue, exc))
+                   ex_type='fanout', routing_keys=None, durable=False,
+                   auto_delete=True):
+    with kombu.pools.connections[kombu.Connection(config.BROKER_URL)].acquire(
+            block=True, timeout=10) as connection:
+        exchange = kombu.Exchange(exchange, type=ex_type, durable=durable,
+                                  auto_delete=auto_delete)
+        if not routing_keys:
+            queue = kombu.Queue(queue, exchange, exclusive=True)
+        else:
+            queue = kombu.Queue(queue,
+                                [kombu.binding(exchange, routing_key=key)
+                                 for key in routing_keys],
+                                exclusive=True)
+        with connection.Consumer([queue], callbacks=[callback], no_ack=True):
+            while True:
+                connection.drain_events()
 
 
 def _amqp_owner_exchange(owner):
@@ -316,15 +318,30 @@ def _amqp_owner_exchange(owner):
     return "owner_%s" % owner.id
 
 
-def amqp_publish_user(owner, routing_key, data, connection=None):
-    try:
-        amqp_publish(_amqp_owner_exchange(owner), routing_key, data,
-                     connection=connection)
-    except AmqpNotFound:
-        return False
-    except Exception:
-        return False
-    return True
+def amqp_publish_user(owner, routing_key, data):
+    with kombu.Connection(config.BROKER_URL) as connection:
+        channel = connection.channel()
+        try:
+            kombu.Producer(channel).publish(
+                data, exchange=kombu.Exchange(_amqp_owner_exchange(owner)),
+                routing_key=routing_key, serializer='json', retry=True
+            )
+            started_at = time()
+            while True:
+                try:
+                    connection.drain_events(timeout=0.5)
+                except AmqpNotFound:
+                    raise
+                except:
+                    pass
+                if time() - started_at >= 0.5:
+                    break
+        except AmqpNotFound:
+            return False
+        else:
+            return True
+        finally:
+            channel.close()
 
 
 def amqp_subscribe_user(owner, queue, callback):
@@ -332,18 +349,15 @@ def amqp_subscribe_user(owner, queue, callback):
 
 
 def amqp_owner_listening(owner):
-    connection = Connection(config.AMQP_URI)
-    channel = connection.channel()
-    try:
-        channel.exchange_declare(exchange=_amqp_owner_exchange(owner),
-                                 type='fanout', passive=True)
-    except AmqpNotFound:
-        return False
-    else:
-        return True
-    finally:
-        channel.close()
-        connection.close()
+    exchange = kombu.Exchange(_amqp_owner_exchange(owner), type='fanout')
+    with kombu.pools.connections[kombu.Connection(config.BROKER_URL)].acquire(
+            block=True, timeout=10) as connection:
+        try:
+            exchange(connection).declare(passive=True)
+        except AmqpNotFound:
+            return False
+        else:
+            return True
 
 
 def trigger_session_update(owner, sections=['clouds', 'keys', 'monitoring',
@@ -363,9 +377,9 @@ def amqp_log(msg):
 
 
 def amqp_log_listen():
-    def echo(msg):
-        # print msg.delivery_info.get('routing_key')
-        print msg.body
+    def echo(body, msg):
+        print(body)
+        print(msg)
 
     amqp_subscribe('mist_debug', echo)
 
@@ -629,7 +643,7 @@ def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3,
     if html_body:
         msg = MIMEMultipart('alternative')
     else:
-        msg = MIMEText(body, 'plain')
+        msg = MIMEText(body.encode('utf-8', 'ignore'), 'plain')
 
     msg["Subject"] = subject
     msg["From"] = sender
@@ -690,11 +704,22 @@ rtype_to_classpath = {
     'record': 'mist.api.dns.models.Record',
     'script': 'mist.api.scripts.models.Script',
     'key': 'mist.api.keys.models.Key',
-    'template': 'mist.core.orchestration.models.Template',
-    'stack': 'mist.core.orchestration.models.Stack',
     'schedule': 'mist.api.schedules.models.Schedule',
-    'tunnel': 'mist.core.vpn.models.Tunnel',
+    'network': 'mist.api.networks.models.Network',
+    'subnet': 'mist.api.networks.models.Subnet',
+    'volume': 'mist.api.volumes.models.Volume'
 }
+
+if config.HAS_VPN:
+    rtype_to_classpath.update(
+        {'tunnel': 'mist.vpn.models.Tunnel'}
+    )
+
+if config.HAS_ORCHESTRATION:
+    rtype_to_classpath.update(
+        {'template': 'mist.orchestration.models.Template',
+         'stack': 'mist.orchestration.models.Stack'}
+    )
 
 
 def get_resource_model(rtype):
@@ -910,7 +935,8 @@ def logging_view_decorator(func):
         # log matchdict and params
         params = dict(params_from_request(request))
         for key in ['email', 'cloud', 'machine', 'rule', 'script_id',
-                    'tunnel_id', 'story_id', 'stack_id', 'template_id']:
+                    'tunnel_id', 'story_id', 'stack_id', 'template_id',
+                    'zone', 'record', 'network', 'subnet', 'volume']:
             if key != 'email' and key in request.matchdict:
                 if not key.endswith('_id'):
                     log_dict[key + '_id'] = request.matchdict[key]
@@ -938,10 +964,13 @@ def logging_view_decorator(func):
         if machine_uuid and not log_dict.get('machine_uuid'):
             log_dict['machine_uuid'] = machine_uuid
 
+        # Attempt to hide passwords, API keys, certificates, etc.
         for key in ('priv', 'password', 'new_password', 'apikey', 'apisecret',
                     'cert_file', 'key_file'):
             if params.get(key):
                 params[key] = '***CENSORED***'
+
+        # Hide sensitive cloud credentials.
         if log_dict['action'] == 'add_cloud':
             provider = params.get('provider')
             censor = {'vcloud': 'password',
@@ -959,6 +988,16 @@ def logging_view_decorator(func):
                       'openstack': 'password'}.get(provider)
             if censor and censor in params:
                 params[censor] = '***CENSORED***'
+
+        # Hide password from Git URL, if exists.
+        if log_dict.get('action', '') == 'add_template':
+            if params.get('location_type') == 'github':
+                git_url = params.get('template_github', '')
+                git_password = urlparse.urlparse(git_url).password
+                if git_password:
+                    params['template_github'] = git_url.replace(git_password,
+                                                                '*password*')
+
         log_dict['request_params'] = params
 
         # log response body
@@ -975,7 +1014,7 @@ def logging_view_decorator(func):
                 log_dict['machine_id'] = bdict['machine']
             # Match resource type based on the action performed.
             for rtype in ['cloud', 'machine', 'key', 'script', 'tunnel',
-                          'stack', 'template', 'schedule']:
+                          'stack', 'template', 'schedule', 'volume']:
                 if rtype in log_dict['action']:
                     if 'id' in bdict and '%s_id' % rtype not in log_dict:
                         log_dict['%s_id' % rtype] = bdict['id']
@@ -1008,6 +1047,11 @@ def logging_view_decorator(func):
                 log_dict['action'] = 'enable_monitoring'
             else:
                 log_dict['action'] = 'disable_monitoring'
+        elif log_dict['action'] == 'volume_action':
+            if log_dict['request_params'].pop('action', None) == 'attach':
+                log_dict['action'] = 'attach_volume'
+            else:
+                log_dict['action'] = 'detach_volume'
 
         # we save log_dict in mongo logging collection
         from mist.api.logs.methods import log_event as log_event_to_es
@@ -1149,7 +1193,6 @@ def get_file(url, filename, update=True):
                 log.error(err)
             else:
                 atomic_write_file(path, data)
-    print 'path'
     return path
 
 
@@ -1192,3 +1235,131 @@ def mac_verify(kwargs=None, key='', mac_len=0, mac_format='hex'):
     for kw in ('_expires', '_mac'):
         if kw in kwargs:
             del kwargs[kw]
+
+
+def maybe_submit_cloud_task(cloud, task_name):
+    """Decide whether a task should be submitted to celery
+
+    This method helps us prevent submitting new celery tasks, which are
+    guaranteed to return/exit immediately without performing any actual
+    actions.
+
+    For instance, such cases include async tasks for listing DNS zones
+    for clouds that have no DNS support or DNS is temporarily disabled.
+
+    Note that this is just a helper method used to make an initial decision.
+
+    The `cloud` argument must be a `mist.api.clouds.models.Cloud` mongoengine
+    objects and `task_name` must be the name/identifier of the corresponding
+    celery task.
+
+    """
+    if task_name == 'list_zones':
+        if not (hasattr(cloud.ctl, 'dns') and cloud.dns_enabled):
+            return False
+    if task_name == 'list_networks':
+        if not hasattr(cloud.ctl, 'network'):
+            return False
+    if task_name == 'list_projects':
+        if cloud.ctl.provider != 'packet':
+            return False
+    if task_name in ('list_resource_groups', 'list_storage_accounts', ):
+        if cloud.ctl.provider != 'azure_arm':
+            return False
+    return True
+
+
+def is_resource_missing(obj):
+    """Return True if either resource or its parent is missing or has been
+    deleted. Note that `obj` is meant to be a subclass of me.Document."""
+    try:
+        if getattr(obj, 'deleted', None):
+            return True
+        if getattr(obj, 'missing_since', None):
+            return True
+        if getattr(obj, 'cloud', None) and obj.cloud.deleted:
+            return True
+        if getattr(obj, 'zone', None) and obj.zone.missing_since:
+            return True
+        if getattr(obj, 'network', None) and obj.network.missing_since:
+            return True
+    except Exception as exc:
+        try:
+            log.error('Error trying to decide if %s is missing: %r', obj, exc)
+        except Exception as exc:
+            # This extra try/except statement could help catch DBRef errors,
+            # which most likely mean that the resource is indeed missing, as
+            # its related object has already been deleted.
+            log.error('Error trying to display the canonical repr: %r', exc)
+    return False
+
+
+def subscribe_log_events_raw(callback=None, routing_keys=('#')):
+    raise NotImplementedError()  # change email to owner.id etc
+
+    def preparse_event_dec(func):
+        def wrapped(msg):
+            try:
+                # bring extra key-value pairs to top level
+                for key, val in json.loads(msg.body.pop('extra')).items():
+                    msg.body[key] = val
+            except:
+                pass
+            return func(msg)
+        return wrapped
+
+    def echo(msg):
+        event = msg.body
+        # print msg.delivery_info.get('routing_key'),
+        try:
+            if 'email' in event and 'type' in event and 'action' in event:
+                print event.pop('email'), event.pop('type'), \
+                    event.pop('action')
+            err = event.pop('error', False)
+            if err:
+                print '  error:', err
+            time = event.pop('time')
+            if time:
+                print '  date:', datetime.datetime.fromtimestamp(time)
+            for key, val in event.items():
+                print '  %s: %s' % (key, val)
+        except:
+            print event
+
+    if callback is None:
+        callback = echo
+    callback = preparse_event_dec(callback)
+    log.info('Subscribing to log events with routing keys %s', routing_keys)
+    mist.api.helpers.amqp_subscribe('events', callback, ex_type='topic',
+                                    routing_keys=routing_keys)
+
+
+def subscribe_log_events(callback=None, email='*', event_type='*', action='*',
+                         error='*'):
+    raise NotImplementedError()  # change email to owner.id etc
+    keys = [str(var).lower().replace('.', '^')
+            for var in (email, event_type, action, error)]
+    routing_key = '.'.join(keys)
+    subscribe_log_events_raw(callback, [routing_key])
+
+
+# SEC
+def filter_resource_ids(auth_context, cloud_id, resource_type, resource_ids):
+
+    if not isinstance(resource_ids, set):
+        resource_ids = set(resource_ids)
+
+    if auth_context.is_owner():
+        return resource_ids
+
+    # NOTE: We can trust the RBAC Mappings in order to fetch the latest list of
+    # machines for the current user, since mongo has been updated by either the
+    # Poller or the above `list_machines`.
+
+    try:
+        auth_context.check_perm('cloud', 'read', cloud_id)
+    except PolicyUnauthorizedError:
+        return set()
+
+    allowed_ids = set(auth_context.get_allowed_resources(rtype=resource_type))
+    return resource_ids & allowed_ids

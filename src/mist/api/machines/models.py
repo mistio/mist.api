@@ -7,8 +7,11 @@ import datetime
 import mongoengine as me
 
 import mist.api.tag.models
+
+from mist.api.mongoengine_extras import MistDictField
 from mist.api.keys.models import Key
 from mist.api.machines.controllers import MachineController
+from mist.api.ownership.mixins import OwnershipMixin
 
 from mist.api import config
 
@@ -72,32 +75,28 @@ class Actions(me.EmbeddedDocument):
     resume = me.BooleanField(default=False)
     suspend = me.BooleanField(default=False)
     undefine = me.BooleanField(default=False)
+    clone = me.BooleanField(default=False)
+    create_snapshot = me.BooleanField(default=False)
+    remove_snapshot = me.BooleanField(default=False)
+    revert_to_snapshot = me.BooleanField(default=False)
 
 
 class Monitoring(me.EmbeddedDocument):
     # Most of these will change with the new UI.
     hasmonitoring = me.BooleanField()
     monitor_server = me.StringField()  # Deprecated
-    collectd_password = me.StringField(
-        default=lambda: os.urandom(32).encode('hex'))
+    collectd_password = me.StringField()  # Deprecated
     metrics = me.ListField()  # list of metric_id's
     installation_status = me.EmbeddedDocumentField(InstallationStatus)
-    method = me.StringField(default=config.DEFAULT_MONITORING_METHOD,
-                            choices=config.MONITORING_METHODS)
+    method = me.StringField(choices=config.MONITORING_METHODS)
+    method_since = me.DateTimeField()
+
+    def clean(self):
+        if not self.collectd_password:
+            self.collectd_password = os.urandom(32).encode('hex')
 
     def get_commands(self):
-        if self.method == 'collectd-graphite' and config.HAS_CORE:
-            from mist.api.methods import get_deploy_collectd_command_unix
-            from mist.api.methods import get_deploy_collectd_command_windows
-            from mist.api.methods import get_deploy_collectd_command_coreos
-            args = (self._instance.id, self.collectd_password,
-                    config.COLLECTD_HOST, config.COLLECTD_PORT)
-            return {
-                'unix': get_deploy_collectd_command_unix(*args),
-                'coreos': get_deploy_collectd_command_coreos(*args),
-                'windows': get_deploy_collectd_command_windows(*args),
-            }
-        elif self.method in ('telegraf-influxdb', 'telegraf-graphite'):
+        if self.method in ('telegraf-influxdb', 'telegraf-graphite'):
             from mist.api.monitoring.commands import unix_install
             from mist.api.monitoring.commands import coreos_install
             from mist.api.monitoring.commands import windows_install
@@ -110,11 +109,11 @@ class Monitoring(me.EmbeddedDocument):
             raise Exception("Invalid monitoring method %s" % self.method)
 
     def get_rules_dict(self):
+        from mist.api.rules.models import MachineMetricRule
         m = self._instance
-        return {rid: rdict
-                for rid, rdict in m.cloud.owner.get_rules_dict().items()
-                if rdict['cloud'] == m.cloud.id and
-                rdict['machine'] == m.machine_id}
+        return {rule.id: rule.as_dict() for
+                rule in MachineMetricRule.objects(owner_id=m.owner.id) if
+                rule.ctl.includes_only(m)}
 
     def as_dict(self):
         status = self.installation_status
@@ -124,7 +123,6 @@ class Monitoring(me.EmbeddedDocument):
             commands = {}
         return {
             'hasmonitoring': self.hasmonitoring,
-            'monitor_server': config.COLLECTD_HOST,
             'collectd_password': self.collectd_password,
             'metrics': self.metrics,
             'installation_status': status.as_dict() if status else '',
@@ -252,7 +250,7 @@ class SSHProbe(me.EmbeddedDocument):
         return data
 
 
-class Machine(me.Document):
+class Machine(OwnershipMixin, me.Document):
     """The basic machine model"""
 
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
@@ -260,6 +258,9 @@ class Machine(me.Document):
     cloud = me.ReferenceField('Cloud', required=True)
     owner = me.ReferenceField('Organization', required=True)
     location = me.ReferenceField('CloudLocation', required=False)
+    size = me.ReferenceField('CloudSize', required=False)
+    network = me.ReferenceField('Network', required=False)
+    subnet = me.ReferenceField('Subnet', required=False)
     name = me.StringField()
 
     # Info gathered mostly by libcloud (or in some cases user input).
@@ -274,10 +275,9 @@ class Machine(me.Document):
     os_type = me.StringField(default='unix', choices=OS_TYPES)
     rdp_port = me.IntField(default=3389)
     actions = me.EmbeddedDocumentField(Actions, default=lambda: Actions())
-    extra = me.DictField()
+    extra = MistDictField()
     cost = me.EmbeddedDocumentField(Cost, default=lambda: Cost())
     image_id = me.StringField()
-    size = me.StringField()
     # libcloud.compute.types.NodeState
     state = me.StringField(default='unknown',
                            choices=('running', 'starting', 'rebooting',
@@ -286,7 +286,8 @@ class Machine(me.Document):
                                     'error', 'paused', 'reconfiguring'))
     machine_type = me.StringField(default='machine',
                                   choices=('machine', 'vm', 'container',
-                                           'hypervisor', 'container-host'))
+                                           'hypervisor', 'container-host',
+                                           'ilo-host'))
     parent = me.ReferenceField('Machine', required=False)
 
     # We should think this through a bit.
@@ -303,15 +304,28 @@ class Machine(me.Document):
     ssh_probe = me.EmbeddedDocumentField(SSHProbe, required=False)
     ping_probe = me.EmbeddedDocumentField(PingProbe, required=False)
 
+    # Number of vCPUs gathered from various sources. This field is meant to
+    # be updated ONLY by the mist.api.metering.tasks:find_machine_cores task.
+    cores = me.IntField()
+
     meta = {
         'collection': 'machines',
         'indexes': [
             {
-                'fields': ['cloud', 'machine_id'],
+                'fields': [
+                    'cloud',
+                    'machine_id'
+                ],
                 'sparse': False,
                 'unique': True,
                 'cls': False,
-            },
+            }, {
+                'fields': [
+                    'monitoring.installation_status.activated_at'
+                ],
+                'sparse': True,
+                'unique': False
+            }
         ],
         'strict': False,
     }
@@ -329,10 +343,21 @@ class Machine(me.Document):
         for ka in reversed(range(len(self.key_associations))):
             if self.key_associations[ka].keypair.deleted:
                 self.key_associations.pop(ka)
+
+        # Reset key_associations in case self goes missing/destroyed. This is
+        # going to prevent the machine from showing up as "missing" in the
+        # corresponding keys' associated machines list.
+        if self.missing_since:
+            self.key_associations = []
+
         # Populate owner field based on self.cloud.owner
         if not self.owner:
             self.owner = self.cloud.owner
+
         self.clean_os_type()
+
+        if self.monitoring.method not in config.MONITORING_METHODS:
+            self.monitoring.method = config.DEFAULT_MONITORING_METHOD
 
     def clean_os_type(self):
         """Clean self.os_type"""
@@ -351,18 +376,17 @@ class Machine(me.Document):
             self.owner.mapper.remove(self)
         except (AttributeError, me.DoesNotExist) as exc:
             log.error(exc)
+        try:
+            if self.owned_by:
+                self.owned_by.get_ownership_mapper(self.owner).remove(self)
+        except (AttributeError, me.DoesNotExist) as exc:
+            log.error(exc)
 
     def as_dict(self):
         # Return a dict as it will be returned to the API
-
-        # tags as a list return for the ui
         tags = {tag.key: tag.value for tag in mist.api.tag.models.Tag.objects(
-            owner=self.cloud.owner, resource=self
+            resource=self
         ).only('key', 'value')}
-        # Optimize tags data structure for js...
-        if isinstance(tags, dict):
-            tags = [{'key': key, 'value': value}
-                    for key, value in tags.iteritems()]
         return {
             'id': self.id,
             'hostname': self.hostname,
@@ -378,13 +402,15 @@ class Machine(me.Document):
             'extra': self.extra,
             'cost': self.cost.as_dict(),
             'image_id': self.image_id,
-            'size': self.size,
             'state': self.state,
             'tags': tags,
-            'monitoring': self.monitoring.as_dict() if self.monitoring else '',
+            'monitoring':
+                self.monitoring.as_dict() if self.monitoring and
+                self.monitoring.hasmonitoring else '',
             'key_associations': [ka.as_dict() for ka in self.key_associations],
             'cloud': self.cloud.id,
             'location': self.location.id if self.location else '',
+            'size': self.size.name if self.size else '',
             'cloud_title': self.cloud.title,
             'last_seen': str(self.last_seen.replace(tzinfo=None)
                              if self.last_seen else ''),
@@ -405,47 +431,11 @@ class Machine(me.Document):
                         if self.ssh_probe is not None
                         else SSHProbe().as_dict()),
             },
-        }
-
-    def as_dict_old(self):
-        # Return a dict as it was previously being returned by list_machines
-
-        # This is need to be consistent with the previous situation
-        self.extra.update({'created': str(self.created or ''),
-                           'cost_per_month': '%.2f' % (self.cost.monthly),
-                           'cost_per_hour': '%.2f' % (self.cost.hourly)})
-        # tags as a list return for the ui
-        tags = {tag.key: tag.value for tag in mist.api.tag.models.Tag.objects(
-            owner=self.cloud.owner, resource=self).only('key', 'value')}
-        # Optimize tags data structure for js...
-        if isinstance(tags, dict):
-            tags = [{'key': key, 'value': value}
-                    for key, value in tags.iteritems()]
-        return {
-            'id': self.machine_id,
-            'uuid': self.id,
-            'name': self.name,
-            'public_ips': self.public_ips,
-            'private_ips': self.private_ips,
-            'imageId': self.image_id,
-            'os_type': self.os_type,
-            'last_seen': str(self.last_seen or ''),
-            'missing_since': str(self.missing_since or ''),
-            'state': self.state,
-            'size': self.size,
-            'extra': self.extra,
-            'tags': tags,
-            'can_stop': self.actions.stop,
-            'can_start': self.actions.start,
-            'can_destroy': self.actions.destroy,
-            'can_reboot': self.actions.reboot,
-            'can_tag': self.actions.tag,
-            'can_undefine': self.actions.undefine,
-            'can_rename': self.actions.rename,
-            'can_suspend': self.actions.suspend,
-            'can_resume': self.actions.resume,
-            'machine_type': self.machine_type,
-            'parent_id': self.parent.id if self.parent is not None else '',
+            'cores': self.cores,
+            'network': self.network.id if self.network else '',
+            'subnet': self.subnet.id if self.subnet else '',
+            'owned_by': self.owned_by.id if self.owned_by else '',
+            'created_by': self.created_by.id if self.created_by else '',
         }
 
     def __str__(self):

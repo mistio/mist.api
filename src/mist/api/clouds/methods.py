@@ -2,14 +2,10 @@ import mist.api.clouds.models as cloud_models
 
 from mist.api.clouds.models import Cloud
 
-from mist.api.tasks import async_session_update
 from mist.api.helpers import trigger_session_update
 
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import BadRequestError, NotFoundError
-
-from mist.api.poller.models import ListMachinesPollingSchedule
-from mist.api.poller.models import ListLocationsPollingSchedule
 
 from mist.api.monitoring.methods import disable_monitoring_cloud
 
@@ -49,17 +45,6 @@ def add_cloud_v_2(owner, title, provider, params):
                           'errors', []),  # just an attribute, not a field
     }
 
-    # SEC
-    # Update the RBAC mappings with the new Cloud and finally trigger
-    # a session update by registering it as a chained task.
-    if config.HAS_CORE:
-        owner.mapper.update(
-            cloud,
-            callback=async_session_update, args=(owner.id, ['clouds'], )
-        )
-    else:
-        trigger_session_update(owner.id, ['clouds'])
-
     log.info("Cloud with id '%s' added succesfully.", cloud.id)
 
     c_count = Cloud.objects(owner=owner, deleted=None).count()
@@ -69,8 +54,6 @@ def add_cloud_v_2(owner, title, provider, params):
 
     cloud.polling_interval = 1800  # 30 min * 60 sec/min
     cloud.save()
-    ListMachinesPollingSchedule.add(cloud=cloud)
-    ListLocationsPollingSchedule.add(cloud=cloud)
 
     return ret
 
@@ -111,17 +94,20 @@ def delete_cloud(owner, cloud_id):
 
 
 # SEC
-def filter_list_clouds(auth_context, perm='read'):
+def filter_list_clouds(auth_context, perm='read', as_dict=True):
     """Returns a list of clouds, which is filtered based on RBAC Mappings for
     non-Owners.
     """
-    clouds = list_clouds(auth_context.owner)
+    clouds = list_clouds(auth_context.owner, as_dict=as_dict)
     if not auth_context.is_owner():
         clouds = [cloud for cloud in clouds if cloud['id'] in
                   auth_context.get_allowed_resources(rtype='clouds')]
     return clouds
 
 
-def list_clouds(owner):
-    return [cloud.as_dict() for cloud in Cloud.objects(owner=owner,
-                                                       deleted=None)]
+def list_clouds(owner, as_dict=True):
+    clouds = Cloud.objects(owner=owner, deleted=None)
+    if as_dict:
+        return [cloud.as_dict() for cloud in clouds]
+    else:
+        return clouds

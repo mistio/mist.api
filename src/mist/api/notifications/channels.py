@@ -1,9 +1,6 @@
-import json
 import urllib2
 import logging
 import jsonpatch
-
-from amqp.connection import Connection
 
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
@@ -140,16 +137,13 @@ class InAppNotificationChannel(BaseNotificationChannel):
         # Save/update/dismiss notifications.
         if dismiss:
             dismissed_by = set(self.ntf.dismissed_by)
+            old_dismissed_by = list(dismissed_by)
             dismissed_by |= set(user.id for user in users)
             self.ntf.dismissed_by = list(dismissed_by)
-        self.ntf.save()
 
         # Is anyone listening?
         if not amqp_owner_listening(self.ntf.owner.id):
             return
-
-        # Initialize AMQP connection to reuse for multiple messages.
-        amqp_conn = Connection(config.AMQP_URI)
 
         # Re-fetch all notifications in order to calculate the diff between
         # the two lists.
@@ -163,29 +157,33 @@ class InAppNotificationChannel(BaseNotificationChannel):
                 np = UserNotificationPolicy.objects.get(user_id=user.id)
             except UserNotificationPolicy.DoesNotExist:
                 log.debug('No UserNotificationPolicy found for %s', user)
-                user_old_ntfs = [ntf.as_dict() for ntf in owner_old_ntfs]
-                user_new_ntfs = [ntf.as_dict() for ntf in owner_new_ntfs]
+                user_old_ntfs = [ntf.as_dict() for ntf in owner_old_ntfs
+                                 if not (self.ntf.id == ntf.id and
+                                         user.id in old_dismissed_by)]
+                user_new_ntfs = [ntf.as_dict() for ntf in owner_new_ntfs
+                                 if not (self.ntf.id == ntf.id and
+                                         user.id in dismissed_by)]
             else:
                 user_old_ntfs = [ntf.as_dict() for ntf in owner_old_ntfs
-                                 if not np.has_blocked(ntf)]
+                                 if not np.has_blocked(ntf) and not
+                                 (self.ntf.id == ntf.id and
+                                  user.id in old_dismissed_by)]
                 user_new_ntfs = [ntf.as_dict() for ntf in owner_new_ntfs
-                                 if not np.has_blocked(ntf)]
+                                 if not np.has_blocked(ntf) and not
+                                 (self.ntf.id == ntf.id and
+                                  user.id in dismissed_by)]
+            # Now we can save the dismissed notification
+            self.ntf.save()
 
             # Calculate diff.
             patch = jsonpatch.JsonPatch.from_diff(user_old_ntfs,
                                                   user_new_ntfs).patch
+
             if patch:
                 amqp_publish_user(self.ntf.owner.id,
                                   routing_key='patch_notifications',
-                                  connection=amqp_conn,
-                                  data=json.dumps({'user': user.id,
-                                                   'patch': patch}))
-
-        # Finally, try to close the AMQP connection.
-        try:
-            amqp_conn.close()
-        except Exception as exc:
-            log.exception(repr(exc))
+                                  data={'user': user.id,
+                                        'patch': patch})
 
     def dismiss(self, users=None):
         self.send(users, dismiss=True)

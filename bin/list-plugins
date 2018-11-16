@@ -1,0 +1,6 @@
+#!/usr/bin/env python
+
+from mist.api import config
+
+for plugin in config.PLUGINS:
+    print(plugin)

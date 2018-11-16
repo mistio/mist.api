@@ -24,6 +24,7 @@ from mist.api.auth.methods import auth_context_from_request
 from mist.api.helpers import get_resource_model
 from mist.api.helpers import view_config, params_from_request
 from mist.api.helpers import amqp_publish_user
+from mist.api.helpers import amqp_owner_listening
 
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import NotFoundError, BadRequestError
@@ -34,6 +35,8 @@ OK = Response("OK", 200)
 @view_config(route_name='api_v1_tags', request_method='POST', renderer='json')
 def tag_resources(request):
     """
+    Tags: tags
+    ---
     Batch operation for adding/removing tags from a list of resources.
     This api call provides the ability to modify the tags of a large number
     of resources. For each resource a list of dicts is passed with a key, a
@@ -43,10 +46,10 @@ def tag_resources(request):
     ---
     tags:
       required: true
-      type: list
+      type: array
     resource:
       required: true
-      type: dict
+      type: object
     """
 
     auth_context = auth_context_from_request(request)
@@ -54,7 +57,6 @@ def tag_resources(request):
 
     # FIXME: This implementation is far from OK. We need to re-code the way
     # tags are handled and make sure that RBAC is properly enforced on tags
-
     for resource in params:
         # list of dicts of key-value pairs
         resource_tags = resource.get('tags', '')
@@ -75,7 +77,7 @@ def tag_resources(request):
         if cloud_id:
             auth_context.check_perm('cloud', 'read', cloud_id)
         elif resource_data['type'] in ['machine', 'image',
-                                       'network', 'location']:
+                                       'network', 'volume']:
             raise RequiredParameterMissingError("cloud_id")
         else:
             del resource_data['cloud_id']
@@ -87,7 +89,6 @@ def tag_resources(request):
             query['machine_id'] = rid
         else:
             query['id'] = rid
-            query['deleted'] = None
 
         if cloud_id:
             query['cloud'] = cloud_id
@@ -126,16 +127,20 @@ def tag_resources(request):
             remove_tags_from_resource(auth_context.owner, resource_obj,
                                       tags_to_remove)
 
-        if config.MACHINE_PATCHES:
+        if rtype in ['machine', 'network', 'volume', 'zone', 'record']:
             new_tags = get_tags_for_resource(auth_context.owner, resource_obj)
-            if isinstance(resource_obj, Machine):
-                patch = jsonpatch.JsonPatch.from_diff(old_tags, new_tags).patch
-                for item in patch:
-                    item['path'] = '/%s-%s/tags%s' % (resource_obj.id,
-                                                      resource_obj.machine_id,
-                                                      item['path'])
+            try:
+                external_id = getattr(resource_obj, rtype + '_id')
+            except AttributeError:
+                external_id = getattr(resource_obj, 'external_id')
+            patch = jsonpatch.JsonPatch.from_diff(old_tags, new_tags).patch
+            for item in patch:
+                item['path'] = '/%s-%s/tags%s' % (resource_obj.id,
+                                                  external_id,
+                                                  item['path'])
+            if amqp_owner_listening(resource_obj.cloud.owner.id):
                 amqp_publish_user(auth_context.owner.id,
-                                  routing_key='patch_machines',
+                                  routing_key='patch_%ss' % rtype,
                                   data={'cloud_id': resource_obj.cloud.id,
                                         'patch': patch})
     return OK
@@ -144,7 +149,9 @@ def tag_resources(request):
 @view_config(route_name='cloud_tags', request_method='GET', renderer='json')
 def get_cloud_tags(request):
     """
-    List tags of a cloud
+    Tags: tags
+    ---
+    Lists tags of a cloud.
     READ permission required on CLOUD
     ---
     cloud_id:
@@ -165,8 +172,10 @@ def get_cloud_tags(request):
              renderer='json')
 def get_machine_tags(request):
     """
-    List tags of a machine
-    READ permission required on CLOUD
+    Tags: tags
+    ---
+    Lists tags of a machine.
+    READ permission required on CLOUD.
     READ permission required on MACHINE
     ---
     cloud_id:
@@ -194,7 +203,9 @@ def get_machine_tags(request):
 @view_config(route_name='script_tags', request_method='GET', renderer='json')
 def get_script_tags(request):
     """
-    List tags of a script
+    Tags: tags
+    ---
+    Lists tags of a script.
     READ permission required on SCRIPT
     ---
     script_id:
@@ -213,6 +224,17 @@ def get_script_tags(request):
 
 @view_config(route_name='schedule_tags', request_method='GET', renderer='json')
 def get_schedule_tags(request):
+    """
+    Tags: tags
+    ---
+    Lists tags of a schedule.
+    READ permission required on SCHEDULE
+    ---
+    schedule_id:
+      in: path
+      required: true
+      type: string
+    """
     auth_context = auth_context_from_request(request)
     schedule_id = request.matchdict["schedule_id"]
 
@@ -225,7 +247,9 @@ def get_schedule_tags(request):
 @view_config(route_name='key_tags', request_method='GET', renderer='json')
 def get_key_tags(request):
     """
-    List tags of an ssh keypair
+    Tags: tags
+    ---
+    Lists tags of an ssh keypair.
     READ permission required on KEY
     ---
     key_id:
@@ -245,8 +269,10 @@ def get_key_tags(request):
 @view_config(route_name='network_tags', request_method='GET', renderer='json')
 def get_network_tags(request):
     """
-    List tags of a network
-    READ permission required on CLOUD
+    Tags: tags
+    ---
+    Lists tags of a network.
+    READ permission required on CLOUD.
     READ permission required on NETWORK
     ---
     cloud_id:
@@ -273,7 +299,9 @@ def get_network_tags(request):
 @view_config(route_name='cloud_tags', request_method='POST', renderer='json')
 def set_cloud_tags(request):
     """
-    Set tags to owner's cloud
+    Tags: tags
+    ---
+    Set tags to owner's cloud.
     EDIT_TAGS permission required on SCRIPT
     ---
     tags:
@@ -306,8 +334,9 @@ def set_cloud_tags(request):
              renderer='json')
 def set_machine_tags(request):
     """
-    Set tags on a machine
-    Set tags for a machine, given the cloud and machine id.
+    Tags: tags
+    ---
+    Sets tags for a machine, given the cloud and machine id.
     READ permission required on cloud.
     EDIT_TAGS permission required on machine.
     ---
@@ -370,7 +399,9 @@ def set_machine_tags(request):
              renderer='json')
 def set_schedule_tags(request):
     """
-    Set tags to owner's schedule
+    Tags: tags
+    ---
+    Set tags to owner's schedule.
     EDIT_TAGS permission required on schedule
     ---
     schedule:
@@ -404,7 +435,9 @@ def set_schedule_tags(request):
 @view_config(route_name='script_tags', request_method='POST', renderer='json')
 def set_script_tags(request):
     """
-    Set tags to owner's script
+    Tags: tags
+    ---
+    Set tags to owner's script.
     EDIT_TAGS permission required on SCRIPT
     ---
     script:
@@ -438,7 +471,9 @@ def set_script_tags(request):
 @view_config(route_name='key_tags', request_method='POST', renderer='json')
 def set_key_tags(request):
     """
-    Set tags to owner's key
+    Tags: tags
+    ---
+    Set tags to owner's key.
     EDIT_TAGS permission required on KEY
     ---
     key_id:
@@ -475,16 +510,17 @@ def set_key_tags(request):
 @view_config(route_name='network_tags', request_method='POST', renderer='json')
 def set_network_tags(request):
     """
-    Set tags on a machine
-    Set tags for a machine, given the cloud and machine id.
+    Tags: tags
+    ---
+    Sets tags for a network, given the cloud and network id.
     READ permission required on cloud.
-    EDIT_TAGS permission required on machine.
+    EDIT_TAGS permission required on network.
     ---
     cloud_id:
       in: path
       required: true
       type: string
-    machine_id:
+    network_id:
       in: path
       required: true
       type: string
@@ -519,6 +555,12 @@ def set_network_tags(request):
 @view_config(route_name='schedule_tag', request_method='DELETE',
              renderer='json')
 def delete_schedule_tag(request):
+    """
+    Tags: tags
+    ---
+    Deletes tag in the db for specified resource_type.
+    ---
+    """
     auth_context = auth_context_from_request(request)
     params = params_from_request(request)
     schedule_id = request.matchdict["schedule_id"]
@@ -536,8 +578,9 @@ def delete_schedule_tag(request):
 @view_config(route_name='cloud_tag', request_method='DELETE', renderer='json')
 def delete_cloud_tag(request):
     """
-    Delete a tag
-    Delete tag in the db for specified resource_type.
+    Tags: tags
+    ---
+    Deletes tag in the db for specified resource_type.
     EDIT_TAGS permission required on cloud.
     ---
     tag_key:
@@ -566,8 +609,9 @@ def delete_cloud_tag(request):
              renderer='json')
 def delete_machine_tag(request):
     """
-    Delete a tag
-    Delete tag in the db for specified resource_type.
+    Tags: tags
+    ---
+    Deletes tag in the db for specified resource_type.
     READ permission required on cloud.
     EDIT_TAGS permission required on machine.
     ---
@@ -605,8 +649,9 @@ def delete_machine_tag(request):
 @view_config(route_name='script_tag', request_method='DELETE', renderer='json')
 def delete_script_tag(request):
     """
-    Delete a tag
-    Delete tag in the db for specified resource_type.
+    Tags: tags
+    ---
+    Deletes a tag in the db for specified resource_type.
     EDIT_TAGS permission required on script.
     ---
     tag_key:
@@ -634,8 +679,9 @@ def delete_script_tag(request):
 @view_config(route_name='key_tag', request_method='DELETE', renderer='json')
 def delete_key_tag(request):
     """
-    Delete a tag
-    Delete tag in the db for specified resource_type.
+    Tags: tags
+    ---
+    Deletes a tag in the db for specified resource_type.
     EDIT_TAGS permission required on key.
     ---
     tag_key:
@@ -664,7 +710,8 @@ def delete_key_tag(request):
              renderer='json')
 def delete_network_tag(request):
     """
-    Delete a tag
+    Tags: tags
+    ---
     Delete tag in the db for specified resource_type.
     READ permission required on cloud.
     EDIT_TAGS permission required on network.

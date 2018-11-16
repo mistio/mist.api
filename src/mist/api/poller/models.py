@@ -5,9 +5,10 @@ import celery
 
 import mongoengine as me
 
-
+from mist.api import config
 from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
+from mist.api.sharding.mixins import ShardedScheduleMixin
 
 
 log = logging.getLogger(__name__)
@@ -39,11 +40,12 @@ class PollingInterval(me.EmbeddedDocument):
         return msg
 
 
-class PollingSchedule(me.Document):
+class PollingSchedule(ShardedScheduleMixin, me.Document):
 
     meta = {
         'allow_inheritance': True,
         'strict': False,
+        'indexes': ['shard_id']
     }
 
     # We use a unique name for easy identification and to avoid running the
@@ -182,13 +184,59 @@ class DebugPollingSchedule(PollingSchedule):
     value = me.StringField()
 
 
+class OwnerPollingSchedule(PollingSchedule):
+
+    owner = me.ReferenceField('Organization', reverse_delete_rule=me.CASCADE)
+
+    @classmethod
+    def add(cls, owner, run_immediately=True, interval=None, ttl=300):
+        try:
+            schedule = cls.objects.get(owner=owner)
+        except cls.DoesNotExist:
+            schedule = cls(owner=owner)
+            try:
+                schedule.save()
+            except me.NotUniqueError:
+                # Work around race condition where schedule was created since
+                # last time we checked.
+                schedule = cls.objects.get(owner=owner)
+        schedule.set_default_interval(60 * 30)
+        if interval is not None:
+            schedule.add_interval(interval, ttl)
+        if run_immediately:
+            schedule.run_immediately = True
+        schedule.cleanup_expired_intervals()
+        schedule.save()
+        return schedule
+
+    @property
+    def args(self):
+        return [str(self.owner.id)]
+
+    def get_name(self):
+        return '%s(%s)' % (super(OwnerPollingSchedule, self).get_name(),
+                           self.owner.id)
+
+
+class MeteringPollingSchedule(OwnerPollingSchedule):
+
+    @property
+    def task(self):
+        return 'mist.api.metering.tasks.push_metering_info'
+
+    @property
+    def enabled(self):
+        return (super(MeteringPollingSchedule, self).enabled and
+                config.ENABLE_METERING)
+
+
 class CloudPollingSchedule(PollingSchedule):
 
     cloud = me.ReferenceField(Cloud, reverse_delete_rule=me.CASCADE)
 
     def get_name(self):
         return '%s(%s)' % (super(CloudPollingSchedule, self).get_name(),
-                           self.cloud)
+                           self.cloud.id)
 
     @classmethod
     def add(cls, cloud, run_immediately=True, interval=None, ttl=300):
@@ -207,7 +255,6 @@ class CloudPollingSchedule(PollingSchedule):
             schedule.add_interval(interval, ttl)
         if run_immediately:
             schedule.run_immediately = True
-
         schedule.cleanup_expired_intervals()
         schedule.save()
         return schedule
@@ -245,6 +292,43 @@ class ListLocationsPollingSchedule(CloudPollingSchedule):
     task = 'mist.api.poller.tasks.list_locations'
 
 
+class ListSizesPollingSchedule(CloudPollingSchedule):
+
+    task = 'mist.api.poller.tasks.list_sizes'
+
+
+class ListNetworksPollingSchedule(CloudPollingSchedule):
+
+    # task below is polling both networks and subnets
+    task = 'mist.api.poller.tasks.list_networks'
+
+    @property
+    def enabled(self):
+        return (super(ListNetworksPollingSchedule, self).enabled and
+                hasattr(self.cloud.ctl, 'network'))
+
+
+class ListZonesPollingSchedule(CloudPollingSchedule):
+
+    # task below is polling both zones and records
+    task = 'mist.api.poller.tasks.list_zones'
+
+    @property
+    def enabled(self):
+        return (super(ListZonesPollingSchedule, self).enabled and
+                hasattr(self.cloud.ctl, 'dns') and self.cloud.dns_enabled)
+
+
+class ListVolumesPollingSchedule(CloudPollingSchedule):
+
+    task = 'mist.api.poller.tasks.list_volumes'
+
+    @property
+    def enabled(self):
+        return (super(ListVolumesPollingSchedule, self).enabled and
+                hasattr(self.cloud.ctl, 'storage'))
+
+
 class MachinePollingSchedule(PollingSchedule):
 
     machine_id = me.StringField(required=True)
@@ -263,7 +347,7 @@ class MachinePollingSchedule(PollingSchedule):
                            self.machine_id)
 
     @classmethod
-    def add(cls, machine, interval=None, ttl=300):
+    def add(cls, machine, run_immediately=True, interval=None, ttl=300):
         try:
             schedule = cls.objects.get(machine_id=machine.id)
         except cls.DoesNotExist:
@@ -277,7 +361,8 @@ class MachinePollingSchedule(PollingSchedule):
         schedule.set_default_interval(60 * 60 * 2)
         if interval is not None:
             schedule.add_interval(interval, ttl)
-        schedule.run_immediately = True
+        if run_immediately:
+            schedule.run_immediately = True
         schedule.cleanup_expired_intervals()
         schedule.save()
         return schedule
@@ -291,3 +376,19 @@ class PingProbeMachinePollingSchedule(MachinePollingSchedule):
 class SSHProbeMachinePollingSchedule(MachinePollingSchedule):
 
     task = 'mist.api.poller.tasks.ssh_probe'
+
+
+class FindCoresMachinePollingSchedule(MachinePollingSchedule):
+
+    @property
+    def task(self):
+        return 'mist.api.metering.tasks.find_machine_cores'
+
+    @property
+    def args(self):
+        return (self.machine_id, )
+
+    @property
+    def enabled(self):
+        return (super(FindCoresMachinePollingSchedule, self).enabled and
+                config.ENABLE_METERING)
