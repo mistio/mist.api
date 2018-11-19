@@ -748,4 +748,3 @@ def make_router():
 
     return SockJSRouter(MultiplexConnection.get(**conns), '/socket',
                         user_settings={'verify_ip': False})
-
