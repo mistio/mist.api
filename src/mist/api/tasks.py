@@ -1226,7 +1226,6 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
         try:
             exit_code, wstdout = shell.command(command)
             shell.disconnect()
-            wstdout = wstdout.encode('utf-8', 'ignore')
             wstdout = wstdout.replace('\r\n', '\n').replace('\r', '\n')
             ret['wrapper_stdout'] = wstdout
             ret['exit_code'] = exit_code
