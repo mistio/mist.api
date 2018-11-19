@@ -625,20 +625,17 @@ class Organization(Owner):
 
             # Ensure RBAC Mappings are properly initialized.
             for team in self.teams:
-                try:
-                    mappings = RBACMapping.objects(org=self.id,
-                                                   team=team.id).only('id')
-                except Exception as exc:
-                    import ipdb;ipdb.set_trace()
-                    print(exc)
+                mappings = RBACMapping.objects(org=self.id,
+                                               team=team.id).only('id')
                 if not mappings:
                     team.init_mappings(org=self)
                 elif team.name == 'Owners':
-                    raise me.ValidationError('RBAC Mappings are not intended for '
-                                            'Team Owners')
+                    raise me.ValidationError(
+                        'RBAC Mappings are not intended for Team Owners')
                 elif len(mappings) is not 2:
-                    raise me.ValidationError('RBAC Mappings have not been properly'
-                                            ' initialized for Team %s' % team)
+                    raise me.ValidationError(
+                        'RBAC Mappings have not been properly initialized for '
+                        'Team %s' % team)
         # make sure org name is unique - we can't use the unique keyword on the
         # field definition because both User and Organization subclass Owner
         # but only Organization has a name
