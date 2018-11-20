@@ -48,7 +48,7 @@ MarkupSafe==1.0
 mbstrdecoder==0.4.2
 mccabe==0.6.1
 mock==2.0.0
-mongoengine==0.16.1
+mongoengine==0.15.3
 mongomock==3.12.0
 more-itertools==4.3.0
 msgfy==0.0.3
