@@ -394,14 +394,12 @@ def notify_user(owner, title, message="", email_notify=True, **kwargs):
     if 'duration' in kwargs:
         body += "Duration: %.2f secs\n" % kwargs['duration']
     if 'output' in kwargs:
-        body += "Output: %s\n" % kwargs['output'].decode('utf-8', 'ignore')
+        body += "Output: %s\n" % kwargs['output']
 
     if email_notify:
         from mist.api.helpers import send_email
         email = owner.email if hasattr(owner, 'email') else owner.get_email()
-        send_email("[%s] %s" % (config.PORTAL_NAME, title),
-                   body.encode('utf-8', 'ignore'),
-                   email)
+        send_email("[%s] %s" % (config.PORTAL_NAME, title), body, email)
 
 
 def run_playbook(owner, cloud_id, machine_id, playbook_path, extra_vars=None,
