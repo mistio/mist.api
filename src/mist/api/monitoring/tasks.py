@@ -114,8 +114,7 @@ def uninstall_telegraf(machine_id, job=None, job_id=None):
     else:
         error = exit_code or None
         _log.update({'key_id': key, 'ssh_user': user, 'exit_code': exit_code,
-                     'stdout': stdout.encode('utf-8', 'ignore')
-})
+                     'stdout': stdout.encode('utf-8', 'ignore')})
     finally:
         # Close the SSH connection.
         shell.disconnect()
