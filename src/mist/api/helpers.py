@@ -1212,7 +1212,7 @@ def mac_sign(kwargs=None, expires=None, key='', mac_len=0, mac_format='hex'):
         kwargs['_expires'] = int(time() + expires)
     parts = ["%s=%s" % (k, kwargs[k]) for k in sorted(kwargs.keys())]
     msg = "&".join(parts)
-    hmac = HMAC(str(key), msg=str(msg), digestmod=SHA256Hash())
+    hmac = HMAC(key.encode(), msg=msg.encode(), digestmod=SHA256Hash())
     if mac_format == 'b64':
         tag = urlsafe_b64encode(hmac.digest()).rstrip('=')
     elif mac_format == 'bin':
