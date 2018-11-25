@@ -979,13 +979,16 @@ STATES = {
     NodeState.PENDING: 'pending',
     # we assume unknown means stopped, especially for the EC2 case
     NodeState.UNKNOWN: 'unknown',
+    NodeState.UPDATING: 'updating',
     NodeState.STOPPED: 'stopped',
     NodeState.ERROR: 'error',
     NodeState.PAUSED: 'paused',
     NodeState.SUSPENDED: 'suspended',
     NodeState.STARTING: 'starting',
     NodeState.STOPPING: 'stopping',
-    NodeState.RECONFIGURING: 'reconfiguring'
+    NodeState.RECONFIGURING: 'reconfiguring',
+    NodeState.MIGRATING: 'migrating',
+    NodeState.NORMAL: 'normal',
 }
 
 EC2_SECURITYGROUP = {

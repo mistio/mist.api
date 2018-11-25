@@ -282,10 +282,7 @@ class Machine(OwnershipMixin, me.Document):
     image_id = me.StringField()
     # libcloud.compute.types.NodeState
     state = me.StringField(default='unknown',
-                           choices=('running', 'starting', 'rebooting',
-                                    'terminated', 'pending', 'unknown',
-                                    'stopping', 'stopped', 'suspended',
-                                    'error', 'paused', 'reconfiguring'))
+                           choices=tuple(config.STATES.values()))
     machine_type = me.StringField(default='machine',
                                   choices=('machine', 'vm', 'container',
                                            'hypervisor', 'container-host',
