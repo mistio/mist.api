@@ -198,7 +198,10 @@ class Notification(me.Document):
     @property
     def remind_in(self):
         """Return a timedelta until the next reminder since `created_at`."""
-        remind_in = self.reminder_schedule[self.reminder_count]
+        try:
+            remind_in = self.reminder_schedule[self.reminder_count]
+        except IndexError:
+            remind_in = self.reminder_schedule[-1]
         return datetime.timedelta(seconds=remind_in)
 
     def due_in(self):
