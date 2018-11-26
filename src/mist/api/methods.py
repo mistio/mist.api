@@ -1,7 +1,4 @@
-import os
 import re
-import shutil
-import tempfile
 import subprocess
 
 import pingparsing
@@ -24,7 +21,6 @@ from mist.api.exceptions import MistError
 from mist.api.exceptions import RequiredParameterMissingError
 
 from mist.api.helpers import amqp_publish_user
-from mist.api.helpers import StdStreamCapture
 
 from mist.api.helpers import dirty_cow, parse_os_release
 
