@@ -1212,7 +1212,7 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
         exit_code, wstdout = shell.command("command -v python")
 
         if exit_code > 0:
-            command = "/bin/bash %s %s" % (path, params)
+            command = "/bin/sh %s %s" % (path, params)
         else:
             command = "python - %s << EOF\n%s\nEOF\n" % (wparams, wscript)
         if su:
