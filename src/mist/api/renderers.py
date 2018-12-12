@@ -61,6 +61,8 @@ def json2csv(value, columns=None):
     """
     if isinstance(value, string_types):
         value = json.loads(value)
+    if isinstance(value, dict) and isinstance(value.get('items'), list):
+        value = value['items']
     flat_value = [flattenjson(x, "__") for x in value]
     if not columns:
         columns = [x for row in flat_value for x in list(row.keys())]
@@ -97,7 +99,7 @@ class CSVRenderer(object):
                 params = params_from_request(request)
                 columns = params.get('columns', '')
                 columns = columns and columns.split(',') or []
-                response.body = json2csv(value, columns)
+                response.text = json2csv(value, columns)
             else:
                 response.content_type = 'application/json'
                 response.json_body = value
