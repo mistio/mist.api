@@ -156,6 +156,7 @@ class AzureArmMainController(BaseMainController):
     provider = 'azure_arm'
     ComputeController = compute_ctls.AzureArmComputeController
     NetworkController = network_ctls.AzureArmNetworkController
+    StorageController = storage_ctls.AzureArmStorageController
 
 
 class GoogleMainController(BaseMainController):
