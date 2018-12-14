@@ -1,5 +1,8 @@
 #!/usr/bin/env python
+import os
 from mist.api.tasks import create_backup
 
 if __name__ == '__main__':
+    if not os.getenv('LANG'):
+        os.environ['LANG'] = 'en_US.UTF-8'
     create_backup()
