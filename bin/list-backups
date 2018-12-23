@@ -1,0 +1,11 @@
+#!/usr/bin/env python
+import os
+from mist.api import config
+
+if __name__ == '__main__':
+    os.system('s3cmd --access_key=%s --secret_key=%s ls s3://%s/mongo/' % (
+        config.BACKUP['key'], config.BACKUP['secret'],
+        config.BACKUP['bucket']))
+    os.system('s3cmd --access_key=%s --secret_key=%s ls s3://%s/influx/' % (
+        config.BACKUP['key'], config.BACKUP['secret'],
+        config.BACKUP['bucket']))

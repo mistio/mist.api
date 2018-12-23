@@ -1,0 +1,55 @@
+#!/usr/bin/env python
+import os
+import argparse
+import requests
+
+from mist.api import config
+
+def main():
+    argparser = argparse.ArgumentParser(
+        description="Restore a mist backup"
+    )
+    argparser.add_argument('backup', help="Backup to restore.")
+    args = argparser.parse_args()
+
+    cmd = 's3cmd --access_key=%s --secret_key=%s get %s' % (
+        config.BACKUP['key'], config.BACKUP['secret'],
+        args.backup)
+    os.system(cmd)
+    dump_path = args.backup.split('/')[-1]
+    if dump_path.endswith('.gpg'):
+        new_path = dump_path.replace('.gpg', '')
+        cmd = 'gpg --pinentry-mode loopback -o %s -d %s' % (new_path, dump_path)
+        os.system(cmd)
+        dump_path = new_path
+
+    if 'mongo' in args.backup:
+        cmd = 'mongorestore -h %s --gzip --archive=%s' % (config.MONGO_URI,
+                                                          dump_path)
+        os.system(cmd)
+    elif 'influx' in args.backup:
+        # Strip protocol prefix from influx backup uri
+        influx_backup_host = config.INFLUX.get('backup', '').replace(
+            'http://', '').replace('https://', '')
+        # Prepare base URL.
+        url = '%s/query' % config.INFLUX['host']
+        for db in ['telegraf', 'metering']:
+            cmd = 'rm -rf influx-snapshot && tar xvf %s && \
+            influxd restore -host %s -portable -db %s -newdb %s_bak \
+            influx-snapshot && echo "Restored database as %s_bak"' % (
+                dump_path, influx_backup_host, db,
+                db, db)
+            os.system(cmd)
+            resp = raw_input("Move data from %s_bak to %s? [y/n] " % (db, db))
+            if resp.lower() == 'y':
+                requests.post('%s?q=CREATE database %s' % (url, db))
+                query = "SELECT * INTO %s..:MEASUREMENT FROM /.*/ GROUP BY *;"
+                query += "DROP DATABASE %s_bak"
+                query = query % (db, db)
+                requests.post('%s?db=%s_bak&q=%s' % (url, db, query))
+                requests.post('%s?q=DROP database %s_bak' % (url, db))
+    else:
+        print('Unknown backup type')
+
+if __name__ == '__main__':
+    main()

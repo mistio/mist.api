@@ -1351,10 +1351,57 @@ def set_missing_since(cloud_id):
 
 
 @app.task
+def create_backup():
+    """Create mongo backup if s3 creds are set.
+    """
+    # If MONGO_URI consists of multiple hosts get the last one
+    mongo_backup_host = config.MONGO_URI.split('//')[-1].split('/')[0].split(
+        ',')[-1]
+    # Strip protocol prefix from influx backup uri
+    influx_backup_host = config.INFLUX.get('backup', '').replace(
+        'http://', '').replace('https://', '')
+    if all(value == '' for value in config.BACKUP.get('gpg', {}).values()):
+        os.system("mongodump --host %s --gzip --archive | s3cmd --access_key=%s \
+        --secret_key=%s put - s3://%s/mongo/%s-%s" % (mongo_backup_host,
+                  config.BACKUP['key'], config.BACKUP['secret'],
+                  config.BACKUP['bucket'], config.CORE_URI.split('//')[1],
+                  datetime.datetime.now().strftime('%Y%m%d%H%M')))
+        if influx_backup_host:
+            os.system("influxd backup -portable -host %s ./influx-snapshot &&\
+            tar cv influx-snapshot | s3cmd --access_key=%s --secret_key=%s \
+            put - s3://%s/influx/%s-%s && rm -rf influx-snapshot" % (
+                influx_backup_host, config.BACKUP['key'],
+                config.BACKUP['secret'], config.BACKUP['bucket'],
+                config.CORE_URI.split('//')[1],
+                datetime.datetime.now().strftime('%Y%m%d%H%M')))
+    elif config.BACKUP['gpg'].get('public'):  # encrypt with gpg if configured
+        f = open('pub.key', 'w+')
+        f.write(config.BACKUP['gpg']['public'])
+        f.close()
+        os.system("gpg --import pub.key && mongodump \
+        --host %s --gzip --archive | gpg --yes --trust-model always \
+        --encrypt --recipient %s | s3cmd --access_key=%s --secret_key=%s put \
+        - s3://%s/mongo/%s-%s.gpg" % (
+            mongo_backup_host, config.BACKUP['gpg']['recipient'],
+            config.BACKUP['key'], config.BACKUP['secret'],
+            config.BACKUP['bucket'], config.CORE_URI.split('//')[1],
+            datetime.datetime.now().strftime('%Y%m%d%H%M')))
+        if influx_backup_host:
+            os.system("influxd backup -portable -host %s ./influx-snapshot \
+            && tar cv influx-snapshot | gpg --yes --trust-model always \
+            --encrypt --recipient %s | s3cmd --access_key=%s --secret_key=%s \
+            put - s3://%s/influx/%s-%s.gpg" % (
+                influx_backup_host, config.BACKUP['gpg']['recipient'],
+                config.BACKUP['key'], config.BACKUP['secret'],
+                config.BACKUP['bucket'], config.CORE_URI.split('//')[1],
+                datetime.datetime.now().strftime('%Y%m%d%H%M')))
+
+
+@app.task
 def async_session_update(owner, sections=None):
     if sections is None:
         sections = [
-            'org', 'user', 'keys', 'zones', 'clouds', 'stacks',
+            'org', 'user', 'keys', 'clouds', 'stacks',
             'scripts', 'schedules', 'templates', 'monitoring'
         ]
     trigger_session_update(owner, sections)
