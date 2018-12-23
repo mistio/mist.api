@@ -443,7 +443,7 @@ class Organization(Owner):
         choices=config.MONITORING_METHODS)
 
     insights_enabled = me.BooleanField(default=config.HAS_INSIGHTS)
-    ownership_enabled = me.BooleanField()
+    ownership_enabled = me.BooleanField(default=True)
 
     created = me.DateTimeField(default=datetime.datetime.now)
     registered_by = me.StringField()
