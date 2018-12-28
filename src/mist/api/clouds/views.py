@@ -234,6 +234,8 @@ def add_cloud(request):
     # Set ownership.
     cloud.assign_to(auth_context.user)
 
+    trigger_session_update(owner.id, ['clouds'])
+
     # SEC
     # Update the RBAC & User/Ownership mappings with the new Cloud and finally
     # trigger a session update by registering it as a chained task.
@@ -242,8 +244,6 @@ def add_cloud(request):
             cloud,
             callback=async_session_update, args=(owner.id, ['clouds'], )
         )
-    else:
-        trigger_session_update(owner.id, ['clouds'])
 
     c_count = Cloud.objects(owner=owner, deleted=None).count()
     ret = cloud.as_dict()
