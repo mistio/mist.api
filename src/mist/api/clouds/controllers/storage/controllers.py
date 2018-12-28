@@ -195,5 +195,6 @@ class AzureStorageController(BaseStorageController):
     def _create_volume__prepare_args(self, volume, libcloud_volume):
         raise BadRequestError('Volume provisioning is not supported')
 
+
 class AzureArmStorageController(BaseStorageController):
     pass

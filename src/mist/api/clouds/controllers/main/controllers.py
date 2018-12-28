@@ -40,7 +40,6 @@ from mist.api.exceptions import MachineUnauthorizedError
 from mist.api.exceptions import RequiredParameterMissingError
 
 from mist.api.helpers import sanitize_host, check_host
-from mist.api.helpers import amqp_publish_user
 from mist.api.helpers import amqp_owner_listening
 
 from mist.api.keys.models import Key
@@ -479,8 +478,8 @@ class OtherMainController(BaseMainController):
         This is a special method that exists only on this Cloud subclass.
         """
 
-        old_machines = [m.as_dict() for m in \
-            self.cloud.ctl.compute.list_cached_machines()]
+        old_machines = [m.as_dict() for m in
+                        self.cloud.ctl.compute.list_cached_machines()]
 
         # FIXME: Move ssh command to Machine controller once it is migrated.
         from mist.api.methods import ssh_command
