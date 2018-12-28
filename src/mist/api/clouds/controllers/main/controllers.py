@@ -20,6 +20,7 @@ See `mist.api.clouds.controllers.main.base` for more information.
 """
 
 
+import datetime
 import uuid
 import json
 import socket
@@ -39,6 +40,8 @@ from mist.api.exceptions import MachineUnauthorizedError
 from mist.api.exceptions import RequiredParameterMissingError
 
 from mist.api.helpers import sanitize_host, check_host
+from mist.api.helpers import amqp_publish_user
+from mist.api.helpers import amqp_owner_listening
 
 from mist.api.keys.models import Key
 
@@ -475,6 +478,10 @@ class OtherMainController(BaseMainController):
 
         This is a special method that exists only on this Cloud subclass.
         """
+
+        old_machines = [m.as_dict() for m in \
+            self.cloud.ctl.compute.list_cached_machines()]
+
         # FIXME: Move ssh command to Machine controller once it is migrated.
         from mist.api.methods import ssh_command
 
@@ -498,7 +505,8 @@ class OtherMainController(BaseMainController):
             machine_id=uuid.uuid4().hex,
             os_type=os_type,
             ssh_port=ssh_port,
-            rdp_port=rdp_port
+            rdp_port=rdp_port,
+            last_seen=datetime.datetime.utcnow()
         )
         if host:
             # Sanitize inputs.
@@ -510,7 +518,7 @@ class OtherMainController(BaseMainController):
                 machine.private_ips = [host]
             else:
                 machine.public_ips = [host]
-        machine.save()
+        machine.save(write_concern={'w': 1, 'fsync': True})
 
         # Attempt to connect.
         if os_type == 'unix' and ssh_key:
@@ -539,6 +547,12 @@ class OtherMainController(BaseMainController):
                 if fail_on_error:
                     machine.delete()
                 raise
+
+        if amqp_owner_listening(self.cloud.owner.id):
+            new_machines = self.cloud.ctl.compute.list_cached_machines()
+            self.cloud.ctl.compute.produce_and_publish_patch(
+                old_machines, new_machines)
+
         return machine
 
 
