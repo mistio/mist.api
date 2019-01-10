@@ -278,7 +278,8 @@ class MainStatsHandler(BaseStatsHandler):
         if not istatus.activated_at:
             for value in results.values():
                 for point in value['datapoints']:
-                    if point[0] is not None and int(point[1]) >= istatus.started_at:
+                    if point[0] is not None and \
+                       int(point[1]) >= istatus.started_at:
                         if not istatus.finished_at:
                             istatus.finished_at = time.time()
                         istatus.activated_at = time.time()
