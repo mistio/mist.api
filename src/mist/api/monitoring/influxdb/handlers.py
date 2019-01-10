@@ -39,7 +39,7 @@ def aggregate(query, field, func='MEAN'):
     return query.replace(field, '%s(%s)' % (func.upper(), field))
 
 
-def filter(query, fields=None, start='', stop=''):
+def add_filter(query, fields=None, start='', stop=''):
     """Add a filter to the query.
 
     This method adds a "WHERE" clause to the provided InfluxDB query based
@@ -139,13 +139,14 @@ class BaseStatsHandler(object):
         if functions and not re.match('^/.*/$', self.column):  # Not for regex.
             q += ' AS %s' % self.column
         q += ' FROM "%s"' % self.measurement
-        q = group(list(filter(q, tags, start, stop)), self.group, step)
+        q = group(add_filter(q, tags, start, stop), self.group, step)
 
         if not tornado_async:
             data = requests.get(self.influx, params=dict(q=q))
             if not data.ok:
                 log.error('Got %d HTTP status code on get_stats: %s',
                           data.status_code, data.content)
+                log.error('Query: %s' % q)
                 if data.status_code == 400:
                     raise BadRequestError()
                 raise ServiceUnavailableError()
@@ -277,7 +278,7 @@ class MainStatsHandler(BaseStatsHandler):
         if not istatus.activated_at:
             for value in results.values():
                 for point in value['datapoints']:
-                    if point[0] is not None and point[1] >= istatus.started_at:
+                    if point[0] is not None and int(point[1]) >= istatus.started_at:
                         if not istatus.finished_at:
                             istatus.finished_at = time.time()
                         istatus.activated_at = time.time()
