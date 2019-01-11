@@ -397,7 +397,8 @@ def create_machine(request):
                 raise ValueError()
             if not all((isinstance(t, dict) and len(t) is 1 for t in mtags)):
                 raise ValueError()
-            mtags = {key: val for item in mtags for key, val in item.items()}
+            mtags = {key: val for item in mtags for key,
+                     val in list(item.items())}
         tags.update(mtags)
     except ValueError:
         raise BadRequestError('Invalid tags format. Expecting either a '

@@ -8,6 +8,8 @@ import mongoengine as me
 
 import mist.api.tag.models
 
+from future.utils import string_types
+
 from mist.api.mongoengine_extras import MistDictField
 from mist.api.keys.models import Key
 from mist.api.machines.controllers import MachineController
@@ -93,7 +95,7 @@ class Monitoring(me.EmbeddedDocument):
 
     def clean(self):
         if not self.collectd_password:
-            self.collectd_password = os.urandom(32).encode('hex')
+            self.collectd_password = os.urandom(32).hex()
 
     def get_commands(self):
         if self.method in ('telegraf-influxdb', 'telegraf-graphite'):
@@ -224,7 +226,7 @@ class SSHProbe(me.EmbeddedDocument):
             val = data.get(strarr_attr)
             try:
                 assert isinstance(val, list)
-                assert all(isinstance(item, basestring) for item in val)
+                assert all(isinstance(item, string_types) for item in val)
                 setattr(self, strarr_attr, val)
             except Exception as exc:
                 log.error("Invalid %s '%s': %r", strarr_attr, val, exc)
@@ -280,10 +282,7 @@ class Machine(OwnershipMixin, me.Document):
     image_id = me.StringField()
     # libcloud.compute.types.NodeState
     state = me.StringField(default='unknown',
-                           choices=('running', 'starting', 'rebooting',
-                                    'terminated', 'pending', 'unknown',
-                                    'stopping', 'stopped', 'suspended',
-                                    'error', 'paused', 'reconfiguring'))
+                           choices=tuple(config.STATES.values()))
     machine_type = me.StringField(default='machine',
                                   choices=('machine', 'vm', 'container',
                                            'hypervisor', 'container-host',
@@ -340,7 +339,7 @@ class Machine(OwnershipMixin, me.Document):
         # self.key_associations list by iterating over it and popping matched
         # embedded documents in order to ensure that the most recent list is
         # always processed and saved.
-        for ka in reversed(range(len(self.key_associations))):
+        for ka in reversed(list(range(len(self.key_associations)))):
             if self.key_associations[ka].keypair.deleted:
                 self.key_associations.pop(ka)
 
@@ -399,7 +398,7 @@ class Machine(OwnershipMixin, me.Document):
             'machine_id': self.machine_id,
             'actions': {action: self.actions[action]
                         for action in self.actions},
-            'extra': self.extra,
+            'extra': dict(self.extra),
             'cost': self.cost.as_dict(),
             'image_id': self.image_id,
             'state': self.state,

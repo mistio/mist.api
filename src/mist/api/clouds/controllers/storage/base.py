@@ -158,7 +158,7 @@ class BaseStorageController(BaseController):
                 log.exception('Error post-parsing %s: %s', volume, exc)
 
             # Ensure JSON-encoding.
-            for key, value in volume.extra.iteritems():
+            for key, value in volume.extra.items():
                 try:
                     json.dumps(value)
                 except TypeError:
@@ -184,7 +184,7 @@ class BaseStorageController(BaseController):
         ).update(missing_since=datetime.datetime.utcnow())
 
         # Update RBAC Mappings given the list of new volumes.
-        self.cloud.owner.mapper.update(new_volumes, async=False)
+        self.cloud.owner.mapper.update(new_volumes, asynchronous=False)
 
         return volumes
 

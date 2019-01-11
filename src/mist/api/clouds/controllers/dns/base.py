@@ -524,7 +524,7 @@ class BaseDNSController(BaseController):
         # any that is matching based on the domain. If one is found
         # then create an "A" type record with the provided name.
         for zone_candidate in zones:
-            for domain, subdomain in all_domains.iteritems():
+            for domain, subdomain in all_domains.items():
                 if zone_candidate.domain == domain:
                     return zone_candidate
         raise BadRequestError("No DNS zone found, can't proceed with "

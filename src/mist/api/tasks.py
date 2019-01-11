@@ -130,8 +130,8 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
 
         if node:
             # filter out IPv6 addresses
-            ips = filter(lambda ip: ':' not in ip,
-                         node.public_ips + node.private_ips)
+            ips = [ip for ip in node.public_ips + node.private_ips
+                   if ':' not in ip]
             if not ips:
                 raise self.retry(exc=Exception(), countdown=60, max_retries=20)
             host = ips[0]
@@ -173,7 +173,7 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                 log_event(action='Add scheduler entry',
                           scheduler=schedule_info.as_dict(), **log_dict)
             except Exception as e:
-                print repr(e)
+                print(repr(e))
                 error = repr(e)
                 notify_user(owner, "add scheduler entry failed for "
                                    "machine %s" % machine_id, repr(e),
@@ -303,7 +303,7 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                         plugins=plugins, deploy_async=False,
                     )
                 except Exception as e:
-                    print repr(e)
+                    print(repr(e))
                     error = True
                     notify_user(
                         owner,
@@ -455,7 +455,7 @@ def azure_post_create_steps(self, owner_id, cloud_id, machine_id, monitoring,
                 break
         if node and node.state == NodeState.RUNNING and len(node.public_ips):
             # filter out IPv6 addresses
-            ips = filter(lambda ip: ':' not in ip, node.public_ips)
+            ips = [ip for ip in node.public_ips if ':' not in ip]
             host = ips[0]
         else:
             raise self.retry(exc=Exception(), max_retries=20)
@@ -535,7 +535,7 @@ def rackspace_first_gen_post_create_steps(
 
         if node and node.state == 0 and len(node.public_ips):
             # filter out IPv6 addresses
-            ips = filter(lambda ip: ':' not in ip, node.public_ips)
+            ips = [ip for ip in node.public_ips if ':' not in ip]
             host = ips[0]
         else:
             raise self.retry(exc=Exception(), max_retries=20)
@@ -594,7 +594,7 @@ class UserTask(Task):
         """Return cached result if it exists, send job to celery if needed"""
         # check cache
         id_str = json.dumps([self.task_key, args, kwargs])
-        cache_key = b64encode(id_str)
+        cache_key = b64encode(id_str.encode()).decode()
         cached = self.memcache.get(cache_key)
         if cached:
             age = time() - cached['timestamp']
@@ -615,7 +615,7 @@ class UserTask(Task):
 
     def clear_cache(self, *args, **kwargs):
         id_str = json.dumps([self.task_key, args, kwargs])
-        cache_key = b64encode(id_str)
+        cache_key = b64encode(id_str.encode()).decode()
         log.info("Clearing cache for '%s'", id_str)
         return self.memcache.delete(cache_key)
 
@@ -630,7 +630,7 @@ class UserTask(Task):
         # same arguments. it is empty on first run, constant afterwards
         seq_id = kwargs.pop('seq_id', '')
         id_str = json.dumps([self.task_key, args, kwargs])
-        cache_key = b64encode(id_str)
+        cache_key = b64encode(id_str.encode()).decode()
         cached_err = self.memcache.get(cache_key + 'error')
         if cached_err:
             # task has been failing recently
@@ -933,7 +933,7 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
         'schedule_id': schedule.id,
         'schedule_name': schedule.name,
         'description': schedule.description or '',
-        'schedule_type': unicode(schedule.schedule_type or ''),
+        'schedule_type': str(schedule.schedule_type or ''),
         'owner_id': owner_id,
         'machines_match': schedule.get_ids(),
         'machine_action': action,
@@ -1094,7 +1094,7 @@ def group_run_script(owner_id, script_id, name, machines_uuids, params=''):
         'schedule_id': schedule.id,
         'schedule_name': schedule.name,
         'description': schedule.description or '',
-        'schedule_type': unicode(schedule.schedule_type or ''),
+        'schedule_type': str(schedule.schedule_type or ''),
         'owner_id': owner_id,
         'machines_match': schedule.get_ids(),
         'script_id': script_id,
@@ -1212,7 +1212,7 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
         exit_code, wstdout = shell.command("command -v python")
 
         if exit_code > 0:
-            command = "/bin/bash %s %s" % (path, params)
+            command = "/bin/sh %s %s" % (path, params)
         else:
             command = "python - %s << EOF\n%s\nEOF\n" % (wparams, wscript)
         if su:
@@ -1226,7 +1226,6 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
         try:
             exit_code, wstdout = shell.command(command)
             shell.disconnect()
-            wstdout = wstdout.encode('utf-8', 'ignore')
             wstdout = wstdout.replace('\r\n', '\n').replace('\r', '\n')
             ret['wrapper_stdout'] = wstdout
             ret['exit_code'] = exit_code

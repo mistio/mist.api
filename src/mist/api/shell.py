@@ -7,13 +7,13 @@ SSH.
 import paramiko
 import websocket
 import socket
-import thread
+import _thread
 import ssl
 import tempfile
 import logging
 
 from time import sleep
-from StringIO import StringIO
+from io import StringIO
 
 from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine, KeyAssociation
@@ -401,7 +401,7 @@ class DockerWebSocket(object):
         def run(*args):
             ws.send(self.cmd)
             sleep(1)
-        thread.start_new_thread(run, ())
+        _thread.start_new_thread(run, ())
 
     def __del__(self):
         self.disconnect()

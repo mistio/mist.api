@@ -21,7 +21,7 @@ log = logging.getLogger(__name__)
 
 def get_stats(machine, start="", stop="", step="", metrics=None):
     if not metrics:
-        metrics = (config.GRAPHITE_BUILTIN_METRICS.keys() +
+        metrics = (list(config.GRAPHITE_BUILTIN_METRICS.keys()) +
                    machine.monitoring.metrics)
     old_targets = {
         'cpu': 'cpu.total.nonidle',
@@ -49,7 +49,7 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
     # if no data previously received for machine
     istatus = machine.monitoring.installation_status
     if not istatus.activated_at:
-        for val in (point[0] for item in data.values()
+        for val in (point[0] for item in list(data.values())
                     for point in item['datapoints']
                     if point[1] >= istatus.started_at):
             if val is not None:

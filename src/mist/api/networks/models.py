@@ -23,10 +23,10 @@ NETWORKS, SUBNETS = {}, {}
 
 def _populate_class_mapping(mapping, class_suffix, base_class):
     """Populates a dict that matches a provider name with its model class."""
-    for key, value in globals().items():
+    for key, value in list(globals().items()):
         if key.endswith(class_suffix) and key != class_suffix:
             if issubclass(value, base_class) and value is not base_class:
-                for provider, cls in CLOUDS.items():
+                for provider, cls in list(CLOUDS.items()):
                     if key.replace(class_suffix, '') in repr(cls):
                         mapping[provider] = value
 

@@ -47,11 +47,9 @@ def install_telegraf(machine_id, job=None, job_id=None, plugins=None):
         shell.disconnect()  # Close the SSH connection.
 
         err = exit_code or ''
-        stdout = stdout.encode('utf-8', 'ignore')
         stdout = stdout.replace('\r\n', '\n').replace('\r', '\n')
-
         _log.update({'key_id': key, 'ssh_user': user, 'exit_code': exit_code,
-                     'stdout': stdout})
+                     'stdout': stdout.encode('utf-8', 'ignore')})
 
     # Update Machine's InstallationStatus.
     if err:
@@ -94,6 +92,7 @@ def install_telegraf(machine_id, job=None, job_id=None, plugins=None):
 def uninstall_telegraf(machine_id, job=None, job_id=None):
     """Undeploy Telegraf."""
     machine = Machine.objects.get(id=machine_id)
+    error = None
 
     _log = {
         'owner_id': machine.owner.id,
@@ -108,14 +107,14 @@ def uninstall_telegraf(machine_id, job=None, job_id=None):
         key, user = shell.autoconfigure(machine.owner, machine.cloud.id,
                                         machine.machine_id)
         exit_code, stdout = shell.command(fetch(unix_uninstall()))
-        stdout = stdout.encode('utf-8', 'ignore')
         stdout = stdout.replace('\r\n', '\n').replace('\r', '\n')
     except Exception as err:
         log.error('Error during Telegraf undeployment: %r', err)
+        error = err
     else:
-        err = exit_code or None
+        error = exit_code or None
         _log.update({'key_id': key, 'ssh_user': user, 'exit_code': exit_code,
-                     'stdout': stdout})
+                     'stdout': stdout.encode('utf-8', 'ignore')})
     finally:
         # Close the SSH connection.
         shell.disconnect()
@@ -125,7 +124,7 @@ def uninstall_telegraf(machine_id, job=None, job_id=None):
         machine.save()
 
         # Log undeployment's outcome.
-        log_event(action='telegraf_undeployment_finished', error=err, **_log)
+        log_event(action='telegraf_undeployment_finished', error=error, **_log)
 
         # Trigger UI update.
         trigger_session_update(machine.owner, ['monitoring'])

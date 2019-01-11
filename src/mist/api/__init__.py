@@ -27,15 +27,17 @@ class Root(object):
 
 def mongo_connect(*args, **kwargs):
     """Connect mongoengine to mongo db. This connection is reused everywhere"""
-    for _ in xrange(30):
+    exc = None
+    for _ in range(30):
         try:
             log.info("Attempting to connect to %s at %s...", config.MONGO_DB,
                      config.MONGO_URI)
             me.connect(db=config.MONGO_DB, host=config.MONGO_URI)
-        except Exception as exc:
+        except Exception as e:
             log.warning("Error connecting to mongo, will retry in 1 sec: %r",
-                        exc)
+                        e)
             time.sleep(1)
+            exc = e
         else:
             log.info("Connected...")
             break
@@ -69,6 +71,7 @@ def main(global_config, **settings):
     settings = {}
 
     configurator = Configurator(root_factory=Root, settings=settings)
+    configurator.include('pyramid_chameleon')
 
     # Add custom adapter to the JSON renderer to avoid serialization errors
     json_renderer = JSON()
@@ -98,12 +101,13 @@ def main(global_config, **settings):
     # /FIXME
 
     configurator.include(add_routes)
-    configurator.scan()
+    configurator.scan(ignore=['mist.api.sock', 'mist.api.sockjs_mux'])
 
     for plugin in config.PLUGINS:
         log.info("Loading plugin mist.%s", plugin)
         configurator.include('mist.%s.add_routes' % plugin)
-        configurator.scan('mist.%s' % plugin)
+        ignore_modules = ['mist.%s.sock' % plugin, 'mist.%s.handler' % plugin]
+        configurator.scan('mist.%s' % plugin, ignore=ignore_modules)
 
     app = mist.api.auth.middleware.AuthMiddleware(
         mist.api.auth.middleware.CsrfMiddleware(

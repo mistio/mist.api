@@ -205,8 +205,8 @@ def add_cloud(request):
     # remove spaces from start/end of string fields that are often included
     # when pasting keys, preventing thus succesfull connection with the
     # cloud
-    for key in params.keys():
-        if type(params[key]) in [unicode, str]:
+    for key in list(params.keys()):
+        if type(params[key]) in [str, str]:
             params[key] = params[key].rstrip().lstrip()
 
     # api_version = request.headers.get('Api-Version', 1)
@@ -229,10 +229,12 @@ def add_cloud(request):
         cloud.ctl.set_polling_interval(1800)
 
     if cloud_tags:
-        add_tags_to_resource(owner, cloud, cloud_tags.items())
+        add_tags_to_resource(owner, cloud, list(cloud_tags.items()))
 
     # Set ownership.
     cloud.assign_to(auth_context.user)
+
+    trigger_session_update(owner.id, ['clouds'])
 
     # SEC
     # Update the RBAC & User/Ownership mappings with the new Cloud and finally
@@ -242,8 +244,6 @@ def add_cloud(request):
             cloud,
             callback=async_session_update, args=(owner.id, ['clouds'], )
         )
-    else:
-        trigger_session_update(owner.id, ['clouds'])
 
     c_count = Cloud.objects(owner=owner, deleted=None).count()
     ret = cloud.as_dict()

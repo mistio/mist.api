@@ -27,7 +27,7 @@ class InfluxDBBackendPlugin(base.BaseBackendPlugin):
             raise methods.MultipleSeriesReturnedError()
 
         # Ensure requested and returned measurements/columns match.
-        data = data.values()[0]
+        data = list(data.values())[0]
         target = query.target.split('.')
         if data['measurement'] != target[0] or data['column'] != target[-1]:
             log.error('Got %s while expecting %s', data['name'], query.target)

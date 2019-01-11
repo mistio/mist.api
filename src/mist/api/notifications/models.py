@@ -1,6 +1,13 @@
 import uuid
 import json
-import urllib
+
+# Python 2 and 3 support
+from future.standard_library import install_aliases
+install_aliases()
+import urllib.request
+import urllib.parse
+import urllib.error
+
 import datetime
 import mongoengine as me
 
@@ -191,7 +198,10 @@ class Notification(me.Document):
     @property
     def remind_in(self):
         """Return a timedelta until the next reminder since `created_at`."""
-        remind_in = self.reminder_schedule[self.reminder_count]
+        try:
+            remind_in = self.reminder_schedule[self.reminder_count]
+        except IndexError:
+            remind_in = self.reminder_schedule[-1]
         return datetime.timedelta(seconds=remind_in)
 
     def due_in(self):
@@ -219,7 +229,7 @@ class Notification(me.Document):
         # reminder intervals. Thus we avoid spamming users with back-to-back
         # reminders.
         schedule_size = len(self.reminder_schedule)
-        for c in xrange(schedule_size - 1, self.reminder_count, -1):
+        for c in range(schedule_size - 1, self.reminder_count, -1):
             timedelta = datetime.timedelta(seconds=self.reminder_schedule[c])
             if self.created_at + timedelta < datetime.datetime.utcnow():
                 self.reminder_count = c
@@ -292,7 +302,7 @@ class EmailNotification(Notification):
         token = {'token': encrypt(json.dumps(params))}
         mac_sign(token)
         return '%s/unsubscribe?%s' % (config.CORE_URI,
-                                      urllib.urlencode(token))
+                                      urllib.parse.urlencode(token))
 
 
 class EmailReport(EmailNotification):

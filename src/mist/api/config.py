@@ -3,12 +3,16 @@
    Also, the configuration from settings.py is exposed through this module.
 """
 import os
-import sys
 import ssl
 import json
 import logging
 import datetime
-import urlparse
+
+# Python 2 and 3 support
+from future.standard_library import install_aliases
+install_aliases()
+
+import urllib.parse
 
 import libcloud.security
 from libcloud.compute.types import Provider
@@ -16,20 +20,20 @@ from libcloud.container.types import Provider as Container_Provider
 
 from libcloud.compute.types import NodeState
 
-
+log = logging.getLogger(__name__)
 libcloud.security.SSL_VERSION = ssl.PROTOCOL_TLSv1_2
 
 
 def dirname(path, num=1):
     """Get absolute path of `num` directories above path"""
     path = os.path.abspath(path)
-    for _ in xrange(num):
+    for _ in range(num):
         path = os.path.dirname(path)
     return path
 
 
 MIST_API_DIR = dirname(__file__, 4)
-print >> sys.stderr, "MIST_API_DIR is %s" % MIST_API_DIR
+log.warn("MIST_API_DIR is %s" % MIST_API_DIR)
 
 
 ###############################################################################
@@ -975,13 +979,16 @@ STATES = {
     NodeState.PENDING: 'pending',
     # we assume unknown means stopped, especially for the EC2 case
     NodeState.UNKNOWN: 'unknown',
+    NodeState.UPDATING: 'updating',
     NodeState.STOPPED: 'stopped',
     NodeState.ERROR: 'error',
     NodeState.PAUSED: 'paused',
     NodeState.SUSPENDED: 'suspended',
     NodeState.STARTING: 'starting',
     NodeState.STOPPING: 'stopping',
-    NodeState.RECONFIGURING: 'reconfiguring'
+    NodeState.RECONFIGURING: 'reconfiguring',
+    NodeState.MIGRATING: 'migrating',
+    NodeState.NORMAL: 'normal',
 }
 
 EC2_SECURITYGROUP = {
@@ -1640,11 +1647,11 @@ POST_ACTION_HOOKS = {}
 CORE_CONFIG_PATH = os.path.join(dirname(MIST_API_DIR, 2),
                                 'src', 'mist', 'core', 'config.py')
 if os.path.exists(CORE_CONFIG_PATH):
-    print >> sys.stderr, "Will load core config from %s" % CORE_CONFIG_PATH
-    execfile(CORE_CONFIG_PATH)
+    log.warn("Will load core config from %s" % CORE_CONFIG_PATH)
+    exec(compile(open(CORE_CONFIG_PATH).read(), CORE_CONFIG_PATH, 'exec'))
     HAS_CORE = True
 else:
-    print >> sys.stderr, "Couldn't find core config in %s" % CORE_CONFIG_PATH
+    log.error("Couldn't find core config in %s" % CORE_CONFIG_PATH)
     HAS_CORE = False
 
 CONFIG_OVERRIDE_FILES = []
@@ -1663,9 +1670,9 @@ CONFIG_OVERRIDE_FILES.append(SETTINGS_FILE)
 # We will load the plugin configs and then we'll reload the config overrides
 for override_file in CONFIG_OVERRIDE_FILES:
     if os.path.exists(override_file):
-        print >> sys.stderr, "Reading settings from %s" % override_file
+        log.warn("Reading settings from %s" % override_file)
         CONF = {}
-        execfile(override_file, CONF)
+        exec(compile(open(override_file).read(), override_file, 'exec'), CONF)
         for key in CONF:
             if isinstance(locals().get(key), dict) and isinstance(CONF[key],
                                                                   dict):
@@ -1673,8 +1680,7 @@ for override_file in CONFIG_OVERRIDE_FILES:
             else:
                 locals()[key] = CONF[key]
     else:
-        print >> sys.stderr, ("Couldn't find settings file in %s" %
-                              override_file)
+        log.error("Couldn't find settings file in %s" % override_file)
 
 # Load all plugin config files. Plugins may define vars that can be overriden
 # by environmental variables
@@ -1697,11 +1703,10 @@ for plugin in PLUGINS:
                 locals()[key].update(plugin_env[key])
             else:
                 locals()[key] = plugin_env[key]
-        print >> sys.stderr, "Imported config of `%s` plugin" % plugin
+        log.warn("Imported config of `%s` plugin" % plugin)
     except Exception as exc:
-        if exc.message != 'No module named config':
-            print >> sys.stderr, "Failed to import config of `%s` plugin" % \
-                plugin
+        log.error("Failed to import config of `%s` plugin" %
+                  plugin)
 
 # Get settings from environmental variables.
 FROM_ENV_STRINGS = [
@@ -1722,7 +1727,7 @@ FROM_ENV_BOOLS = [
 FROM_ENV_ARRAYS = [
     'MEMCACHED_HOST', 'PLUGINS'
 ] + PLUGIN_ENV_ARRAYS
-print >> sys.stderr, "Reading settings from environmental variables."
+log.info("Reading settings from environmental variables.")
 for key in FROM_ENV_STRINGS:
     if os.getenv(key):
         locals()[key] = os.getenv(key)
@@ -1731,8 +1736,7 @@ for key in FROM_ENV_INTS:
         try:
             locals()[key] = int(os.getenv(key))
         except (KeyError, ValueError):
-            print >> sys.stderr, "Invalid value for %s: %s" % (key,
-                                                               os.getenv(key))
+            log.error("Invalid value for %s: %s" % (key, os.getenv(key)))
 for key in FROM_ENV_BOOLS:
     if os.getenv(key) is not None:
         locals()[key] = os.getenv(key) in ('1', 'true', 'True')
@@ -1745,9 +1749,9 @@ for key in FROM_ENV_ARRAYS:
 # SETTINGS_FILE should be the last one to load
 for override_file in CONFIG_OVERRIDE_FILES:
     if os.path.exists(override_file):
-        print >> sys.stderr, "Reading settings from %s" % override_file
+        log.info("Reading settings from %s" % override_file)
         CONF = {}
-        execfile(override_file, CONF)
+        exec(compile(open(override_file).read(), override_file, 'exec'), CONF)
         for key in CONF:
             if isinstance(locals().get(key), dict) and isinstance(CONF[key],
                                                                   dict):
@@ -1755,8 +1759,7 @@ for override_file in CONFIG_OVERRIDE_FILES:
             else:
                 locals()[key] = CONF[key]
     else:
-        print >> sys.stderr, ("Couldn't find settings file in %s" %
-                              override_file)
+        log.error("Couldn't find settings file in %s" % override_file)
 
 HAS_BILLING = 'billing' in PLUGINS
 HAS_RBAC = 'rbac' in PLUGINS
@@ -1774,8 +1777,8 @@ ENABLE_BACKUPS = bool(BACKUP['key']) and bool(BACKUP['secret'])
 # Update TELEGRAF_TARGET.
 
 if not TELEGRAF_TARGET:
-    if urlparse.urlparse(CORE_URI).hostname in ('localhost', '127.0.0.1',
-                                                '172.17.0.1'):
+    if urllib.parse.urlparse(CORE_URI).hostname in ('localhost', '127.0.0.1',
+                                                    '172.17.0.1'):
         TELEGRAF_TARGET = "http://traefik"
     else:
         TELEGRAF_TARGET = CORE_URI + '/ingress'
@@ -1880,4 +1883,4 @@ try:
     with open('/mist-version.json', 'r') as fobj:
         VERSION = json.load(fobj)
 except Exception as exc:
-    print >> sys.stderr, "Couldn't load version info."
+    log.error("Couldn't load version info.")

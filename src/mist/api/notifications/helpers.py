@@ -189,7 +189,7 @@ def _log_alert(resource, rule, value, triggered, timestamp, incident_id,
 
     # Rename resource-agnostic keys, if applicable.
     if resource_type is not None:
-        for key in info.keys():
+        for key in list(info.keys()):
             if key.startswith('resource_'):
                 rename_kwargs(info,
                               key, key.replace('resource', resource_type))

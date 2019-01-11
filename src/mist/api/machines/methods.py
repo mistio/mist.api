@@ -5,6 +5,8 @@ import mongoengine as me
 import time
 import requests
 
+from future.utils import string_types
+
 from libcloud.compute.base import NodeSize, NodeImage, NodeLocation, Node
 from libcloud.compute.types import Provider
 from libcloud.container.types import Provider as Container_Provider
@@ -219,7 +221,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         port_speed = size.get('port_speed', 0)
         hypervisor_group_id = size.get('hypervisor_group_id')
     else:
-        if not isinstance(size, (basestring, int)):
+        if not isinstance(size, (string_types, int)):
             raise BadRequestError('Expected size to be an id.')
         size_id = size
     size = NodeSize(size_id, name=size_name, ram='', disk=disk,
@@ -919,7 +921,7 @@ def _create_machine_docker(conn, machine_name, image_id,
             # docker_env is a dict, and we must convert it ot be in the form:
             # [ "key=value", "key=value"...]
             docker_environment = ["%s=%s" % (key, value) for key, value in
-                                  docker_env.iteritems()]
+                                  docker_env.items()]
             environment += docker_environment
 
         try:
@@ -1351,7 +1353,7 @@ def _create_machine_azure(conn, key_name, private_key, public_key,
     public_key.replace('\n', '')
 
     port_bindings = []
-    if azure_port_bindings and type(azure_port_bindings) in [str, unicode]:
+    if azure_port_bindings and type(azure_port_bindings) in [str, str]:
         # we receive something like: http tcp 80:80, smtp tcp 25:25,
         # https tcp 443:443
         # and transform it to [{'name':'http', 'protocol': 'tcp',

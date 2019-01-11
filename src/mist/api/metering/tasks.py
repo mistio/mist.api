@@ -117,8 +117,8 @@ def push_metering_info(owner_id):
 
     # Assemble points.
     points = []
-    for owner, counters in metering.iteritems():
-        value = ','.join(['%s=%s' % (k, v) for k, v in counters.iteritems()])
+    for owner, counters in metering.items():
+        value = ','.join(['%s=%s' % (k, v) for k, v in counters.items()])
         point = 'usage,owner=%s %s' % (owner, value)
         points.append(point)
 

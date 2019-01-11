@@ -78,7 +78,7 @@ def get_conn_info(conn_info):
             user_agent = conn_info.headers[header]
     ip = real_ip or forwarded_for or conn_info.ip
     session_id = ''
-    if 'session.id' in conn_info.cookies.keys():
+    if 'session.id' in list(conn_info.cookies.keys()):
         session_id = conn_info.cookies['session.id'].value
     return ip, user_agent, session_id
 
@@ -133,7 +133,7 @@ class MistConnection(SockJSConnection):
         if path.startswith('/'):
             path = path[1:]
         if isinstance(params, dict):
-            params = params.items()
+            params = list(params.items())
         if params:
             path += '?' + '&'.join('%s=%s' % item
                                    for item in params)
@@ -142,7 +142,7 @@ class MistConnection(SockJSConnection):
             if resp.code == 200:
                 data = json.loads(resp.body)
                 if callback is None:
-                    print data
+                    print(data)
                 else:
                     callback(data)
             else:
@@ -167,7 +167,7 @@ class MistConnection(SockJSConnection):
                     'session_id'):
             if key in conn_dict:
                 parts.append(conn_dict.pop(key))
-        parts.extend(conn_dict.values())
+        parts.extend(list(conn_dict.values()))
         return ' - '.join(map(str, parts))
 
 
@@ -649,7 +649,7 @@ class LogsConnection(MistConnection):
         log.info('Received event from amqp')
         event.pop('_id', None)
         try:
-            for key, value in json.loads(event.pop('extra')).iteritems():
+            for key, value in json.loads(event.pop('extra')).items():
                 event[key] = value
         except:
             pass

@@ -60,7 +60,7 @@ def show_fields(measurement=None):
         for value in series['values']:  # eg. value = [u'load1', u'float']
             pairs = []
             column = value[0]
-            for key, values in tags[name].iteritems():
+            for key, values in tags[name].items():
                 if key in ('host', 'machine_id', ):
                     continue
                 pairs += ['%s=%s' % (key, value) for value in values]
@@ -85,7 +85,7 @@ def show_fields(measurement=None):
 def show_tags(measurement=None):
     """Return all tags associated with the specified measurement."""
     tags = {}
-    for series, keys in show_tag_keys(measurement).iteritems():
+    for series, keys in show_tag_keys(measurement).items():
         tags[series] = {}
         for key in keys:
             tags[series][key] = show_tag_values(key)

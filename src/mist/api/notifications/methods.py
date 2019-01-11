@@ -1,6 +1,13 @@
 import os
 import json
-import urllib
+
+# Python 2 and 3 support
+from future.standard_library import install_aliases
+install_aliases()
+import urllib.request
+import urllib.parse
+import urllib.error
+
 import logging
 
 from chameleon import PageTemplateFile
@@ -165,7 +172,7 @@ def suppress_nodata_alert(rule):
         token = {'token': encrypt(json.dumps(params))}
         mac_sign(token)
         return '%s/suppressed-alerts?%s' % (config.CORE_URI,
-                                            urllib.urlencode(token))
+                                            urllib.parse.urlencode(token))
 
     # Otherwise, suppress e-mail notification and notify the portal's admins.
     d = {

@@ -76,7 +76,7 @@ def add_key(request):
     key.assign_to(auth_context.user)
 
     if key_tags:
-        add_tags_to_resource(auth_context.owner, key, key_tags.items())
+        add_tags_to_resource(auth_context.owner, key, list(key_tags.items()))
     # since its a new key machines fields should be an empty list
 
     clouds = Cloud.objects(owner=auth_context.owner, deleted=None)
@@ -171,12 +171,12 @@ def delete_keys(request):
             report[key_id] = 'deleted'
 
     # if no key id was valid raise exception
-    if len(filter(lambda key_id: report[key_id] == 'not_found',
-                  report)) == len(key_ids):
+    if len([key_id for key_id in report
+            if report[key_id] == 'not_found']) == len(key_ids):
         raise NotFoundError('No valid key id provided')
     # if user was unauthorized for all keys
-    if len(filter(lambda key_id: report[key_id] == 'unauthorized',
-                  report)) == len(key_ids):
+    if len([key_id for key_id in report
+            if report[key_id] == 'unauthorized']) == len(key_ids):
         raise NotFoundError('Unauthorized to modify any of the keys')
     return report
 

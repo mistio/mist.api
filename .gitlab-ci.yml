@@ -12,6 +12,7 @@ build_mist_image:
   variables:
     GIT_SUBMODULE_STRATEGY: recursive
   script:
+    - docker pull mist/python3
     - docker build --rm -t gcr.io/mist-ops/mist:$CI_COMMIT_SHA --build-arg API_VERSION_SHA=$CI_COMMIT_SHA --build-arg API_VERSION_NAME=$CI_COMMIT_REF_NAME .
     - docker tag gcr.io/mist-ops/mist:$CI_COMMIT_SHA gcr.io/mist-ops/mist:$CI_COMMIT_REF_SLUG
     - docker tag gcr.io/mist-ops/mist:$CI_COMMIT_SHA mist/mist:$CI_COMMIT_SHA
@@ -32,7 +33,7 @@ generate_api_spec:
   before_script:
     - cd /mist.api
   script:
-    - python openapi/generate_api_spec.py
+    - python3 openapi/generate_api_spec.py
     - ls -l openapi
 
 
@@ -45,7 +46,7 @@ flake8:
   before_script:
     - cd /mist.api
   script:
-    - flake8
+    - flake8 --ignore=E402,E722
 
 uniq:
   stage: test

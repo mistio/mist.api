@@ -101,7 +101,7 @@ class BaseNetworkController(BaseController):
                         been saved in the database.
         :param kwargs:  A dict of parameters required for network creation.
         """
-        for key, value in kwargs.iteritems():
+        for key, value in kwargs.items():
             if key not in network._network_specific_fields:
                 raise mist.api.exceptions.BadRequestError(key)
             setattr(network, key, value)
@@ -168,7 +168,7 @@ class BaseNetworkController(BaseController):
                        been saved in the database.
         :param kwargs: A dict of parameters required for subnet creation.
         """
-        for key, value in kwargs.iteritems():
+        for key, value in kwargs.items():
             if key not in subnet._subnet_specific_fields:
                 raise mist.api.exceptions.BadRequestError(key)
             setattr(subnet, key, value)
@@ -321,7 +321,7 @@ class BaseNetworkController(BaseController):
                 log.exception('Error post-parsing %s: %s', network, exc)
 
             # Ensure JSON-encoding.
-            for key, value in network.extra.iteritems():
+            for key, value in network.extra.items():
                 try:
                     json.dumps(value)
                 except TypeError:
@@ -347,7 +347,7 @@ class BaseNetworkController(BaseController):
         ).update(missing_since=datetime.datetime.utcnow())
 
         # Update RBAC Mappings given the list of new networks.
-        self.cloud.owner.mapper.update(new_networks, async=False)
+        self.cloud.owner.mapper.update(new_networks, asynchronous=False)
 
         return networks
 
@@ -451,7 +451,7 @@ class BaseNetworkController(BaseController):
                 log.exception('Error while post-parsing %s: %s', subnet, exc)
 
             # Ensure JSON-encoding.
-            for key, value in subnet.extra.iteritems():
+            for key, value in subnet.extra.items():
                 try:
                     json.dumps(value)
                 except TypeError:

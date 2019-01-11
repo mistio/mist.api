@@ -176,7 +176,7 @@ class AmazonComputeController(BaseComputeController):
 
     def _list_images__fetch_images(self, search=None):
         default_images = config.EC2_IMAGES[self.cloud.region]
-        image_ids = default_images.keys() + self.cloud.starred
+        image_ids = list(default_images.keys()) + self.cloud.starred
         if not search:
             try:
                 # this might break if image_ids contains starred images
@@ -187,9 +187,8 @@ class AmazonComputeController(BaseComputeController):
                 for bad_id in bad_ids:
                     self.cloud.starred.remove(bad_id)
                 self.cloud.save()
-                images = self.connection.list_images(None,
-                                                     default_images.keys() +
-                                                     self.cloud.starred)
+                images = self.connection.list_images(
+                    None, list(default_images.keys()) + self.cloud.starred)
             for image in images:
                 if image.id in default_images:
                     image.name = default_images[image.id]
@@ -514,7 +513,7 @@ class AzureComputeController(BaseComputeController):
 
     def _connect(self):
         tmp_cert_file = tempfile.NamedTemporaryFile(delete=False)
-        tmp_cert_file.write(self.cloud.certificate)
+        tmp_cert_file.write(self.cloud.certificate.encode())
         tmp_cert_file.close()
         return get_driver(Provider.AZURE)(self.cloud.subscription_id,
                                           tmp_cert_file.name)
@@ -539,7 +538,7 @@ class AzureComputeController(BaseComputeController):
         for image in images:
             if image.name not in images_dict:
                 images_dict[image.name] = image
-        return images_dict.values()
+        return list(images_dict.values())
 
     def _cloud_service(self, machine_libcloud_id):
         """
@@ -632,7 +631,7 @@ class AzureArmComputeController(BaseComputeController):
         # Fetch mist's recommended images
         images = [NodeImage(id=image, name=name,
                             driver=self.connection, extra={})
-                  for image, name in config.AZURE_ARM_IMAGES.items()]
+                  for image, name in list(config.AZURE_ARM_IMAGES.items())]
         return images
 
     def _reboot_machine(self, machine, machine_libcloud):
@@ -649,9 +648,9 @@ class AzureArmComputeController(BaseComputeController):
         return size.extra.get('numberOfCores')
 
     def _list_sizes__get_name(self, size):
-            return size.name + ' ' + str(size.extra['numberOfCores']) \
-                             + ' cpus/' + str(size.ram / 1024) + 'G RAM/ ' \
-                             + str(size.disk) + 'GB SSD'
+        return size.name + ' ' + str(size.extra['numberOfCores']) \
+                         + ' cpus/' + str(size.ram / 1024) + 'G RAM/ ' \
+                         + str(size.disk) + 'GB SSD'
 
 
 class GoogleComputeController(BaseComputeController):
@@ -671,7 +670,7 @@ class GoogleComputeController(BaseComputeController):
 
         extra = copy.copy(machine_libcloud.extra)
 
-        for key in extra.keys():
+        for key in list(extra.keys()):
             if key in ['metadata']:
                 del extra[key]
         return extra
@@ -1115,15 +1114,15 @@ class DockerComputeController(BaseComputeController):
         # TLS authentication.
         if self.cloud.key_file and self.cloud.cert_file:
             key_temp_file = tempfile.NamedTemporaryFile(delete=False)
-            key_temp_file.write(self.cloud.key_file)
+            key_temp_file.write(self.cloud.key_file.encode())
             key_temp_file.close()
             cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
-            cert_temp_file.write(self.cloud.cert_file)
+            cert_temp_file.write(self.cloud.cert_file.encode())
             cert_temp_file.close()
             ca_cert = None
             if self.cloud.ca_cert_file:
                 ca_cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
-                ca_cert_temp_file.write(self.cloud.ca_cert_file)
+                ca_cert_temp_file.write(self.cloud.ca_cert_file.encode())
                 ca_cert_temp_file.close()
                 ca_cert = ca_cert_temp_file.name
 
@@ -1223,7 +1222,7 @@ class DockerComputeController(BaseComputeController):
         changed = False
         for attr, val in {'name': self.cloud.title,
                           'hostname': self.cloud.host,
-                          'machine_type': 'container-host'}.iteritems():
+                          'machine_type': 'container-host'}.items():
             if getattr(machine, attr) != val:
                 setattr(machine, attr, val)
                 changed = True
@@ -1314,7 +1313,7 @@ class DockerComputeController(BaseComputeController):
         images = [ContainerImage(id=image, name=name, path=None,
                                  version=None, driver=self.connection,
                                  extra={})
-                  for image, name in config.DOCKER_IMAGES.items()]
+                  for image, name in list(config.DOCKER_IMAGES.items())]
         # Add starred images
         images += [ContainerImage(id=image, name=image, path=None,
                                   version=None, driver=self.connection,
@@ -1565,7 +1564,7 @@ class OnAppComputeController(BaseComputeController):
         for param in kwargs:
             if param in ['memory', 'cpus', 'cpu_shares', 'cpu_units'] \
                     and kwargs[param]:
-                    valid_kwargs[param] = kwargs[param]
+                valid_kwargs[param] = kwargs[param]
         try:
             return self.connection.ex_resize_node(machine_libcloud,
                                                   **valid_kwargs)
