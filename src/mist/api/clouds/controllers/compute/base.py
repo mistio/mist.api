@@ -320,8 +320,11 @@ class BaseComputeController(BaseController):
                 machine = Machine.objects.get(cloud=self.cloud,
                                               machine_id=node.id)
             except Machine.DoesNotExist:
-                machine = Machine(cloud=self.cloud, machine_id=node.id).save()
-                new_machines.append(machine)
+                try:
+                    machine = Machine(cloud=self.cloud, machine_id=node.id).save()
+                    new_machines.append(machine)
+                except me.ValidationError:
+                    pass
 
             # Update machine_model's last_seen fields.
             machine.last_seen = now
