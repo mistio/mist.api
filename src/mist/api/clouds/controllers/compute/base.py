@@ -321,7 +321,8 @@ class BaseComputeController(BaseController):
                                               machine_id=node.id)
             except Machine.DoesNotExist:
                 try:
-                    machine = Machine(cloud=self.cloud, machine_id=node.id).save()
+                    machine = Machine(
+                        cloud=self.cloud, machine_id=node.id).save()
                     new_machines.append(machine)
                 except me.ValidationError:
                     pass
