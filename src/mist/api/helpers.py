@@ -710,7 +710,9 @@ rtype_to_classpath = {
     'schedule': 'mist.api.schedules.models.Schedule',
     'network': 'mist.api.networks.models.Network',
     'subnet': 'mist.api.networks.models.Subnet',
-    'volume': 'mist.api.volumes.models.Volume'
+    'volume': 'mist.api.volumes.models.Volume',
+    'location': 'mist.api.clouds.models.CloudLocation',
+    'image': 'mist.api.clouds.models.CloudImage',
 }
 
 if config.HAS_VPN:
