@@ -224,6 +224,9 @@ class SSHProbe(me.EmbeddedDocument):
 
         for strarr_attr in ('pub_ips', 'priv_ips', 'macs'):
             val = data.get(strarr_attr)
+            # macs may come in dicts that map ip to mac
+            if strarr_attr == 'macs' and isinstance(val, dict):
+                val = list(val.values())
             try:
                 assert isinstance(val, list)
                 assert all(isinstance(item, string_types) for item in val)
