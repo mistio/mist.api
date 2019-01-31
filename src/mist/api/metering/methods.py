@@ -118,7 +118,7 @@ def _parse_checks_or_datapoints_series(results, field, owner_id=''):
     # Backfill missing points with None.
     for start_iso, result in results:
         for values in list(data.values()):
-            timestamps = set(zip(*values)[0])
+            timestamps = set(v[0] for v in values)
             if start_iso not in timestamps:
                 values.append([start_iso, None])
 
