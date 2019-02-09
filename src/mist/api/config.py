@@ -418,6 +418,8 @@ INFLUXDB_MACHINE_DASHBOARD_DEFAULT = {
                     "format": "B/s"
                 }]
             }],
+        }, {
+            "panels": []
         }],
         "time": {
             "from": "now-10m",
