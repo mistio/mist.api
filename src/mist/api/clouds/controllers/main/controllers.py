@@ -20,6 +20,7 @@ See `mist.api.clouds.controllers.main.base` for more information.
 """
 
 
+import datetime
 import uuid
 import json
 import socket
@@ -39,20 +40,21 @@ from mist.api.exceptions import MachineUnauthorizedError
 from mist.api.exceptions import RequiredParameterMissingError
 
 from mist.api.helpers import sanitize_host, check_host
+from mist.api.helpers import amqp_owner_listening
 
 from mist.api.keys.models import Key
-from mist.api.machines.models import Machine
 
 from mist.api.helpers import rename_kwargs
 from mist.api.clouds.controllers.main.base import BaseMainController
 from mist.api.clouds.controllers.compute import controllers as compute_ctls
 from mist.api.clouds.controllers.network import controllers as network_ctls
 from mist.api.clouds.controllers.dns import controllers as dns_ctls
+from mist.api.clouds.controllers.storage import controllers as storage_ctls
 
 from mist.api import config
 
-if config.HAS_CORE:
-    from mist.core.vpn.methods import to_tunnel
+if config.HAS_VPN:
+    from mist.vpn.methods import to_tunnel
 else:
     from mist.api.dummy.methods import to_tunnel
 
@@ -66,6 +68,7 @@ class AmazonMainController(BaseMainController):
     ComputeController = compute_ctls.AmazonComputeController
     NetworkController = network_ctls.AmazonNetworkController
     DnsController = dns_ctls.AmazonDNSController
+    StorageController = storage_ctls.AmazonStorageController
 
     def _add__preparse_kwargs(self, kwargs):
         # Autofill apisecret from other Amazon Cloud.
@@ -79,11 +82,26 @@ class AmazonMainController(BaseMainController):
                 kwargs['apisecret'] = cloud.apisecret
 
 
+class AlibabaMainController(AmazonMainController):
+
+    provider = 'aliyun_ecs'
+    ComputeController = compute_ctls.AlibabaComputeController
+    NetworkController = None
+    DnsController = None
+
+
+class ClearAPIMainController(BaseMainController):
+
+    provider = 'clearapi'
+    ComputeController = compute_ctls.ClearAPIComputeController
+
+
 class DigitalOceanMainController(BaseMainController):
 
     provider = 'digitalocean'
     ComputeController = compute_ctls.DigitalOceanComputeController
     DnsController = dns_ctls.DigitalOceanDNSController
+    StorageController = storage_ctls.DigitalOceanStorageController
 
 
 class LinodeMainController(BaseMainController):
@@ -132,6 +150,7 @@ class AzureMainController(BaseMainController):
 
     provider = 'azure'
     ComputeController = compute_ctls.AzureComputeController
+    StorageController = storage_ctls.AzureStorageController
 
 
 class AzureArmMainController(BaseMainController):
@@ -139,6 +158,7 @@ class AzureArmMainController(BaseMainController):
     provider = 'azure_arm'
     ComputeController = compute_ctls.AzureArmComputeController
     NetworkController = network_ctls.AzureArmNetworkController
+    StorageController = storage_ctls.AzureArmStorageController
 
 
 class GoogleMainController(BaseMainController):
@@ -147,6 +167,7 @@ class GoogleMainController(BaseMainController):
     ComputeController = compute_ctls.GoogleComputeController
     NetworkController = network_ctls.GoogleNetworkController
     DnsController = dns_ctls.GoogleDNSController
+    StorageController = storage_ctls.GoogleStorageController
 
     def _update__preparse_kwargs(self, kwargs):
         private_key = kwargs.get('private_key', self.cloud.private_key)
@@ -188,6 +209,7 @@ class VSphereMainController(BaseMainController):
 
     provider = 'vsphere'
     ComputeController = compute_ctls.VSphereComputeController
+    NetworkController = network_ctls.VSphereNetworkController
 
     def _update__preparse_kwargs(self, kwargs):
         host = kwargs.get('host', self.cloud.host)
@@ -223,6 +245,7 @@ class OpenStackMainController(BaseMainController):
     provider = 'openstack'
     ComputeController = compute_ctls.OpenStackComputeController
     NetworkController = network_ctls.OpenStackNetworkController
+    StorageController = storage_ctls.OpenstackStorageController
 
     def _update__preparse_kwargs(self, kwargs):
         rename_kwargs(kwargs, 'auth_url', 'url')
@@ -258,6 +281,7 @@ class LibvirtMainController(BaseMainController):
 
     provider = 'libvirt'
     ComputeController = compute_ctls.LibvirtComputeController
+    NetworkController = network_ctls.LibvirtNetworkController
 
     def _add__preparse_kwargs(self, kwargs):
         rename_kwargs(kwargs, 'machine_hostname', 'host')
@@ -286,6 +310,7 @@ class LibvirtMainController(BaseMainController):
         # changing the cloud's host.
         # FIXME: Add type field to differentiate between actual vm's and the
         # host.
+        from mist.api.machines.models import Machine
 
         try:
             machine = Machine.objects.get(cloud=self.cloud,
@@ -408,7 +433,7 @@ class OtherMainController(BaseMainController):
             kwargs['os_type'] = 'unix'
         kwargs.pop('operating_system', None)
         errors = {}
-        for key in kwargs.keys():
+        for key in list(kwargs.keys()):
             if key not in ('host', 'ssh_user', 'ssh_port', 'ssh_key',
                            'os_type', 'rdp_port'):
                 error = "Invalid parameter %s=%r." % (key, kwargs[key])
@@ -417,17 +442,17 @@ class OtherMainController(BaseMainController):
                 else:
                     log.warning(error)
                     kwargs.pop(key)
-        if not name:
-            errors['name'] = "Required parameter name missing"
-            log.error(errors['name'])
         if 'host' not in kwargs:
             errors['host'] = "Required parameter host missing"
             log.error(errors['host'])
 
+        if not name:
+            name = kwargs['host']
+
         if errors:
-            log.error("Invalid parameters %s." % errors.keys())
+            log.error("Invalid parameters %s." % list(errors.keys()))
             raise BadRequestError({
-                'msg': "Invalid parameters %s." % errors.keys(),
+                'msg': "Invalid parameters %s." % list(errors.keys()),
                 'errors': errors,
             })
 
@@ -452,6 +477,10 @@ class OtherMainController(BaseMainController):
 
         This is a special method that exists only on this Cloud subclass.
         """
+
+        old_machines = [m.as_dict() for m in
+                        self.cloud.ctl.compute.list_cached_machines()]
+
         # FIXME: Move ssh command to Machine controller once it is migrated.
         from mist.api.methods import ssh_command
 
@@ -467,6 +496,7 @@ class OtherMainController(BaseMainController):
             ssh_key = Key.objects.get(owner=self.cloud.owner, id=ssh_key,
                                       deleted=None)
 
+        from mist.api.machines.models import Machine
         # Create and save machine entry to database.
         machine = Machine(
             cloud=self.cloud,
@@ -474,7 +504,8 @@ class OtherMainController(BaseMainController):
             machine_id=uuid.uuid4().hex,
             os_type=os_type,
             ssh_port=ssh_port,
-            rdp_port=rdp_port
+            rdp_port=rdp_port,
+            last_seen=datetime.datetime.utcnow()
         )
         if host:
             # Sanitize inputs.
@@ -486,7 +517,7 @@ class OtherMainController(BaseMainController):
                 machine.private_ips = [host]
             else:
                 machine.public_ips = [host]
-        machine.save()
+        machine.save(write_concern={'w': 1, 'fsync': True})
 
         # Attempt to connect.
         if os_type == 'unix' and ssh_key:
@@ -515,4 +546,16 @@ class OtherMainController(BaseMainController):
                 if fail_on_error:
                     machine.delete()
                 raise
+
+        if amqp_owner_listening(self.cloud.owner.id):
+            new_machines = self.cloud.ctl.compute.list_cached_machines()
+            self.cloud.ctl.compute.produce_and_publish_patch(
+                old_machines, new_machines)
+
         return machine
+
+
+class ClearCenterMainController(BaseMainController):
+
+    provider = 'clearcenter'
+    ComputeController = compute_ctls.ClearCenterComputeController

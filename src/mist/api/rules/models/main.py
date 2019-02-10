@@ -2,11 +2,11 @@ import uuid
 import celery
 import mongoengine as me
 
-from mist.api.exceptions import NotFoundError
+from mist.api import config
+
 from mist.api.exceptions import BadRequestError
 
 from mist.api.users.models import Organization
-from mist.api.machines.models import Machine
 from mist.api.conditions.models import ConditionalClassMixin
 
 from mist.api.rules.base import NoDataRuleController
@@ -17,11 +17,14 @@ from mist.api.rules.models import Window
 from mist.api.rules.models import Frequency
 from mist.api.rules.models import TriggerOffset
 from mist.api.rules.models import QueryCondition
-from mist.api.rules.actions import BaseAlertAction
-from mist.api.rules.actions import NotificationAction
+from mist.api.rules.models import BaseAlertAction
+from mist.api.rules.models import NotificationAction
 
 from mist.api.rules.plugins import GraphiteNoDataPlugin
 from mist.api.rules.plugins import GraphiteBackendPlugin
+from mist.api.rules.plugins import InfluxDBNoDataPlugin
+from mist.api.rules.plugins import InfluxDBBackendPlugin
+from mist.api.rules.plugins import ElasticSearchBackendPlugin
 
 
 class Rule(me.Document):
@@ -101,6 +104,7 @@ class Rule(me.Document):
     last_run_at = me.DateTimeField()
     run_immediately = me.BooleanField()
     total_run_count = me.IntField(min_value=0, default=0)
+    total_check_count = me.IntField(min_value=0, default=0)
 
     # Field updated by celery workers. This is where celery workers keep state.
     states = me.MapField(field=me.EmbeddedDocumentField(RuleState))
@@ -121,6 +125,7 @@ class Rule(me.Document):
 
     _controller_cls = None
     _backend_plugin = None
+    _data_type_str = None
 
     def __init__(self, *args, **kwargs):
         super(Rule, self).__init__(*args, **kwargs)
@@ -138,10 +143,18 @@ class Rule(me.Document):
                 "in order to evaluate rules against the corresponding backend "
                 "storage." % self.__class__.__name__
             )
+        if self._data_type_str not in ('metrics', 'logs', ):
+            raise TypeError(
+                "Cannot instantiate self. %s is a base class and cannot be "
+                "used to insert or update rules. Use a subclass of self that "
+                "defines a `_backend_plugin` class attribute, as well as the "
+                "requested data's type via the `_data_type_str` attribute, "
+                "instead." % self.__class__.__name__
+            )
         self.ctl = self._controller_cls(self)
 
     @classmethod
-    def add(cls, owner_id, title=None, **kwargs):
+    def add(cls, auth_context, title=None, **kwargs):
         """Add a new Rule.
 
         New rules should be added by invoking this class method on a Rule
@@ -156,16 +169,13 @@ class Rule(me.Document):
 
         """
         try:
-            Organization.objects.get(id=owner_id)
-        except Organization.DoesNotExist:
-            raise NotFoundError('Organization %s does not exist' % owner_id)
-        try:
-            cls.objects.get(owner_id=owner_id, title=title)
+            cls.objects.get(owner_id=auth_context.owner.id, title=title)
         except cls.DoesNotExist:
-            rule = cls(owner_id=owner_id, title=title)
+            rule = cls(owner_id=auth_context.owner.id, title=title)
+            rule.ctl.set_auth_context(auth_context)
+            rule.ctl.add(**kwargs)
         else:
             raise BadRequestError('Title "%s" is already in use' % title)
-        rule.ctl.add(**kwargs)
         return rule
 
     @property
@@ -243,15 +253,6 @@ class Rule(me.Document):
         """
         return celery.schedules.schedule(self.frequency.timedelta)
 
-    def get_action(self, action_id):
-        """Return the action given its UUID.
-
-        If the action does not exist, a me.DoesNotExist exception will be
-        thrown. Exception handling should be taken care of by the caller.
-
-        """
-        return self.actions.get(id=action_id)
-
     def is_arbitrary(self):
         """Return True if self is arbitrary.
 
@@ -280,6 +281,7 @@ class Rule(me.Document):
             'trigger_after': self.trigger_after.as_dict(),
             'actions': [action.as_dict() for action in self.actions],
             'disabled': self.disabled,
+            'data_type': self._data_type_str,
         }
 
     def __str__(self):
@@ -327,16 +329,19 @@ class ResourceRule(Rule, ConditionalClassMixin):
         return (super(ResourceRule, self).enabled and
                 bool(self.get_resources().count()))
 
+    def clean(self):
+        # Enforce singular resource types for uniformity.
+        if self.resource_model_name.endswith('s'):
+            self.resource_model_name = self.resource_model_name[:-1]
+        super(ResourceRule, self).clean()
+
     def as_dict(self):
         d = super(ResourceRule, self).as_dict()
-        d['conditions'] = [cond.as_dict() for cond in self.conditions]
+        d['selectors'] = [cond.as_dict() for cond in self.conditions]
+        d['resource_type'] = self.resource_model_name
         return d
 
     # FIXME All following properties are for backwards compatibility.
-
-    @property
-    def rule_id(self):
-        return self.title
 
     @property
     def metric(self):
@@ -363,18 +368,6 @@ class ResourceRule(Rule, ConditionalClassMixin):
         return self.frequency.timedelta.total_seconds() - 60
 
     @property
-    def machine(self):
-        machines = self.get_resources()
-        assert machines.count() is 1
-        return machines.first().machine_id
-
-    @property
-    def cloud(self):
-        machines = self.get_resources()
-        assert machines.count() is 1
-        return machines.first().cloud.id
-
-    @property
     def action(self):
         for action in reversed(self.actions):
             if action.atype == 'command':
@@ -384,56 +377,42 @@ class ResourceRule(Rule, ConditionalClassMixin):
             if action.atype == 'notification':
                 return 'alert'
 
-    @property
-    def emails(self):
-        emails = []
-        for action in self.actions:
-            if action.atype == 'notification':
-                emails = action.emails
-        return emails
-
-    @property
-    def command(self):
-        command = ''
-        for action in self.actions:
-            if action.atype == 'command':
-                command = action.command
-        return command
-
-    def as_dict_old(self):
-        return {
-            '_id': {'$oid': self.id},
-            'metric': self.metric,
-            'value': self.value,
-            'operator': self.operator,
-            'aggregate': self.aggregate,
-            'reminder_offset': self.reminder_offset,
-            'emails': self.emails,
-            'action': self.action,
-            'command': self.command,
-            'machine': self.machine,
-            'cloud': self.cloud,
-        }
-
 
 class MachineMetricRule(ResourceRule):
 
-    condition_resource_cls = Machine
-    _backend_plugin = GraphiteBackendPlugin
+    _data_type_str = 'metrics'
+
+    @property
+    def _backend_plugin(self):
+        if config.DEFAULT_MONITORING_METHOD.endswith('-graphite'):
+            return GraphiteBackendPlugin
+        if config.DEFAULT_MONITORING_METHOD.endswith('-influxdb'):
+            return InfluxDBBackendPlugin
+        raise Exception()
+
+    def clean(self):
+        super(MachineMetricRule, self).clean()
+        if self.resource_model_name != 'machine':
+            raise me.ValidationError(
+                'Invalid resource type "%s". %s can only operate on machines' %
+                (self.resource_model_name, self.__class__.__name__))
 
 
 class NoDataRule(MachineMetricRule):
 
     _controller_cls = NoDataRuleController
-    _backend_plugin = GraphiteNoDataPlugin
+
+    @property
+    def _backend_plugin(self):
+        if config.DEFAULT_MONITORING_METHOD.endswith('-graphite'):
+            return GraphiteNoDataPlugin
+        if config.DEFAULT_MONITORING_METHOD.endswith('-influxdb'):
+            return InfluxDBNoDataPlugin
+        raise Exception()
 
     # FIXME All following properties are for backwards compatibility.
     # However, this rule is not meant to match any queries, but to be
     # used internally, thus the `None`s.
-
-    @property
-    def rule_id(self):
-        return self.title
 
     @property
     def metric(self):
@@ -456,24 +435,67 @@ class NoDataRule(MachineMetricRule):
         return None
 
     @property
-    def machine(self):
-        return None
-
-    @property
-    def cloud(self):
-        return None
-
-    @property
     def action(self):
         return ''
 
-    @property
-    def emails(self):
-        return []
 
-    @property
-    def command(self):
-        return ''
+class ResourceLogsRule(ResourceRule):
 
-    def as_dict_old(self):
-        return {}
+    _data_type_str = 'logs'
+    _backend_plugin = ElasticSearchBackendPlugin
+
+    def clean(self):
+        super(ResourceLogsRule, self).clean()
+        if not (
+            len(self.actions) is 1 and
+            isinstance(self.actions[0], NotificationAction)
+        ):
+            raise me.ValidationError('Only a single notification action may '
+                                     'be performed by this type of rule')
+
+
+class ArbitraryLogsRule(ArbitraryRule):
+
+    _data_type_str = 'logs'
+    _backend_plugin = ElasticSearchBackendPlugin
+
+    def clean(self):
+        super(ArbitraryLogsRule, self).clean()
+        if not (
+            len(self.actions) is 1 and
+            isinstance(self.actions[0], NotificationAction)
+        ):
+            raise me.ValidationError('Only a single notification action may '
+                                     'be performed by this type of rule')
+
+
+def _populate_rules():
+    """Populate RULES with mappings from rule type to rule subclass.
+
+    RULES is a mapping (dict) from rule types to subclasses of Rule.
+    A rule's type is the concat of two strings: <str1>-<str2>, where
+    str1 denotes whether the rule is arbitrary or not and str2 equals
+    the `_data_type_str` class attribute of the rule, which is simply
+    the type of the requesting data, like logs or monitoring metrics.
+
+    The aforementioned concatenation is simply a way to categorize a
+    rule, such as saying a rule on arbitrary logs or a resource-bound
+    rule referring to the monitoring data of machine A.
+
+    """
+    public_rule_map = {}
+    hidden_rule_cls = (ArbitraryRule, ResourceRule, NoDataRule, )
+    for key, value in list(globals().items()):
+        if not key.endswith('Rule'):
+            continue
+        if value in hidden_rule_cls:
+            continue
+        if not issubclass(value, (ArbitraryRule, ResourceRule, )):
+            continue
+        str1 = 'resource' if issubclass(value, ResourceRule) else 'arbitrary'
+        rule_key = '%s-%s' % (str1, value._data_type_str)
+        public_rule_map[rule_key] = value
+    return public_rule_map
+
+
+RULES = _populate_rules()

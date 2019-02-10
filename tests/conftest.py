@@ -33,12 +33,12 @@ def load_clouds_from_config():
 
     path = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                         'clouds.yaml')
-    print "Loading clouds from %s." % path
+    print("Loading clouds from %s." % path)
     with open(path) as fobj:
         clouds = yaml.load(fobj)
     if not isinstance(clouds, list):
         raise TypeError("Configuration in '%s' is expected to be a list, "
-                        "not %s." % path, type(settings))
+                        "not %s." % (path, type(clouds)))
     for cdict in clouds:
         if not isinstance(cdict, dict):
             raise TypeError("Cloud configuration is not a dict: %r" % cdict)
@@ -48,16 +48,16 @@ def load_clouds_from_config():
                              "`provider`: %s" % cdict)
         if provider not in models.CLOUDS:
             raise KeyError("Invalid provider '%s', must be in %s." %
-                           (provider, models.CLOUDS.keys()))
+                           (provider, list(models.CLOUDS.keys())))
         if 'name' not in cdict:
             cdict['name'] = provider
-    print "Loaded %d clouds." % len(clouds)
+    print("Loaded %d clouds." % len(clouds))
     return clouds
 
 
 CLOUDS = load_clouds_from_config()
 CLOUD_NAMES = [cdict['name'] for cdict in CLOUDS]
-CREDS = {cdict['name']:cdict.get('creds') for cdict in CLOUDS}
+CREDS = {cdict['name']: cdict.get('creds') for cdict in CLOUDS}
 
 # TODO: Need to add the scripts.yaml file
 # @pytest.fixture
@@ -104,7 +104,7 @@ def org(request):
     """Fixture to create an organization with proper clean up"""
 
     name = uuid.uuid4().hex
-    print "Creating org '%s'." % name
+    print("Creating org '%s'." % name)
     user = User(email='%s@example.com' % name)
     user.save()
     org = Organization(name=name)
@@ -115,10 +115,10 @@ def org(request):
         """Finalizer to clean up organization after tests"""
         while org.members:
             user = org.members[0]
-            print "Deleting user '%s'." % user
+            print("Deleting user '%s'." % user)
             org.remove_member_from_members(user)
             user.delete()
-        print "Deleting org '%s'." % name
+        print("Deleting org '%s'." % name)
         org.delete()
 
     request.addfinalizer(fin)
@@ -133,13 +133,13 @@ def key(request, org):
     key = SSHKey()
     key.ctl.generate()
     name = uuid.uuid4().hex
-    print "Creating key '%s'." % name
+    print("Creating key '%s'." % name)
     kwargs = {'public': key.public, 'private': key.private}
     key = SSHKey.add(org, name, **kwargs)
 
     def fin():
         """Finalizer to clean up organization after tests"""
-        print "Deleting key '%s'." % name
+        print("Deleting key '%s'." % name)
         key.delete()
 
     request.addfinalizer(fin)
@@ -194,12 +194,12 @@ def cloud(request, org):
     cdict = request.param
     name = cdict['name']
     cls = models.CLOUDS[cdict['provider']]
-    print "Creating cloud '%s'." % name
+    print("Creating cloud '%s'." % name)
     cloud = cls.add(org, name, **cdict['fields'])
 
     def fin():
         """Finalizer clean up cloud after tests"""
-        print "Deleting cloud '%s'." % name
+        print("Deleting cloud '%s'." % name)
         cloud.delete()
 
     request.addfinalizer(fin)
@@ -210,7 +210,7 @@ def cloud(request, org):
 @pytest.fixture
 def load_staging_l_machines():
     path = os.path.join(TEST_DIR, 'list_machines.json')
-    print "Reading machines from path '%s'." % path
+    print("Reading machines from path '%s'." % path)
     with open(path) as fobj:
         return json.load(fobj)
 
@@ -218,7 +218,7 @@ def load_staging_l_machines():
 @pytest.fixture
 def load_staging_l_locations():
     path = os.path.join(TEST_DIR, 'list_locations.json')
-    print "Reading locations from path '%s'." % path
+    print("Reading locations from path '%s'." % path)
     with open(path) as fobj:
         return json.load(fobj)
 
@@ -226,7 +226,7 @@ def load_staging_l_locations():
 @pytest.fixture
 def load_staging_l_sizes():
     path = os.path.join(TEST_DIR, 'list_sizes.json')
-    print "Reading sizes from path '%s'." % path
+    print("Reading sizes from path '%s'." % path)
     with open(path) as fobj:
         return json.load(fobj)
 
@@ -234,7 +234,7 @@ def load_staging_l_sizes():
 @pytest.fixture
 def load_staging_l_images():
     path = os.path.join(TEST_DIR, 'list_images.json')
-    print "Reading images from path '%s'." % path
+    print("Reading images from path '%s'." % path)
     with open(path) as fobj:
         return json.load(fobj)
 
@@ -242,7 +242,7 @@ def load_staging_l_images():
 @pytest.fixture
 def load_staging_l_zones():
     path = os.path.join(TEST_DIR, 'list_zones.json')
-    print "Reading zones from path '%s'." % path
+    print("Reading zones from path '%s'." % path)
     with open(path) as fobj:
         return json.load(fobj)
 
@@ -250,7 +250,7 @@ def load_staging_l_zones():
 @pytest.fixture
 def load_staging_l_records():
     path = os.path.join(TEST_DIR, 'list_records.json')
-    print "Reading records from path '%s'." % path
+    print("Reading records from path '%s'." % path)
     with open(path) as fobj:
         return json.load(fobj)
 
@@ -258,6 +258,6 @@ def load_staging_l_records():
 @pytest.fixture
 def load_logs():
     path = os.path.join(TEST_DIR, 'logs.json')
-    print "Reading logs from path '%s'." % path
+    print("Reading logs from path '%s'." % path)
     with open(path) as fobj:
         return json.load(fobj)

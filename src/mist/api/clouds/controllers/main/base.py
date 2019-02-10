@@ -32,6 +32,7 @@ from mist.api.clouds.controllers.network.base import BaseNetworkController
 
 from mist.api.clouds.controllers.compute.base import BaseComputeController
 from mist.api.clouds.controllers.dns.base import BaseDNSController
+from mist.api.clouds.controllers.storage.base import BaseStorageController
 
 
 log = logging.getLogger(__name__)
@@ -81,6 +82,7 @@ class BaseMainController(object):
     ComputeController = None
     NetworkController = None
     DnsController = None
+    StorageController = None
 
     def __init__(self, cloud):
         """Initialize main cloud controller given a cloud
@@ -114,6 +116,11 @@ class BaseMainController(object):
         if self.NetworkController is not None:
             assert issubclass(self.NetworkController, BaseNetworkController)
             self.network = self.NetworkController(self)
+
+        # Initialize storage controller.
+        if self.StorageController is not None:
+            assert issubclass(self.StorageController, BaseStorageController)
+            self.storage = self.StorageController(self)
 
     def add(self, fail_on_error=True, fail_on_invalid_params=True, **kwargs):
         """Add new Cloud to the database
@@ -168,6 +175,9 @@ class BaseMainController(object):
             Machine.objects(cloud=self.cloud).delete()
             # Propagate original error.
             raise
+
+        # Add relevant polling schedules.
+        self.add_polling_schedules()
 
     def _add__preparse_kwargs(self, kwargs):
         """Preparse keyword arguments to `self.add`
@@ -226,7 +236,7 @@ class BaseMainController(object):
 
         # Check for invalid `kwargs` keys.
         errors = {}
-        for key in kwargs.keys():
+        for key in list(kwargs.keys()):
             if key not in self.cloud._cloud_specific_fields:
                 error = "Invalid parameter %s=%r." % (key, kwargs[key])
                 if fail_on_invalid_params:
@@ -237,12 +247,12 @@ class BaseMainController(object):
         if errors:
             log.error("Error updating %s: %s", self.cloud, errors)
             raise BadRequestError({
-                'msg': "Invalid parameters %s." % errors.keys(),
+                'msg': "Invalid parameters %s." % list(errors.keys()),
                 'errors': errors,
             })
 
         # Set fields to cloud model and perform early validation.
-        for key, value in kwargs.iteritems():
+        for key, value in kwargs.items():
             setattr(self.cloud, key, value)
         try:
             self.cloud.validate(clean=True)
@@ -304,16 +314,20 @@ class BaseMainController(object):
     def enable(self):
         self.cloud.enabled = True
         self.cloud.save()
+        self.add_polling_schedules()
 
     def disable(self):
         self.cloud.enabled = False
         self.cloud.save()
-        # FIXME: Circular dependency.
-        from mist.api.machines.models import Machine
-        Machine.objects(cloud=self.cloud,
-                        missing_since=None).update(
-            missing_since=datetime.datetime.now()
-        )
+        # We schedule a task to set the `missing_since` of resources associated
+        # with `self.cloud` with a small delay. Since the poller syncs with the
+        # db every 20 sec, there is a good chance that the poller will not pick
+        # up the change to `self.cloud.enabled` in time to stop scheduling
+        # further polling tasks. This may result in `missing_since` being reset
+        # to `None`. For that, we schedule a task in the future to ensure that
+        # celery has executed all respective poller tasks first.
+        from mist.api.tasks import set_missing_since
+        set_missing_since.apply_async((self.cloud.id, ), countdown=30)
 
     def dns_enable(self):
         self.cloud.dns_enabled = True
@@ -332,16 +346,53 @@ class BaseMainController(object):
         self.cloud.polling_interval = interval
         self.cloud.save()
 
-        # FIXME: Resolve circular import issues
+    def add_polling_schedules(self):
+        """Add all the relevant cloud polling schedules
+
+        This method simply adds all relevant polling schedules and sets
+        their default settings. See the `mist.api.tasks.update_poller`
+        task for dynamically adding new polling schedules or updating
+        existing ones.
+
+        """
+
+        # FIXME Imported here due to circular dependency issues.
         from mist.api.poller.models import ListMachinesPollingSchedule
         from mist.api.poller.models import ListLocationsPollingSchedule
         from mist.api.poller.models import ListSizesPollingSchedule
         from mist.api.poller.models import ListImagesPollingSchedule
+        from mist.api.poller.models import ListNetworksPollingSchedule
+        from mist.api.poller.models import ListZonesPollingSchedule
+        from mist.api.poller.models import ListVolumesPollingSchedule
 
+        # Add machines' polling schedule.
         ListMachinesPollingSchedule.add(cloud=self.cloud)
         ListLocationsPollingSchedule.add(cloud=self.cloud)
         ListSizesPollingSchedule.add(cloud=self.cloud)
         ListImagesPollingSchedule.add(cloud=self.cloud)
+
+        # Add networks' polling schedule, if applicable.
+        if hasattr(self.cloud.ctl, 'network'):
+            ListNetworksPollingSchedule.add(cloud=self.cloud)
+
+        # Add zones' polling schedule, if applicable.
+        if hasattr(self.cloud.ctl, 'dns') and self.cloud.dns_enabled:
+            ListZonesPollingSchedule.add(cloud=self.cloud)
+
+        # Add volumes' polling schedule, if applicable.
+        if hasattr(self.cloud.ctl, 'storage'):
+            ListVolumesPollingSchedule.add(cloud=self.cloud)
+
+        # Add extra cloud-level polling schedules with lower frequency. Such
+        # schedules poll resources that should hardly ever change. Thus, we
+        # add the schedules, increase their interval, and forget about them.
+        schedule = ListLocationsPollingSchedule.add(cloud=self.cloud)
+        schedule.set_default_interval(60 * 60 * 24)
+        schedule.save()
+
+        schedule = ListSizesPollingSchedule.add(cloud=self.cloud)
+        schedule.set_default_interval(60 * 60 * 24)
+        schedule.save()
 
     def delete(self, expire=False):
         """Delete a Cloud.
@@ -350,14 +401,18 @@ class BaseMainController(object):
         but rather marked as deleted.
 
         :param expire: if True, the document is expired from its collection.
+
         """
-        self.cloud.deleted = datetime.datetime.utcnow()
-        self.cloud.save()
         if expire:
-            # FIXME: Circular dependency.
+            # FIXME: Set reverse_delete_rule=me.CASCADE?
             from mist.api.machines.models import Machine
             Machine.objects(cloud=self.cloud).delete()
             self.cloud.delete()
+        else:
+            from mist.api.tasks import set_missing_since
+            self.cloud.deleted = datetime.datetime.utcnow()
+            self.cloud.save()
+            set_missing_since.apply_async((self.cloud.id, ), countdown=30)
 
     def disconnect(self):
         self.compute.disconnect()

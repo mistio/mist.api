@@ -4,16 +4,18 @@ from uuid import uuid4
 import mongoengine as me
 import mist.api.tag.models
 from Crypto.PublicKey import RSA
+
 from mist.api.users.models import Owner
 from mist.api.exceptions import BadRequestError
 from mist.api.keys import controllers
 from mist.api.keys.base import BaseKeyController
 from mist.api.exceptions import RequiredParameterMissingError
+from mist.api.ownership.mixins import OwnershipMixin
 
 log = logging.getLogger(__name__)
 
 
-class Key(me.Document):
+class Key(OwnershipMixin, me.Document):
     """Abstract base class for every key/machine attr mongoengine model.
 
     This class defines the fields common to all keys of all types. For each
@@ -125,6 +127,8 @@ class Key(me.Document):
         super(Key, self).delete()
         mist.api.tag.models.Tag.objects(resource=self).delete()
         self.owner.mapper.remove(self)
+        if self.owned_by:
+            self.owned_by.get_ownership_mapper(self.owner).remove(self)
 
     def as_dict(self):
         # Return a dict as it will be returned to the API
@@ -133,6 +137,8 @@ class Key(me.Document):
             'name': self.name,
             'owner': self.owner.id,
             'default': self.default,
+            'owned_by': self.owned_by.id if self.owned_by else '',
+            'created_by': self.created_by.id if self.created_by else '',
         }
 
         mdict.update({key: getattr(self, key)
@@ -166,7 +172,7 @@ class SSHKey(Key):
         # Generate public key from private key file.
         try:
             key = RSA.importKey(self.private)
-            self.public = key.publickey().exportKey('OpenSSH')
+            self.public = key.publickey().exportKey('OpenSSH').decode()
         except Exception:
             log.exception("Error while constructing public key "
                           "from private.")

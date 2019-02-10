@@ -1,6 +1,5 @@
 """Definition of DNS Zone and Record mongoengine models"""
 
-import re
 import uuid
 import ipaddress as ip
 
@@ -11,9 +10,9 @@ from mist.api.clouds.models import Cloud
 from mist.api.users.models import Organization
 from mist.api.dns.controllers import ZoneController, RecordController
 from mist.api.clouds.controllers.dns.base import BaseDNSController
+from mist.api.ownership.mixins import OwnershipMixin
 
 from mist.api.exceptions import BadRequestError
-from mist.api.exceptions import ZoneExistsError
 from mist.api.exceptions import RequiredParameterMissingError
 
 # This is a map from type to record class, eg:
@@ -24,14 +23,14 @@ RECORDS = {}
 
 def _populate_records():
     """Populates RECORDS variable with mappings from types to records"""
-    for key, value in globals().items():
+    for key, value in list(globals().items()):
         if key.endswith('Record') and key != 'Record':
             value = globals()[key]
             if issubclass(value, Record) and value is not Record:
                 RECORDS[value._record_type] = value
 
 
-class Zone(me.Document):
+class Zone(OwnershipMixin, me.Document):
     """This is the class definition for the Mongo Engine Document related to a
     DNS zone.
     """
@@ -94,13 +93,19 @@ class Zone(me.Document):
         zone = cls(owner=owner, cloud=cloud, domain=kwargs['domain'])
         if id:
             zone.id = id
-        zone.ctl.create_zone(**kwargs)
-        return zone
+        return zone.ctl.create_zone(**kwargs)
 
     def delete(self):
         super(Zone, self).delete()
         Tag.objects(resource=self).delete()
         self.owner.mapper.remove(self)
+        if self.owned_by:
+            self.owned_by.get_ownership_mapper(self.owner).remove(self)
+
+    @property
+    def tags(self):
+        """Return the tags of this zone."""
+        return {tag.key: tag.value for tag in Tag.objects(resource=self)}
 
     def as_dict(self):
         """Return a dict with the model values."""
@@ -111,7 +116,12 @@ class Zone(me.Document):
             'type': self.type,
             'ttl': self.ttl,
             'extra': self.extra,
-            'cloud': self.cloud.id
+            'cloud': self.cloud.id,
+            'owned_by': self.owned_by.id if self.owned_by else '',
+            'created_by': self.created_by.id if self.created_by else '',
+            'records': {r.id: r.as_dict() for r
+                        in Record.objects(zone=self, deleted=None)},
+            'tags': self.tags
         }
 
     def clean(self):
@@ -124,7 +134,7 @@ class Zone(me.Document):
                                           self.owner)
 
 
-class Record(me.Document):
+class Record(OwnershipMixin, me.Document):
     """This is the class definition for the Mongo Engine Document related to a
     DNS record.
     """
@@ -199,13 +209,14 @@ class Record(me.Document):
         record = cls(zone=zone)
         if id:
             record.id = id
-        record.ctl.create_record(**kwargs)
-        return record
+        return record.ctl.create_record(**kwargs)
 
     def delete(self):
         super(Record, self).delete()
         Tag.objects(resource=self).delete()
         self.zone.owner.mapper.remove(self)
+        if self.owned_by:
+            self.owned_by.get_ownership_mapper(self.owner).remove(self)
 
     def clean(self):
         """Overriding the default clean method to implement param checking"""
@@ -217,6 +228,11 @@ class Record(me.Document):
         return 'Record %s (name:%s, type:%s) of %s' % (
             self.id, self.name, self.type, self.zone.domain)
 
+    @property
+    def tags(self):
+        """Return the tags of this record."""
+        return {tag.key: tag.value for tag in Tag.objects(resource=self)}
+
     def as_dict(self):
         """ Return a dict with the model values."""
         return {
@@ -227,8 +243,12 @@ class Record(me.Document):
             'rdata': self.rdata,
             'ttl': self.ttl,
             'extra': self.extra,
-            'zone': self.zone.id
+            'zone': self.zone.id,
+            'owned_by': self.owned_by.id if self.owned_by else '',
+            'created_by': self.created_by.id if self.created_by else '',
+            'tags': self.tags
         }
+
 
 class ARecord(Record):
 
@@ -238,7 +258,7 @@ class ARecord(Record):
         """Overriding the default clean method to implement param checking"""
         super(ARecord, self).clean()
         try:
-            ip_addr = self.rdata[0].decode('utf-8')
+            ip_addr = self.rdata[0]
             ip.ip_address(ip_addr)
         except ValueError:
             raise me.ValidationError('IPv4 address provided is not valid')
@@ -255,7 +275,7 @@ class AAAARecord(Record):
         """Overriding the default clean method to implement param checking"""
         super(AAAARecord, self).clean()
         try:
-            ip_addr = self.rdata[0].decode('utf-8')
+            ip_addr = self.rdata[0]
             ip.ip_address(ip_addr)
         except ValueError:
             raise me.ValidationError('IPv6 address provided is not valid')
@@ -304,5 +324,6 @@ class TXTRecord(Record):
             self.rdata[0] += '"'
         if not self.rdata[0].startswith('"'):
             self.rdata[0] = '"' + self.rdata[0]
+
 
 _populate_records()

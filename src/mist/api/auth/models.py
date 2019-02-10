@@ -3,16 +3,18 @@ import string
 
 import mongoengine as me
 
+from future.utils import string_types
+
 from functools import partial
 from datetime import datetime, timedelta
 
-from mist.api.users.models import User, Organization, SocialAuthUser
+from mist.api.users.models import User, Organization
 from mist.api.exceptions import UserNotFoundError
 
 from mist.api import config
 
-if config.HAS_CORE:
-    from mist.core.rbac.models import Policy
+if config.HAS_RBAC:
+    from mist.rbac.models import Policy
 
 
 def datetime_to_str(dt):
@@ -106,7 +108,7 @@ class AuthToken(me.Document):
         """
         if isinstance(user, User):
             _user = user
-        elif isinstance(user, basestring):
+        elif isinstance(user, string_types):
             if '@' in user:
                 _user = User.objects.get(email=user)
             else:
@@ -144,7 +146,7 @@ class AuthToken(me.Document):
             'ip_address': self.ip_address,
             'user_agent': self.user_agent,
             'org_id': self.org.id if self.org is not None else None,
-            'org_name': self.org.name if self.org is not None and hasattr(self.org, 'name') else '',
+            'org_name': self.org.name if hasattr(self.org, 'name') else '',
             'user_id': self.user_id,
         }
 
@@ -152,7 +154,7 @@ class AuthToken(me.Document):
 class ApiToken(AuthToken):
     name = me.StringField(required=True)
 
-    if config.HAS_CORE:
+    if config.HAS_RBAC:
         policy = me.EmbeddedDocumentField(Policy)
 
     def get_public_view(self):
@@ -162,7 +164,7 @@ class ApiToken(AuthToken):
             'ttl': self.ttl,
             'token': self.token[:4] + "...",
         })
-        if config.HAS_CORE:
+        if config.HAS_RBAC:
             view.update({
                 'policy': str(self.policy),
             })
@@ -176,4 +178,3 @@ class SessionToken(AuthToken):
     fingerprint = me.StringField(default='')
     experiment = me.StringField(default='')
     choice = me.StringField(default='')
-

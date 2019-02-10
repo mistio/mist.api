@@ -35,8 +35,12 @@ def show_measurements(machine_id=None):
 
 def show_fields(measurement=None):
     """Return field keys and their respective values, including tags."""
+    # Make sure measurement names are inside quotes to escape special
+    # characters, such as "." or "-".
     if isinstance(measurement, list):
-        measurement = ','.join(measurement)
+        measurement = ','.join(['"%s"' % m for m in measurement])
+    elif measurement:
+        measurement = '"%s"' % measurement
     q = 'SHOW FIELD KEYS'
     q += ' FROM %s' % measurement if measurement else ''
     url = '%(host)s/query?db=%(db)s' % INFLUX
@@ -56,7 +60,7 @@ def show_fields(measurement=None):
         for value in series['values']:  # eg. value = [u'load1', u'float']
             pairs = []
             column = value[0]
-            for key, values in tags[name].iteritems():
+            for key, values in tags[name].items():
                 if key in ('host', 'machine_id', ):
                     continue
                 pairs += ['%s=%s' % (key, value) for value in values]
@@ -81,7 +85,7 @@ def show_fields(measurement=None):
 def show_tags(measurement=None):
     """Return all tags associated with the specified measurement."""
     tags = {}
-    for series, keys in show_tag_keys(measurement).iteritems():
+    for series, keys in show_tag_keys(measurement).items():
         tags[series] = {}
         for key in keys:
             tags[series][key] = show_tag_values(key)

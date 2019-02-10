@@ -1,7 +1,7 @@
 import logging
 import requests
 import datetime
-import StringIO
+import io
 import mongoengine as me
 from pyramid.response import Response
 from mist.api.exceptions import BadRequestError
@@ -67,7 +67,7 @@ class BaseScriptController(object):
         self._preparse_file()
 
         errors = {}
-        for key in kwargs.keys():
+        for key in list(kwargs.keys()):
             if key not in self.script._script_specific_fields:
                 error = "Invalid parameter %s=%r." % (key, kwargs[key])
                 if fail_on_invalid_params:
@@ -79,11 +79,11 @@ class BaseScriptController(object):
         if errors:
             log.error("Error adding %s: %s", self.script, errors)
             raise BadRequestError({
-                'msg': "Invalid parameters %s." % errors.keys(),
+                'msg': "Invalid parameters %s." % list(errors.keys()),
                 'errors': errors,
             })
 
-        for key, value in kwargs.iteritems():
+        for key, value in kwargs.items():
             setattr(self.script, key, value)
 
         try:
@@ -197,7 +197,7 @@ class BaseScriptController(object):
             path = "/tmp/mist_script_%s" % job_id
             source = self.script.location.source_code
             sftp = shell.ssh.open_sftp()
-            sftp.putfo(StringIO.StringIO(source), path)
+            sftp.putfo(io.StringIO(source), path)
         else:
             path = self._url()
 

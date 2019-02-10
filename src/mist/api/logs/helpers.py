@@ -87,7 +87,7 @@ def _filtered_query(owner_id, close=None, error=None, range=None, type=None,
             {"term": {"owner_id": owner_id}}
         )
     # Extend query based on additional terms.
-    for key, value in kwargs.iteritems():
+    for key, value in kwargs.items():
         if value in (None, ''):
             continue
         query["query"]["bool"]["filter"]["bool"]["must"].append(

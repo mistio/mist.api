@@ -13,8 +13,8 @@ class SSHKeyController(BaseKeyController):
         from Crypto import Random
         Random.atfork()
         key = RSA.generate(2048)
-        self.key.private = key.exportKey()
-        self.key.public = key.exportKey('OpenSSH')
+        self.key.private = key.exportKey().decode()
+        self.key.public = key.exportKey('OpenSSH').decode()
 
     def associate(self, machine, username='root', port=22, no_connect=False):
         key_assoc = super(SSHKeyController, self).associate(

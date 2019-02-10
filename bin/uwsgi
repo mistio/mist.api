@@ -46,7 +46,7 @@ fi
 
 set -x
 exec uwsgi \
-    --plugin /usr/lib/uwsgi/python_plugin.so \
+    --plugin /usr/lib/uwsgi/python3_plugin.so \
     --paste-logger \
     --http-socket $SOCKET \
     --ini-paste uwsgi.ini \

@@ -8,10 +8,20 @@ with libcloud's DNS API.
 import ssl
 import logging
 import datetime
+import time
+
+import jsonpatch
 
 import mongoengine as me
 
+import mist.api.exceptions
+
+from mist.api.concurrency.models import PeriodicTaskInfo
+
 from mist.api.clouds.controllers.base import BaseController
+
+from mist.api.helpers import amqp_publish_user
+from mist.api.helpers import amqp_owner_listening
 
 from libcloud.common.types import InvalidCredsError
 from libcloud.dns.types import ZoneDoesNotExistError, RecordDoesNotExistError
@@ -72,9 +82,46 @@ class BaseDNSController(BaseController):
 
     """
 
-    def list_zones(self):
+    def list_zones(self, persist=True):
+        """Return list of zones for cloud
+
+        A list of zones is fetched from libcloud, data is processed, stored
+        on zone models, and a list of zone models is returned.
+
+        Subclasses SHOULD NOT override or extend this method.
+
+        This method wraps `_list_zones` which contains the core
+        implementation.
+
         """
-        This is the public method to call when requesting all the DNS zones
+        task_key = 'cloud:list_zones:%s' % self.cloud.id
+        task = PeriodicTaskInfo.get_or_add(task_key)
+        with task.task_runner(persist=persist):
+            cached_zones = {'%s-%s' % (z.id, z.zone_id): z.as_dict()
+                            for z in self.list_cached_zones()}
+
+            zones = self._list_zones()
+            for zone in zones:
+                self.list_records(zone)
+        # Initialize AMQP connection to reuse for multiple messages.
+        if amqp_owner_listening(self.cloud.owner.id):
+            zones_dict = [z.as_dict() for z in zones]
+            if cached_zones or zones_dict:
+                # Publish patches to rabbitmq.
+                new_zones = {'%s-%s' % (z['id'], z['zone_id']): z
+                             for z in zones_dict}
+                patch = jsonpatch.JsonPatch.from_diff(cached_zones,
+                                                      new_zones).patch
+                if patch:
+                    amqp_publish_user(self.cloud.owner.id,
+                                      routing_key='patch_zones',
+                                      data={'cloud_id': self.cloud.id,
+                                            'patch': patch})
+        return zones
+
+    def _list_zones(self):
+        """
+        Requesting all the DNS zones
         under a specific cloud.
         """
 
@@ -130,6 +177,15 @@ class BaseDNSController(BaseController):
 
         # Format zone information.
         return zones
+
+    def list_cached_zones(self):
+        """Returns zones stored in database
+        for a specific cloud
+        """
+        # FIXME: Move these imports to the top of the file when circular
+        # import issues are resolved
+        from mist.api.dns.models import Zone
+        return Zone.objects(cloud=self.cloud, deleted=None)
 
     def _list_zones__fetch_zones(self):
         """
@@ -262,10 +318,9 @@ class BaseDNSController(BaseController):
         specific record under the specified zone.
         """
         self._delete_record__from_id(record.zone.zone_id, record.record_id)
-        if expire:
-            record.delete()
-        else:
-            record.update(set__deleted=datetime.datetime.utcnow())
+        self.list_zones()
+        from mist.api.poller.models import ListZonesPollingSchedule
+        ListZonesPollingSchedule.add(cloud=self.cloud, interval=10, ttl=120)
 
     def _delete_record__from_id(self, zone_id, record_id):
         """
@@ -291,10 +346,9 @@ class BaseDNSController(BaseController):
         Public method called to delete the specific zone for the provided id.
         """
         self._delete_zone__for_cloud(zone.zone_id)
-        if expire:
-            zone.delete()
-        else:
-            zone.update(set__deleted=datetime.datetime.utcnow())
+        self.list_zones()
+        from mist.api.poller.models import ListZonesPollingSchedule
+        ListZonesPollingSchedule.add(cloud=self.cloud, interval=10, ttl=120)
 
     def _delete_zone__for_cloud(self, zone_id):
         """
@@ -314,24 +368,16 @@ class BaseDNSController(BaseController):
         This is the public method that is called to create a new DNS zone.
         """
         self._create_zone__prepare_args(kwargs)
-        pr_zone = self._create_zone__for_cloud(**kwargs)
-        # Set fields to cloud model and perform early validation.
-        zone.zone_id = pr_zone.id
-        zone.domain = pr_zone.domain
-        zone.type = pr_zone.type
-        zone.ttl = pr_zone.ttl
-        zone.extra = pr_zone.extra
-        # Attempt to save.
-        try:
-            zone.save()
-        except me.ValidationError as exc:
-            log.error("Error updating %s: %s", zone, exc.to_dict())
-            raise BadRequestError({'msg': exc.message,
-                                   'errors': exc.to_dict()})
-        except me.NotUniqueError as exc:
-            log.error("Zone %s not unique error: %s", zone, exc)
-            raise ZoneExistsError()
-        self.cloud.owner.mapper.update(zone)
+        libcloud_zone = self._create_zone__for_cloud(**kwargs)
+
+        # Invoke `self.list_zones` to update the UI and return the Zone
+        # object at the API. Try 3 times before failing
+        for _ in range(3):
+            for z in self.list_zones():
+                if z.zone_id == libcloud_zone.id:
+                    return z
+            time.sleep(1)
+        raise mist.api.exceptions.ZoneListingError()
 
     def _create_zone__prepare_args(self, kwargs):
         """ This private method to prepare the args for the zone creation."""
@@ -385,22 +431,19 @@ class BaseDNSController(BaseController):
                                    'errors': exc.to_dict()})
 
         self._create_record__prepare_args(record.zone, kwargs)
-        pr_record = self._create_record__for_zone(record.zone, **kwargs)
-        record.record_id = pr_record.id
-        # This is not something that should be given by the user, e.g. we
-        # are only using this to store the ttl, so we should onl save this
-        # value if it's returned by the provider.
-        record.extra = pr_record.extra
-        try:
-            record.save()
-        except me.ValidationError as exc:
-            log.error("Error validating %s: %s", record, exc.to_dict())
-            raise BadRequestError({'msg': exc.message,
-                                   'errors': exc.to_dict()})
-        except me.NotUniqueError as exc:
-            log.error("Record %s not unique error: %s", record, exc)
-            raise RecordExistsError()
-        self.cloud.owner.mapper.update(record)
+        libcloud_record = self._create_record__for_zone(record.zone, **kwargs)
+        # Invoke `self.list_zones` to update the UI and return the Record
+        # object at the API. Try 3 times before failing
+        for _ in range(3):
+            for z in self.list_zones():
+                if z.id == record.zone.id:
+                    records = z.as_dict()['records']
+                    for r in records:
+                        if records[r]['record_id'] == libcloud_record.id:
+                            from mist.api.dns.models import Record
+                            return Record.objects.get(id=r)
+            time.sleep(1)
+        raise mist.api.exceptions.RecordListingError()
 
     def _create_record__for_zone(self, zone, **kwargs):
         """
@@ -481,7 +524,7 @@ class BaseDNSController(BaseController):
         # any that is matching based on the domain. If one is found
         # then create an "A" type record with the provided name.
         for zone_candidate in zones:
-            for domain, subdomain in all_domains.iteritems():
+            for domain, subdomain in all_domains.items():
                 if zone_candidate.domain == domain:
                     return zone_candidate
         raise BadRequestError("No DNS zone found, can't proceed with "

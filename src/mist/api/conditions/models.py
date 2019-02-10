@@ -3,14 +3,21 @@ import datetime
 
 import mongoengine as me
 
+from mist.api.helpers import get_resource_model
+from mist.api.helpers import rtype_to_classpath
+
 from mist.api.tag.models import Tag
 
 
 class BaseCondition(me.EmbeddedDocument):
-    """Abstract Base class used as a common interface
-    for condition types. There are four different types
-    for now: FieldCondition, TaggingCondition, MachinesCondition
-    and MachinesAgeCondition. """
+    """Abstract base class used as a common interface for condition types.
+
+    There are five different types for now:
+
+        FieldCondition, TaggingCondition, GenericResourceCondition,
+        MachinesCondition (deprecated), and MachinesAgeCondition
+
+    """
 
     meta = {
         'allow_inheritance': True,
@@ -19,7 +26,7 @@ class BaseCondition(me.EmbeddedDocument):
     ctype = 'base'
 
     def update(self, **kwargs):
-        for key, value in kwargs.iteritems():
+        for key, value in kwargs.items():
             setattr(self, key, value)
 
     @property
@@ -35,9 +42,15 @@ class ConditionalClassMixin(object):
     query sets for a specific collection. It constructs a query from
     a list of query sets which chains together with logical & operator."""
 
-    condition_resource_cls = None  # Instance of mongoengine model class
-
     conditions = me.EmbeddedDocumentListField(BaseCondition)
+
+    resource_model_name = me.StringField(
+        required=True, default='machine',
+        choices=list(rtype_to_classpath.keys()))
+
+    @property
+    def condition_resource_cls(self):
+        return get_resource_model(self.resource_model_name)
 
     def owner_query(self):
         return me.Q(owner=self.owner_id)
@@ -46,10 +59,14 @@ class ConditionalClassMixin(object):
         query = self.owner_query()
         for condition in self.conditions:
             query &= condition.q
+        if 'deleted' in self.condition_resource_cls._fields:
+            query &= me.Q(deleted=None)
+        if 'missing_since' in self.condition_resource_cls._fields:
+            query &= me.Q(missing_since=None)
         return self.condition_resource_cls.objects(query)
 
     def get_ids(self):
-        return [resource.id for resource in self.get_resources().only('id')]
+        return [resource.id for resource in self.get_resources()]
 
 
 class FieldCondition(BaseCondition):
@@ -84,7 +101,7 @@ class TaggingCondition(BaseCondition):
     def q(self):
         rtype = self._instance.condition_resource_cls._meta["collection"]
         ids = set()
-        for key, value in self.tags.iteritems():
+        for key, value in self.tags.items():
             query = {
                 'owner': self._instance.owner,
                 'resource_type': rtype,
@@ -98,7 +115,7 @@ class TaggingCondition(BaseCondition):
     def validate(self, clean=True):
         if self.tags:
             regex = re.compile(r'^[a-z0-9_-]+$')
-            for key, value in self.tags.iteritems():
+            for key, value in self.tags.items():
                 if not key:
                     raise me.ValidationError('You cannot add a tag '
                                              'without a key')
@@ -122,9 +139,13 @@ class TaggingCondition(BaseCondition):
         return {'type': self.ctype, 'tags': self.tags}
 
 
-class MachinesCondition(BaseCondition):
+class GenericResourceCondition(BaseCondition):
+    """Condition used to query any resource which is a me.Document subclass.
 
-    ctype = 'machines'
+    The condition's type `ctype` is not hard-coded but rather computed based
+    on the `resource_model_name` field of the `ConditionalClassMixin`.
+
+    """
 
     ids = me.ListField(me.StringField(required=True), required=True)
 
@@ -132,8 +153,30 @@ class MachinesCondition(BaseCondition):
     def q(self):
         return me.Q(id__in=self.ids)
 
+    @property
+    def ctype(self):
+        return self._instance.resource_model_name.rstrip('s') + 's'
+
     def as_dict(self):
         return {'type': self.ctype, 'ids': self.ids}
+
+
+class MachinesCondition(GenericResourceCondition):
+    """Predecessor of the newest GenericResourceCondition.
+
+    This condition was used to declare a list of machines ids.
+
+    This condition is now **DEPRECATED** in favor of GenericResourceCondition.
+    It is still kept for backwards compatibility, since the Schedule and Rule
+    models have been using it up until now and mongoDB stores a reference to
+    this class in the form of: `{"_cls": "MachinesCondition"}`. New/updated
+    documents will use the new `GenericResourceCondition`. When this class is
+    no longer required by mongoDB/mongoengine, it can just be deleted (no db
+    schema migration is required).
+
+    """
+
+    ctype = 'machines'
 
 
 class MachinesAgeCondition(BaseCondition):

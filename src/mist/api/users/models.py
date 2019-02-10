@@ -7,17 +7,19 @@ import netaddr
 import datetime
 import mongoengine as me
 
+from future.utils import string_types
+
 from uuid import uuid4
 
 from passlib.context import CryptContext
 
+from mist.api.exceptions import TeamNotFound
+
 from mist.api import config
 
-if config.HAS_CORE:
-    from mist.core.rbac.models import Policy
-    from mist.core.rbac.mappings import RBACMapping
-else:
-    from mist.api.dummy.mappings import RBACMapping
+if config.HAS_RBAC:
+    from mist.rbac.models import Policy
+    from mist.rbac.mappings import RBACMapping
 
 
 logging.basicConfig(level=config.PY_LOG_LEVEL,
@@ -166,44 +168,6 @@ class SocialAuthUser(me.Document):
         return 'SocialAuthUser for %s on %s' % (user, self.provider)
 
 
-class Rule(me.Document):
-    """The basic Rule Model."""
-
-    rule_action = me.StringField()
-    metric = me.StringField()  # metric_id for builtin or custom metric
-    value = me.FloatField()
-    cloud = me.StringField()
-    machine = me.StringField()
-    operator = me.StringField()
-    command = me.StringField()
-    action = me.StringField()
-    aggregate = me.StringField(default='all')  # must be in ('all','avg','any')
-    reminder_offset = me.IntField()  # seconds to wait
-    # before sending notifications
-    emails = me.ListField(me.StringField(), default=[])
-    # email to send the alerts. Can be a list of email addresses
-
-    migrated = me.BooleanField()
-
-    def clean(self):
-        # TODO: check if these are valid email addresses,
-        # to avoid possible spam
-        banned_mails_providers = config.BANNED_EMAIL_PROVIDERS
-
-        if self.emails:
-            if isinstance(self.emails, basestring):
-                emails = []
-                for email in self.emails.split(','):
-                    if re.match("[^@]+@[^@]+\.[^@]+", email):
-                        if email.split('@')[1] not in banned_mails_providers:
-                            emails.append(email.replace(' ', ''))
-                self.emails = emails
-        super(Rule, self).clean()
-
-    def as_dict(self):
-        return json.loads(self.to_json())
-
-
 class Owner(me.Document):
 
     id = me.StringField(primary_key=True,
@@ -214,7 +178,6 @@ class Owner(me.Document):
     rule_counter = me.IntField(default=0)
     total_machine_count = me.IntField()
 
-    rules = me.MapField(field=me.ReferenceField(Rule))
     alerts_email = me.ListField(me.StringField(), default=[])
 
     avatar = me.StringField(default='')
@@ -252,7 +215,7 @@ class Owner(me.Document):
         # TODO: check if these are valid email addresses,
         # to avoid possible spam
         if self.alerts_email:
-            if isinstance(self.alerts_email, basestring):
+            if isinstance(self.alerts_email, string_types):
                 emails = []
                 for email in self.alerts_email.split(','):
                     if re.match("[^@]+@[^@]+\.[^@]+", email):
@@ -261,9 +224,9 @@ class Owner(me.Document):
         super(Owner, self).clean()
 
     def get_rules_dict(self):
-        from mist.api.rules.models import MachineMetricRule as Rule
-        return {rule.rule_id: rule.as_dict_old()
-                for rule in Rule.objects(owner_id=self.id)}
+        from mist.api.rules.models import MachineMetricRule
+        return {rule.id: rule.as_dict()
+                for rule in MachineMetricRule.objects(owner_id=self.id)}
 
     def get_metrics_dict(self):
         return {
@@ -383,6 +346,14 @@ class User(Owner):
         except AttributeError:
                 return self.email
 
+    def get_ownership_mapper(self, org):
+        """Return the `OwnershipMapper` in the specified Org context."""
+        if config.HAS_RBAC:
+            from mist.rbac.mappings import OwnershipMapper
+        else:
+            from mist.api.dummy.mappings import OwnershipMapper
+        return OwnershipMapper(self, org)
+
 
 class Avatar(me.Document):
     id = me.StringField(primary_key=True,
@@ -398,26 +369,12 @@ class Team(me.EmbeddedDocument):
     description = me.StringField()
     members = me.ListField(me.ReferenceField(User))
     visible = me.BooleanField(default=True)
-    if config.HAS_CORE:
+    if config.HAS_RBAC:
         policy = me.EmbeddedDocumentField(
             Policy, default=lambda: Policy(operator='DENY'), required=True
         )
 
-    def clean(self):
-        """Ensure RBAC Mappings are properly initialized."""
-        if RBACMapping:
-            mappings = RBACMapping.objects(org=self._instance.id,
-                                           team=self.id).only('id')
-            if not mappings:
-                self.init_mappings()
-            elif self.name == 'Owners':
-                raise me.ValidationError('RBAC Mappings are not intended for '
-                                         'Team Owners')
-            elif len(mappings) is not 2:
-                raise me.ValidationError('RBAC Mappings have not been properly'
-                                         ' initialized for Team %s' % self)
-
-    def init_mappings(self):
+    def init_mappings(self, org=None):
         """Initialize RBAC Mappings.
 
         RBAC Mappings always refer to a (Organization, Team) combination.
@@ -427,22 +384,23 @@ class Team(me.EmbeddedDocument):
         level Document.
 
         """
-        if not RBACMapping:
+        if not config.HAS_RBAC:
             return
         if self.name == 'Owners':
             return
-        if RBACMapping.objects(org=self._instance.id, team=self.id).only('id'):
+        org = org or self._instance
+        if RBACMapping.objects(org=org.id, team=self.id).only('id'):
             raise me.ValidationError(
                 'RBAC Mappings already initialized for Team %s' % self
             )
         for perm in ('read', 'read_logs'):
             RBACMapping(
-                org=self._instance.id, team=self.id, permission=perm
+                org=org.id, team=self.id, permission=perm
             ).save()
 
     def drop_mappings(self):
         """Delete the Team's RBAC Mappings."""
-        if RBACMapping:
+        if config.HAS_RBAC:
             RBACMapping.objects(org=self._instance.id, team=self.id).delete()
 
     def as_dict(self):
@@ -453,7 +411,7 @@ class Team(me.EmbeddedDocument):
             'members': self.members,
             'visible': self.visible
         }
-        if config.HAS_CORE:
+        if config.HAS_RBAC:
             ret['policy'] = self.policy
         return ret
 
@@ -464,7 +422,7 @@ class Team(me.EmbeddedDocument):
 
 
 def _get_default_org_teams():
-    if config.HAS_CORE:
+    if config.HAS_RBAC:
         return [Team(name='Owners', policy=Policy(operator='ALLOW'))]
     return [Team(name='Owners')]
 
@@ -484,13 +442,8 @@ class Organization(Owner):
     default_monitoring_method = me.StringField(
         choices=config.MONITORING_METHODS)
 
-    try:
-        import mist.core
-    except:
-        _insights_default = False
-    else:
-        _insights_default = True
-    insights_enabled = me.BooleanField(default=_insights_default)
+    insights_enabled = me.BooleanField(default=config.HAS_INSIGHTS)
+    ownership_enabled = me.BooleanField(default=True)
 
     created = me.DateTimeField(default=datetime.datetime.now)
     registered_by = me.StringField()
@@ -499,11 +452,15 @@ class Organization(Owner):
     super_org = me.BooleanField(default=False)
     parent = me.ReferenceField('Organization', required=False)
 
+    poller_updated = me.DateTimeField()
+
+    meta = {'indexes': ['name']}
+
     @property
     def mapper(self):
         """Returns the `PermissionMapper` for the current Org context."""
-        if config.HAS_CORE:
-            from mist.core.rbac.tasks import AsyncPermissionMapper
+        if config.HAS_RBAC:
+            from mist.rbac.tasks import AsyncPermissionMapper
         else:
             from mist.api.dummy.mappings import AsyncPermissionMapper
         return AsyncPermissionMapper(self)
@@ -522,10 +479,16 @@ class Organization(Owner):
         return emails
 
     def get_team(self, team_name):
-        return self.teams.get(name=team_name)
+        try:
+            return self.teams.get(name=team_name)
+        except me.DoesNotExist:
+            raise TeamNotFound("No team found with name '%s'." % team_name)
 
     def get_team_by_id(self, team_id):
-        return self.teams.get(id=team_id)
+        try:
+            return self.teams.get(id=team_id)
+        except me.DoesNotExist:
+            raise TeamNotFound("No team found with id '%s'." % team_id)
 
     def add_member_to_team(self, team_name, user):
         team = self.get_team(team_name)
@@ -569,7 +532,16 @@ class Organization(Owner):
         view["id"] = view_id
         view["members"] = []
         for member in self.members:
-            name = member.get_nice_name()
+            try:
+                name = member.get_nice_name()
+            except AttributeError:  # Cannot dereference member
+                try:
+                    self.members.remove(member)
+                    self.save()
+                except Exception as e:
+                    log.error("Failed to remove missing member from %s: %r" % (
+                        self.name, e))
+                continue
             view["members"].append({
                 "id": member.id,
                 "name": name,
@@ -641,15 +613,29 @@ class Organization(Owner):
         if not owners.members:
             raise me.ValidationError("Owners team can't be empty.")
 
-        if config.HAS_CORE:
+        if config.HAS_RBAC:
             # make sure owners policy allows all permissions
             if owners.policy.operator != 'ALLOW':
-                raise me.ValidationError("Owners policy must be set to ALLOW.")
+                owners.policy.operator = 'ALLOW'
+                log.warning("Owners policy must be set to ALLOW. Updating...")
 
             # make sure owners policy doesn't contain specific rules
             if owners.policy.rules:
                 raise me.ValidationError("Can't set policy rules for Owners.")
 
+            # Ensure RBAC Mappings are properly initialized.
+            for team in self.teams:
+                mappings = RBACMapping.objects(org=self.id,
+                                               team=team.id).only('id')
+                if not mappings:
+                    team.init_mappings(org=self)
+                elif team.name == 'Owners':
+                    raise me.ValidationError(
+                        'RBAC Mappings are not intended for Team Owners')
+                elif len(mappings) is not 2:
+                    raise me.ValidationError(
+                        'RBAC Mappings have not been properly initialized for '
+                        'Team %s' % team)
         # make sure org name is unique - we can't use the unique keyword on the
         # field definition because both User and Organization subclass Owner
         # but only Organization has a name
@@ -659,6 +645,14 @@ class Organization(Owner):
 
         self.members_count = len(self.members)
         self.teams_count = len(self.teams)
+
+        # Add schedule for metering.
+        try:
+            from mist.api.poller.models import MeteringPollingSchedule
+            MeteringPollingSchedule.add(self, run_immediately=False)
+        except Exception as exc:
+            log.error('Error adding metering schedule for %s: %r', self, exc)
+
         super(Organization, self).clean()
 
 

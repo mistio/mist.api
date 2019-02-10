@@ -13,14 +13,18 @@ FIELDS = (
     'owner_id',
     'cloud_id',
     'machine_id',
-    'script_id',
     'rule_id',
     'stack_id',
     'template_id',
+    'schedule_id',
+    'script_id',
+    'volume_id',
+    'key_id',
     'job_id',
     'shell_id',
     'session_id',
     'incident_id',
+    'job',
 )
 
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
@@ -37,10 +41,10 @@ JOBS = {
         'post_deploy_finished',
     ),
     'enable_monitoring': (
-        'deploy_collectd_finished', 'telegraf_deployment_finished',
+        'telegraf_deployment_finished',
     ),
     'disable_monitoring': (
-        'undeploy_collectd_finished', 'telegraf_undeployment_finished',
+        'telegraf_undeployment_finished',
     ),
 }
 
@@ -54,7 +58,7 @@ STARTS_STORY = (
     'connect',
     'rule_triggered',
     'workflow_started',
-    'Schedule started', ) + tuple(JOBS.keys())
+    'schedule_started', ) + tuple(JOBS.keys())
 
 # Actions that may close existing stories.
 CLOSES_STORY = (
@@ -62,14 +66,24 @@ CLOSES_STORY = (
     'disconnect',
     'rule_untriggered',
     'workflow_finished',
-    'Schedule finished',
-) + tuple(a for v in JOBS.itervalues() for a in v) + ('end_job', )
+    'schedule_finished',
+) + tuple(a for v in JOBS.values() for a in v) + ('end_job', )
 
 # Actions that can close an open incident.
 CLOSES_INCIDENT = (
     'update_rule',
     'delete_rule',
     'delete_cloud',
+    'delete_script',
+    'delete_volume',
+    'delete_subnet',
+    'delete_network',
+    'delete_schedule',
+    'delete_dns_zone',
+    'delete_dns_record',
+    'delete_key',
+    'delete_stack',
+    'delete_template',
     'destroy_machine',
     'disable_monitoring',
 )

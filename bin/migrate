@@ -1,0 +1,68 @@
+#!/usr/bin/env python3
+
+import os
+import sys
+import time
+import argparse
+import mongoengine as me
+
+from mist.api import config
+from mist.api.portal.models import Portal
+
+
+def main():
+    # Parse command-line arguments.
+    args = parse_args()
+
+    # Wait for mongodb to become responsive. Get Portal singleton.
+    portal = load_current_portal(args.mongo_timeout)
+
+    if args.status:
+        migrations = portal.get_unapplied_migrations()
+        println()
+        if migrations:
+            println("List of all unapplied migrations:")
+            println("\n".join(portal.get_unapplied_migrations()))
+        println("Database version is: %d" % portal.database_version)
+    else:
+        portal.apply_migrations()
+
+
+def load_current_portal(timeout):
+    exc = None
+    for _ in range(timeout):
+        try:
+            return Portal.get_singleton()
+        except Exception as e:
+            print("MongoDB at %s is not responsive yet.." % config.MONGO_URI)
+            time.sleep(1)
+            exc = e
+    print("MongoDB did not respond within %s seconds" % timeout)
+    raise exc
+
+
+def println(string=""):
+    print("%s\n" % string, file=sys.stderr)
+
+
+def parse_args():
+    argparser = argparse.ArgumentParser(
+        description="Apply database migrations"
+    )
+
+    argparser.add_argument(
+        "-s", "--status", action="store_true",
+        help=("Return a list of all unapplied migrations, if any, as well as "
+              "the database's version based on the last applied migration")
+    )
+    argparser.add_argument(
+        "--mongo-timeout",
+        type=int, default=int(os.getenv('MONGO_TIMEOUT') or 180),
+        help=("The time to wait for the mongodb instance to become responsive")
+    )
+
+    return argparser.parse_args()
+
+
+if __name__ == '__main__':
+    main()

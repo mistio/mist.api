@@ -103,11 +103,9 @@ def create_org_for_user(user, org_name='', promo_code=None, token=None,
 
     # assign promo if applicable
     if promo_code or token:
-        if config.HAS_CORE:
-            from mist.core.methods import assign_promo
-        else:
-            from mist.api.dummy.methods import assign_promo
-        assign_promo(org, promo_code, token)
+        if config.HAS_BILLING:
+            from mist.billing.methods import assign_promo
+            assign_promo(org, promo_code, token)
     return org
 
 
@@ -124,6 +122,7 @@ def get_user_data(auth_context):
         o_dict = {
             'id': org.id,
             'name': org.name,
+            'avatar': org.avatar,
             'members': len(org.members),
             'isOwner': user in org.get_team('Owners').members,
             'super_org': org.super_org
@@ -158,15 +157,19 @@ def get_user_data(auth_context):
     if user.role == 'Admin':
         upgrades = Portal.get_singleton().get_available_upgrades()
         ret['available_upgrades'] = upgrades
+    if config.HAS_BILLING:
+        ret.update({
+            'stripe_public_apikey': config.STRIPE_PUBLIC_APIKEY,
+        })
     return ret
 
 
 def filter_org(auth_context):
-    org = auth_context.org.as_dict()
-    org['is_owner'] = auth_context.is_owner()
+    org_dict = auth_context.org.as_dict()
+    org_dict['is_owner'] = auth_context.is_owner()
 
     # SEC return my teams + visible teams or all teams if owner
-    teams = [team for team in org['teams']
+    teams = [team for team in org_dict['teams']
              if team['visible'] or
              auth_context.user.id in team['members'] or
              auth_context.is_owner()]
@@ -177,12 +180,16 @@ def filter_org(auth_context):
         for m in t['members']:
             team_mates.add(m)
 
-    members = [m for m in org['members']
+    members = [m for m in org_dict['members']
                if auth_context.is_owner() or m['id'] in team_mates]
-    org['teams'] = teams
-    org['members'] = members
+    org_dict['teams'] = teams
+    org_dict['members'] = members
+    # Billing info
+    if config.HAS_BILLING:
+        from mist.billing.methods import populate_billing_info
+        org_dict.update(populate_billing_info(auth_context.org))
 
-    return org
+    return org_dict
 
 
 def update_whitelist_ips(auth_context, ips):

@@ -1,16 +1,10 @@
-import os
 import re
-import json
-import shutil
-import tempfile
 import subprocess
-
-import requests
 
 import pingparsing
 
 
-from mongoengine import ValidationError, NotUniqueError, DoesNotExist
+from mongoengine import DoesNotExist
 
 from time import time
 
@@ -21,21 +15,12 @@ from libcloud.dns.types import Provider as DnsProvider
 from libcloud.dns.types import RecordType
 from libcloud.dns.providers import get_driver as get_dns_driver
 
-import ansible.playbook
-import ansible.utils.template
-import ansible.callbacks
-import ansible.utils
-import ansible.constants
-
 from mist.api.shell import Shell
 
-from mist.api.helpers import get_auth_header
+from mist.api.exceptions import MistError
+from mist.api.exceptions import RequiredParameterMissingError
 
-from mist.api.exceptions import *
-
-from mist.api.helpers import trigger_session_update
 from mist.api.helpers import amqp_publish_user
-from mist.api.helpers import StdStreamCapture
 
 from mist.api.helpers import dirty_cow, parse_os_release
 
@@ -43,7 +28,6 @@ import mist.api.tasks
 import mist.api.inventory
 
 from mist.api.clouds.models import Cloud
-from mist.api.networks.models import NETWORKS, SUBNETS, Network, Subnet
 from mist.api.machines.models import Machine
 
 from mist.api import config
@@ -109,33 +93,10 @@ def star_image(owner, cloud_id, image_id):
         if image_id in cloud.unstarred:
             cloud.unstarred.remove(image_id)
     cloud.save()
-    task = mist.api.tasks.ListImages()
+    task = mist.api.tasks.list_images
     task.clear_cache(owner.id, cloud_id)
     task.delay(owner.id, cloud_id)
     return not star
-
-
-def list_sizes(owner, cloud_id):
-    """List sizes (aka flavors) from each cloud"""
-    return Cloud.objects.get(owner=owner, id=cloud_id,
-                             deleted=None).ctl.compute.list_sizes()
-
-
-def list_locations(owner, cloud_id):
-    """List locations from each cloud"""
-    return Cloud.objects.get(owner=owner, id=cloud_id,
-                             deleted=None).ctl.compute.list_locations()
-
-
-def list_subnets(cloud, network):
-    """List subnets for a particular network on a given cloud.
-    Currently EC2, Openstack and GCE clouds are supported. For other providers
-    this returns an empty list.
-    """
-    if not hasattr(cloud.ctl, 'network'):
-        return []
-    subnets = cloud.ctl.network.list_subnets(network=network)
-    return [subnet.as_dict() for subnet in subnets]
 
 
 def list_projects(owner, cloud_id):
@@ -218,34 +179,6 @@ def list_storage_accounts(owner, cloud_id):
         conn.disconnect()
     return ret
 
-def create_subnet(owner, cloud, network, subnet_params):
-    """
-    Create a new subnet attached to the specified network ont he given cloud.
-    Subnet_params is a dict containing all the necessary values that describe a subnet.
-    """
-    if not hasattr(cloud.ctl, 'network'):
-        raise NotImplementedError()
-
-    # Create a DB document for the new subnet and call libcloud
-    #  to declare it on the cloud provider
-    new_subnet = SUBNETS[cloud.ctl.provider].add(network=network,
-                                                 **subnet_params)
-
-    # Schedule a UI update
-    trigger_session_update(owner, ['clouds'])
-
-    return new_subnet
-
-
-def delete_subnet(owner, subnet):
-    """
-    Delete a subnet.
-    """
-    subnet.ctl.delete()
-
-    # Schedule a UI update
-    trigger_session_update(owner, ['clouds'])
-
 
 # TODO deprecate this!
 # We should decouple probe_ssh_only from ping.
@@ -283,7 +216,7 @@ def probe_ssh_only(owner, cloud_id, machine_id, host, key_id='', ssh_user='',
         "uptime && "
         "echo -------- && "
         "if [ -f /proc/uptime ]; then cat /proc/uptime | cut -d' ' -f1; "
-        "else expr `date '+%s'` - `sysctl kern.boottime | sed -En 's/[^0-9]*([0-9]+).*/\\1/p'`;"
+        "else expr `date '+%s'` - `sysctl kern.boottime | sed -En 's/[^0-9]*([0-9]+).*/\\1/p'`;"  # noqa
         "fi; "
         "echo -------- && "
         "if [ -f /proc/cpuinfo ]; then grep -c processor /proc/cpuinfo;"
@@ -298,7 +231,7 @@ def probe_ssh_only(owner, cloud_id, machine_id, host, key_id='', ssh_user='',
         "echo -------- &&"
         "cat /etc/*release;"
         "echo --------"
-        "\"|sh"  # In case there is a default shell other than bash/sh (e.g. csh)
+        "\"|sh"  # In case there is a default shell other than bash/sh (ex csh)
     )
 
     if key_id:
@@ -333,7 +266,7 @@ def probe_ssh_only(owner, cloud_id, machine_id, host, key_id='', ssh_user='',
 
     kernel_version = cmd_output[6].replace("\n", "")
     os_release = cmd_output[7]
-    os, os_version = parse_os_release(os_release)
+    os, os_version, distro = parse_os_release(os_release)
 
     return {
         'uptime': uptime,
@@ -348,6 +281,7 @@ def probe_ssh_only(owner, cloud_id, machine_id, host, key_id='', ssh_user='',
         'kernel': kernel_version,
         'os': os,
         'os_version': os_version,
+        'distro': distro,
         'dirty_cow': dirty_cow(os, os_version, kernel_version)
     }
 
@@ -361,8 +295,8 @@ def _ping_host(host, pkts=10):
 
 
 def ping(owner, host, pkts=10):
-    if config.HAS_CORE:
-        from mist.core.vpn.methods import super_ping
+    if config.HAS_VPN:
+        from mist.vpn.methods import super_ping
         result = super_ping(owner=owner, host=host, pkts=pkts)
     else:
         result = _ping_host(host, pkts=pkts)
@@ -456,201 +390,12 @@ def notify_user(owner, title, message="", email_notify=True, **kwargs):
     if 'duration' in kwargs:
         body += "Duration: %.2f secs\n" % kwargs['duration']
     if 'output' in kwargs:
-        body += "Output: %s\n" % kwargs['output'].decode('utf-8', 'ignore')
+        body += "Output: %s\n" % kwargs['output']
 
     if email_notify:
         from mist.api.helpers import send_email
         email = owner.email if hasattr(owner, 'email') else owner.get_email()
-        send_email("[mist.io] %s" % title, body.encode('utf-8', 'ignore'),
-                   email)
-
-
-def undeploy_python_plugin(owner, cloud_id, machine_id, plugin_id, host):
-
-    # Sanity checks
-    if not plugin_id:
-        raise RequiredParameterMissingError('plugin_id')
-    if not host:
-        raise RequiredParameterMissingError('host')
-
-    # Iniatilize SSH connection
-    shell = Shell(host)
-    key_id, ssh_user = shell.autoconfigure(owner, cloud_id, machine_id)
-
-    # Prepare collectd.conf
-    script = """
-sudo=$(command -v sudo)
-cd /opt/mistio-collectd/
-
-echo "Removing Include line for plugin conf from plugins/mist-python/include.conf"
-$sudo grep -v 'Import %(plugin_id)s$' plugins/mist-python/include.conf > /tmp/include.conf
-$sudo mv /tmp/include.conf plugins/mist-python/include.conf
-
-echo "Restarting collectd"
-$sudo /opt/mistio-collectd/collectd.sh restart
-""" % {'plugin_id': plugin_id}
-
-    retval, stdout = shell.command(script)
-
-    shell.disconnect()
-
-    return {'metric_id': None, 'stdout': stdout}
-
-
-def run_playbook(owner, cloud_id, machine_id, playbook_path, extra_vars=None,
-                 force_handlers=False, debug=False):
-    if not extra_vars:
-        extra_vars = None
-    ret_dict = {
-        'success': False,
-        'started_at': time(),
-        'finished_at': 0,
-        'stdout': '',
-        'error_msg': '',
-        'inventory': '',
-        'stats': {},
-    }
-    inventory = mist.api.inventory.MistInventory(owner,
-                                                [(cloud_id, machine_id)])
-    if len(inventory.hosts) != 1:
-        log.error("Expected 1 host, found %s", inventory.hosts)
-        ret_dict['error_msg'] = "Expected 1 host, found %s" % inventory.hosts
-        ret_dict['finished_at'] = time()
-        return ret_dict
-    ret_dict['host'] = inventory.hosts.values()[0]['ansible_ssh_host']
-    machine_name = inventory.hosts.keys()[0]
-    log_prefix = "Running playbook '%s' on machine '%s'" % (playbook_path,
-                                                            machine_name)
-    files = inventory.export(include_localhost=False)
-    ret_dict['inventory'] = files['inventory']
-    tmp_dir = tempfile.mkdtemp()
-    old_dir = os.getcwd()
-    os.chdir(tmp_dir)
-    try:
-        log.debug("%s: Saving inventory files", log_prefix)
-        os.mkdir('id_rsa')
-        for name, data in files.items():
-            with open(name, 'w') as f:
-                f.write(data)
-        for name in os.listdir('id_rsa'):
-            os.chmod('id_rsa/%s' % name, 0600)
-        log.debug("%s: Inventory files ready", log_prefix)
-
-        playbook_path = '%s/%s' % (old_dir, playbook_path)
-        ansible_hosts_path = 'inventory'
-        # extra_vars['host_key_checking'] = False
-
-        ansible.utils.VERBOSITY = 4 if debug else 0
-        ansible.constants.HOST_KEY_CHECKING = False
-        ansible.constants.ANSIBLE_NOCOWS = True
-        stats = ansible.callbacks.AggregateStats()
-        playbook_cb = ansible.callbacks.PlaybookCallbacks(
-            verbose=ansible.utils.VERBOSITY
-        )
-        runner_cb = ansible.callbacks.PlaybookRunnerCallbacks(
-            stats, verbose=ansible.utils.VERBOSITY
-        )
-        log.error(old_dir)
-        log.error(tmp_dir)
-        log.error(extra_vars)
-        log.error(playbook_path)
-        capture = StdStreamCapture()
-        try:
-            playbook = ansible.playbook.PlayBook(
-                playbook=playbook_path,
-                host_list=ansible_hosts_path,
-                callbacks=playbook_cb,
-                runner_callbacks=runner_cb,
-                stats=stats,
-                extra_vars=extra_vars,
-                force_handlers=force_handlers,
-            )
-            result = playbook.run()
-        except Exception as exc:
-            log.error("%s: Error %r", log_prefix, exc)
-            ret_dict['error_msg'] = repr(exc)
-        finally:
-            ret_dict['finished_at'] = time()
-            ret_dict['stdout'] = capture.close()
-        if ret_dict['error_msg']:
-            return ret_dict
-        log.debug("%s: Ansible result = %s", log_prefix, result)
-        mresult = result[machine_name]
-        ret_dict['stats'] = mresult
-        if mresult['failures'] or mresult['unreachable']:
-            log.error("%s: Ansible run failed: %s", log_prefix, mresult)
-            return ret_dict
-        log.info("%s: Ansible run succeeded: %s", log_prefix, mresult)
-        ret_dict['success'] = True
-        return ret_dict
-    finally:
-        os.chdir(old_dir)
-        if not debug:
-            shutil.rmtree(tmp_dir)
-
-
-def _notify_playbook_result(owner, res, cloud_id=None, machine_id=None,
-                            extra_vars=None, label='Ansible playbook'):
-    title = label + (' succeeded' if res['success'] else ' failed')
-    kwargs = {
-        'cloud_id': cloud_id,
-        'machine_id': machine_id,
-        'duration': res['finished_at'] - res['started_at'],
-        'error': False if res['success'] else res['error_msg'] or True,
-    }
-    if not res['success']:
-        kwargs['output'] = res['stdout']
-    notify_user(owner, title, **kwargs)
-
-
-def deploy_collectd(owner, cloud_id, machine_id, extra_vars):
-    ret_dict = run_playbook(
-        owner, cloud_id, machine_id,
-        playbook_path='deploy_collectd/ansible/enable.yml',
-        extra_vars=extra_vars,
-        force_handlers=True,
-        # debug=True,
-    )
-    _notify_playbook_result(owner, ret_dict, cloud_id, machine_id,
-                            label='Collectd deployment')
-    return ret_dict
-
-
-def undeploy_collectd(owner, cloud_id, machine_id):
-    ret_dict = run_playbook(
-        owner, cloud_id, machine_id,
-        playbook_path='deploy_collectd/ansible/disable.yml',
-        force_handlers=True,
-        # debug=True,
-    )
-    _notify_playbook_result(owner, ret_dict, cloud_id, machine_id,
-                            label='Collectd undeployment')
-    return ret_dict
-
-
-def get_deploy_collectd_command_unix(uuid, password, monitor, port=25826):
-    url = "https://github.com/mistio/deploy_collectd/raw/master/local_run.py"
-    cmd = "wget -O mist_collectd.py %s && $(command -v sudo) python mist_collectd.py %s %s" % (url, uuid, password)
-    if monitor != 'monitor1.mist.api':
-        cmd += " -m %s" % monitor
-    if str(port) != '25826':
-        cmd += " -p %s" % port
-    return cmd
-
-
-def get_deploy_collectd_command_windows(uuid, password, monitor, port=25826):
-    return 'Set-ExecutionPolicy -ExecutionPolicy RemoteSigned ' \
-           '-Scope CurrentUser -Force;(New-Object System.Net.WebClient).' \
-           'DownloadFile(\'https://raw.githubusercontent.com/mistio/' \
-           'deploy_collectm/master/collectm.remote.install.ps1\',' \
-           ' \'.\collectm.remote.install.ps1\');.\collectm.remote.install.ps1 ' \
-           '-SetupConfigFile -setupArgs \'-username "%s" -password "%s" ' \
-           '-servers @("%s:%s")\'' % (uuid, password, monitor, port)
-
-
-def get_deploy_collectd_command_coreos(uuid, password, monitor, port=25826):
-    return "sudo docker run -d -v /sys/fs/cgroup:/sys/fs/cgroup -e COLLECTD_USERNAME=%s -e COLLECTD_PASSWORD=%s -e MONITOR_SERVER=%s -e COLLECTD_PORT=%s mist/collectd" % (
-        uuid, password, monitor, port)
+        send_email("[%s] %s" % (config.PORTAL_NAME, title), body, email)
 
 
 def create_dns_a_record(owner, domain_name, ip_addr):
@@ -734,12 +479,6 @@ def create_dns_a_record(owner, domain_name, ip_addr):
     name = all_domains[zone.domain]
     log.info("Will use name %s and zone %s in provider %s.",
              name, zone.domain, provider)
-
-    # debug
-    # log.debug("Will print all existing A records for zone '%s'.", zone.domain)
-    # for record in zone.list_records():
-    #    if record.type == 'A':
-    #        log.info("%s -> %s", record.name, record.data)
 
     msg = ("Creating A record with name %s for %s in zone %s in %s"
            % (name, ip_addr, zone.domain, provider))

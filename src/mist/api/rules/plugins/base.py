@@ -29,7 +29,7 @@ class BaseBackendPlugin(object):
 
     """
 
-    def __init__(self, rule):
+    def __init__(self, rule, rids=None):
         """Initialize the plugin given a Rule instance.
 
         Upon initialization plugins are meant to extract the list of resource
@@ -41,7 +41,10 @@ class BaseBackendPlugin(object):
 
         """
         self.rule = rule
-        self.rids = rule.get_ids() if not rule.is_arbitrary() else [None]
+        self.rids = rids
+        if self.rids is None:
+            self.rids = rule.get_ids() if not rule.is_arbitrary() else [None]
+        self.rtype = None if rule.is_arbitrary() else rule.resource_model_name
 
     def run(self, update_state=False, trigger_actions=False):
         """Run a single evaluation cycle.
@@ -86,13 +89,17 @@ class BaseBackendPlugin(object):
             if state:
                 active_states.update({incident: state})
 
+        # Clean states. Remove states that refer to missing/deleted resources
+        # or states that have expired.
         if update_state is True:
             self.rule.states.update(active_states)
             self.rule.states = {
                 incident: state for
-                incident, state in self.rule.states.iteritems() if not
-                (state.expired() or state['resource'] in remove_states)
+                incident, state in self.rule.states.items() if
+                state.resource in (set(self.rids) ^ remove_states) and not
+                state.expired()
             }
+            self.rule.total_check_count += len(self.rids)
             self.rule.save()
 
     def evaluate(self, rid, trigger_actions=False):
@@ -114,7 +121,7 @@ class BaseBackendPlugin(object):
 
         """
         assert rid in self.rids, 'Unknown resource %s' % rid
-        for incident, state in self.rule.states.iteritems():
+        for incident, state in self.rule.states.items():
             # There should only be a single non-resolved incident at a
             # time for each of the resources self.rule refers to.
             if state.resource == rid and not state.is_resolved():
@@ -153,7 +160,8 @@ class BaseBackendPlugin(object):
                 if offset.total_seconds() < elapsed.total_seconds():
                     state.firing_since = datetime.datetime.utcnow()
 
-        log.info("%s's %s for resource %s", self.rule.name, state or 'OK', rid)
+        log.info("%s %s for %s %s", self.rule.name, state or 'OK', self.rtype,
+                 rid)
 
         if state and not state.is_pending() and trigger_actions is True:
             self.trigger(triggered, incident, state)

@@ -5,8 +5,13 @@ import signal
 import logging
 import argparse
 import traceback
+import functools
+
+from future.utils import string_types
 
 import amqp
+import kombu
+import kombu.mixins
 
 import gevent
 import gevent.socket
@@ -15,7 +20,7 @@ import gevent.monkey
 from mist.api import config
 
 # Exchange to be used by hub. Should be the same for server and clients.
-EXCHANGE = 'hub'
+EXCHANGE = kombu.Exchange('hub', type='topic', durable=False)
 
 # Routing queue/key for hub requests from clients to servers.
 # Should be the same for server and clients.
@@ -25,84 +30,41 @@ REQUESTS_KEY = 'hub'
 log = logging.getLogger(__name__)
 
 
+class _Consumer(kombu.mixins.ConsumerProducerMixin):
+    def __init__(self, worker):
+        self.worker = worker
+        self.connection = worker.connection
+
+    def get_consumers(self, Consumer, channel):
+        return self.worker.get_consumers(
+            functools.partial(Consumer,
+                              callbacks=[self.worker.amqp_handle_msg]),
+            functools.partial(kombu.Queue, exchange=self.worker.exchange),
+            channel,
+        )
+
+
 class AmqpGeventBase(object):
     """Abstract base class that provides AMQP/GEVENT related helpers"""
 
-    def __init__(self, exchange=EXCHANGE):
+    def __init__(self, connection=kombu.Connection(config.BROKER_URL),
+                 exchange=EXCHANGE):
         """Initialize basic instance attributes"""
+
+        self.connection = connection
         self.exchange = exchange
+        self.consumer = _Consumer(self)
+
         self.uuid = uuid.uuid4().hex
         self.lbl = ' '.join((self.__class__.__name__, self.uuid))
         log.info("%s: Initializing.", self.lbl)
 
         self.started = False
         self.stopped = False
-        self.conns = {}
-        self.chans = {}
         self.greenlets = {}
 
-    @property
-    def greenlet_id(self):
-        """Find current greenlet's id
-
-        Parts of this class will be called in different greenlets. Greenlet Id
-        is used to differentiate between greenlet specific instance resources
-        that can't be shared between greenlets.
-
-        """
-        return id(gevent.getcurrent())
-
-    @property
-    def conn(self):
-        """Find or create current greenlet's AMQP connection"""
-        gid = self.greenlet_id
-        if gid not in self.conns:
-            log.debug("%s: Opening new AMQP connection.", self.lbl)
-            conn = amqp.Connection(config.AMQP_URI)
-            # TODO: The following line is needed for later versions of amqp lib
-            # conn.connect()
-            self.conns[gid] = conn
-        return self.conns[gid]
-
-    def close_conn(self):
-        """Close current greenlet's AMQP connection"""
-        gid = self.greenlet_id
-        if gid not in self.conns:
-            log.warning("%s: No AMQP connection open to close.", self.lbl)
-        else:
-            log.debug("%s: Closing AMQP connection.", self.lbl)
-            self.conns.pop(gid).close()
-
-    @property
-    def chan(self):
-        """Find or create current greenlet's AMQP channel"""
-        gid = self.greenlet_id
-        if gid not in self.chans:
-            i = 0
-            while True:
-                try:
-                    conn = self.conn
-                except Exception as exc:
-                    i += 1
-                    log.error("Connecting to amqp has failed %d times: %r",
-                              i, exc)
-                    if i > 50:
-                        raise
-                    gevent.sleep(5)
-                else:
-                    break
-            log.debug("%s: Opening new AMQP channel.", self.lbl)
-            self.chans[gid] = conn.channel()
-        return self.chans[gid]
-
-    def close_chan(self):
-        """Close current greenlet's AMQP channel"""
-        gid = self.greenlet_id
-        if gid not in self.chans:
-            log.warning("%s: No AMQP channel open to close.", self.lbl)
-        else:
-            log.debug("%s: Closing AMQP channel.", self.lbl)
-            self.chans.pop(gid).close()
+    def get_consumers(self, Consumer, Queue, channel):
+        raise NotImplementedError()
 
     def start(self):
         """Start all greenlets"""
@@ -110,31 +72,10 @@ class AmqpGeventBase(object):
             log.warning("%s: Already started, can't start again.", self.lbl)
         else:
             log.info("%s: Starting.", self.lbl)
-            self.greenlets['amqp_consumer'] = gevent.spawn(self.amqp_consume)
+            self.greenlets['amqp_consumer'] = gevent.spawn(self.consumer.run)
             self.started = True
 
-    def amqp_consume(self):
-        """Block on AMQP channel messages until an exception raises"""
-        log.info("%s: Starting AMQP consumer.", self.lbl)
-        try:
-            while True:
-                self.chan.wait()
-        except BaseException as exc:
-            log.error("%s: AMQP consumer exception %r, stopping.",
-                      self.lbl, exc)
-            self.close_chan()
-            self.close_conn()
-
-    def parse_json_msg(self, msg):
-        if msg.properties.get('content_type') == 'application/json':
-            if isinstance(msg.body, basestring):
-                try:
-                    msg.body = json.loads(msg.body)
-                except Exception as exc:
-                    log.error("%s: Error json parsing msg body with content "
-                              "type application/json %r.", self.lbl, exc)
-
-    def amqp_handle_msg(self, msg):
+    def amqp_handle_msg(self, body, msg):
         """Handle incoming AMQP message
 
         A message's body with routing key <self.key_prefix>.<action> will be
@@ -145,8 +86,6 @@ class AmqpGeventBase(object):
         some basic_consume call if it needs to receive messages via AMQP.
 
         """
-        self.parse_json_msg(msg)
-        body = msg.body
         routing_key = msg.delivery_info.get('routing_key', '')
         log.debug("%s: Received message with routing key '%s' and body %r.",
                   self.lbl, routing_key, body)
@@ -164,49 +103,35 @@ class AmqpGeventBase(object):
         else:
             log.debug("%s: Will run handler '%s'.", self.lbl, attr)
             try:
-                return getattr(self, attr)(msg)
+                return getattr(self, attr)(body, msg)
             except Exception as exc:
                 log.error("%s: Exception %r while handling AMQP msg with "
                           "routing key '%s' and body %r in %s().",
                           self.lbl, exc, routing_key, body, attr)
                 log.error(traceback.format_exc())
 
-    def amqp_send_msg(self, msg='', routing_key=''):
+    def amqp_send_msg(self, msg='', routing_key='', **kwargs):
         """Publish AMQP message"""
-        if not isinstance(msg, amqp.Message):
-            if isinstance(msg, basestring):
-                msg = amqp.Message(msg)
-            else:
-                msg = amqp.Message(json.dumps(msg),
-                                   content_type='application/json')
         log.debug("%s: Sending AMQP msg with routing key '%s' and body %r.",
-                  self.lbl, routing_key, msg.body)
-        self.chan.basic_publish(msg, self.exchange, routing_key)
+                  self.lbl, routing_key, msg)
+        kwargs.setdefault('retry', True)
+        kwargs.setdefault('serializer',
+                          'raw' if isinstance(msg, string_types) else 'json')
+        self.consumer.producer.publish(msg, exchange=self.exchange,
+                                       routing_key=routing_key, **kwargs)
 
     def stop(self):
         """Close all AMQP connections and channels, stop greenlets"""
         if self.stopped:
             log.warning("%s: Already stopped, can't stop again.", self.lbl)
             return
-        log.debug("%s: Closing all AMQP channels.", self.lbl)
-        for gid in self.chans.keys():
-            try:
-                self.chans.pop(gid).close()
-            except Exception as exc:
-                log.warning("%s: Closing AMQP channel exception %r.",
-                            self.lbl, exc)
-        log.debug("%s: Closing all AMQP connections.", self.lbl)
-        for gid in self.conns.keys():
-            try:
-                self.conns.pop(gid).close()
-            except Exception as exc:
-                log.warning("%s: Closing AMQP connection exception %r.",
-                            self.lbl, exc)
+        self.consumer.should_stop = True
+        gevent.sleep(1)
         if self.greenlets:
             log.debug("%s: Stopping all greenlets %s.",
                       self.lbl, tuple(self.greenlets.keys()))
-            gevent.killall(self.greenlets.values())
-            gevent.joinall(self.greenlets.values())
+            gevent.killall(list(self.greenlets.values()))
+            gevent.joinall(list(self.greenlets.values()))
             self.greenlets.clear()
         self.stopped = True
 
@@ -221,28 +146,22 @@ class AmqpGeventBase(object):
 class HubServer(AmqpGeventBase):
     """Hub Server"""
 
-    def __init__(self, exchange=EXCHANGE, key=REQUESTS_KEY, workers=None):
+    def __init__(self, connection=kombu.Connection(config.BROKER_URL),
+                 exchange=EXCHANGE, key=REQUESTS_KEY, workers=None):
         """Initialize a Hub Server"""
-        super(HubServer, self).__init__(exchange)
+        super(HubServer, self).__init__(connection, exchange)
+        # self.exchange(self.connection).declare()
         self.key = key
         self.worker_cls = {'echo': EchoHubWorker}
         self.worker_cls.update(workers or {})
         self.workers = {}
 
-    def amqp_consume(self):
-        # initialize amqp connection and channel, declare exchange
-        self.chan.exchange_declare(self.exchange, 'topic')
-        log.info("%s: Will use exchange '%s'.", self.lbl, self.exchange)
-
-        # declare, bind, set consumer for rpc calls
-        self.chan.basic_qos(0, 1, False)  # prefetch count = 1
-        self.chan.queue_declare(self.key, exclusive=True)
-        self.chan.queue_bind(self.key, self.exchange, '%s.#' % self.key)
-        self.chan.basic_consume(self.key, callback=self.amqp_handle_msg,
-                                no_ack=True)
+    def get_consumers(self, Consumer, Queue, channel):
         log.info("%s: RPC queue '%s' with routing key '%s.#'.",
                  self.lbl, self.key, self.key)
-        super(HubServer, self).amqp_consume()
+        queue = Queue(self.key, routing_key='%s.#' % self.key, exclusive=True)
+        return [Consumer(queues=[queue], no_ack=True, prefetch_count=1,
+                         auto_declare=True)]
 
     def get_resp_details(self, msg):
         """Find correlation_id and reply_to key for RPC response"""
@@ -258,12 +177,10 @@ class HubServer(AmqpGeventBase):
 
     def send_rpc_response(self, msg, response=''):
         correlation_id, reply_to = self.get_resp_details(msg)
-        msg = amqp.Message(json.dumps(response),
-                           correlation_id=correlation_id,
-                           content_type='application/json')
-        self.amqp_send_msg(msg, reply_to)
+        self.amqp_send_msg(response, routing_key=reply_to,
+                           correlation_id=correlation_id, serializer='json')
 
-    def on_worker(self, msg):
+    def on_worker(self, body, msg):
         routing_key = msg.delivery_info.get('routing_key', '')
         log.info("%s: Received RPC AMQP message with routing_key '%s'.",
                  self.lbl, routing_key)
@@ -275,34 +192,34 @@ class HubServer(AmqpGeventBase):
             log.error("%s: Invalid routing key '%s'.", self.lbl, routing_key)
             return
         worker_cls = self.worker_cls[route_parts[2]]
-        self.parse_json_msg(msg)
         correlation_id, reply_to = self.get_resp_details(msg)
-        worker = worker_cls(self, reply_to, correlation_id, msg.body,
-                            self.exchange)
+        worker = worker_cls(self, reply_to, correlation_id, body,
+                            connection=self.connection, exchange=self.exchange)
         self.workers[worker.uuid] = worker
         worker.start()
 
     def list_workers(self):
-        types_to_names = {val: key for key, val in self.worker_cls.items()}
+        types_to_names = {val: key for key,
+                          val in list(self.worker_cls.items())}
         workers_list = [{'uuid': uuid,
                          'type': types_to_names[type(worker)],
                          'params': worker.params}
-                        for uuid, worker in self.workers.items()]
+                        for uuid, worker in list(self.workers.items())]
         log.info("%s: Current workers: %s", self.lbl, workers_list)
         return workers_list
 
-    def on_list_workers(self, msg):
+    def on_list_workers(self, body, msg):
         self.send_rpc_response(msg, self.list_workers())
 
-    def on_stop(self, msg=''):
+    def on_stop(self, body='', msg=''):
         log.info("%s: Received STOP message, stopping.", self.lbl)
         self.stop()
         self.send_rpc_response(msg)
 
-    def on_stop_worker(self, msg):
-        log.info("%s: Received STOP %s message, stopping.", self.lbl, msg.body)
-        if msg.body in self.workers:
-            self.workers[msg.body].stop()
+    def on_stop_worker(self, body, msg):
+        log.info("%s: Received STOP %s message, stopping.", self.lbl, body)
+        if body in self.workers:
+            self.workers[body].stop()
         self.send_rpc_response(msg)
 
     def stop(self):
@@ -313,7 +230,7 @@ class HubServer(AmqpGeventBase):
         if self.workers:
             log.debug("%s: Stopping all workers %s.",
                       self.lbl, tuple(self.workers.keys()))
-            for worker_id in self.workers.keys():
+            for worker_id in list(self.workers.keys()):
                 self.workers[worker_id].stop()
         super(HubServer, self).stop()
 
@@ -322,9 +239,10 @@ class HubWorker(AmqpGeventBase):
     """Hub Worker"""
 
     def __init__(self, server, reply_to, correlation_id, params,
+                 connection=kombu.Connection(config.BROKER_URL),
                  exchange=EXCHANGE):
         """Initialize a worker proxying a connection"""
-        super(HubWorker, self).__init__(exchange=exchange)
+        super(HubWorker, self).__init__(connection, exchange)
         self.server = server
         self.reply_to = reply_to
         self.correlation_id = correlation_id
@@ -333,32 +251,20 @@ class HubWorker(AmqpGeventBase):
     def send_ready(self):
         """Send RPC response back to client when worker is ready"""
         log.info("%s: Sending back RPC AMQP response.", self.lbl)
-        msg = amqp.Message(self.uuid, correlation_id=self.correlation_id)
-        self.chan.basic_publish(msg, self.exchange, self.reply_to)
+        self.amqp_send_msg(self.uuid, routing_key=self.reply_to,
+                           correlation_id=self.correlation_id)
 
-    def on_ready(self, msg=''):
+    def on_ready(self, body='', msg=''):
         """Client is ready"""
         log.info("%s: Got 'ready' from client.", self.lbl)
 
-    def amqp_consume(self):
-        """Block on channel messages until an exception raises"""
-        self.chan.queue_declare(self.uuid, exclusive=True)
-        self.chan.queue_bind(self.uuid, self.exchange, '%s.#' % self.uuid)
-        self.send_ready()
-        self.chan.basic_consume(self.uuid, callback=self.amqp_handle_msg,
-                                no_ack=True)
+    def get_consumers(self, Consumer, Queue, channel):
         log.debug("%s: Exchange '%s', queue '%s' with routing key '%s.#'.",
                   self.lbl, self.exchange, self.uuid, self.uuid)
-        super(HubWorker, self).amqp_consume()
-
-    def amqp_handle_msg(self, msg):
-        """Make sure routing key is correct before calling super()"""
-        routing_key = msg.delivery_info.get('routing_key', '')
-        if not routing_key.startswith('%s.' % self.uuid):
-            log.error("%s: Invalid routing key '%s', should start with '%s.",
-                      self.lbl, routing_key, self.uuid)
-        else:
-            super(HubWorker, self).amqp_handle_msg(msg)
+        queue = Queue(
+            self.uuid, routing_key='%s.#' % self.uuid, exclusive=True,
+            on_declared=lambda *args, **kwargs: self.send_ready())
+        return [Consumer(queues=[queue], no_ack=True)]
 
     def send_to_client(self, action, msg=''):
         """Send AMQP message to clients"""
@@ -369,7 +275,7 @@ class HubWorker(AmqpGeventBase):
             self.server.workers.pop(self.uuid)
         super(HubWorker, self).stop()
 
-    def on_close(self, msg=''):
+    def on_close(self, body='', msg=''):
         """Stop self when msg with routing suffix 'close' received"""
         log.info("%s: Received on_close.", self.lbl)
         self.stop()
@@ -378,79 +284,74 @@ class HubWorker(AmqpGeventBase):
 class EchoHubWorker(HubWorker):
     """Echoes back messages sent with routing suffix 'echo'"""
 
-    def on_echo(self, msg):
+    def on_echo(self, body, msg):
         """Echo back messages sent with routing suffix 'echo'"""
-        print "%s: Received on_echo %r. Will echo back." % (self.lbl, msg.body)
-        self.send_to_client('echo', msg.body)
+        print(("%s: Received on_echo %r. Will echo back." % (self.lbl, body)))
+        self.send_to_client('echo', body)
 
 
 class HubClient(AmqpGeventBase):
-    def __init__(self, exchange=EXCHANGE, key=REQUESTS_KEY,
-                 worker_type='default', worker_kwargs=None):
-        super(HubClient, self).__init__(exchange=exchange)
+    def __init__(self, connection=kombu.Connection(config.BROKER_URL),
+                 exchange=EXCHANGE, key=REQUESTS_KEY, worker_type='default',
+                 worker_kwargs=None):
+        super(HubClient, self).__init__(connection, exchange)
         self.key = key
+        self.worker_id = None
         self.worker_type = worker_type
         self.worker_kwargs = worker_kwargs or {}
 
-    def amqp_consume(self):
-        """Connect to Hub Server and set up and start AMQP consumer"""
-        # define callback queue
-        self.queue = self.chan.queue_declare(exclusive=True).queue
-        self.chan.queue_bind(self.queue, self.exchange, self.queue)
-        self.chan.basic_consume(self.queue, callback=self.amqp_handle_msg,
-                                no_ack=True)
-        log.debug("%s: Initialized amqp connection, channel, queue.", self.lbl)
+    def get_consumers(self, Consumer, Queue, channel):
+        queue = Queue(self.uuid, routing_key=self.uuid, exclusive=True)
 
-        # send rpc request
-        self.worker_id = None
-        self.correlation_id = uuid.uuid4().hex
-        reply_to = self.queue
-        routing_key = '%s.worker.%s' % (self.key, self.worker_type)
-        msg = amqp.Message(json.dumps(self.worker_kwargs),
-                           correlation_id=self.correlation_id,
-                           reply_to=reply_to,
-                           content_type='application/json')
-        self.amqp_send_msg(msg, routing_key)
+        def rebind_queue():
+            """Rebind queue to worker's output
+
+            This is a hack. Since the queue is exclusive, it can only be used
+            or modified by the connection that opened it. Unfortunately, the
+            connection is not available in the consume callback. We use a
+            closure to be able to refer to it later on.
+            """
+            log.info("%s: Will start listening for routing_key 'from_%s.#'.",
+                     self.lbl, self.worker_id)
+            queue(channel).bind_to(
+                self.exchange, routing_key='from_%s.#' % self.worker_id)
+
+        self.rebind_queue = rebind_queue
+
+        return [Consumer(queues=[queue], no_ack=True, auto_declare=True)]
+
+    def start(self):
+        super(HubClient, self).start()
+        self.amqp_send_msg(
+            self.worker_kwargs,
+            routing_key='%s.worker.%s' % (self.key, self.worker_type),
+            correlation_id=self.uuid,  # Any id would do.
+            reply_to=self.uuid,  # Should match queue name.
+        )
         log.info("%s: sent RPC request, will wait for response.", self.lbl)
 
-        # wait for rpc response
-        try:
-            while not self.worker_id:
-                log.debug("%s: Waiting for RPC response.", self.lbl)
-                self.chan.wait()
-        except BaseException as exc:
-            log.error("%s: Amqp consumer received %r while waiting for RPC "
-                      "response. Stopping.", self.lbl, exc)
-        log.info("%s: Finished waiting for RPC response.", self.lbl)
-        super(HubClient, self).amqp_consume()
-
-    def amqp_handle_msg(self, msg):
-        self.parse_json_msg(msg)
-        body = msg.body
+    def amqp_handle_msg(self, body, msg):
         routing_key = msg.delivery_info.get('routing_key', '')
         if not self.worker_id:
             # waiting for RPC response
             log.debug("%s: Received message with routing key '%s' and body "
                       "%r, while waiting for RPC response.",
                       self.lbl, routing_key, body)
-            if not routing_key == self.queue:
+            if not routing_key == self.uuid:
                 log.warning("%s: Got msg with routing key '%s' when expecting "
-                            "'%s'.", self.lbl, routing_key, self.queue)
+                            "'%s'.", self.lbl, routing_key, self.uuid)
                 return
-            if self.correlation_id != msg.properties.get('correlation_id'):
+            if self.uuid != msg.properties.get('correlation_id'):
                 log.warning(
                     "%s: Got msg with corr_id '%s' when expecting '%s'.",
                     self.lbl, msg.properties.get('correlation_id'),
-                    self.correlation_id
+                    self.uuid
                 )
                 return
-            self.worker_id = msg.body
+            self.worker_id = body
             log.info("%s: Received RPC response with body %r.",
-                     self.lbl, msg.body)
-            log.debug("%s: Will start listening for routing_key 'from_%s.#'.",
-                      self.lbl, self.worker_id)
-            self.chan.queue_bind(self.queue, self.exchange,
-                                 'from_%s.#' % self.worker_id)
+                     self.lbl, body)
+            self.rebind_queue()
             log.info("%s: Notifying worker that we're ready.", self.lbl)
             self.send_to_worker('ready')
         else:
@@ -460,7 +361,7 @@ class HubClient(AmqpGeventBase):
                             "it to start with 'from_%s.'.",
                             self.lbl, routing_key, self.worker_id)
                 return
-            super(HubClient, self).amqp_handle_msg(msg)
+            super(HubClient, self).amqp_handle_msg(body, msg)
 
     def send_to_worker(self, action, msg=''):
         if not self.worker_id:
@@ -474,10 +375,9 @@ class HubClient(AmqpGeventBase):
 class EchoHubClient(HubClient):
     """Sends echo request to EchoHubWorker and logs echo response"""
 
-    def __init__(self, exchange=EXCHANGE, key=REQUESTS_KEY,
-                 worker_kwargs=None):
-        super(EchoHubClient, self).__init__(exchange, key, 'echo',
-                                            worker_kwargs)
+    def __init__(self, *args, **kwargs):
+        super(EchoHubClient, self).__init__(*args, worker_type='echo',
+                                            **kwargs)
 
     def start(self):
         """Call super and also start stdin reader greenlet"""
@@ -491,12 +391,16 @@ class EchoHubClient(HubClient):
             self.send_echo_request(sys.stdin.readline())
             gevent.sleep(0)
 
-    def on_echo(self, msg):
+    def on_echo(self, body, msg):
         """Called on echo event"""
-        print "%s: Received on_echo with msg body %r." % (self.lbl, msg.body)
+        print(("%s: Received on_echo with msg body %r." % (
+            self.lbl, msg.body)))
 
     def send_echo_request(self, msg):
         """Sends an echo request the response to which will trigger on_echo"""
+        if not self.worker_id:
+            log.error("Worker hasn't responded yet.")
+            return
         log.debug("%s: Sending echo request to worker with msg %r.",
                   self.lbl, msg)
         self.send_to_worker('echo', msg)
@@ -604,13 +508,13 @@ def prepare_argparse():
 
 
 def prepare_logging(verbosity=0):
-    logfmt = "[%(asctime)-15s][%(levelname)s] %(module)s - %(message)s"
     if verbosity > 1:
         loglvl = logging.DEBUG
     elif verbosity == 1:
         loglvl = logging.INFO
     else:
         loglvl = logging.WARNING
+    # logfmt = "[%(asctime)-15s][%(levelname)s] %(module)s - %(message)s"
     # handler = logging.StreamHandler()
     # handler.setFormatter(logging.Formatter(logfmt))
     # handler.setLevel(loglvl)
@@ -619,7 +523,6 @@ def prepare_logging(verbosity=0):
 
 
 def main(args=None, workers=None, client=EchoHubClient, worker_kwargs=None):
-    gevent.monkey.patch_all()
     args = args if args else prepare_argparse().parse_args()
     prepare_logging(args.verbose or 1)
 

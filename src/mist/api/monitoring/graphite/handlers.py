@@ -8,11 +8,15 @@ https://github.com/mistio/mist.monitor/blob/master/src/mist/monitor/graphite.py
 
 import re
 import time
+import calendar
 import logging
 import requests
-import HTMLParser
+import html.parser
+
+from future.utils import string_types
 
 import mist.api.config as config
+from functools import reduce
 
 
 log = logging.getLogger(__name__)
@@ -39,6 +43,10 @@ def as_percent(series_list, total=None):
         return "asPercent(%s)" % series_list
 
 
+def per_second(series_list):
+    return "delay(perSecond(%s),-1)" % (series_list, )
+
+
 def exclude(series_list, regex):
     return "exclude(%s,'%s')" % (series_list, regex)
 
@@ -48,14 +56,16 @@ def alias(series_list, name):
 
 
 class GenericHandler(object):
-    def __init__(self, uuid):
+    def __init__(self, uuid, telegraf=False, telegraf_since=None):
         self.uuid = uuid
+        self.telegraf = telegraf
+        self.telegraf_since = telegraf and telegraf_since
 
     def head(self):
         return "bucky.%s" % self.uuid
 
     def get_data(self, targets, start="", stop="", interval_str=""):
-        if isinstance(targets, basestring):
+        if isinstance(targets, string_types):
             targets = [targets]
         clean_targets = []
         real_to_requested = {}
@@ -107,7 +117,7 @@ class GenericHandler(object):
                 search = re.search("(?:Exception|TypeError): (.*)", resp.text)
                 if search:
                     reason = search.groups()[0]
-                    reason = HTMLParser.HTMLParser().unescape(reason)
+                    reason = html.parser.HTMLParser().unescape(reason)
             except:
                 pass
             if reason == "reduce() of empty sequence with no initial value":
@@ -142,8 +152,13 @@ class GenericHandler(object):
     def target_alias(self, name):
         """Given a metric identifier, return the correct target and alias"""
         target = name.replace("%s." % self.head(), "%(head)s.")
+        derivative = re.match(r'derivative\((.*)\)', target)
+        if derivative:
+            target = derivative.groups()[0]
         if not target.startswith('%(head)s.'):
             target = "%(head)s." + target
+        if derivative:
+            target = per_second(target)
         return target, target
 
     def decorate_target(self, target):
@@ -189,9 +204,6 @@ class GenericHandler(object):
 class CustomHandler(GenericHandler):
     plugin = ""
 
-    def __init__(self, uuid):
-        super(CustomHandler, self).__init__(uuid)
-
     def find_metrics(self, plugin=""):
         if not plugin:
             plugin = self.plugin
@@ -204,6 +216,20 @@ class CustomHandler(GenericHandler):
             return parts[2:]
         log.error("%s() got invalid target: '%s'.",
                   self.__class__.__name__, target)
+
+    def get_data(self, targets, start="", stop="", interval_str=""):
+        data = super(CustomHandler, self).get_data(targets, start, stop,
+                                                   interval_str)
+        # Set as null datapoints before telegraf activation
+        if self.telegraf_since and self.plugin in ['disk', 'interface']:
+            telegraf_since = calendar.timegm(self.telegraf_since.timetuple())
+            for target in data:
+                for datapoint in target['datapoints']:
+                    if datapoint[1] < telegraf_since:
+                        datapoint[0] = None
+                    else:
+                        break
+        return data
 
 
 class LoadHandler(CustomHandler):
@@ -306,6 +332,8 @@ class DiskHandler(CustomHandler):
                 target = sum_series(
                     "%(head)s." + "disk.*.%s.%s" % (kind, direction)
                 )
+            if self.telegraf:
+                target = per_second(target)
         return target, alias
 
 
@@ -376,6 +404,8 @@ class InterfaceHandler(CustomHandler):
                 target = sum_series(
                     "%(head)s." + "interface.*.%s.%s" % (kind, direction)
                 )
+            if self.telegraf:
+                target = per_second(target)
         return target, alias
 
 
@@ -434,7 +464,7 @@ class CpuHandler(CustomHandler):
             core, kind = parts
             if core == "total":
                 if kind == "*":
-                    target = r'aliasSub(asPercent(sumSeriesWithWildcards(exclude(%(head)s.cpu.*.*,"idle"),3),sumSeries(%(head)s.cpu.*.*)), "^.*\.cpu\.([a-z]*),.*", "%(head)s.cpu.total.\1")'
+                    target = r'aliasSub(asPercent(sumSeriesWithWildcards(exclude(%(head)s.cpu.*.*,"idle"),3),sumSeries(%(head)s.cpu.*.*)), "^.*\.cpu\.([a-z]*),.*", "%(head)s.cpu.total.\1")'  # noqa
                     alias = target
                 else:
                     if kind != "nonidle":
@@ -549,8 +579,9 @@ class PingHandler(CustomHandler):
 
 
 class MultiHandler(GenericHandler):
-    def __init__(self, uuid):
-        super(MultiHandler, self).__init__(uuid)
+    def __init__(self, uuid, telegraf=False, telegraf_since=None):
+        super(MultiHandler, self).__init__(uuid, telegraf=telegraf,
+                                           telegraf_since=telegraf_since)
         self.handlers = {
             'generic': GenericHandler,
             'interface': InterfaceHandler,
@@ -572,7 +603,8 @@ class MultiHandler(GenericHandler):
                 if parts[1] in self.handlers:
                     plugin = parts[1]
         log.debug("get_handler plugin: %s", plugin)
-        return self.handlers[plugin](self.uuid)
+        return self.handlers[plugin](self.uuid, telegraf=self.telegraf,
+                                     telegraf_since=self.telegraf_since)
 
     def find_metrics(self, plugin=""):
         if plugin:
@@ -589,7 +621,7 @@ class MultiHandler(GenericHandler):
         return metrics
 
     def get_data(self, targets, start="", stop="", interval_str=""):
-        if isinstance(targets, basestring):
+        if isinstance(targets, string_types):
             targets = [targets]
         current_handlers = {}
         for target in targets:
@@ -600,12 +632,13 @@ class MultiHandler(GenericHandler):
         max_targets = 5  # max targets per http request
         started_at = time.time()
         run_args = []
-        for handler, targets in current_handlers.items():
+        for handler, targets in list(current_handlers.items()):
             while targets:
                 run_args.append((handler.get_data, targets[:max_targets]))
                 targets = targets[max_targets:]
 
-        def _run((func, targets)):
+        def _run(xxx_todo_changeme):
+            (func, targets) = xxx_todo_changeme
             try:
                 return func(targets, start=start, stop=stop,
                             interval_str=interval_str)
@@ -620,7 +653,7 @@ class MultiHandler(GenericHandler):
         # data = reduce(lambda x, y: x + y, parts)
         # pool.terminate()
 
-        parts = map(_run, run_args)
+        parts = list(map(_run, run_args))
         data = reduce(lambda x, y: x + y, parts)
 
         log.info("Multihandler get_data completed in: %.2f secs",
@@ -645,7 +678,7 @@ class MultiHandler(GenericHandler):
                             break
                 if stop:
                     for i in range(len(item['datapoints'])):
-                        if item['datapoints'][-(i+1)][1] <= stop:
+                        if item['datapoints'][-(i + 1)][1] <= stop:
                             if i:
                                 item['datapoints'] = item['datapoints'][:-i]
                             break
@@ -653,3 +686,23 @@ class MultiHandler(GenericHandler):
 
     def decorate_target(self, target):
         return self.get_handler(target).decorate_target(target)
+
+
+def get_multi_uuid(uuids, target, start="", stop="", interval_str=""):
+    """Get the same metric for multiple uuids
+
+    uuids should be a list of uuids
+    target should be a string containing '%(uuid)s'
+    """
+    target = target % {'uuid': '{' + ','.join(uuids) + '}'}
+    if interval_str:
+        target = summarize(target, interval_str)
+    params = [('target', target),
+              ('from', start or None),
+              ('until', stop or None),
+              ('format', 'json')]
+    resp = requests.post('%s/render' % config.GRAPHITE_URI, data=params)
+    if not resp.ok:
+        log.error(resp.text)
+        raise Exception(str(resp))
+    return resp.json()

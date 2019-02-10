@@ -2,9 +2,11 @@ import logging
 
 import requests
 
+from mist.api.celery_app import app
+
 from mist.api import config
 from mist.api.portal.models import Portal, AvailableUpgrade
-from mist.api.tasks import app
+from mist.api.metering.methods import get_current_portal_usage
 
 
 log = logging.getLogger(__name__)
@@ -16,9 +18,12 @@ def get_version_params(portal=None):
     params = {
         'portal_id': portal.id,
         'created_at': str(portal.created_at),
+        'license_key': config.LICENSE_KEY,
     }
-    for key, value in config.VERSION.iteritems():
+    for key, value in config.VERSION.items():
         params['version_%s' % key] = value
+    for key, value in list(get_current_portal_usage().items()):
+        params['usage_%s' % key] = value
     return params
 
 

@@ -4,13 +4,13 @@ from uuid import uuid4
 import celery.schedules
 import mongoengine as me
 from mist.api.tag.models import Tag
-from mist.api.machines.models import Machine
 from mist.api.exceptions import BadRequestError
 from mist.api.users.models import Organization
 from celerybeatmongo.schedulers import MongoScheduler
 from mist.api.exceptions import ScheduleNameExistsError
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.conditions.models import ConditionalClassMixin
+from mist.api.ownership.mixins import OwnershipMixin
 
 
 #: Authorized values for Interval.period
@@ -119,6 +119,10 @@ class BaseTaskType(me.EmbeddedDocument):
         raise NotImplementedError()
 
     @property
+    def kwargs(self):
+        raise NotImplementedError()
+
+    @property
     def task(self):
         raise NotImplementedError()
 
@@ -131,6 +135,10 @@ class ActionTask(BaseTaskType):
         return self.action
 
     @property
+    def kwargs(self):
+        return {}
+
+    @property
     def task(self):
         return 'mist.api.tasks.group_machines_actions'
 
@@ -140,10 +148,15 @@ class ActionTask(BaseTaskType):
 
 class ScriptTask(BaseTaskType):
     script_id = me.StringField()
+    params = me.StringField()
 
     @property
     def args(self):
         return self.script_id
+
+    @property
+    def kwargs(self):
+        return {'params': self.params}
 
     @property
     def task(self):
@@ -153,7 +166,7 @@ class ScriptTask(BaseTaskType):
         return 'Run script: %s' % self.script_id
 
 
-class Schedule(me.Document, ConditionalClassMixin):
+class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
     """Abstract base class for every schedule attr mongoengine model.
     This model is based on celery periodic task and creates defines the fields
     common to all schedules of all types. For each different schedule type, a
@@ -168,8 +181,6 @@ class Schedule(me.Document, ConditionalClassMixin):
         Schedule.objects(owner=owner).count()
 
     """
-
-    condition_resource_cls = Machine
 
     meta = {
         'collection': 'schedules',
@@ -249,7 +260,7 @@ class Schedule(me.Document, ConditionalClassMixin):
         schedule = cls(owner=owner, name=name)
         schedule.ctl.set_auth_context(auth_context)
         schedule.ctl.add(**kwargs)
-
+        schedule.assign_to(auth_context.user)
         return schedule
 
     @property
@@ -268,7 +279,7 @@ class Schedule(me.Document, ConditionalClassMixin):
 
     @property
     def kwargs(self):
-        return {}
+        return self.task_type.kwargs
 
     @property
     def task(self):
@@ -300,7 +311,6 @@ class Schedule(me.Document, ConditionalClassMixin):
         return fmt.format(self)
 
     def validate(self, clean=True):
-
         """
         Override mongoengine validate. We should validate crontab entry.
             Use crontab_parser for crontab expressions.
@@ -315,7 +325,7 @@ class Schedule(me.Document, ConditionalClassMixin):
         if isinstance(self.schedule_type, Crontab):
             cronj_entry = self.schedule_type.as_dict()
             try:
-                for k, v in cronj_entry.items():
+                for k, v in list(cronj_entry.items()):
                     if k == 'minute':
                         celery.schedules.crontab_parser(60).parse(v)
                     elif k == 'hour':
@@ -336,10 +346,16 @@ class Schedule(me.Document, ConditionalClassMixin):
                                          % exc.message)
         super(Schedule, self).validate(clean=True)
 
+    def clean(self):
+        if self.resource_model_name != 'machine':
+            self.resource_model_name = 'machine'
+
     def delete(self):
         super(Schedule, self).delete()
         Tag.objects(resource=self).delete()
         self.owner.mapper.remove(self)
+        if self.owned_by:
+            self.owned_by.get_ownership_mapper(self.owner).remove(self)
 
     def as_dict(self):
         # Return a dict as it will be returned to the API
@@ -352,7 +368,7 @@ class Schedule(me.Document, ConditionalClassMixin):
             'id': self.id,
             'name': self.name,
             'description': self.description or '',
-            'schedule': unicode(self.schedule_type),
+            'schedule': str(self.schedule_type),
             'schedule_type': self.schedule_type.type,
             'schedule_entry': self.schedule_type.as_dict(),
             'task_type': str(self.task_type),
@@ -365,11 +381,31 @@ class Schedule(me.Document, ConditionalClassMixin):
             'total_run_count': self.total_run_count,
             'max_run_count': self.max_run_count,
             'conditions': conditions,
+            'owned_by': self.owned_by.id if self.owned_by else '',
+            'created_by': self.created_by.id if self.created_by else '',
         }
 
         return sdict
 
 
+class NonDeletedSchedule(object):
+    # NOTE This wrapper class is used by the UserScheduler. It allows to trick
+    # the scheduler by providing an interface similar to that of a mongoengine
+    # Document subclass in order to prevent schedules marked as deleted from
+    # being loaded. Similarly, we could have used a custom QuerySet manager to
+    # achieve this. However, subclasses of mongoengine models, which are not a
+    # direct subclass of the main `Document` class, do not fetch the documents
+    # of the corresponding superclass. In that case, we'd have to override the
+    # QuerySet class in a more exotic way, but there is no such need for now.
+    @classmethod
+    def objects(cls):
+        return Schedule.objects(deleted=None)
+
+    @classmethod
+    def _get_collection(cls):
+        return Schedule._get_collection()
+
+
 class UserScheduler(MongoScheduler):
-    Model = Schedule
+    Model = NonDeletedSchedule
     UPDATE_INTERVAL = datetime.timedelta(seconds=20)

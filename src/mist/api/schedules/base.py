@@ -18,17 +18,12 @@ from mist.api.exceptions import ScheduleNameExistsError
 from mist.api.machines.models import Machine
 from mist.api.exceptions import NotFoundError
 
-from mist.api.conditions.models import FieldCondition, MachinesCondition
+from mist.api.conditions.models import FieldCondition, GenericResourceCondition
 from mist.api.conditions.models import TaggingCondition, MachinesAgeCondition
 
 import mist.api.schedules.models as schedules
 
-from mist.api import config
-
-if config.HAS_CORE:
-    from mist.core.rbac.methods import AuthContext
-else:
-    from mist.api.dummy.rbac import AuthContext
+from mist.api.auth.methods import AuthContext
 
 
 log = logging.getLogger(__name__)
@@ -168,7 +163,8 @@ class BaseController(object):
         if action:
             self.schedule.task_type = schedules.ActionTask(action=action)
         elif script_id:
-            self.schedule.task_type = schedules.ScriptTask(script_id=script_id)
+            self.schedule.task_type = schedules.ScriptTask(
+                script_id=script_id, params=kwargs.pop('params', ''))
 
         schedule_type = kwargs.pop('schedule_type', '')
 
@@ -223,7 +219,7 @@ class BaseController(object):
                 self.schedule.max_run_count = 1
 
         # set schedule attributes
-        for key, value in kwargs.iteritems():
+        for key, value in kwargs.items():
             if key in self.schedule._fields:
                 setattr(self.schedule, key, value)
 
@@ -257,7 +253,7 @@ class BaseController(object):
 
         """
         cond_cls = {'tags': TaggingCondition,
-                    'machines': MachinesCondition,
+                    'machines': GenericResourceCondition,
                     'field': FieldCondition,
                     'age': MachinesAgeCondition}
 

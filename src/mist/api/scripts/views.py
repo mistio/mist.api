@@ -1,6 +1,13 @@
 import uuid
 import json
-import urllib
+
+# Python 2 and 3 support
+from future.utils import string_types
+from future.standard_library import install_aliases
+install_aliases()
+import urllib.request
+import urllib.parse
+import urllib.error
 
 import mongoengine as me
 from pyramid.response import Response
@@ -9,7 +16,7 @@ from mist.api import tasks
 
 from mist.api.machines.models import Machine
 from mist.api.scripts.models import Script, ExecutableScript
-from mist.api.scripts.models import AnsibleScript, CollectdScript
+from mist.api.scripts.models import AnsibleScript
 
 from mist.api.auth.methods import auth_context_from_request
 
@@ -35,7 +42,9 @@ OK = Response("OK", 200)
              renderer='json')
 def list_scripts(request):
     """
-    List user scripts
+    Tags: scripts
+    ---
+    Lists user scripts.
     READ permission required on each script.
     ---
     """
@@ -49,7 +58,9 @@ def list_scripts(request):
              renderer='json')
 def add_script(request):
     """
-    Add script to user scripts
+    Tags: scripts
+    ---
+    Add script to user scripts.
     ADD permission required on SCRIPT
     ---
     name:
@@ -78,7 +89,7 @@ def add_script(request):
     description:
       type: string
     extra:
-      type: dict
+      type: object
     """
 
     params = params_from_request(request)
@@ -110,16 +121,17 @@ def add_script(request):
         script = ExecutableScript.add(auth_context.owner, name, **kwargs)
     elif exec_type == 'ansible':
         script = AnsibleScript.add(auth_context.owner, name, **kwargs)
-    elif exec_type == 'collectd_python_plugin':
-        script = CollectdScript.add(auth_context.owner, name, **kwargs)
     else:
         raise BadRequestError(
-            "Param 'exec_type' must be in ('executable', 'ansible', "
-            "'collectd_python_plugin')."
+            "Param 'exec_type' must be in ('executable', 'ansible')."
         )
 
+    # Set ownership.
+    script.assign_to(auth_context.user)
+
     if script_tags:
-        add_tags_to_resource(auth_context.owner, script, script_tags.items())
+        add_tags_to_resource(auth_context.owner, script,
+                             list(script_tags.items()))
 
     script = script.as_dict()
 
@@ -148,6 +160,8 @@ def choose_script_from_params(location_type, script,
 @view_config(route_name='api_v1_script', request_method='GET', renderer='json')
 def show_script(request):
     """
+    Tags: scripts
+    ---
     Show script details and job history.
     READ permission required on script.
     ---
@@ -181,6 +195,8 @@ def show_script(request):
              renderer='json')
 def download_script(request):
     """
+    Tags: scripts
+    ---
     Download script file or archive.
     READ permission required on script.
     ---
@@ -214,7 +230,9 @@ def download_script(request):
              renderer='json')
 def delete_script(request):
     """
-    Delete script
+    Tags: scripts
+    ---
+    Deletes script.
     REMOVE permission required on script.
     ---
     script_id:
@@ -247,7 +265,9 @@ def delete_script(request):
              request_method='DELETE', renderer='json')
 def delete_scripts(request):
     """
-    Delete multiple scripts.
+    Tags: scripts
+    ---
+    Deletes multiple scripts.
     Provide a list of script ids to be deleted. The method will try to delete
     all of them and then return a json that describes for each script id
     whether or not it was deleted or the not_found if the script id could not
@@ -260,7 +280,6 @@ def delete_scripts(request):
       type: array
       items:
         type: string
-        name: script_id
     """
     auth_context = auth_context_from_request(request)
     params = params_from_request(request)
@@ -296,12 +315,12 @@ def delete_scripts(request):
         # /SEC
 
     # if no script id was valid raise exception
-    if len(filter(lambda script_id: report[script_id] == 'not_found',
-                  report)) == len(script_ids):
+    if len([script_id for script_id in report
+            if report[script_id] == 'not_found']) == len(script_ids):
         raise NotFoundError('No valid script id provided')
     # if user was not authorized for any script raise exception
-    if len(filter(lambda script_id: report[script_id] == 'unauthorized',
-                  report)) == len(script_ids):
+    if len([script_id for script_id in report
+            if report[script_id] == 'unauthorized']) == len(script_ids):
         raise UnauthorizedError("You don't have authorization for any of these"
                                 " scripts")
     return report
@@ -311,7 +330,9 @@ def delete_scripts(request):
 @view_config(route_name='api_v1_script', request_method='PUT', renderer='json')
 def edit_script(request):
     """
-    Edit script (rename only as for now)
+    Tags: scripts
+    ---
+    Edit script (rename only as for now).
     EDIT permission required on script.
     ---
     script_id:
@@ -343,7 +364,7 @@ def edit_script(request):
 
     script.ctl.edit(new_name, new_description)
     ret = {'new_name': new_name}
-    if isinstance(new_description, basestring):
+    if isinstance(new_description, string_types):
         ret['new_description'] = new_description
     return ret
 
@@ -353,6 +374,8 @@ def edit_script(request):
              renderer='json')
 def run_script(request):
     """
+    Tags: scripts
+    ---
     Start a script job to run the script.
     READ permission required on cloud.
     RUN_SCRIPT permission required on machine.
@@ -442,6 +465,8 @@ def run_script(request):
              renderer='json')
 def url_script(request):
     """
+    Tags: scripts
+    ---
     Returns to a mist authenticated user,
     a self-auth/signed url for fetching a script's file.
     READ permission required on script.
@@ -469,7 +494,7 @@ def url_script(request):
     mac_sign(hmac_params, expires_in)
 
     url = "%s/api/v1/fetch" % config.CORE_URI
-    encode_params = urllib.urlencode(hmac_params)
+    encode_params = urllib.parse.urlencode(hmac_params)
     r_url = url + '?' + encode_params
 
     return r_url

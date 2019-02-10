@@ -1,12 +1,11 @@
-import re
 import uuid
 import time
 import logging
 import mongoengine as me
 
-from mist.api import config
-from mist.api.methods import ssh_command
+from mist.api.helpers import is_email_valid
 from mist.api.logs.methods import log_event
+from mist.api.users.models import User
 from mist.api.machines.models import Machine
 
 
@@ -18,23 +17,11 @@ ACTIONS = {}  # This is a map of action types to action classes.
 
 def _populate_actions():
     """Populate ACTIONS variable."""
-    for key, value in globals().iteritems():
+    for key, value in globals().items():
         if key.endswith('Action') and key != 'Action':
             if issubclass(value, BaseAlertAction):
                 if value.atype not in (None, 'no_data', ):  # Exclude these.
                     ACTIONS[value.atype] = value
-
-
-def is_email_valid(email):
-    """E-mail address validator.
-
-    Ensure the e-mail is a valid expression and the provider is not banned.
-
-    """
-    # TODO Move this to mist.api.helpers.
-    regex = '(^[\w\.-]+@[a-zA-Z0-9-]+(\.[a-zA-Z0-9-.]+)+$)'
-    return (re.match(regex, email) and
-            email.split('@')[1] not in config.BANNED_EMAIL_PROVIDERS)
 
 
 class BaseAlertAction(me.EmbeddedDocument):
@@ -57,7 +44,7 @@ class BaseAlertAction(me.EmbeddedDocument):
     id = me.StringField(required=True, default=lambda: uuid.uuid4().hex)
 
     def update(self, fail_on_error=True, **kwargs):
-        for key, value in kwargs.iteritems():
+        for key, value in kwargs.items():
             if key not in self._fields:
                 if not fail_on_error:
                     continue
@@ -85,26 +72,41 @@ class NotificationAction(BaseAlertAction):
 
     atype = 'notification'
 
+    users = me.ListField(me.StringField(), default=lambda: [])
+    teams = me.ListField(me.StringField(), default=lambda: [])
     emails = me.ListField(me.StringField(), default=lambda: [])
 
-    def run(self, machine, value, triggered, timestamp, incident_id, action='',
-            notification_level=0):
-        if notification_level > 3:
-            # FIXME Prevents spam of notification e-mails. This shouldn't be
-            # taken care of here, but rather by the Notifications system.
-            log.warning('Notification level %d for %s', notification_level,
-                        self._instance)
-            return
-        if config.HAS_CORE:
-            # TODO Use the Notifications system.
-            from mist.core.methods import _alert_action
-            # TODO Shouldn't be specific to machines.
-            assert isinstance(machine, Machine)
-            assert machine.owner == self._instance.owner
-            _alert_action(machine.owner, self._instance.title, value,
-                          triggered, timestamp, incident_id, action=action,
-                          cloud_id=machine.cloud.id,
-                          machine_id=machine.machine_id)
+    def run(self, resource, value, triggered, timestamp, incident_id,
+            action=''):
+        # Validate `resource` based on the rule's type. The `resource` must
+        # be a me.Document subclass, if the corresponding rule is resource-
+        # bound, otherwise None.
+        if resource is not None:
+            assert isinstance(resource, me.Document)
+            assert resource.owner == self._instance.owner
+        else:
+            assert self._instance.is_arbitrary()
+
+        emails = set(self.emails)
+        user_ids = set(self.users)
+        if not (self.users or self.teams):
+            emails |= set(self._instance.owner.get_emails())
+            emails |= set(self._instance.owner.alerts_email)
+        if user_ids:
+            user_ids &= set([m.id for m in self._instance.owner.members])
+        for user in User.objects(id__in=user_ids):
+            emails.add(user.email)
+        for team_id in self.teams:
+            try:
+                team = self._instance.owner.teams.get(id=team_id)
+                emails |= set([member.email for member in team.members])
+            except me.DoesNotExist:
+                continue
+
+        # FIXME Imported here due to circular dependency issues.
+        from mist.api.notifications.methods import send_alert_email
+        send_alert_email(self._instance, resource, incident_id, value,
+                         triggered, timestamp, emails, action=action)
 
     def clean(self):
         """Perform e-mail address validation."""
@@ -113,7 +115,8 @@ class NotificationAction(BaseAlertAction):
                 raise me.ValidationError('Invalid e-mail address: %s' % email)
 
     def as_dict(self):
-        return {'type': self.atype, 'emails': self.emails}
+        return {'type': self.atype, 'emails': self.emails,
+                'users': self.users, 'teams': self.teams}
 
 
 class NoDataAction(NotificationAction):
@@ -122,28 +125,23 @@ class NoDataAction(NotificationAction):
     atype = 'no_data'
 
     def run(self, machine, value, triggered, timestamp, incident_id, **kwargs):
-        if timestamp + 60 * 60 * 24 < time.time():  # 24 hours.
-            try:
-                from mist.core.methods import disable_monitoring
-            except ImportError:
-                pass
-            else:
-                # If NoData alerts are being triggered for over 24h, disable
-                # monitoring and log the action to close any open incidents.
-                disable_monitoring(machine.owner, machine.cloud.id,
-                                   machine.machine_id, no_ssh=True)
-                log_event(
-                    machine.owner.id, 'incident', 'disable_monitoring',
-                    cloud_id=machine.cloud.id, machine_id=machine.machine_id,
-                    incident_id=incident_id
-                )
+        if timestamp + 60 * 60 * 24 < time.time():
+            # FIXME Imported here due to circular dependency issues.
+            from mist.api.monitoring.methods import disable_monitoring
+            # If NoData alerts are being triggered for over 24h, disable
+            # monitoring and log the action to close any open incidents.
+            disable_monitoring(machine.owner, machine.cloud.id,
+                               machine.machine_id, no_ssh=True)
+            log_event(
+                machine.owner.id, 'incident', 'disable_monitoring',
+                cloud_id=machine.cloud.id, machine_id=machine.machine_id,
+                incident_id=incident_id
+            )
             action = 'Disable Monitoring'
-            notification_level = 0
         else:
             action = 'Alert'
-            notification_level = kwargs.get('notification_level', 0)
         super(NoDataAction, self).run(machine, value, triggered, timestamp,
-                                      incident_id, action, notification_level)
+                                      incident_id, action)
 
 
 class CommandAction(BaseAlertAction):
@@ -156,6 +154,8 @@ class CommandAction(BaseAlertAction):
     command = me.StringField(required=True)
 
     def run(self, machine, *args, **kwargs):
+        # FIXME Imported here due to circular dependency issues.
+        from mist.api.methods import ssh_command
         assert isinstance(machine, Machine)
         assert machine.owner == self._instance.owner
         return ssh_command(machine.owner, machine.cloud.id, machine.machine_id,
@@ -177,14 +177,14 @@ class MachineAction(BaseAlertAction):
         assert machine.owner == self._instance.owner
         getattr(machine.ctl, self.action)()
         if self.action == 'destroy':  # If destroy, disable monitoring, too.
-            if config.HAS_CORE:
-                from mist.core.methods import disable_monitoring
-                # TODO Move this into machine.ctl.destroy method and
-                # deprecate mist.api.machines.methods:destroy_machine.
-                # Could also be implemented as new method inside the
-                # MachineController.
-                disable_monitoring(machine.owner, machine.cloud.id,
-                                   machine.machine_id, no_ssh=True)
+            # FIXME Imported here due to circular dependency issues.
+            from mist.api.monitoring.methods import disable_monitoring
+            # TODO Move this into machine.ctl.destroy method and
+            # deprecate mist.api.machines.methods:destroy_machine.
+            # Could also be implemented as new method inside the
+            # MachineController.
+            disable_monitoring(machine.owner, machine.cloud.id,
+                               machine.machine_id, no_ssh=True)
 
     def as_dict(self):
         return {'type': self.atype, 'action': self.action}
