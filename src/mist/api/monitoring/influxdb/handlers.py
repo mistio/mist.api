@@ -61,9 +61,18 @@ def add_filter(query, fields=None, start='', stop=''):
     if or_stmt:
         filters.append('(%s)' % ' OR '.join(or_stmt))
     if stop:
-        filters.insert(0, '"time" <= now() - %s' % stop)
+        try:
+            stop = str(int(stop)) + 's'
+            filters.insert(0, '"time" <= %s' % stop)
+        except ValueError:
+            filters.insert(0, '"time" <= now() - %s' % stop)
     if start:
-        filters.insert(0, '"time" >= now() - %s' % start)
+        try:
+            start = str(int(start)) + 's'
+            filters.insert(0, '"time" > %s' % start)
+        except ValueError:
+            filters.insert(0, '"time" > now() - %s' % start)
+
     return '%s WHERE %s' % (query, ' AND '.join(filters))
 
 
@@ -143,6 +152,7 @@ class BaseStatsHandler(object):
 
         if not tornado_async:
             data = requests.get(self.influx, params=dict(q=q))
+            log.warn('Query: %s' % q)
             if not data.ok:
                 log.error('Got %d HTTP status code on get_stats: %s',
                           data.status_code, data.content)

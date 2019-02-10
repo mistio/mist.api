@@ -37,7 +37,6 @@ log.warn("MIST_API_DIR is %s" % MIST_API_DIR)
 
 
 ###############################################################################
-# The following variables are common for both open.source and mist.core
 ###############################################################################
 
 PORTAL_NAME = "Mist.io"
@@ -53,6 +52,7 @@ GC_SCHEDULERS = True
 VERSION_CHECK = True
 USAGE_SURVEY = False
 ENABLE_METERING = True
+BACKUP_INTERVAL = 24
 
 # backups
 BACKUP = {
@@ -269,9 +269,11 @@ INFLUXDB_MACHINE_DASHBOARD_DEFAULT = {
         "id": 1,
         "refresh": "10sec",
         "rows": [{
+            "title": "Load, CPU, RAM, Uptime",
             "panels": [{
                 "id": 0,
                 "title": "Load",
+                "description": "Load average",
                 "type": "graph",
                 "span": 6,
                 "stack": False,
@@ -326,6 +328,24 @@ INFLUXDB_MACHINE_DASHBOARD_DEFAULT = {
                 }]
             }, {
                 "id": 4,
+                "title": "Uptime",
+                "type": "graph",
+                "span": 6,
+                "stack": True,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "Z",
+                    "target": "system.uptime"
+                }],
+                "yaxes": [{
+                    "format": "%"
+                }]
+            }]
+        }, {
+            "title": "Network & Filesystems",
+            "collapsed": True,
+            "panels": [{
+                "id": 5,
                 "title": "NET RX",
                 "type": "graph",
                 "span": 6,
@@ -339,7 +359,7 @@ INFLUXDB_MACHINE_DASHBOARD_DEFAULT = {
                     "format": "B/s"
                 }]
             }, {
-                "id": 5,
+                "id": 6,
                 "title": "NET TX",
                 "type": "graph",
                 "span": 6,
@@ -348,33 +368,6 @@ INFLUXDB_MACHINE_DASHBOARD_DEFAULT = {
                 "targets": [{
                     "refId": "H",
                     "target": "net.bytes_sent"
-                }],
-                "yaxes": [{
-                    "format": "B/s"
-                }]
-            }, {
-                "id": 6,
-                "title": "DISK READ",
-                "type": "graph",
-                "span": 6,
-                "stack": False,
-                "datasource": "mist.monitor",
-                "targets": [{
-                    "refId": "I",
-                    "target": "diskio.read_bytes"
-                }],
-                "x-axis": True,
-                "y-axis": True
-            }, {
-                "id": 7,
-                "title": "DISK WRITE",
-                "type": "graph",
-                "span": 6,
-                "stack": False,
-                "datasource": "mist.monitor",
-                "targets": [{
-                    "refId": "J",
-                    "target": "diskio.write_bytes"
                 }],
                 "yaxes": [{
                     "format": "B/s"
@@ -392,6 +385,37 @@ INFLUXDB_MACHINE_DASHBOARD_DEFAULT = {
                 }],
                 "yaxes": [{
                     "format": "B"
+                }]
+            }]
+        }, {
+            "title": "Disks",
+            "collapsed": True,
+            "panels": [{
+                "id": 9,
+                "title": "DISK READ",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "I",
+                    "target": "diskio.read_bytes"
+                }],
+                "x-axis": True,
+                "y-axis": True
+            }, {
+                "id": 10,
+                "title": "DISK WRITE",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "J",
+                    "target": "diskio.write_bytes"
+                }],
+                "yaxes": [{
+                    "format": "B/s"
                 }]
             }],
         }],
@@ -1823,7 +1847,7 @@ if ENABLE_MONITORING:
 if ENABLE_BACKUPS:
     _schedule['backups'] = {
         'task': 'mist.api.tasks.create_backup',
-        'schedule': datetime.timedelta(hours=1),
+        'schedule': datetime.timedelta(hours=BACKUP_INTERVAL),
     }
 
 if _schedule:

@@ -263,10 +263,11 @@ def confirm_unsubscription(request):
     """
     params = dict(params_from_request(request).copy())
 
-    try:
-        mac_verify(params)
-    except Exception as exc:
-        raise BadRequestError(exc)
+    # TODO: implement proper mac verification for unsubscribes
+    # try:
+    #     mac_verify(params)
+    # except Exception as exc:
+    #     raise BadRequestError(exc)
 
     try:
         decrypted_str = decrypt(params["token"])
