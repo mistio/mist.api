@@ -59,7 +59,8 @@ def list_keys(owner):
         key_object = {}
         # FIXME: Need to optimize this! It's potentially invoked per ssh probe.
         # Can't we expose associations directly from Machine.key_associations?
-        associated_machines = machines.filter(key_associations__keypair__exact=key)
+        associated_machines = machines.filter(
+            key_associations__keypair__exact=key)
         key_object["id"] = key.id
         key_object['name'] = key.name
         key_object['owned_by'] = key.owned_by.id if key.owned_by else ''
