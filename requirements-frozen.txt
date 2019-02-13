@@ -89,7 +89,7 @@ python-memcached==1.59
 python3-openid==3.1.0
 pytz==2018.5
 pyvmomi==6.7.1
-PyYAML==3.13
+PyYAML==4.2b2
 repoze.lru==0.7
 requests==2.20.1
 scandir==1.9.0
