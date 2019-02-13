@@ -1883,7 +1883,11 @@ HOMEPAGE_INPUTS = {
         'signin_home': REDIRECT_HOME_TO_SIGNIN,
         'landing_footer': SHOW_FOOTER,
         'docs': DOCS_URI,
-        'support': SUPPORT_URI
+        'support': SUPPORT_URI,
+        'currency': {
+            'sign': '$',
+            'rate': '1'
+        }
     },
     'email': {
         'info': EMAIL_INFO,
