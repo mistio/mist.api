@@ -547,17 +547,17 @@ def check_host(host, allow_localhost=config.ALLOW_CONNECT_LOCALHOST):
 
 
 def transform_key_machine_associations(machines, key):
-    key_associations = []
-    for machine in machines:
-        for key_assoc in machine.key_associations:
-            if key_assoc.keypair == key:
-                key_associations.append([machine.cloud.id,
-                                        machine.machine_id,
-                                        key_assoc.last_used,
-                                        key_assoc.ssh_user,
-                                        key_assoc.sudo,
-                                        key_assoc.port])
-    return key_associations
+    return [
+        [machine.cloud.id,
+         machine.machine_id,
+         key_assoc.last_used,
+         key_assoc.ssh_user,
+         key_assoc.sudo,
+         key_assoc.port]
+         for machine in machines
+         for key_assoc in machine.key_associations
+         if key_assoc.keypair == key
+    ]
 
 
 def get_datetime(timestamp):
@@ -807,7 +807,7 @@ def decrypt(ciphertext, key=config.SECRET, key_salt='', no_iv=False):
     """Decrypt shit the right way"""
 
     # sanitize inputs
-    key = SHA256.new(key + key_salt).digest()
+    key = SHA256.new((key + key_salt).encode()).digest()
     if len(key) not in AES.key_size:
         raise Exception()
     if len(ciphertext) % AES.block_size:
