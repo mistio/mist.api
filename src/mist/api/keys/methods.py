@@ -1,7 +1,6 @@
 from datetime import datetime
 
 from mist.api.keys.models import Key
-from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 
 from mist.api.tag.methods import get_tags_for_resource

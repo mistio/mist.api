@@ -554,9 +554,9 @@ def transform_key_machine_associations(machines, key):
          key_assoc.ssh_user,
          key_assoc.sudo,
          key_assoc.port]
-         for machine in machines
-         for key_assoc in machine.key_associations
-         if key_assoc.keypair == key
+        for machine in machines
+        for key_assoc in machine.key_associations
+        if key_assoc.keypair == key
     ]
 
 
