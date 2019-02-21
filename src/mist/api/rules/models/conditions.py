@@ -57,6 +57,7 @@ class QueryCondition(me.EmbeddedDocument):
     target = me.StringField(required=True)
     operator = me.StringField(required=True, choices=OPERATORS)
     threshold = me.DynamicField(required=True)
+    data_type = me.StringField(required=False, 'metrics')
 
     filters = me.EmbeddedDocumentListField(QueryFilter, default=lambda: [])
 
@@ -76,6 +77,7 @@ class QueryCondition(me.EmbeddedDocument):
             'operator': self.operator,
             'threshold': self.threshold,
             'aggregation': self.aggregation,
+            'data_type': self.data_type,
             'filters': [f.as_dict() for f in self.filters],
         }
 
