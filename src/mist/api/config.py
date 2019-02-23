@@ -1666,7 +1666,10 @@ ACCELERATE_MACHINE_POLLING = True
 PLUGINS = []
 PRE_ACTION_HOOKS = {}
 POST_ACTION_HOOKS = {}
-
+CURRENCY = {
+    'sign': '$',
+    'rate': '1'
+}
 # DO NOT PUT ANYTHING BELOW HERE UNLESS YOU KNOW WHAT YOU ARE DOING
 
 # Get settings from mist.core.
@@ -1884,10 +1887,7 @@ HOMEPAGE_INPUTS = {
         'landing_footer': SHOW_FOOTER,
         'docs': DOCS_URI,
         'support': SUPPORT_URI,
-        'currency': {
-            'sign': '$',
-            'rate': '1'
-        }
+        'currency': CURRENCY
     },
     'email': {
         'info': EMAIL_INFO,
