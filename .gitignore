@@ -105,6 +105,7 @@ ENV/
 /src/mist/api/templates/tmp*
 /src/mist/api/templates/ui.pt
 /src/mist/api/templates/landing.pt
+/src/mist/api/templates/landing.jinja2
 
 # Celerybeat files
 /celerybeat-schedule.dir

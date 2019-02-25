@@ -22,6 +22,7 @@ import urllib.error
 import json
 import netaddr
 import traceback
+import requests
 import mongoengine as me
 
 from time import time
@@ -96,7 +97,7 @@ def get_ui_template():
 
 
 def get_landing_template():
-    get_file(config.LANDING_TEMPLATE_URL, 'templates/landing.pt')
+    get_file(config.LANDING_TEMPLATE_URL, 'templates/landing.jinja2')
 
 
 @view_config(context=Exception)
@@ -165,7 +166,20 @@ def home(request):
             raise RedirectError(url)
 
         get_landing_template()
-        return render_to_response('templates/landing.pt', template_inputs)
+        if request.path.strip('/'):
+            response = requests.get('%s/static/landing/sections%s.json' % (
+                request.application_url, request.path))
+        else:
+            response = requests.get('%s/static/landing/sections/home.json' % (
+                request.application_url))
+        if response.ok:
+            section = response.json()
+            from jinja2 import Markup
+            for k in section:
+                section[k] = Markup(section[k])
+            template_inputs['section'] = section
+            import ipdb;ipdb.set_trace()
+        return render_to_response('templates/landing.jinja2', template_inputs)
 
     if not user.last_active or \
             datetime.now() - user.last_active > timedelta(0, 300):
@@ -205,7 +219,7 @@ def not_found(request):
             raise RedirectError(url)
 
         get_landing_template()
-        return render_to_response('templates/landing.pt', template_inputs,
+        return render_to_response('templates/landing.jinja2', template_inputs,
                                   request=request)
 
     get_ui_template()
@@ -549,9 +563,9 @@ def register(request):
 def confirm(request):
     """
     Confirm a user's email address when signing up.
-    After registering, the user is sent a confirmation email to his email
+    After registering, the user is sent a confirmation email to their email
     address with a link containing a token that directs the user to this view
-    to confirm his email address.
+    to confirm theis email address.
     If invitation token exists redirect to set_password or to social auth
     """
     params = params_from_request(request)
@@ -698,7 +712,7 @@ def reset_password(request):
         template_inputs['csrf_token'] = json.dumps(get_csrf_token(request))
 
         get_landing_template()
-        return render_to_response('templates/landing.pt', template_inputs)
+        return render_to_response('templates/landing.jinja2', template_inputs)
     elif request.method == 'POST':
 
         password = params.get('password', '')
@@ -850,7 +864,7 @@ def set_password(request):
         template_inputs['csrf_token'] = json.dumps(get_csrf_token(request))
 
         get_landing_template()
-        return render_to_response('templates/landing.pt', template_inputs)
+        return render_to_response('templates/landing.jinja2', template_inputs)
     elif request.method == 'POST':
         password = params.get('password', '')
         if not password:
@@ -1030,7 +1044,6 @@ def list_images(request):
     search_term:
       type: string
     """
-
     cloud_id = request.matchdict['cloud']
     try:
         term = request.json_body.get('search_term', '')
@@ -1759,10 +1772,10 @@ def delete_team(request):
     if team.members:
         raise BadRequestError(
             'Team not empty. Remove all members and try again')
-
     try:
         team.drop_mappings()
-        auth_context.org.update(pull__teams__id=team_id)
+        auth_context.org.teams = [t for t in auth_context.org.teams if t.id != team_id]
+        auth_context.org.save()
     except me.ValidationError as e:
         raise BadRequestError({"msg": e.message, "errors": e.to_dict()})
     except me.OperationError:
@@ -1828,7 +1841,9 @@ def delete_teams(request):
                 report[team_id] = 'not_empty'
             else:
                 team.drop_mappings()
-                Organization.objects(id=org_id).modify(pull__teams=team)
+                org = Organization.objects(id=org_id)
+                org.teams = [t for t in org.teams if t.id != team_id]
+                org.save()
                 report[team_id] = 'deleted'
 
     # if no team id was valid raise exception

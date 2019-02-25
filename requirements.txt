@@ -43,6 +43,7 @@ pymongo
 pyyaml
 pyramid
 pyramid_chameleon
+pyramid_jinja2
 pytest
 python-memcached
 python3-openid

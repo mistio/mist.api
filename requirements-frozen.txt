@@ -81,6 +81,7 @@ pyOpenSSL==18.0.0
 pyparsing==2.3.0
 pyramid==1.5.8
 pyramid_chameleon==0.3
+pyramid-jinja2==2.8
 pytest==3.8.0
 pytest-cov==2.6.0
 python-dateutil==2.7.3

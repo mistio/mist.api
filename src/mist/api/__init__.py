@@ -72,6 +72,7 @@ def main(global_config, **settings):
 
     configurator = Configurator(root_factory=Root, settings=settings)
     configurator.include('pyramid_chameleon')
+    configurator.include('pyramid_jinja2')
 
     # Add custom adapter to the JSON renderer to avoid serialization errors
     json_renderer = JSON()
