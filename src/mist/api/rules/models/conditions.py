@@ -57,7 +57,7 @@ class QueryCondition(me.EmbeddedDocument):
     target = me.StringField(required=True)
     operator = me.StringField(required=True, choices=OPERATORS)
     threshold = me.DynamicField(required=True)
-    data_type = me.StringField(required=False, 'metrics')
+    data_type = me.StringField(required=False, default='metrics')
 
     filters = me.EmbeddedDocumentListField(QueryFilter, default=lambda: [])
 
