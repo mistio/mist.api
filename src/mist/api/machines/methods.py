@@ -448,11 +448,21 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     else:
         raise BadRequestError("Provider unknown.")
 
-    try:
-        machine = Machine.objects.get(cloud=cloud, machine_id=node.id)
-    except me.DoesNotExist:
-        cloud.ctl.compute._list_machines()
-        machine = Machine.objects.get(cloud=cloud, machine_id=node.id)
+    for i in range(0, 10):
+        try:
+            machine = Machine.objects.get(cloud=cloud, machine_id=node.id)
+            break
+        except me.DoesNotExist:
+            if i < 6:
+                time.sleep(i*10)
+                continue
+            try:
+                cloud.ctl.compute._list_machines()
+            except Exception as e:
+                if i > 8:
+                    raise(e)
+                else:
+                    continue
 
     # Assign machine's owner/creator
     machine.assign_to(auth_context.user)

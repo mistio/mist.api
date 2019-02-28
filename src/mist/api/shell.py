@@ -241,18 +241,22 @@ class ParamikoShell(object):
 
         cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
         machine = Machine.objects.get(cloud=cloud, machine_id=machine_id)
+        log.info('Got cloud & machine: %d key associations' % len(machine.key_associations))
         if key_id:
             keys = [Key.objects.get(owner=owner, id=key_id, deleted=None)]
+            log.info('Got key')
         else:
             keys = [key_assoc.keypair
                     for key_assoc in machine.key_associations
                     if isinstance(key_assoc.keypair, Key)]
+            log.info('Got keys %d' % len(keys))
         if username:
             users = [username]
         else:
             users = list(set([key_assoc.ssh_user
                               for key_assoc in machine.key_associations
                               if key_assoc.ssh_user]))
+        log.info('Got users')
         if not users:
             for name in ['root', 'ubuntu', 'ec2-user', 'user', 'azureuser',
                          'core', 'centos', 'cloud-user', 'fedora']:
@@ -265,6 +269,7 @@ class ParamikoShell(object):
                               for key_assoc in machine.key_associations]))
         if 22 not in ports:
             ports.append(22)
+        log.info('Got ports')
         # store the original destination IP to prevent rewriting it when NATing
         ssh_host = self.host
         for key in keys:

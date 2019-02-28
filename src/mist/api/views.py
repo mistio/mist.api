@@ -1267,7 +1267,7 @@ def get_avatar(request):
         raise NotFoundError()
 
     return Response(content_type=str(avatar.content_type),
-                    body=str(avatar.body))
+                    body=avatar.body)
 
 
 @view_config(route_name='api_v1_avatar', request_method='DELETE')
