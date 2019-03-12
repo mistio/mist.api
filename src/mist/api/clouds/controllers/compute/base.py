@@ -324,8 +324,10 @@ class BaseComputeController(BaseController):
                     machine = Machine(
                         cloud=self.cloud, machine_id=node.id).save()
                     new_machines.append(machine)
-                except me.ValidationError:
-                    pass
+                except me.ValidationError as exc:
+                    log.warn("Validation error when saving new machine: %r" %
+                             exc)
+                    continue
 
             # Update machine_model's last_seen fields.
             machine.last_seen = now
