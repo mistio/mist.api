@@ -454,7 +454,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             break
         except me.DoesNotExist:
             if i < 6:
-                time.sleep(i*10)
+                time.sleep(i * 10)
                 continue
             try:
                 cloud.ctl.compute._list_machines()
