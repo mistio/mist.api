@@ -152,7 +152,8 @@ class MachineController(object):
                                       routing_key='patch_machines',
                                       data={'cloud_id': self.machine.cloud.id,
                                             'patch': patch})
-        return self.machine.ping_probe.as_dict()
+        probe_result = self.machine.ping_probe
+        return probe_result and probe_result.as_dict()
 
     def ssh_probe(self, persist=True):
         from mist.api.methods import probe_ssh_only
@@ -199,4 +200,5 @@ class MachineController(object):
                                       routing_key='patch_machines',
                                       data={'cloud_id': self.machine.cloud.id,
                                             'patch': patch})
-        return self.machine.ssh_probe.as_dict()
+        probe_result = self.machine.ssh_probe
+        return probe_result and probe_result.as_dict()
