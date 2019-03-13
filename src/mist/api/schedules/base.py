@@ -253,9 +253,9 @@ class BaseController(object):
 
         """
         sel_cls = {'tags': TaggingSelector,
-                    'machines': GenericResourceSelector,
-                    'field': FieldSelector,
-                    'age': MachinesAgeSelector}
+                   'machines': GenericResourceSelector,
+                   'field': FieldSelector,
+                   'age': MachinesAgeSelector}
 
         if kwargs.get('selectors'):
             self.schedule.selectors = []
@@ -264,7 +264,7 @@ class BaseController(object):
                 raise BadRequestError()
             if selector['type'] == 'field':
                 if selector['field'] not in ('created', 'state',
-                                              'cost__monthly'):
+                                             'cost__monthly'):
                     raise BadRequestError()
             sel = sel_cls[selector.pop('type')]()
             sel.update(**selector)
