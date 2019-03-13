@@ -169,7 +169,7 @@ class BaseStorageController(BaseController):
             except mongoengine.errors.ValidationError as exc:
                 log.error("Error updating %s: %s", volume, exc.to_dict())
                 raise mist.api.exceptions.BadRequestError(
-                    {"msg": exc.message, "errors": exc.to_dict()}
+                    {"msg": str(exc), "errors": exc.to_dict()}
                 )
             except mongoengine.errors.NotUniqueError as exc:
                 log.error("Volume %s is not unique: %s", volume.name, exc)

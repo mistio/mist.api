@@ -102,7 +102,7 @@ class BaseController(object):
             raise SSLError(exc=exc)
         except Exception as exc:
             log.exception("Error while connecting to %s", self.cloud)
-            raise CloudUnavailableError(exc=exc, msg=exc.message)
+            raise CloudUnavailableError(exc=exc, msg=str(exc))
 
     @property
     def connection(self):

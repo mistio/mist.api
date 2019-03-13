@@ -258,7 +258,7 @@ class BaseMainController(object):
             self.cloud.validate(clean=True)
         except me.ValidationError as exc:
             log.error("Error updating %s: %s", self.cloud, exc.to_dict())
-            raise BadRequestError({'msg': exc.message,
+            raise BadRequestError({'msg': str(exc),
                                    'errors': exc.to_dict()})
 
         # Try to connect to cloud.
@@ -280,7 +280,7 @@ class BaseMainController(object):
             self.cloud.save()
         except me.ValidationError as exc:
             log.error("Error updating %s: %s", self.cloud, exc.to_dict())
-            raise BadRequestError({'msg': exc.message,
+            raise BadRequestError({'msg': str(exc),
                                    'errors': exc.to_dict()})
         except me.NotUniqueError as exc:
             log.error("Cloud %s not unique error: %s", self.cloud, exc)

@@ -90,7 +90,7 @@ class BaseScriptController(object):
             self.script.save()
         except me.ValidationError as exc:
             log.error("Error adding %s: %s", self.script.name, exc.to_dict())
-            raise BadRequestError({'msg': exc.message,
+            raise BadRequestError({'msg': str(exc),
                                    'errors': exc.to_dict()})
         except me.NotUniqueError as exc:
             log.error("Script %s not unique error: %s", self.script.name, exc)

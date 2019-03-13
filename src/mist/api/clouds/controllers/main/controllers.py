@@ -372,7 +372,7 @@ class OtherMainController(BaseMainController):
         try:
             self.cloud.save()
         except me.ValidationError as exc:
-            raise BadRequestError({'msg': exc.message,
+            raise BadRequestError({'msg': str(exc),
                                    'errors': exc.to_dict()})
         except me.NotUniqueError:
             raise CloudExistsError("Cloud with name %s already exists"

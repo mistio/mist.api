@@ -454,7 +454,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             break
         except me.DoesNotExist:
             if i < 6:
-                time.sleep(i*10)
+                time.sleep(i * 10)
                 continue
             try:
                 cloud.ctl.compute._list_machines()
@@ -692,7 +692,7 @@ def _create_machine_ec2(conn, key_name, private_key, public_key,
         conn.ex_create_security_group(name=name, description=description)
         conn.ex_authorize_security_group_permissive(name=name)
     except Exception as exc:
-        if 'Duplicate' in exc.message:
+        if 'Duplicate' in str(exc)
             log.info('Security group already exists, not doing anything.')
         else:
             raise InternalServerError("Couldn't create security group", exc)

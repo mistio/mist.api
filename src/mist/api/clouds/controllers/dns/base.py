@@ -161,7 +161,7 @@ class BaseDNSController(BaseController):
                 zone.save()
             except me.ValidationError as exc:
                 log.error("Error updating %s: %s", zone, exc.to_dict())
-                raise BadRequestError({'msg': exc.message,
+                raise BadRequestError({'msg': str(exc),
                                        'errors': exc.to_dict()})
             except me.NotUniqueError as exc:
                 log.error("Zone %s not unique error: %s", zone, exc)
@@ -250,7 +250,7 @@ class BaseDNSController(BaseController):
                 record.save()
             except me.ValidationError as exc:
                 log.error("Error updating %s: %s", record, exc.to_dict())
-                raise BadRequestError({'msg': exc.message,
+                raise BadRequestError({'msg': str(exc),
                                        'errors': exc.to_dict()})
             except me.NotUniqueError as exc:
                 log.error("Record %s not unique error: %s", record, exc)
@@ -427,7 +427,7 @@ class BaseDNSController(BaseController):
             record.clean()
         except me.ValidationError as exc:
             log.error("Error validating %s: %s", record, exc.to_dict())
-            raise BadRequestError({'msg': exc.message,
+            raise BadRequestError({'msg': str(exc),
                                    'errors': exc.to_dict()})
 
         self._create_record__prepare_args(record.zone, kwargs)

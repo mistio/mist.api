@@ -332,7 +332,7 @@ class BaseNetworkController(BaseController):
             except mongoengine.errors.ValidationError as exc:
                 log.error("Error updating %s: %s", network, exc.to_dict())
                 raise mist.api.exceptions.BadRequestError(
-                    {"msg": exc.message, "errors": exc.to_dict()}
+                    {"msg": str(exc), "errors": exc.to_dict()}
                 )
             except mongoengine.errors.NotUniqueError as exc:
                 log.error("Network %s is not unique: %s", network.name, exc)
@@ -462,7 +462,7 @@ class BaseNetworkController(BaseController):
             except mongoengine.errors.ValidationError as exc:
                 log.error("Error updating %s: %s", subnet, exc.to_dict())
                 raise mist.api.exceptions.BadRequestError(
-                    {"msg": exc.message, "errors": exc.to_dict()}
+                    {"msg": str(exc), "errors": exc.to_dict()}
                 )
             except mongoengine.errors.NotUniqueError as exc:
                 log.error("Subnet %s not unique error: %s", subnet.name, exc)

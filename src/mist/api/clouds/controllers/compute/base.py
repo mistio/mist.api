@@ -274,7 +274,7 @@ class BaseComputeController(BaseController):
         except InvalidCredsError as exc:
             log.warning("Invalid creds on running list_nodes on %s: %s",
                         self.cloud, exc)
-            raise CloudUnauthorizedError(msg=exc.message)
+            raise CloudUnauthorizedError(msg=str(exc))
         except (requests.exceptions.SSLError, ssl.SSLError) as exc:
             log.error("SSLError on running list_nodes on %s: %s",
                       self.cloud, exc)
@@ -324,8 +324,10 @@ class BaseComputeController(BaseController):
                     machine = Machine(
                         cloud=self.cloud, machine_id=node.id).save()
                     new_machines.append(machine)
-                except me.ValidationError:
-                    pass
+                except me.ValidationError as exc:
+                    log.warn("Validation error when saving new machine: %r" %
+                             exc)
+                    continue
 
             # Update machine_model's last_seen fields.
             machine.last_seen = now
@@ -452,7 +454,7 @@ class BaseComputeController(BaseController):
                 machine.save()
             except me.ValidationError as exc:
                 log.error("Error adding %s: %s", machine.name, exc.to_dict())
-                raise BadRequestError({"msg": exc.message,
+                raise BadRequestError({"msg": str(exc),
                                        "errors": exc.to_dict()})
             except me.NotUniqueError as exc:
                 log.error("Machine %s not unique error: %s", machine.name, exc)
@@ -823,7 +825,7 @@ class BaseComputeController(BaseController):
         except InvalidCredsError as exc:
             log.warning("Invalid creds on running list_sizes on %s: %s",
                         self.cloud, exc)
-            raise CloudUnauthorizedError(msg=exc.message)
+            raise CloudUnauthorizedError(msg=str(exc))
         except (requests.exceptions.SSLError, ssl.SSLError) as exc:
             log.error("SSLError on running list_sizes on %s: %s",
                       self.cloud, exc)
@@ -868,7 +870,7 @@ class BaseComputeController(BaseController):
                 sizes.append(_size)
             except me.ValidationError as exc:
                 log.error("Error adding %s: %s", size.name, exc.to_dict())
-                raise BadRequestError({"msg": exc.message,
+                raise BadRequestError({"msg": str(exc),
                                        "errors": exc.to_dict()})
 
         # Update missing_since for sizes not returned by libcloud
@@ -994,7 +996,7 @@ class BaseComputeController(BaseController):
                 _location.save()
             except me.ValidationError as exc:
                 log.error("Error adding %s: %s", loc.name, exc.to_dict())
-                raise BadRequestError({"msg": exc.message,
+                raise BadRequestError({"msg": str(exc),
                                        "errors": exc.to_dict()})
             locations.append(_location)
 
@@ -1090,7 +1092,7 @@ class BaseComputeController(BaseController):
             raise
         except Exception as exc:
             log.exception(exc)
-            raise InternalServerError(exc.message)
+            raise InternalServerError(str(exc))
 
     def _start_machine(self, machine, machine_libcloud):
         """Private method to start a given machine
@@ -1362,7 +1364,7 @@ class BaseComputeController(BaseController):
             raise
         except Exception as exc:
             log.exception(exc)
-            raise InternalServerError(exc.message)
+            raise InternalServerError(str(exc))
 
     def _rename_machine(self, machine, machine_libcloud, name):
         """Private method to rename a given machine
@@ -1454,7 +1456,7 @@ class BaseComputeController(BaseController):
             raise
         except Exception as exc:
             log.exception(exc)
-            raise InternalServerError(exc.message)
+            raise InternalServerError(str(exc))
 
     def _suspend_machine(self, machine, machine_libcloud):
         """Private method to suspend a given machine
@@ -1501,7 +1503,7 @@ class BaseComputeController(BaseController):
             raise
         except Exception as exc:
             log.exception(exc)
-            raise BadRequestError(exc.message)
+            raise BadRequestError(str(exc))
 
     def _undefine_machine(self, machine, machine_libcloud):
         """Private method to undefine a given machine
@@ -1553,7 +1555,7 @@ class BaseComputeController(BaseController):
             raise
         except Exception as exc:
             log.exception(exc)
-            raise BadRequestError(exc.message)
+            raise BadRequestError(str(exc))
 
     def _create_machine_snapshot(self, machine, machine_libcloud,
                                  snapshot_name, description='',
@@ -1608,7 +1610,7 @@ class BaseComputeController(BaseController):
             raise
         except Exception as exc:
             log.exception(exc)
-            raise BadRequestError(exc.message)
+            raise BadRequestError(str(exc))
 
     def _remove_machine_snapshot(self, machine, machine_libcloud,
                                  snapshot_name=None):
@@ -1660,7 +1662,7 @@ class BaseComputeController(BaseController):
             raise
         except Exception as exc:
             log.exception(exc)
-            raise BadRequestError(exc.message)
+            raise BadRequestError(str(exc))
 
     def _revert_machine_to_snapshot(self, machine, machine_libcloud,
                                     snapshot_name=None):
@@ -1708,7 +1710,7 @@ class BaseComputeController(BaseController):
             raise
         except Exception as exc:
             log.exception(exc)
-            raise InternalServerError(exc.message)
+            raise InternalServerError(str(exc))
 
     def _list_machine_snapshots(self, machine, machine_libcloud):
         """Private method to list a given machine's snapshots
