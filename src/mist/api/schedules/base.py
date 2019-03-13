@@ -252,7 +252,7 @@ class BaseController(object):
         Subclasses MAY override this method.
 
         """
-        cond_cls = {'tags': TaggingSelector,
+        sel_cls = {'tags': TaggingSelector,
                     'machines': GenericResourceSelector,
                     'field': FieldSelector,
                     'age': MachinesAgeSelector}
@@ -260,7 +260,7 @@ class BaseController(object):
         if kwargs.get('selectors'):
             self.schedule.selectors = []
         for selector in kwargs.pop('selectors', []):
-            if selector.get('type') not in cond_cls:
+            if selector.get('type') not in sel_cls:
                 raise BadRequestError()
             if selector['type'] == 'field':
                 if selector['field'] not in ('created', 'state',
