@@ -13,8 +13,10 @@ log = logging.getLogger(__name__)
 class PeriodicTaskThresholdExceeded(Exception):
     pass
 
+
 class PeriodicTaskTooRecentLastRun(Exception):
     pass
+
 
 class PeriodicTaskLockTakenError(Exception):
     pass
