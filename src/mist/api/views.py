@@ -1363,7 +1363,7 @@ def create_organization(request):
     try:
         org.save()
     except me.ValidationError as e:
-        raise BadRequestError({"msg": e.message, "errors": e.to_dict()})
+        raise BadRequestError({"msg": str(e), "errors": e.to_dict()})
     except me.OperationError:
         raise OrganizationOperationError()
 
@@ -1520,7 +1520,7 @@ def edit_organization(request):
     try:
         auth_context.org.save()
     except me.ValidationError as e:
-        raise BadRequestError({"msg": e.message, "errors": e.to_dict()})
+        raise BadRequestError({"msg": str(e), "errors": e.to_dict()})
     except me.OperationError:
         raise OrganizationOperationError()
 
@@ -1576,7 +1576,7 @@ def add_team(request):
     try:
         auth_context.org.save()
     except me.ValidationError as e:
-        raise BadRequestError({"msg": e.message, "errors": e.to_dict()})
+        raise BadRequestError({"msg": str(e), "errors": e.to_dict()})
     except me.OperationError:
         raise TeamOperationError()
 
@@ -1710,7 +1710,7 @@ def edit_team(request):
     try:
         auth_context.org.save()
     except me.ValidationError as e:
-        raise BadRequestError({"msg": e.message, "errors": e.to_dict()})
+        raise BadRequestError({"msg": str(e), "errors": e.to_dict()})
     except me.OperationError:
         raise TeamOperationError()
 
@@ -1764,7 +1764,7 @@ def delete_team(request):
         team.drop_mappings()
         auth_context.org.update(pull__teams__id=team_id)
     except me.ValidationError as e:
-        raise BadRequestError({"msg": e.message, "errors": e.to_dict()})
+        raise BadRequestError({"msg": str(e), "errors": e.to_dict()})
     except me.OperationError:
         raise TeamOperationError()
 
@@ -2088,7 +2088,7 @@ def delete_member_from_team(request):
                     invitation.delete()
                 except me.ValidationError as e:
                     raise BadRequestError(
-                        {"msg": e.message, "errors": e.to_dict()})
+                        {"msg": str(e), "errors": e.to_dict()})
                 except me.OperationError:
                     raise TeamOperationError()
                 # notify user that his invitation has been revoked
@@ -2098,7 +2098,7 @@ def delete_member_from_team(request):
                     invitation.save()
                 except me.ValidationError as e:
                     raise BadRequestError(
-                        {"msg": e.message, "errors": e.to_dict()})
+                        {"msg": str(e), "errors": e.to_dict()})
                 except me.OperationError:
                     raise TeamOperationError()
 
@@ -2133,7 +2133,7 @@ def delete_member_from_team(request):
     try:
         auth_context.org.save()
     except me.ValidationError as e:
-        raise BadRequestError({"msg": e.message, "errors": e.to_dict()})
+        raise BadRequestError({"msg": str(e), "errors": e.to_dict()})
     except me.OperationError:
         raise TeamOperationError()
 

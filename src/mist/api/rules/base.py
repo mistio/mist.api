@@ -124,7 +124,7 @@ class BaseController(object):
                 action_cls = ACTIONS[action.pop('type')]()
                 action_cls.update(fail_on_error=fail_on_error, **action)
             except me.ValidationError as err:
-                raise BadRequestError({'msg': err.message,
+                raise BadRequestError({'msg': str(err),
                                        'errors': err.to_dict()})
             self.rule.actions.append(action_cls)
 
@@ -170,7 +170,7 @@ class BaseController(object):
                 doc_cls = TIMEPERIOD[field]()
                 doc_cls.update(**params)
             except me.ValidationError as err:
-                raise BadRequestError({'msg': err.message,
+                raise BadRequestError({'msg': str(err),
                                        'errors': err.to_dict()})
             setattr(self.rule, field, doc_cls)
 
@@ -187,7 +187,7 @@ class BaseController(object):
             self.rule.save()
         except me.ValidationError as err:
             log.error('Error updating %s: %s', self.rule.title, err)
-            raise BadRequestError({'msg': err.message,
+            raise BadRequestError({'msg': str(err),
                                    'errors': err.to_dict()})
         except me.NotUniqueError as err:
             log.error('Error updating %s: %s', self.rule.title, err)

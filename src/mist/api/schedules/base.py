@@ -228,7 +228,7 @@ class BaseController(object):
         except me.ValidationError as e:
             log.error("Error updating %s: %s", self.schedule.name,
                       e.to_dict())
-            raise BadRequestError({"msg": e.message, "errors": e.to_dict()})
+            raise BadRequestError({"msg": str(e), "errors": e.to_dict()})
         except me.NotUniqueError as exc:
             log.error("Schedule %s not unique error: %s", self.schedule, exc)
             raise ScheduleNameExistsError()

@@ -343,7 +343,7 @@ class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
                 raise me.ValidationError('Crontab entry is not valid')
             except Exception as exc:
                 raise me.ValidationError('Crontab entry is not valid:%s'
-                                         % exc.message)
+                                         % str(exc))
         super(Schedule, self).validate(clean=True)
 
     def clean(self):
