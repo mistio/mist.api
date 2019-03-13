@@ -19,8 +19,8 @@ from mist.api.exceptions import ScheduleNameExistsError
 from mist.api.machines.models import Machine
 from mist.api.exceptions import NotFoundError
 
-from mist.api.conditions.models import FieldCondition, GenericResourceCondition
-from mist.api.conditions.models import TaggingCondition, MachinesAgeCondition
+from mist.api.selectors.models import FieldSelector, GenericResourceSelector
+from mist.api.selectors.models import TaggingSelector, MachinesAgeSelector
 
 import mist.api.schedules.models as schedules
 
@@ -69,8 +69,8 @@ class BaseController(object):
             raise BadRequestError("You must provide script_id "
                                   "or machine's action")
 
-        if not kwargs.get('conditions'):
-            raise BadRequestError("You must provide a list of conditions, "
+        if not kwargs.get('selectors'):
+            raise BadRequestError("You must provide a list of selectors, "
                                   "at least machine ids or tags")
 
         if kwargs.get('schedule_type') not in ['crontab', 'reminder',
@@ -147,6 +147,7 @@ class BaseController(object):
         if self.schedule.start_after and self.schedule.start_after < now:
             raise BadRequestError('Date of future task is in the past. '
                                   'Please contact Marty McFly')
+        # Schedule selectors pre-parsing.
         try:
             self._update__preparse_machines(auth_context, kwargs)
         except MistError as exc:
@@ -281,31 +282,31 @@ class BaseController(object):
         Subclasses MAY override this method.
 
         """
-        cond_cls = {'tags': TaggingCondition,
-                    'machines': GenericResourceCondition,
-                    'field': FieldCondition,
-                    'age': MachinesAgeCondition}
+        sel_cls = {'tags': TaggingSelector,
+                   'machines': GenericResourceSelector,
+                   'field': FieldSelector,
+                   'age': MachinesAgeSelector}
 
-        if kwargs.get('conditions'):
-            self.schedule.conditions = []
-        for condition in kwargs.get('conditions', []):
-            if condition.get('type') not in cond_cls:
+        if kwargs.get('selectors'):
+            self.schedule.selectors = []
+        for selector in kwargs.pop('selectors', []):
+            if selector.get('type') not in sel_cls:
                 raise BadRequestError()
-            if condition['type'] == 'field':
-                if condition['field'] not in ('created', 'state',
-                                              'cost__monthly'):
+            if selector['type'] == 'field':
+                if selector['field'] not in ('created', 'state',
+                                             'cost__monthly'):
                     raise BadRequestError()
-            cond = cond_cls[condition.get('type')]()
-            cond.update(**condition)
-            self.schedule.conditions.append(cond)
+            sel = sel_cls[selector.pop('type')]()
+            sel.update(**selector)
+            self.schedule.selectors.append(sel)
 
         action = kwargs.get('action')
 
         # check permissions
         check = False
-        for condition in self.schedule.conditions:
-            if condition.ctype == 'machines':
-                for mid in condition.ids:
+        for selector in self.schedule.selectors:
+            if selector.ctype == 'machines':
+                for mid in selector.ids:
                     try:
                         machine = Machine.objects.get(id=mid,
                                                       state__ne='terminated')
@@ -322,7 +323,7 @@ class BaseController(object):
                         # SEC require permission RUN_SCRIPT on machine
                         auth_context.check_perm("machine", "run_script", mid)
                 check = True
-            elif condition.ctype == 'tags':
+            elif selector.ctype == 'tags':
                 if action and action not in ['notify']:
                     # SEC require permission ACTION on machine
                     auth_context.check_perm("machine", action, None)
