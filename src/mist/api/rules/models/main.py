@@ -305,7 +305,7 @@ class ArbitraryRule(Rule):
     _controller_cls = ArbitraryRuleController
 
 
-class ResourceRule(Rule, ConditionalClassMixin):
+class ResourceRule(Rule, SelectorClassMixin):
     """A rule bound to a specific resource type.
 
     Resource-bound rules are less elastic than arbitrary rules, but allow
