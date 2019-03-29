@@ -929,7 +929,7 @@ CELERY_SETTINGS = {
     # 'worker_task_log_format': PY_LOG_FORMAT,
     'worker_concurrency': 8,
     'worker_max_tasks_per_child': 32,
-    'worker_max_memory_per_child': 204800,  # 204800 KiB - 200 MiB
+    'worker_max_memory_per_child': 1024000,  # 1024,000 KiB - 1000 MiB
     'mongodb_scheduler_db': 'mist2',
     'mongodb_scheduler_collection': 'schedules',
     'mongodb_scheduler_url': MONGO_URI,
