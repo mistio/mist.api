@@ -401,8 +401,8 @@ def openstack_post_create_steps(self, owner_id, cloud_id, machine_id,
                 ports = conn.ex_list_ports()
                 machine_port_id = None
                 for port in ports:
-                    if port.get('device_id') == node.id:
-                        machine_port_id = port.get('id')
+                    if port.extra.get('device_id') == node.id:
+                        machine_port_id = port.id
                         break
 
                 if unassociated_floating_ip:
