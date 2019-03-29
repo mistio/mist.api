@@ -1069,10 +1069,12 @@ class OpenStackComputeController(BaseComputeController):
             raise BadRequestError('Failed to resize node: %s' % exc)
 
         try:
-            sleep(5)
+            sleep(50)
+            machine_libcloud = self._get_machine_libcloud(machine)
             return self.connection.ex_confirm_resize(machine_libcloud)
         except Exception as exc:
-            sleep(5)
+            sleep(50)
+            machine_libcloud = self._get_machine_libcloud(machine)
             try:
                 return self.connection.ex_confirm_resize(machine_libcloud)
             except Exception as exc:
