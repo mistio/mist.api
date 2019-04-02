@@ -30,21 +30,21 @@ def main():
     qs = qs.filter(created_at__lt=datetime.datetime.now() - tdelta)
     count = qs.count()
 
-    print "Found %d %s sessions older than %s." % (
+    print("Found %d %s sessions older than %s." % (
         count, args.user and 'total' or 'anonymous', tdelta
-    )
+    ))
     if not count:
         return
     if not args.noinput:
         while True:
-            resp = raw_input("Continue with deletion? [y/n] ")
+            resp = input("Continue with deletion? [y/n] ")
             if resp == 'y':
                 break
             if resp == 'n':
                 return
 
     deleted = qs.delete()
-    print "Deleted %d anonymous sessions" % deleted
+    print("Deleted %d anonymous sessions" % deleted)
 
 
 if __name__ == '__main__':
