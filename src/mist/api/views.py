@@ -166,15 +166,15 @@ def home(request):
             raise RedirectError(url)
 
         get_landing_template()
-        if request.path.strip('/'):
-            response = requests.get('%s/static/landing/sections%s.html' % (
-                request.application_url, request.path))
-        else:
-            response = requests.get('%s/static/landing/sections/home.html' % (
-                request.application_url))
-        if response.ok:
-            section = response.text
-            template_inputs['section'] = section
+        page = request.path.strip('/').replace('.', '')
+        if not page:
+            page = 'home'
+        if page not in config.LANDING_FORMS:
+            response = requests.get('%s/static/landing/sections/%s.html' % (
+                request.application_url, page))
+            if response.ok:
+                section = response.text
+                template_inputs['section'] = section
         return render_to_response('templates/landing.pt', template_inputs)
 
     if not user.last_active or \
