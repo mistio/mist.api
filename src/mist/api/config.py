@@ -980,19 +980,13 @@ CELERY_SETTINGS = {
 LANDING_CATEGORIES = [{
     'href': '/',
     'name': 'home',
-    'template': 'home',
-    'title': 'Home',
-    'items': {
-        "fold": {
-            "copy": "",
-            "subcopy":
-                "Mist.io is a single dashboard to manage multi-cloud infrastructure",  # noqa
-            "image": "images/mockup-imac-n4.png",
-            "alt": "Mist.io cloud management dashboard",
-            "cta": "Get Started"
-        }
-    }
+    'title': 'Home'
 }]
+
+LANDING_FORMS = [
+    'sign-in', 'sign-up', 'reset-password', 'forgot-password','set-password',
+    'get-started', 'buy-license', 'request-pricing'
+]
 
 ###############################################################################
 # App constants
