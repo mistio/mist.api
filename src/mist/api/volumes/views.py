@@ -99,7 +99,6 @@ def create_volume(request):
 
     auth_context = auth_context_from_request(request)
 
-
     if not size:
         raise RequiredParameterMissingError('size')
 

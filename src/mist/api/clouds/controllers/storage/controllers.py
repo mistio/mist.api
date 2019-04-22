@@ -200,7 +200,6 @@ class AzureArmStorageController(BaseStorageController):
     pass
 
 
-
 class PacketStorageController(BaseStorageController):
     def _create_volume__prepare_args(self, kwargs):
         # FIXME Imported here due to circular dependency issues.
@@ -221,7 +220,8 @@ class PacketStorageController(BaseStorageController):
 
         # Find the volume's location.
         try:
-            external_location_id = volume.extra['facility']['href'].split('/')[-1]
+            external_location_id = volume.extra['facility']['href'].split(
+                '/')[-1]
             volume.location = CloudLocation.objects.get(
                 cloud=volume.cloud,
                 external_id=external_location_id)
@@ -235,7 +235,8 @@ class PacketStorageController(BaseStorageController):
             attachment_id = attachment.get('href').split('/')[-1]
             attachment_data = libcloud_connection.ex_describe_attachment(
                 attachment_id)
-            external_volume_id = attachment_data['volume']['href'].split('/')[-1]
+            external_volume_id = attachment_data['volume']['href'].split(
+                '/')[-1]
             assert external_volume_id == volume.external_id
             machine_id = attachment_data['device']['href'].split('/')[-1]
             try:

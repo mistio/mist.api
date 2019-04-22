@@ -267,6 +267,7 @@ class AlibabaComputeController(AmazonComputeController):
                 pass
         return locations
 
+
 class ClearAPIComputeController(BaseComputeController):
 
     def _connect(self):
