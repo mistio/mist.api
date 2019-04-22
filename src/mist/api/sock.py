@@ -397,55 +397,58 @@ class MainConnection(MistConnection):
         for cloud in clouds:
             if not cloud.enabled:
                 continue
-            self.internal_request(
-                'api/v1/clouds/%s/machines' % cloud.id,
-                params={'cached': True},
-                callback=lambda machines, cloud_id=cloud.id: self.send(
-                    'list_machines',
-                    {'cloud_id': cloud_id, 'machines': machines}
-                ),
-            )
-            self.internal_request(
-                'api/v1/clouds/%s/locations' % cloud.id,
-                params={'cached': True},
-                callback=lambda locations, cloud_id=cloud.id: self.send(
-                    'list_locations',
-                    {'cloud_id': cloud_id, 'locations': locations}
-                ),
-            )
-            self.internal_request(
-                'api/v1/clouds/%s/sizes' % cloud.id,
-                params={'cached': True},
-                callback=lambda sizes, cloud_id=cloud.id: self.send(
-                    'list_sizes',
-                    {'cloud_id': cloud_id, 'sizes': sizes}
-                ),
-            )
-            self.internal_request(
-                'api/v1/clouds/%s/networks' % cloud.id,
-                params={'cached': True},
-                callback=lambda networks, cloud_id=cloud.id: self.send(
-                    'list_networks',
-                    {'cloud_id': cloud_id, 'networks': networks}
-                ),
-            )
-
-            self.internal_request(
-                'api/v1/clouds/%s/zones' % cloud.id,
-                params={'cached': True},
-                callback=lambda zones, cloud_id=cloud.id: self.send(
-                    'list_zones',
-                    {'cloud_id': cloud_id, 'zones': zones}
-                ),
-            )
-            self.internal_request(
-                'api/v1/clouds/%s/volumes' % cloud.id,
-                params={'cached': True},
-                callback=lambda volumes, cloud_id=cloud.id: self.send(
-                    'list_volumes',
-                    {'cloud_id': cloud_id, 'volumes': volumes}
-                ),
-            )
+            if cloud.ctl.ComputeController:
+                self.internal_request(
+                    'api/v1/clouds/%s/machines' % cloud.id,
+                    params={'cached': True},
+                    callback=lambda machines, cloud_id=cloud.id: self.send(
+                        'list_machines',
+                        {'cloud_id': cloud_id, 'machines': machines}
+                    ),
+                )
+                self.internal_request(
+                    'api/v1/clouds/%s/locations' % cloud.id,
+                    params={'cached': True},
+                    callback=lambda locations, cloud_id=cloud.id: self.send(
+                        'list_locations',
+                        {'cloud_id': cloud_id, 'locations': locations}
+                    ),
+                )
+                self.internal_request(
+                    'api/v1/clouds/%s/sizes' % cloud.id,
+                    params={'cached': True},
+                    callback=lambda sizes, cloud_id=cloud.id: self.send(
+                        'list_sizes',
+                        {'cloud_id': cloud_id, 'sizes': sizes}
+                    ),
+                )
+            if cloud.ctl.NetworkController:
+                self.internal_request(
+                    'api/v1/clouds/%s/networks' % cloud.id,
+                    params={'cached': True},
+                    callback=lambda networks, cloud_id=cloud.id: self.send(
+                        'list_networks',
+                        {'cloud_id': cloud_id, 'networks': networks}
+                    ),
+                )
+            if cloud.ctl.DnsController:
+                self.internal_request(
+                    'api/v1/clouds/%s/zones' % cloud.id,
+                    params={'cached': True},
+                    callback=lambda zones, cloud_id=cloud.id: self.send(
+                        'list_zones',
+                        {'cloud_id': cloud_id, 'zones': zones}
+                    ),
+                )
+            if cloud.ctl.StorageController:
+                self.internal_request(
+                    'api/v1/clouds/%s/volumes' % cloud.id,
+                    params={'cached': True},
+                    callback=lambda volumes, cloud_id=cloud.id: self.send(
+                        'list_volumes',
+                        {'cloud_id': cloud_id, 'volumes': volumes}
+                    ),
+                )
 
         # Old Periodic Tasks (must be replaced by poller tasks and api calls.
         for key in ('list_images', 'list_resource_groups',

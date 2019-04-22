@@ -1237,18 +1237,12 @@ SUPPORTED_PROVIDERS = [
         'provider': Provider.VSPHERE,
         'regions': []
     },
-    # Packet.net
+    # Packet
     {
-        'title': 'Packet.net',
+        'title': 'Packet',
         'provider': Provider.PACKET,
         'regions': []
     },
-    # ClearAPI
-    {
-        'title': 'ClearAPI',
-        'provider': Provider.CLEARAPI,
-        'regions': []
-    }
 ]
 
 # Base AMIs

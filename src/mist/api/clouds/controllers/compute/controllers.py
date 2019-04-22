@@ -252,6 +252,20 @@ class AlibabaComputeController(AmazonComputeController):
     def image_is_default(self, image_id):
         return True
 
+    def _list_locations__fetch_locations(self):
+        """List ECS regions as locations, embed info about zones
+
+        In EC2 all locations of a region have the same name, so the
+        availability zones are listed instead.
+
+        """
+        locations = self.connection.list_locations()
+        for location in locations:
+            try:
+                location.name = location.availability_zone.name
+            except:
+                pass
+        return locations
 
 class ClearAPIComputeController(BaseComputeController):
 
@@ -909,7 +923,7 @@ class PacketComputeController(BaseComputeController):
         return price or 0, 0
 
     def _list_machines__get_location(self, node):
-        return node.extra.get('facility')
+        return node.extra.get('facility', {}).get('id', '')
 
     def _list_machines__get_size(self, node):
         return node.extra.get('plan')
@@ -1045,7 +1059,7 @@ class OpenStackComputeController(BaseComputeController):
         return get_driver(Provider.OPENSTACK)(
             self.cloud.username,
             self.cloud.password,
-            api_version='2.0',
+            api_version='2.2',
             ex_force_auth_version='2.0_password',
             ex_tenant_name=self.cloud.tenant,
             ex_force_service_region=self.cloud.region,
@@ -1158,7 +1172,6 @@ class DockerComputeController(BaseComputeController):
                 private_ips.append(host)
             else:
                 public_ips.append(host)
-
             container.public_ips = public_ips
             container.private_ips = private_ips
             container.size = None

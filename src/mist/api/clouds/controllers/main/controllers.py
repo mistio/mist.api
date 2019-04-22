@@ -196,6 +196,7 @@ class PacketMainController(BaseMainController):
 
     provider = 'packet'
     ComputeController = compute_ctls.PacketComputeController
+    StorageController = storage_ctls.PacketStorageController
 
 
 class VultrMainController(BaseMainController):
