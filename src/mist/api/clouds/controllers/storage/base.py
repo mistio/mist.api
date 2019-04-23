@@ -220,7 +220,7 @@ class BaseStorageController(BaseController):
 
         :param kwargs: A dict of parameters required for volume creation.
         """
-        for param in ('name', 'size', ):
+        for param in ('size', ):
             if not kwargs.get(param):
                 raise mist.api.exceptions.RequiredParameterMissingError(param)
 
@@ -323,7 +323,7 @@ class BaseStorageController(BaseController):
 
     def _detach_volume(self, libcloud_volume, libcloud_node):
         self.cloud.ctl.compute.connection.detach_volume(libcloud_volume,
-                                                        libcloud_node)
+                                                        ex_node=libcloud_node)
 
     def get_libcloud_volume(self, volume):
         """Returns an instance of a libcloud volume.

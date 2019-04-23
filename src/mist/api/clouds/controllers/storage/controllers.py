@@ -198,3 +198,51 @@ class AzureStorageController(BaseStorageController):
 
 class AzureArmStorageController(BaseStorageController):
     pass
+
+
+class PacketStorageController(BaseStorageController):
+    def _create_volume__prepare_args(self, kwargs):
+        # FIXME Imported here due to circular dependency issues.
+        from mist.api.clouds.models import CloudLocation
+
+        if not kwargs.get('location'):
+            raise RequiredParameterMissingError('location')
+        try:
+            location = CloudLocation.objects.get(id=kwargs['location'])
+        except CloudLocation.DoesNotExist:
+            raise NotFoundError("Location with id '%s'." % kwargs['location'])
+        kwargs['location'] = location.external_id
+
+    def _list_volumes__postparse_volume(self, volume, libcloud_volume):
+        # FIXME Imported here due to circular dependency issues.
+        from mist.api.machines.models import Machine
+        from mist.api.clouds.models import CloudLocation
+
+        # Find the volume's location.
+        try:
+            external_location_id = volume.extra['facility']['href'].split(
+                '/')[-1]
+            volume.location = CloudLocation.objects.get(
+                cloud=volume.cloud,
+                external_id=external_location_id)
+        except CloudLocation.DoesNotExist:
+            volume.location = None
+
+        # Find the machines to which the volume is attached.
+        volume.attached_to = []
+        libcloud_connection = volume.cloud.ctl.compute.connection
+        for attachment in libcloud_volume.extra.get('attachments', []):
+            attachment_id = attachment.get('href').split('/')[-1]
+            attachment_data = libcloud_connection.ex_describe_attachment(
+                attachment_id)
+            external_volume_id = attachment_data['volume']['href'].split(
+                '/')[-1]
+            assert external_volume_id == volume.external_id
+            machine_id = attachment_data['device']['href'].split('/')[-1]
+            try:
+                machine = Machine.objects.get(machine_id=machine_id,
+                                              cloud=self.cloud)
+                volume.attached_to.append(machine)
+            except Machine.DoesNotExist:
+                log.error('%s attached to unknown machine "%s"', volume,
+                          machine_id)
