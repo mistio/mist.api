@@ -814,7 +814,8 @@ def create_machine_async(
     associate_floating_ip=False,
     associate_floating_ip_subnet=None, project_id=None,
     tags=None, schedule={}, bare_metal=False, hourly=True,
-    softlayer_backend_vlan_id=None, machine_username=''
+    softlayer_backend_vlan_id=None, machine_username='',
+    volumes=[]
 ):
     from multiprocessing.dummy import Pool as ThreadPool
     from mist.api.machines.methods import create_machine
@@ -839,7 +840,7 @@ def create_machine_async(
               cloud_id=cloud_id, script=script, script_id=script_id,
               script_params=script_params, monitoring=monitoring,
               persist=persist, quantity=quantity, key_id=key_id,
-              machine_names=names)
+              machine_names=names, volumes=volumes)
 
     THREAD_COUNT = 5
     pool = ThreadPool(THREAD_COUNT)
@@ -872,7 +873,8 @@ def create_machine_async(
              'new_storage_account': new_storage_account,
              'bare_metal': bare_metal,
              'hourly': hourly,
-             'machine_username': machine_username}
+             'machine_username': machine_username,
+             'volumes': volumes}
         ))
 
     def create_machine_wrapper(args_kwargs):

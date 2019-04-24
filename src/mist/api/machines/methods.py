@@ -625,6 +625,7 @@ def _create_machine_openstack(conn, private_key, public_key, key_name,
             if volumes:
                 if volumes[0].get('size'):
                     blockdevicemappings = [{
+                        'boot_index': "0",
                         'delete_on_termination': bool(volumes[0]['delete_on_termination']),
                         'source_type': 'image',
                         'uuid': str(image.id),
