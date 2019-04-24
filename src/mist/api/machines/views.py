@@ -290,6 +290,7 @@ def create_machine(request):
     create_resource_group = params.get('create_resource_group', False)
     new_resource_group = params.get('new_resource_group', '')
     ex_resource_group = params.get('ex_resource_group', '')
+    volumes = params.get('volumes', [])
     create_network = params.get('create_network', False)
     new_network = params.get('new_network', '')
     networks = params.get('networks', [])
@@ -437,7 +438,8 @@ def create_machine(request):
               'new_network': new_network,
               'create_resource_group': create_resource_group,
               'new_resource_group': new_resource_group,
-              'machine_username': machine_username}
+              'machine_username': machine_username,
+              'volumes': volumes}
     if not run_async:
         ret = methods.create_machine(auth_context, *args, **kwargs)
     else:
