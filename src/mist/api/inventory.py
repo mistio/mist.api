@@ -1,5 +1,5 @@
 from mist.api.clouds.models import Cloud
-from mist.api.machines.models import Machine
+from mist.api.machines.models import Machine, KeyMachineAssociation
 from mist.api.keys.models import SSHKey, SignedSSHKey
 
 from mist.api import config
@@ -35,7 +35,7 @@ class MistInventory(object):
             ip_addr, port = dnat(self.owner, ip_addr, port)
             if key_id not in self.keys:
                 key = SSHKey.objects.get(owner=self.owner, name=key_id,
-                                             deleted=None)
+                                         deleted=None)
                 self.keys[key_id] = key.private
                 if isinstance(key, SignedSSHKey):
                     # if signed ssh key, provide the key appending a -cert.pub

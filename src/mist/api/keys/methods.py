@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from mist.api.keys.models import Key
-from mist.api.machines.models import Machine, KeyMachineAssociation
+from mist.api.machines.models import KeyMachineAssociation
 
 from mist.api.tag.methods import get_tags_for_resource
 
@@ -51,7 +51,6 @@ def list_keys(owner):
     :return:
     """
     keys = Key.objects(owner=owner, deleted=None)
-    machines = Machine.objects(owner=owner, missing_since=None)
     key_objects = []
     # FIXME: This must be taken care of in Keys.as_dict
     for key in keys:

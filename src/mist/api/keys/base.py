@@ -146,10 +146,10 @@ class BaseKeyController(object):
     def disassociate(self, machine):
         """Disassociates a key from a machine."""
 
+        from mist.api.machines.models import KeyMachineAssociation
+
         log.info("Disassociating key of machine '%s' " % machine.machine_id)
 
         # removing key association
         KeyMachineAssociation.objects(key=self.key,
-                                      machine=machine,
-                                      ssh_user=username,
-                                      port=port).delete()
+                                      machine=machine).delete()

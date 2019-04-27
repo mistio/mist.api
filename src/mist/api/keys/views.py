@@ -1,7 +1,6 @@
 import mongoengine as me
 from pyramid.response import Response
 
-from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 from mist.api.keys.models import SignedSSHKey, SSHKey, Key
 
@@ -365,7 +364,7 @@ def associate_key(request):
     machine_uuid = request.matchdict['machine_uuid']
     try:
         machine = Machine.objects.get(id=machine_uuid,
-                                        state__ne='terminated')
+                                      state__ne='terminated')
         # used by logging_view_decorator
         request.environ['machine_id'] = machine.machine_id
         request.environ['cloud_id'] = machine.cloud.id

@@ -34,6 +34,7 @@ class SSHKeyController(BaseKeyController):
 
     def deploy(self, machine, username=None, port=22):
         """"""
+        from mist.api.machines.models import KeyMachineAssociation
         # try to actually deploy
         log.info("Deploying key to host %s", machine.hostname)
         filename = '~/.ssh/authorized_keys'
@@ -53,7 +54,7 @@ class SSHKeyController(BaseKeyController):
         deploy_error = False
 
         # a little hack to take the username from the first associated key
-        key_associations = KeyMachineAssociations.objects(machine=machine)
+        key_associations = KeyMachineAssociation.objects(machine=machine)
         if key_associations:
             # in case user changes the username from the ui
             if key_associations[0].ssh_user != 'root':
