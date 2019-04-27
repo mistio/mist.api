@@ -528,7 +528,8 @@ class BaseComputeController(BaseController):
         for action in ('start', 'stop', 'reboot', 'destroy', 'rename',
                        'resume', 'suspend', 'undefine', 'remove'):
             setattr(machine.actions, action, False)
-        if machine.key_associations:
+        from mist.api.machines.models import KeyMachineAssociation
+        if KeyMachineAssociation.objects(machine=machine).count():
             machine.actions.reboot = True
         machine.actions.tag = True
 
@@ -1250,8 +1251,6 @@ class BaseComputeController(BaseController):
             log.exception(exc)
             raise InternalServerError(exc=exc)
 
-        while machine.key_associations:
-            machine.key_associations.pop()
         machine.state = 'terminated'
         machine.save()
         return ret

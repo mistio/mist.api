@@ -342,9 +342,10 @@ class Machine(OwnershipMixin, me.Document):
         # self.key_associations list by iterating over it and popping matched
         # embedded documents in order to ensure that the most recent list is
         # always processed and saved.
-        for ka in reversed(list(range(len(self.key_associations)))):
-            if self.key_associations[ka].keypair.deleted:
-                self.key_associations.pop(ka)
+        key_associations = KeyMachineAssociation.objects(machine=self)
+        for ka in reversed(list(range(len(key_associations)))):
+            if key_associations[ka].key.deleted:
+                key_associations[ka].delete()
 
         # Reset key_associations in case self goes missing/destroyed. This is
         # going to prevent the machine from showing up as "missing" in the
@@ -409,7 +410,7 @@ class Machine(OwnershipMixin, me.Document):
             'monitoring':
                 self.monitoring.as_dict() if self.monitoring and
                 self.monitoring.hasmonitoring else '',
-            'key_associations': [ka.as_dict() for ka in self.key_associations],
+            'key_associations': [ka.as_dict() for ka in KeyMachineAssociation.objects(machine=self)],
             'cloud': self.cloud.id,
             'location': self.location.id if self.location else '',
             'size': self.size.name if self.size else '',
@@ -442,3 +443,26 @@ class Machine(OwnershipMixin, me.Document):
 
     def __str__(self):
         return 'Machine %s (%s) in %s' % (self.name, self.id, self.cloud)
+
+
+class KeyMachineAssociation(me.Document):
+    meta = {
+        'allow_inheritance': True,
+        'collection': 'key_association',
+        'indexes': [
+            {
+                'fields': ['key', 'machine'],
+                'sparse': False,
+                'cls': False,
+            },
+        ],
+    }
+    key = me.ReferenceField(Key, required=True, reverse_delete_rule=me.CASCADE)
+    machine = me.ReferenceField(Machine, reverse_delete_rule=me.CASCADE)
+    last_used = me.IntField(default=0)
+    ssh_user = me.StringField(default='root')
+    sudo = me.BooleanField(default=False)
+    port = me.IntField(default=22)
+
+    def as_dict(self):
+        return json.loads(self.to_json())

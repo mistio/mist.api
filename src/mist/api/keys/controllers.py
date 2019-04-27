@@ -53,10 +53,11 @@ class SSHKeyController(BaseKeyController):
         deploy_error = False
 
         # a little hack to take the username from the first associated key
-        if machine.key_associations:
+        key_associations = KeyMachineAssociations.objects(machine=machine)
+        if key_associations:
             # in case user changes the username from the ui
-            if machine.key_associations[0].ssh_user != 'root':
-                username = machine.key_associations[0].ssh_user
+            if key_associations[0].ssh_user != 'root':
+                username = key_associations[0].ssh_user
 
         try:
             # Deploy key.

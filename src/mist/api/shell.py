@@ -16,7 +16,7 @@ from time import sleep
 from io import StringIO
 
 from mist.api.clouds.models import Cloud
-from mist.api.machines.models import Machine, KeyAssociation
+from mist.api.machines.models import Machine, KeyMachineAssociation
 from mist.api.keys.models import Key, SignedSSHKey
 
 from mist.api.exceptions import MachineUnauthorizedError
@@ -241,22 +241,23 @@ class ParamikoShell(object):
 
         cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
         machine = Machine.objects.get(cloud=cloud, machine_id=machine_id)
+        key_associations = KeyMachineAssociation.objects(machine=machine)
         log.info('Got cloud & machine: %d key associations' % len(
-            machine.key_associations))
+            key_associations))
         if key_id:
             keys = [Key.objects.get(owner=owner, id=key_id, deleted=None)]
             log.info('Got key')
         else:
-            keys = [key_assoc.keypair
-                    for key_assoc in machine.key_associations
-                    if isinstance(key_assoc.keypair, Key)]
+            keys = [association.key
+                    for association in key_associations
+                    if isinstance(association.key, Key)]
             log.info('Got keys %d' % len(keys))
         if username:
             users = [username]
         else:
-            users = list(set([key_assoc.ssh_user
-                              for key_assoc in machine.key_associations
-                              if key_assoc.ssh_user]))
+            users = list(set([association.ssh_user
+                              for association in key_associations
+                              if association.ssh_user]))
         log.info('Got users')
         if not users:
             for name in ['root', 'ubuntu', 'ec2-user', 'user', 'azureuser',
@@ -267,7 +268,7 @@ class ParamikoShell(object):
             ports = [port]
         else:
             ports = list(set([key_assoc.port
-                              for key_assoc in machine.key_associations]))
+                              for key_assoc in key_associations]))
         if 22 not in ports:
             ports.append(22)
         log.info('Got ports')
@@ -320,8 +321,8 @@ class ParamikoShell(object):
                     # we managed to connect successfully, return
                     # but first update key
                     trigger_session_update_flag = False
-                    for key_assoc in machine.key_associations:
-                        if key_assoc.keypair == key:
+                    for key_assoc in KeyMachineAssociation.objects(machine=machine):
+                        if key_assoc.key == key:
                             if key_assoc.ssh_user != ssh_user:
                                 key_assoc.ssh_user = ssh_user
                                 trigger_session_update_flag = True
@@ -331,11 +332,12 @@ class ParamikoShell(object):
                         # in case of a private host do NOT update the key
                         # associations with the port allocated by the OpenVPN
                         # server, instead use the original ssh_port
-                        key_assoc = KeyAssociation(keypair=key,
-                                                   ssh_user=ssh_user,
-                                                   port=ssh_port,
-                                                   sudo=self.check_sudo())
-                        machine.key_associations.append(key_assoc)
+                        key_assoc = KeyMachineAssociation(key=key,
+                                                          machine=machine,
+                                                          ssh_user=ssh_user,
+                                                          port=ssh_port,
+                                                          sudo=self.check_sudo())
+                        key_assoc.save()
                     machine.save()
                     if trigger_session_update_flag:
                         trigger_session_update(owner.id, ['keys'])

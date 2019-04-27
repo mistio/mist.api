@@ -1572,7 +1572,7 @@ def destroy_machine(user, cloud_id, machine_id):
     """Destroys a machine on a certain cloud.
 
     After destroying a machine it also deletes all key associations. However,
-    it doesn't undeploy the keypair. There is no need to do it because the
+    it doesn't undeploy the key. There is no need to do it because the
     machine will be destroyed.
     """
     log.info('Destroying machine %s in cloud %s' % (machine_id, cloud_id))

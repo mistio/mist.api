@@ -1363,9 +1363,11 @@ class DockerComputeController(BaseComputeController):
             # add TypeError in case of 'Ports': {u'22/tcp': None}
             port = 22
 
-        for key_assoc in machine.key_associations:
+        from mist.api.machines.models import KeyMachineAssociation
+        key_associations = KeyMachineAssociation.objects(machine=machine)
+        for key_assoc in key_associations:
             key_assoc.port = port
-        machine.save()
+            key_assoc.save()
         return True
 
     def _get_machine_libcloud(self, machine, no_fail=False):
@@ -1721,8 +1723,8 @@ class OtherComputeController(BaseComputeController):
         return self.reboot_machine_ssh(machine)
 
     def remove_machine(self, machine):
-        while machine.key_associations:
-            machine.key_associations.pop()
+        from mist.api.machines.models import KeyMachineAssociation
+        KeyMachineAssociation.objects(machine=machine).delete()
         machine.missing_since = datetime.datetime.now()
         machine.save()
 
