@@ -141,6 +141,7 @@ class BaseKeyController(object):
                                           sudo=False, port=port)
         key_assoc.save()
 
+        trigger_session_update(self.key.owner, ['keys'])
         return key_assoc
 
     def disassociate(self, machine):
