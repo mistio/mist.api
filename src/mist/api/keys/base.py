@@ -153,3 +153,4 @@ class BaseKeyController(object):
         # removing key association
         KeyMachineAssociation.objects(key=self.key,
                                       machine=machine).delete()
+        trigger_session_update(self.key.owner, ['keys'])
