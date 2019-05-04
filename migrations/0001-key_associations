@@ -9,7 +9,8 @@ from mist.api.keys.models import Key
 
 def migrate_key_associations():
     for machine in Machine.objects:
-        for association in machine.key_associations:
+        for i in reversed(list(range(len(machine.key_associations)))):
+            association = machine.key_associations[i]
             KeyMachineAssociation(
                 machine=machine, key=association.keypair,
                 port=association.port, ssh_user=association.ssh_user,
