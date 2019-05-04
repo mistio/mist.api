@@ -1,14 +1,12 @@
 import mongoengine as me
 from pyramid.response import Response
 
-from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 from mist.api.keys.models import SignedSSHKey, SSHKey, Key
 
 from mist.api.auth.methods import auth_context_from_request
 
 from mist.api.helpers import view_config, params_from_request
-from mist.api.helpers import transform_key_machine_associations
 
 from mist.api.keys.methods import filter_list_keys
 from mist.api.keys.methods import delete_key as m_delete_key
@@ -77,17 +75,10 @@ def add_key(request):
 
     if key_tags:
         add_tags_to_resource(auth_context.owner, key, list(key_tags.items()))
-    # since its a new key machines fields should be an empty list
-
-    clouds = Cloud.objects(owner=auth_context.owner, deleted=None)
-    machines = Machine.objects(cloud__in=clouds,
-                               key_associations__keypair__exact=key)
-
-    assoc_machines = transform_key_machine_associations(machines, key)
 
     return {'id': key.id,
             'name': key.name,
-            'machines': assoc_machines,
+            'machines': [],
             'isDefault': key.default}
 
 
@@ -354,7 +345,6 @@ def associate_key(request):
       type: string
     """
     key_id = request.matchdict['key']
-    cloud_id = request.matchdict.get('cloud')
 
     params = params_from_request(request)
     ssh_user = params.get('user', None)
@@ -371,47 +361,22 @@ def associate_key(request):
         raise NotFoundError('Key id does not exist')
     auth_context.check_perm('key', 'read_private', key.id)
 
-    if cloud_id:
-        # this is depracated, keep it for backwards compatibility
-        machine_id = request.matchdict['machine_uuid']
-        try:
-            Cloud.objects.get(owner=auth_context.owner,
-                              id=cloud_id, deleted=None)
-        except Cloud.DoesNotExist:
-            raise NotFoundError('Cloud does not exist')
+    machine_uuid = request.matchdict['machine_uuid']
+    try:
+        machine = Machine.objects.get(id=machine_uuid,
+                                      state__ne='terminated')
+        # used by logging_view_decorator
+        request.environ['machine_id'] = machine.machine_id
+        request.environ['cloud_id'] = machine.cloud.id
+    except Machine.DoesNotExist:
+        raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
 
-        auth_context.check_perm("cloud", "read", cloud_id)
-        try:
-            machine = Machine.objects.get(cloud=cloud_id,
-                                          machine_id=machine_id,
-                                          state__ne='terminated')
-            # used by logging_view_decorator
-            request.environ['machine_uuid'] = machine.id
-        except Machine.DoesNotExist:
-            raise NotFoundError("Machine %s doesn't exist" % machine_id)
-    else:
-        machine_uuid = request.matchdict['machine_uuid']
-        try:
-            machine = Machine.objects.get(id=machine_uuid,
-                                          state__ne='terminated')
-            # used by logging_view_decorator
-            request.environ['machine_id'] = machine.machine_id
-            request.environ['cloud_id'] = machine.cloud.id
-        except Machine.DoesNotExist:
-            raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
-
-        cloud_id = machine.cloud.id
-        auth_context.check_perm("cloud", "read", cloud_id)
+    cloud_id = machine.cloud.id
+    auth_context.check_perm("cloud", "read", cloud_id)
 
     auth_context.check_perm("machine", "associate_key", machine.id)
 
-    key.ctl.associate(machine, username=ssh_user, port=ssh_port)
-    clouds = Cloud.objects(owner=auth_context.owner, deleted=None)
-    machines = Machine.objects(cloud__in=clouds,
-                               key_associations__keypair__exact=key)
-
-    assoc_machines = transform_key_machine_associations(machines, key)
-    return assoc_machines
+    return key.ctl.associate(machine, username=ssh_user, port=ssh_port)
 
 
 @view_config(route_name='api_v1_cloud_key_association',
@@ -437,48 +402,22 @@ def disassociate_key(request):
       type: string
     """
     key_id = request.matchdict['key']
-    cloud_id = request.matchdict.get('cloud')
     auth_context = auth_context_from_request(request)
 
-    if cloud_id:
-        # this is depracated, keep it for backwards compatibility
-        machine_id = request.matchdict['machine']
-        try:
-            Cloud.objects.get(owner=auth_context.owner,
-                              id=cloud_id, deleted=None)
-        except Cloud.DoesNotExist:
-            raise NotFoundError('Cloud does not exist')
+    machine_uuid = request.matchdict['machine_uuid']
+    try:
+        machine = Machine.objects.get(id=machine_uuid,
+                                      state__ne='terminated')
+        # used by logging_view_decorator
+        request.environ['machine_id'] = machine.machine_id
+        request.environ['cloud_id'] = machine.cloud.id
+    except Machine.DoesNotExist:
+        raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
 
-        auth_context.check_perm("cloud", "read", cloud_id)
-        try:
-            machine = Machine.objects.get(cloud=cloud_id,
-                                          machine_id=machine_id,
-                                          state__ne='terminated')
-            # used by logging_view_decorator
-            request.environ['machine_uuid'] = machine.id
-        except Machine.DoesNotExist:
-            raise NotFoundError("Machine %s doesn't exist" % machine_id)
-    else:
-        machine_uuid = request.matchdict['machine_uuid']
-        try:
-            machine = Machine.objects.get(id=machine_uuid,
-                                          state__ne='terminated')
-            # used by logging_view_decorator
-            request.environ['machine_id'] = machine.machine_id
-            request.environ['cloud_id'] = machine.cloud.id
-        except Machine.DoesNotExist:
-            raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
-
-        cloud_id = machine.cloud.id
-        auth_context.check_perm("cloud", "read", cloud_id)
+    cloud_id = machine.cloud.id
+    auth_context.check_perm("cloud", "read", cloud_id)
 
     auth_context.check_perm("machine", "disassociate_key", machine.id)
 
     key = Key.objects.get(owner=auth_context.owner, id=key_id, deleted=None)
-    key.ctl.disassociate(machine)
-    clouds = Cloud.objects(owner=auth_context.owner, deleted=None)
-    machines = Machine.objects(cloud__in=clouds,
-                               key_associations__keypair__exact=key)
-
-    assoc_machines = transform_key_machine_associations(machines, key)
-    return assoc_machines
+    return key.ctl.disassociate(machine)

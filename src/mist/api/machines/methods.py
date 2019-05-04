@@ -315,7 +315,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     elif conn.type in [Provider.OPENSTACK]:
         node = _create_machine_openstack(conn, private_key, public_key,
                                          key.name, machine_name, image, size,
-                                         location, networks, volumes, cloud_init)
+                                         location, networks, volumes,
+                                         cloud_init)
     elif conn.type is Provider.EC2:
         locations = conn.list_locations()
         for loc in locations:
@@ -626,7 +627,8 @@ def _create_machine_openstack(conn, private_key, public_key, key_name,
                 if volumes[0].get('size'):
                     blockdevicemappings = [{
                         'boot_index': "0",
-                        'delete_on_termination': bool(volumes[0]['delete_on_termination']),
+                        'delete_on_termination': bool(
+                            volumes[0]['delete_on_termination']),
                         'source_type': 'image',
                         'uuid': str(image.id),
                         'destination_type': 'volume',
@@ -637,7 +639,8 @@ def _create_machine_openstack(conn, private_key, public_key, key_name,
                     volume_id = volumes[0]['volume_id']
                     vol = Volume.objects.get(id=volume_id)
                     blockdevicemappings = [{
-                        'delete_on_termination': bool(volumes[0]['delete_on_termination']),
+                        'delete_on_termination': bool(volumes[0][
+                            'delete_on_termination']),
                         'volume_id': vol.external_id
                     }]
             node = conn.create_node(
@@ -1572,7 +1575,7 @@ def destroy_machine(user, cloud_id, machine_id):
     """Destroys a machine on a certain cloud.
 
     After destroying a machine it also deletes all key associations. However,
-    it doesn't undeploy the keypair. There is no need to do it because the
+    it doesn't undeploy the key. There is no need to do it because the
     machine will be destroyed.
     """
     log.info('Destroying machine %s in cloud %s' % (machine_id, cloud_id))

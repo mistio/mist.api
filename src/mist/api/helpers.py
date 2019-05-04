@@ -546,17 +546,15 @@ def check_host(host, allow_localhost=config.ALLOW_CONNECT_LOCALHOST):
                                           forbidden_subnets[str(cidr)]))
 
 
-def transform_key_machine_associations(machines, key):
+def transform_key_machine_associations(associations):
     return [
-        [machine.cloud.id,
-         machine.machine_id,
-         key_assoc.last_used,
-         key_assoc.ssh_user,
-         key_assoc.sudo,
-         key_assoc.port]
-        for machine in machines
-        for key_assoc in machine.key_associations
-        if key_assoc.keypair == key
+        [association.machine.cloud.id,
+         association.machine.machine_id,
+         association.last_used,
+         association.ssh_user,
+         association.sudo,
+         association.port]
+        for association in associations
     ]
 
 

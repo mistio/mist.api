@@ -6,7 +6,7 @@ import mist.api.machines.methods as methods
 
 from mist.api.clouds.models import Cloud
 from mist.api.clouds.models import LibvirtCloud
-from mist.api.machines.models import Machine
+from mist.api.machines.models import Machine, KeyMachineAssociation
 from mist.api.clouds.methods import filter_list_clouds
 
 from mist.api import tasks
@@ -536,7 +536,7 @@ def add_machine(request):
         monitor = enable_monitoring(
             auth_context.owner, cloud.id, machine.machine_id,
             no_ssh=not (machine.os_type == 'unix' and
-                        machine.key_associations)
+                        KeyMachineAssociation.objects(machine=machine))
         )
 
     ret = {'id': machine.id,
