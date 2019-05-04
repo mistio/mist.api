@@ -453,10 +453,14 @@ class KeyMachineAssociation(me.Document):
         'collection': 'key_association',
         'indexes': [
             {
-                'fields': ['key', 'machine'],
+                'fields': ['key'],
                 'sparse': False,
                 'cls': False,
-            },
+            }, {
+                'fields': ['machine'],
+                'sparse': False,
+                'cls': False
+            }
         ],
     }
     key = me.ReferenceField(Key, required=True, reverse_delete_rule=me.CASCADE)
