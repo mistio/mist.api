@@ -1251,6 +1251,9 @@ class BaseComputeController(BaseController):
             log.exception(exc)
             raise InternalServerError(exc=exc)
 
+        from mist.api.machines.models import KeyMachineAssociation
+        KeyMachineAssociation.objects(machine=machine).delete()
+
         machine.state = 'terminated'
         machine.save()
         return ret
