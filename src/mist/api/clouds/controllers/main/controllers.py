@@ -467,7 +467,8 @@ class OtherMainController(BaseMainController):
             enable_monitoring(
                 self.cloud.owner, self.cloud.id, machine.machine_id,
                 no_ssh=not (machine.os_type == 'unix' and
-                            KeyMachineAssociation.objects(machine=machine))
+                            KeyMachineAssociation.objects(
+                                machine=machine).count())
             )
 
         return machine
