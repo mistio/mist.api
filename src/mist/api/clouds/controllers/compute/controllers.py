@@ -37,7 +37,7 @@ from time import sleep
 from xml.sax.saxutils import escape
 
 from libcloud.pricing import get_size_price
-from libcloud.compute.base import Node, NodeImage
+from libcloud.compute.base import Node, NodeImage, NodeLocation
 from libcloud.compute.providers import get_driver
 from libcloud.container.providers import get_driver as get_container_driver
 from libcloud.compute.types import Provider, NodeState
@@ -259,12 +259,20 @@ class AlibabaComputeController(AmazonComputeController):
         availability zones are listed instead.
 
         """
-        locations = self.connection.list_locations()
-        for location in locations:
-            try:
-                location.name = location.availability_zone.name
-            except:
-                pass
+        zones = self.connection.ex_list_zones()
+        locations = []
+        for zone in zones:
+            extra = {
+                'name': zone.name,
+                'available_disk_categories': zone.available_disk_categories,
+                'available_instance_types': zone.available_instance_types,
+                'available_resource_types': zone.available_resource_types
+            }
+            location = NodeLocation(
+                id=zone.id, name=zone.id, country=zone.id, driver=zone.driver,
+                extra=extra
+            )
+            locations.append(location)
         return locations
 
 

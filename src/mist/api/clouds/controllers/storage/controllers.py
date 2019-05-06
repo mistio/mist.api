@@ -200,6 +200,19 @@ class AzureArmStorageController(BaseStorageController):
     pass
 
 
+class AlibabaStorageController(BaseStorageController):
+    def _create_volume__prepare_args(self, kwargs):
+        # FIXME Imported here due to circular dependency issues.
+        from mist.api.clouds.models import CloudLocation
+        kwargs['ex_description'] = kwargs.pop('description', '')
+        kwargs['ex_disk_category'] = kwargs.pop('disk_category', 'cloud')
+        try:
+            location = CloudLocation.objects.get(id=kwargs['location'])
+            kwargs['ex_zone_id'] = location.external_id
+        except CloudLocation.DoesNotExist:
+            raise NotFoundError("Location with id '%s'." % kwargs['location'])
+
+
 class PacketStorageController(BaseStorageController):
     def _create_volume__prepare_args(self, kwargs):
         # FIXME Imported here due to circular dependency issues.
