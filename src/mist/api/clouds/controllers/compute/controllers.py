@@ -814,6 +814,9 @@ class GoogleComputeController(BaseComputeController):
         location = machine_libcloud.extra.get('zone').name
         # could be europe-west1-d, we want europe_west1
         location = '-'.join(location.split('-')[:2])
+         # in case of asia, strip last number, as we want google_asia-east instead of google_asia-east1
+        if 'asia' in location:
+            location=location[:-1]
 
         driver_name = 'google_' + location
         price = get_size_price(driver_type='compute', driver_name=driver_name,
