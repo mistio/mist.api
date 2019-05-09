@@ -9,6 +9,7 @@ from mist.api.tag.models import Tag
 from mist.api.keys.models import Key
 from mist.api.users.models import Organization
 from mist.api.ownership.mixins import OwnershipMixin
+from mist.api.mongoengine_extras import MistDictField
 
 from mist.api.clouds.controllers.main import controllers
 
@@ -225,7 +226,7 @@ class CloudLocation(me.Document):
     name = me.StringField()
     country = me.StringField()
     missing_since = me.DateTimeField()
-    extra = me.DictField()
+    extra = MistDictField()
 
     meta = {
         'collection': 'locations',
@@ -268,7 +269,7 @@ class CloudSize(me.Document):
     disk = me.IntField()
     bandwidth = me.IntField()
     missing_since = me.DateTimeField()
-    extra = me.DictField()  # price info  is included here
+    extra = MistDictField()  # price info  is included here
 
     meta = {
         'collection': 'sizes',
