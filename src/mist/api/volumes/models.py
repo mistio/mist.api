@@ -4,6 +4,7 @@ import mongoengine as me
 from mist.api.tag.models import Tag
 
 from mist.api.ownership.mixins import OwnershipMixin
+from mist.api.mongoengine_extras import MistDictField
 
 from mist.api.volumes.controllers import StorageController
 
@@ -23,7 +24,7 @@ class Volume(OwnershipMixin, me.Document):
     name = me.StringField()
     external_id = me.StringField(required=True)
 
-    extra = me.DictField()
+    extra = MistDictField()
 
     missing_since = me.DateTimeField()
 
