@@ -4,6 +4,7 @@ import netaddr
 import mongoengine as me
 
 from mist.api.ownership.mixins import OwnershipMixin
+from mist.api.mongoengine_extras import MistDictField
 
 from mist.api.exceptions import RequiredParameterMissingError
 
@@ -49,7 +50,7 @@ class Network(OwnershipMixin, me.Document):
     cidr = me.StringField()
     description = me.StringField()
 
-    extra = me.DictField()  # The `extra` dictionary returned by libcloud.
+    extra = MistDictField()  # The `extra` dictionary returned by libcloud.
 
     missing_since = me.DateTimeField()
 
@@ -225,7 +226,7 @@ class Subnet(me.Document):
     cidr = me.StringField(required=True)
     description = me.StringField()
 
-    extra = me.DictField()  # The `extra` dictionary returned by libcloud.
+    extra = MistDictField()  # The `extra` dictionary returned by libcloud.
 
     missing_since = me.DateTimeField()
 
