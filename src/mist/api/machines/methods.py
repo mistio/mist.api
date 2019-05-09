@@ -67,8 +67,6 @@ def machine_name_validator(provider, name):
         if len(name) > 255:
             raise MachineNameValidationError("machine name max "
                                              "chars allowed is 255")
-    elif provider is Provider.NEPHOSCALE:
-        pass
     elif provider is Provider.GCE:
         if not re.search(r'^(?:[a-z](?:[-a-z0-9]{0,61}[a-z0-9])?)$', name):
             raise MachineNameValidationError(
@@ -323,17 +321,13 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             if loc.id == location.id:
                 ec2_location = loc
                 break
-        node = _create_machine_ec2(conn, key_id, private_key, public_key,
+        node = _create_machine_ec2(conn, key.name, public_key,
                                    machine_name, image, size, ec2_location,
                                    subnet_id, cloud_init)
     elif conn.name == 'Aliyun ECS':
-        node = _create_machine_aliyun(conn, key_id, public_key,
+        node = _create_machine_aliyun(conn, key.name, public_key,
                                       machine_name, image, size, location,
                                       subnet_id, cloud_init)
-    elif conn.type is Provider.NEPHOSCALE:
-        node = _create_machine_nephoscale(conn, key_id, private_key,
-                                          public_key, machine_name, image,
-                                          size, location, ips)
     elif conn.type is Provider.GCE:
         libcloud_sizes = conn.list_sizes(location=location_name)
         for libcloud_size in libcloud_sizes:
@@ -665,10 +659,8 @@ def _create_machine_aliyun(conn, key_name, public_key,
                            user_data):
     """Create a machine in Alibaba Aliyun ECS.
     """
-    auth = NodeAuthSSHKey(pubkey=public_key.replace('\n', ''))
-
     kwargs = {
-        'auth': auth,
+        'auth': NodeAuthSSHKey(pubkey=public_key.replace('\n', '')),
         'name': machine_name,
         'image': image,
         'size': size,
@@ -688,24 +680,11 @@ def _create_machine_aliyun(conn, key_name, public_key,
     return node
 
 
-def _create_machine_ec2(conn, key_name, private_key, public_key,
+def _create_machine_ec2(conn, key_name, public_key,
                         machine_name, image, size, location, subnet_id,
                         user_data):
     """Create a machine in Amazon EC2.
     """
-    with get_temp_file(public_key) as tmp_key_path:
-        try:
-            # create keypair with key name and pub key
-            conn.ex_import_keypair(name=key_name, keyfile=tmp_key_path)
-        except:
-            # get existing key with that pub key
-            try:
-                keypair = conn.ex_find_or_import_keypair_by_key_material(
-                    pubkey=public_key
-                )
-                key_name = keypair['keyName']
-            except Exception as exc:
-                raise CloudUnavailableError("Failed to import key: %s" % exc)
 
     # create security group
     name = config.EC2_SECURITYGROUP.get('name', '')
@@ -720,14 +699,18 @@ def _create_machine_ec2(conn, key_name, private_key, public_key,
         else:
             raise InternalServerError("Couldn't create security group", exc)
 
-    kwargs = {'name': machine_name, 'image': image,
-              'size': size, 'location': location,
-              'max_tries': 1, 'ex_keyname': key_name,
-              'ex_userdata': user_data
-              }
+    kwargs = {
+        'auth': NodeAuthSSHKey(pubkey=public_key.replace('\n', '')),
+        'name': machine_name,
+        'image': image,
+        'size': size,
+        'location': location,
+        'max_tries': 1,
+        'ex_keyname': key_name,
+        'ex_userdata': user_data
+    }
 
     if subnet_id:
-
         try:
             subnet = Subnet.objects.get(id=subnet_id)
             subnet_id = subnet.subnet_id
@@ -767,72 +750,6 @@ def _create_machine_ec2(conn, key_name, private_key, public_key,
         raise MachineCreationError("EC2, got exception %s" % e, e)
 
     return node
-
-
-def _create_machine_nephoscale(conn, key_name, private_key, public_key,
-                               machine_name, image, size, location, ips):
-    """Create a machine in Nephoscale."""
-    machine_name = machine_name[:64].replace(' ', '-')
-    # name in NephoScale must start with a letter, can contain mixed
-    # alpha-numeric characters, hyphen ('-') and underscore ('_')
-    # characters, cannot exceed 64 characters, and can end with a
-    # letter or a number."
-
-    # Hostname must start with a letter, can contain mixed alpha-numeric
-    # characters and the hyphen ('-') character, cannot exceed 15 characters,
-    # and can end with a letter or a number.
-    key = public_key.replace('\n', '')
-
-    # NephoScale has 2 keys that need be specified, console and ssh key
-    # get the id of the ssh key if it exists, otherwise add the key
-    try:
-        server_key = ''
-        keys = conn.ex_list_keypairs(ssh=True, key_group=1)
-        for k in keys:
-            if key == k.public_key:
-                server_key = k.id
-                break
-        if not server_key:
-            server_key = conn.ex_create_keypair(machine_name, public_key=key)
-    except:
-        server_key = conn.ex_create_keypair(
-            'mistio' + str(random.randint(1, 100000)),
-            public_key=key
-        )
-
-    # mist.api does not support console key add through the wizzard.
-    # Try to add one
-    try:
-        console_key = conn.ex_create_keypair(
-            'mistio' + str(random.randint(1, 100000)),
-            key_group=4
-        )
-    except:
-        console_keys = conn.ex_list_keypairs(key_group=4)
-        if console_keys:
-            console_key = console_keys[0].id
-    if size.name and size.name.startswith('D'):
-        baremetal = True
-    else:
-        baremetal = False
-
-    with get_temp_file(private_key) as tmp_key_path:
-        try:
-            node = conn.create_node(
-                name=machine_name,
-                hostname=machine_name[:15],
-                image=image,
-                size=size,
-                zone=location.id,
-                server_key=server_key,
-                console_key=console_key,
-                ssh_key=tmp_key_path,
-                baremetal=baremetal,
-                ips=ips
-            )
-        except Exception as e:
-            raise MachineCreationError("Nephoscale, got exception %s" % e, e)
-        return node
 
 
 def _create_machine_softlayer(conn, key_name, private_key, public_key,
