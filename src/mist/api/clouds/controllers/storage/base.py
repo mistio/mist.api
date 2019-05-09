@@ -240,7 +240,7 @@ class BaseStorageController(BaseController):
             for volume in self.list_volumes():
                 if volume.external_id == libvol.id:
                     return volume
-            time.sleep(1)
+            time.sleep(5)
         raise mist.api.exceptions.VolumeListingError()
 
     def _create_volume__prepare_args(self, kwargs):
