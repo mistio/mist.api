@@ -26,7 +26,7 @@ from mist.api.networks.models import Subnet
 from mist.api.exceptions import PolicyUnauthorizedError
 from mist.api.exceptions import MachineNameValidationError
 from mist.api.exceptions import BadRequestError, MachineCreationError
-from mist.api.exceptions import CloudUnavailableError, InternalServerError
+from mist.api.exceptions import InternalServerError
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import VolumeNotFoundError
 
