@@ -666,8 +666,10 @@ def _create_machine_aliyun(conn, key_name, public_key,
     mist_sg = [sg for sg in security_groups if sg.name == name]
     if not len(mist_sg):
         security_group_id = conn.ex_create_security_group()
-        conn.ex_modify_security_group_by_id(security_group_id, name=name, description=description)
-        conn.ex_authorize_security_group(security_group_id, 'Allow SSH', 'tcp', '22/22', )
+        conn.ex_modify_security_group_by_id(security_group_id, name=name,
+                                            description=description)
+        conn.ex_authorize_security_group(security_group_id, 'Allow SSH',
+                                         'tcp', '22/22', )
     else:
         security_group_id = mist_sg[0].id
 
