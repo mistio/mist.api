@@ -656,9 +656,21 @@ def _create_machine_openstack(conn, private_key, public_key, key_name,
 
 def _create_machine_aliyun(conn, key_name, public_key,
                            machine_name, image, size, location, subnet_id,
-                           user_data):
+                           user_data, security_group_id=None):
     """Create a machine in Alibaba Aliyun ECS.
     """
+
+    security_groups = conn.ex_list_security_groups()
+    name = config.EC2_SECURITYGROUP.get('name', '')
+    description = config.EC2_SECURITYGROUP.get('description', '')
+    mist_sg = [sg for sg in security_groups if sg.name == name]
+    if not len(mist_sg):
+        security_group_id = conn.ex_create_security_group()
+        conn.ex_modify_security_group_by_id(security_group_id, name=name, description=description)
+        conn.ex_authorize_security_group(security_group_id, 'Allow SSH', 'tcp', '22/22', )
+    else:
+        security_group_id = mist_sg[0].id
+
     kwargs = {
         'auth': NodeAuthSSHKey(pubkey=public_key.replace('\n', '')),
         'name': machine_name,
@@ -668,12 +680,15 @@ def _create_machine_aliyun(conn, key_name, public_key,
         'max_tries': 1,
         'ex_keyname': key_name,
         'ex_userdata': user_data,
-        'ex_security_group_id': conn.ex_create_security_group()
+        'ex_security_group_id': security_group_id,
+        'ex_io_optimized': True,
+        'ex_allocate_public_ip_address': True,
+        'ex_internet_charge_type': 'PayByTraffic',
+        'ex_internet_max_bandwidth_out': 100
     }
 
     try:
         node = conn.create_node(**kwargs)
-
     except Exception as e:
         raise MachineCreationError("Aliyun ECS, got exception %s" % e, e)
 
