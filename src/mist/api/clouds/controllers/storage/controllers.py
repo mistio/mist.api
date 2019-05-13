@@ -212,6 +212,33 @@ class AlibabaStorageController(BaseStorageController):
         except CloudLocation.DoesNotExist:
             raise NotFoundError("Location with id '%s'." % kwargs['location'])
 
+    def _list_volumes__postparse_volume(self, volume, libcloud_volume):
+        # FIXME Imported here due to circular dependency issues.
+        from mist.api.machines.models import Machine
+        from mist.api.clouds.models import CloudLocation
+
+        # Find the volume's location.
+        try:
+            volume.location = CloudLocation.objects.get(
+                name=libcloud_volume.extra.get('zone_id', ''),
+                cloud=self.cloud, missing_since=None
+            )
+        except CloudLocation.DoesNotExist:
+            volume.location = None
+
+        # Find the machine to which the volume is attached. NOTE that a just
+        # a single instance is always returned.
+        volume.attached_to = []
+        machine_id = libcloud_volume.extra.get('instance_id', '')
+        if machine_id:
+            try:
+                machine = Machine.objects.get(
+                    machine_id=machine_id, cloud=self.cloud, missing_since=None
+                )
+                volume.attached_to = [machine]
+            except Machine.DoesNotExist:
+                log.error('%s attached to unknown machine "%s"', volume,
+                          machine_id)
 
 class PacketStorageController(BaseStorageController):
     def _create_volume__prepare_args(self, kwargs):
