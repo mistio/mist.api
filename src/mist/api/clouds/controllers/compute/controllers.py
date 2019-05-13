@@ -242,6 +242,9 @@ class AlibabaComputeController(AmazonComputeController):
                                                self.cloud.apisecret,
                                                region=self.cloud.region)
 
+    def _list_machines__get_location(self, node):
+        return node.extra.get('zone_id')
+
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         # TODO
         return 0, 0
