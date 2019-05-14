@@ -81,6 +81,8 @@ from mist.api.auth.models import get_secure_rand_token
 from mist.api.logs.methods import log_event
 from mist.api.logs.methods import get_events
 
+from mist.api.methods import filter_list_locations
+
 from mist.api import config
 
 import logging
@@ -1134,11 +1136,7 @@ def list_locations(request):
     auth_context.check_perm("cloud", "read", cloud_id)
     params = params_from_request(request)
     cached = bool(params.get('cached', False))
-    if cached:
-        locations = cloud.ctl.compute.list_cached_locations()
-    else:
-        locations = cloud.ctl.compute.list_locations()
-    return [location.as_dict() for location in locations]
+    return filter_list_locations(auth_context, cloud_id, cached=cached)
 
 
 @view_config(route_name='api_v1_cloud_probe',

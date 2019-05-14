@@ -70,8 +70,35 @@ def ssh_command(owner, cloud_id, machine_id, host, command,
     shell.disconnect()
     return output
 
+def list_locations(owner, cloud_id, cached=False):
+    """List the locations of the specified cloud"""
+    try:
+        cloud = Cloud.objects.get(owner=owner, id=cloud_id)
+    except Cloud.DoesNotExist:
+        raise CloudNotFoundError()
+    if cached:
+        locations = cloud.ctl.compute.list_cached_locations()
+    else:
+        locations = cloud.ctl.compute.list_locations()
+    return [location.as_dict() for location in locations]
 
-def list_images(owner, cloud_id, term=None):
+
+def filter_list_locations(auth_context, cloud_id, locations=None, perm='read',
+                        cached=False):
+    """Filter the locations of the specific cloud based on RBAC policy"""
+    if locations is None:
+        locations = list_locations(auth_context.owner, cloud_id, cached)
+    if not auth_context.is_owner():
+        allowed_resources = auth_context.get_allowed_resources(perm)
+        if cloud_id not in allowed_resources['clouds']:
+            return {'cloud_id': cloud_id, 'locations': []}
+        for i in range(len(locations) - 1, -1, -1):
+            if locations[i]['id'] not in allowed_resources['locations']:
+                locations.pop(i)
+    return locations
+
+
+def images(owner, cloud_id, term=None):
     """List images from each cloud"""
     return Cloud.objects.get(owner=owner, id=cloud_id,
                              deleted=None).ctl.compute.list_images(term)
