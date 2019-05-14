@@ -383,7 +383,7 @@ def create_machine(request):
             'task_enabled': bool(params.get('task_enabled', True)),
             'auth_context': auth_context.serialize(),
         }
-        
+
     auth_context.check_perm("cloud", "read", cloud_id)
     auth_context.check_perm("cloud", "create_resources", cloud_id)
     auth_context.check_perm("location", "read", location_id)
