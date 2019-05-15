@@ -980,7 +980,8 @@ CELERY_SETTINGS = {
 LANDING_CATEGORIES = [{
     'href': '/',
     'name': 'home',
-    'title': 'Home'
+    'title': 'Home',
+    'hiddenFromMenu': 1
 }]
 
 LANDING_FORMS = [
