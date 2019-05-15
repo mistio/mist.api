@@ -19,6 +19,7 @@ from mist.api.shell import Shell
 
 from mist.api.exceptions import MistError
 from mist.api.exceptions import RequiredParameterMissingError
+from mist.api.exceptions import CloudNotFoundError
 
 from mist.api.helpers import amqp_publish_user
 
@@ -70,6 +71,7 @@ def ssh_command(owner, cloud_id, machine_id, host, command,
     shell.disconnect()
     return output
 
+
 def list_locations(owner, cloud_id, cached=False):
     """List the locations of the specified cloud"""
     try:
@@ -84,7 +86,7 @@ def list_locations(owner, cloud_id, cached=False):
 
 
 def filter_list_locations(auth_context, cloud_id, locations=None, perm='read',
-                        cached=False):
+                          cached=False):
     """Filter the locations of the specific cloud based on RBAC policy"""
     if locations is None:
         locations = list_locations(auth_context.owner, cloud_id, cached)
