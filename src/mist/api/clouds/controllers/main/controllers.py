@@ -196,6 +196,7 @@ class PacketMainController(BaseMainController):
 
     provider = 'packet'
     ComputeController = compute_ctls.PacketComputeController
+    StorageController = storage_ctls.PacketStorageController
 
 
 class VultrMainController(BaseMainController):
@@ -462,10 +463,12 @@ class OtherMainController(BaseMainController):
         # Enable monitoring.
         if monitoring:
             from mist.api.monitoring.methods import enable_monitoring
+            from mist.api.machines.models import KeyMachineAssociation
             enable_monitoring(
                 self.cloud.owner, self.cloud.id, machine.machine_id,
                 no_ssh=not (machine.os_type == 'unix' and
-                            machine.key_associations)
+                            KeyMachineAssociation.objects(
+                                machine=machine).count())
             )
 
         return machine

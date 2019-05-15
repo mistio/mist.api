@@ -148,7 +148,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                    associate_floating_ip_subnet=None, project_id=None,
                    schedule={}, command=None, tags=None,
                    bare_metal=False, hourly=True,
-                   softlayer_backend_vlan_id=None, machine_username=''):
+                   softlayer_backend_vlan_id=None, machine_username='',
+                   volumes=[]):
     """Creates a new virtual machine on the specified cloud.
 
     If the cloud is Rackspace it attempts to deploy the node with an ssh key
@@ -314,7 +315,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     elif conn.type in [Provider.OPENSTACK]:
         node = _create_machine_openstack(conn, private_key, public_key,
                                          key.name, machine_name, image, size,
-                                         location, networks, cloud_init)
+                                         location, networks, volumes,
+                                         cloud_init)
     elif conn.type is Provider.EC2:
         locations = conn.list_locations()
         for loc in locations:
@@ -581,7 +583,7 @@ def _create_machine_rackspace(conn, public_key, machine_name,
 
 def _create_machine_openstack(conn, private_key, public_key, key_name,
                               machine_name, image, size, location, networks,
-                              user_data):
+                              volumes, user_data):
     """Create a machine in Openstack.
     """
     key = str(public_key).replace('\n', '')
@@ -621,6 +623,26 @@ def _create_machine_openstack(conn, private_key, public_key, key_name,
 
     with get_temp_file(private_key) as tmp_key_path:
         try:
+            if volumes:
+                if volumes[0].get('size'):
+                    blockdevicemappings = [{
+                        'boot_index': "0",
+                        'delete_on_termination': bool(
+                            volumes[0]['delete_on_termination']),
+                        'source_type': 'image',
+                        'uuid': str(image.id),
+                        'destination_type': 'volume',
+                        'volume_size': int(volumes[0]['size'])
+                    }]
+                else:
+                    from mist.api.volumes.models import Volume
+                    volume_id = volumes[0]['volume_id']
+                    vol = Volume.objects.get(id=volume_id)
+                    blockdevicemappings = [{
+                        'delete_on_termination': bool(volumes[0][
+                            'delete_on_termination']),
+                        'volume_id': vol.external_id
+                    }]
             node = conn.create_node(
                 name=machine_name,
                 image=image,
@@ -631,6 +653,7 @@ def _create_machine_openstack(conn, private_key, public_key, key_name,
                 max_tries=1,
                 ex_keyname=server_key,
                 networks=chosen_networks,
+                ex_blockdevicemappings=blockdevicemappings,
                 ex_userdata=user_data)
         except Exception as e:
             raise MachineCreationError("OpenStack, got exception %s" % e, e)
@@ -1552,7 +1575,7 @@ def destroy_machine(user, cloud_id, machine_id):
     """Destroys a machine on a certain cloud.
 
     After destroying a machine it also deletes all key associations. However,
-    it doesn't undeploy the keypair. There is no need to do it because the
+    it doesn't undeploy the key. There is no need to do it because the
     machine will be destroyed.
     """
     log.info('Destroying machine %s in cloud %s' % (machine_id, cloud_id))

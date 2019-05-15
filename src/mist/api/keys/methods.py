@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from mist.api.keys.models import Key
-from mist.api.machines.models import Machine
+from mist.api.machines.models import KeyMachineAssociation
 
 from mist.api.tag.methods import get_tags_for_resource
 
@@ -51,22 +51,18 @@ def list_keys(owner):
     :return:
     """
     keys = Key.objects(owner=owner, deleted=None)
-    machines = Machine.objects(owner=owner, missing_since=None)
     key_objects = []
     # FIXME: This must be taken care of in Keys.as_dict
     for key in keys:
         key_object = {}
-        # FIXME: Need to optimize this! It's potentially invoked per ssh probe.
-        # Can't we expose associations directly from Machine.key_associations?
-        associated_machines = machines.filter(
-            key_associations__keypair__exact=key)
         key_object["id"] = key.id
         key_object['name'] = key.name
         key_object['owned_by'] = key.owned_by.id if key.owned_by else ''
         key_object['created_by'] = key.created_by.id if key.created_by else ''
         key_object["isDefault"] = key.default
+        key_associations = KeyMachineAssociation.objects(key=key)
         key_object["machines"] = transform_key_machine_associations(
-            associated_machines, key)
+            key_associations)
         key_object['tags'] = get_tags_for_resource(owner, key)
         key_objects.append(key_object)
     return key_objects

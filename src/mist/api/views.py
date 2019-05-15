@@ -22,6 +22,7 @@ import urllib.error
 import json
 import netaddr
 import traceback
+import requests
 import mongoengine as me
 
 from time import time
@@ -165,6 +166,15 @@ def home(request):
             raise RedirectError(url)
 
         get_landing_template()
+        page = request.path.strip('/').replace('.', '')
+        if not page:
+            page = 'home'
+        if page not in config.LANDING_FORMS:
+            response = requests.get('%s/static/landing/sections/%s.html' % (
+                request.application_url, page))
+            if response.ok:
+                section = response.text
+                template_inputs['section'] = section
         return render_to_response('templates/landing.pt', template_inputs)
 
     if not user.last_active or \
@@ -2314,6 +2324,6 @@ def section(request):
     '''
     section_id = request.matchdict['section']
 
-    path = '/static/' + section_id.replace('--', '/sections/') + '.json'
+    path = '/static/' + section_id.replace('--', '/sections/') + '.html'
 
     return HTTPFound(path)

@@ -929,7 +929,7 @@ CELERY_SETTINGS = {
     # 'worker_task_log_format': PY_LOG_FORMAT,
     'worker_concurrency': 8,
     'worker_max_tasks_per_child': 32,
-    'worker_max_memory_per_child': 204800,  # 204800 KiB - 200 MiB
+    'worker_max_memory_per_child': 1024000,  # 1024,000 KiB - 1000 MiB
     'mongodb_scheduler_db': 'mist2',
     'mongodb_scheduler_collection': 'schedules',
     'mongodb_scheduler_url': MONGO_URI,
@@ -980,19 +980,13 @@ CELERY_SETTINGS = {
 LANDING_CATEGORIES = [{
     'href': '/',
     'name': 'home',
-    'template': 'home',
-    'title': 'Home',
-    'items': {
-        "fold": {
-            "copy": "",
-            "subcopy":
-                "Mist.io is a single dashboard to manage multi-cloud infrastructure",  # noqa
-            "image": "images/mockup-imac-n4.png",
-            "alt": "Mist.io cloud management dashboard",
-            "cta": "Get Started"
-        }
-    }
+    'title': 'Home'
 }]
+
+LANDING_FORMS = [
+    'sign-in', 'sign-up', 'reset-password', 'forgot-password', 'set-password',
+    'get-started', 'buy-license', 'request-pricing'
+]
 
 ###############################################################################
 # App constants
@@ -1243,18 +1237,12 @@ SUPPORTED_PROVIDERS = [
         'provider': Provider.VSPHERE,
         'regions': []
     },
-    # Packet.net
+    # Packet
     {
-        'title': 'Packet.net',
+        'title': 'Packet',
         'provider': Provider.PACKET,
         'regions': []
     },
-    # ClearAPI
-    {
-        'title': 'ClearAPI',
-        'provider': Provider.CLEARAPI,
-        'regions': []
-    }
 ]
 
 # Base AMIs

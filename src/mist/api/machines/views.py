@@ -6,7 +6,7 @@ import mist.api.machines.methods as methods
 
 from mist.api.clouds.models import Cloud
 from mist.api.clouds.models import LibvirtCloud
-from mist.api.machines.models import Machine
+from mist.api.machines.models import Machine, KeyMachineAssociation
 from mist.api.clouds.methods import filter_list_clouds
 
 from mist.api import tasks
@@ -290,6 +290,7 @@ def create_machine(request):
     create_resource_group = params.get('create_resource_group', False)
     new_resource_group = params.get('new_resource_group', '')
     ex_resource_group = params.get('ex_resource_group', '')
+    volumes = params.get('volumes', [])
     create_network = params.get('create_network', False)
     new_network = params.get('new_network', '')
     networks = params.get('networks', [])
@@ -437,7 +438,8 @@ def create_machine(request):
               'new_network': new_network,
               'create_resource_group': create_resource_group,
               'new_resource_group': new_resource_group,
-              'machine_username': machine_username}
+              'machine_username': machine_username,
+              'volumes': volumes}
     if not run_async:
         ret = methods.create_machine(auth_context, *args, **kwargs)
     else:
@@ -534,7 +536,7 @@ def add_machine(request):
         monitor = enable_monitoring(
             auth_context.owner, cloud.id, machine.machine_id,
             no_ssh=not (machine.os_type == 'unix' and
-                        machine.key_associations)
+                        KeyMachineAssociation.objects(machine=machine))
         )
 
     ret = {'id': machine.id,

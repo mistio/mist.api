@@ -11,6 +11,7 @@ from mist.api.users.models import Organization
 from mist.api.dns.controllers import ZoneController, RecordController
 from mist.api.clouds.controllers.dns.base import BaseDNSController
 from mist.api.ownership.mixins import OwnershipMixin
+from mist.api.mongoengine_extras import MistDictField
 
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import RequiredParameterMissingError
@@ -42,7 +43,7 @@ class Zone(OwnershipMixin, me.Document):
     domain = me.StringField(required=True)
     type = me.StringField(required=True)
     ttl = me.IntField(required=True, default=0)
-    extra = me.DictField()
+    extra = MistDictField()
     cloud = me.ReferenceField(Cloud, required=True,
                               reverse_delete_rule=me.CASCADE)
 
@@ -145,7 +146,7 @@ class Record(OwnershipMixin, me.Document):
     name = me.StringField(required=True)
     type = me.StringField(required=True)
     rdata = me.ListField(required=True)
-    extra = me.DictField()
+    extra = MistDictField()
     ttl = me.IntField(default=0)
     # This ensures that any records that are under a zone are also deleted when
     # we delete the zone.

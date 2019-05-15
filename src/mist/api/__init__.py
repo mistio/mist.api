@@ -143,6 +143,8 @@ def add_routes(configurator):
                        'schedules', 'zones']
         landing_sections = ['about', 'product', 'pricing',
                             'sign-up', 'sign-in', 'forgot-password',
+                            'buy-license', 'request-pricing', 'get-started',
+                            'privacy-policy', 'pledge', 'tos',
                             'error', 'index']
         for section in ui_sections + landing_sections:
             if request.path.startswith('/' + section):

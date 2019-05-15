@@ -145,6 +145,11 @@ class ActionTask(BaseTaskType):
     def __str__(self):
         return 'Action: %s' % self.action
 
+    def as_dict(self):
+        return {
+            'action': self.action
+        }
+
 
 class ScriptTask(BaseTaskType):
     script_id = me.StringField()
@@ -164,6 +169,12 @@ class ScriptTask(BaseTaskType):
 
     def __str__(self):
         return 'Run script: %s' % self.script_id
+
+    def as_dict(self):
+        return {
+            'script_id': self.script_id,
+            'params': self.params
+        }
 
 
 class Schedule(OwnershipMixin, me.Document, SelectorClassMixin):
@@ -371,7 +382,7 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin):
             'schedule': str(self.schedule_type),
             'schedule_type': self.schedule_type.type,
             'schedule_entry': self.schedule_type.as_dict(),
-            'task_type': str(self.task_type),
+            'task_type': self.task_type.as_dict(),
             'expires': str(self.expires or ''),
             'start_after': str(self.start_after or ''),
             'task_enabled': self.task_enabled,

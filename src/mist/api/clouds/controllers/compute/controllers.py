@@ -252,6 +252,21 @@ class AlibabaComputeController(AmazonComputeController):
     def image_is_default(self, image_id):
         return True
 
+    def _list_locations__fetch_locations(self):
+        """List ECS regions as locations, embed info about zones
+
+        In EC2 all locations of a region have the same name, so the
+        availability zones are listed instead.
+
+        """
+        locations = self.connection.list_locations()
+        for location in locations:
+            try:
+                location.name = location.availability_zone.name
+            except:
+                pass
+        return locations
+
 
 class ClearAPIComputeController(BaseComputeController):
 
@@ -909,7 +924,7 @@ class PacketComputeController(BaseComputeController):
         return price or 0, 0
 
     def _list_machines__get_location(self, node):
-        return node.extra.get('facility')
+        return node.extra.get('facility', {}).get('id', '')
 
     def _list_machines__get_size(self, node):
         return node.extra.get('plan')
@@ -1045,7 +1060,7 @@ class OpenStackComputeController(BaseComputeController):
         return get_driver(Provider.OPENSTACK)(
             self.cloud.username,
             self.cloud.password,
-            api_version='2.0',
+            api_version='2.2',
             ex_force_auth_version='2.0_password',
             ex_tenant_name=self.cloud.tenant,
             ex_force_service_region=self.cloud.region,
@@ -1069,10 +1084,12 @@ class OpenStackComputeController(BaseComputeController):
             raise BadRequestError('Failed to resize node: %s' % exc)
 
         try:
-            sleep(5)
+            sleep(50)
+            machine_libcloud = self._get_machine_libcloud(machine)
             return self.connection.ex_confirm_resize(machine_libcloud)
         except Exception as exc:
-            sleep(5)
+            sleep(50)
+            machine_libcloud = self._get_machine_libcloud(machine)
             try:
                 return self.connection.ex_confirm_resize(machine_libcloud)
             except Exception as exc:
@@ -1156,7 +1173,6 @@ class DockerComputeController(BaseComputeController):
                 private_ips.append(host)
             else:
                 public_ips.append(host)
-
             container.public_ips = public_ips
             container.private_ips = private_ips
             container.size = None
@@ -1347,9 +1363,11 @@ class DockerComputeController(BaseComputeController):
             # add TypeError in case of 'Ports': {u'22/tcp': None}
             port = 22
 
-        for key_assoc in machine.key_associations:
+        from mist.api.machines.models import KeyMachineAssociation
+        key_associations = KeyMachineAssociation.objects(machine=machine)
+        for key_assoc in key_associations:
             key_assoc.port = port
-        machine.save()
+            key_assoc.save()
         return True
 
     def _get_machine_libcloud(self, machine, no_fail=False):
@@ -1705,8 +1723,8 @@ class OtherComputeController(BaseComputeController):
         return self.reboot_machine_ssh(machine)
 
     def remove_machine(self, machine):
-        while machine.key_associations:
-            machine.key_associations.pop()
+        from mist.api.machines.models import KeyMachineAssociation
+        KeyMachineAssociation.objects(machine=machine).delete()
         machine.missing_since = datetime.datetime.now()
         machine.save()
 
