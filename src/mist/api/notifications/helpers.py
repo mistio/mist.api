@@ -62,6 +62,8 @@ def _get_alert_details(resource, rule, incident_id,
         'since': _get_time_diff_to_now(timestamp),
         'time': _get_current_local_time(),
         'uri': config.CORE_URI,
+        'portal_name': config.PORTAL_NAME,
+        'email_logo': config.EMAIL_LOGO
     }
 
     # FIXME For backwards compatibility. Note that `name` cannot be
