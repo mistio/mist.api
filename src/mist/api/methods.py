@@ -100,7 +100,7 @@ def filter_list_locations(auth_context, cloud_id, locations=None, perm='read',
     return locations
 
 
-def images(owner, cloud_id, term=None):
+def list_images(owner, cloud_id, term=None):
     """List images from each cloud"""
     return Cloud.objects.get(owner=owner, id=cloud_id,
                              deleted=None).ctl.compute.list_images(term)
