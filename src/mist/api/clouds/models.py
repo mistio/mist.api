@@ -38,7 +38,7 @@ def _populate_clouds():
                 CLOUDS[value._controller_cls.provider] = value
 
 
-class Cloud(me.Document):
+class Cloud(OwnershipMixin, me.Document):
     """Abstract base class for every cloud/provider mongoengine model
 
     This class defines the fields common to all clouds of all types. For each
