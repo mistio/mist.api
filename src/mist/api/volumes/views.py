@@ -30,7 +30,8 @@ def list_volumes(request):
     ---
     List the volumes of a cloud.
 
-    READ permission required on cloud
+    READ permission required on cloud.
+    READ permission required on location.
     ---
     cloud:
       in: path
@@ -63,7 +64,9 @@ def create_volume(request):
     Create a new volume.
 
     READ permission required on cloud.
-    CREATE_RESOURCES permission required on cloud
+    CREATE_RESOURCES permission required on cloud.
+    READ permission required on location.
+    CREATE_RESOURCES permission required on location.
     ADD permission required on volumes
     ---
     cloud:
@@ -96,6 +99,7 @@ def create_volume(request):
     params = params_from_request(request)
     name = params.get('name')
     size = params.get('size')
+    location = params.get('location')
 
     auth_context = auth_context_from_request(request)
 
@@ -110,6 +114,8 @@ def create_volume(request):
 
     auth_context.check_perm("cloud", "read", cloud_id)
     auth_context.check_perm("cloud", "create_resources", cloud_id)
+    auth_context.check_perm("location", "read", location)
+    auth_context.check_perm("location", "create_resources", location)
     tags = auth_context.check_perm("volume", "add", None) or {}
 
     if not name and cloud.ctl.provider != 'packet':

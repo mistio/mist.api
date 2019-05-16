@@ -63,6 +63,7 @@ from mist.api.exceptions import TeamForbidden
 from mist.api.exceptions import OrganizationOperationError
 from mist.api.exceptions import MethodNotAllowedError
 from mist.api.exceptions import WhitelistIPError
+from mist.api.exceptions import CloudNotFoundError
 
 from mist.api.helpers import encrypt, decrypt
 from mist.api.helpers import params_from_request
@@ -80,6 +81,8 @@ from mist.api.auth.models import get_secure_rand_token
 
 from mist.api.logs.methods import log_event
 from mist.api.logs.methods import get_events
+
+from mist.api.methods import filter_list_locations
 
 from mist.api import config
 
@@ -1129,16 +1132,16 @@ def list_locations(request):
     """
     cloud_id = request.matchdict['cloud']
     auth_context = auth_context_from_request(request)
-    cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
-                              deleted=None)
+
+    try:
+        Cloud.objects.get(owner=auth_context.owner, id=cloud_id, deleted=None)
+    except Cloud.DoesNotExist:
+        raise CloudNotFoundError()
+
     auth_context.check_perm("cloud", "read", cloud_id)
     params = params_from_request(request)
     cached = bool(params.get('cached', False))
-    if cached:
-        locations = cloud.ctl.compute.list_cached_locations()
-    else:
-        locations = cloud.ctl.compute.list_locations()
-    return [location.as_dict() for location in locations]
+    return filter_list_locations(auth_context, cloud_id, cached=cached)
 
 
 @view_config(route_name='api_v1_cloud_probe',
