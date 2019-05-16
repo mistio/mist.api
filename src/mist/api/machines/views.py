@@ -48,6 +48,7 @@ def list_machines(request):
     Gets machines and their metadata from all clouds.
     Check Permissions take place in filter_list_machines.
     READ permission required on cloud.
+    READ permission required on location.
     READ permission required on machine.
     """
     auth_context = auth_context_from_request(request)

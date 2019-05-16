@@ -30,7 +30,8 @@ def list_volumes(request):
     ---
     List the volumes of a cloud.
 
-    READ permission required on cloud
+    READ permission required on cloud.
+    READ permission required on location.
     ---
     cloud:
       in: path
