@@ -217,11 +217,12 @@ class Cloud(OwnershipMixin, me.Document):
                                            self.id, self.owner)
 
 
-class CloudLocation(me.Document):
+class CloudLocation(OwnershipMixin, me.Document):
     """A base Cloud Location Model."""
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
     cloud = me.ReferenceField('Cloud', required=True,
                               reverse_delete_rule=me.CASCADE)
+    owner = me.ReferenceField('Organization', required=True)
     external_id = me.StringField(required=True)
     name = me.StringField()
     country = me.StringField()
@@ -255,6 +256,11 @@ class CloudLocation(me.Document):
             'missing_since': str(self.missing_since.replace(tzinfo=None)
                                  if self.missing_since else '')
         }
+
+    def clean(self):
+        # Populate owner field based on self.cloud.owner
+        if not self.owner:
+            self.owner = self.cloud.owner
 
 
 class CloudSize(me.Document):
