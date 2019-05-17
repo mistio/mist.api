@@ -19,9 +19,9 @@ def parse_args():
 
 def migrate(purge=False):
     error = False
-    print ("Will update `owner` field in CloudLocation objects")
+    print("Will update `owner` field in CloudLocation objects")
     objects = CloudLocation.objects()
-    print ("Found %d objects without owner:" % (objects.count()))
+    print("Found %d objects without owner:" % (objects.count()))
     counters = {'updated': 0, 'error': 0, 'deleted': 0, 'skipped': 0}
     for item in objects:
         # saving will trigger `clean`, which will autoset the owner
@@ -37,19 +37,19 @@ def migrate(purge=False):
         else:
             counters['updated'] += 1
     for counter in counters:
-        print ("%ss %s: %d" % ("CloudLocation",
+        print("%ss %s: %d" % ("CloudLocation",
                                counter, counters[counter]))
     if counters['error']:
-        print ("Completed with errors")
+        print("Completed with errors")
         error = True
     else:
-        print ("Completed successfully")
+        print("Completed successfully")
     print
 
     if error:
-        print ("Exiting with errors!")
+        print("Exiting with errors!")
         sys.exit(1)
-    print ("Exiting successfully!")
+    print("Exiting successfully!")
     sys.exit(0)
 
 
