@@ -48,6 +48,7 @@ def list_machines(request):
     Gets machines and their metadata from all clouds.
     Check Permissions take place in filter_list_machines.
     READ permission required on cloud.
+    READ permission required on location.
     READ permission required on machine.
     """
     auth_context = auth_context_from_request(request)
@@ -112,6 +113,8 @@ def create_machine(request):
     jobId will be returned.
     READ permission required on cloud.
     CREATE_RESOURCES permission required on cloud.
+    READ permission required on location.
+    CREATE_RESOURCES permission required on location.
     CREATE permission required on machine.
     RUN permission required on script.
     READ permission required on key.
@@ -384,6 +387,8 @@ def create_machine(request):
 
     auth_context.check_perm("cloud", "read", cloud_id)
     auth_context.check_perm("cloud", "create_resources", cloud_id)
+    auth_context.check_perm("location", "read", location_id)
+    auth_context.check_perm("location", "create_resources", location_id)
     tags = auth_context.check_perm("machine", "create", None) or {}
     if script_id:
         auth_context.check_perm("script", "run", script_id)
