@@ -314,12 +314,15 @@ class LibvirtMainController(BaseMainController):
         # host.
         from mist.api.machines.models import Machine
 
+        host_machine_id = self.cloud.host.replace('.', '-')
         try:
-            machine = Machine.objects.get(cloud=self.cloud,
-                                          machine_id=self.cloud.host)
+            machine = Machine.objects.get(
+                cloud=self.cloud,
+                machine_id=host_machine_id)
         except me.DoesNotExist:
-            machine = Machine.objects(cloud=self.cloud,
-                                      machine_id=self.cloud.host).save()
+            machine = Machine(cloud=self.cloud,
+                              name=self.cloud.name,
+                              machine_id=host_machine_id).save()
         if self.cloud.key:
             machine.ctl.associate_key(self.cloud.key,
                                       username=self.cloud.username,
