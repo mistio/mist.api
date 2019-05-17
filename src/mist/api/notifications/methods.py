@@ -104,7 +104,7 @@ def send_alert_email(rule, resource, incident_id, value, triggered, timestamp,
         return
 
     # Create the e-mail body.
-    subject = '[mist.io] *** %(state)s *** from %(name)s: %(metric_name)s'
+    subject = '[%(portal_name)s] *** %(state)s *** from %(name)s: %(metric_name)s'
     alert.subject = subject % info
 
     pt = os.path.join(os.path.dirname(__file__), 'templates/text_alert.pt')

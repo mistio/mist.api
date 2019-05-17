@@ -168,6 +168,8 @@ def _alert_pretty_machine_details(owner, rule_id, value, triggered, timestamp,
         'resource_type': 'machine',
         'rule_data_type': 'metrics',
         'rule_arbitrary': False,
+        'portal_name': config.PORTAL_NAME,
+        'email_logo': config.EMAIL_LOGO
     }
 
 
