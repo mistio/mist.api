@@ -38,7 +38,7 @@ def migrate(purge=False):
             counters['updated'] += 1
     for counter in counters:
         print("%ss %s: %d" % ("CloudLocation",
-                               counter, counters[counter]))
+                              counter, counters[counter]))
     if counters['error']:
         print("Completed with errors")
         error = True
