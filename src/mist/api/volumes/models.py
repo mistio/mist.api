@@ -58,8 +58,12 @@ class Volume(OwnershipMixin, me.Document):
         super(Volume, self).delete()
         self.owner.mapper.remove(self)
         Tag.objects(resource=self).delete()
-        if self.owned_by:
-            self.owned_by.get_ownership_mapper(self.owner).remove(self)
+        try:
+            if self.owned_by:
+                self.owned_by.get_ownership_mapper(self.owner).remove(self)
+        except Exception as exc:
+            log.error("Got error %r while removing volume %s", exc, self.id)
+
 
     def as_dict(self):
         """Returns the API representation of the `Volume` object."""
@@ -73,6 +77,8 @@ class Volume(OwnershipMixin, me.Document):
             'size': self.size,
             'location': self.location.id if self.location else None,
             'attached_to': [m.id for m in self.attached_to],
+            'owned_by': self.owned_by.id if self.owned_by else '',
+            'created_by': self.created_by.id if self.created_by else '',
         }
 
         return volume_dict

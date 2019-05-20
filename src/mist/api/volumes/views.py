@@ -16,7 +16,12 @@ from mist.api.exceptions import VolumeNotFoundError
 from mist.api.exceptions import MachineNotFoundError
 from mist.api.exceptions import RequiredParameterMissingError
 
+from mist.api.tasks import async_session_update
+
 from mist.api.helpers import params_from_request, view_config
+from mist.api.helpers import trigger_session_update
+
+from mist.api import config
 
 
 OK = Response("OK", 200)
@@ -102,6 +107,7 @@ def create_volume(request):
     location = params.get('location')
 
     auth_context = auth_context_from_request(request)
+    owner = auth_context.owner
 
     if not size:
         raise RequiredParameterMissingError('size')
@@ -128,6 +134,20 @@ def create_volume(request):
 
     if tags:
         add_tags_to_resource(auth_context.owner, volume, tags)
+
+    # Set ownership.
+    volume.assign_to(auth_context.user)
+
+    trigger_session_update(owner.id, ['volumes'])
+
+    # SEC
+    # Update the RBAC & User/Ownership mappings with the new volume and finally
+    # trigger a session update by registering it as a chained task.
+    if config.HAS_RBAC:
+        owner.mapper.update(
+            volume,
+            callback=async_session_update, args=(owner.id, ['volumes'], )
+        )
 
     return volume.as_dict()
 
