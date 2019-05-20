@@ -322,8 +322,11 @@ class BaseStorageController(BaseController):
         self._detach_volume(libcloud_volume, libcloud_node)
 
     def _detach_volume(self, libcloud_volume, libcloud_node):
-        self.cloud.ctl.compute.connection.detach_volume(libcloud_volume,
-                                                        ex_node=libcloud_node)
+        try:
+            self.cloud.ctl.compute.connection.detach_volume(
+                libcloud_volume, ex_node=libcloud_node)
+        except TypeError:
+            self.cloud.ctl.compute.connection.detach_volume(libcloud_volume)
 
     def get_libcloud_volume(self, volume):
         """Returns an instance of a libcloud volume.

@@ -1,10 +1,11 @@
 """Key entity model"""
+import io
 import logging
 from uuid import uuid4
 import mongoengine as me
-import mist.api.tag.models
-from Crypto.PublicKey import RSA
+from paramiko.rsakey import RSAKey
 
+import mist.api.tag.models
 from mist.api.users.models import Owner
 from mist.api.exceptions import BadRequestError
 from mist.api.keys import controllers
@@ -166,13 +167,10 @@ class SSHKey(Key):
         from Crypto import Random
         Random.atfork()
 
-        if 'RSA' not in self.private:
-            raise me.ValidationError("Private key is not a valid RSA key.")
-
         # Generate public key from private key file.
         try:
-            key = RSA.importKey(self.private)
-            self.public = key.publickey().exportKey('OpenSSH').decode()
+            key = RSAKey.from_private_key(io.StringIO(self.private))
+            self.public = 'ssh-rsa ' + key.get_base64()
         except Exception:
             log.exception("Error while constructing public key "
                           "from private.")

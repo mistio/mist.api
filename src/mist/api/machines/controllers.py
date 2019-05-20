@@ -104,6 +104,8 @@ class MachineController(object):
         raise RuntimeError("Couldn't find machine host.")
 
     def ping_probe(self, persist=True):
+        if not self.machine.cloud.enabled:
+            return False
         from mist.api.methods import ping
         from mist.api.machines.models import PingProbe
 
@@ -156,6 +158,8 @@ class MachineController(object):
         return probe_result and probe_result.as_dict()
 
     def ssh_probe(self, persist=True):
+        if not self.machine.cloud.enabled:
+            return False
         from mist.api.methods import probe_ssh_only
         from mist.api.machines.models import SSHProbe
 

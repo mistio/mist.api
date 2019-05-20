@@ -47,6 +47,7 @@ MEMCACHED_HOST = ["memcached:11211"]
 BROKER_URL = "amqp://guest:guest@rabbitmq/"
 SSL_VERIFY = True
 THEME = ""
+EMAIL_LOGO = "landing/images/logo-email-440.png"
 
 GC_SCHEDULERS = True
 VERSION_CHECK = True
@@ -980,7 +981,8 @@ CELERY_SETTINGS = {
 LANDING_CATEGORIES = [{
     'href': '/',
     'name': 'home',
-    'title': 'Home'
+    'title': 'Home',
+    'hiddenFromMenu': 1
 }]
 
 LANDING_FORMS = [
@@ -1061,6 +1063,10 @@ SUPPORTED_PROVIDERS = [
                 'id': 'ap-northeast-2'
             },
             {
+                'location': 'Osaka',
+                'id': 'ap-northeast-3'
+            },
+            {
                 'location': 'Singapore',
                 'id': 'ap-southeast-1'
             },
@@ -1079,6 +1085,14 @@ SUPPORTED_PROVIDERS = [
             {
                 'location': 'London',
                 'id': 'eu-west-2'
+            },
+            {
+                'location': 'Paris',
+                'id': 'eu-west-3'
+            },
+            {
+                'location': 'Stockholm',
+                'id': 'eu-north-1'
             },
             {
                 'location': 'Canada Central',
@@ -1108,6 +1122,26 @@ SUPPORTED_PROVIDERS = [
                 'location': 'Mumbai',
                 'id': 'ap-south-1'
             },
+            {
+                'location': 'Hong Kong',
+                'id': 'ap-east-1'
+            },
+            {
+                'location': 'Beijing',
+                'id': 'cn-north-1'
+            },
+            {
+                'location': 'Ningxia',
+                'id': 'cn-northwest-1'
+            },
+            {
+                'location': 'GovCloud (US)',
+                'id': 'us-gov-west-1'
+            },
+            {
+                'location': 'GovCloud (US-East)',
+                'id': 'us-gov-east-1'
+            },
         ]
     },
     # Alibaba Aliyun
@@ -1116,13 +1150,81 @@ SUPPORTED_PROVIDERS = [
         'provider': Provider.ALIYUN_ECS,
         'regions': [
             {
+                'location': 'China North 1 (Qingdao)',
+                'id': 'cn-qingdao'
+            },
+            {
+                'location': 'China North 2 (Beijing)',
+                'id': 'cn-beijing'
+            },
+            {
+                'location': 'China North 3 (Zhangjiakou)',
+                'id': 'cn-zhangjiakou'
+            },
+            {
+                'location': 'China North 5 (Huhehaote)',
+                'id': 'cn-huhehaote'
+            },
+            {
                 'location': 'China East 1 (Hangzhou)',
                 'id': 'cn-hangzhou'
             },
             {
+                'location': 'China East 2 (Shanghai)',
+                'id': 'cn-shanghai'
+            },
+            {
+                'location': 'China South 1 (Shenzhen)',
+                'id': 'cn-shenzhen'
+            },
+            {
+                'location': 'Hong Kong',
+                'id': 'cn-hongkong'
+            },
+            {
                 'location': 'EU Central 1 (Frankfurt)',
                 'id': 'eu-central-1'
-            }
+            },
+            {
+                'location': 'Middle East 1 (Dubai)',
+                'id': 'me-east-1'
+            },
+            {
+                'location': 'England (London)',
+                'id': 'eu-west-1'
+            },
+            {
+                'location': 'US West 1 (Silicon Valley)',
+                'id': 'us-west-1'
+            },
+            {
+                'location': 'US East 1 (Virginia)',
+                'id': 'us-east-1'
+            },
+            {
+                'location': 'South Asia 1 (Mumbai)',
+                'id': 'ap-south-1'
+            },
+            {
+                'location': 'Southeast Asia 5 (Jakarta)',
+                'id': 'ap-southeast-5'
+            },
+            {
+                'location': 'Southeast Asia 3 (Kuala Lumpur)',
+                'id': 'ap-southeast-3'
+            },
+            {
+                'location': 'Southeast Asia 2 (Sydney)',
+                'id': 'ap-southeast-2'
+            },
+            {
+                'location': 'Southeast Asia 1 (Singapore)',
+                'id': 'ap-southeast-1'
+            },
+            {
+                'location': 'Northeast Asia Pacific 1 (Tokyo)',
+                'id': 'ap-northeast-1'
+            },
         ]
     },
     # GCE
