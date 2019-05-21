@@ -1072,7 +1072,7 @@ class OpenStackComputeController(BaseComputeController):
             self.cloud.username,
             self.cloud.password,
             api_version='2.2',
-            ex_force_auth_version='2.0_password',
+            ex_force_auth_version='3.x_password',
             ex_tenant_name=self.cloud.tenant,
             ex_force_service_region=self.cloud.region,
             ex_force_base_url=self.cloud.compute_endpoint,
