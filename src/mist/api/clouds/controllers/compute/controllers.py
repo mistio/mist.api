@@ -242,6 +242,17 @@ class AlibabaComputeController(AmazonComputeController):
                                                self.cloud.apisecret,
                                                region=self.cloud.region)
 
+    def _resize_machine(self, machine, machine_libcloud, node_size, kwargs):
+        # instance must be in stopped mode
+        if machine_libcloud.state != NodeState.STOPPED:
+            raise BadRequestError('The instance has to be stopped '
+                                  'in order to be resized')
+        try:
+            self.connection.ex_resize_node(machine_libcloud, node_size.id)
+            self.connection.ex_start_node(machine_libcloud)
+        except Exception as exc:
+            raise BadRequestError('Failed to resize node: %s' % exc)
+
     def _list_machines__get_location(self, node):
         return node.extra.get('zone_id')
 
