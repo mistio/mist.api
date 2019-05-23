@@ -615,6 +615,7 @@ def _create_machine_openstack(conn, private_key, public_key, key_name,
     except:
         chosen_networks = []
 
+    blockdevicemappings = []
     with get_temp_file(private_key) as tmp_key_path:
         try:
             if volumes:
