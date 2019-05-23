@@ -257,8 +257,19 @@ class AlibabaComputeController(AmazonComputeController):
         return node.extra.get('zone_id')
 
     def _list_machines__cost_machine(self, machine, machine_libcloud):
-        # TODO
-        return 0, 0
+        size = machine_libcloud.extra.get('instance_type', {})
+        driver_name = 'ecs-' + machine_libcloud.extra.get('zone_id')
+        price = get_size_price(driver_type='compute', driver_name=driver_name,
+                               size_id=size)
+        image = machine_libcloud.extra.get('image_id', '')
+        if 'win' in image:
+            price = price.get('windows', '')
+        else:
+            price = price.get('linux', '')
+        if machine.libcloud.extra.get('instance_charge_type') == 'PostPaid':
+            return price.get('pay_as_you_go', '') # TODO
+        else:
+            return price.get('prepaid', 0) # TODO
 
     def _list_images__fetch_images(self, search=None):
         return self.connection.list_images()
