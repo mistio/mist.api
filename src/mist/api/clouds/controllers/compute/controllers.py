@@ -266,10 +266,10 @@ class AlibabaComputeController(AmazonComputeController):
             price = price.get('windows', '')
         else:
             price = price.get('linux', '')
-        if machine.libcloud.extra.get('instance_charge_type') == 'PostPaid':
-            return price.get('pay_as_you_go', '') # TODO
+        if machine_libcloud.extra.get('instance_charge_type') == 'PostPaid':
+            return (price.get('pay_as_you_go', 0), 0)
         else:
-            return price.get('prepaid', 0) # TODO
+            return (0, price.get('prepaid', 0))
 
     def _list_images__fetch_images(self, search=None):
         return self.connection.list_images()
