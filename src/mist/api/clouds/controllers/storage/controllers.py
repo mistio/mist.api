@@ -167,7 +167,7 @@ class OpenstackStorageController(BaseStorageController):
         # Find the machines to which the volume is attached.
         volume.attached_to = []
         for attachment in libcloud_volume.extra.get('attachments', []):
-            machine_id = attachment.get('serverId')
+            machine_id = attachment.get('server_id')
             try:
                 machine = Machine.objects.get(machine_id=machine_id,
                                               cloud=self.cloud)
