@@ -129,7 +129,8 @@ class DigitalOceanStorageController(BaseStorageController):
         for machine_id in libcloud_volume.extra.get('droplet_ids', []):
             try:
                 machine = Machine.objects.get(
-                    machine_id=str(machine_id), cloud=self.cloud, missing_since=None
+                    machine_id=str(machine_id), cloud=self.cloud,
+                    missing_since=None
                 )
                 volume.attached_to.append(machine)
             except Machine.DoesNotExist:
