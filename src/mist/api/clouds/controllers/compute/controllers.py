@@ -242,12 +242,34 @@ class AlibabaComputeController(AmazonComputeController):
                                                self.cloud.apisecret,
                                                region=self.cloud.region)
 
+    def _resize_machine(self, machine, machine_libcloud, node_size, kwargs):
+        # instance must be in stopped mode
+        if machine_libcloud.state != NodeState.STOPPED:
+            raise BadRequestError('The instance has to be stopped '
+                                  'in order to be resized')
+        try:
+            self.connection.ex_resize_node(machine_libcloud, node_size.id)
+            self.connection.ex_start_node(machine_libcloud)
+        except Exception as exc:
+            raise BadRequestError('Failed to resize node: %s' % exc)
+
     def _list_machines__get_location(self, node):
         return node.extra.get('zone_id')
 
     def _list_machines__cost_machine(self, machine, machine_libcloud):
-        # TODO
-        return 0, 0
+        size = machine_libcloud.extra.get('instance_type', {})
+        driver_name = 'ecs-' + machine_libcloud.extra.get('zone_id')
+        price = get_size_price(driver_type='compute', driver_name=driver_name,
+                               size_id=size)
+        image = machine_libcloud.extra.get('image_id', '')
+        if 'win' in image:
+            price = price.get('windows', '')
+        else:
+            price = price.get('linux', '')
+        if machine_libcloud.extra.get('instance_charge_type') == 'PostPaid':
+            return (price.get('pay_as_you_go', 0), 0)
+        else:
+            return (0, price.get('prepaid', 0))
 
     def _list_images__fetch_images(self, search=None):
         return self.connection.list_images()

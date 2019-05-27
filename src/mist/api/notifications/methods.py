@@ -208,9 +208,10 @@ def dismiss_scale_notifications(machine, feedback='NEUTRAL'):
     # Marking the recommendation as "dismissed by everyone" seems a bit wrong.
     # Perhaps recommendations' actions such as this one must be invoked by a
     # distinct API endpoint?
-    recommendation.applied = feedback == "POSITIVE"
-    user_ids = set(user.id for user in machine.owner.members)
-    user_ids ^= set(recommendation.dismissed_by)
-    recommendation.channel.dismiss(
-        users=[user for user in User.objects(id__in=user_ids).only('id')]
-    )
+    if recommendation is not None:
+        recommendation.applied = feedback == "POSITIVE"
+        user_ids = set(user.id for user in machine.owner.members)
+        user_ids ^= set(recommendation.dismissed_by)
+        recommendation.channel.dismiss(
+            users=[user for user in User.objects(id__in=user_ids).only('id')]
+        )
