@@ -129,7 +129,8 @@ class DigitalOceanStorageController(BaseStorageController):
         for machine_id in libcloud_volume.extra.get('droplet_ids', []):
             try:
                 machine = Machine.objects.get(
-                    machine_id=machine_id, cloud=self.cloud, missing_since=None
+                    machine_id=str(machine_id), cloud=self.cloud,
+                    missing_since=None
                 )
                 volume.attached_to.append(machine)
             except Machine.DoesNotExist:
@@ -167,7 +168,7 @@ class OpenstackStorageController(BaseStorageController):
         # Find the machines to which the volume is attached.
         volume.attached_to = []
         for attachment in libcloud_volume.extra.get('attachments', []):
-            machine_id = attachment.get('serverId')
+            machine_id = attachment.get('server_id')
             try:
                 machine = Machine.objects.get(machine_id=machine_id,
                                               cloud=self.cloud)
