@@ -235,7 +235,9 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         cloud_location = CloudLocation.objects.get(id=location_id)
         location = NodeLocation(cloud_location.external_id,
                                 name=cloud_location.name,
-                                country=cloud_location.country, driver=conn)
+                                country=cloud_location.country,
+                                extra=cloud_location.extra,
+                                driver=conn)
     except me.DoesNotExist:
         # make sure mongo is up-to-date
         cloud.ctl.compute.list_locations()
@@ -245,6 +247,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             location = NodeLocation(cloud_location.external_id,
                                     name=cloud_location.name,
                                     country=cloud_location.country,
+                                    extra=cloud_location.extra,
                                     driver=conn)
         except me.DoesNotExist:
             location = NodeLocation(location_id, name=location_name,
