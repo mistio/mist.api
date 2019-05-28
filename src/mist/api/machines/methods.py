@@ -346,7 +346,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                 ex_disk_id = volume.external_id
             except me.DoesNotExist:
                 # make sure mongo is up-to-date
-                cloud.ctl.volume.list_volumes()
+                cloud.ctl.storage.list_volumes()
                 try:
                     volume = Volume.objects.get(id=ex_disk_id)
                     ex_disk_id = volume.external_id
