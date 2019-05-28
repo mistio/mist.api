@@ -39,6 +39,7 @@ from xml.sax.saxutils import escape
 from libcloud.pricing import get_size_price
 from libcloud.compute.base import Node, NodeImage, NodeLocation
 from libcloud.compute.providers import get_driver
+from libcloud.compute.drivers.ecs import COST_REGIONS
 from libcloud.container.providers import get_driver as get_container_driver
 from libcloud.compute.types import Provider, NodeState
 from libcloud.container.types import Provider as Container_Provider
@@ -259,6 +260,14 @@ class AlibabaComputeController(AmazonComputeController):
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         size = machine_libcloud.extra.get('instance_type', {})
         driver_name = 'ecs-' + machine_libcloud.extra.get('zone_id')
+        # ecs-cn-hongkong-b falls under ecs-cn-hongkong
+        # ecs-ap-southeast-1a falls under ecs-ap-south-1
+        if driver_name not in COST_REGIONS:
+            if (any(char.isdigit() for char in ('-'.join(driver_name.split('-')[-1:])))):
+                driver_name = driver_name[:-1]
+            else:
+                driver_name = driver_name[:-2]
+
         price = get_size_price(driver_type='compute', driver_name=driver_name,
                                size_id=size)
         image = machine_libcloud.extra.get('image_id', '')
