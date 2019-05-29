@@ -437,8 +437,9 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                                      size, location, cloud_init)
     elif conn.type is Provider.LIBVIRT:
         node = _create_machine_libvirt(conn, machine_name,
-                                       disk_size=libvirt_disk_size, ram=size_ram,
-                                       cpu=size_cpu, image=image_id,
+                                       disk_size=libvirt_disk_size,
+                                       ram=size_ram, cpu=size_cpu,
+                                       image=image_id,
                                        disk_path=disk_path,
                                        networks=networks,
                                        public_key=public_key,
@@ -450,14 +451,16 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             try:
                 from mist.api.volumes.models import Volume
                 volume = Volume.objects.get(id=ex_disk_id)
-                ex_disk = StorageVolume(id=volume.external_id, name=volume.name,
+                ex_disk = StorageVolume(id=volume.external_id,
+                                        name=volume.name,
                                         size=volume.size, driver=conn)
             except me.DoesNotExist:
                 # make sure mongo is up-to-date
                 cloud.ctl.storage.list_volumes()
                 try:
                     volume = Volume.objects.get(id=ex_disk_id)
-                    ex_disk = StorageVolume(id=volume.external_id, name=volume.name,
+                    ex_disk = StorageVolume(id=volume.external_id,
+                                            name=volume.name,
                                             size=volume.size, driver=conn)
                 except me.DoesNotExist:
                     # try to find disk using libcloud's id
@@ -1077,7 +1080,7 @@ def _create_machine_hostvirtual(conn, public_key,
 
 def _create_machine_packet(conn, public_key, machine_name, image,
                            size, location, cloud_init, project_id=None,
-                           disk=None, disk_size= 0):
+                           disk=None, disk_size=0):
     """Create a machine in Packet.net.
     """
     key = public_key.replace('\n', '')
