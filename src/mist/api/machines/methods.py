@@ -8,6 +8,8 @@ import requests
 from future.utils import string_types
 
 from libcloud.compute.base import NodeSize, NodeImage, NodeLocation, Node
+from libcloud.compute.base import StorageVolume
+
 from libcloud.compute.types import Provider
 from libcloud.container.types import Provider as Container_Provider
 from libcloud.container.base import ContainerImage
@@ -442,8 +444,31 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                                        public_key=public_key,
                                        cloud_init=cloud_init)
     elif conn.type == Provider.PACKET:
+        ex_disk = None
+        if ex_disk_id:
+            # transform disk id to libcloud's StorageVolume object
+            try:
+                from mist.api.volumes.models import Volume
+                volume = Volume.objects.get(id=ex_disk_id)
+                ex_disk = StorageVolume(id=volume.external_id, name=volume.name,
+                                        size=volume.size, driver=conn)
+            except me.DoesNotExist:
+                # make sure mongo is up-to-date
+                cloud.ctl.storage.list_volumes()
+                try:
+                    volume = Volume.objects.get(id=ex_disk_id)
+                    ex_disk = StorageVolume(id=volume.external_id, name=volume.name,
+                                            size=volume.size, driver=conn)
+                except me.DoesNotExist:
+                    # try to find disk using libcloud's id
+                    libcloud_disks = conn.list_volumes()
+                    for libcloud_disk in libcloud_disks:
+                        if libcloud_disk.id == ex_disk_id:
+                            ex_disk = libcloud_disk
+                            break
         node = _create_machine_packet(conn, public_key, machine_name, image,
-                                      size, location, cloud_init, project_id)
+                                      size, location, cloud_init, project_id,
+                                      ex_disk)
     else:
         raise BadRequestError("Provider unknown.")
 
@@ -1050,7 +1075,8 @@ def _create_machine_hostvirtual(conn, public_key,
 
 
 def _create_machine_packet(conn, public_key, machine_name, image,
-                           size, location, cloud_init, project_id=None):
+                           size, location, cloud_init, project_id=None,
+                           disk=None):
     """Create a machine in Packet.net.
     """
     key = public_key.replace('\n', '')
@@ -1081,7 +1107,6 @@ def _create_machine_packet(conn, public_key, machine_name, image,
                 break
         if not ex_project_id:
             raise BadRequestError("Project id is invalid")
-
     try:
         node = conn.create_node(
             name=machine_name,
@@ -1089,7 +1114,8 @@ def _create_machine_packet(conn, public_key, machine_name, image,
             image=image,
             location=location,
             ex_project_id=ex_project_id,
-            cloud_init=cloud_init
+            cloud_init=cloud_init,
+            disk=disk
         )
     except Exception as e:
         raise MachineCreationError("Packet.net, got exception %s" % e, e)
