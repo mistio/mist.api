@@ -149,7 +149,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                    schedule={}, command=None, tags=None,
                    bare_metal=False, hourly=True,
                    softlayer_backend_vlan_id=None, machine_username='',
-                   volumes=[]):
+                   volumes=[], libvirt_disk_size=None):
     """Creates a new virtual machine on the specified cloud.
 
     If the cloud is Rackspace it attempts to deploy the node with an ssh key
@@ -437,7 +437,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                                      size, location, cloud_init)
     elif conn.type is Provider.LIBVIRT:
         node = _create_machine_libvirt(conn, machine_name,
-                                       disk_size=disk_size, ram=size_ram,
+                                       disk_size=libvirt_disk_size, ram=size_ram,
                                        cpu=size_cpu, image=image_id,
                                        disk_path=disk_path,
                                        networks=networks,
@@ -445,7 +445,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                                        cloud_init=cloud_init)
     elif conn.type == Provider.PACKET:
         ex_disk = None
-        if ex_disk_id:
+        if ex_disk_id:  # will try to attach to existing disk
             # transform disk id to libcloud's StorageVolume object
             try:
                 from mist.api.volumes.models import Volume
@@ -466,9 +466,10 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                         if libcloud_disk.id == ex_disk_id:
                             ex_disk = libcloud_disk
                             break
+
         node = _create_machine_packet(conn, public_key, machine_name, image,
                                       size, location, cloud_init, project_id,
-                                      ex_disk)
+                                      ex_disk, disk_size)
     else:
         raise BadRequestError("Provider unknown.")
 
@@ -1076,7 +1077,7 @@ def _create_machine_hostvirtual(conn, public_key,
 
 def _create_machine_packet(conn, public_key, machine_name, image,
                            size, location, cloud_init, project_id=None,
-                           disk=None):
+                           disk=None, disk_size= 0):
     """Create a machine in Packet.net.
     """
     key = public_key.replace('\n', '')
@@ -1115,7 +1116,8 @@ def _create_machine_packet(conn, public_key, machine_name, image,
             location=location,
             ex_project_id=ex_project_id,
             cloud_init=cloud_init,
-            disk=disk
+            disk=disk,
+            disk_size=disk_size
         )
     except Exception as e:
         raise MachineCreationError("Packet.net, got exception %s" % e, e)
