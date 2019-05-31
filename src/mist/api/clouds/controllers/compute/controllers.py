@@ -364,6 +364,11 @@ class DigitalOceanComputeController(BaseComputeController):
         return size.extra.get('vcpus')
 
 
+class MaxihostComputeController(BaseComputeController):
+
+    def _connect(self):
+        return get_driver(Provider.MAXIHOST)(self.cloud.token)
+
 class LinodeComputeController(BaseComputeController):
 
     def _connect(self):

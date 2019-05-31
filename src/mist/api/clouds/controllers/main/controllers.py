@@ -105,6 +105,12 @@ class DigitalOceanMainController(BaseMainController):
     StorageController = storage_ctls.DigitalOceanStorageController
 
 
+class MaxihostMainController(BaseMainController):
+
+    provider = 'maxihost'
+    ComputeController = compute_ctls.MaxihostComputeController
+
+
 class LinodeMainController(BaseMainController):
 
     provider = 'linode'
