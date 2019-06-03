@@ -1093,7 +1093,7 @@ def _create_machine_packet(conn, public_key, machine_name, image,
             # transform disk id to libcloud's StorageVolume object
             try:
                 from mist.api.volumes.models import Volume
-                volume = Volume.objects.get(id=)volumes[0].get('volume_id')
+                volume = Volume.objects.get(id=volumes[0].get('volume_id'))
                 ex_disk = StorageVolume(id=volume.external_id,
                                         name=volume.name,
                                         size=volume.size, driver=conn)
