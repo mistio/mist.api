@@ -1055,7 +1055,7 @@ def _create_machine_hostvirtual(conn, public_key,
 
 def _create_machine_packet(conn, public_key, machine_name, image,
                            size, location, cloud_init, project_id=None,
-                           volumes):
+                           volumes=[]):
     """Create a machine in Packet.net.
     """
     key = public_key.replace('\n', '')
