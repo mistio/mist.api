@@ -272,8 +272,7 @@ def create_machine(request):
     if not image_id:
         raise RequiredParameterMissingError("image")
     # this is used in libvirt
-    libvirt_disk_size = int(params.get('libvirt_disk_size', 4))
-    disk_size = int(params.get('disk_size', 0))
+    disk_size = int(params.get('libvirt_disk_size', 4))
     disk_path = params.get('libvirt_disk_path', '')
     size = params.get('size', None)
     # deploy_script received as unicode, but ScriptDeployment wants str
@@ -445,8 +444,7 @@ def create_machine(request):
               'create_resource_group': create_resource_group,
               'new_resource_group': new_resource_group,
               'machine_username': machine_username,
-              'volumes': volumes,
-              'libvirt_disk_size': libvirt_disk_size}
+              'volumes': volumes}
     if not run_async:
         ret = methods.create_machine(auth_context, *args, **kwargs)
     else:
