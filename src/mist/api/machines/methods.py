@@ -446,8 +446,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                                        cloud_init=cloud_init)
     elif conn.type == Provider.PACKET:
         node = _create_machine_packet(conn, public_key, machine_name, image,
-                                      size, location, cloud_init, project_id,
-                                      volumes)
+                                      size, location, cloud_init, cloud,
+                                      project_id, volumes)
     else:
         raise BadRequestError("Provider unknown.")
 
@@ -1054,8 +1054,8 @@ def _create_machine_hostvirtual(conn, public_key,
 
 
 def _create_machine_packet(conn, public_key, machine_name, image,
-                           size, location, cloud_init, project_id=None,
-                           volumes=[]):
+                           size, location, cloud_init, cloud,
+                           project_id=None, volumes=[]):
     """Create a machine in Packet.net.
     """
     key = public_key.replace('\n', '')
