@@ -149,7 +149,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                    schedule={}, command=None, tags=None,
                    bare_metal=False, hourly=True,
                    softlayer_backend_vlan_id=None, machine_username='',
-                   volumes=[]):
+                   volumes=[], ip_addresses=[]):
     """Creates a new virtual machine on the specified cloud.
 
     If the cloud is Rackspace it attempts to deploy the node with an ssh key
@@ -447,7 +447,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     elif conn.type == Provider.PACKET:
         node = _create_machine_packet(conn, public_key, machine_name, image,
                                       size, location, cloud_init, cloud,
-                                      project_id, volumes)
+                                      project_id, volumes, ip_addresses)
     else:
         raise BadRequestError("Provider unknown.")
 
@@ -1055,7 +1055,7 @@ def _create_machine_hostvirtual(conn, public_key,
 
 def _create_machine_packet(conn, public_key, machine_name, image,
                            size, location, cloud_init, cloud,
-                           project_id=None, volumes=[]):
+                           project_id=None, volumes=[], ip_addresses=[]):
     """Create a machine in Packet.net.
     """
     key = public_key.replace('\n', '')
@@ -1123,6 +1123,7 @@ def _create_machine_packet(conn, public_key, machine_name, image,
             image=image,
             location=location,
             ex_project_id=ex_project_id,
+            ip_addresses=ip_addresses,
             cloud_init=cloud_init,
             disk=ex_disk,
             disk_size=disk_size

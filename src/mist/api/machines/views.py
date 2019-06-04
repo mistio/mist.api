@@ -256,6 +256,11 @@ def create_machine(request):
     ssh_port:
       type: integer
       example: 22
+    ip_addresses:
+      type: array
+      items:
+        type:
+          object
     """
 
     params = params_from_request(request)
@@ -299,6 +304,7 @@ def create_machine(request):
     networks = params.get('networks', [])
     subnet_id = params.get('subnet_id', '')
     subnetwork = params.get('subnetwork', None)
+    ip_addresses = params.get('ip_addresses', [])
     docker_env = params.get('docker_env', [])
     docker_command = params.get('docker_command', None)
     script_id = params.get('script_id', '')
@@ -444,7 +450,8 @@ def create_machine(request):
               'create_resource_group': create_resource_group,
               'new_resource_group': new_resource_group,
               'machine_username': machine_username,
-              'volumes': volumes}
+              'volumes': volumes,
+              'ip_addresses': ip_addresses}
     if not run_async:
         ret = methods.create_machine(auth_context, *args, **kwargs)
     else:
