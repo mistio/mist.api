@@ -1112,6 +1112,7 @@ def _create_machine_packet(conn, public_key, machine_name, image,
                         if libcloud_disk.id == volumes[0].get('volume_id'):
                             ex_disk = libcloud_disk
                             break
+                    raise VolumeNotFoundError()
         else:
             disk_size = int(volumes[0].get('size'))
 
