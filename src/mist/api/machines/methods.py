@@ -226,6 +226,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     size = NodeSize(size_id, name=size_name, ram='', disk=disk,
                     bandwidth='', price='', driver=conn)
 
+    import ipdb; ipdb.set_trace()
     image = NodeImage(image_id, name=image_name, extra=image_extra,
                       driver=conn)
 
@@ -444,6 +445,10 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     elif conn.type == Provider.PACKET:
         node = _create_machine_packet(conn, public_key, machine_name, image,
                                       size, location, cloud_init, project_id)
+    elif conn.type == Provider.MAXIHOST:
+        import ipdb; ipdb.set_trace()
+        node = _create_machine_maxihost(conn, machine_name, image,
+                                        size, location)
     else:
         raise BadRequestError("Provider unknown.")
 
@@ -872,6 +877,10 @@ def _create_machine_onapp(conn, public_key,
 
     return node
 
+def _create_machine_maxihost(conn, machine_name, image_id, size, location):
+    node = conn.create_node(machine_name, size, image_id, location)
+
+    return node
 
 def _create_machine_docker(conn, machine_name, image_id,
                            script=None, public_key=None,

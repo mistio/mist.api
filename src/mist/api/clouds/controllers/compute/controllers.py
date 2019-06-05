@@ -369,6 +369,23 @@ class MaxihostComputeController(BaseComputeController):
     def _connect(self):
         return get_driver(Provider.MAXIHOST)(self.cloud.token)
 
+    def _list_machines__machine_actions(self, machine, machine_libcloud):
+        super(MaxihostComputeController, self)._list_machines__machine_actions(
+            machine, machine_libcloud)
+        if machine_libcloud.state is NodeState.PAUSED:
+            machine.actions.start = True
+
+    def _list_sizes__get_name(self, size):
+        name = size.extra['specs']['cpus']['type']
+        cpus = size.extra['specs']['cpus']['count']
+        memory = size.extra['specs']['memory']['total']
+        disk_count = size.extra['specs']['drives'][0]['count']
+        disk_size = size.extra['specs']['drives'][0]['size']
+        disk_type = size.extra['specs']['drives'][0]['type']
+        return name + '/ ' + str(cpus) + ' cores/ ' \
+                         + memory + ' RAM/ ' \
+                         + str(disk_count) + ' * ' + disk_size + ' ' + disk_type
+
 class LinodeComputeController(BaseComputeController):
 
     def _connect(self):
