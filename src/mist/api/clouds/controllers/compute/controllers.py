@@ -375,6 +375,9 @@ class MaxihostComputeController(BaseComputeController):
         if machine_libcloud.state is NodeState.PAUSED:
             machine.actions.start = True
 
+    def _list_machines__get_location(self, node):
+        return node.extra.get('location').get('facility_code')
+
     def _list_sizes__get_name(self, size):
         name = size.extra['specs']['cpus']['type']
         cpus = size.extra['specs']['cpus']['count']
