@@ -305,6 +305,7 @@ class BaseStorageController(BaseController):
     def _attach_volume(self, libcloud_volume, libcloud_node, **kwargs):
         self.cloud.ctl.compute.connection.attach_volume(libcloud_node,
                                                         libcloud_volume)
+        self.list_volumes()
 
     @LibcloudExceptionHandler(mist.api.exceptions.VolumeAttachmentError)
     def detach_volume(self, volume, machine):
@@ -327,6 +328,7 @@ class BaseStorageController(BaseController):
                 libcloud_volume, ex_node=libcloud_node)
         except TypeError:
             self.cloud.ctl.compute.connection.detach_volume(libcloud_volume)
+        self.list_volumes()
 
     def get_libcloud_volume(self, volume):
         """Returns an instance of a libcloud volume.
