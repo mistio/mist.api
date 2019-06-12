@@ -178,8 +178,9 @@ class LoggingShellHubWorker(ShellHubWorker):
                     capture.finished_at = time.time()
                     capture.columns = self.params['columns']
                     capture.rows = self.params['rows']
-                    capture.capture = [(tstamp - self.capture[0][0], event, data)
-                                    for tstamp, event, data in self.capture]
+                    capture.capture = [(tstamp - self.capture[0][0],
+                                        event, data)
+                                       for tstamp, event, data in self.capture]
                     capture.save()
             # Don't log cfy container log views
             if (
