@@ -12,6 +12,8 @@ import mist.api.users.models
 import mist.api.logs.methods
 from mist.api.misc.shell import ShellCapture
 
+from mist.api import config
+
 
 log = logging.getLogger(__name__)
 
@@ -159,25 +161,26 @@ class LoggingShellHubWorker(ShellHubWorker):
         if self.shell and not self.stopped:
             # if not self.shell then namespace initialized
             # but shell_open has happened
-            if self.capture:
-                # save captured data
-                capture = ShellCapture()
-                capture.owner = mist.api.users.models.Owner(
-                    id=self.params['owner_id']
-                )
-                capture.capture_id = self.uuid
-                capture.cloud_id = self.params['cloud_id']
-                capture.machine_id = self.params['machine_id']
-                capture.key_id = self.params.get('key_id')
-                capture.host = self.params['host']
-                capture.ssh_user = self.params.get('ssh_user')
-                capture.started_at = self.capture_started_at
-                capture.finished_at = time.time()
-                capture.columns = self.params['columns']
-                capture.rows = self.params['rows']
-                capture.capture = [(tstamp - self.capture[0][0], event, data)
-                                   for tstamp, event, data in self.capture]
-                capture.save()
+            if config.ENABLE_SHELL_CAPTURE:
+                if self.capture:
+                    # save captured data
+                    capture = ShellCapture()
+                    capture.owner = mist.api.users.models.Owner(
+                        id=self.params['owner_id']
+                    )
+                    capture.capture_id = self.uuid
+                    capture.cloud_id = self.params['cloud_id']
+                    capture.machine_id = self.params['machine_id']
+                    capture.key_id = self.params.get('key_id')
+                    capture.host = self.params['host']
+                    capture.ssh_user = self.params.get('ssh_user')
+                    capture.started_at = self.capture_started_at
+                    capture.finished_at = time.time()
+                    capture.columns = self.params['columns']
+                    capture.rows = self.params['rows']
+                    capture.capture = [(tstamp - self.capture[0][0], event, data)
+                                    for tstamp, event, data in self.capture]
+                    capture.save()
             # Don't log cfy container log views
             if (
                 self.params.get('provider') != 'docker' or
