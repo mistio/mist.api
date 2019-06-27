@@ -1,6 +1,5 @@
 variables:
   GET_SOURCES_ATTEMPTS: 3
-  KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: default
 
 stages:
   - build
@@ -81,6 +80,9 @@ build_mist_image:
 generate_api_spec:
   stage: generate_api_spec
   image: gcr.io/mist-ops/mist:$CI_COMMIT_SHA
+  variables:
+    KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: default
+
   before_script:
     - cd /mist.api
   script:
