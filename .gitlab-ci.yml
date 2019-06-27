@@ -1,5 +1,6 @@
 variables:
   GET_SOURCES_ATTEMPTS: 3
+  KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: default
 
 stages:
   - build
