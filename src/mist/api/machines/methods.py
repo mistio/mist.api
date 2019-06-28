@@ -976,6 +976,8 @@ def _create_machine_digital_ocean(conn, key_name, private_key, public_key,
             vol = Volume.objects.get(id=volume_id)
             volume = {'volume_id': vol.external_id}
             volumes_to_attach.append(volume)
+        else:
+            volumes_to_attach.append(volumes[0])
     try:
         node = conn.create_node(
             name=machine_name,
