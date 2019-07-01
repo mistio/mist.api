@@ -328,7 +328,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                 break
         node = _create_machine_ec2(conn, key.name, public_key,
                                    machine_name, image, size, ec2_location,
-                                   subnet_id, cloud_init)
+                                   subnet_id, cloud_init, volumes)
     elif conn.name == 'Aliyun ECS':
         node = _create_machine_aliyun(conn, key.name, public_key,
                                       machine_name, image, size, location,
@@ -685,7 +685,7 @@ def _create_machine_aliyun(conn, key_name, public_key,
 
 def _create_machine_ec2(conn, key_name, public_key,
                         machine_name, image, size, location, subnet_id,
-                        user_data):
+                        user_data, volumes):
     """Create a machine in Amazon EC2.
     """
 
@@ -745,6 +745,20 @@ def _create_machine_ec2(conn, key_name, public_key,
 
     else:
         kwargs.update({'ex_securitygroup': config.EC2_SECURITYGROUP['name']})
+
+    if volumes:
+        mapping = {}
+        mapping.update({'Ebs': {'VolumeSize': volumes[0].get('size')}})
+        if volumes[0].get('name'):
+            mapping.update({'DeviceName': volumes[0].get('name')})
+        if volumes[0].get('type'):
+            mapping['Ebs'].update({'VolumeType': volumes[0].get('type')})
+        if volumes[0].get('iops'):
+            mapping['Ebs'].update({'Iops': volumes[0].get('iops')})
+        if volumes[0].get('delete_on_termination'):
+            mapping['Ebs'].update({'DeleteOnTermination': volumes[0].get('delete_on_termination')})
+
+        kwargs.update({'ex_blockdevicemappings': [mapping]})
 
     try:
         node = conn.create_node(**kwargs)
@@ -1490,6 +1504,7 @@ def _create_machine_gce(conn, key_name, private_key, public_key, machine_name,
         network = Network.objects.get(id=network).name
     except me.DoesNotExist:
         network = 'default'
+
 
     ex_disk = None
     disk_size = 10
