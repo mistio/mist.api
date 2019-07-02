@@ -160,7 +160,7 @@ class AmazonComputeController(BaseComputeController):
         sizes = machine_libcloud.driver.list_sizes()
         size = machine_libcloud.extra.get('instance_type')
         for node_size in sizes:
-            if node_size.id == size:
+            if node_size.id == size and node_size.price:
                 plan_price = node_size.price.get(machine.os_type)
                 if not plan_price:
                     # Use the default which is linux.
@@ -419,8 +419,12 @@ class RackSpaceComputeController(BaseComputeController):
         size = machine_libcloud.extra.get('flavorId')
         location = machine_libcloud.driver.region[:3]
         driver_name = 'rackspacenova' + location
-        price = get_size_price(driver_type='compute', driver_name=driver_name,
-                               size_id=size)
+        try:
+            price = get_size_price(driver_type='compute', driver_name=driver_name,
+                                   size_id=size)
+        except KeyError:
+            log.error('Pricing for %s:%s was not found.') % (driver_name, size)
+
         if price:
             plan_price = price.get(machine.os_type) or price.get('linux')
             # 730 is the number of hours per month as on
