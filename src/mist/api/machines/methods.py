@@ -150,7 +150,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                    bare_metal=False, hourly=True,
                    softlayer_backend_vlan_id=None, machine_username='',
                    volumes=[], ip_addresses=[], expiration_date='',
-                   action_on_expire=None, notify_before_expire=0
+                   expiration_action=None,expiration_notify=0
                    ):
     """Creates a new virtual machine on the specified cloud.
 
@@ -477,9 +477,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     # save expiration date vars
     if expiration_date:
         machine.expiration_date = expiration_date
-    machine.action_on_expire = action_on_expire
-    machine.notify_before_expire = notify_before_expire
-
+    machine.expiration_action = expiration_action
+    machine.expiration_notify = expiration_notify
     machine.save()
 
     if key is not None:  # Associate key.

@@ -817,7 +817,7 @@ def create_machine_async(
     tags=None, schedule={}, bare_metal=False, hourly=True,
     softlayer_backend_vlan_id=None, machine_username='',
     volumes=[], ip_addresses=[], expiration_date='',
-    action_on_expire=None, notify_before_expire=0
+    expiration_action=None, expiration_notify=0
 ):
     from multiprocessing.dummy import Pool as ThreadPool
     from mist.api.machines.methods import create_machine
@@ -879,8 +879,8 @@ def create_machine_async(
              'volumes': volumes,
              'ip_addresses': ip_addresses,
              'expiration_date': expiration_date,
-             'action_on_expire': action_on_expire,
-             'notify_before_expire': notify_before_expire}
+             'expiration_action': expiration_action,
+             'expiration_notify': expiration_notify}
         ))
 
     def create_machine_wrapper(args_kwargs):
@@ -1317,7 +1317,7 @@ def update_poller(org_id):
                     SSHProbeMachinePollingSchedule.add(machine=machine,
                                                        interval=300, ttl=120)
                     CheckExpDateMachinePollingSchedule.add(machine=machine,
-                                                           interval=1200, ttl=360)
+                                                           interval=300, ttl=360)
     org.poller_updated = datetime.datetime.now()
     org.save()
 

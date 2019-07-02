@@ -334,8 +334,8 @@ def create_machine(request):
     hourly = params.get('hourly', True)
 
     expiration_date = params.get('expiration_date', '')
-    action_on_expire = params.get('action_on_expire')
-    notify_before_expire = params.get('notify_before_expire')
+    expiration_action = params.get('expiration_action')
+    expiration_notify = params.get('expiration_notify')
 
     job_id = params.get('job_id')
     # The `job` variable points to the event that started the job. If a job_id
@@ -455,22 +455,11 @@ def create_machine(request):
               'new_resource_group': new_resource_group,
               'machine_username': machine_username,
               'volumes': volumes,
-<<<<<<< Updated upstream
-=======
-<<<<<<< Updated upstream
-              'ip_addresses': ip_addresses}
-=======
->>>>>>> Stashed changes
               'ip_addresses': ip_addresses,
               'expiration_date': expiration_date,
-              'action_on_expire': action_on_expire,
-              'notify_before_expire': notify_before_expire}
+              'expiration_action': expiration_action,
+              'expiration_notify': expiration_notify}
 
-<<<<<<< Updated upstream
-=======
-    import ipdb; ipdb.set_trace()
->>>>>>> Stashed changes
->>>>>>> Stashed changes
     if not run_async:
         ret = methods.create_machine(auth_context, *args, **kwargs)
     else:
