@@ -396,3 +396,8 @@ class FindCoresMachinePollingSchedule(MachinePollingSchedule):
     def enabled(self):
         return (super(FindCoresMachinePollingSchedule, self).enabled and
                 config.ENABLE_METERING)
+
+
+class CheckExpDateMachinePollingSchedule(MachinePollingSchedule):
+
+    task = 'mist.api.poller.tasks.check_exp_date'

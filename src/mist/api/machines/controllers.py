@@ -206,3 +206,8 @@ class MachineController(object):
                                             'patch': patch})
         probe_result = self.machine.ssh_probe
         return probe_result and probe_result.as_dict()
+
+    def check_exp_date(self, persist=True):
+        # check whether sending notification is needed
+        # check whether action (stop / destroy) is needed
+        return

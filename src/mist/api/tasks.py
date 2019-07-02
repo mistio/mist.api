@@ -47,6 +47,7 @@ from mist.api.poller.models import ListVolumesPollingSchedule
 from mist.api.poller.models import FindCoresMachinePollingSchedule
 from mist.api.poller.models import PingProbeMachinePollingSchedule
 from mist.api.poller.models import SSHProbeMachinePollingSchedule
+from mist.api.poller.models import CheckExpDateMachinePollingSchedule
 
 from mist.api.helpers import send_email as helper_send_email
 from mist.api.helpers import amqp_publish_user
@@ -815,7 +816,8 @@ def create_machine_async(
     associate_floating_ip_subnet=None, project_id=None,
     tags=None, schedule={}, bare_metal=False, hourly=True,
     softlayer_backend_vlan_id=None, machine_username='',
-    volumes=[], ip_addresses=[]
+    volumes=[], ip_addresses=[], expiration_date='',
+    action_on_expire=None, notify_before_expire=0
 ):
     from multiprocessing.dummy import Pool as ThreadPool
     from mist.api.machines.methods import create_machine
@@ -875,7 +877,10 @@ def create_machine_async(
              'hourly': hourly,
              'machine_username': machine_username,
              'volumes': volumes,
-             'ip_addresses': ip_addresses}
+             'ip_addresses': ip_addresses,
+             'expiration_date': expiration_date,
+             'action_on_expire': action_on_expire,
+             'notify_before_expire': notify_before_expire}
         ))
 
     def create_machine_wrapper(args_kwargs):
@@ -1311,6 +1316,8 @@ def update_poller(org_id):
                                                         interval=300, ttl=120)
                     SSHProbeMachinePollingSchedule.add(machine=machine,
                                                        interval=300, ttl=120)
+                    CheckExpDateMachinePollingSchedule.add(machine=machine,
+                                                           interval=1200, ttl=360)
     org.poller_updated = datetime.datetime.now()
     org.save()
 

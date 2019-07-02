@@ -333,6 +333,10 @@ def create_machine(request):
     softlayer_backend_vlan_id = params.get('softlayer_backend_vlan_id', None)
     hourly = params.get('hourly', True)
 
+    expiration_date = params.get('expiration_date', '')
+    action_on_expire = params.get('action_on_expire')
+    notify_before_expire = params.get('notify_before_expire')
+
     job_id = params.get('job_id')
     # The `job` variable points to the event that started the job. If a job_id
     # is not provided, then it means that this is the beginning of a new story
@@ -451,7 +455,11 @@ def create_machine(request):
               'new_resource_group': new_resource_group,
               'machine_username': machine_username,
               'volumes': volumes,
-              'ip_addresses': ip_addresses}
+              'ip_addresses': ip_addresses,
+              'expiration_date': expiration_date,
+              'action_on_expire': action_on_expire,
+              'notify_before_expire': notify_before_expire}
+
     if not run_async:
         ret = methods.create_machine(auth_context, *args, **kwargs)
     else:

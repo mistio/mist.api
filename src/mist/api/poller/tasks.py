@@ -124,3 +124,20 @@ def ssh_probe(schedule_id):
             sched.machine.ctl.ssh_probe(persist=False)
     except Exception as exc:
         log.error("Error while ssh-probing %s: %r", sched.machine, exc)
+
+
+# TODO: check time_limit
+# TODO: generic exception
+@app.task(time_limit=45, soft_time_limit=40)
+def check_exp_date(schedule_id):
+    """Check expiration date of the machine"""
+    # Fetch schedule and machine from database.
+    # FIXME: resolve circular deps error
+    from mist.api.poller.models import CheckExpDateMachinePollingSchedule
+    sched = CheckExpDateMachinePollingSchedule.objects.get(id=schedule_id)
+    try:
+        if sched.machine.state not in ['error'] \
+                and sched.machine.machine_type != 'container':
+            sched.machine.ctl.check_exp_date(persist=False)
+    except Exception as exc:
+        log.error("Error while checking expiration date %s: %r", sched.machine, exc)

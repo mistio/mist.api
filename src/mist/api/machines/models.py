@@ -141,6 +141,15 @@ class Cost(me.EmbeddedDocument):
         return json.loads(self.to_json())
 
 
+#class CheckExpDate(me.EmbeddedDocument):
+#    expiration_date = me.DateTimeField()
+#    action = me.StringField(default='destroy', choices=('stop', 'destroy'))
+#    notify_before = me.FloatField() # seconds
+
+#    def as_dict(self):
+#        return json.loads(self.to_json())
+
+
 class PingProbe(me.EmbeddedDocument):
     packets_tx = me.IntField()
     packets_rx = me.IntField()
@@ -305,6 +314,11 @@ class Machine(OwnershipMixin, me.Document):
 
     ssh_probe = me.EmbeddedDocumentField(SSHProbe, required=False)
     ping_probe = me.EmbeddedDocumentField(PingProbe, required=False)
+    #check_exp_date = me.EmbeddedDocumentField(CheckExpDate, required=False)
+
+    expiration_date = me.DateTimeField()
+    action_on_expire = me.StringField(default='destroy', choices=('stop', 'destroy'))
+    notify_before_expire = me.FloatField() # seconds
 
     # Number of vCPUs gathered from various sources. This field is meant to
     # be updated ONLY by the mist.api.metering.tasks:find_machine_cores task.
