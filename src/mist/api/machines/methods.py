@@ -472,6 +472,16 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     # Assign machine's owner/creator
     machine.assign_to(auth_context.user)
 
+
+    # TODO: is below ok?
+    # save expiration date vars
+    if expiration_date:
+        machine.expiration_date = expiration_date
+    machine.action_on_expire = action_on_expire
+    machine.notify_before_expire = notify_before_expire
+
+    machine.save()
+
     if key is not None:  # Associate key.
         username = node.extra.get('username', '')
         machine.ctl.associate_key(key, username=username,

@@ -455,11 +455,22 @@ def create_machine(request):
               'new_resource_group': new_resource_group,
               'machine_username': machine_username,
               'volumes': volumes,
+<<<<<<< Updated upstream
+=======
+<<<<<<< Updated upstream
+              'ip_addresses': ip_addresses}
+=======
+>>>>>>> Stashed changes
               'ip_addresses': ip_addresses,
               'expiration_date': expiration_date,
               'action_on_expire': action_on_expire,
               'notify_before_expire': notify_before_expire}
 
+<<<<<<< Updated upstream
+=======
+    import ipdb; ipdb.set_trace()
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
     if not run_async:
         ret = methods.create_machine(auth_context, *args, **kwargs)
     else:
