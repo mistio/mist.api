@@ -420,7 +420,8 @@ class RackSpaceComputeController(BaseComputeController):
         location = machine_libcloud.driver.region[:3]
         driver_name = 'rackspacenova' + location
         try:
-            price = get_size_price(driver_type='compute', driver_name=driver_name,
+            price = get_size_price(driver_type='compute',
+                                   driver_name=driver_name,
                                    size_id=size)
         except KeyError:
             log.error('Pricing for %s:%s was not found.') % (driver_name, size)
