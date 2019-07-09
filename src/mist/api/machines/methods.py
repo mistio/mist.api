@@ -483,7 +483,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
 
         # add CheckExpDateMachinePollingSchedule
         CheckExpDateMachinePollingSchedule.add(machine=machine,
-                                            interval=300, ttl=120)
+                                               interval=300, ttl=120)
 
     if key is not None:  # Associate key.
         username = node.extra.get('username', '')
