@@ -447,7 +447,7 @@ class Machine(OwnershipMixin, me.Document):
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
             'expiration_date': self.expiration_date if self.expiration_date
-                                                    else '',
+                                                            else '',
             'expiration_action': self.expiration_action,
             'expiration_notify': self.expiration_notify
         }
