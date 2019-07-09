@@ -1574,6 +1574,33 @@ The mist.io team
 Govern the clouds
 """
 
+MACHINE_EXPIRED_EMAIL_SUBJECT = "[mist.io] Machine just expired"
+
+MACHINE_EXPIRED_EMAIL_BODY = """Hi %s,
+
+Your machine %s expired at %s and action was %s
+
+Best regards,
+The mist.io team
+
+--
+%s
+Govern the clouds
+"""
+
+MACHINE_EXPIRE_NOTIFY_EMAIL_SUBJECT = "[mist.io] Machine is about to expire"
+
+MACHINE_EXPIRE_NOTIFY_EMAIL_BODY = """Hi %s,
+
+Your machine %s is about to expire and action %s will be executed at %s
+
+Best regards,
+The mist.io team
+
+--
+%s
+Govern the clouds
+"""
 
 WHITELIST_IP_EMAIL_SUBJECT = "[mist.io] Account IP whitelist request"
 

@@ -1316,9 +1316,6 @@ def update_poller(org_id):
                                                         interval=300, ttl=120)
                     SSHProbeMachinePollingSchedule.add(machine=machine,
                                                        interval=300, ttl=120)
-                    CheckExpDateMachinePollingSchedule.add(machine=machine,
-                                                           interval=300,
-                                                           ttl=360)
     org.poller_updated = datetime.datetime.now()
     org.save()
 
