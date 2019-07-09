@@ -46,8 +46,6 @@ from mist.api.helpers import amqp_owner_listening
 from mist.api.concurrency.models import PeriodicTaskInfo
 from mist.api.concurrency.models import PeriodicTaskThresholdExceeded
 
-from mist.api.poller.models import CheckExpDateMachinePollingSchedule
-
 from mist.api.clouds.controllers.base import BaseController
 from mist.api.tag.models import Tag
 
@@ -1098,6 +1096,8 @@ class BaseComputeController(BaseController):
             raise InternalServerError(str(exc))
 
         # add CheckExpDateMachinePollingSchedule if expiration_date is set
+        # FIXME: solve circular deps
+        from mist.api.poller.models import CheckExpDateMachinePollingSchedule
         if machine.expiration_date:
             CheckExpDateMachinePollingSchedule.add(machine=machine,
                                                    interval=300, ttl=120)
@@ -1149,6 +1149,8 @@ class BaseComputeController(BaseController):
             raise InternalServerError(exc=exc)
 
         # remove relative CheckExpDateMachinePollingSchedule
+        # FIXME: solve circular deps
+        from mist.api.poller.models import CheckExpDateMachinePollingSchedule
         if machine.expiration_date:
             CheckExpDateMachinePollingSchedule.delete(machine=machine)
 
@@ -1272,6 +1274,8 @@ class BaseComputeController(BaseController):
         machine.save()
 
         # remove relative CheckExpDateMachinePollingSchedule
+        # FIXME: solve circular deps
+        from mist.api.poller.models import CheckExpDateMachinePollingSchedule
         if machine.expiration_date:
             CheckExpDateMachinePollingSchedule.delete(machine=machine)
 
