@@ -5,6 +5,8 @@ import jsonpatch
 from mist.api.helpers import amqp_publish_user
 from mist.api.helpers import send_email
 
+from mist.api.exceptions import ServiceUnavailableError
+
 from mist.api.concurrency.models import PeriodicTaskInfo
 
 from mist.api import config
@@ -211,42 +213,51 @@ class MachineController(object):
         return probe_result and probe_result.as_dict()
 
     def check_exp_date(self, persist=True):
+        machine = self.machine
         # check whether action (stop / destroy) is needed
         now = datetime.datetime.now()
-        if self.machine.expiration_date:
-            if self.machine.expiration_date <= now:
-                if self.machine.expiration_action == 'stop':
-                    self.machine.ctl.stop()
-                elif self.machine.expiration_action == 'destroy':
-                    self.machine.ctl.destroy()
+        if machine.expiration_date:
+            if machine.expiration_date <= now:
+                if machine.expiration_action == 'stop':
+                    machine.ctl.stop()
+                elif machine.expiration_action == 'destroy':
+                    machine.ctl.destroy()
 
                 subject = config.MACHINE_EXPIRED_EMAIL_SUBJECT
-
-                body = config.MACHINE_EXPIRED_EMAIL_BODY % ((self.machine.owned_by.first_name + " " +
-                                                             self.machine.owned_by.last_name),
-                                                             self.machine.name,
-                                                             self.machine.expiration_date,
-                                                             self.machine.expiration_action,
-                                                             config.CORE_URI)
-                if not send_email(subject, body, self.machine.owned_by.email):
-                    raise ServiceUnavailableError("Could not send notification email that machine expired.")
+                main_body = config.MACHINE_EXPIRED_EMAIL_BODY
+                body = main_body % ((machine.owned_by.first_name + " " +
+                                    machine.owned_by.last_name),
+                                    machine.name,
+                                    machine.expiration_date,
+                                    machine.expiration_action,
+                                    config.CORE_URI)
+                if not send_email(subject, body, machine.owned_by.email):
+                    raise ServiceUnavailableError("Could not send notification"
+                                                  " email that machine"
+                                                  " expired.")
 
                 return
 
         # check whether notification is needed
-        if self.machine.expiration_notify:
-            notify_at = self.machine.expiration_date - datetime.timedelta(0, self.machine.expiration_notify)
-            # TODO: also need to check whether user has been notified or not
+        if machine.expiration_notify:
+            _delta = datetime.timedelta(0, machine.expiration_notify)
+            notify_at = self.machine.expiration_date - _delta
             if notify_at <= now:
                 # TODO: also notify self.machine.created_by
                 subject = config.MACHINE_EXPIRE_NOTIFY_EMAIL_SUBJECT
-                body = config.MACHINE_EXPIRE_NOTIFY_EMAIL_BODY % ((self.machine.owned_by.first_name + " " +
-                                                                self.machine.owned_by.last_name),
-                                                                self.machine.name,
-                                                                self.machine.expiration_action,
-                                                                self.machine.expiration_date,
-                                                                config.CORE_URI)
+                main_body = config.MACHINE_EXPIRE_NOTIFY_EMAIL_BODY
+                body = main_body % ((machine.owned_by.first_name + " " +
+                                    machine.owned_by.last_name),
+                                    machine.name,
+                                    machine.expiration_action,
+                                    machine.expiration_date,
+                                    config.CORE_URI)
 
-                if not send_email(subject, body, self.machine.owned_by.email):
-                    raise ServiceUnavailableError("Could not send "
-                                                "notification email about machine that is about to expire.")
+                if not send_email(subject, body, machine.owned_by.email):
+                    raise ServiceUnavailableError("Could not send notification"
+                                                  " email about machine that"
+                                                  " is about to expire.")
+                machine.expiration_notify = ''
+                machine.save()
+
+                return

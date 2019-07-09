@@ -47,7 +47,6 @@ from mist.api.poller.models import ListVolumesPollingSchedule
 from mist.api.poller.models import FindCoresMachinePollingSchedule
 from mist.api.poller.models import PingProbeMachinePollingSchedule
 from mist.api.poller.models import SSHProbeMachinePollingSchedule
-from mist.api.poller.models import CheckExpDateMachinePollingSchedule
 
 from mist.api.helpers import send_email as helper_send_email
 from mist.api.helpers import amqp_publish_user
