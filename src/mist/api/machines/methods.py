@@ -150,7 +150,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                    bare_metal=False, hourly=True,
                    softlayer_backend_vlan_id=None, machine_username='',
                    volumes=[], ip_addresses=[], expiration_date='',
-                   expiration_action=None,expiration_notify=0
+                   expiration_action=None, expiration_notify=0
                    ):
     """Creates a new virtual machine on the specified cloud.
 
@@ -471,7 +471,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
 
     # Assign machine's owner/creator
     machine.assign_to(auth_context.user)
-
 
     # TODO: is below ok?
     # save expiration date vars

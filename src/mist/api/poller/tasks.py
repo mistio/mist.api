@@ -140,4 +140,5 @@ def check_exp_date(schedule_id):
                 and sched.machine.machine_type != 'container':
             sched.machine.ctl.check_exp_date(persist=False)
     except Exception as exc:
-        log.error("Error while checking expiration date %s: %r", sched.machine, exc)
+        log.error("Error while checking expiration date %s: %r",
+                 sched.machine, exc)
