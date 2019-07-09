@@ -46,6 +46,8 @@ from mist.api.helpers import amqp_owner_listening
 from mist.api.concurrency.models import PeriodicTaskInfo
 from mist.api.concurrency.models import PeriodicTaskThresholdExceeded
 
+from mist.api.poller.models import CheckExpDateMachinePollingSchedule
+
 from mist.api.clouds.controllers.base import BaseController
 from mist.api.tag.models import Tag
 
@@ -1087,13 +1089,19 @@ class BaseComputeController(BaseController):
 
         machine_libcloud = self._get_machine_libcloud(machine)
         try:
-            return self._start_machine(machine, machine_libcloud)
+            ret = self._start_machine(machine, machine_libcloud)
         except MistError as exc:
             log.error("Could not start machine %s", machine)
             raise
         except Exception as exc:
             log.exception(exc)
             raise InternalServerError(str(exc))
+
+        # add CheckExpDateMachinePollingSchedule if expiration_date is set
+        if machine.expiration_date:
+            CheckExpDateMachinePollingSchedule.add(machine=machine,
+                                                   interval=300, ttl=120)
+        return ret
 
     def _start_machine(self, machine, machine_libcloud):
         """Private method to start a given machine
@@ -1132,13 +1140,19 @@ class BaseComputeController(BaseController):
 
         machine_libcloud = self._get_machine_libcloud(machine)
         try:
-            return self._stop_machine(machine, machine_libcloud)
+            ret = self._stop_machine(machine, machine_libcloud)
         except MistError as exc:
             log.error("Could not stop machine %s", machine)
             raise
         except Exception as exc:
             log.exception(exc)
             raise InternalServerError(exc=exc)
+
+        # remove relative CheckExpDateMachinePollingSchedule
+        if machine.expiration_date:
+            CheckExpDateMachinePollingSchedule.delete(machine=machine)
+
+        return ret
 
     def _stop_machine(self, machine, machine_libcloud):
         """Private method to stop a given machine
@@ -1256,6 +1270,11 @@ class BaseComputeController(BaseController):
 
         machine.state = 'terminated'
         machine.save()
+
+        # remove relative CheckExpDateMachinePollingSchedule
+        if machine.expiration_date:
+            CheckExpDateMachinePollingSchedule.delete(machine=machine)
+
         return ret
 
     def _destroy_machine(self, machine, machine_libcloud):

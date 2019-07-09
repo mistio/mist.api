@@ -371,6 +371,14 @@ class MachinePollingSchedule(PollingSchedule):
         schedule.save()
         return schedule
 
+    @classmethod
+    def remove(cls, machine):
+        try:
+            schedule = cls.objects.get(machine_id=machine.id)
+            schedule.delete()
+        except cls.DoesNotExist:
+            pass
+
 
 class PingProbeMachinePollingSchedule(MachinePollingSchedule):
 

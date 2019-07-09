@@ -25,6 +25,8 @@ from mist.api.keys.models import Key
 from mist.api.networks.models import Network
 from mist.api.networks.models import Subnet
 
+from mist.api.poller.models import CheckExpDateMachinePollingSchedule
+
 from mist.api.exceptions import PolicyUnauthorizedError
 from mist.api.exceptions import MachineNameValidationError
 from mist.api.exceptions import BadRequestError, MachineCreationError
@@ -472,13 +474,16 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     # Assign machine's owner/creator
     machine.assign_to(auth_context.user)
 
-    # TODO: is below ok?
     # save expiration date vars
     if expiration_date:
         machine.expiration_date = expiration_date
-    machine.expiration_action = expiration_action
-    machine.expiration_notify = expiration_notify
-    machine.save()
+        machine.expiration_action = expiration_action
+        machine.expiration_notify = expiration_notify
+        machine.save()
+
+        # add CheckExpDateMachinePollingSchedule
+        CheckExpDateMachinePollingSchedule.add(machine=machine,
+                                            interval=300, ttl=120)
 
     if key is not None:  # Associate key.
         username = node.extra.get('username', '')
