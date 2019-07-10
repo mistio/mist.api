@@ -108,7 +108,8 @@ class MachineController(object):
             return self.machine.private_ips[0]
         raise RuntimeError("Couldn't find machine host.")
 
-    def update(self, expiration_date, expiration_action='stop', expiration_notify=0):
+    def update(self, expiration_date, expiration_action='stop',
+               expiration_notify=0):
         self.machine.expiration_action = expiration_action
         self.machine.expiration_date = expiration_date
         self.machine.expiration_notify = expiration_notify
@@ -267,9 +268,10 @@ class MachineController(object):
                                         config.CORE_URI)
 
                     if not send_email(subject, body, user.email):
-                        raise ServiceUnavailableError("Could not send notification"
-                                                    " email about machine that"
-                                                    " is about to expire.")
+                        raise ServiceUnavailableError("Could not send "
+                                                      "notification email "
+                                                      "about machine that "
+                                                      "is about to expire.")
                 machine.expiration_notify = ''
                 machine.save()
 
