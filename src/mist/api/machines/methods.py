@@ -364,7 +364,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         node = _create_machine_digital_ocean(
             conn, key_id, private_key,
             public_key, machine_name,
-            image, size, location, cloud_init, volumes)
+            image, size, location, cloud_init)
     elif conn.type == Provider.AZURE:
         node = _create_machine_azure(
             conn, key_id, private_key,
@@ -926,7 +926,7 @@ def _create_machine_docker(conn, machine_name, image_id,
 
 def _create_machine_digital_ocean(conn, key_name, private_key, public_key,
                                   machine_name, image, size,
-                                  location, user_data, volumes):
+                                  location, user_data):
     """Create a machine in Digital Ocean.
     """
     key = public_key.replace('\n', '')
@@ -960,16 +960,6 @@ def _create_machine_digital_ocean(conn, key_name, private_key, public_key,
         # do not break if this fails for some reason
         pass
     size.name = size.id  # conn.create_node will use size.name
-    volumes_to_attach = []
-    if volumes:
-        if volumes[0].get('volume_id'):
-            from mist.api.volumes.models import Volume
-            volume_id = volumes[0]['volume_id']
-            vol = Volume.objects.get(id=volume_id)
-            volume = {'volume_id': vol.external_id}
-            volumes_to_attach.append(volume)
-        else:
-            volumes_to_attach.append(volumes[0])
     try:
         node = conn.create_node(
             name=machine_name,
