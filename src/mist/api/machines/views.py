@@ -580,7 +580,7 @@ def add_machine(request):
 @view_config(route_name='api_v1_cloud_machine',
              request_method='PUT', renderer='json')
 @view_config(route_name='api_v1_machine',
-             request_method='PUTT', renderer='json')
+             request_method='PUT', renderer='json')
 def edit_machine(request):
     """
     Tags: machines
