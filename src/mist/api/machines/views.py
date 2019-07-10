@@ -148,9 +148,6 @@ def create_machine(request):
       description: Associate machine with this key. Mist internal key id
       type: string
       example: "da1df7d0402043b9a9c786b100992888"
-    ex_disk_id:
-      type: string
-      description: ID of volume to be attached to the machine. GCE-specific
     monitoring:
       type: boolean
       description: Enable monitoring on the machine
@@ -275,7 +272,6 @@ def create_machine(request):
     key_id = params.get('key')
     machine_name = params['name']
     location_id = params.get('location', None)
-    ex_disk_id = params.get('ex_disk_id', None)
     image_id = params.get('image')
     if not image_id:
         raise RequiredParameterMissingError("image")
@@ -427,7 +423,7 @@ def create_machine(request):
     args = (cloud_id, key_id, machine_name,
             location_id, image_id, size,
             image_extra, disk, image_name, size_name,
-            location_name, ips, monitoring, ex_disk_id,
+            location_name, ips, monitoring,
             ex_storage_account, machine_password, ex_resource_group, networks,
             subnetwork, docker_env, docker_command)
     kwargs = {'script_id': script_id,
