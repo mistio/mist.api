@@ -126,7 +126,6 @@ def ssh_probe(schedule_id):
         log.error("Error while ssh-probing %s: %r", sched.machine, exc)
 
 
-# TODO: check time_limit
 @app.task(time_limit=45, soft_time_limit=40)
 def check_exp_date(schedule_id):
     """Check expiration date of the machine"""
