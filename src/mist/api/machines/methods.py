@@ -756,7 +756,8 @@ def _create_machine_ec2(conn, key_name, public_key,
         if volumes[0].get('iops'):
             mapping['Ebs'].update({'Iops': volumes[0].get('iops')})
         if volumes[0].get('delete_on_termination'):
-            mapping['Ebs'].update({'DeleteOnTermination': volumes[0].get('delete_on_termination')})
+            delete_on_term = volumes[0].get('delete_on_termination')
+            mapping['Ebs'].update({'DeleteOnTermination': delete_on_term})
 
         kwargs.update({'ex_blockdevicemappings': [mapping]})
 
@@ -968,8 +969,7 @@ def _create_machine_digital_ocean(conn, key_name, private_key, public_key,
             ex_ssh_key_ids=ex_ssh_key_ids,
             location=location,
             ex_create_attr={'private_networking': private_networking},
-            ex_user_data=user_data,
-            volumes=volumes_to_attach
+            ex_user_data=user_data
         )
     except Exception as e:
         raise MachineCreationError(
@@ -1494,7 +1494,6 @@ def _create_machine_gce(conn, key_name, private_key, public_key, machine_name,
         network = Network.objects.get(id=network).name
     except me.DoesNotExist:
         network = 'default'
-
 
     ex_disk = None
     disk_size = 10
