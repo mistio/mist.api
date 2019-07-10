@@ -250,20 +250,26 @@ class MachineController(object):
             _delta = datetime.timedelta(0, machine.expiration_notify)
             notify_at = self.machine.expiration_date - _delta
             if notify_at <= now:
-                # TODO: also notify self.machine.created_by
-                subject = config.MACHINE_EXPIRE_NOTIFY_EMAIL_SUBJECT
-                main_body = config.MACHINE_EXPIRE_NOTIFY_EMAIL_BODY
-                body = main_body % ((machine.owned_by.first_name + " " +
-                                    machine.owned_by.last_name),
-                                    machine.name,
-                                    machine.expiration_action,
-                                    machine.expiration_date,
-                                    config.CORE_URI)
+                # notify both owner and creator
+                mails = [machine.owned_by.email, machine.created_by.email]
+                for mail in list(set(mails)):
+                    if mail == machine.owned_by.email:
+                        user = machine.owned_by
+                    else:
+                        user = machine.created_by
+                    subject = config.MACHINE_EXPIRE_NOTIFY_EMAIL_SUBJECT
+                    main_body = config.MACHINE_EXPIRE_NOTIFY_EMAIL_BODY
+                    body = main_body % ((user.first_name + " " +
+                                        user.last_name),
+                                        machine.name,
+                                        machine.expiration_action,
+                                        machine.expiration_date,
+                                        config.CORE_URI)
 
-                if not send_email(subject, body, machine.owned_by.email):
-                    raise ServiceUnavailableError("Could not send notification"
-                                                  " email about machine that"
-                                                  " is about to expire.")
+                    if not send_email(subject, body, user.email):
+                        raise ServiceUnavailableError("Could not send notification"
+                                                    " email about machine that"
+                                                    " is about to expire.")
                 machine.expiration_notify = ''
                 machine.save()
 
