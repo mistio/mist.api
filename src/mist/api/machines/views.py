@@ -1,3 +1,4 @@
+import mongoengine as me
 import uuid
 import logging
 from pyramid.response import Response
@@ -605,12 +606,11 @@ def edit_machine(request):
     params = params_from_request(request)
 
     try:
-        cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
-                                  deleted=None)
+        Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
+                          deleted=None)
     except me.DoesNotExist:
         raise CloudNotFoundError()
 
-    owner = auth_context.owner
     try:
         machine = Machine.objects.get(cloud_id=cloud_id, machine_id=machine_id)
     except me.DoesNotExist:
@@ -624,7 +624,6 @@ def edit_machine(request):
 
     trigger_session_update(auth_context.owner, ['machines'])
     return machine.as_dict()
-
 
 
 @view_config(route_name='api_v1_cloud_machine',
