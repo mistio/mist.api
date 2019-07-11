@@ -128,7 +128,7 @@ class MachineController(object):
             schedule.delete()
 
         if schedule is None and expiration_date:
-            ExpDateSched.add(machine=self.machine, interval=30, ttl=120)
+            ExpDateSched.add(machine=self.machine, interval=300, ttl=120)
 
         return
 
