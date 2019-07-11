@@ -606,13 +606,13 @@ def edit_machine(request):
     params = params_from_request(request)
 
     try:
-        Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
+        cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
                           deleted=None)
     except me.DoesNotExist:
         raise CloudNotFoundError()
 
     try:
-        machine = Machine.objects.get(cloud_id=cloud_id, machine_id=machine_id)
+        machine = Machine.objects.get(cloud=cloud, id=machine_id)
     except me.DoesNotExist:
         raise MachineNotFoundError()
 

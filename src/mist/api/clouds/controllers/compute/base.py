@@ -1095,12 +1095,6 @@ class BaseComputeController(BaseController):
             log.exception(exc)
             raise InternalServerError(str(exc))
 
-        # add CheckExpDateMachinePollingSchedule if expiration_date is set
-        # FIXME: solve circular deps
-        from mist.api.poller.models import CheckExpDateMachinePollingSchedule
-        if machine.expiration_date:
-            CheckExpDateMachinePollingSchedule.add(machine=machine,
-                                                   interval=300, ttl=120)
         return ret
 
     def _start_machine(self, machine, machine_libcloud):
@@ -1147,12 +1141,6 @@ class BaseComputeController(BaseController):
         except Exception as exc:
             log.exception(exc)
             raise InternalServerError(exc=exc)
-
-        # remove relative CheckExpDateMachinePollingSchedule
-        # FIXME: solve circular deps
-        from mist.api.poller.models import CheckExpDateMachinePollingSchedule
-        if machine.expiration_date:
-            CheckExpDateMachinePollingSchedule.remove(machine=machine)
 
         return ret
 
