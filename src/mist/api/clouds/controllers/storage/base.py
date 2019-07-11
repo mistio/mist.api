@@ -137,7 +137,9 @@ class BaseStorageController(BaseController):
             raise mist.api.exceptions.CloudUnavailableError(exc)
 
         volumes, new_volumes = [], []
+
         for libcloud_volume in libcloud_volumes:
+            self._list_volumes__preparse_volume(libcloud_volume)
             try:
                 volume = Volume.objects.get(cloud=self.cloud,
                                             external_id=libcloud_volume.id)
@@ -251,6 +253,10 @@ class BaseStorageController(BaseController):
 
         Subclasses MAY override this method.
         """
+        return
+
+    def _list_volumes__preparse_volume(self, libcloud_volume):
+        # TODO: Add ddocstring
         return
 
     def _list_volumes__postparse_volume(self, volume, libcloud_volume):

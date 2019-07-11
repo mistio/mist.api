@@ -198,7 +198,8 @@ class AzureStorageController(BaseStorageController):
 
 
 class AzureArmStorageController(BaseStorageController):
-    pass
+    def _list_volumes__preparse_volume(self, libcloud_volume):
+        libcloud_volume.id = libcloud_volume.id.replace('/', ':')
 
 
 class AlibabaStorageController(BaseStorageController):
