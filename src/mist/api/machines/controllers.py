@@ -244,8 +244,6 @@ class MachineController(object):
                                                   " email that machine"
                                                   " expired.")
 
-                return
-
         # check whether notification is needed
         if machine.expiration_notify:
             _delta = datetime.timedelta(0, machine.expiration_notify)
@@ -272,7 +270,5 @@ class MachineController(object):
                                                       "notification email "
                                                       "about machine that "
                                                       "is about to expire.")
-                machine.expiration_notify = ''
+                machine.expiration_notify = 0
                 machine.save()
-
-                return
