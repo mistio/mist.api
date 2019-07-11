@@ -1152,7 +1152,7 @@ class BaseComputeController(BaseController):
         # FIXME: solve circular deps
         from mist.api.poller.models import CheckExpDateMachinePollingSchedule
         if machine.expiration_date:
-            CheckExpDateMachinePollingSchedule.delete(machine=machine)
+            CheckExpDateMachinePollingSchedule.remove(machine=machine)
 
         return ret
 
@@ -1277,7 +1277,7 @@ class BaseComputeController(BaseController):
         # FIXME: solve circular deps
         from mist.api.poller.models import CheckExpDateMachinePollingSchedule
         if machine.expiration_date:
-            CheckExpDateMachinePollingSchedule.delete(machine=machine)
+            CheckExpDateMachinePollingSchedule.remove(machine=machine)
 
         return ret
 
