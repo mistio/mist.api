@@ -111,7 +111,6 @@ class MachineController(object):
 
     def update(self, expiration_date, expiration_action='stop',
                expiration_notify=0):
-        import ipdb; ipdb.set_trace()
         from mist.api.poller.models import CheckExpDateMachinePollingSchedule
         schedule = None
         try:
@@ -248,7 +247,7 @@ class MachineController(object):
                 elif machine.expiration_action == 'destroy':
                     machine.ctl.destroy()
 
-                if machine.owned_by :
+                if machine.owned_by:
                     subject = config.MACHINE_EXPIRED_EMAIL_SUBJECT
                     main_body = config.MACHINE_EXPIRED_EMAIL_BODY
                     body = main_body % ((machine.owned_by.first_name + " " +
@@ -258,9 +257,10 @@ class MachineController(object):
                                         machine.expiration_action,
                                         config.CORE_URI)
                     if not send_email(subject, body, machine.owned_by.email):
-                        raise ServiceUnavailableError("Could not send notification"
-                                                    " email that machine"
-                                                  " expired.")
+                        raise ServiceUnavailableError("Could not send "
+                                                      "notification"
+                                                      " email that machine"
+                                                      " expired.")
         # check whether notification is needed
         if machine.expiration_notify:
             _delta = datetime.timedelta(0, machine.expiration_notify)
