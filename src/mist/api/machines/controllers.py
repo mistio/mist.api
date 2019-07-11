@@ -109,12 +109,13 @@ class MachineController(object):
             return self.machine.private_ips[0]
         raise RuntimeError("Couldn't find machine host.")
 
-    def update(self, expiration_date, expiration_action='stop',
+    def update(self, expiration_date=None, expiration_action='stop',
                expiration_notify=0):
-        from mist.api.poller.models import CheckExpDateMachinePollingSchedule
+        from mist.api.poller.models import CheckExpDateMachinePollingSchedule \
+            as ExpDateSched
         schedule = None
         try:
-            schedule = CheckExpDateMachinePollingSchedule.objects.get(machine_id=self.machine.id)
+            schedule = ExpDateSched.objects.get(machine_id=self.machine.id)
         except me.DoesNotExist:
             pass
 
@@ -127,8 +128,7 @@ class MachineController(object):
             schedule.delete()
 
         if schedule is None and expiration_date:
-            CheckExpDateMachinePollingSchedule.add(machine=self.machine,
-                                                   interval=30, ttl=120)
+            ExpDateSched.add(machine=self.machine, interval=30, ttl=120)
 
         return
 

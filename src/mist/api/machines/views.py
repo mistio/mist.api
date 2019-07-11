@@ -607,7 +607,7 @@ def edit_machine(request):
 
     try:
         cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
-                          deleted=None)
+                                  deleted=None)
     except me.DoesNotExist:
         raise CloudNotFoundError()
 
