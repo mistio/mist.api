@@ -207,7 +207,6 @@ def delete_dns_zone(request):
         raise NotFoundError('Zone does not exist')
 
     auth_context.check_perm("zone", "remove", zone_id)
-
     zone.ctl.delete_zone()
 
     return OK

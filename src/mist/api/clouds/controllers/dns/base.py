@@ -25,6 +25,7 @@ from mist.api.helpers import amqp_owner_listening
 
 from libcloud.common.types import InvalidCredsError
 from libcloud.dns.types import ZoneDoesNotExistError, RecordDoesNotExistError
+from libcloud.common.google import InvalidRequestError
 
 from mist.api.exceptions import CloudUnavailableError
 from mist.api.exceptions import CloudUnauthorizedError
@@ -303,11 +304,11 @@ class BaseDNSController(BaseController):
                      len(records), self.cloud)
             return records
         except InvalidCredsError as exc:
-            log.warning("Invalid creds on running list_recordss on %s: %s",
+            log.warning("Invalid creds on running list_records on %s: %s",
                         self.cloud, exc)
             raise CloudUnauthorizedError()
         except ssl.SSLError as exc:
-            log.error("SSLError on running list_recordss on %s: %s",
+            log.error("SSLError on running list_records on %s: %s",
                       self.cloud, exc)
             raise CloudUnavailableError(exc=exc)
         except ZoneDoesNotExistError as exc:
@@ -368,13 +369,31 @@ class BaseDNSController(BaseController):
         We use the zone id to retrieve and delete it for this cloud.
         """
         try:
-            self.connection.get_zone(zone_id).delete()
+            return self.connection.get_zone(zone_id).delete()
         except ZoneDoesNotExistError as exc:
             log.warning("No zone found for %s in: %s ", zone_id, self.cloud)
             raise ZoneNotFoundError(exc=exc)
+        except InvalidRequestError as exc:
+            if exc.value.get('reason') == 'containerNotEmpty':
+                zone = self.connection.get_zone(zone_id)
+                for record in zone.list_records():
+                    try:
+                        log.info("Deleting record %s" % record.data)
+                        record.delete()
+                    except Exception as exc:
+                        log.warning("Failed to delete record: %s" % exc.value.get('message', str(exc)))
+                try:
+                    return zone.delete()
+                except Exception as exc2:
+                    exc = exc2
+            else:
+                msg = exc.value.get('message', str(exc))
+                log.exception("Error while running delete_zone on %s: %s", self.cloud, msg)
+                raise CloudUnavailableError("Failed to delete zone: %s " % msg)
         except Exception as exc:
-            log.exception("Error while running delete_zone on %s", self.cloud)
-            raise CloudUnavailableError("Failed to delete zone: %s " % exc)
+            msg = exc.value.get('message', str(exc))
+            log.exception("Error while running delete_zone on %s: %s", self.cloud, msg)
+            raise CloudUnavailableError("Failed to delete zone: %s " % msg)
 
     def create_zone(self, zone, **kwargs):
         """

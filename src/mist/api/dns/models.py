@@ -263,7 +263,7 @@ class Record(OwnershipMixin, me.Document):
 
     def __str__(self):
         return 'Record %s (name:%s, type:%s) of %s' % (
-            self.id, self.name, self.type, self.zone.domain)
+            self.id, self.name, self.type, self.zone and self.zone.domain)
 
     @property
     def tags(self):
