@@ -278,8 +278,7 @@ class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
     def schedule(self):
         if self.schedule_type:
             return self.schedule_type.schedule
-        else:
-            raise Exception("must define interval, crontab, one_off schedule")
+
 
     @property
     def args(self):
@@ -317,8 +316,6 @@ class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
         fmt = '{0.name}: {{no schedule}}'
         if self.schedule_type:
             fmt = 'name: {0.name} type: {0.schedule_type._cls}'
-        else:
-            raise Exception("must define interval or crontab schedule")
         return fmt.format(self)
 
     def validate(self, clean=True):
