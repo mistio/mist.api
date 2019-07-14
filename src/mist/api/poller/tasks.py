@@ -134,8 +134,7 @@ def check_exp_date(schedule_id):
     from mist.api.poller.models import CheckExpDateMachinePollingSchedule
     sched = CheckExpDateMachinePollingSchedule.objects.get(id=schedule_id)
     try:
-        if sched.machine.state not in ['error'] \
-                and sched.machine.machine_type != 'container':
+        if sched.machine.state not in ['error']:
             sched.machine.ctl.check_exp_date(persist=False)
     except Exception as exc:
         log.error("Error while checking expiration date %s: %r",
