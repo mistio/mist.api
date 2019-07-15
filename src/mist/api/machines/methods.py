@@ -149,12 +149,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                    schedule={}, command=None, tags=None,
                    bare_metal=False, hourly=True,
                    softlayer_backend_vlan_id=None, machine_username='',
-<<<<<<< Updated upstream
-                   volumes=[], ip_addresses=[]):
-=======
                    volumes=[], ip_addresses=[], expiration={},
                    ):
->>>>>>> Stashed changes
     """Creates a new virtual machine on the specified cloud.
 
     If the cloud is Rackspace it attempts to deploy the node with an ssh key

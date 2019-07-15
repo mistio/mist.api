@@ -329,11 +329,8 @@ def create_machine(request):
     softlayer_backend_vlan_id = params.get('softlayer_backend_vlan_id', None)
     hourly = params.get('hourly', True)
 
-<<<<<<< Updated upstream
-=======
     expiration = params.get('expiration', {})
 
->>>>>>> Stashed changes
     job_id = params.get('job_id')
     # The `job` variable points to the event that started the job. If a job_id
     # is not provided, then it means that this is the beginning of a new story

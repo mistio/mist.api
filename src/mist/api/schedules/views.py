@@ -78,7 +78,7 @@ def add_schedule_entry(request):
     schedule_tags = auth_context.check_perm("schedule", "add", None)
 
     name = params.pop('name')
-    import ipdb; ipdb.set_trace()
+
     schedule = Schedule.add(auth_context, name, **params)
 
     if schedule_tags:
