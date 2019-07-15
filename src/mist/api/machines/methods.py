@@ -149,7 +149,12 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                    schedule={}, command=None, tags=None,
                    bare_metal=False, hourly=True,
                    softlayer_backend_vlan_id=None, machine_username='',
+<<<<<<< Updated upstream
                    volumes=[], ip_addresses=[]):
+=======
+                   volumes=[], ip_addresses=[], expiration={},
+                   ):
+>>>>>>> Stashed changes
     """Creates a new virtual machine on the specified cloud.
 
     If the cloud is Rackspace it attempts to deploy the node with an ssh key
@@ -447,6 +452,23 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
 
     # Assign machine's owner/creator
     machine.assign_to(auth_context.user)
+
+    # add schedule if expiration given
+    if expiration:
+        params = {}
+        description = 'Scheduled to run when machine expires'
+        schedule_type = 'one_off'
+        # schedule_entry
+        # action
+        params.update({'schedule_type': schedule_type})
+        params.update({'description': description})
+        params.update({'task_enabled': True})
+        params.update({'schedule_entry':  expiration.get('date')})
+        params.update({'action': expiration.get('action')})
+        params.update({'conditions': [{'type': 'machines', 'ids': [machine.id]}]})
+        name = machine.name + '_expires'
+        from mist.api.schedules.models import Schedule
+        schedule = Schedule.add(auth_context, name, **params)
 
     if key is not None:  # Associate key.
         username = node.extra.get('username', '')
