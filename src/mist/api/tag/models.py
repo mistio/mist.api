@@ -18,7 +18,7 @@ class Tag(me.Document):
     resource_id = me.StringField()
 
     meta = {
-        'indexes': ['resource_type', 'resource_id', 'key', 'owner']
+        'indexes': ['owner', 'resource_type', 'resource_id', 'key']
     }
 
     @property
