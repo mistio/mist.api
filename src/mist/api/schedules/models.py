@@ -363,7 +363,7 @@ class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
 
     def delete(self):
         super(Schedule, self).delete()
-        Tag.objects(resource=self).delete()
+        Tag.objects(resource_id=self.id, resource_type='schedule').delete()
         self.owner.mapper.remove(self)
         if self.owned_by:
             self.owned_by.get_ownership_mapper(self.owner).remove(self)

@@ -209,7 +209,8 @@ class Script(OwnershipMixin, me.Document):
 
     def delete(self):
         super(Script, self).delete()
-        mist.api.tag.models.Tag.objects(resource=self).delete()
+        mist.api.tag.models.Tag.objects(
+            resource_id=self.id, resource_type='script').delete()
         self.owner.mapper.remove(self)
         if self.owned_by:
             self.owned_by.get_ownership_mapper(self.owner).remove(self)

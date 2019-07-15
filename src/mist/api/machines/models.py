@@ -374,7 +374,8 @@ class Machine(OwnershipMixin, me.Document):
 
     def delete(self):
         super(Machine, self).delete()
-        mist.api.tag.models.Tag.objects(resource=self).delete()
+        mist.api.tag.models.Tag.objects(
+            resource_id=self.id, resource_type='machine').delete()
         try:
             self.owner.mapper.remove(self)
         except (AttributeError, me.DoesNotExist) as exc:
@@ -388,7 +389,7 @@ class Machine(OwnershipMixin, me.Document):
     def as_dict(self):
         # Return a dict as it will be returned to the API
         tags = {tag.key: tag.value for tag in mist.api.tag.models.Tag.objects(
-            resource=self
+            resource_id=self.id, resource_type='machine'
         ).only('key', 'value')}
         return {
             'id': self.id,

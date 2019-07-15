@@ -52,7 +52,9 @@ class Volume(OwnershipMixin, me.Document):
     @property
     def tags(self):
         """Return the tags of this volume."""
-        return {tag.key: tag.value for tag in Tag.objects(resource=self)}
+        return {tag.key: tag.value
+                for tag in Tag.objects(resource_id=self.id,
+                                       resource_type='volume')}
 
     def clean(self):
         self.owner = self.owner or self.cloud.owner
@@ -60,7 +62,7 @@ class Volume(OwnershipMixin, me.Document):
     def delete(self):
         super(Volume, self).delete()
         self.owner.mapper.remove(self)
-        Tag.objects(resource=self).delete()
+        Tag.objects(resource_id=self.id, resource_type='volume').delete()
         try:
             if self.owned_by:
                 self.owned_by.get_ownership_mapper(self.owner).remove(self)

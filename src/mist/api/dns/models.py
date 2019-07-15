@@ -98,7 +98,7 @@ class Zone(OwnershipMixin, me.Document):
 
     def delete(self):
         super(Zone, self).delete()
-        Tag.objects(resource=self).delete()
+        Tag.objects(resource_id=self.id, resource_type='zone').delete()
         self.owner.mapper.remove(self)
         if self.owned_by:
             self.owned_by.get_ownership_mapper(self.owner).remove(self)
@@ -106,7 +106,9 @@ class Zone(OwnershipMixin, me.Document):
     @property
     def tags(self):
         """Return the tags of this zone."""
-        return {tag.key: tag.value for tag in Tag.objects(resource=self)}
+        return {tag.key: tag.value
+                for tag in Tag.objects(
+                    resource_id=self.id, resource_type='zone')}
 
     def as_dict(self):
         """Return a dict with the model values."""
@@ -214,7 +216,7 @@ class Record(OwnershipMixin, me.Document):
 
     def delete(self):
         super(Record, self).delete()
-        Tag.objects(resource=self).delete()
+        Tag.objects(resource_id=self.id, resource_type='record').delete()
         self.zone.owner.mapper.remove(self)
         if self.owned_by:
             self.owned_by.get_ownership_mapper(self.owner).remove(self)
@@ -232,7 +234,9 @@ class Record(OwnershipMixin, me.Document):
     @property
     def tags(self):
         """Return the tags of this record."""
-        return {tag.key: tag.value for tag in Tag.objects(resource=self)}
+        return {tag.key: tag.value
+                for tag in Tag.objects(resource_id=self.id,
+                                       resource_type='record')}
 
     def as_dict(self):
         """ Return a dict with the model values."""
