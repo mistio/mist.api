@@ -459,9 +459,10 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         params.update({'schedule_type': schedule_type})
         params.update({'description': description})
         params.update({'task_enabled': True})
-        params.update({'schedule_entry':  expiration.get('date')})
+        params.update({'schedule_entry': expiration.get('date')})
         params.update({'action': expiration.get('action')})
-        params.update({'conditions': [{'type': 'machines', 'ids': [machine.id]}]})
+        conditions = [{'type': 'machines', 'ids': [machine.id]}]
+        params.update({'conditions': conditions})
         name = machine.name + '_expires'
         from mist.api.schedules.models import Schedule
         schedule = Schedule.add(auth_context, name, **params)
