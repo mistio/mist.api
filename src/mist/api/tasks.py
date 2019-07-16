@@ -1082,20 +1082,20 @@ def run_machine_action(owner_id, action, name, machine_uuid):
                                                       "about machine that "
                                                       "is about to expire.")
 
-
-    # TODO markos asked this
-    log_dict['started_at'] = started_at
-    log_dict['finished_at'] = time()
-    title = "Execution of '%s' action " % action
-    title += "failed" if log_dict.get('error') else "succeeded"
-    from mist.api.methods import notify_user
-    notify_user(
-        owner, title,
-        cloud_id=cloud_id,
-        machine_id=machine_id,
-        duration=log_dict['finished_at'] - log_dict['started_at'],
-        error=log_dict.get('error'),
-    )
+    if action != 'notify':
+        # TODO markos asked this
+        log_dict['started_at'] = started_at
+        log_dict['finished_at'] = time()
+        title = "Execution of '%s' action " % action
+        title += "failed" if log_dict.get('error') else "succeeded"
+        from mist.api.methods import notify_user
+        notify_user(
+            owner, title,
+            cloud_id=cloud_id,
+            machine_id=machine_id,
+            duration=log_dict['finished_at'] - log_dict['started_at'],
+            error=log_dict.get('error'),
+        )
 
 
 @app.task
