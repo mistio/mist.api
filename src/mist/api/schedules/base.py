@@ -77,10 +77,10 @@ class BaseController(object):
             raise BadRequestError('schedule type must be one of these '
                                   '(crontab, interval, one_off)]')
 
-        if kwargs.get('schedule_type') in ['one_off', 'reminder'] and not kwargs.get(
-                'schedule_entry', ''):
-            raise BadRequestError('one_off schedule '
-                                  'requires date given in schedule_entry')
+        if kwargs.get('schedule_type') in ['one_off', 'reminder'] and \
+            not kwargs.get('schedule_entry', ''):
+                raise BadRequestError('one_off schedule '
+                                      'requires date given in schedule_entry')
 
         try:
             self.update(**kwargs)
@@ -232,7 +232,7 @@ class BaseController(object):
                 if notify:
                     params = {}
                     description = 'Scheduled to notify before machine expires'
-                    params.update({'schedule_type':  'reminder'})
+                    params.update({'schedule_type': 'reminder'})
                     params.update({'description': description})
                     params.update({'task_enabled': True})
 
@@ -241,8 +241,8 @@ class BaseController(object):
                     notify_at = notify_at.strftime('%Y-%m-%d %H:%M:%S')
                     params.update({'schedule_entry': notify_at})
                     params.update({'action': 'notify'})
-
-                    _conditions = [{'type': 'machines', 'ids': [conditions[0].get('ids')[0]]}]
+                    machine_id = conditions[0].get('ids')[0]
+                    _conditions = [{'type': 'machines', 'ids': [machine_id]}]
                     params.update({'conditions': _conditions})
                     name = self.schedule.name + '_reminder'
                     from mist.api.schedules.models import Schedule
