@@ -470,6 +470,11 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         schedule = Schedule.add(auth_context, name, **params)
         #schedule = Schedule.add(auth_context, name, json.dumps(params))
 
+        machine.expiration_date = expiration.get('date')
+        machine.expiration_action = expiration.get('action')
+        machine.expiration_notify = expiration.get('notify')
+        machine.save()
+
     if key is not None:  # Associate key.
         username = node.extra.get('username', '')
         machine.ctl.associate_key(key, username=username,

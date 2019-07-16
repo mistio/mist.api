@@ -103,7 +103,7 @@ class BaseController(object):
         owner = auth_context.owner
 
         if kwargs.get('action'):
-            if kwargs.get('action') not in ['reboot', 'destroy',
+            if kwargs.get('action') not in ['reboot', 'destroy', 'notify',
                                             'start', 'stop']:
                 raise BadRequestError("Action is not correct")
 
@@ -240,8 +240,7 @@ class BaseController(object):
                     notify_at = future_date - _delta
                     notify_at = notify_at.strftime('%Y-%m-%d %H:%M:%S')
                     params.update({'schedule_entry': notify_at})
-                    # TODO: action could also be 'notify'
-                    params.update({'action': 'stop'})
+                    params.update({'action': 'notify'})
 
                     _conditions = [{'type': 'machines', 'ids': [conditions[0].get('ids')[0]]}]
                     params.update({'conditions': _conditions})
@@ -320,7 +319,7 @@ class BaseController(object):
                     # SEC require permission READ on cloud
                     auth_context.check_perm("cloud", "read", machine.cloud.id)
 
-                    if action:
+                    if action and action not in ['notify']:
                         # SEC require permission ACTION on machine
                         auth_context.check_perm("machine", action, mid)
                     else:
@@ -328,7 +327,7 @@ class BaseController(object):
                         auth_context.check_perm("machine", "run_script", mid)
                 check = True
             elif condition.ctype == 'tags':
-                if action:
+                if action and action not in ['notify']:
                     # SEC require permission ACTION on machine
                     auth_context.check_perm("machine", action, None)
                 else:

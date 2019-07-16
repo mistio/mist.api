@@ -306,6 +306,11 @@ class Machine(OwnershipMixin, me.Document):
     ssh_probe = me.EmbeddedDocumentField(SSHProbe, required=False)
     ping_probe = me.EmbeddedDocumentField(PingProbe, required=False)
 
+    expiration_date = me.DateTimeField(required=False)
+    expiration_action = me.StringField(default='stop',
+                                       choices=('stop', 'destroy'))
+    expiration_notify = me.IntField()  # seconds
+
     # Number of vCPUs gathered from various sources. This field is meant to
     # be updated ONLY by the mist.api.metering.tasks:find_machine_cores task.
     cores = me.IntField()
