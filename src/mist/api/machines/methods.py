@@ -4,7 +4,6 @@ import base64
 import mongoengine as me
 import time
 import requests
-import json
 
 from future.utils import string_types
 
@@ -468,7 +467,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         params.update({'notify': notify})
         from mist.api.schedules.models import Schedule
         schedule = Schedule.add(auth_context, name, **params)
-        #schedule = Schedule.add(auth_context, name, json.dumps(params))
+        # schedule = Schedule.add(auth_context, name, json.dumps(params))
 
         machine.expiration_date = expiration.get('date')
         machine.expiration_action = expiration.get('action')

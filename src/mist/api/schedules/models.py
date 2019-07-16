@@ -71,7 +71,7 @@ class OneOff(Interval):
 
 
 class Reminder(OneOff):
-    pass
+    type = 'reminder'
 
 
 class Crontab(BaseScheduleType):

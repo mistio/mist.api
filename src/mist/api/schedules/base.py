@@ -216,13 +216,13 @@ class BaseController(object):
 
                 if schedule_type == 'reminder':
                     reminder = schedules.Reminder(period='seconds',
-                                           every=delta.seconds,
-                                           entry=future_date)
+                                                  every=delta.seconds,
+                                                  entry=future_date)
                     self.schedule.schedule_type = reminder
                 else:
                     one_off = schedules.OneOff(period='seconds',
-                                           every=delta.seconds,
-                                           entry=future_date)
+                                               every=delta.seconds,
+                                               entry=future_date)
                     self.schedule.schedule_type = one_off
 
                 self.schedule.max_run_count = 1
@@ -248,7 +248,7 @@ class BaseController(object):
                     from mist.api.schedules.models import Schedule
                     reminder = Schedule.add(auth_context, name, **params)
 
-                #self.schedule.reminder = reminder
+                # self.schedule.reminder = reminder
 
         # set schedule attributes
         for key, value in kwargs.items():
