@@ -63,7 +63,6 @@ class BaseController(object):
         `self.schedule`. The `self.schedule` is not yet saved.
 
         """
-        import ipdb; ipdb.set_trace()
         # check if required variables exist.
         if not (kwargs.get('script_id', '') or kwargs.get('action', '')):
             raise BadRequestError("You must provide script_id "
@@ -73,12 +72,12 @@ class BaseController(object):
             raise BadRequestError("You must provide a list of conditions, "
                                   "at least machine ids or tags")
 
-        if kwargs.get('schedule_type') not in ['crontab',
+        if kwargs.get('schedule_type') not in ['crontab', 'reminder',
                                                'interval', 'one_off']:
             raise BadRequestError('schedule type must be one of these '
                                   '(crontab, interval, one_off)]')
 
-        if kwargs.get('schedule_type') == 'one_off' and not kwargs.get(
+        if kwargs.get('schedule_type') in ['one_off', 'reminder'] and not kwargs.get(
                 'schedule_entry', ''):
             raise BadRequestError('one_off schedule '
                                   'requires date given in schedule_entry')
@@ -148,7 +147,6 @@ class BaseController(object):
             raise BadRequestError('Date of future task is in the past. '
                                   'Please contact Marty McFly')
         # Schedule conditions pre-parsing.
-        import ipdb; ipdb.set_trace()
         conditions = kwargs.get('conditions', [])
         try:
             self._update__preparse_machines(auth_context, kwargs)
@@ -195,7 +193,8 @@ class BaseController(object):
                 self.schedule.schedule_type = schedules.Interval(
                     **schedule_entry)
 
-        elif (schedule_type == 'one_off' or
+        # TODO
+        elif (schedule_type in ['one_off', 'reminder'] or
                 type(self.schedule.schedule_type) == schedules.OneOff):
             # implements Interval under the hood
             future_date = kwargs.pop('schedule_entry', '')
@@ -215,37 +214,42 @@ class BaseController(object):
 
                 delta = future_date - now
 
-                one_off = schedules.OneOff(period='seconds',
+                if schedule_type == 'reminder':
+                    reminder = schedules.Reminder(period='seconds',
                                            every=delta.seconds,
                                            entry=future_date)
-                self.schedule.schedule_type = one_off
+                    self.schedule.schedule_type = reminder
+                else:
+                    one_off = schedules.OneOff(period='seconds',
+                                           every=delta.seconds,
+                                           entry=future_date)
+                    self.schedule.schedule_type = one_off
+
                 self.schedule.max_run_count = 1
 
                 notify = kwargs.pop('notify', 0)
-
+                reminder = None
                 if notify:
                     params = {}
                     description = 'Scheduled to notify before machine expires'
-                    params.update({'schedule_type':  'one_off'})
+                    params.update({'schedule_type':  'reminder'})
                     params.update({'description': description})
                     params.update({'task_enabled': True})
 
                     _delta = datetime.timedelta(0, notify)
                     notify_at = future_date - _delta
                     notify_at = notify_at.strftime('%Y-%m-%d %H:%M:%S')
-
                     params.update({'schedule_entry': notify_at})
                     # TODO: action could also be 'notify'
                     params.update({'action': 'stop'})
 
-                    #conditions = kwargs.pop('conditions', [])
                     _conditions = [{'type': 'machines', 'ids': [conditions[0].get('ids')[0]]}]
                     params.update({'conditions': _conditions})
-
-                    # TODO
-                    name = 'REMINDER'
+                    name = self.schedule.name + '_reminder'
                     from mist.api.schedules.models import Schedule
-                    schedule = Schedule.add(auth_context, name, **params)
+                    reminder = Schedule.add(auth_context, name, **params)
+
+                #self.schedule.reminder = reminder
 
         # set schedule attributes
         for key, value in kwargs.items():
