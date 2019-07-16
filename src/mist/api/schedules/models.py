@@ -70,6 +70,10 @@ class OneOff(Interval):
         }
 
 
+class Reminder(OneOff):
+    pass
+
+
 class Crontab(BaseScheduleType):
     type = 'crontab'
 
@@ -231,6 +235,8 @@ class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
     last_run_at = me.DateTimeField()
     total_run_count = me.IntField(min_value=0, default=0)
     max_run_count = me.IntField(min_value=0, default=0)
+
+    # reminder = me.ReferenceField('Schedule', required=False)
 
     no_changes = False
 
