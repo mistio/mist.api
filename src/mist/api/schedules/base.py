@@ -63,7 +63,7 @@ class BaseController(object):
         `self.schedule`. The `self.schedule` is not yet saved.
 
         """
-
+        import ipdb; ipdb.set_trace()
         # check if required variables exist.
         if not (kwargs.get('script_id', '') or kwargs.get('action', '')):
             raise BadRequestError("You must provide script_id "
@@ -148,6 +148,8 @@ class BaseController(object):
             raise BadRequestError('Date of future task is in the past. '
                                   'Please contact Marty McFly')
         # Schedule conditions pre-parsing.
+        import ipdb; ipdb.set_trace()
+        conditions = kwargs.get('conditions', [])
         try:
             self._update__preparse_machines(auth_context, kwargs)
         except MistError as exc:
@@ -198,6 +200,7 @@ class BaseController(object):
             # implements Interval under the hood
             future_date = kwargs.pop('schedule_entry', '')
 
+            # TODO: if not?
             if future_date:
                 try:
                     future_date = datetime.datetime.strptime(
@@ -217,6 +220,32 @@ class BaseController(object):
                                            entry=future_date)
                 self.schedule.schedule_type = one_off
                 self.schedule.max_run_count = 1
+
+                notify = kwargs.pop('notify', 0)
+
+                if notify:
+                    params = {}
+                    description = 'Scheduled to notify before machine expires'
+                    params.update({'schedule_type':  'one_off'})
+                    params.update({'description': description})
+                    params.update({'task_enabled': True})
+
+                    _delta = datetime.timedelta(0, notify)
+                    notify_at = future_date - _delta
+                    notify_at = notify_at.strftime('%Y-%m-%d %H:%M:%S')
+
+                    params.update({'schedule_entry': notify_at})
+                    # TODO: action could also be 'notify'
+                    params.update({'action': 'stop'})
+
+                    #conditions = kwargs.pop('conditions', [])
+                    _conditions = [{'type': 'machines', 'ids': [conditions[0].get('ids')[0]]}]
+                    params.update({'conditions': _conditions})
+
+                    # TODO
+                    name = 'REMINDER'
+                    from mist.api.schedules.models import Schedule
+                    schedule = Schedule.add(auth_context, name, **params)
 
         # set schedule attributes
         for key, value in kwargs.items():
@@ -257,6 +286,7 @@ class BaseController(object):
                     'field': FieldCondition,
                     'age': MachinesAgeCondition}
 
+        # TODO
         if kwargs.get('conditions'):
             self.schedule.conditions = []
         for condition in kwargs.pop('conditions', []):
