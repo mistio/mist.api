@@ -79,9 +79,9 @@ class BaseController(object):
                                   '(crontab, interval, one_off)]')
 
         if kwargs.get('schedule_type') in ['one_off', 'reminder'] and \
-            not kwargs.get('schedule_entry', ''):
-                raise BadRequestError('one_off schedule '
-                                      'requires date given in schedule_entry')
+                not kwargs.get('schedule_entry', ''):
+            raise BadRequestError('one_off schedule '
+                                  'requires date given in schedule_entry')
 
         try:
             self.update(**kwargs)
