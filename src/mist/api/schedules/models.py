@@ -236,7 +236,7 @@ class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
     total_run_count = me.IntField(min_value=0, default=0)
     max_run_count = me.IntField(min_value=0, default=0)
 
-    # reminder = me.ReferenceField('Schedule', required=False)
+    reminder = me.ReferenceField('Schedule', required=False)
 
     no_changes = False
 

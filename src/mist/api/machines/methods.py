@@ -466,7 +466,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         name = machine.name + '_expires' + str(randrange(1000))
         notify = expiration.get('notify', '')
         params.update({'notify': notify})
-        import ipdb; ipdb.set_trace();
         from mist.api.schedules.models import Schedule
         exp_schedule = Schedule.add(auth_context, name, **params)
 

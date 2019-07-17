@@ -105,7 +105,6 @@ class MachineController(object):
             return self.machine.private_ips[0]
         raise RuntimeError("Couldn't find machine host.")
 
-
     def update(self, auth_context, expiration={}):
         schedule = self.machine.expiration_schedule
 
@@ -115,10 +114,9 @@ class MachineController(object):
 
         # schedule needs to be removed
         if schedule and not expiration.get('date', ''):
-            _schedule = self.machine.expiration_schedule
             # remove the reminder as well
-            if _schedule.reminder:
-                _schedule.reminder.delete()
+            if schedule.reminder:
+                schedule.reminder.delete()
 
             _schedule.delete()
             self.machine.expiration_schedule = None
@@ -149,11 +147,34 @@ class MachineController(object):
             kwargs.update({'schedule_entry': expiration.get('date')})
             schedule.ctl.set_auth_context(auth_context)
             schedule.ctl.update(**kwargs)
+            notify = expiration.get('notify', 0)
+            if schedule.reminder and not notify:
+                schedule.reminder.delete()
+            elif schedule.reminder and notify:
+                pass
+                # update
+            elif not schedule.reminder and notify:
+                params = {}
+                description = 'Scheduled to notify before machine expires'
+                params.update({'schedule_type': 'reminder'})
+                params.update({'description': description})
+                params.update({'task_enabled': True})
+
+                _delta = datetime.timedelta(0, notify)
+                notify_at = schedule.schedule_type.entry - _delta
+                notify_at = notify_at.strftime('%Y-%m-%d %H:%M:%S')
+                params.update({'schedule_entry': notify_at})
+                params.update({'action': 'notify'})
+                _conditions = [{'type': 'machines', 'ids': [self.machine.id]}]
+                params.update({'conditions': _conditions})
+                name = self.machine.name + '_reminder' + str(randrange(1000))
+                from mist.api.schedules.models import Schedule
+                reminder = Schedule.add(auth_context, name, **params)
+                schedule.reminder = reminder
 
         self.machine.save()
 
         return
-
 
     def ping_probe(self, persist=True):
         if not self.machine.cloud.enabled:
