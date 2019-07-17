@@ -113,9 +113,17 @@ class MachineController(object):
         self.machine.expiration_date = expiration.get('date')
         self.machine.expiration_notify = expiration.get('notify', 0)
 
+        # schedule needs to be removed
         if schedule and not expiration.get('date', ''):
-            self.machine.expiration_schedule.delete()
+            _schedule = self.machine.expiration_schedule
+            # remove the reminder as well
+            if _schedule.reminder:
+                _schedule.reminder.delete()
+
+            _schedule.delete()
             self.machine.expiration_schedule = None
+
+        # schedule needs to be added
         elif schedule is None and expiration.get('date'):
             # add new schedule
             params = {}
@@ -133,6 +141,7 @@ class MachineController(object):
             from mist.api.schedules.models import Schedule
             exp_sch = Schedule.add(auth_context, name, **params)
             self.machine.expiration_schedule = exp_sch
+
         # schedule exists, will modify it
         elif schedule and expiration.get('date'):
             kwargs = {}
