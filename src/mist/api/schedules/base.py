@@ -196,13 +196,11 @@ class BaseController(object):
                 self.schedule.schedule_type = schedules.Interval(
                     **schedule_entry)
 
-        # TODO
         elif (schedule_type in ['one_off', 'reminder'] or
                 type(self.schedule.schedule_type) == schedules.OneOff):
             # implements Interval under the hood
             future_date = kwargs.pop('schedule_entry', '')
 
-            # TODO: if not?
             if future_date:
                 try:
                     future_date = datetime.datetime.strptime(
@@ -251,7 +249,7 @@ class BaseController(object):
                     from mist.api.schedules.models import Schedule
                     reminder = Schedule.add(auth_context, name, **params)
 
-                # self.schedule.reminder = reminder
+                self.schedule.reminder = reminder
 
         # set schedule attributes
         for key, value in kwargs.items():
@@ -292,7 +290,6 @@ class BaseController(object):
                     'field': FieldCondition,
                     'age': MachinesAgeCondition}
 
-        # TODO
         if kwargs.get('conditions'):
             self.schedule.conditions = []
         for condition in kwargs.pop('conditions', []):
