@@ -310,6 +310,7 @@ class Machine(OwnershipMixin, me.Document):
     expiration_action = me.StringField(default='stop',
                                        choices=('stop', 'destroy'))
     expiration_notify = me.IntField()  # seconds
+    expiration_schedule = me.ReferenceField('Schedule', required=False)
 
     # Number of vCPUs gathered from various sources. This field is meant to
     # be updated ONLY by the mist.api.metering.tasks:find_machine_cores task.
@@ -447,10 +448,9 @@ class Machine(OwnershipMixin, me.Document):
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
             'expiration_date': self.expiration_date if self.expiration_date
-                                                    else '',
+                                                            else '',
             'expiration_action': self.expiration_action,
-            'expiration_notify': self.expiration_notify
-
+            'expiration_notify': self.expiration_notify,
         }
 
     def __str__(self):

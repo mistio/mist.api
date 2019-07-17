@@ -103,6 +103,47 @@ class MachineController(object):
             return self.machine.private_ips[0]
         raise RuntimeError("Couldn't find machine host.")
 
+
+    def update(self, auth_context, expiration={}):
+        schedule = self.machine.expiration_schedule
+
+        self.machine.expiration_action = expiration.get('action', 'stop')
+        self.machine.expiration_date = expiration.get('date')
+        self.machine.expiration_notify = expiration.get('notify', 0)
+
+        if schedule and not expiration.get('date', ''):
+            self.machine.expiration_schedule.delete()
+            self.machine.expiration_schedule = None
+        elif schedule is None and expiration.get('date'):
+            # add new schedule
+            params = {}
+            description = 'Scheduled to run when machine expires'
+            params.update({'schedule_type': 'one_off'})
+            params.update({'description': description})
+            params.update({'task_enabled': True})
+            params.update({'schedule_entry': expiration.get('date')})
+            params.update({'action': expiration.get('action')})
+            conditions = [{'type': 'machines', 'ids': [self.machine.id]}]
+            params.update({'conditions': conditions})
+            name = self.machine.name + '_expires'
+            notify = expiration.get('notify', 0)
+            params.update({'notify': notify})
+            from mist.api.schedules.models import Schedule
+            exp_sch = Schedule.add(auth_context, name, **params)
+            self.machine.expiration_schedule = exp_sch
+        # schedule exists, will modify it
+        elif schedule and expiration.get('date'):
+            kwargs = {}
+            kwargs.update({'action': expiration.get('action', 'stop')})
+            kwargs.update({'schedule_entry': expiration.get('date')})
+            schedule.ctl.set_auth_context(auth_context)
+            schedule.ctl.update(**kwargs)
+
+        self.machine.save()
+
+        return
+
+
     def ping_probe(self, persist=True):
         if not self.machine.cloud.enabled:
             return False
