@@ -1,3 +1,4 @@
+import mongoengine as me
 import uuid
 import logging
 from pyramid.response import Response
@@ -20,6 +21,8 @@ from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import BadRequestError, NotFoundError
 from mist.api.exceptions import MachineCreationError, RedirectError
 from mist.api.exceptions import CloudUnauthorizedError, CloudUnavailableError
+from mist.api.exceptions import CloudNotFoundError
+from mist.api.exceptions import MachineNotFoundError
 
 from mist.api.monitoring.methods import enable_monitoring
 from mist.api.monitoring.methods import disable_monitoring
@@ -602,7 +605,7 @@ def edit_machine(request):
     auth_context.check_perm('cloud', 'read', cloud_id)
     auth_context.check_perm('machine', 'edit', machine_id)
 
-    machine.ctl.update(**params)
+    machine.ctl.update(auth_context, **params)
 
     trigger_session_update(auth_context.owner, ['machines'])
     return machine.as_dict()
