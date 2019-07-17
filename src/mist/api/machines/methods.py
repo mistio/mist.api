@@ -5,6 +5,8 @@ import mongoengine as me
 import time
 import requests
 
+from random import randrange
+
 from future.utils import string_types
 
 from libcloud.compute.base import NodeSize, NodeImage, NodeLocation, Node
@@ -454,23 +456,24 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     if expiration:
         params = {}
         description = 'Scheduled to run when machine expires'
-        schedule_type = 'one_off'
-        params.update({'schedule_type': schedule_type})
+        params.update({'schedule_type': 'one_off'})
         params.update({'description': description})
         params.update({'task_enabled': True})
         params.update({'schedule_entry': expiration.get('date')})
         params.update({'action': expiration.get('action')})
         conditions = [{'type': 'machines', 'ids': [machine.id]}]
         params.update({'conditions': conditions})
-        name = machine.name + '_expires'
+        name = machine.name + '_expires' + str(randrange(1000))
         notify = expiration.get('notify', '')
         params.update({'notify': notify})
+        import ipdb; ipdb.set_trace();
         from mist.api.schedules.models import Schedule
-        Schedule.add(auth_context, name, **params)
+        exp_schedule = Schedule.add(auth_context, name, **params)
 
         machine.expiration_date = expiration.get('date')
         machine.expiration_action = expiration.get('action')
         machine.expiration_notify = expiration.get('notify')
+        machine.expiration_schedule = exp_schedule
         machine.save()
 
     if key is not None:  # Associate key.

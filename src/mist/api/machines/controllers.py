@@ -2,6 +2,8 @@ import datetime
 
 import jsonpatch
 
+from random import randrange
+
 from mist.api.helpers import amqp_publish_user
 
 from mist.api.concurrency.models import PeriodicTaskInfo
@@ -125,7 +127,7 @@ class MachineController(object):
             params.update({'action': expiration.get('action')})
             conditions = [{'type': 'machines', 'ids': [self.machine.id]}]
             params.update({'conditions': conditions})
-            name = self.machine.name + '_expires'
+            name = self.machine.name + '_expires' + str(randrange(1000))
             notify = expiration.get('notify', 0)
             params.update({'notify': notify})
             from mist.api.schedules.models import Schedule
