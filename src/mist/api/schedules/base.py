@@ -7,6 +7,7 @@ Cloud specific controllers are in `mist.api.schedules.controllers`.
 import logging
 import datetime
 import mongoengine as me
+
 from mist.api.scripts.models import Script
 from mist.api.exceptions import MistError
 from mist.api.exceptions import InternalServerError
@@ -63,7 +64,6 @@ class BaseController(object):
         `self.schedule`. The `self.schedule` is not yet saved.
 
         """
-
         # check if required variables exist.
         if not (kwargs.get('script_id', '') or kwargs.get('action', '')):
             raise BadRequestError("You must provide script_id "
@@ -73,15 +73,15 @@ class BaseController(object):
             raise BadRequestError("You must provide a list of conditions, "
                                   "at least machine ids or tags")
 
-        if kwargs.get('schedule_type') not in ['crontab',
+        if kwargs.get('schedule_type') not in ['crontab', 'reminder',
                                                'interval', 'one_off']:
             raise BadRequestError('schedule type must be one of these '
                                   '(crontab, interval, one_off)]')
 
-        if kwargs.get('schedule_type') == 'one_off' and not kwargs.get(
-                'schedule_entry', ''):
-            raise BadRequestError('one_off schedule '
-                                  'requires date given in schedule_entry')
+        if kwargs.get('schedule_type') in ['one_off', 'reminder'] and \
+            not kwargs.get('schedule_entry', ''):
+                raise BadRequestError('one_off schedule '
+                                      'requires date given in schedule_entry')
 
         try:
             self.update(**kwargs)
@@ -104,7 +104,7 @@ class BaseController(object):
         owner = auth_context.owner
 
         if kwargs.get('action'):
-            if kwargs.get('action') not in ['reboot', 'destroy',
+            if kwargs.get('action') not in ['reboot', 'destroy', 'notify',
                                             'start', 'stop']:
                 raise BadRequestError("Action is not correct")
 
@@ -148,6 +148,7 @@ class BaseController(object):
             raise BadRequestError('Date of future task is in the past. '
                                   'Please contact Marty McFly')
         # Schedule conditions pre-parsing.
+        conditions = kwargs.get('conditions', [])
         try:
             self._update__preparse_machines(auth_context, kwargs)
         except MistError as exc:
@@ -193,7 +194,7 @@ class BaseController(object):
                 self.schedule.schedule_type = schedules.Interval(
                     **schedule_entry)
 
-        elif (schedule_type == 'one_off' or
+        elif (schedule_type in ['one_off', 'reminder'] or
                 type(self.schedule.schedule_type) == schedules.OneOff):
             # implements Interval under the hood
             future_date = kwargs.pop('schedule_entry', '')
@@ -212,11 +213,41 @@ class BaseController(object):
 
                 delta = future_date - now
 
-                one_off = schedules.OneOff(period='seconds',
-                                           every=delta.seconds,
-                                           entry=future_date)
-                self.schedule.schedule_type = one_off
+                if schedule_type == 'reminder':
+                    reminder = schedules.Reminder(period='seconds',
+                                                  every=delta.seconds,
+                                                  entry=future_date)
+                    self.schedule.schedule_type = reminder
+                else:
+                    one_off = schedules.OneOff(period='seconds',
+                                               every=delta.seconds,
+                                               entry=future_date)
+                    self.schedule.schedule_type = one_off
+
                 self.schedule.max_run_count = 1
+
+                notify = kwargs.pop('notify', 0)
+                reminder = None
+                if notify:
+                    params = {}
+                    description = 'Scheduled to notify before machine expires'
+                    params.update({'schedule_type': 'reminder'})
+                    params.update({'description': description})
+                    params.update({'task_enabled': True})
+
+                    _delta = datetime.timedelta(0, notify)
+                    notify_at = future_date - _delta
+                    notify_at = notify_at.strftime('%Y-%m-%d %H:%M:%S')
+                    params.update({'schedule_entry': notify_at})
+                    params.update({'action': 'notify'})
+                    machine_id = conditions[0].get('ids')[0]
+                    _conditions = [{'type': 'machines', 'ids': [machine_id]}]
+                    params.update({'conditions': _conditions})
+                    name = 'reminder_' + self.schedule.name
+                    from mist.api.schedules.models import Schedule
+                    reminder = Schedule.add(auth_context, name, **params)
+
+                self.schedule.reminder = reminder
 
         # set schedule attributes
         for key, value in kwargs.items():
@@ -286,7 +317,7 @@ class BaseController(object):
                     # SEC require permission READ on cloud
                     auth_context.check_perm("cloud", "read", machine.cloud.id)
 
-                    if action:
+                    if action and action not in ['notify']:
                         # SEC require permission ACTION on machine
                         auth_context.check_perm("machine", action, mid)
                     else:
@@ -294,7 +325,7 @@ class BaseController(object):
                         auth_context.check_perm("machine", "run_script", mid)
                 check = True
             elif condition.ctype == 'tags':
-                if action:
+                if action and action not in ['notify']:
                     # SEC require permission ACTION on machine
                     auth_context.check_perm("machine", action, None)
                 else:
