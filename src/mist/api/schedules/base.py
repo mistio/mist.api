@@ -8,8 +8,6 @@ import logging
 import datetime
 import mongoengine as me
 
-from random import randrange
-
 from mist.api.scripts.models import Script
 from mist.api.exceptions import MistError
 from mist.api.exceptions import InternalServerError
@@ -245,8 +243,7 @@ class BaseController(object):
                     machine_id = conditions[0].get('ids')[0]
                     _conditions = [{'type': 'machines', 'ids': [machine_id]}]
                     params.update({'conditions': _conditions})
-                    name = self.schedule.name + '_reminder' + \
-                        str(randrange(1000))
+                    name = 'reminder_' + self.schedule.name
                     from mist.api.schedules.models import Schedule
                     reminder = Schedule.add(auth_context, name, **params)
 
