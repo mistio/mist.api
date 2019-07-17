@@ -584,6 +584,16 @@ def edit_machine(request):
     ---
     expiration:
       type: object
+      properties:
+        date:
+          type: string
+          description: format should be ΥΥΥΥ-ΜΜ-DD HH:MM:SS
+        action:
+          type: string
+          description: one of ['stop', 'destroy']
+        notify:
+          type: integer
+          description: seconds before the expiration date to be notified
     """
     cloud_id = request.matchdict.get('cloud')
     machine_id = request.matchdict['machine']
