@@ -466,8 +466,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         notify = expiration.get('notify', '')
         params.update({'notify': notify})
         from mist.api.schedules.models import Schedule
-        schedule = Schedule.add(auth_context, name, **params)
-        # schedule = Schedule.add(auth_context, name, json.dumps(params))
+        Schedule.add(auth_context, name, **params)
 
         machine.expiration_date = expiration.get('date')
         machine.expiration_action = expiration.get('action')
