@@ -567,6 +567,48 @@ def add_machine(request):
 
 
 @view_config(route_name='api_v1_cloud_machine',
+             request_method='PUT', renderer='json')
+@view_config(route_name='api_v1_machine',
+             request_method='PUT', renderer='json')
+def edit_machine(request):
+    """
+    Tags: machines
+    ---
+    Edits a machine.
+    For now expiration related attributes can change.
+    READ permission required on cloud.
+    EDIT permission required on machine.
+    ---
+    expiration:
+      type: object
+    """
+    cloud_id = request.matchdict.get('cloud')
+    machine_id = request.matchdict['machine']
+    auth_context = auth_context_from_request(request)
+    params = params_from_request(request)
+
+    try:
+        cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
+                                  deleted=None)
+    except me.DoesNotExist:
+        raise CloudNotFoundError()
+
+    try:
+        machine = Machine.objects.get(cloud=cloud, id=machine_id)
+    except me.DoesNotExist:
+        raise MachineNotFoundError()
+
+    # SEC
+    auth_context.check_perm('cloud', 'read', cloud_id)
+    auth_context.check_perm('machine', 'edit', machine_id)
+
+    machine.ctl.update(**params)
+
+    trigger_session_update(auth_context.owner, ['machines'])
+    return machine.as_dict()
+
+
+@view_config(route_name='api_v1_cloud_machine',
              request_method='POST', renderer='json')
 @view_config(route_name='api_v1_machine',
              request_method='POST', renderer='json')
