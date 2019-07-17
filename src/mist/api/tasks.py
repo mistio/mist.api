@@ -815,7 +815,7 @@ def create_machine_async(
     associate_floating_ip_subnet=None, project_id=None,
     tags=None, schedule={}, bare_metal=False, hourly=True,
     softlayer_backend_vlan_id=None, machine_username='',
-    volumes=[], ip_addresses=[]
+    volumes=[], ip_addresses=[], expiration={}
 ):
     from multiprocessing.dummy import Pool as ThreadPool
     from mist.api.machines.methods import create_machine
@@ -875,7 +875,8 @@ def create_machine_async(
              'hourly': hourly,
              'machine_username': machine_username,
              'volumes': volumes,
-             'ip_addresses': ip_addresses}
+             'ip_addresses': ip_addresses,
+             'expiration': expiration}
         ))
 
     def create_machine_wrapper(args_kwargs):
@@ -1009,7 +1010,7 @@ def run_machine_action(owner_id, action, name, machine_uuid):
         log_event(action=msg, **log_dict)
 
     if not log_dict.get('error'):
-        if action in ('start', 'stop', 'reboot', 'destroy'):
+        if action in ('start', 'stop', 'reboot', 'destroy', 'notify'):
             # call list machines here cause we don't have another way
             # to update machine state if user isn't logged in
             from mist.api.machines.methods import list_machines
@@ -1057,19 +1058,44 @@ def run_machine_action(owner_id, action, name, machine_uuid):
                     log_event(action='Destroy failed', **log_dict)
                 else:
                     log_event(action='Destroy succeeded', **log_dict)
-    # TODO markos asked this
-    log_dict['started_at'] = started_at
-    log_dict['finished_at'] = time()
-    title = "Execution of '%s' action " % action
-    title += "failed" if log_dict.get('error') else "succeeded"
-    from mist.api.methods import notify_user
-    notify_user(
-        owner, title,
-        cloud_id=cloud_id,
-        machine_id=machine_id,
-        duration=log_dict['finished_at'] - log_dict['started_at'],
-        error=log_dict.get('error'),
-    )
+            elif action == 'notify':
+                mails = []
+                for _user in [machine.owned_by, machine.created_by]:
+                    if _user:
+                        mails.append(_user.email)
+                for mail in list(set(mails)):
+                    if mail == machine.owned_by.email:
+                        user = machine.owned_by
+                    else:
+                        user = machine.created_by
+                    subject = config.MACHINE_EXPIRE_NOTIFY_EMAIL_SUBJECT
+                    main_body = config.MACHINE_EXPIRE_NOTIFY_EMAIL_BODY
+                    body = main_body % ((user.first_name + " " +
+                                        user.last_name),
+                                        machine.name,
+                                        machine.expiration_date,
+                                        config.CORE_URI)
+                    log.info('about to send email...')
+                    if not helper_send_email(subject, body, user.email):
+                        raise ServiceUnavailableError("Could not send "
+                                                      "notification email "
+                                                      "about machine that "
+                                                      "is about to expire.")
+
+    if action != 'notify':
+        # TODO markos asked this
+        log_dict['started_at'] = started_at
+        log_dict['finished_at'] = time()
+        title = "Execution of '%s' action " % action
+        title += "failed" if log_dict.get('error') else "succeeded"
+        from mist.api.methods import notify_user
+        notify_user(
+            owner, title,
+            cloud_id=cloud_id,
+            machine_id=machine_id,
+            duration=log_dict['finished_at'] - log_dict['started_at'],
+            error=log_dict.get('error'),
+        )
 
 
 @app.task

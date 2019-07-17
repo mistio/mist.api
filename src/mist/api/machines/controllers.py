@@ -2,6 +2,8 @@ import datetime
 
 import jsonpatch
 
+from random import randrange
+
 from mist.api.helpers import amqp_publish_user
 
 from mist.api.concurrency.models import PeriodicTaskInfo
@@ -102,6 +104,62 @@ class MachineController(object):
         if self.machine.private_ips:
             return self.machine.private_ips[0]
         raise RuntimeError("Couldn't find machine host.")
+
+    def update(self, auth_context, expiration={}):
+        schedule = self.machine.expiration_schedule
+
+        self.machine.expiration_action = expiration.get('action', 'stop')
+        self.machine.expiration_date = expiration.get('date')
+        self.machine.expiration_notify = expiration.get('notify', 0)
+
+        # schedule needs to be removed
+        if schedule and not expiration.get('date', ''):
+            # remove the reminder as well
+            if schedule.reminder:
+                schedule.reminder.delete()
+
+            schedule.delete()
+            self.machine.expiration_schedule = None
+
+        # schedule needs to be added
+        elif schedule is None and expiration.get('date'):
+            params = {}
+            description = 'Scheduled to run when machine expires'
+            params.update({'schedule_type': 'one_off'})
+            params.update({'description': description})
+            params.update({'task_enabled': True})
+            params.update({'schedule_entry': expiration.get('date')})
+            params.update({'action': expiration.get('action')})
+            conditions = [{'type': 'machines', 'ids': [self.machine.id]}]
+            params.update({'conditions': conditions})
+            name = self.machine.name + '_expires' + str(randrange(1000))
+            notify = expiration.get('notify', 0)
+            params.update({'notify': notify})
+            from mist.api.schedules.models import Schedule
+            exp_sch = Schedule.add(auth_context, name, **params)
+            self.machine.expiration_schedule = exp_sch
+
+        # schedule exists, will modify it
+        elif schedule and expiration.get('date'):
+            # reminder needs to be deleted
+            if schedule.reminder:
+                schedule.reminder.delete()
+                schedule.reminder = None
+                schedule.save()
+
+            params = {}
+            params.update({'schedule_entry': expiration.get('date')})
+            params.update({'action': expiration.get('action', 'stop')})
+            params.update({'notify': expiration.get('notify', 0)})
+            conditions = [{'type': 'machines', 'ids': [self.machine.id]}]
+            params.update({'conditions': conditions})
+            name = self.machine.name + '_expires' + str(randrange(1000))
+            schedule.ctl.set_auth_context(auth_context)
+            schedule.ctl.update(**params)
+
+        self.machine.save()
+
+        return
 
     def ping_probe(self, persist=True):
         if not self.machine.cloud.enabled:

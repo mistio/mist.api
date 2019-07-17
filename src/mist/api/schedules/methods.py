@@ -8,7 +8,9 @@ def list_schedules(owner):
     for schedule in schedules:
         schedule_object = schedule.as_dict()
         schedule_object["tags"] = get_tags_for_resource(owner, schedule)
-        schedule_objects.append(schedule_object)
+        # no need to for remnder schedules to be visible
+        if schedule.schedule_type.type != 'reminder':
+            schedule_objects.append(schedule_object)
     return schedule_objects
 
 

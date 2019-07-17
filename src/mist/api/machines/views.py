@@ -1,3 +1,4 @@
+import mongoengine as me
 import uuid
 import logging
 from pyramid.response import Response
@@ -20,6 +21,8 @@ from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import BadRequestError, NotFoundError
 from mist.api.exceptions import MachineCreationError, RedirectError
 from mist.api.exceptions import CloudUnauthorizedError, CloudUnavailableError
+from mist.api.exceptions import CloudNotFoundError
+from mist.api.exceptions import MachineNotFoundError
 
 from mist.api.monitoring.methods import enable_monitoring
 from mist.api.monitoring.methods import disable_monitoring
@@ -329,6 +332,8 @@ def create_machine(request):
     softlayer_backend_vlan_id = params.get('softlayer_backend_vlan_id', None)
     hourly = params.get('hourly', True)
 
+    expiration = params.get('expiration', {})
+
     job_id = params.get('job_id')
     # The `job` variable points to the event that started the job. If a job_id
     # is not provided, then it means that this is the beginning of a new story
@@ -447,7 +452,9 @@ def create_machine(request):
               'new_resource_group': new_resource_group,
               'machine_username': machine_username,
               'volumes': volumes,
-              'ip_addresses': ip_addresses}
+              'ip_addresses': ip_addresses,
+              'expiration': expiration}
+
     if not run_async:
         ret = methods.create_machine(auth_context, *args, **kwargs)
     else:
@@ -560,6 +567,48 @@ def add_machine(request):
         ret.update({'monitoring': monitor})
 
     return ret
+
+
+@view_config(route_name='api_v1_cloud_machine',
+             request_method='PUT', renderer='json')
+@view_config(route_name='api_v1_machine',
+             request_method='PUT', renderer='json')
+def edit_machine(request):
+    """
+    Tags: machines
+    ---
+    Edits a machine.
+    For now expiration related attributes can change.
+    READ permission required on cloud.
+    EDIT permission required on machine.
+    ---
+    expiration:
+      type: object
+    """
+    cloud_id = request.matchdict.get('cloud')
+    machine_id = request.matchdict['machine']
+    auth_context = auth_context_from_request(request)
+    params = params_from_request(request)
+
+    try:
+        cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
+                                  deleted=None)
+    except me.DoesNotExist:
+        raise CloudNotFoundError()
+
+    try:
+        machine = Machine.objects.get(cloud=cloud, id=machine_id)
+    except me.DoesNotExist:
+        raise MachineNotFoundError()
+
+    # SEC
+    auth_context.check_perm('cloud', 'read', cloud_id)
+    auth_context.check_perm('machine', 'edit', machine_id)
+
+    machine.ctl.update(auth_context, **params)
+
+    trigger_session_update(auth_context.owner, ['machines'])
+    return machine.as_dict()
 
 
 @view_config(route_name='api_v1_cloud_machine',
