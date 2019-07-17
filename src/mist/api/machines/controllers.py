@@ -118,12 +118,11 @@ class MachineController(object):
             if schedule.reminder:
                 schedule.reminder.delete()
 
-            _schedule.delete()
+            schedule.delete()
             self.machine.expiration_schedule = None
 
         # schedule needs to be added
         elif schedule is None and expiration.get('date'):
-            # add new schedule
             params = {}
             description = 'Scheduled to run when machine expires'
             params.update({'schedule_type': 'one_off'})
@@ -142,35 +141,21 @@ class MachineController(object):
 
         # schedule exists, will modify it
         elif schedule and expiration.get('date'):
-            kwargs = {}
-            kwargs.update({'action': expiration.get('action', 'stop')})
-            kwargs.update({'schedule_entry': expiration.get('date')})
-            schedule.ctl.set_auth_context(auth_context)
-            schedule.ctl.update(**kwargs)
-            notify = expiration.get('notify', 0)
-            if schedule.reminder and not notify:
+            # reminder needs to be deleted
+            if schedule.reminder:
                 schedule.reminder.delete()
-            elif schedule.reminder and notify:
-                pass
-                # update
-            elif not schedule.reminder and notify:
-                params = {}
-                description = 'Scheduled to notify before machine expires'
-                params.update({'schedule_type': 'reminder'})
-                params.update({'description': description})
-                params.update({'task_enabled': True})
+                schedule.reminder = None
+                schedule.save()
 
-                _delta = datetime.timedelta(0, notify)
-                notify_at = schedule.schedule_type.entry - _delta
-                notify_at = notify_at.strftime('%Y-%m-%d %H:%M:%S')
-                params.update({'schedule_entry': notify_at})
-                params.update({'action': 'notify'})
-                _conditions = [{'type': 'machines', 'ids': [self.machine.id]}]
-                params.update({'conditions': _conditions})
-                name = self.machine.name + '_reminder' + str(randrange(1000))
-                from mist.api.schedules.models import Schedule
-                reminder = Schedule.add(auth_context, name, **params)
-                schedule.reminder = reminder
+            params = {}
+            params.update({'schedule_entry': expiration.get('date')})
+            params.update({'action': expiration.get('action', 'stop')})
+            params.update({'notify': expiration.get('notify', 0)})
+            conditions = [{'type': 'machines', 'ids': [self.machine.id]}]
+            params.update({'conditions': conditions})
+            name = self.machine.name + '_expires' + str(randrange(1000))
+            schedule.ctl.set_auth_context(auth_context)
+            schedule.ctl.update(**params)
 
         self.machine.save()
 
