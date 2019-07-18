@@ -1188,7 +1188,7 @@ def get_file(url, filename, update=True):
                 raise
             log.error(err)
         else:
-            data = resp.text
+            data = resp.text.replace('<!--! do not remove -->', '')
             if resp.status_code != 200:
                 err = "Bad response fetching file '%s' from '%s': %r" % (
                     filename, url, data
