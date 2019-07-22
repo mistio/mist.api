@@ -116,3 +116,4 @@ websocket-client==0.54.0
 yappi==0.98
 zope.deprecation==4.3.0
 zope.interface==4.6.0
+foundationdb==6.1.11

@@ -752,8 +752,9 @@ WINDOWS_MACHINE_DASHBOARD_DEFAULT = {
 
 MONITORING_METHODS = (
     'telegraf-influxdb',
+    'telegraf-foundationdb'
 )
-DEFAULT_MONITORING_METHOD = 'telegraf-influxdb'
+DEFAULT_MONITORING_METHOD = 'telegraf-foundationdb'
 
 GRAPHITE_URI = "http://graphite"
 
