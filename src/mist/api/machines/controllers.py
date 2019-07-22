@@ -105,61 +105,61 @@ class MachineController(object):
             return self.machine.private_ips[0]
         raise RuntimeError("Couldn't find machine host.")
 
-    def update(self, auth_context, expiration={}):
-        schedule = self.machine.expiration_schedule
-
-        self.machine.expiration_action = expiration.get('action', 'stop')
-        self.machine.expiration_date = expiration.get('date')
-        self.machine.expiration_notify = expiration.get('notify', 0)
-
-        # schedule needs to be removed
-        if schedule and not expiration.get('date', ''):
-            # remove the reminder as well
-            if schedule.reminder:
-                schedule.reminder.delete()
-
-            schedule.delete()
-            self.machine.expiration_schedule = None
-
-        # schedule needs to be added
-        elif schedule is None and expiration.get('date'):
-            params = {}
-            description = 'Scheduled to run when machine expires'
-            params.update({'schedule_type': 'one_off'})
-            params.update({'description': description})
-            params.update({'task_enabled': True})
-            params.update({'schedule_entry': expiration.get('date')})
-            params.update({'action': expiration.get('action')})
-            conditions = [{'type': 'machines', 'ids': [self.machine.id]}]
-            params.update({'conditions': conditions})
-            name = self.machine.name + '_expires' + str(randrange(1000))
-            notify = expiration.get('notify', 0)
-            params.update({'notify': notify})
+    def update(self, auth_context, params={}):
+        if params.get('expiration'):
             from mist.api.schedules.models import Schedule
-            exp_sch = Schedule.add(auth_context, name, **params)
-            self.machine.expiration_schedule = exp_sch
-
-        # schedule exists, will modify it
-        elif schedule and expiration.get('date'):
-            # reminder needs to be deleted
-            if schedule.reminder:
-                schedule.reminder.delete()
-                schedule.reminder = None
-                schedule.save()
-
-            params = {}
-            params.update({'schedule_entry': expiration.get('date')})
-            params.update({'action': expiration.get('action', 'stop')})
-            params.update({'notify': expiration.get('notify', 0)})
-            conditions = [{'type': 'machines', 'ids': [self.machine.id]}]
-            params.update({'conditions': conditions})
-            name = self.machine.name + '_expires' + str(randrange(1000))
-            schedule.ctl.set_auth_context(auth_context)
-            schedule.ctl.update(**params)
-
-        self.machine.save()
-
-        return
+            exp_date = params['expiration']['date']
+            exp_reminder = params['expiration']['reminder']
+            exp_action = params['expiration']['action']
+            assert exp_action in ['stop', 'destroy'], 'Invalid action'
+            if self.machine.expiration:  # Existing expiration schedule
+                if exp_date:  # Update schedule
+                    self.machine.expiration.ctl.update({
+                        'schedule_entry': exp_date,
+                        'action': exp_action,
+                        'notify': exp_reminder
+                    })
+                    """
+                    if exp_reminder:
+                        if self.machine.expiration.reminder:
+                            # Update existing reminder
+                            rmd = self.machine.expiration.reminder
+                            rmd.schedule_type.entry = \
+                                self.machine.expiration.schedule_type.entry - \
+                                    datetime.timedelta(seconds=exp_reminder)
+                            rmd.save()
+                        else:  # Create new reminder
+                            pass # TODO
+                    elif exp_reminder == 0:
+                        if self.machine.expiration.reminder:
+                            # Delete existing reminder
+                            self.machine.expiration.reminder.delete()
+                            self.machine.expiration.reminder = None
+                            self.machine.expiration.save()
+                    """
+                else:  # Delete existing schedule
+                    sched = self.machine.expiration
+                    self.machine.expiration = None
+                    self.machine.save()
+                    sched.delete()
+            else:  # No expiration schedule found
+                if exp_date:  # Create new expiration schedule
+                    params = {
+                        'description': 'Scheduled to run when machine expires',
+                        'task_enabled': True,
+                        'schedule_entry': exp_date,
+                        'action': exp_action,
+                        'conditions': [
+                            {'type': 'machines', 'ids': [self.machine.id]}
+                        ],
+                        'notify': exp_reminder
+                    }
+                    name = self.machine.name + '-expiration-' + str(
+                        randrange(1000))
+                    self.machine.expiration = Schedule.add(auth_context, name,
+                                                           **params)
+                    self.machine.save()
+        return self.machine
 
     def ping_probe(self, persist=True):
         if not self.machine.cloud.enabled:

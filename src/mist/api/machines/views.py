@@ -615,10 +615,7 @@ def edit_machine(request):
     auth_context.check_perm('cloud', 'read', cloud_id)
     auth_context.check_perm('machine', 'edit', machine_id)
 
-    machine.ctl.update(auth_context, **params)
-
-    trigger_session_update(auth_context.owner, ['machines'])
-    return machine.as_dict()
+    return machine.ctl.update(auth_context, **params)
 
 
 @view_config(route_name='api_v1_cloud_machine',
