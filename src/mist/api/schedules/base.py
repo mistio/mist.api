@@ -231,7 +231,7 @@ class BaseController(object):
                     params = {
                         'action': 'notify',
                         'schedule_type': 'reminder',
-                        'description': 'Scheduled to notify before machine expires',
+                        'description': 'Machine expiration reminder',
                         'task_enabled': True,
                         'schedule_entry': notify_at,
                         'conditions': kwargs.get('conditions')
@@ -240,7 +240,8 @@ class BaseController(object):
                     if self.schedule.reminder:
                         self.schedule.reminder.delete()
                     from mist.api.schedules.models import Schedule
-                    self.schedule.reminder = Schedule.add(auth_context, name, **params)
+                    self.schedule.reminder = Schedule.add(
+                        auth_context, name, **params)
 
         # set schedule attributes
         kwargs.pop('conditions')

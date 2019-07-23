@@ -448,7 +448,7 @@ class Machine(OwnershipMixin, me.Document):
             'expiration': {
                 'action': self.expiration.task_type.action,
                 'date': self.expiration.schedule_type.entry,
-                'reminder': self.expiration.reminder and \
+                'reminder': self.expiration.reminder and
                     self.expiration.reminder.schedule_type.entry or 0,
             } if self.expiration else None,
         }
