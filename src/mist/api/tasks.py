@@ -1073,7 +1073,7 @@ def run_machine_action(owner_id, action, name, machine_uuid):
                     body = main_body % ((user.first_name + " " +
                                         user.last_name),
                                         machine.name,
-                                        machine.expiration_date,
+                                        machine.expiration,
                                         config.CORE_URI)
                     log.info('about to send email...')
                     if not helper_send_email(subject, body, user.email):
