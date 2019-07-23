@@ -109,7 +109,7 @@ class MachineController(object):
         if params.get('expiration'):
             from mist.api.schedules.models import Schedule
             exp_date = params['expiration']['date']
-            exp_reminder = params['expiration']['reminder']
+            exp_reminder = params['expiration'].get('notify')
             exp_action = params['expiration']['action']
             assert exp_action in ['stop', 'destroy'], 'Invalid action'
             if self.machine.expiration:  # Existing expiration schedule
@@ -147,6 +147,7 @@ class MachineController(object):
                     params = {
                         'description': 'Scheduled to run when machine expires',
                         'task_enabled': True,
+                        'schedule_type': 'one_off',
                         'schedule_entry': exp_date,
                         'action': exp_action,
                         'conditions': [
