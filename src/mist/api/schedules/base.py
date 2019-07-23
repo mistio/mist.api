@@ -147,7 +147,6 @@ class BaseController(object):
         if self.schedule.start_after and self.schedule.start_after < now:
             raise BadRequestError('Date of future task is in the past. '
                                   'Please contact Marty McFly')
-
         try:
             self._update__preparse_machines(auth_context, kwargs)
         except MistError as exc:
@@ -235,7 +234,7 @@ class BaseController(object):
                         'description': 'Scheduled to notify before machine expires',
                         'task_enabled': True,
                         'schedule_entry': notify_at,
-                        'conditions': [{'type': 'machines', 'ids': [machine_id]}]
+                        'conditions': kwargs.get('conditions')
                     }
                     name = self.schedule.name + '-reminder'
                     if self.schedule.reminder:
@@ -244,6 +243,7 @@ class BaseController(object):
                     self.schedule.reminder = Schedule.add(auth_context, name, **params)
 
         # set schedule attributes
+        kwargs.pop('conditions')
         for key, value in kwargs.items():
             if key in self.schedule._fields:
                 setattr(self.schedule, key, value)
@@ -284,14 +284,14 @@ class BaseController(object):
 
         if kwargs.get('conditions'):
             self.schedule.conditions = []
-        for condition in kwargs.pop('conditions', []):
+        for condition in kwargs.get('conditions', []):
             if condition.get('type') not in cond_cls:
                 raise BadRequestError()
             if condition['type'] == 'field':
                 if condition['field'] not in ('created', 'state',
                                               'cost__monthly'):
                     raise BadRequestError()
-            cond = cond_cls[condition.pop('type')]()
+            cond = cond_cls[condition.get('type')]()
             cond.update(**condition)
             self.schedule.conditions.append(cond)
 
