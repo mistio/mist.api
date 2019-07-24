@@ -818,19 +818,20 @@ class GoogleComputeController(BaseComputeController):
             machine.network = None
 
         subnet = network_interface.get('subnetwork')
-        subnet_name = subnet.split('/')[-1]
-        subnet_region = subnet.split('/')[-3]
-        machine.extra['subnet'] = (subnet_name, subnet_region)
+        if subnet:
+            subnet_name = subnet.split('/')[-1]
+            subnet_region = subnet.split('/')[-3]
+            machine.extra['subnet'] = (subnet_name, subnet_region)
 
-        # Discover subnet of machine.
-        from mist.api.networks.models import Subnet
-        try:
-            machine.subnet = Subnet.objects.get(name=subnet_name,
-                                                network=machine.network,
-                                                region=subnet_region,
-                                                missing_since=None)
-        except Subnet.DoesNotExist:
-            machine.subnet = None
+            # Discover subnet of machine.
+            from mist.api.networks.models import Subnet
+            try:
+                machine.subnet = Subnet.objects.get(name=subnet_name,
+                                                    network=machine.network,
+                                                    region=subnet_region,
+                                                    missing_since=None)
+            except Subnet.DoesNotExist:
+                machine.subnet = None
 
     def _list_machines__machine_actions(self, machine, machine_libcloud):
         super(GoogleComputeController,
