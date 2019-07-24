@@ -117,6 +117,7 @@ class MachineController(object):
                     self.machine.expiration.schedule_type.entry = \
                         datetime.datetime.strptime(
                             exp_date, '%Y-%m-%d %H:%M:%S')
+                    self.machine.expiration.max_run_count += 1
                     self.machine.expiration.save()
                     if exp_reminder:
                         if self.machine.expiration.reminder:
@@ -125,6 +126,7 @@ class MachineController(object):
                             rmd.schedule_type.entry = \
                                 self.machine.expiration.schedule_type.entry - \
                                 datetime.timedelta(seconds=exp_reminder)
+                            rmd.max_run_count += 1
                             rmd.save()
                         else:  # Create new reminder
                             notify_at = (
@@ -140,7 +142,7 @@ class MachineController(object):
                                 'conditions': self.machine.expiration.as_dict(
                                 ).get('conditions')
                             }
-                            name = self.machine.schedule.expiration.name + \
+                            name = self.machine.expiration.name + \
                                 '-reminder'
                             self.machine.expiration.reminder = Schedule.add(
                                 auth_context, name, **params)
