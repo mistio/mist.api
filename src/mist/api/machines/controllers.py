@@ -114,12 +114,10 @@ class MachineController(object):
             assert exp_action in ['stop', 'destroy'], 'Invalid action'
             if self.machine.expiration:  # Existing expiration schedule
                 if exp_date:  # Update schedule
-                    self.machine.expiration.ctl.update({
-                        'schedule_entry': exp_date,
-                        'action': exp_action,
-                        'notify': exp_reminder
-                    })
-                    """
+                    self.machine.expiration.schedule_type.entry = \
+                        datetime.datetime.strptime(
+                            exp_date, '%Y-%m-%d %H:%M:%S')
+                    self.machine.expiration.save()
                     if exp_reminder:
                         if self.machine.expiration.reminder:
                             # Update existing reminder
@@ -132,12 +130,12 @@ class MachineController(object):
                             pass # TODO
                     elif exp_reminder == 0:
                         if self.machine.expiration.reminder:
-                            # Delete existing reminder
-                            self.machine.expiration.reminder.delete()
+                            # Delete existing reminder safely
+                            rmd = self.machine.expiration.reminder
                             self.machine.expiration.reminder = None
                             self.machine.expiration.save()
-                    """
-                else:  # Delete existing schedule
+                            rmd.delete()
+                else:  # Delete existing schedule safely
                     sched = self.machine.expiration
                     self.machine.expiration = None
                     self.machine.save()
