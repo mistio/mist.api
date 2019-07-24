@@ -109,7 +109,7 @@ class MachineController(object):
         if params.get('expiration'):
             from mist.api.schedules.models import Schedule
             exp_date = params['expiration']['date']
-            exp_reminder = params['expiration'].get('notify')
+            exp_reminder = int(params['expiration'].get('notify', 0) or 0)
             exp_action = params['expiration']['action']
             assert exp_action in ['stop', 'destroy'], 'Invalid action'
             if self.machine.expiration:  # Existing expiration schedule
@@ -124,10 +124,27 @@ class MachineController(object):
                             rmd = self.machine.expiration.reminder
                             rmd.schedule_type.entry = \
                                 self.machine.expiration.schedule_type.entry - \
-                                    datetime.timedelta(seconds=exp_reminder)
+                                datetime.timedelta(seconds=exp_reminder)
                             rmd.save()
                         else:  # Create new reminder
-                            pass # TODO
+                            notify_at = (
+                                self.machine.expiration.schedule_type.entry -
+                                datetime.timedelta(0, exp_reminder)
+                            ).strftime('%Y-%m-%d %H:%M:%S')
+                            params = {
+                                'action': 'notify',
+                                'schedule_type': 'reminder',
+                                'description': 'Machine expiration reminder',
+                                'task_enabled': True,
+                                'schedule_entry': notify_at,
+                                'conditions': self.machine.expiration.as_dict(
+                                ).get('conditions')
+                            }
+                            name = self.machine.schedule.expiration.name + \
+                                '-reminder'
+                            self.machine.expiration.reminder = Schedule.add(
+                                auth_context, name, **params)
+
                     elif exp_reminder == 0:
                         if self.machine.expiration.reminder:
                             # Delete existing reminder safely

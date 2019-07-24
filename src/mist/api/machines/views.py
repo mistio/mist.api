@@ -1,4 +1,3 @@
-import mongoengine as me
 import uuid
 import logging
 from pyramid.response import Response
@@ -21,8 +20,6 @@ from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import BadRequestError, NotFoundError
 from mist.api.exceptions import MachineCreationError, RedirectError
 from mist.api.exceptions import CloudUnauthorizedError, CloudUnavailableError
-from mist.api.exceptions import CloudNotFoundError
-from mist.api.exceptions import MachineNotFoundError
 
 from mist.api.monitoring.methods import enable_monitoring
 from mist.api.monitoring.methods import disable_monitoring
