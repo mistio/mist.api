@@ -37,8 +37,6 @@ from mist.api.monitoring.graphite.methods \
 from mist.api.monitoring.graphite.methods \
     import get_load as graphite_get_load
 
-
-
 from mist.api.monitoring import traefik
 
 from mist.api.rules.models import Rule
@@ -108,14 +106,14 @@ def get_stats(machine, start='', stop='', step='', metrics=None):
             if data:
                 results.update(data)
         return results
-    
-    elif machine.monitoring.method == 'telegraf-foundationdb': #return time-series data from foundationdb
+
+    # return time-series data from foundationdb
+    elif machine.monitoring.method == 'telegraf-foundationdb':
         from mist.api.monitoring.foundationdb.methods import fdb_get_stats
-    
         return fdb_get_stats(
             machine, start=start, stop=stop, step=step, metrics=metrics
         )
-        
+
     else:
         raise Exception("Invalid monitoring method")
 
@@ -265,7 +263,8 @@ def enable_monitoring(owner, cloud_id, machine_id, no_ssh=False, dry=False,
         machine.monitoring.method_since = datetime.datetime.now()
     # Extra vars
     if machine.monitoring.method in ('telegraf-influxdb',
-                                     'telegraf-graphite', 'telegraf-foundationdb'):
+                                     'telegraf-graphite',
+                                     'telegraf-foundationdb'):
         extra_vars = {'uuid': machine.id, 'monitor': config.INFLUX['host']}
     else:
         raise Exception("Invalid monitoring method")
@@ -321,7 +320,8 @@ def enable_monitoring(owner, cloud_id, machine_id, no_ssh=False, dry=False,
             job = 'enable_monitoring'
         ret_dict['job'] = job
         if machine.monitoring.method in ('telegraf-influxdb',
-                                         'telegraf-graphite', 'telegraf-foundationdb'):
+                                         'telegraf-graphite',
+                                         'telegraf-foundationdb'):
             # Install Telegraf
             func = mist.api.monitoring.tasks.install_telegraf
             if deploy_async:
