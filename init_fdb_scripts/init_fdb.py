@@ -17,8 +17,12 @@ def init_db():
 @fdb.transactional
 def set_dummy_metrics(tr):
     now = datetime.datetime.now()
+    
+    ten_mins_ago = now - datetime.timedelta(minutes=10) 
+    
+    print('Set dummy data, since 10 mins ago:' + str(ten_mins_ago))
     # for the last 10 minutes of the hour
-    for minute in range(now.minute - 10, now.minute):
+    for minute in range(ten_mins_ago.minute, now.minute):
         for i in range(1, 12):
             # set metric for every 5 second intervals
             seconds = i * 5
@@ -36,13 +40,9 @@ def get_dummy_metrics(tr):
         print(fdb.tuple.unpack(k), '=>', fdb.tuple.unpack(v))
 
 
-@fdb.transactional
-def clear_db(tr):
-    del tr[monitoring.range(())]  # clear the directory
-
-
 if __name__ == '__main__':
     print('initializing fdb..')
     db = init_db()
     monitoring = fdb.directory.create_or_open(db, ('monitoring',))
     set_dummy_metrics(db)
+    get_dummy_metrics(db)
