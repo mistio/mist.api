@@ -118,6 +118,7 @@ class MachineController(object):
                         datetime.datetime.strptime(
                             exp_date, '%Y-%m-%d %H:%M:%S')
                     self.machine.expiration.max_run_count += 1
+                    self.machine.expiration.task_type.action = exp_action
                     self.machine.expiration.save()
                     if exp_reminder:
                         if self.machine.expiration.reminder:
