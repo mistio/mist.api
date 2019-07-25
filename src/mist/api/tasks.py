@@ -1065,12 +1065,14 @@ def run_machine_action(owner_id, action, name, machine_uuid):
                         user = machine.owned_by
                     else:
                         user = machine.created_by
+                    machine_uri = config.CORE_URI + '/machines/%s' % machine.id
                     subject = config.MACHINE_EXPIRE_NOTIFY_EMAIL_SUBJECT
                     main_body = config.MACHINE_EXPIRE_NOTIFY_EMAIL_BODY
                     body = main_body % ((user.first_name + " " +
-                                        user.last_name),
+                                        user.last_name).strip(),
                                         machine.name,
-                                        machine.expiration,
+                                        machine.expiration.schedule_type.entry,
+                                        machine_uri + '/expiration'
                                         config.CORE_URI)
                     log.info('about to send email...')
                     if not helper_send_email(subject, body, user.email):
