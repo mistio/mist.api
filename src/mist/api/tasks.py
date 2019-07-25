@@ -1072,7 +1072,7 @@ def run_machine_action(owner_id, action, name, machine_uuid):
                                         user.last_name).strip(),
                                         machine.name,
                                         machine.expiration.schedule_type.entry,
-                                        machine_uri + '/expiration'
+                                        machine_uri + '/expiration',
                                         config.CORE_URI)
                     log.info('about to send email...')
                     if not helper_send_email(subject, body, user.email):
