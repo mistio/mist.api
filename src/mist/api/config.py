@@ -264,6 +264,51 @@ HOME_DASHBOARD_DEFAULT = {
     }
 }
 
+FDB_MACHINE_DASHBOARD_DEFAULT = {
+    "meta": {},
+    "dashboard": {
+        "id": 1,
+        "refresh": "10sec",
+        "rows": [{
+            "title": "Load, CPU, RAM, Uptime",
+            "panels": [{
+                "id": 0,
+                "title": "Load",
+                "description": "Load average",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "A",
+                    "target": "system./load\d/"
+                }],
+                "x-axis": True,
+                "y-axis": True
+            }],
+        }, {
+            "panels": []
+        }],
+        "time": {
+            "from": "now-10m",
+            "to": "now"
+        },
+        "timepicker": {
+            "now": True,
+            "refresh_intervals": [],
+            "time_options": [
+                "10m",
+                "1h",
+                "6h",
+                "24h",
+                "7d",
+                "30d"
+            ]
+        },
+        "timezone": "browser"
+    }
+}
+
 INFLUXDB_MACHINE_DASHBOARD_DEFAULT = {
     "meta": {},
     "dashboard": {
