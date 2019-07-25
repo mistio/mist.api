@@ -1260,12 +1260,6 @@ def maybe_submit_cloud_task(cloud, task_name):
     celery task.
 
     """
-    if task_name == 'list_zones':
-        if not (hasattr(cloud.ctl, 'dns') and cloud.dns_enabled):
-            return False
-    if task_name == 'list_networks':
-        if not hasattr(cloud.ctl, 'network'):
-            return False
     if task_name == 'list_projects':
         if cloud.ctl.provider != 'packet':
             return False
