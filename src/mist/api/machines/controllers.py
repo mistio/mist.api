@@ -177,6 +177,28 @@ class MachineController(object):
                     self.machine.expiration = Schedule.add(auth_context, name,
                                                            **params)
                     self.machine.save()
+
+            # Prepare exp date JSON patch to update the UI
+            patch = [{
+                'op': 'replace',
+                'path': '/%s-%s/expiration' % (
+                    self.machine.id, self.machine.machine_id),
+                'value': {
+                    'id': self.machine.expiration.id,
+                    'date': self.machine.expiration.schedule_type.entry,
+                    'action': self.machine.expiration.task_type.action,
+                    'notify': self.machine.expiration.reminder and int((
+                        self.machine.expiration.schedule_type.entry -
+                        self.machine.expiration.reminder.schedule_type.entry
+                    ).total_seconds()) or 0
+                }
+            }]
+            # Publish patches to rabbitmq.
+            amqp_publish_user(self.machine.cloud.owner.id,
+                              routing_key='patch_machines',
+                              data={'cloud_id': self.machine.cloud.id,
+                                    'patch': patch})
+
         return self.machine
 
     def ping_probe(self, persist=True):
