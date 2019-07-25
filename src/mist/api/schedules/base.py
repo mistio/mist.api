@@ -244,7 +244,10 @@ class BaseController(object):
                         auth_context, name, **params)
 
         # set schedule attributes
-        kwargs.pop('conditions')
+        try:
+            kwargs.pop('conditions')
+        except KeyError:
+            pass
         for key, value in kwargs.items():
             if key in self.schedule._fields:
                 setattr(self.schedule, key, value)
