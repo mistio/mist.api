@@ -5,6 +5,8 @@ import mongoengine as me
 import time
 import requests
 
+from random import randrange
+
 from future.utils import string_types
 
 from libcloud.compute.base import NodeSize, NodeImage, NodeLocation, Node
@@ -149,7 +151,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                    schedule={}, command=None, tags=None,
                    bare_metal=False, hourly=True,
                    softlayer_backend_vlan_id=None, machine_username='',
-                   volumes=[], ip_addresses=[]):
+                   volumes=[], ip_addresses=[], expiration={},
+                   ):
     """Creates a new virtual machine on the specified cloud.
 
     If the cloud is Rackspace it attempts to deploy the node with an ssh key
@@ -447,6 +450,23 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
 
     # Assign machine's owner/creator
     machine.assign_to(auth_context.user)
+
+    # add schedule if expiration given
+
+    if expiration:
+        params = {
+            'schedule_type': 'one_off',
+            'description': 'Scheduled to run when machine expires',
+            'schedule_entry': expiration.get('date'),
+            'action': expiration.get('action'),
+            'conditions': [{'type': 'machines', 'ids': [machine.id]}],
+            'task_enabled': True,
+            'notify': expiration.get('notify', '')
+        }
+        name = machine.name + '-expiration-' + str(randrange(1000))
+        from mist.api.schedules.models import Schedule
+        machine.expiration = Schedule.add(auth_context, name, **params)
+        machine.save()
 
     if key is not None:  # Associate key.
         username = node.extra.get('username', '')
@@ -898,8 +918,8 @@ def _create_machine_docker(conn, machine_name, image_id,
                 command=docker_command,
                 environment=environment,
                 tty=tty_attach,
-                ports=docker_exposed_ports,
-                port_bindings=docker_port_bindings
+                ports=docker_exposed_ports or {},
+                port_bindings=docker_port_bindings or {}
             )
         except Exception as e:
             # if image not found, try to pull it
