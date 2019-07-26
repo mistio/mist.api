@@ -1,4 +1,3 @@
-import mongoengine as me
 import uuid
 import logging
 from pyramid.response import Response
@@ -21,8 +20,6 @@ from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import BadRequestError, NotFoundError
 from mist.api.exceptions import MachineCreationError, RedirectError
 from mist.api.exceptions import CloudUnauthorizedError, CloudUnavailableError
-from mist.api.exceptions import CloudNotFoundError
-from mist.api.exceptions import MachineNotFoundError
 
 from mist.api.monitoring.methods import enable_monitoring
 from mist.api.monitoring.methods import disable_monitoring
@@ -596,29 +593,45 @@ def edit_machine(request):
           description: seconds before the expiration date to be notified
     """
     cloud_id = request.matchdict.get('cloud')
-    machine_id = request.matchdict['machine']
-    auth_context = auth_context_from_request(request)
     params = params_from_request(request)
+    auth_context = auth_context_from_request(request)
 
-    try:
-        cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
-                                  deleted=None)
-    except me.DoesNotExist:
-        raise CloudNotFoundError()
+    if cloud_id:
+        machine_id = request.matchdict['machine']
+        auth_context.check_perm("cloud", "read", cloud_id)
+        try:
+            machine = Machine.objects.get(cloud=cloud_id,
+                                          machine_id=machine_id,
+                                          state__ne='terminated')
+            # used by logging_view_decorator
+            request.environ['machine_uuid'] = machine.id
+        except Machine.DoesNotExist:
+            raise NotFoundError("Machine %s doesn't exist" % machine_id)
+    else:
+        machine_uuid = request.matchdict['machine_uuid']
+        try:
+            machine = Machine.objects.get(id=machine_uuid)
+            # VMs in libvirt can be started no matter if they are terminated
+            if machine.state == 'terminated' and not isinstance(machine.cloud,
+                                                                LibvirtCloud):
+                raise NotFoundError(
+                    "Machine %s has been terminated" % machine_uuid
+                )
+            # used by logging_view_decorator
+            request.environ['machine_id'] = machine.machine_id
+            request.environ['cloud_id'] = machine.cloud.id
+        except Machine.DoesNotExist:
+            raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
 
-    try:
-        machine = Machine.objects.get(cloud=cloud, id=machine_id)
-    except me.DoesNotExist:
-        raise MachineNotFoundError()
+        cloud_id = machine.cloud.id
+        auth_context.check_perm("cloud", "read", cloud_id)
 
-    # SEC
-    auth_context.check_perm('cloud', 'read', cloud_id)
-    auth_context.check_perm('machine', 'edit', machine_id)
+    if machine.cloud.owner != auth_context.owner:
+        raise NotFoundError("Machine %s doesn't exist" % machine.id)
 
-    machine.ctl.update(auth_context, **params)
+    auth_context.check_perm('machine', 'edit', machine)
 
-    trigger_session_update(auth_context.owner, ['machines'])
-    return machine.as_dict()
+    return machine.ctl.update(auth_context, params)
 
 
 @view_config(route_name='api_v1_cloud_machine',
@@ -684,7 +697,6 @@ def machine_actions(request):
     auth_context = auth_context_from_request(request)
 
     if cloud_id:
-        # this is depracated, keep it for backwards compatibility
         machine_id = request.matchdict['machine']
         auth_context.check_perm("cloud", "read", cloud_id)
         try:

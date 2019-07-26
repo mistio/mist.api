@@ -147,8 +147,6 @@ class BaseController(object):
         if self.schedule.start_after and self.schedule.start_after < now:
             raise BadRequestError('Date of future task is in the past. '
                                   'Please contact Marty McFly')
-        # Schedule conditions pre-parsing.
-        conditions = kwargs.get('conditions', [])
         try:
             self._update__preparse_machines(auth_context, kwargs)
         except MistError as exc:
@@ -214,42 +212,42 @@ class BaseController(object):
                 delta = future_date - now
 
                 if schedule_type == 'reminder':
-                    reminder = schedules.Reminder(period='seconds',
-                                                  every=delta.seconds,
-                                                  entry=future_date)
-                    self.schedule.schedule_type = reminder
+                    self.schedule.schedule_type = schedules.Reminder(
+                        period='seconds',
+                        every=delta.seconds,
+                        entry=future_date)
                 else:
-                    one_off = schedules.OneOff(period='seconds',
-                                               every=delta.seconds,
-                                               entry=future_date)
-                    self.schedule.schedule_type = one_off
-
+                    self.schedule.schedule_type = schedules.OneOff(
+                        period='seconds',
+                        every=delta.seconds,
+                        entry=future_date)
                 self.schedule.max_run_count = 1
 
                 notify = kwargs.pop('notify', 0)
-                reminder = None
                 if notify:
-                    params = {}
-                    description = 'Scheduled to notify before machine expires'
-                    params.update({'schedule_type': 'reminder'})
-                    params.update({'description': description})
-                    params.update({'task_enabled': True})
-
                     _delta = datetime.timedelta(0, notify)
                     notify_at = future_date - _delta
                     notify_at = notify_at.strftime('%Y-%m-%d %H:%M:%S')
-                    params.update({'schedule_entry': notify_at})
-                    params.update({'action': 'notify'})
-                    machine_id = conditions[0].get('ids')[0]
-                    _conditions = [{'type': 'machines', 'ids': [machine_id]}]
-                    params.update({'conditions': _conditions})
-                    name = 'reminder_' + self.schedule.name
+                    params = {
+                        'action': 'notify',
+                        'schedule_type': 'reminder',
+                        'description': 'Machine expiration reminder',
+                        'task_enabled': True,
+                        'schedule_entry': notify_at,
+                        'conditions': kwargs.get('conditions')
+                    }
+                    name = self.schedule.name + '-reminder'
+                    if self.schedule.reminder:
+                        self.schedule.reminder.delete()
                     from mist.api.schedules.models import Schedule
-                    reminder = Schedule.add(auth_context, name, **params)
-
-                self.schedule.reminder = reminder
+                    self.schedule.reminder = Schedule.add(
+                        auth_context, name, **params)
 
         # set schedule attributes
+        try:
+            kwargs.pop('conditions')
+        except KeyError:
+            pass
         for key, value in kwargs.items():
             if key in self.schedule._fields:
                 setattr(self.schedule, key, value)
@@ -290,14 +288,14 @@ class BaseController(object):
 
         if kwargs.get('conditions'):
             self.schedule.conditions = []
-        for condition in kwargs.pop('conditions', []):
+        for condition in kwargs.get('conditions', []):
             if condition.get('type') not in cond_cls:
                 raise BadRequestError()
             if condition['type'] == 'field':
                 if condition['field'] not in ('created', 'state',
                                               'cost__monthly'):
                     raise BadRequestError()
-            cond = cond_cls[condition.pop('type')]()
+            cond = cond_cls[condition.get('type')]()
             cond.update(**condition)
             self.schedule.conditions.append(cond)
 

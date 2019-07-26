@@ -17,7 +17,6 @@ from base64 import b64encode
 
 from memcache import Client as MemcacheClient
 
-from celery import group
 from celery import Task
 from celery.exceptions import SoftTimeLimitExceeded
 
@@ -923,13 +922,8 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
     :param action:
     :param name:
     :param machines_uuids:
-    :return: glist
+    :return: log_dict
     """
-    glist = []
-
-    for machine_uuid in machines_uuids:
-        glist.append(run_machine_action.s(owner_id, action, name,
-                                          machine_uuid))
 
     schedule = Schedule.objects.get(owner=owner_id, name=name, deleted=None)
 
@@ -950,10 +944,13 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
 
     log_event(action='schedule_started', **log_dict)
     log.info('Schedule action started: %s', log_dict)
-    try:
-        group(glist)()
-    except Exception as exc:
-        log_dict['error'] = str(exc)
+
+    for machine_uuid in machines_uuids:
+        try:
+            run_machine_action.s(owner_id, action, name,
+                                 machine_uuid)()
+        except Exception as exc:
+            log_dict['error'] = log_dict.get('error', '') + str(exc) + '\n'
 
     log_dict.update({'last_run_at': str(schedule.last_run_at or ''),
                     'total_run_count': schedule.total_run_count or 0,
@@ -1068,12 +1065,14 @@ def run_machine_action(owner_id, action, name, machine_uuid):
                         user = machine.owned_by
                     else:
                         user = machine.created_by
+                    machine_uri = config.CORE_URI + '/machines/%s' % machine.id
                     subject = config.MACHINE_EXPIRE_NOTIFY_EMAIL_SUBJECT
                     main_body = config.MACHINE_EXPIRE_NOTIFY_EMAIL_BODY
                     body = main_body % ((user.first_name + " " +
-                                        user.last_name),
+                                        user.last_name).strip(),
                                         machine.name,
-                                        machine.expiration_date,
+                                        machine.expiration.schedule_type.entry,
+                                        machine_uri + '/expiration',
                                         config.CORE_URI)
                     log.info('about to send email...')
                     if not helper_send_email(subject, body, user.email):
@@ -1110,13 +1109,7 @@ def group_run_script(owner_id, script_id, name, machines_uuids, params=''):
     :param cloud_machines_pairs:
     :return:
     """
-    glist = []
     job_id = uuid.uuid4().hex
-    for machine_uuid in machines_uuids:
-            glist.append(run_script.s(owner_id, script_id, machine_uuid,
-                                      params=params,
-                                      job_id=job_id, job='schedule'))
-
     schedule = Schedule.objects.get(owner=owner_id, name=name, deleted=None)
 
     log_dict = {
@@ -1138,10 +1131,14 @@ def group_run_script(owner_id, script_id, name, machines_uuids, params=''):
 
     log_event(action='schedule_started', **log_dict)
     log.info('Schedule started: %s', log_dict)
-    try:
-        group(glist)()
-    except Exception as exc:
-        log_dict['error'] = str(exc)
+
+    for machine_uuid in machines_uuids:
+        try:
+            run_script.s(owner_id, script_id, machine_uuid,
+                         params=params,
+                         job_id=job_id, job='schedule')()
+        except Exception as exc:
+            log_dict['error'] = log_dict.get('error', '') + str(exc) + '\n'
 
     log_dict.update({'last_run_at': str(schedule.last_run_at or ''),
                      'total_run_count': schedule.total_run_count or 0,
