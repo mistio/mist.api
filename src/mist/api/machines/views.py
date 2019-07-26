@@ -450,8 +450,7 @@ def create_machine(request):
               'new_resource_group': new_resource_group,
               'machine_username': machine_username,
               'volumes': volumes,
-              'ip_addresses': ip_addresses,
-              'expiration': expiration}
+              'ip_addresses': ip_addresses}
 
     if not run_async:
         ret = methods.create_machine(auth_context, *args, **kwargs)
