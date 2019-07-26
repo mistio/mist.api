@@ -665,21 +665,28 @@ def _create_machine_aliyun(conn, key_name, public_key,
                            user_data, security_group_id=None):
     """Create a machine in Alibaba Aliyun ECS.
     """
-    name = config.ECS_VPC.get('name', '')
-    description = config.ECS_VPC.get('description', '')
-
+    sec_gr_name = config.EC2_SECURITYGROUP.get('name', '')
+    sec_gr_description = config.EC2_SECURITYGROUP.get('description', '')
+    vpc_name = config.ECS_VPC.get('name', '')
+    vpc_description = config.ECS_VPC.get('description', '')
     security_groups = conn.ex_list_security_groups()
-    mist_sg = [sg for sg in security_groups if sg.name == name]
+    mist_sg = [sg for sg in security_groups if sg.name == sec_gr_name]
 
     if not len(mist_sg) or not mist_sg[0].vpc_id:
-        filters = {'VpcName': name, 'Description': description}
+        filters = {'VpcName': vpc_name, 'Description': vpc_description}
         vpc_id = conn.ex_create_network(ex_filters=filters)
+        # wait for vpc to be available
+        timeout = time.time() + 30
+        while time.time() < timeout:
+            vpcs = conn.ex_list_networks(ex_filters={'VpcId': vpc_id})
+            if vpcs[0].status == 'Available':
+                break
+            time.sleep(2)
+
         security_group_id = conn.ex_create_security_group(vpc_id=vpc_id)
 
-        name = config.EC2_SECURITYGROUP.get('name', '')
-        description = config.EC2_SECURITYGROUP.get('description', '')
-        conn.ex_modify_security_group_by_id(security_group_id, name=name,
-                                            description=description)
+        conn.ex_modify_security_group_by_id(security_group_id, name=sec_gr_name,
+                                            description=sec_gr_description)
         conn.ex_authorize_security_group(security_group_id, 'Allow SSH',
                                          'tcp', '22/22', )
     else:
