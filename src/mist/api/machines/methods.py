@@ -672,7 +672,8 @@ def _create_machine_aliyun(conn, key_name, public_key,
     mist_sg = [sg for sg in security_groups if sg.name == name]
 
     if not len(mist_sg) or not mist_sg[0].vpc_id:
-        vpc_id = conn.ex_create_network(ex_filters={'VpcName': name, 'Description': description})
+        filters = {'VpcName': name, 'Description': description}
+        vpc_id = conn.ex_create_network(ex_filters=filters)
         security_group_id = conn.ex_create_security_group(vpc_id=vpc_id)
 
         name = config.EC2_SECURITYGROUP.get('name', '')
@@ -689,7 +690,8 @@ def _create_machine_aliyun(conn, key_name, public_key,
     if switches:
         ex_vswitch_id = switches[0].id
     else:
-        ex_vswitch_id = conn.ex_create_switch('172.16.0.0/24', location.id, vpc_id)
+        ex_vswitch_id = conn.ex_create_switch('172.16.0.0/24',
+                                              location.id, vpc_id)
 
     kwargs = {
         'auth': NodeAuthSSHKey(pubkey=public_key.replace('\n', '')),
