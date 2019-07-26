@@ -221,7 +221,7 @@ GRAPHITE_BUILTIN_METRICS = {
     },
 }
 
-FOUNDATIONDB_BUILTIN_METRICS = {
+FDB_BUILTIN_METRICS = {
     'system.load1': {
         'name': 'Load',
         'unit': '',
