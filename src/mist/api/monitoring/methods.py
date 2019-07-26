@@ -204,6 +204,12 @@ def check_monitoring(owner):
             'builtin_metrics': config.INFLUXDB_BUILTIN_METRICS,
             'builtin_metrics_influxdb': config.INFLUXDB_BUILTIN_METRICS,
         })
+    elif config.DEFAULT_MONITORING_METHOD.endswith('foundationdb'):
+         ret.update({
+            # Keep for backwards compatibility
+            'builtin_metrics': config.FOUNDATIONDB_BUILTIN_METRICS,
+            'builtin_metrics_foundationdb': config.FOUNDATIONDB_BUILTIN_METRICS,
+        })   
     for key in ('rules', 'builtin_metrics', 'custom_metrics'):
         for id in ret[key]:
             ret[key][id]['id'] = id
@@ -293,7 +299,8 @@ def enable_monitoring(owner, cloud_id, machine_id, no_ssh=False, dry=False,
     # Attempt to contact monitor server and enable monitoring for the machine
     try:
         if machine.monitoring.method in ('telegraf-influxdb',
-                                         'telegraf-graphite'):
+                                         'telegraf-graphite',
+                                         'telegraf-foundationdb'):
             traefik.reset_config()
     except Exception as exc:
         machine.monitoring.installation_status.state = 'failed'
@@ -369,7 +376,7 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=''):
         ret_dict['job'] = job
 
         if machine.monitoring.method in ('telegraf-influxdb',
-                                         'telegraf-graphite'):
+                                         'telegraf-graphite', 'telegraf-foundationdb'):
             # Schedule undeployment of Telegraf.
             mist.api.monitoring.tasks.uninstall_telegraf.delay(machine.id,
                                                                job, job_id)

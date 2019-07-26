@@ -221,6 +221,14 @@ GRAPHITE_BUILTIN_METRICS = {
     },
 }
 
+FOUNDATIONDB_BUILTIN_METRICS = {
+    'system.load1': {
+        'name': 'Load',
+        'unit': '',
+        'max_value': 64,
+        'min_value': 0,
+    },
+}
 
 # Default Dashboards.
 HOME_DASHBOARD_DEFAULT = {

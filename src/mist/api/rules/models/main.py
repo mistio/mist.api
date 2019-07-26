@@ -388,6 +388,8 @@ class MachineMetricRule(ResourceRule):
             return GraphiteBackendPlugin
         if config.DEFAULT_MONITORING_METHOD.endswith('-influxdb'):
             return InfluxDBBackendPlugin
+        if config.DEFAULT_MONITORING_METHOD.endswith('-foundationdb'):
+            return InfluxDBBackendPlugin
         raise Exception()
 
     def clean(self):
@@ -407,6 +409,8 @@ class NoDataRule(MachineMetricRule):
         if config.DEFAULT_MONITORING_METHOD.endswith('-graphite'):
             return GraphiteNoDataPlugin
         if config.DEFAULT_MONITORING_METHOD.endswith('-influxdb'):
+            return InfluxDBNoDataPlugin
+        if config.DEFAULT_MONITORING_METHOD.endswith('-foundationdb'):
             return InfluxDBNoDataPlugin
         raise Exception()
 
