@@ -368,6 +368,8 @@ class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
             self.resource_model_name = 'machine'
 
     def delete(self):
+        if self.reminder:
+            self.reminder.delete()
         super(Schedule, self).delete()
         Tag.objects(resource_id=self.id, resource_type='schedule').delete()
         self.owner.mapper.remove(self)
