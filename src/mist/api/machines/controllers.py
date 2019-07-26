@@ -107,77 +107,40 @@ class MachineController(object):
 
     def update(self, auth_context, params={}):
         if params.get('expiration'):
+            """
+            FIXME: we're recreating instead of updating existing expiration
+                   schedules because updating them doesn't seem to affect the
+                   actual expiration datetime.
+            """
             from mist.api.schedules.models import Schedule
             exp_date = params['expiration']['date']
             exp_reminder = int(params['expiration'].get('notify', 0) or 0)
             exp_action = params['expiration'].get('action', 'stop')
             assert exp_action in ['stop', 'destroy'], 'Invalid action'
             if self.machine.expiration:  # Existing expiration schedule
-                if exp_date:  # Update schedule
-                    self.machine.expiration.schedule_type.entry = \
-                        datetime.datetime.strptime(
-                            exp_date, '%Y-%m-%d %H:%M:%S')
-                    self.machine.expiration.max_run_count += 1
-                    self.machine.expiration.task_type.action = exp_action
-                    self.machine.expiration.save()
-                    if exp_reminder:
-                        if self.machine.expiration.reminder:
-                            # Update existing reminder
-                            rmd = self.machine.expiration.reminder
-                            rmd.schedule_type.entry = \
-                                self.machine.expiration.schedule_type.entry - \
-                                datetime.timedelta(seconds=exp_reminder)
-                            rmd.max_run_count += 1
-                            rmd.save()
-                        else:  # Create new reminder
-                            notify_at = (
-                                self.machine.expiration.schedule_type.entry -
-                                datetime.timedelta(0, exp_reminder)
-                            ).strftime('%Y-%m-%d %H:%M:%S')
-                            params = {
-                                'action': 'notify',
-                                'schedule_type': 'reminder',
-                                'description': 'Machine expiration reminder',
-                                'task_enabled': True,
-                                'schedule_entry': notify_at,
-                                'conditions': self.machine.expiration.as_dict(
-                                ).get('conditions')
-                            }
-                            name = self.machine.expiration.name + \
-                                '-reminder'
-                            self.machine.expiration.reminder = Schedule.add(
-                                auth_context, name, **params)
+                # Delete after removing db ref
+                sched = self.machine.expiration
+                self.machine.expiration = None
+                self.machine.save()
+                sched.delete()
 
-                    elif exp_reminder == 0:
-                        if self.machine.expiration.reminder:
-                            # Delete existing reminder safely
-                            rmd = self.machine.expiration.reminder
-                            self.machine.expiration.reminder = None
-                            self.machine.expiration.save()
-                            rmd.delete()
-                else:  # Delete existing schedule safely
-                    sched = self.machine.expiration
-                    self.machine.expiration = None
-                    self.machine.save()
-                    sched.delete()
-            else:  # No expiration schedule found
-                if exp_date:  # Create new expiration schedule
-                    params = {
-                        'description': 'Scheduled to run when machine expires',
-                        'task_enabled': True,
-                        'schedule_type': 'one_off',
-                        'schedule_entry': exp_date,
-                        'action': exp_action,
-                        'conditions': [
-                            {'type': 'machines', 'ids': [self.machine.id]}
-                        ],
-                        'notify': exp_reminder
-                    }
-                    name = self.machine.name + '-expiration-' + str(
-                        randrange(1000))
-                    self.machine.expiration = Schedule.add(auth_context, name,
-                                                           **params)
-                    self.machine.save()
+            if exp_date:  # Create new expiration schedule
+                params = {
+                    'description': 'Scheduled to run when machine expires',
+                    'task_enabled': True,
+                    'schedule_type': 'one_off',
+                    'schedule_entry': exp_date,
+                    'action': exp_action,
+                    'conditions': [
+                        {'type': 'machines', 'ids': [self.machine.id]}
+                    ],
+                    'notify': exp_reminder
+                }
+                name = self.machine.name + '-expiration-' + str(
+                    randrange(1000))
+                self.machine.expiration = Schedule.add(auth_context, name,
+                                                       **params)
+                self.machine.save()
 
             # Prepare exp date JSON patch to update the UI
             if not self.machine.expiration:
