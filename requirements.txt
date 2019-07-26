@@ -15,6 +15,7 @@ amqp<3.0
 # celery 5 will only support python3
 celery>=4.0,<5.0
 dnspython
+dateparser
 elasticsearch
 elasticsearch_tornado
 flake8

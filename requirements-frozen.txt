@@ -18,6 +18,7 @@ chardet==3.0.4
 configparser==3.5.0
 coverage==4.5.1
 cryptography==2.3.1
+dateparser==0.7.1
 decorator==4.3.0
 dnspython==1.15.0
 elasticsearch==6.3.1
