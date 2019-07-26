@@ -826,6 +826,7 @@ FAILED_LOGIN_RATE_LIMIT = {
 }
 
 BANNED_EMAIL_PROVIDERS = [
+    'qq.com',
     'mailinator.com',
     'bob.info',
     'veryreallemail.com',
@@ -1576,9 +1577,11 @@ Govern the clouds
 
 MACHINE_EXPIRE_NOTIFY_EMAIL_SUBJECT = "[mist.io] Machine is about to expire"
 
-MACHINE_EXPIRE_NOTIFY_EMAIL_BODY = """Hi %s,
+MACHINE_EXPIRE_NOTIFY_EMAIL_BODY = """Dear %s,
 
-Your machine %s will expire at %s
+Your machine `%s` will expire at %s
+
+If you'd like to prevent that, please update the expiration date at %s
 
 Best regards,
 The mist.io team

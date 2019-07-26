@@ -454,25 +454,18 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     # add schedule if expiration given
 
     if expiration:
-        params = {}
-        description = 'Scheduled to run when machine expires'
-        params.update({'schedule_type': 'one_off'})
-        params.update({'description': description})
-        params.update({'task_enabled': True})
-        params.update({'schedule_entry': expiration.get('date')})
-        params.update({'action': expiration.get('action')})
-        conditions = [{'type': 'machines', 'ids': [machine.id]}]
-        params.update({'conditions': conditions})
-        name = machine.name + '_expires' + str(randrange(1000))
-        notify = expiration.get('notify', '')
-        params.update({'notify': notify})
+        params = {
+            'schedule_type': 'one_off',
+            'description': 'Scheduled to run when machine expires',
+            'schedule_entry': expiration.get('date'),
+            'action': expiration.get('action'),
+            'conditions': [{'type': 'machines', 'ids': [machine.id]}],
+            'task_enabled': True,
+            'notify': expiration.get('notify', '')
+        }
+        name = machine.name + '-expiration-' + str(randrange(1000))
         from mist.api.schedules.models import Schedule
-        exp_schedule = Schedule.add(auth_context, name, **params)
-
-        machine.expiration_date = expiration.get('date')
-        machine.expiration_action = expiration.get('action')
-        machine.expiration_notify = expiration.get('notify')
-        machine.expiration_schedule = exp_schedule
+        machine.expiration = Schedule.add(auth_context, name, **params)
         machine.save()
 
     if key is not None:  # Associate key.
@@ -925,8 +918,8 @@ def _create_machine_docker(conn, machine_name, image_id,
                 command=docker_command,
                 environment=environment,
                 tty=tty_attach,
-                ports=docker_exposed_ports,
-                port_bindings=docker_port_bindings
+                ports=docker_exposed_ports or {},
+                port_bindings=docker_port_bindings or {}
             )
         except Exception as e:
             # if image not found, try to pull it

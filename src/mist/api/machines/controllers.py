@@ -105,61 +105,73 @@ class MachineController(object):
             return self.machine.private_ips[0]
         raise RuntimeError("Couldn't find machine host.")
 
-    def update(self, auth_context, expiration={}):
-        schedule = self.machine.expiration_schedule
-
-        self.machine.expiration_action = expiration.get('action', 'stop')
-        self.machine.expiration_date = expiration.get('date')
-        self.machine.expiration_notify = expiration.get('notify', 0)
-
-        # schedule needs to be removed
-        if schedule and not expiration.get('date', ''):
-            # remove the reminder as well
-            if schedule.reminder:
-                schedule.reminder.delete()
-
-            schedule.delete()
-            self.machine.expiration_schedule = None
-
-        # schedule needs to be added
-        elif schedule is None and expiration.get('date'):
-            params = {}
-            description = 'Scheduled to run when machine expires'
-            params.update({'schedule_type': 'one_off'})
-            params.update({'description': description})
-            params.update({'task_enabled': True})
-            params.update({'schedule_entry': expiration.get('date')})
-            params.update({'action': expiration.get('action')})
-            conditions = [{'type': 'machines', 'ids': [self.machine.id]}]
-            params.update({'conditions': conditions})
-            name = self.machine.name + '_expires' + str(randrange(1000))
-            notify = expiration.get('notify', 0)
-            params.update({'notify': notify})
+    def update(self, auth_context, params={}):
+        if params.get('expiration'):
+            """
+            FIXME: we're recreating instead of updating existing expiration
+                   schedules because updating them doesn't seem to affect the
+                   actual expiration datetime.
+            """
             from mist.api.schedules.models import Schedule
-            exp_sch = Schedule.add(auth_context, name, **params)
-            self.machine.expiration_schedule = exp_sch
+            exp_date = params['expiration']['date']
+            exp_reminder = int(params['expiration'].get('notify', 0) or 0)
+            exp_action = params['expiration'].get('action', 'stop')
+            assert exp_action in ['stop', 'destroy'], 'Invalid action'
+            if self.machine.expiration:  # Existing expiration schedule
+                # Delete after removing db ref
+                sched = self.machine.expiration
+                self.machine.expiration = None
+                self.machine.save()
+                sched.delete()
 
-        # schedule exists, will modify it
-        elif schedule and expiration.get('date'):
-            # reminder needs to be deleted
-            if schedule.reminder:
-                schedule.reminder.delete()
-                schedule.reminder = None
-                schedule.save()
+            if exp_date:  # Create new expiration schedule
+                params = {
+                    'description': 'Scheduled to run when machine expires',
+                    'task_enabled': True,
+                    'schedule_type': 'one_off',
+                    'schedule_entry': exp_date,
+                    'action': exp_action,
+                    'conditions': [
+                        {'type': 'machines', 'ids': [self.machine.id]}
+                    ],
+                    'notify': exp_reminder
+                }
+                name = self.machine.name + '-expiration-' + str(
+                    randrange(1000))
+                self.machine.expiration = Schedule.add(auth_context, name,
+                                                       **params)
+                self.machine.save()
 
-            params = {}
-            params.update({'schedule_entry': expiration.get('date')})
-            params.update({'action': expiration.get('action', 'stop')})
-            params.update({'notify': expiration.get('notify', 0)})
-            conditions = [{'type': 'machines', 'ids': [self.machine.id]}]
-            params.update({'conditions': conditions})
-            name = self.machine.name + '_expires' + str(randrange(1000))
-            schedule.ctl.set_auth_context(auth_context)
-            schedule.ctl.update(**params)
+            # Prepare exp date JSON patch to update the UI
+            if not self.machine.expiration:
+                patch = [{
+                    'op': 'remove',
+                    'path': '/%s-%s/expiration' % (
+                        self.machine.id, self.machine.machine_id)
+                }]
+            else:
+                patch = [{
+                    'op': 'replace',
+                    'path': '/%s-%s/expiration' % (
+                        self.machine.id, self.machine.machine_id),
+                    'value': not self.machine.expiration and None or {
+                        'id': self.machine.expiration.id,
+                        'date': self.machine.expiration.schedule_type.entry,
+                        'action': self.machine.expiration.task_type.action,
+                        'notify': self.machine.expiration.reminder and int((
+                            self.machine.expiration.schedule_type.entry -
+                            self.machine.expiration.reminder.schedule_type.
+                            entry
+                        ).total_seconds()) or 0
+                    }
+                }]
+            # Publish patches to rabbitmq.
+            amqp_publish_user(self.machine.cloud.owner.id,
+                              routing_key='patch_machines',
+                              data={'cloud_id': self.machine.cloud.id,
+                                    'patch': patch})
 
-        self.machine.save()
-
-        return
+        return self.machine
 
     def ping_probe(self, persist=True):
         if not self.machine.cloud.enabled:
