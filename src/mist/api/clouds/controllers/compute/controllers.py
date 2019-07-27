@@ -304,7 +304,8 @@ class AlibabaComputeController(AmazonComputeController):
         return size.extra['cpu_core_count']
 
     def _list_sizes__get_name(self, size):
-        specs = str(size.extra['cpu_core_count']) + ' cpus/ ' + str(size.ram) + 'Gb RAM '
+        specs = str(size.extra['cpu_core_count']) + ' cpus/ ' \
+            + str(size.ram) + 'Gb RAM '
         return "%s (%s)" % (size.name, specs)
 
 

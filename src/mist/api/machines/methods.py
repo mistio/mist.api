@@ -685,7 +685,8 @@ def _create_machine_aliyun(conn, key_name, public_key,
 
         security_group_id = conn.ex_create_security_group(vpc_id=vpc_id)
 
-        conn.ex_modify_security_group_by_id(security_group_id, name=sec_gr_name,
+        conn.ex_modify_security_group_by_id(security_group_id,
+                                            name=sec_gr_name,
                                             description=sec_gr_description)
         conn.ex_authorize_security_group(security_group_id, 'Allow SSH',
                                          'tcp', '22/22', )
