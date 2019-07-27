@@ -33,18 +33,20 @@ EXCLUDED_ROUTE_NAMES = ['api_v1_avatars', 'api_v1_avatar', 'api_v1_fetch',
                         'api_v1_ping', 'api_v1_report', 'manage',
                         'api_v1_manage_orgs', 'api_v1_manage_org',
                         'api_v1_manage_users', 'api_v1_manage_user',
-                        'api_v1_logs_ui']
+                        'api_v1_logs_ui', 'api_v1_license', 'api_v1_section',
+                        'api_v1_version_check',
+                        'api_v1_cloudify_insights_register']
 
 
 def extract_params_from_operation(operation):
     params = []
     for key in list(set(operation.keys()) - OPENAPI_KEYWORDS):
-        if 'in' in operation[key].keys():
+        if 'in' in list(operation[key].keys()):
             p = {}
             p['name'] = key
             p['schema'] = {}
 
-            for k in operation[key].keys():
+            for k in list(operation[key].keys()):
                 if k in ['type', 'enum', 'default']:
                     p['schema'][k] = operation[key][k]
                 else:
@@ -60,10 +62,10 @@ def extract_request_body(operation, ret):
 
     for key in list(set(operation.keys()) - OPENAPI_KEYWORDS):
 
-        if 'in' not in operation[key].keys():
+        if 'in' not in list(operation[key].keys()):
             properties[key] = {}
 
-            for param in operation[key].keys():
+            for param in list(operation[key].keys()):
                 if param in ['type', 'description', 'example']:
                     properties[key][param] = operation[key][param]
 
@@ -90,26 +92,26 @@ def extract_request_body(operation, ret):
 
 def patch_operation(operation):
     ret = {}
-    if operation.keys() and 'responses' in operation.keys():
+    if list(operation.keys()) and 'responses' in list(operation.keys()):
         ret['responses'] = operation['responses']
     else:
         ret['responses'] = DEFAULT_RESPONSES
 
-    if 'parameters' in operation.keys():
+    if 'parameters' in list(operation.keys()):
         ret['parameters'] = operation['parameters']
     else:
         params = extract_params_from_operation(operation)
         if params:
             ret['parameters'] = params
 
-    if 'description' in operation.keys():
+    if 'description' in list(operation.keys()):
         ret['description'] = operation['description']
         ret['summary'] = operation['description'].split('.')[0]
 
-    if 'tags' in operation.keys():
+    if 'tags' in list(operation.keys()):
         ret['tags'] = operation['tags']
 
-    if 'requestBody' in operation.keys():
+    if 'requestBody' in list(operation.keys()):
         ret['requestBody'] = operation['requestBody']
 
     else:
@@ -162,7 +164,7 @@ def main():
                ('whitelist' not in route_name) and\
                route_name not in EXCLUDED_ROUTE_NAMES:
                 try:
-                    operation = docstring_to_object(func.func_doc)
+                    operation = docstring_to_object(func.__doc__)
                 except:
                     continue
                 if isinstance(request_method, tuple):

@@ -799,7 +799,7 @@ list_storage_accounts = app.register_task(ListStorageAccounts())
 def create_machine_async(
     auth_context_serialized, cloud_id, key_id, machine_name, location_id,
     image_id, size, image_extra, disk,
-    image_name, size_name, location_name, ips, monitoring, ex_disk_id,
+    image_name, size_name, location_name, ips, monitoring,
     ex_storage_account, machine_password, ex_resource_group,
     networks, subnetwork, docker_env, docker_command, script='',
     script_id='', script_params='',
@@ -815,7 +815,7 @@ def create_machine_async(
     associate_floating_ip_subnet=None, project_id=None,
     tags=None, schedule={}, bare_metal=False, hourly=True,
     softlayer_backend_vlan_id=None, machine_username='',
-    volumes=[]
+    volumes=[], ip_addresses=[]
 ):
     from multiprocessing.dummy import Pool as ThreadPool
     from mist.api.machines.methods import create_machine
@@ -849,7 +849,7 @@ def create_machine_async(
         specs.append((
             (auth_context, cloud_id, key_id, name, location_id, image_id,
              size, image_extra, disk, image_name, size_name,
-             location_name, ips, monitoring, ex_disk_id, ex_storage_account,
+             location_name, ips, monitoring, ex_storage_account,
              machine_password, ex_resource_group, networks, subnetwork,
              docker_env, docker_command, 22, script, script_id, script_params,
              job_id, job),
@@ -874,7 +874,8 @@ def create_machine_async(
              'bare_metal': bare_metal,
              'hourly': hourly,
              'machine_username': machine_username,
-             'volumes': volumes}
+             'volumes': volumes,
+             'ip_addresses': ip_addresses}
         ))
 
     def create_machine_wrapper(args_kwargs):

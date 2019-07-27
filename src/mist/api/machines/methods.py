@@ -8,6 +8,8 @@ import requests
 from future.utils import string_types
 
 from libcloud.compute.base import NodeSize, NodeImage, NodeLocation, Node
+from libcloud.compute.base import StorageVolume
+
 from libcloud.compute.types import Provider
 from libcloud.container.types import Provider as Container_Provider
 from libcloud.container.base import ContainerImage
@@ -147,7 +149,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                    schedule={}, command=None, tags=None,
                    bare_metal=False, hourly=True,
                    softlayer_backend_vlan_id=None, machine_username='',
-                   volumes=[]):
+                   volumes=[], ip_addresses=[]):
     """Creates a new virtual machine on the specified cloud.
 
     If the cloud is Rackspace it attempts to deploy the node with an ssh key
@@ -327,7 +329,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                 break
         node = _create_machine_ec2(conn, key.name, public_key,
                                    machine_name, image, size, ec2_location,
-                                   subnet_id, cloud_init)
+                                   subnet_id, cloud_init, volumes)
     elif conn.name == 'Aliyun ECS':
         node = _create_machine_aliyun(conn, key.name, public_key,
                                       machine_name, image, size, location,
@@ -338,33 +340,11 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             if libcloud_size.id == size.id:
                 size = libcloud_size
                 break
-        ex_disk = None
-        if ex_disk_id:
-            # transform disk id to libcloud's StorageVolume object
-            try:
-                from mist.api.volumes.models import Volume
-                volume = Volume.objects.get(id=ex_disk_id)
-                ex_disk_id = volume.external_id
-            except me.DoesNotExist:
-                # make sure mongo is up-to-date
-                cloud.ctl.volume.list_volumes()
-                try:
-                    volume = Volume.objects.get(id=ex_disk_id)
-                    ex_disk_id = volume.external_id
-                except me.DoesNotExist:
-                    raise VolumeNotFoundError()
-
-            # try to find disk using libcloud's id
-            libcloud_disks = conn.list_volumes()
-            for libcloud_disk in libcloud_disks:
-                if libcloud_disk.id == ex_disk_id:
-                    ex_disk = libcloud_disk
-                    break
 
         # FIXME: `networks` should always be an array, not a str like below
         node = _create_machine_gce(conn, key_id, private_key, public_key,
                                    machine_name, image, size, location,
-                                   networks, subnetwork, ex_disk, cloud_init)
+                                   networks, subnetwork, volumes, cloud_init)
     elif conn.type is Provider.SOFTLAYER:
         node = _create_machine_softlayer(
             conn, key_id, private_key, public_key,
@@ -436,17 +416,18 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                                      size, location, cloud_init)
     elif conn.type is Provider.LIBVIRT:
         node = _create_machine_libvirt(conn, machine_name,
-                                       disk_size=disk_size, ram=size_ram,
-                                       cpu=size_cpu, image=image_id,
+                                       disk_size=disk_size,
+                                       ram=size_ram, cpu=size_cpu,
+                                       image=image_id,
                                        disk_path=disk_path,
                                        networks=networks,
                                        public_key=public_key,
                                        cloud_init=cloud_init)
     elif conn.type == Provider.PACKET:
         node = _create_machine_packet(conn, public_key, machine_name, image,
-                                      size, location, cloud_init, project_id)
+                                      size, location, cloud_init, cloud,
+                                      project_id, volumes, ip_addresses)
     elif conn.type == Provider.MAXIHOST:
-        import ipdb; ipdb.set_trace()
         node = _create_machine_maxihost(conn, machine_name, image,
                                         size, location)
     else:
@@ -708,7 +689,7 @@ def _create_machine_aliyun(conn, key_name, public_key,
 
 def _create_machine_ec2(conn, key_name, public_key,
                         machine_name, image, size, location, subnet_id,
-                        user_data):
+                        user_data, volumes):
     """Create a machine in Amazon EC2.
     """
 
@@ -768,6 +749,21 @@ def _create_machine_ec2(conn, key_name, public_key,
 
     else:
         kwargs.update({'ex_securitygroup': config.EC2_SECURITYGROUP['name']})
+
+    if volumes:
+        mapping = {}
+        mapping.update({'Ebs': {'VolumeSize': volumes[0].get('size')}})
+        if volumes[0].get('name'):
+            mapping.update({'DeviceName': volumes[0].get('name')})
+        if volumes[0].get('type'):
+            mapping['Ebs'].update({'VolumeType': volumes[0].get('type')})
+        if volumes[0].get('iops'):
+            mapping['Ebs'].update({'Iops': volumes[0].get('iops')})
+        if volumes[0].get('delete_on_termination'):
+            delete_on_term = volumes[0].get('delete_on_termination')
+            mapping['Ebs'].update({'DeleteOnTermination': delete_on_term})
+
+        kwargs.update({'ex_blockdevicemappings': [mapping]})
 
     try:
         node = conn.create_node(**kwargs)
@@ -1059,7 +1055,8 @@ def _create_machine_hostvirtual(conn, public_key,
 
 
 def _create_machine_packet(conn, public_key, machine_name, image,
-                           size, location, cloud_init, project_id=None):
+                           size, location, cloud_init, cloud,
+                           project_id=None, volumes=[], ip_addresses=[]):
     """Create a machine in Packet.net.
     """
     key = public_key.replace('\n', '')
@@ -1090,6 +1087,35 @@ def _create_machine_packet(conn, public_key, machine_name, image,
                 break
         if not ex_project_id:
             raise BadRequestError("Project id is invalid")
+    ex_disk = None
+    disk_size = ''
+    if volumes:
+        if volumes[0].get('volume_id'):  # will try to attach to existing disk
+            # transform disk id to libcloud's StorageVolume object
+            try:
+                from mist.api.volumes.models import Volume
+                volume = Volume.objects.get(id=volumes[0].get('volume_id'))
+                ex_disk = StorageVolume(id=volume.external_id,
+                                        name=volume.name,
+                                        size=volume.size, driver=conn)
+            except me.DoesNotExist:
+                # make sure mongo is up-to-date
+                cloud.ctl.storage.list_volumes()
+                try:
+                    volume = Volume.objects.get(id=volumes[0].get('volume_id'))
+                    ex_disk = StorageVolume(id=volume.external_id,
+                                            name=volume.name,
+                                            size=volume.size, driver=conn)
+                except me.DoesNotExist:
+                    # try to find disk using libcloud's id
+                    libcloud_disks = conn.list_volumes()
+                    for libcloud_disk in libcloud_disks:
+                        if libcloud_disk.id == volumes[0].get('volume_id'):
+                            ex_disk = libcloud_disk
+                            break
+                    raise VolumeNotFoundError()
+        else:
+            disk_size = int(volumes[0].get('size'))
 
     try:
         node = conn.create_node(
@@ -1098,7 +1124,10 @@ def _create_machine_packet(conn, public_key, machine_name, image,
             image=image,
             location=location,
             ex_project_id=ex_project_id,
-            cloud_init=cloud_init
+            ip_addresses=ip_addresses,
+            cloud_init=cloud_init,
+            disk=ex_disk,
+            disk_size=disk_size
         )
     except Exception as e:
         raise MachineCreationError("Packet.net, got exception %s" % e, e)
@@ -1453,7 +1482,7 @@ def _create_machine_vsphere(conn, machine_name, image,
 
 
 def _create_machine_gce(conn, key_name, private_key, public_key, machine_name,
-                        image, size, location, network, subnetwork, ex_disk,
+                        image, size, location, network, subnetwork, volumes,
                         cloud_init):
     """Create a machine in GCE.
 
@@ -1473,6 +1502,26 @@ def _create_machine_gce(conn, key_name, private_key, public_key, machine_name,
         network = Network.objects.get(id=network).name
     except me.DoesNotExist:
         network = 'default'
+
+    ex_disk = None
+    disk_size = 10
+    if volumes:
+        if volumes[0].get('volume_id'):
+            from mist.api.volumes.models import Volume
+            volume_id = volumes[0]['volume_id']
+            volume = Volume.objects.get(id=volume_id)
+            ex_disk_id = volume.external_id
+
+            # try to find disk using libcloud's id
+            libcloud_disks = conn.list_volumes()
+            for libcloud_disk in libcloud_disks:
+                if libcloud_disk.id == ex_disk_id:
+                    ex_disk = libcloud_disk
+                    break
+
+        else:
+            disk_size = volumes[0].get('size')
+
     try:
         node = conn.create_node(
             name=machine_name,
@@ -1482,7 +1531,8 @@ def _create_machine_gce(conn, key_name, private_key, public_key, machine_name,
             ex_metadata=metadata,
             ex_network=network,
             ex_subnetwork=subnetwork,
-            ex_boot_disk=ex_disk
+            ex_boot_disk=ex_disk,
+            disk_size=disk_size
         )
     except Exception as e:
         raise MachineCreationError(
