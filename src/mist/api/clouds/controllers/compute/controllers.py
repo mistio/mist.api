@@ -300,6 +300,13 @@ class AlibabaComputeController(AmazonComputeController):
             locations.append(location)
         return locations
 
+    def _list_sizes__get_cpu(self, size):
+        return size.extra['cpu_core_count']
+
+    def _list_sizes__get_name(self, size):
+        specs = str(size.extra['cpu_core_count']) + ' cpus/ ' + str(size.ram) + 'Gb RAM '
+        return "%s (%s)" % (size.name, specs)
+
 
 class ClearAPIComputeController(BaseComputeController):
 
