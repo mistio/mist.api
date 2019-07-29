@@ -167,6 +167,10 @@ class OpenStackNetworkController(BaseNetworkController):
         self.cloud.ctl.compute.connection.ex_delete_subnet(libcloud_subnet.id)
 
 
+class AlibabaNetworkController(BaseNetworkController):
+    pass
+
+
 class LibvirtNetworkController(BaseNetworkController):
 
     def _list_networks__fetch_networks(self):

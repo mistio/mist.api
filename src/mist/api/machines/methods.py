@@ -665,19 +665,41 @@ def _create_machine_aliyun(conn, key_name, public_key,
                            user_data, security_group_id=None):
     """Create a machine in Alibaba Aliyun ECS.
     """
-
+    sec_gr_name = config.EC2_SECURITYGROUP.get('name', '')
+    sec_gr_description = config.EC2_SECURITYGROUP.get('description', '')
+    vpc_name = config.ECS_VPC.get('name', '')
+    vpc_description = config.ECS_VPC.get('description', '')
     security_groups = conn.ex_list_security_groups()
-    name = config.EC2_SECURITYGROUP.get('name', '')
-    description = config.EC2_SECURITYGROUP.get('description', '')
-    mist_sg = [sg for sg in security_groups if sg.name == name]
-    if not len(mist_sg):
-        security_group_id = conn.ex_create_security_group()
-        conn.ex_modify_security_group_by_id(security_group_id, name=name,
-                                            description=description)
+    mist_sg = [sg for sg in security_groups if sg.name == sec_gr_name]
+
+    if not len(mist_sg) or not mist_sg[0].vpc_id:
+        filters = {'VpcName': vpc_name, 'Description': vpc_description}
+        vpc_id = conn.ex_create_network(ex_filters=filters)
+        # wait for vpc to be available
+        timeout = time.time() + 30
+        while time.time() < timeout:
+            vpcs = conn.ex_list_networks(ex_filters={'VpcId': vpc_id})
+            if vpcs[0].status == 'Available':
+                break
+            time.sleep(2)
+
+        security_group_id = conn.ex_create_security_group(vpc_id=vpc_id)
+
+        conn.ex_modify_security_group_by_id(security_group_id,
+                                            name=sec_gr_name,
+                                            description=sec_gr_description)
         conn.ex_authorize_security_group(security_group_id, 'Allow SSH',
                                          'tcp', '22/22', )
     else:
+        vpc_id = mist_sg[0].vpc_id
         security_group_id = mist_sg[0].id
+
+    switches = conn.ex_list_switches(ex_filters={'VpcId': vpc_id})
+    if switches:
+        ex_vswitch_id = switches[0].id
+    else:
+        ex_vswitch_id = conn.ex_create_switch('172.16.0.0/24',
+                                              location.id, vpc_id)
 
     kwargs = {
         'auth': NodeAuthSSHKey(pubkey=public_key.replace('\n', '')),
@@ -694,6 +716,9 @@ def _create_machine_aliyun(conn, key_name, public_key,
         'ex_internet_charge_type': 'PayByTraffic',
         'ex_internet_max_bandwidth_out': 100
     }
+
+    if ex_vswitch_id:
+        kwargs.update({'ex_vswitch_id': ex_vswitch_id})
 
     try:
         node = conn.create_node(**kwargs)

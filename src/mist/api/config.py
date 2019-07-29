@@ -1019,6 +1019,11 @@ EC2_SECURITYGROUP = {
     'description': 'Security group created by mist.io'
 }
 
+ECS_VPC = {
+    'name': 'mistio',
+    'description': 'Vpc created by mist.io'
+}
+
 # Linode datacenter ids/names mapping
 LINODE_DATACENTERS = {
     2: 'Dallas, TX, USA',
