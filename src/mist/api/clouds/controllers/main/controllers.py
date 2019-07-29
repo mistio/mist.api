@@ -87,7 +87,7 @@ class AlibabaMainController(AmazonMainController):
     provider = 'aliyun_ecs'
     ComputeController = compute_ctls.AlibabaComputeController
     StorageController = storage_ctls.AlibabaStorageController
-    NetworkController = network_ctls.AlibabaNetworkController
+    NetworkController = None
     DnsController = None
 
 
