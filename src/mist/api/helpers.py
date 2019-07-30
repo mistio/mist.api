@@ -623,7 +623,7 @@ def ip_from_request(request):
     return (request.environ.get('HTTP_X_REAL_IP') or
             request.environ.get('HTTP_X_FORWARDED_FOR') or
             request.environ.get('REMOTE_ADDR') or
-            '0.0.0.0')
+            '0.0.0.0').split(',')[0].strip()
 
 
 def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3,
