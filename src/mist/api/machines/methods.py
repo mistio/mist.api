@@ -231,7 +231,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     size = NodeSize(size_id, name=size_name, ram='', disk=disk,
                     bandwidth='', price='', driver=conn)
 
-    import ipdb; ipdb.set_trace()
     image = NodeImage(image_id, name=image_name, extra=image_extra,
                       driver=conn)
 
@@ -918,10 +917,15 @@ def _create_machine_onapp(conn, public_key,
 
     return node
 
+
 def _create_machine_maxihost(conn, machine_name, image_id, size, location):
-    node = conn.create_node(machine_name, size, image_id, location)
+    try:
+        node = conn.create_node(machine_name, size, image_id, location)
+    except ValueError as exc:
+        raise MachineCreationError('Maxihost, exception %s' % exc)
 
     return node
+
 
 def _create_machine_docker(conn, machine_name, image_id,
                            script=None, public_key=None,
