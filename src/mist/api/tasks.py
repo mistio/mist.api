@@ -1288,16 +1288,17 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
     ret['finished_at'] = time()
     title = "Execution of '%s' script " % script.name
     title += "failed" if ret['error'] else "succeeded"
-    notify_user(
-        owner, title,
-        cloud_id=cloud_id,
-        machine_id=machine_id,
-        machine_name=machine_name,
-        output=ret['stdout'],
-        duration=ret['finished_at'] - ret['started_at'],
-        retval=ret['exit_code'],
-        error=ret['error'],
-    )
+    if ret['error']:
+        notify_user(
+            owner, title,
+            cloud_id=cloud_id,
+            machine_id=machine_id,
+            machine_name=machine_name,
+            output=ret['stdout'],
+            duration=ret['finished_at'] - ret['started_at'],
+            retval=ret['exit_code'],
+            error=ret['error'],
+        )
     if ret['error']:
         title += " for user %s" % str(owner)
         notify_admin(
