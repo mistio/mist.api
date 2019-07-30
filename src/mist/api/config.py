@@ -826,6 +826,7 @@ FAILED_LOGIN_RATE_LIMIT = {
 }
 
 BANNED_EMAIL_PROVIDERS = [
+    'qq.com',
     'mailinator.com',
     'bob.info',
     'veryreallemail.com',
@@ -1016,6 +1017,11 @@ STATES = {
 EC2_SECURITYGROUP = {
     'name': 'mistio',
     'description': 'Security group created by mist.io'
+}
+
+ECS_VPC = {
+    'name': 'mistio',
+    'description': 'Vpc created by mist.io'
 }
 
 # Linode datacenter ids/names mapping
@@ -1580,6 +1586,21 @@ The mist.io team
 Govern the clouds
 """
 
+MACHINE_EXPIRE_NOTIFY_EMAIL_SUBJECT = "[mist.io] Machine is about to expire"
+
+MACHINE_EXPIRE_NOTIFY_EMAIL_BODY = """Dear %s,
+
+Your machine `%s` will expire on %s
+
+If you'd like to prevent that, please update the expiration date at %s
+
+Best regards,
+The mist.io team
+
+--
+%s
+Govern the clouds
+"""
 
 WHITELIST_IP_EMAIL_SUBJECT = "[mist.io] Account IP whitelist request"
 

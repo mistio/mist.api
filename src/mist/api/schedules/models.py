@@ -70,6 +70,10 @@ class OneOff(Interval):
         }
 
 
+class Reminder(OneOff):
+    type = 'reminder'
+
+
 class Crontab(BaseScheduleType):
     type = 'crontab'
 
@@ -232,6 +236,8 @@ class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
     total_run_count = me.IntField(min_value=0, default=0)
     max_run_count = me.IntField(min_value=0, default=0)
 
+    reminder = me.ReferenceField('Schedule', required=False)
+
     no_changes = False
 
     def __init__(self, *args, **kwargs):
@@ -362,6 +368,8 @@ class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
             self.resource_model_name = 'machine'
 
     def delete(self):
+        if self.reminder:
+            self.reminder.delete()
         super(Schedule, self).delete()
         Tag.objects(resource=self).delete()
         self.owner.mapper.remove(self)

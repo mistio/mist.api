@@ -5,6 +5,8 @@ import mongoengine as me
 import time
 import requests
 
+from random import randrange
+
 from future.utils import string_types
 
 from libcloud.compute.base import NodeSize, NodeImage, NodeLocation, Node
@@ -149,7 +151,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                    schedule={}, command=None, tags=None,
                    bare_metal=False, hourly=True,
                    softlayer_backend_vlan_id=None, machine_username='',
-                   volumes=[], ip_addresses=[]):
+                   volumes=[], ip_addresses=[], expiration={},
+                   ):
     """Creates a new virtual machine on the specified cloud.
 
     If the cloud is Rackspace it attempts to deploy the node with an ssh key
@@ -452,6 +455,23 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     # Assign machine's owner/creator
     machine.assign_to(auth_context.user)
 
+    # add schedule if expiration given
+
+    if expiration:
+        params = {
+            'schedule_type': 'one_off',
+            'description': 'Scheduled to run when machine expires',
+            'schedule_entry': expiration.get('date'),
+            'action': expiration.get('action'),
+            'conditions': [{'type': 'machines', 'ids': [machine.id]}],
+            'task_enabled': True,
+            'notify': expiration.get('notify', '')
+        }
+        name = machine.name + '-expiration-' + str(randrange(1000))
+        from mist.api.schedules.models import Schedule
+        machine.expiration = Schedule.add(auth_context, name, **params)
+        machine.save()
+
     if key is not None:  # Associate key.
         username = node.extra.get('username', '')
         machine.ctl.associate_key(key, username=username,
@@ -649,19 +669,41 @@ def _create_machine_aliyun(conn, key_name, public_key,
                            user_data, security_group_id=None):
     """Create a machine in Alibaba Aliyun ECS.
     """
-
+    sec_gr_name = config.EC2_SECURITYGROUP.get('name', '')
+    sec_gr_description = config.EC2_SECURITYGROUP.get('description', '')
+    vpc_name = config.ECS_VPC.get('name', '')
+    vpc_description = config.ECS_VPC.get('description', '')
     security_groups = conn.ex_list_security_groups()
-    name = config.EC2_SECURITYGROUP.get('name', '')
-    description = config.EC2_SECURITYGROUP.get('description', '')
-    mist_sg = [sg for sg in security_groups if sg.name == name]
-    if not len(mist_sg):
-        security_group_id = conn.ex_create_security_group()
-        conn.ex_modify_security_group_by_id(security_group_id, name=name,
-                                            description=description)
+    mist_sg = [sg for sg in security_groups if sg.name == sec_gr_name]
+
+    if not len(mist_sg) or not mist_sg[0].vpc_id:
+        filters = {'VpcName': vpc_name, 'Description': vpc_description}
+        vpc_id = conn.ex_create_network(ex_filters=filters)
+        # wait for vpc to be available
+        timeout = time.time() + 30
+        while time.time() < timeout:
+            vpcs = conn.ex_list_networks(ex_filters={'VpcId': vpc_id})
+            if vpcs[0].status == 'Available':
+                break
+            time.sleep(2)
+
+        security_group_id = conn.ex_create_security_group(vpc_id=vpc_id)
+
+        conn.ex_modify_security_group_by_id(security_group_id,
+                                            name=sec_gr_name,
+                                            description=sec_gr_description)
         conn.ex_authorize_security_group(security_group_id, 'Allow SSH',
                                          'tcp', '22/22', )
     else:
+        vpc_id = mist_sg[0].vpc_id
         security_group_id = mist_sg[0].id
+
+    switches = conn.ex_list_switches(ex_filters={'VpcId': vpc_id})
+    if switches:
+        ex_vswitch_id = switches[0].id
+    else:
+        ex_vswitch_id = conn.ex_create_switch('172.16.0.0/24',
+                                              location.id, vpc_id)
 
     kwargs = {
         'auth': NodeAuthSSHKey(pubkey=public_key.replace('\n', '')),
@@ -678,6 +720,9 @@ def _create_machine_aliyun(conn, key_name, public_key,
         'ex_internet_charge_type': 'PayByTraffic',
         'ex_internet_max_bandwidth_out': 100
     }
+
+    if ex_vswitch_id:
+        kwargs.update({'ex_vswitch_id': ex_vswitch_id})
 
     try:
         node = conn.create_node(**kwargs)
@@ -906,8 +951,8 @@ def _create_machine_docker(conn, machine_name, image_id,
                 command=docker_command,
                 environment=environment,
                 tty=tty_attach,
-                ports=docker_exposed_ports,
-                port_bindings=docker_port_bindings
+                ports=docker_exposed_ports or {},
+                port_bindings=docker_port_bindings or {}
             )
         except Exception as e:
             # if image not found, try to pull it
