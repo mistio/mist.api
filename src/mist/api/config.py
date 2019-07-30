@@ -117,7 +117,7 @@ INFLUXDB_BUILTIN_METRICS = {
         'min_value': 0,
     },
     'system.load1': {
-        'name': 'Load',
+        'name': 'system.load1',
         'unit': '',
         'max_value': 64,
         'min_value': 0,
@@ -223,7 +223,7 @@ GRAPHITE_BUILTIN_METRICS = {
 
 FDB_BUILTIN_METRICS = {
     'system.load1': {
-        'name': 'Load',
+        'name': 'system.load1',
         'unit': '',
         'max_value': 64,
         'min_value': 0,

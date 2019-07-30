@@ -110,6 +110,7 @@ def get_stats(machine, start='', stop='', step='', metrics=None):
     # return time-series data from foundationdb
     elif machine.monitoring.method == 'telegraf-foundationdb':
         from mist.api.monitoring.foundationdb.methods import fdb_get_stats
+        metrics = config.FDB_BUILTIN_METRICS
         return fdb_get_stats(
             machine, start=start, stop=stop, step=step, metrics=metrics
         )

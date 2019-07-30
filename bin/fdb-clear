@@ -1,0 +1,42 @@
+#!/usr/bin/env python
+
+import fdb
+fdb.api_version(610)
+
+import fdb.tuple
+
+
+def init_db():
+    db = fdb.open()
+    return db
+
+
+@fdb.transactional
+def clear_db(tr):
+    del tr[monitoring.range(())]  # clear the directory
+
+
+if __name__ == '__main__':
+    
+    while True:
+        try:
+            user_verification = input('Are you sure you want to clear all the contents of the db? [Y/n]')
+        except ValueError:
+            print('Not a valid response. Please try again.')
+        else:
+            if user_verification == 'y' or user_verification == 'Y':
+                print('clearing fdb..')
+                db = init_db()
+                if fdb.directory.exists(db, 'monitoring'):
+                    monitoring = fdb.directory.open(db, ('monitoring',))
+                    clear_db(db)
+                    print('All clear.')
+                    break  
+                else:
+                    print('The directory you are trying to clear does not exist.')
+            else:
+                print('Aborting job..');
+                break
+                     
+    
+    
