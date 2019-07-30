@@ -1081,7 +1081,7 @@ def run_machine_action(owner_id, action, name, machine_uuid):
                                                       "about machine that "
                                                       "is about to expire.")
 
-    if action != 'notify':
+    if action != 'notify' and log_dict.get('error'):
         # TODO markos asked this
         log_dict['started_at'] = started_at
         log_dict['finished_at'] = time()
