@@ -394,9 +394,10 @@ class MaxihostComputeController(BaseComputeController):
         disk_size = size.extra['specs']['drives'][0]['size']
         disk_type = size.extra['specs']['drives'][0]['type']
         return name + '/ ' + str(cpus) + ' cores/ ' \
-                         + memory + ' RAM/ ' \
-                         + str(disk_count) + ' * ' + disk_size + ' ' \
-                         + disk_type
+                           + memory + ' RAM/ ' \
+                           + str(disk_count) + ' * ' + disk_size + ' ' \
+                           + disk_type
+
 
 class LinodeComputeController(BaseComputeController):
 
