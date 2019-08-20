@@ -35,6 +35,14 @@ class AzureArmNetworkController(BaseNetworkController):
     def _list_subnets__cidr_range(self, subnet, libcloud_subnet):
         return subnet.extra.pop('addressPrefix')
 
+    def _get_libcloud_subnet(self, subnet, network=None):
+        subnets = self.cloud.ctl.compute.connection.ex_list_subnets(network)
+        for sub in subnets:
+            if sub.id == subnet.subnet_id:
+                return sub
+        raise SubnetNotFoundError('Subnet %s with subnet_id %s' %
+                                  (subnet.name, subnet.subnet_id))
+
 
 class AmazonNetworkController(BaseNetworkController):
 
@@ -76,7 +84,7 @@ class AmazonNetworkController(BaseNetworkController):
         raise NetworkNotFoundError('Network %s with network_id %s' %
                                    (network.name, network.network_id))
 
-    def _get_libcloud_subnet(self, subnet):
+    def _get_libcloud_subnet(self, subnet, network=None):
         kwargs = {'subnet_ids': [subnet.subnet_id]}
         subnets = self.cloud.ctl.compute.connection.ex_list_subnets(**kwargs)
         if subnets:
@@ -121,7 +129,7 @@ class GoogleNetworkController(BaseNetworkController):
     def _get_libcloud_network(self, network):
         return self.cloud.ctl.compute.connection.ex_get_network(network.name)
 
-    def _get_libcloud_subnet(self, subnet):
+    def _get_libcloud_subnet(self, subnet, network=None):
         kwargs = {'name': subnet.name,
                   'region': subnet.region}
         return self.cloud.ctl.compute.connection.ex_get_subnetwork(**kwargs)

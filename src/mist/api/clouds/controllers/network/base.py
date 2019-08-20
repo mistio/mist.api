@@ -549,7 +549,6 @@ class BaseNetworkController(BaseController):
         from mist.api.networks.models import Subnet
 
         assert network.cloud == self.cloud
-
         for subnet in Subnet.objects(network=network, missing_since=None):
             subnet.ctl.delete()
 
@@ -581,11 +580,10 @@ class BaseNetworkController(BaseController):
         Subclasses SHOULD NOT override or extend this method.
 
         If a subclass needs to override the way networks are deleted, it
-        should override the private method `_delete_network` instead.
+        should override the private method `_delete_subnet` instead.
         """
         assert subnet.network.cloud == self.cloud
-
-        libcloud_subnet = self._get_libcloud_subnet(subnet)
+        libcloud_subnet = self._get_libcloud_subnet(subnet, subnet.network)
         self._delete_subnet(subnet, libcloud_subnet)
         from mist.api.poller.models import ListNetworksPollingSchedule
         ListNetworksPollingSchedule.add(cloud=self.cloud, interval=10, ttl=120)
@@ -618,7 +616,7 @@ class BaseNetworkController(BaseController):
             'Network %s with network_id %s' %
             (network.name, network.network_id))
 
-    def _get_libcloud_subnet(self, subnet):
+    def _get_libcloud_subnet(self, subnet, network=None):
         """Returns an instance of a libcloud subnet.
 
         This method receives a Subnet mongoengine object and queries libcloud
