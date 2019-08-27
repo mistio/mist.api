@@ -1152,6 +1152,50 @@ def list_locations(request):
     return filter_list_locations(auth_context, cloud_id, cached=cached)
 
 
+@view_config(route_name='api_v1_storage_accounts', request_method='GET', renderer='json')
+def list_storage_accounts(request):
+    """
+    Tags: clouds
+    ---
+    List storage accounts. ARM specific. For other providers this returns an empty list
+    READ permission required on cloud.
+    ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    """
+    cloud_id = request.matchdict['cloud']
+    auth_context = auth_context_from_request(request)
+    cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
+                              deleted=None)
+    auth_context.check_perm("cloud", "read", cloud_id)
+
+    return methods.list_storage_accounts(auth_context.owner, cloud_id)
+
+
+@view_config(route_name='api_v1_resource_groups', request_method='GET', renderer='json')
+def list_resource_groups(request):
+    """
+    Tags: clouds
+    ---
+    List resource groups. ARM specific. For other providers this returns an empty list
+    READ permission required on cloud.
+    ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    """
+    cloud_id = request.matchdict['cloud']
+    auth_context = auth_context_from_request(request)
+    cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
+                              deleted=None)
+    auth_context.check_perm("cloud", "read", cloud_id)
+
+    return methods.list_resource_groups(auth_context.owner, cloud_id)
+
+
 @view_config(route_name='api_v1_cloud_probe',
              request_method='POST', renderer='json')
 @view_config(route_name='api_v1_probe', request_method='POST', renderer='json')

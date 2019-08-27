@@ -162,7 +162,7 @@ def list_resource_groups(owner, cloud_id):
     """
     cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
 
-    if conn.type in [Provider.AZURE_ARM]:
+    if cloud.ctl.provider in ['azure_arm']:
         conn = connect_provider(cloud)
         groups = conn.ex_list_resource_groups()
     else:
@@ -182,8 +182,7 @@ def list_storage_accounts(owner, cloud_id):
     this returns an empty list
     """
     cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
-
-    if conn.type in [Provider.AZURE_ARM]:
+    if cloud.ctl.provider in ['azure_arm']:
         conn = connect_provider(cloud)
         accounts = conn.ex_list_storage_accounts()
     else:

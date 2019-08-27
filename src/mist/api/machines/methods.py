@@ -1239,10 +1239,6 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
         try:
             conn.ex_create_resource_group(new_resource_group, location)
             resource_group = new_resource_group
-            # clear resource groups cache
-            taskRG = mist.api.tasks.ListResourceGroups()
-            taskRG.clear_cache(owner.id, cloud_id)
-            taskRG.delay(owner.id, cloud_id)
             # add delay cause sometimes the group is not yet ready
             time.sleep(5)
         except Exception as exc:
@@ -1255,10 +1251,6 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
                                            resource_group,
                                            'Storage', location)
             storage_account = new_storage_account
-            # clear storage accounts cache
-            taskSA = mist.api.tasks.ListStorageAccounts()
-            taskSA.clear_cache(owner.id, cloud_id)
-            taskSA.delay(owner.id, cloud_id)
             # w8 for storage account state to become succedeed
             timeout = time.time() + 30
             st_account_ready = False
