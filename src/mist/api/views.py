@@ -1158,7 +1158,7 @@ def list_storage_accounts(request):
     """
     Tags: clouds
     ---
-    List storage accounts. ARM specific. For other providers this 
+    List storage accounts. ARM specific. For other providers this
     returns an empty list
     READ permission required on cloud.
     ---

@@ -1257,8 +1257,9 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
             while time.time() < timeout and not st_account_ready:
                 st_accounts = conn.ex_list_storage_accounts()
                 for st_account in st_accounts:
+                    state = st_account.extra.get('provisioningState')
                     if st_account.name == storage_account and \
-                        st_account.extra.get('provisioningState') == 'Succeeded':
+                       state == 'Succeeded':
                         st_account_ready = True
                         break
         except Exception as exc:
