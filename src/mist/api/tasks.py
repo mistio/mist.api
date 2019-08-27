@@ -752,46 +752,8 @@ class ListProjects(UserTask):
         return {'cloud_id': cloud_id, 'projects': projects}
 
 
-class ListResourceGroups(UserTask):
-    task_key = 'list_resource_groups'
-    result_expires = 60 * 60 * 24 * 7
-    result_fresh = 60 * 60
-    polling = False
-    soft_time_limit = 30
-
-    def execute(self, owner_id, cloud_id):
-        owner = Owner.objects.get(id=owner_id)
-        log.warn('Running list resource groups for user %s cloud %s',
-                 owner.id, cloud_id)
-        from mist.api import methods
-        resource_groups = methods.list_resource_groups(owner, cloud_id)
-        log.warn('Returning list resource groups for user %s cloud %s',
-                 owner.id, cloud_id)
-        return {'cloud_id': cloud_id, 'resource_groups': resource_groups}
-
-
-class ListStorageAccounts(UserTask):
-    task_key = 'list_storage_accounts'
-    result_expires = 60 * 60 * 24 * 7
-    result_fresh = 60 * 60
-    polling = False
-    soft_time_limit = 30
-
-    def execute(self, owner_id, cloud_id):
-        owner = Owner.objects.get(id=owner_id)
-        log.warn('Running list storage accounts for user %s cloud %s',
-                 owner.id, cloud_id)
-        from mist.api import methods
-        storage_accounts = methods.list_storage_accounts(owner, cloud_id)
-        log.warn('Returning list storage accounts for user %s cloud %s',
-                 owner.id, cloud_id)
-        return {'cloud_id': cloud_id, 'storage_accounts': storage_accounts}
-
-
 list_images = app.register_task(ListImages())
 list_projects = app.register_task(ListProjects())
-list_resource_groups = app.register_task(ListResourceGroups())
-list_storage_accounts = app.register_task(ListStorageAccounts())
 
 
 @app.task
