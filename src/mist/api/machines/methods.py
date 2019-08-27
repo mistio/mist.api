@@ -1249,7 +1249,6 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
             raise InternalServerError("Couldn't create resource group", exc)
     else:
         resource_group = ex_resource_group
-
     if create_storage_account:
         try:
             conn.ex_create_storage_account(new_storage_account,
@@ -1260,6 +1259,16 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
             taskSA = mist.api.tasks.ListStorageAccounts()
             taskSA.clear_cache(owner.id, cloud_id)
             taskSA.delay(owner.id, cloud_id)
+            # w8 for storage account state to become succedeed
+            timeout = time.time() + 30
+            st_account_ready = False
+            while time.time() < timeout and not st_account_ready:
+                st_accounts = conn.ex_list_storage_accounts()
+                for st_account in st_accounts:
+                    if st_account.name == storage_account and \
+                        st_account.extra.get('provisioningState') == 'Succeeded':
+                        st_account_ready = True
+                        break
         except Exception as exc:
             raise InternalServerError("Couldn't create storage account", exc)
     else:
