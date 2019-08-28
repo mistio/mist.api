@@ -185,7 +185,12 @@ class AmazonComputeController(BaseComputeController):
             except Exception as e:
                 bad_ids = re.findall(r'ami-\w*', str(e), re.DOTALL)
                 for bad_id in bad_ids:
-                    self.cloud.starred.remove(bad_id)
+                    try:
+                        self.cloud.starred.remove(bad_id)
+                    except ValueError:
+                        log.error('Starred Image %s not found in cloud %r' % (
+                            bad_id, self.cloud
+                        ))
                 self.cloud.save()
                 images = self.connection.list_images(
                     None, list(default_images.keys()) + self.cloud.starred)
