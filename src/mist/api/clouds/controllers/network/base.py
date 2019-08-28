@@ -583,10 +583,9 @@ class BaseNetworkController(BaseController):
         If a subclass needs to override the way networks are deleted, it
         should override the private method `_delete_network` instead.
         """
-        import ipdb; ipdb.set_trace(); ipdb.set_trace()
         assert subnet.network.cloud == self.cloud
-        libcloud_subnet = self._get_libcloud_subnet(subnet, subnet.network)
-        import ipdb; ipdb.set_trace()
+
+        libcloud_subnet = self._get_libcloud_subnet(subnet)
         self._delete_subnet(subnet, libcloud_subnet)
         from mist.api.poller.models import ListNetworksPollingSchedule
         ListNetworksPollingSchedule.add(cloud=self.cloud, interval=10, ttl=120)

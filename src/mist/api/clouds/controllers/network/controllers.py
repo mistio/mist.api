@@ -34,9 +34,6 @@ class AzureArmNetworkController(BaseNetworkController):
 
     def _list_subnets__cidr_range(self, subnet, libcloud_subnet):
         return subnet.extra.pop('addressPrefix')
-    
-    def _delete_subnet(self, subnet, libcloud_subnet):
-        self.cloud.ctl.compute.connection.ex_delete_subnet(subnet.network, libcloud_subnet)
 
 
 class AmazonNetworkController(BaseNetworkController):

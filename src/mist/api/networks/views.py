@@ -176,7 +176,7 @@ def delete_network(request):
         network = Network.objects.get(id=network_id, cloud=cloud)
     except me.DoesNotExist:
         raise NetworkNotFoundError()
-    import ipdb; ipdb.set_trace()
+
     # Delete the network
     network.ctl.delete()
 
