@@ -1331,16 +1331,16 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
         except Exception as exc:
             raise InternalServerError("Couldn't create new network", exc)
     else:
+        if not isinstance(networks, list):
+            networks = [networks]
         # select the right network object
         ex_network = None
-        sg = ""
         try:
-            if networks:
-                available_networks = conn.ex_list_networks()
-                mist_net = Network.objects.get(id=networks)
-                for libcloud_net in available_networks:
-                    if mist_net.network_id == libcloud_net.id:
-                        ex_network = libcloud_net
+            available_networks = conn.ex_list_networks()
+            mist_net = Network.objects.get(id=networks[0])
+            for libcloud_net in available_networks:
+                if mist_net.network_id == libcloud_net.id:
+                    ex_network = libcloud_net
         except:
             pass
 
