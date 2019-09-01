@@ -8,7 +8,7 @@ from mist.api.schedules.models import Schedule  # noqa
 from mist.api.users.models import User, Organization, Owner  # noqa
 
 try:
-    from mist.orchestration.models import Template, Stack
-    from mist.vpn.models import Tunnel
+    from mist.orchestration.models import Template, Stack  # noqa
+    from mist.vpn.models import Tunnel  # noqa
 except ImportError:
     pass
