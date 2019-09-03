@@ -385,7 +385,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             create_network, new_network,
             create_resource_group, new_resource_group,
             create_storage_account, new_storage_account,
-            machine_username
+            machine_username, volumes
         )
     elif conn.type in [Provider.VCLOUD]:
         node = _create_machine_vcloud(conn, machine_name, image,
@@ -1220,7 +1220,7 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
                               ex_resource_group, create_network, new_network,
                               create_resource_group, new_resource_group,
                               create_storage_account, new_storage_account,
-                              machine_username):
+                              machine_username, volumes):
     """Create a machine Azure ARM.
 
     Here there is no checking done, all parameters are expected to be
@@ -1266,7 +1266,6 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
             raise InternalServerError("Couldn't create storage account", exc)
     else:
         storage_account = ex_storage_account
-
     if create_network:
         # create a security group and open ports
         securityRules = [
@@ -1343,7 +1342,6 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
                     ex_network = libcloud_net
         except:
             pass
-
     ex_subnet = conn.ex_list_subnets(ex_network)[0]
 
     try:
@@ -1361,6 +1359,11 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
     except Exception as exc:
         raise InternalServerError("Couldn't create network interface", exc)
 
+    data_disks = []
+    for volume in volumes:
+        if volume.get('size'):  # new volume
+            data_disks.append(volume)
+
     try:
         node = conn.create_node(
             name=machine_name,
@@ -1371,7 +1374,8 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
             ex_storage_account=storage_account,
             ex_nic=ex_nic,
             location=location,
-            ex_user_name=machine_username
+            ex_user_name=machine_username,
+            ex_data_disks=data_disks
         )
     except Exception as e:
         try:
