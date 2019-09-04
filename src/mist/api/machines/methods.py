@@ -33,6 +33,7 @@ from mist.api.exceptions import BadRequestError, MachineCreationError
 from mist.api.exceptions import InternalServerError
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import VolumeNotFoundError
+from mist.api.exceptions import NetworkNotFoundError
 
 from mist.api.helpers import get_temp_file
 
@@ -1240,7 +1241,8 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
             # add delay cause sometimes the group is not yet ready
             time.sleep(5)
         except Exception as exc:
-            raise InternalServerError("Couldn't create resource group. %s" % exc)
+            raise InternalServerError("Couldn't create resource group. \
+                %s" % exc)
 
     storage_accounts = conn.ex_list_storage_accounts()
     ex_storage_account = None
@@ -1267,7 +1269,8 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
                         st_account_ready = True
                         break
         except Exception as exc:
-            raise InternalServerError("Couldn't create storage account. %s" % exc)
+            raise InternalServerError("Couldn't create storage account. \
+                %s" % exc)
     if not isinstance(networks, list):
         networks = [networks]
     network = networks[0]
@@ -1336,7 +1339,8 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
             # add delay cause sometimes the group is not yet ready
             time.sleep(3)
         except Exception as exc:
-            raise InternalServerError("Couldn't create security group %s" % exc)
+            raise InternalServerError("Couldn't create security group \
+                %s" % exc)
 
         # create the new network
         try:
