@@ -1263,9 +1263,6 @@ def maybe_submit_cloud_task(cloud, task_name):
     if task_name == 'list_projects':
         if cloud.ctl.provider != 'packet':
             return False
-    if task_name in ('list_resource_groups', 'list_storage_accounts', ):
-        if cloud.ctl.provider != 'azure_arm':
-            return False
     return True
 
 
