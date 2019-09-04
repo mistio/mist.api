@@ -807,8 +807,8 @@ def create_machine_async(
         specs.append((
             (auth_context, cloud_id, key_id, name, location_id, image_id,
              size, image_extra, disk, image_name, size_name,
-             location_name, ips, monitoring, ex_storage_account,
-             machine_password, ex_resource_group, networks, subnetwork,
+             location_name, ips, monitoring, storage_account,
+             machine_password, resource_group, networks, subnetwork,
              docker_env, docker_command, 22, script, script_id, script_params,
              job_id, job),
             {'hostname': hostname, 'plugins': plugins,
