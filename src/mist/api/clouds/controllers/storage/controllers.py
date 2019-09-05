@@ -12,6 +12,7 @@ from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import NotFoundError
 
+from libcloud.compute.base import NodeLocation
 
 log = logging.getLogger(__name__)
 
@@ -198,7 +199,24 @@ class AzureStorageController(BaseStorageController):
 
 
 class AzureArmStorageController(BaseStorageController):
-    pass
+    # TODO: Implement _list_volumes__postparse_volume
+    def _create_volume__prepare_args(self, kwargs):
+        if not kwargs.get('resource_group'):
+            raise RequiredParameterMissingError('resource_group')
+        kwargs['ex_resource_group'] = kwargs.pop('resource_group')
+        # FIXME Imported here due to circular dependency issues.
+        from mist.api.clouds.models import CloudLocation
+        if not kwargs.get('location'):
+            raise RequiredParameterMissingError('location')
+        try:
+            location = CloudLocation.objects.get(id=kwargs['location'])
+        except CloudLocation.DoesNotExist:
+            raise NotFoundError("Location with id '%s'." % kwargs['location'])
+        node_location = NodeLocation(
+                id=location.external_id, name=location.name,
+                country=location.country, driver=None
+            )
+        kwargs['location'] = node_location
 
 
 class AlibabaStorageController(BaseStorageController):

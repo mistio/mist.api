@@ -55,13 +55,11 @@ def list_volumes(request):
 
     if cloud_id:
       cached = bool(params.get('cached', False))
-
       try:
-          Cloud.objects.get(owner=auth_context.owner, id=cloud_id, deleted=None)
+        Cloud.objects.get(owner=auth_context.owner, id=cloud_id, deleted=None)
       except Cloud.DoesNotExist:
-          raise CloudNotFoundError()
-
-      # SEC
+        raise CloudNotFoundError()
+        # SEC
       auth_context.check_perm('cloud', 'read', cloud_id)
       volumes = filter_list_volumes(auth_context, cloud_id, cached=cached)
     else:
@@ -69,13 +67,13 @@ def list_volumes(request):
       clouds = filter_list_clouds(auth_context)
       volumes = []
       for cloud in clouds:
-          if cloud.get('enabled'):
-              try:
-                  cloud_vols = filter_list_volumes(
-                      auth_context, cloud.get('id'))
-                  volumes.append(cloud_vols)
-              except (CloudUnavailableError, CloudUnauthorizedError):
-                  pass
+        if cloud.get('enabled'):
+            try:
+                cloud_vols = filter_list_volumes(
+                    auth_context, cloud.get('id'))
+                volumes.append(cloud_vols)
+            except (CloudUnavailableError, CloudUnauthorizedError):
+                pass
 
     return volumes
 
@@ -120,7 +118,7 @@ def create_volume(request):
       description: EC2-specific. Needs to be specified if volume_type='io1'
     """
     cloud_id = request.matchdict['cloud']
-
+    #import ipdb; ipdb.set_trace()
     params = params_from_request(request)
     name = params.get('name')
     size = params.get('size')
@@ -171,6 +169,7 @@ def create_volume(request):
 
     return volume.as_dict()
 
+
 @view_config(route_name='api_v1_volume',
              request_method='DELETE', renderer='json')
 @view_config(route_name='api_v1_cloud_volume', request_method='DELETE')
@@ -203,27 +202,26 @@ def delete_volume(request):
     auth_context = auth_context_from_request(request)
 
     if cloud_id:
-
       try:
-          cloud = Cloud.objects.get(id=cloud_id, owner=auth_context.owner,
-                                    deleted=None)
+        cloud = Cloud.objects.get(id=cloud_id, owner=auth_context.owner,
+                                  deleted=None)
       except Cloud.DoesNotExist:
-          raise CloudNotFoundError()
+        raise CloudNotFoundError()
 
       try:
-          volume = Volume.objects.get(external_id=external_id, cloud=cloud,
-                                      missing_since=None)
+        volume = Volume.objects.get(external_id=external_id, cloud=cloud,
+                                    missing_since=None)
       except me.DoesNotExist:
-          raise VolumeNotFoundError()
+        raise VolumeNotFoundError()
 
     else:
-        try:
-          volume = Volume.objects.get(id=volume_id,
-                                      missing_since=None)
-        except me.DoesNotExist:
-          raise VolumeNotFoundError()
+      try:
+        volume = Volume.objects.get(id=volume_id,
+                                    missing_since=None)
+      except me.DoesNotExist:
+        raise VolumeNotFoundError()
 
-        cloud = volume.cloud
+      cloud = volume.cloud
 
     # SEC
     auth_context.check_perm('cloud', 'read', cloud.id)
@@ -236,7 +234,8 @@ def delete_volume(request):
 
 
 # FIXME: rename to attach/detach in logs
-@view_config(route_name='api_v1_cloud_volume', request_method='PUT', renderer='json')
+@view_config(route_name='api_v1_cloud_volume', request_method='PUT',
+             renderer='json')
 def volume_action(request):
     """
     Tags: volumes
