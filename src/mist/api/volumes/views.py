@@ -171,7 +171,8 @@ def create_volume(request):
 
     return volume.as_dict()
 
-
+@view_config(route_name='api_v1_volume',
+             request_method='DELETE', renderer='json')
 @view_config(route_name='api_v1_cloud_volume', request_method='DELETE')
 def delete_volume(request):
     """
@@ -195,22 +196,34 @@ def delete_volume(request):
       schema:
         type: string
     """
-    cloud_id = request.matchdict['cloud']
-    external_id = request.matchdict['volume']
+    cloud_id = request.matchdict.get('cloud')
+    external_id = request.matchdict.get('volume')
+    volume_id = request.matchdict.get('volume_uuid')
 
     auth_context = auth_context_from_request(request)
 
-    try:
-        cloud = Cloud.objects.get(id=cloud_id, owner=auth_context.owner,
-                                  deleted=None)
-    except Cloud.DoesNotExist:
-        raise CloudNotFoundError()
+    if cloud_id:
 
-    try:
-        volume = Volume.objects.get(external_id=external_id, cloud=cloud,
-                                    missing_since=None)
-    except me.DoesNotExist:
-        raise VolumeNotFoundError()
+      try:
+          cloud = Cloud.objects.get(id=cloud_id, owner=auth_context.owner,
+                                    deleted=None)
+      except Cloud.DoesNotExist:
+          raise CloudNotFoundError()
+
+      try:
+          volume = Volume.objects.get(external_id=external_id, cloud=cloud,
+                                      missing_since=None)
+      except me.DoesNotExist:
+          raise VolumeNotFoundError()
+
+    else:
+        try:
+          volume = Volume.objects.get(id=volume_id,
+                                      missing_since=None)
+        except me.DoesNotExist:
+          raise VolumeNotFoundError()
+
+        cloud = volume.cloud
 
     # SEC
     auth_context.check_perm('cloud', 'read', cloud.id)
