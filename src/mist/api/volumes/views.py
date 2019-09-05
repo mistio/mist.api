@@ -9,12 +9,14 @@ from mist.api.volumes.methods import filter_list_volumes
 
 from mist.api.tag.methods import add_tags_to_resource
 from mist.api.auth.methods import auth_context_from_request
+from mist.api.clouds.methods import filter_list_clouds
 
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import CloudNotFoundError
 from mist.api.exceptions import VolumeNotFoundError
 from mist.api.exceptions import MachineNotFoundError
 from mist.api.exceptions import RequiredParameterMissingError
+from mist.api.exceptions import CloudUnauthorizedError, CloudUnavailableError
 
 from mist.api.tasks import async_session_update
 
@@ -49,7 +51,7 @@ def list_volumes(request):
 
     params = params_from_request(request)
 
-    cloud_id = request.matchdict['cloud']
+    cloud_id = request.matchdict.get('cloud')
 
     if cloud_id:
       cached = bool(params.get('cached', False))
@@ -69,7 +71,7 @@ def list_volumes(request):
       for cloud in clouds:
           if cloud.get('enabled'):
               try:
-                  cloud_vols = methods.filter_list_volumes(
+                  cloud_vols = filter_list_volumes(
                       auth_context, cloud.get('id'))
                   volumes.append(cloud_vols)
               except (CloudUnavailableError, CloudUnauthorizedError):

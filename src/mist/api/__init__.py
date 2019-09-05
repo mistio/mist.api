@@ -274,7 +274,7 @@ def add_routes(configurator):
         '/api/v1/volumes'
     )
     configurator.add_route(
-        'api_v1_volumes',
+        'api_v1_volume',
         '/api/v1/volumes/{volume_uuid}'
     )
 
