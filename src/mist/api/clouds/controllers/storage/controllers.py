@@ -199,7 +199,38 @@ class AzureStorageController(BaseStorageController):
 
 
 class AzureArmStorageController(BaseStorageController):
-    # TODO: Implement _list_volumes__postparse_volume
+    def _list_volumes__postparse_volume(self, volume, libcloud_volume):
+        # # FIXME Imported here due to circular dependency issues.
+        from mist.api.clouds.models import CloudLocation
+        from mist.api.machines.models import Machine
+
+        # Find the volume's location.
+        try:
+            volume.location = CloudLocation.objects.get(
+                external_id=libcloud_volume.extra.get('location', ''),
+                cloud=self.cloud, missing_since=None
+            )
+        except CloudLocation.DoesNotExist:
+            volume.location = None
+
+        # Find the machine the volume is attached to.
+        volume.attached_to = []
+        owner_id = libcloud_volume.extra.get('properties').get('ownerId')
+
+        if owner_id:
+            # Azure ARM has two ids... one stored as node.id, one stored in extra
+            # when creating a machine node.id is returned, here however what is
+            # returned as ownerId is the node.extra('id')
+            machines = Machine.objects.filter(cloud=self.cloud, missing_since=None)
+            for machine in machines:
+                if machine.extra.get('id') == owner_id:
+                    volume.attached_to.append(machine)
+                    break
+
+            if not volume.attached_to:
+                log.error('%s attached to unknown machine "%s"', volume, owner_id)
+
+
     def _create_volume__prepare_args(self, kwargs):
         if not kwargs.get('resource_group'):
             raise RequiredParameterMissingError('resource_group')
