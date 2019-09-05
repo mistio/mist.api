@@ -27,8 +27,10 @@ from mist.api import config
 OK = Response("OK", 200)
 
 
-@view_config(route_name='api_v1_cloud_volumes', request_method='GET',
-             renderer='json')
+@view_config(route_name='api_v1_volumes',
+             request_method='GET', renderer='json')
+@view_config(route_name='api_v1_cloud_volumes',
+             request_method='GET', renderer='json')
 def list_volumes(request):
     """
     Tags: volumes
@@ -48,16 +50,32 @@ def list_volumes(request):
     params = params_from_request(request)
 
     cloud_id = request.matchdict['cloud']
-    cached = bool(params.get('cached', False))
 
-    try:
-        Cloud.objects.get(owner=auth_context.owner, id=cloud_id, deleted=None)
-    except Cloud.DoesNotExist:
-        raise CloudNotFoundError()
+    if cloud_id:
+      cached = bool(params.get('cached', False))
 
-    # SEC
-    auth_context.check_perm('cloud', 'read', cloud_id)
-    return filter_list_volumes(auth_context, cloud_id, cached=cached)
+      try:
+          Cloud.objects.get(owner=auth_context.owner, id=cloud_id, deleted=None)
+      except Cloud.DoesNotExist:
+          raise CloudNotFoundError()
+
+      # SEC
+      auth_context.check_perm('cloud', 'read', cloud_id)
+      volumes = filter_list_volumes(auth_context, cloud_id, cached=cached)
+    else:
+      auth_context.check_perm("cloud", "read", None)
+      clouds = filter_list_clouds(auth_context)
+      volumes = []
+      for cloud in clouds:
+          if cloud.get('enabled'):
+              try:
+                  cloud_vols = methods.filter_list_volumes(
+                      auth_context, cloud.get('id'))
+                  volumes.append(cloud_vols)
+              except (CloudUnavailableError, CloudUnauthorizedError):
+                  pass
+
+    return volumes
 
 
 @view_config(route_name='api_v1_cloud_volumes', request_method='POST',
