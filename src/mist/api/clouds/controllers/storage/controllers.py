@@ -11,6 +11,7 @@ from mist.api.clouds.controllers.storage.base import BaseStorageController
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import NotFoundError
+from mist.api.exceptions import InternalServerError
 
 from libcloud.compute.base import NodeLocation
 
@@ -219,7 +220,7 @@ class AzureArmStorageController(BaseStorageController):
         if owner_id:
             # Azure ARM has two ids... one stored as node.id,
             # one stored in extra when creating a machine node.id
-            #  is returned, here however wownerId is the node.extra('id')
+            # is returned, here however ownerId is the node.extra('id')
             machines = Machine.objects.filter(cloud=self.cloud,
                                               missing_since=None)
             for machine in machines:
@@ -234,7 +235,27 @@ class AzureArmStorageController(BaseStorageController):
     def _create_volume__prepare_args(self, kwargs):
         if not kwargs.get('resource_group'):
             raise RequiredParameterMissingError('resource_group')
-        kwargs['ex_resource_group'] = kwargs.pop('resource_group')
+        resource_group = kwargs.pop('resource_group')
+        conn = self.cloud.ctl.compute.connection
+        resource_groups = conn.ex_list_resource_groups()
+        ex_resource_group = None
+        for lib_resource_group in resource_groups:
+            if lib_resource_group.name == resource_group:
+                ex_resource_group = resource_group
+                break
+
+        # if not found, create it
+        if ex_resource_group is None:
+            try:
+                conn.ex_create_resource_group(resource_group, location)
+                ex_resource_group = resource_group
+                # add delay cause sometimes the group is not yet ready
+                time.sleep(5)
+            except Exception as exc:
+                raise InternalServerError("Couldn't create resource group. \
+                    %s" % exc)
+
+        kwargs['ex_resource_group'] = ex_resource_group
         # FIXME Imported here due to circular dependency issues.
         from mist.api.clouds.models import CloudLocation
         if not kwargs.get('location'):
