@@ -623,7 +623,7 @@ def ip_from_request(request):
     return (request.environ.get('HTTP_X_REAL_IP') or
             request.environ.get('HTTP_X_FORWARDED_FOR') or
             request.environ.get('REMOTE_ADDR') or
-            '0.0.0.0')
+            '0.0.0.0').split(',')[0].strip()
 
 
 def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3,
@@ -1260,12 +1260,6 @@ def maybe_submit_cloud_task(cloud, task_name):
     celery task.
 
     """
-    if task_name == 'list_zones':
-        if not (hasattr(cloud.ctl, 'dns') and cloud.dns_enabled):
-            return False
-    if task_name == 'list_networks':
-        if not hasattr(cloud.ctl, 'network'):
-            return False
     if task_name == 'list_projects':
         if cloud.ctl.provider != 'packet':
             return False

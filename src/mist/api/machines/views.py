@@ -329,6 +329,8 @@ def create_machine(request):
     softlayer_backend_vlan_id = params.get('softlayer_backend_vlan_id', None)
     hourly = params.get('hourly', True)
 
+    expiration = params.get('expiration', {})
+
     job_id = params.get('job_id')
     # The `job` variable points to the event that started the job. If a job_id
     # is not provided, then it means that this is the beginning of a new story
@@ -448,7 +450,9 @@ def create_machine(request):
               'new_resource_group': new_resource_group,
               'machine_username': machine_username,
               'volumes': volumes,
-              'ip_addresses': ip_addresses}
+              'ip_addresses': ip_addresses,
+              'expiration': expiration}
+
     if not run_async:
         ret = methods.create_machine(auth_context, *args, **kwargs)
     else:
@@ -564,6 +568,74 @@ def add_machine(request):
 
 
 @view_config(route_name='api_v1_cloud_machine',
+             request_method='PUT', renderer='json')
+@view_config(route_name='api_v1_machine',
+             request_method='PUT', renderer='json')
+def edit_machine(request):
+    """
+    Tags: machines
+    ---
+    Edits a machine.
+    For now expiration related attributes can change.
+    READ permission required on cloud.
+    EDIT permission required on machine.
+    ---
+    expiration:
+      type: object
+      properties:
+        date:
+          type: string
+          description: format should be ΥΥΥΥ-ΜΜ-DD HH:MM:SS
+        action:
+          type: string
+          description: one of ['stop', 'destroy']
+        notify:
+          type: integer
+          description: seconds before the expiration date to be notified
+    """
+    cloud_id = request.matchdict.get('cloud')
+    params = params_from_request(request)
+    auth_context = auth_context_from_request(request)
+
+    if cloud_id:
+        machine_id = request.matchdict['machine']
+        auth_context.check_perm("cloud", "read", cloud_id)
+        try:
+            machine = Machine.objects.get(cloud=cloud_id,
+                                          machine_id=machine_id,
+                                          state__ne='terminated')
+            # used by logging_view_decorator
+            request.environ['machine_uuid'] = machine.id
+        except Machine.DoesNotExist:
+            raise NotFoundError("Machine %s doesn't exist" % machine_id)
+    else:
+        machine_uuid = request.matchdict['machine_uuid']
+        try:
+            machine = Machine.objects.get(id=machine_uuid)
+            # VMs in libvirt can be started no matter if they are terminated
+            if machine.state == 'terminated' and not isinstance(machine.cloud,
+                                                                LibvirtCloud):
+                raise NotFoundError(
+                    "Machine %s has been terminated" % machine_uuid
+                )
+            # used by logging_view_decorator
+            request.environ['machine_id'] = machine.machine_id
+            request.environ['cloud_id'] = machine.cloud.id
+        except Machine.DoesNotExist:
+            raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
+
+        cloud_id = machine.cloud.id
+        auth_context.check_perm("cloud", "read", cloud_id)
+
+    if machine.cloud.owner != auth_context.owner:
+        raise NotFoundError("Machine %s doesn't exist" % machine.id)
+
+    auth_context.check_perm('machine', 'edit', machine)
+
+    return machine.ctl.update(auth_context, params)
+
+
+@view_config(route_name='api_v1_cloud_machine',
              request_method='POST', renderer='json')
 @view_config(route_name='api_v1_machine',
              request_method='POST', renderer='json')
@@ -626,7 +698,6 @@ def machine_actions(request):
     auth_context = auth_context_from_request(request)
 
     if cloud_id:
-        # this is depracated, keep it for backwards compatibility
         machine_id = request.matchdict['machine']
         auth_context.check_perm("cloud", "read", cloud_id)
         try:

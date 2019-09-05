@@ -173,11 +173,19 @@ def home(request):
         if not page:
             page = 'home'
         if page not in config.LANDING_FORMS:
-            response = requests.get('%s/static/landing/sections/%s.html' % (
-                request.application_url, page))
-            if response.ok:
-                section = response.text
-                template_inputs['section'] = section
+            page_uri = '%s/static/landing/sections/%s.html' % (
+                request.application_url, page)
+            try:
+                response = requests.get(page_uri)
+                if response.ok:
+                    section = response.text
+                    template_inputs['section'] = section
+                else:
+                    log.error("Failed to fetch page `%s` from `%s`: %r" % (
+                        page, page_uri, response))
+            except Exception as exc:
+                log.error("Failed to fetch page `%s` from `%s`: %r" % (
+                    page, page_uri, exc))
         return render_to_response('templates/landing.pt', template_inputs)
 
     if not user.last_active or \
