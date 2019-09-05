@@ -118,7 +118,7 @@ def create_volume(request):
       description: EC2-specific. Needs to be specified if volume_type='io1'
     """
     cloud_id = request.matchdict['cloud']
-    #import ipdb; ipdb.set_trace()
+    # import ipdb; ipdb.set_trace()
     params = params_from_request(request)
     name = params.get('name')
     size = params.get('size')
@@ -236,6 +236,8 @@ def delete_volume(request):
 # FIXME: rename to attach/detach in logs
 @view_config(route_name='api_v1_cloud_volume', request_method='PUT',
              renderer='json')
+@view_config(route_name='api_v1_volume', request_method='PUT',
+             renderer='json')
 def volume_action(request):
     """
     Tags: volumes
@@ -263,13 +265,10 @@ def volume_action(request):
       type: string
       description: eg /dev/sdh. Required for EC2, optional for OpenStack
     """
+    # TODO: Fix docstring
     auth_context = auth_context_from_request(request)
 
     params = params_from_request(request)
-
-    cloud_id = request.matchdict['cloud']
-    external_id = request.matchdict['volume']
-
     action = params.pop('action', '')
     machine_uuid = params.pop('machine', '')
 
@@ -279,21 +278,35 @@ def volume_action(request):
     if not machine_uuid:
         raise RequiredParameterMissingError('machine')
 
-    try:
-        cloud = Cloud.objects.get(id=cloud_id, owner=auth_context.owner,
-                                  deleted=None)
-    except Cloud.DoesNotExist:
-        raise CloudNotFoundError()
+    cloud_id = request.matchdict.get('cloud')
+    external_id = request.matchdict.get('volume')
+    volume_uuid = request.matchdict.get('volume_uuid')
+
+    if cloud_id:
+
+        try:
+            cloud = Cloud.objects.get(id=cloud_id, owner=auth_context.owner,
+                                    deleted=None)
+        except Cloud.DoesNotExist:
+            raise CloudNotFoundError()
+
+        try:
+            volume = Volume.objects.get(external_id=external_id, cloud=cloud,
+                                        missing_since=None)
+        except me.DoesNotExist:
+            raise VolumeNotFoundError()
+ 
+    else:
+
+        try:
+            volume = Volume.objects.get(id=volume_uuid, missing_since=None)
+        except me.DoesNotExist:
+            raise VolumeNotFoundError()
+
+        cloud = volume.cloud
 
     try:
-        volume = Volume.objects.get(external_id=external_id, cloud=cloud,
-                                    missing_since=None)
-    except me.DoesNotExist:
-        raise VolumeNotFoundError()
-
-    try:
-        machine = Machine.objects.get(id=machine_uuid, cloud=cloud,
-                                      missing_since=None)
+        machine = Machine.objects.get(id=machine_uuid, missing_since=None)
     except Machine.DoesNotExist:
         raise MachineNotFoundError()
 

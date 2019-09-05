@@ -212,10 +212,9 @@ class AzureArmStorageController(BaseStorageController):
             location = CloudLocation.objects.get(id=kwargs['location'])
         except CloudLocation.DoesNotExist:
             raise NotFoundError("Location with id '%s'." % kwargs['location'])
-        node_location = NodeLocation(
-                id=location.external_id, name=location.name,
-                country=location.country, driver=None
-            )
+        node_location = NodeLocation(id=location.external_id,
+                                     name=location.name,
+                                     country=location.country, driver=None)
         kwargs['location'] = node_location
 
 
