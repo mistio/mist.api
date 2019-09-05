@@ -196,11 +196,12 @@ def delete_volume(request):
         type: string
     """
     cloud_id = request.matchdict.get('cloud')
-    volume_id = request.matchdict.get('volume_uuid')
-
     external_id = request.matchdict.get('volume')
     if external_id:
           external_id = '/'.join(external_id)
+
+    volume_id = request.matchdict.get('volume_uuid')
+
 
     auth_context = auth_context_from_request(request)
 
@@ -287,7 +288,10 @@ def volume_action(request):
 
     cloud_id = request.matchdict.get('cloud')
     external_id = request.matchdict.get('volume')
-    volume_uuid = request.matchdict.get('volume_uuid')
+    if external_id:
+          external_id = '/'.join(external_id)
+
+    volume_id = request.matchdict.get('volume_uuid')
 
     if cloud_id:
 
@@ -297,16 +301,19 @@ def volume_action(request):
         except Cloud.DoesNotExist:
             raise CloudNotFoundError()
 
+        if cloud.ctl.provider in ['azure_arm']:
+          external_id = '/' + external_id
+
         try:
             volume = Volume.objects.get(external_id=external_id, cloud=cloud,
                                         missing_since=None)
         except me.DoesNotExist:
             raise VolumeNotFoundError()
- 
+
     else:
 
         try:
-            volume = Volume.objects.get(id=volume_uuid, missing_since=None)
+            volume = Volume.objects.get(id=volume_id, missing_since=None)
         except me.DoesNotExist:
             raise VolumeNotFoundError()
 

@@ -66,7 +66,6 @@ class AmazonStorageController(BaseStorageController):
         # FIXME Imported here due to circular dependency issues.
         from mist.api.machines.models import Machine
         from mist.api.clouds.models import CloudLocation
-
         # Find the volume's location.
         try:
             volume.location = CloudLocation.objects.get(
@@ -218,10 +217,11 @@ class AzureArmStorageController(BaseStorageController):
         owner_id = libcloud_volume.extra.get('properties').get('ownerId')
 
         if owner_id:
-            # Azure ARM has two ids... one stored as node.id, one stored in extra
-            # when creating a machine node.id is returned, here however what is
-            # returned as ownerId is the node.extra('id')
-            machines = Machine.objects.filter(cloud=self.cloud, missing_since=None)
+            # Azure ARM has two ids... one stored as node.id,
+            # one stored in extra when creating a machine node.id
+            #  is returned, here however wownerId is the node.extra('id')
+            machines = Machine.objects.filter(cloud=self.cloud,
+                                              missing_since=None)
             for machine in machines:
                 if machine.extra.get('id') == owner_id:
                     volume.attached_to.append(machine)
