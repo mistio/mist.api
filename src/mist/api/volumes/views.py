@@ -27,7 +27,7 @@ from mist.api import config
 OK = Response("OK", 200)
 
 
-@view_config(route_name='api_v1_volumes', request_method='GET',
+@view_config(route_name='api_v1_cloud_volumes', request_method='GET',
              renderer='json')
 def list_volumes(request):
     """
@@ -60,7 +60,7 @@ def list_volumes(request):
     return filter_list_volumes(auth_context, cloud_id, cached=cached)
 
 
-@view_config(route_name='api_v1_volumes', request_method='POST',
+@view_config(route_name='api_v1_cloud_volumes', request_method='POST',
              renderer='json')
 def create_volume(request):
     """
@@ -152,7 +152,7 @@ def create_volume(request):
     return volume.as_dict()
 
 
-@view_config(route_name='api_v1_volume', request_method='DELETE')
+@view_config(route_name='api_v1_cloud_volume', request_method='DELETE')
 def delete_volume(request):
     """
     Tags: volumes
@@ -203,7 +203,7 @@ def delete_volume(request):
 
 
 # FIXME: rename to attach/detach in logs
-@view_config(route_name='api_v1_volume', request_method='PUT', renderer='json')
+@view_config(route_name='api_v1_cloud_volume', request_method='PUT', renderer='json')
 def volume_action(request):
     """
     Tags: volumes

@@ -262,12 +262,20 @@ def add_routes(configurator):
 
     # Volumes
     configurator.add_route(
-        'api_v1_volumes',
+        'api_v1_cloud_volumes',
         '/api/v1/clouds/{cloud}/volumes'
     )
     configurator.add_route(
-        'api_v1_volume',
+        'api_v1_cloud_volume',
         '/api/v1/clouds/{cloud}/volumes/{volume}'
+    )
+    configurator.add_route(
+        'api_v1_volumes',
+        '/api/v1/volumes'
+    )
+    configurator.add_route(
+        'api_v1_volumes',
+        '/api/v1/volumes/{volume_uuid}'
     )
 
     configurator.add_route('api_v1_keys', '/api/v1/keys')
