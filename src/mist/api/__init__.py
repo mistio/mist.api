@@ -267,7 +267,7 @@ def add_routes(configurator):
     )
     configurator.add_route(
         'api_v1_cloud_volume',
-        '/api/v1/clouds/{cloud}/volumes/{volume}'
+        '/api/v1/clouds/{cloud}/volumes/*volume'
     )
     configurator.add_route(
         'api_v1_volumes',

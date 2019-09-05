@@ -1495,7 +1495,6 @@ AZURE_ARM_IMAGES = {
     'SUSE:openSUSE-Leap:42.3:2017.07.26': 'SUSE openSUSE-Leap',
     'Canonical:UbuntuServer:16.04.0-LTS:16.04.201906280': 'Canonical UbuntuServer 16.04.0-LTS', # noqa
     'Canonical:UbuntuServer:18.04-LTS:18.04.201908131': 'Canonical UbuntuServer 18.04-LTS', # noqa
-    'Canonical:UbuntuServer:19.10-DAILY:19.10.201908210': 'Canonical UbuntuServer 19.10-DAILY', # noqa
     'RedHat:RHEL:7.3:7.3.2017090723': 'RedHat RHEL 7.3 7.3.2017090723',
     'RedHat:RHEL:6.9:6.9.2017090105': 'RedHat RHEL 6.9 6.9.2017090105',
 }
