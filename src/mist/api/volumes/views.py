@@ -54,26 +54,26 @@ def list_volumes(request):
     cloud_id = request.matchdict.get('cloud')
 
     if cloud_id:
-      cached = bool(params.get('cached', False))
-      try:
-        Cloud.objects.get(owner=auth_context.owner, id=cloud_id, deleted=None)
-      except Cloud.DoesNotExist:
-        raise CloudNotFoundError()
+        cached = bool(params.get('cached', False))
+        try:
+            Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
+                              deleted=None)
+        except Cloud.DoesNotExist:
+            raise CloudNotFoundError()
         # SEC
-      auth_context.check_perm('cloud', 'read', cloud_id)
-      volumes = filter_list_volumes(auth_context, cloud_id, cached=cached)
+        auth_context.check_perm('cloud', 'read', cloud_id)
+        volumes = filter_list_volumes(auth_context, cloud_id, cached=cached)
     else:
-      auth_context.check_perm("cloud", "read", None)
-      clouds = filter_list_clouds(auth_context)
-      volumes = []
-      for cloud in clouds:
-        if cloud.get('enabled'):
-            try:
-                cloud_vols = filter_list_volumes(
-                    auth_context, cloud.get('id'))
-                volumes.append(cloud_vols)
-            except (CloudUnavailableError, CloudUnauthorizedError):
-                pass
+        auth_context.check_perm("cloud", "read", None)
+        clouds = filter_list_clouds(auth_context)
+        volumes = []
+        for cloud in clouds:
+            if cloud.get('enabled'):
+                try:
+                    vols = filter_list_volumes(auth_context, cloud.get('id'))
+                    volumes.append(vols)
+                except (CloudUnavailableError, CloudUnauthorizedError):
+                    pass
 
     return volumes
 
@@ -198,38 +198,37 @@ def delete_volume(request):
     cloud_id = request.matchdict.get('cloud')
     external_id = request.matchdict.get('volume')
     if external_id:
-          external_id = '/'.join(external_id)
+        external_id = '/'.join(external_id)
 
     volume_id = request.matchdict.get('volume_uuid')
-
 
     auth_context = auth_context_from_request(request)
 
     if cloud_id:
-      try:
-        cloud = Cloud.objects.get(id=cloud_id, owner=auth_context.owner,
-                                  deleted=None)
-      except Cloud.DoesNotExist:
-        raise CloudNotFoundError()
+        try:
+            cloud = Cloud.objects.get(id=cloud_id, owner=auth_context.owner,
+                                      deleted=None)
+        except Cloud.DoesNotExist:
+            raise CloudNotFoundError()
 
-      if cloud.ctl.provider in ['azure_arm']:
-        external_id = '/' + external_id
+        if cloud.ctl.provider in ['azure_arm']:
+            external_id = '/' + external_id
 
-      try:
-        volume = Volume.objects.get(external_id=external_id, cloud=cloud,
-                                    missing_since=None)
-      except me.DoesNotExist:
-        raise VolumeNotFoundError()
+        try:
+            volume = Volume.objects.get(external_id=external_id, cloud=cloud,
+                                        missing_since=None)
+        except me.DoesNotExist:
+            raise VolumeNotFoundError()
 
     else:
 
-      try:
-        volume = Volume.objects.get(id=volume_id,
-                                    missing_since=None)
-      except me.DoesNotExist:
-        raise VolumeNotFoundError()
+        try:
+            volume = Volume.objects.get(id=volume_id,
+                                        missing_since=None)
+        except me.DoesNotExist:
+            raise VolumeNotFoundError()
 
-      cloud = volume.cloud
+        cloud = volume.cloud
 
     # SEC
     auth_context.check_perm('cloud', 'read', cloud.id)
@@ -289,7 +288,7 @@ def volume_action(request):
     cloud_id = request.matchdict.get('cloud')
     external_id = request.matchdict.get('volume')
     if external_id:
-          external_id = '/'.join(external_id)
+        external_id = '/'.join(external_id)
 
     volume_id = request.matchdict.get('volume_uuid')
 
@@ -297,12 +296,12 @@ def volume_action(request):
 
         try:
             cloud = Cloud.objects.get(id=cloud_id, owner=auth_context.owner,
-                                    deleted=None)
+                                      deleted=None)
         except Cloud.DoesNotExist:
             raise CloudNotFoundError()
 
         if cloud.ctl.provider in ['azure_arm']:
-          external_id = '/' + external_id
+            external_id = '/' + external_id
 
         try:
             volume = Volume.objects.get(external_id=external_id, cloud=cloud,
