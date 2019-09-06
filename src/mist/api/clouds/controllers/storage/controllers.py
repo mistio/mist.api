@@ -5,6 +5,7 @@ This file should only contain subclasses of `BaseStorageController`.
 """
 
 import logging
+import time
 
 from mist.api.clouds.controllers.storage.base import BaseStorageController
 
@@ -235,6 +236,8 @@ class AzureArmStorageController(BaseStorageController):
     def _create_volume__prepare_args(self, kwargs):
         if not kwargs.get('resource_group'):
             raise RequiredParameterMissingError('resource_group')
+        if not kwargs.get('location'):
+            raise RequiredParameterMissingError('location')
         resource_group = kwargs.pop('resource_group')
         conn = self.cloud.ctl.compute.connection
         resource_groups = conn.ex_list_resource_groups()
@@ -247,7 +250,7 @@ class AzureArmStorageController(BaseStorageController):
         # if not found, create it
         if ex_resource_group is None:
             try:
-                conn.ex_create_resource_group(resource_group, location)
+                conn.ex_create_resource_group(resource_group, kwargs.get('location'))
                 ex_resource_group = resource_group
                 # add delay cause sometimes the group is not yet ready
                 time.sleep(5)
@@ -258,8 +261,6 @@ class AzureArmStorageController(BaseStorageController):
         kwargs['ex_resource_group'] = ex_resource_group
         # FIXME Imported here due to circular dependency issues.
         from mist.api.clouds.models import CloudLocation
-        if not kwargs.get('location'):
-            raise RequiredParameterMissingError('location')
         try:
             location = CloudLocation.objects.get(id=kwargs['location'])
         except CloudLocation.DoesNotExist:
