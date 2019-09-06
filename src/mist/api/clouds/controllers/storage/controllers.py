@@ -232,7 +232,6 @@ class AzureArmStorageController(BaseStorageController):
             if not volume.attached_to:
                 log.error('%s attached to unknown machine "%s"', volume, owner_id)
 
-
     def _create_volume__prepare_args(self, kwargs):
         if not kwargs.get('resource_group'):
             raise RequiredParameterMissingError('resource_group')
@@ -250,7 +249,8 @@ class AzureArmStorageController(BaseStorageController):
         # if not found, create it
         if ex_resource_group is None:
             try:
-                conn.ex_create_resource_group(resource_group, kwargs.get('location'))
+                conn.ex_create_resource_group(resource_group,
+                                              kwargs.get('location'))
                 ex_resource_group = resource_group
                 # add delay cause sometimes the group is not yet ready
                 time.sleep(5)
