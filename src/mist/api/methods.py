@@ -188,12 +188,26 @@ def list_storage_accounts(owner, cloud_id):
     else:
         accounts = []
 
-    ret = [{'id': account.name,
-            'name': account.name,
-            'extra': account.extra
-            }
-           for account in accounts]
-    return ret
+    storage_accounts = []
+    for account in accounts:
+        location_id = account.location
+
+        # FIXME: circular import
+        from mist.api.clouds.models import CloudLocation
+        try:
+            location = CloudLocation.objects.get(external_id=location_id, cloud=cloud)
+        except CloudLocation.DoesNotExist:
+            pass
+        resource_group = account.id.split('resourceGroups/')[1].split('/')[0]
+        storage_account = {'id': account.id,
+                            'name': account.name,
+                            'location': location.id if location else None,
+                            'extra': account.extra,
+                            'resource_group': resource_group
+                        }
+        storage_accounts.append(storage_account)
+
+    return storage_accounts
 
 
 # TODO deprecate this!
