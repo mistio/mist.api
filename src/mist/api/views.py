@@ -1169,6 +1169,13 @@ def list_storage_accounts(request):
     """
     cloud_id = request.matchdict['cloud']
     auth_context = auth_context_from_request(request)
+
+    try:
+        Cloud.objects.get(owner=auth_context.owner, id=cloud_id, deleted=None)
+    except Cloud.DoesNotExist:
+        raise CloudNotFoundError()
+
+    auth_context = auth_context_from_request(request)
     auth_context.check_perm("cloud", "read", cloud_id)
 
     return methods.list_storage_accounts(auth_context.owner, cloud_id)
@@ -1190,6 +1197,13 @@ def list_resource_groups(request):
       type: string
     """
     cloud_id = request.matchdict['cloud']
+    auth_context = auth_context_from_request(request)
+
+    try:
+        Cloud.objects.get(owner=auth_context.owner, id=cloud_id, deleted=None)
+    except Cloud.DoesNotExist:
+        raise CloudNotFoundError()
+
     auth_context = auth_context_from_request(request)
     auth_context.check_perm("cloud", "read", cloud_id)
 
