@@ -1227,6 +1227,7 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
     else:
         k = NodeAuthSSHKey(public_key)
 
+    import ipdb; ipdb.set_trace()
     resource_groups = conn.ex_list_resource_groups()
     ex_resource_group = None
     for lib_resource_group in resource_groups:
@@ -1247,7 +1248,7 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
     storage_accounts = conn.ex_list_storage_accounts()
     ex_storage_account = None
     for lib_storage_account in storage_accounts:
-        if lib_storage_account.name == storage_account:
+        if lib_storage_account.id == storage_account:
             ex_storage_account = storage_account
             break
 
