@@ -230,7 +230,8 @@ class AzureArmStorageController(BaseStorageController):
                     break
 
             if not volume.attached_to:
-                log.error('%s attached to unknown machine "%s"', volume, owner_id)
+                log.error('%s attached to unknown machine "%s"', volume,
+                          owner_id)
 
     def _create_volume__prepare_args(self, kwargs):
         if not kwargs.get('resource_group'):
