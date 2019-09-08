@@ -12,8 +12,8 @@ from mist.api.clouds.controllers.storage.base import BaseStorageController
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import NotFoundError
-from mist.api.exceptions import InternalServerError
 
+from libcloud.common.types import LibcloudError
 from libcloud.compute.base import NodeLocation
 
 log = logging.getLogger(__name__)
@@ -256,7 +256,7 @@ class AzureArmStorageController(BaseStorageController):
                 # add delay cause sometimes the group is not yet ready
                 time.sleep(5)
             except Exception as exc:
-                raise InternalServerError("Couldn't create resource group. \
+                raise LibcloudError("Couldn't create resource group. \
                     %s" % exc)
 
         kwargs['ex_resource_group'] = ex_resource_group
@@ -270,6 +270,9 @@ class AzureArmStorageController(BaseStorageController):
                                      name=location.name,
                                      country=location.country, driver=None)
         kwargs['location'] = node_location
+
+    #def _attach_volume(self, libcloud_volume, libcloud_node, **kwargs):
+    #    raise NotImplementedError()
 
 
 class AlibabaStorageController(BaseStorageController):
