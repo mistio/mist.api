@@ -61,7 +61,8 @@ class BaseKeyController(object):
             self.key.save()
         except me.ValidationError as exc:
             log.error("Error adding %s: %s", self.key.name, exc.to_dict())
-            raise BadRequestError('Please specify a valid ssh key in openssh format')
+            raise BadRequestError('Please specify a valid ssh key in \
+                openssh format')
         except me.NotUniqueError as exc:
             log.error("Key %s not unique error: %s", self.key.name, exc)
             raise KeyExistsError()
