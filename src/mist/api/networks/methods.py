@@ -21,7 +21,7 @@ def list_networks(owner, cloud_id, cached=False):
         networks = cloud.ctl.network.list_cached_networks()
     else:
         networks = cloud.ctl.network.list_networks()
-
+    import ipdb; ipdb.set_trace()
     return [n.as_dict() for n in networks]
 
 

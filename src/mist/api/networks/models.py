@@ -162,6 +162,9 @@ class AmazonNetwork(Network):
 class AzureArmNetwork(Network):
     instance_tenancy = me.StringField(default='default', choices=('default',
                                                                   'private'))
+    location = me.ReferenceField('CloudLocation', required=False)
+    #resource_group = me.StringField()
+
 
     def clean(self):
         """Extended validation for EC2 Networks to ensure CIDR assignment."""

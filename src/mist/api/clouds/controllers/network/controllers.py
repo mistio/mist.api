@@ -25,7 +25,16 @@ class AzureArmNetworkController(BaseNetworkController):
         return libcloud_network.extra['addressSpace']['addressPrefixes'][0]
 
     def _list_networks__postparse_network(self, network, libcloud_network):
-        network.location = libcloud_network.location
+        from mist.api.clouds.models import CloudLocation
+        location = None
+        loc_id = libcloud_network.location
+        try:
+            location = CloudLocation.objects.get(external_id=loc_id,
+                                                 cloud=self.cloud)
+        except CloudLocation.DoesNotExist:
+            pass
+        network.location = location
+
 
     def _list_subnets__fetch_subnets(self, network):
         l_network = AzureNetwork(network.network_id,
