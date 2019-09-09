@@ -168,7 +168,7 @@ def list_resource_groups(owner, cloud_id):
     else:
         groups = []
 
-    ret = [{'id': group.name,
+    ret = [{'id': group.id,
             'name': group.name,
             'extra': group.extra
             }
@@ -189,6 +189,7 @@ def list_storage_accounts(owner, cloud_id):
         accounts = []
 
     storage_accounts = []
+    resource_groups = conn.ex_list_resource_groups()
     for account in accounts:
         location_id = account.location
 
@@ -199,12 +200,17 @@ def list_storage_accounts(owner, cloud_id):
                                                  cloud=cloud)
         except CloudLocation.DoesNotExist:
             pass
-        resource_group = account.id.split('resourceGroups/')[1].split('/')[0]
+        r_group_name = account.id.split('resourceGroups/')[1].split('/')[0]
+        r_group_id = ''
+        for resource_group in resource_groups:
+            if resource_group.name == r_group_name:
+                r_group_id = resource_group.id
+                break
         storage_account = {'id': account.id,
                            'name': account.name,
                            'location': location.id if location else None,
                            'extra': account.extra,
-                           'resource_group': resource_group}
+                           'resource_group': r_group_id}
         storage_accounts.append(storage_account)
 
     return storage_accounts
