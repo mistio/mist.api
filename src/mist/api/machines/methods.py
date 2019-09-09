@@ -1230,8 +1230,8 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
     resource_groups = conn.ex_list_resource_groups()
     ex_resource_group = None
     for lib_resource_group in resource_groups:
-        if lib_resource_group.name == resource_group:
-            ex_resource_group = resource_group
+        if lib_resource_group.id == resource_group:
+            ex_resource_group = lib_resource_group.name
             break
 
     if ex_resource_group is None:
@@ -1248,7 +1248,7 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
     ex_storage_account = None
     for lib_storage_account in storage_accounts:
         if lib_storage_account.id == storage_account:
-            ex_storage_account = storage_account
+            ex_storage_account = lib_resource_group.name
             break
 
     if ex_storage_account is None:
