@@ -225,7 +225,8 @@ class AzureArmStorageController(BaseStorageController):
             machines = Machine.objects.filter(cloud=self.cloud,
                                               missing_since=None)
             for machine in machines:
-                if machine.extra.get('id') == owner_id:
+                # use .lower() because arm is inconsistent in using lowercase
+                if machine.extra.get('id').lower() == owner_id.lower():
                     volume.attached_to.append(machine)
                     break
 
@@ -271,7 +272,7 @@ class AzureArmStorageController(BaseStorageController):
                                      country=location.country, driver=None)
         kwargs['location'] = node_location
 
-    #def _attach_volume(self, libcloud_volume, libcloud_node, **kwargs):
+    # def _attach_volume(self, libcloud_volume, libcloud_node, **kwargs):
     #    raise NotImplementedError()
 
 

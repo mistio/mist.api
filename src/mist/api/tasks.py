@@ -761,7 +761,7 @@ def create_machine_async(
     auth_context_serialized, cloud_id, key_id, machine_name, location_id,
     image_id, size, image_extra, disk,
     image_name, size_name, location_name, ips, monitoring,
-    storage_account, machine_password, resource_group,
+    storage_account, machine_password, resource_group, storage_account_type,
     networks, subnetwork, docker_env, docker_command, script='',
     script_id='', script_params='',
     post_script_id='', post_script_params='',

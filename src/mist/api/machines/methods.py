@@ -135,8 +135,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                    image_id, size, image_extra=None, disk=None,
                    image_name=None, size_name=None, location_name=None,
                    ips=None, monitoring=False, storage_account='',
-                   machine_password='', resource_group='', networks=[],
-                   subnetwork=None, docker_env=[],
+                   machine_password='', resource_group='', storage_account_type='',
+                   networks=[], subnetwork=None, docker_env=[],
                    docker_command=None,
                    ssh_port=22, script='', script_id='', script_params='',
                    job_id=None, job=None, docker_port_bindings={},
@@ -380,7 +380,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             auth_context.owner, cloud_id, conn, public_key, machine_name,
             image, size, location, networks,
             storage_account, machine_password, resource_group,
-            machine_username, volumes
+            machine_username, volumes, storage_account_type
         )
     elif conn.type in [Provider.VCLOUD]:
         node = _create_machine_vcloud(conn, machine_name, image,
@@ -1212,13 +1212,14 @@ def _create_machine_vultr(conn, public_key, machine_name, image,
 def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
                               image, size, location, networks,
                               storage_account, machine_password,
-                              resource_group, machine_username, volumes):
+                              resource_group, machine_username, volumes, storage_account_type):
     """Create a machine Azure ARM.
 
     Here there is no checking done, all parameters are expected to be
     sanitized by create_machine.
 
     """
+    import ipdb; ipdb.set_trace()
     if public_key:
         public_key = public_key.replace('\n', '')
 
@@ -1233,7 +1234,7 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
         if lib_resource_group.id == resource_group:
             ex_resource_group = lib_resource_group.name
             break
-
+    import ipdb; ipdb.set_trace()
     if ex_resource_group is None:
         try:
             conn.ex_create_resource_group(resource_group, location)
@@ -1386,7 +1387,8 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
             location=location,
             ex_user_name=machine_username,
             ex_use_managed_disks=True,
-            ex_data_disks=data_disks
+            ex_data_disks=data_disks,
+            ex_storage_account_type=storage_account_type
         )
     except Exception as e:
         try:

@@ -193,10 +193,13 @@ def create_machine(request):
       description: Required for Azure
     storage_account:
       type: string
-      description: Required for Azure_arm if not create_storage_account
+      description: Required for Azure_arm. Id needed in case of existing. New name otherwise
     resource_group:
       type: string
-      description: Required for Azure_arm if not create_resource_group
+      description: Required for Azure_arm. Id needed in case of existing. New name otherwise
+    storage_account_type:
+      type: string
+      description: Required for Azure_arm
     machine_password:
       type: string
       description: Required for Azure_arm
@@ -269,6 +272,7 @@ def create_machine(request):
     ips = params.get('ips', None)
     monitoring = params.get('monitoring', False)
     storage_account = params.get('storage_account', '')
+    storage_account_type = params.get('storage_account_type', '')
     machine_password = params.get('machine_password', '')
     machine_username = params.get('machine_username', '')
     resource_group = params.get('resource_group', '')
@@ -391,12 +395,12 @@ def create_machine(request):
         raise BadRequestError('Invalid tags format. Expecting either a '
                               'dictionary of tags or a list of single-item '
                               'dictionaries')
-
+    import ipdb; ipdb.set_trace()
     args = (cloud_id, key_id, machine_name,
             location_id, image_id, size,
             image_extra, disk, image_name, size_name,
             location_name, ips, monitoring,
-            storage_account, machine_password, resource_group, networks,
+            storage_account, machine_password, resource_group, storage_account_type, networks,
             subnetwork, docker_env, docker_command)
     kwargs = {'script_id': script_id,
               'script_params': script_params, 'script': script, 'job': job,
@@ -422,7 +426,7 @@ def create_machine(request):
               'volumes': volumes,
               'ip_addresses': ip_addresses,
               'expiration': expiration}
-
+    import ipdb; ipdb.set_trace()
     if not run_async:
         ret = methods.create_machine(auth_context, *args, **kwargs)
     else:
