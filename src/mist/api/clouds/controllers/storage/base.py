@@ -238,7 +238,8 @@ class BaseStorageController(BaseController):
         # object at the API. Try 3 times before failing
         for _ in range(3):
             for volume in self.list_volumes():
-                if volume.external_id == libvol.id:
+                # ARM is inconsistent when it comes to lowercase...
+                if volume.external_id.lower() == libvol.id.lower():
                     return volume
             time.sleep(5)
         raise mist.api.exceptions.VolumeListingError()

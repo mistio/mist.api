@@ -244,8 +244,8 @@ class AzureArmStorageController(BaseStorageController):
         resource_groups = conn.ex_list_resource_groups()
         ex_resource_group = None
         for lib_resource_group in resource_groups:
-            if lib_resource_group.name == resource_group:
-                ex_resource_group = resource_group
+            if lib_resource_group.id == resource_group:
+                ex_resource_group = lib_resource_group.name
                 break
 
         # if not found, create it
@@ -271,9 +271,8 @@ class AzureArmStorageController(BaseStorageController):
                                      name=location.name,
                                      country=location.country, driver=None)
         kwargs['location'] = node_location
-
-    # def _attach_volume(self, libcloud_volume, libcloud_node, **kwargs):
-    #    raise NotImplementedError()
+        ex_storage_account_type = kwargs.pop('storage_account_type', 'Standard_LRS')
+        kwargs['ex_storage_account_type'] = ex_storage_account_type
 
 
 class AlibabaStorageController(BaseStorageController):

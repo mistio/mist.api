@@ -1375,7 +1375,6 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
     for volume in volumes:
         if volume.get('volume_id'):  # existing volume
             from mist.api.volumes.models import Volume
-            volume_id = volume.get('volume_id')
             try:
                 mist_vol = Volume.objects.get(id=volume.get('volume_id'))
             except me.DoesNotExist:
