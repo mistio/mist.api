@@ -1385,6 +1385,7 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
             ex_nic=ex_nic,
             location=location,
             ex_user_name=machine_username,
+            ex_use_managed_disks=True,
             ex_data_disks=data_disks
         )
     except Exception as e:
