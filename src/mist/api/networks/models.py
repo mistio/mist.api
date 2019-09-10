@@ -163,7 +163,7 @@ class AzureArmNetwork(Network):
     instance_tenancy = me.StringField(default='default', choices=('default',
                                                                   'private'))
     location = me.ReferenceField('CloudLocation', required=False)
-    #resource_group = me.StringField()
+    resource_group = me.StringField()
 
 
     def clean(self):

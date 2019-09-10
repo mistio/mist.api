@@ -293,6 +293,11 @@ class BaseNetworkController(BaseController):
         except ConnectionError as e:
             raise mist.api.exceptions.CloudUnavailableError(e)
 
+        # in case of ARM, we also need to attach the network to a resource group
+        if self.cloud.ctl.provider in ['azure_arm']:
+            r_groups = self.cloud.ctl.compute.connection.ex_list_resource_groups()
+        else:
+            r_groups = []
         # List of Network mongoengine objects to be returned to the API.
         networks, new_networks = [], []
         for net in libcloud_nets:
@@ -316,7 +321,7 @@ class BaseNetworkController(BaseController):
 
             # Apply cloud-specific processing.
             try:
-                self._list_networks__postparse_network(network, net)
+                self._list_networks__postparse_network(network, net, r_groups)
             except Exception as exc:
                 log.exception('Error post-parsing %s: %s', network, exc)
 
@@ -337,7 +342,6 @@ class BaseNetworkController(BaseController):
             except mongoengine.errors.NotUniqueError as exc:
                 log.error("Network %s is not unique: %s", network.name, exc)
                 raise mist.api.exceptions.NetworkExistsError()
-
             networks.append(network)
 
         # Set missing_since for networks not returned by libcloud.
@@ -376,7 +380,7 @@ class BaseNetworkController(BaseController):
         """
         return
 
-    def _list_networks__postparse_network(self, network, libcloud_network):
+    def _list_networks__postparse_network(self, network, libcloud_network, r_groups=[]):
         """Parses a libcloud network object on behalf of `self.list_networks`.
 
         Any subclass that needs to perform custom parsing of a network object
