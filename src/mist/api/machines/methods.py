@@ -135,9 +135,9 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                    image_id, size, image_extra=None, disk=None,
                    image_name=None, size_name=None, location_name=None,
                    ips=None, monitoring=False, storage_account='',
-                   machine_password='', resource_group='', storage_account_type='',
-                   networks=[], subnetwork=None, docker_env=[],
-                   docker_command=None,
+                   machine_password='', resource_group='',
+                   storage_account_type='', networks=[], subnetwork=None,
+                   docker_env=[], docker_command=None,
                    ssh_port=22, script='', script_id='', script_params='',
                    job_id=None, job=None, docker_port_bindings={},
                    docker_exposed_ports={}, azure_port_bindings='',
@@ -1212,13 +1212,15 @@ def _create_machine_vultr(conn, public_key, machine_name, image,
 def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
                               image, size, location, networks,
                               storage_account, machine_password,
-                              resource_group, machine_username, volumes, storage_account_type):
+                              resource_group, machine_username, volumes,
+                              storage_account_type):
     """Create a machine Azure ARM.
 
     Here there is no checking done, all parameters are expected to be
     sanitized by create_machine.
 
     """
+    storage_account_type = ''
     if public_key:
         public_key = public_key.replace('\n', '')
 

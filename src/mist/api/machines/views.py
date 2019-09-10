@@ -193,10 +193,10 @@ def create_machine(request):
       description: Required for Azure
     storage_account:
       type: string
-      description: Required for Azure_arm. Id needed in case of existing. New name otherwise
+      description: Required for Azure_arm.
     resource_group:
       type: string
-      description: Required for Azure_arm. Id needed in case of existing. New name otherwise
+      description: Required for Azure_arm.
     storage_account_type:
       type: string
       description: Required for Azure_arm
@@ -400,7 +400,8 @@ def create_machine(request):
             location_id, image_id, size,
             image_extra, disk, image_name, size_name,
             location_name, ips, monitoring,
-            storage_account, machine_password, resource_group, storage_account_type, networks,
+            storage_account, machine_password, resource_group,
+            storage_account_type, networks,
             subnetwork, docker_env, docker_command)
     kwargs = {'script_id': script_id,
               'script_params': script_params, 'script': script, 'job': job,
@@ -427,6 +428,7 @@ def create_machine(request):
               'ip_addresses': ip_addresses,
               'expiration': expiration}
 
+    import ipdb; ipdb.set_trace()
     if not run_async:
         ret = methods.create_machine(auth_context, *args, **kwargs)
     else:

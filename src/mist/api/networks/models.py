@@ -167,7 +167,6 @@ class AzureArmNetwork(Network):
     location = me.StringField()
     resource_group = me.StringField()
 
-
     def clean(self):
         """Extended validation for EC2 Networks to ensure CIDR assignment."""
         if not self.cidr:

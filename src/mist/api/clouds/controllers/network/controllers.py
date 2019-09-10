@@ -24,7 +24,8 @@ class AzureArmNetworkController(BaseNetworkController):
     def _list_networks__cidr_range(self, network, libcloud_network):
         return libcloud_network.extra['addressSpace']['addressPrefixes'][0]
 
-    def _list_networks__postparse_network(self, network, libcloud_network, r_groups=[]):
+    def _list_networks__postparse_network(self, network, libcloud_network,
+                                          r_groups=[]):
         from mist.api.clouds.models import CloudLocation
         location = None
         loc_id = libcloud_network.location
@@ -43,7 +44,6 @@ class AzureArmNetworkController(BaseNetworkController):
                 r_group_id = r_group.id
                 break
         network.resource_group = r_group_id
-
 
     def _list_subnets__fetch_subnets(self, network):
         l_network = AzureNetwork(network.network_id,
@@ -66,7 +66,8 @@ class AmazonNetworkController(BaseNetworkController):
     def _list_networks__cidr_range(self, network, libcloud_network):
         return libcloud_network.cidr_block
 
-    def _list_networks__postparse_network(self, network, libcloud_network, r_groups=[]):
+    def _list_networks__postparse_network(self, network, libcloud_network,
+                                          r_groups=[]):
         tenancy = libcloud_network.extra.pop('instance_tenancy')
         network.instance_tenancy = tenancy
 
@@ -114,7 +115,8 @@ class GoogleNetworkController(BaseNetworkController):
     def _list_networks__cidr_range(self, network, libcloud_network):
         return libcloud_network.cidr
 
-    def _list_networks__postparse_network(self, network, libcloud_network, r_groups=[]):
+    def _list_networks__postparse_network(self, network, libcloud_network,
+                                          r_groups=[]):
         network.mode = libcloud_network.mode
 
     def _list_subnets__fetch_subnets(self, network):
@@ -150,7 +152,8 @@ class OpenStackNetworkController(BaseNetworkController):
     def _create_subnet__prepare_args(self, subnet, kwargs):
         kwargs['network_id'] = subnet.network.network_id
 
-    def _list_networks__postparse_network(self, network, libcloud_network, r_groups=[]):
+    def _list_networks__postparse_network(self, network, libcloud_network,
+                                          r_groups=[]):
         for field in network._network_specific_fields:
             if hasattr(libcloud_network, field):
                 value = getattr(libcloud_network, field)

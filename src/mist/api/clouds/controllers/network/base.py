@@ -293,9 +293,10 @@ class BaseNetworkController(BaseController):
         except ConnectionError as e:
             raise mist.api.exceptions.CloudUnavailableError(e)
 
-        # in case of ARM, we also need to attach the network to a resource group
+        # in case of ARM, we need to attach the network to a resource group
         if self.cloud.ctl.provider in ['azure_arm']:
-            r_groups = self.cloud.ctl.compute.connection.ex_list_resource_groups()
+            connection = self.cloud.ctl.compute.connection
+            r_groups = connection.ex_list_resource_groups()
         else:
             r_groups = []
         # List of Network mongoengine objects to be returned to the API.
@@ -380,7 +381,8 @@ class BaseNetworkController(BaseController):
         """
         return
 
-    def _list_networks__postparse_network(self, network, libcloud_network, r_groups=[]):
+    def _list_networks__postparse_network(self, network, libcloud_network,
+                                          r_groups=[]):
         """Parses a libcloud network object on behalf of `self.list_networks`.
 
         Any subclass that needs to perform custom parsing of a network object
