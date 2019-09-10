@@ -1219,7 +1219,6 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
     sanitized by create_machine.
 
     """
-    import ipdb; ipdb.set_trace()
     if public_key:
         public_key = public_key.replace('\n', '')
 
@@ -1234,7 +1233,7 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
         if lib_resource_group.id == resource_group:
             ex_resource_group = lib_resource_group.name
             break
-    import ipdb; ipdb.set_trace()
+
     if ex_resource_group is None:
         try:
             conn.ex_create_resource_group(resource_group, location)

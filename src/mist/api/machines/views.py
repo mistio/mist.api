@@ -395,7 +395,7 @@ def create_machine(request):
         raise BadRequestError('Invalid tags format. Expecting either a '
                               'dictionary of tags or a list of single-item '
                               'dictionaries')
-    import ipdb; ipdb.set_trace()
+
     args = (cloud_id, key_id, machine_name,
             location_id, image_id, size,
             image_extra, disk, image_name, size_name,
@@ -426,7 +426,7 @@ def create_machine(request):
               'volumes': volumes,
               'ip_addresses': ip_addresses,
               'expiration': expiration}
-    import ipdb; ipdb.set_trace()
+
     if not run_async:
         ret = methods.create_machine(auth_context, *args, **kwargs)
     else:
