@@ -33,7 +33,7 @@ class AzureArmNetworkController(BaseNetworkController):
                                                  cloud=self.cloud)
         except CloudLocation.DoesNotExist:
             pass
-        network.location = location
+        network.location = location.id
 
         subnet_id = libcloud_network.extra.get('subnets')[0].get('id')
         r_group_name = subnet_id.split('resourceGroups/')[1].split('/')[0]

@@ -162,7 +162,9 @@ class AmazonNetwork(Network):
 class AzureArmNetwork(Network):
     instance_tenancy = me.StringField(default='default', choices=('default',
                                                                   'private'))
-    location = me.ReferenceField('CloudLocation', required=False)
+    # FIX ME
+    # location = me.ReferenceField('CloudLocation', required=False)
+    location = me.StringField()
     resource_group = me.StringField()
 
 
