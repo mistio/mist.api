@@ -1220,7 +1220,6 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
     sanitized by create_machine.
 
     """
-    storage_account_type = ''
     if public_key:
         public_key = public_key.replace('\n', '')
 
