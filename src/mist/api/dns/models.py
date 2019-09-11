@@ -266,7 +266,8 @@ class ARecord(Record):
             ip_addr = self.rdata[0]
             ip.ip_address(ip_addr)
         except ValueError:
-            raise me.ValidationError('IPv4 address provided is not valid')
+            raise me.ValidationError('IPv4 address provided is not valid %s' %
+                                     self.rdata)
         if not len(self.rdata) == 1:
             raise me.ValidationError('We cannot have more than one rdata'
                                      'values for this type of record.')
