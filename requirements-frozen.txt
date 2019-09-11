@@ -11,7 +11,7 @@ backports-abc==0.5
 backports.shutil-get-terminal-size==1.0.0
 bcrypt==3.1.4
 billiard==3.5.0.4
-celery==4.4.0rc2
+celery==4.4.0rc3
 kombu==4.6.3
 certifi==2018.8.24
 cffi==1.11.5
