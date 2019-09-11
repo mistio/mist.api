@@ -234,6 +234,26 @@ class AzureArmStorageController(BaseStorageController):
                 log.error('%s attached to unknown machine "%s"', volume,
                           owner_id)
 
+    def _list_volumes__volume_actions(self, volume, libcloud_volume):
+        super(AzureArmStorageController, self)._list_volumes__volume_actions(
+            volume, libcloud_volume)
+        # need to figure whether this is os disk or not
+        owner_id = libcloud_volume.extra.get('properties').get('ownerId')
+
+        if owner_id:
+            volume.actions.delete = False
+            from mist.api.machines.models import Machine
+            machines = Machine.objects.filter(cloud=self.cloud,
+                                              missing_since=None)
+            for machine in machines:
+                # use .lower() because arm is inconsistent in using lowercase
+                if machine.extra.get('id').lower() == owner_id.lower():
+                    storage_profile = machine.extra.get('storageProfile')
+                    os_disk_name = storage_profile.get('osDisk').get('name')
+                    if os_disk_name == volume.name: # os disk
+                        volume.actions.detach = False
+                    break
+
     def _create_volume__prepare_args(self, kwargs):
         if not kwargs.get('resource_group'):
             raise RequiredParameterMissingError('resource_group')
