@@ -3,10 +3,10 @@ FROM debian:10
 # Install libvirt which requires system dependencies.
 RUN apt update && apt install -y build-essential g++ gcc libvirt-dev \
     libxml2-dev libxslt-dev gnupg ca-certificates wget python3-pip \
-    mongo-tools netcat && \
-    wget https://www.foundationdb.org/downloads/6.1.8/ubuntu/installers/foundationdb-clients_6.1.8-1_amd64.deb && \
-    dpkg -i foundationdb-clients_6.1.8-1_amd64.deb && \
-    rm foundationdb-clients_6.1.8-1_amd64.deb && \
+    mongo-tools netcat openssh-client && \
+    wget https://www.foundationdb.org/downloads/6.1.12/ubuntu/installers/foundationdb-clients_6.1.12-1_amd64.deb && \
+    dpkg -i foundationdb-clients_6.1.12-1_amd64.deb && \
+    rm foundationdb-clients_6.1.12-1_amd64.deb && \
     rm -rf /var/lib/apt/lists/*
 
 RUN wget https://dl.influxdata.com/influxdb/releases/influxdb-1.6.0-static_linux_amd64.tar.gz && \
@@ -18,7 +18,7 @@ RUN ln -s /influxdb-1.6.0-1/influxd /usr/local/bin/influxd && \
 
 RUN pip install --no-cache-dir --upgrade pip
 RUN pip install --no-cache-dir --upgrade setuptools
-RUN pip install libvirt-python==5.5.0 uwsgi==2.0.18
+RUN pip install libvirt-python==5.7.0 uwsgi==2.0.18
 
 RUN pip install --no-cache-dir ipython ipdb flake8 pytest pytest-cov
 
