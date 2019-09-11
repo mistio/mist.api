@@ -271,8 +271,8 @@ class AzureArmStorageController(BaseStorageController):
                                      name=location.name,
                                      country=location.country, driver=None)
         kwargs['location'] = node_location
-        ex_storage_account_type = kwargs.pop('storage_account_type', 'Standard_LRS')
-        kwargs['ex_storage_account_type'] = ex_storage_account_type
+        account_type = kwargs.pop('storage_account_type', 'Standard_LRS')
+        kwargs['ex_storage_account_type'] = account_type
 
 
 class AlibabaStorageController(BaseStorageController):
