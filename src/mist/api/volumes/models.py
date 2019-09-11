@@ -33,7 +33,8 @@ class Volume(OwnershipMixin, me.Document):
     size = me.IntField()
     name = me.StringField()
     external_id = me.StringField(required=True)
-    actions = me.EmbeddedDocumentField(VolumeActions, default=lambda: VolumeActions())
+    actions = me.EmbeddedDocumentField(VolumeActions,
+                                       default=lambda: VolumeActions())
     extra = MistDictField()
 
     missing_since = me.DateTimeField()

@@ -250,7 +250,7 @@ class AzureArmStorageController(BaseStorageController):
                 if machine.extra.get('id').lower() == owner_id.lower():
                     storage_profile = machine.extra.get('storageProfile')
                     os_disk_name = storage_profile.get('osDisk').get('name')
-                    if os_disk_name == volume.name: # os disk
+                    if os_disk_name == volume.name:  # os disk
                         volume.actions.detach = False
                     break
 
