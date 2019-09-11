@@ -12,6 +12,13 @@ from mist.api.volumes.controllers import StorageController
 log = logging.getLogger(__name__)
 
 
+class VolumeActions(me.EmbeddedDocument):
+    attach = me.BooleanField(default=False)
+    detach = me.BooleanField(default=False)
+    delete = me.BooleanField(default=False)
+    tag = me.BooleanField(default=False)
+
+
 class Volume(OwnershipMixin, me.Document):
     """The basic block storage (volume) model"""
 
@@ -26,7 +33,8 @@ class Volume(OwnershipMixin, me.Document):
     size = me.IntField()
     name = me.StringField()
     external_id = me.StringField(required=True)
-
+    actions = me.EmbeddedDocumentField(VolumeActions,
+                                       default=lambda: VolumeActions())
     extra = MistDictField()
 
     missing_since = me.DateTimeField()
@@ -79,6 +87,8 @@ class Volume(OwnershipMixin, me.Document):
             'size': self.size,
             'location': self.location.id if self.location else None,
             'attached_to': [m.id for m in self.attached_to],
+            'actions': {action: self.actions[action]
+                        for action in self.actions},
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
         }

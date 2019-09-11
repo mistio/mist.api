@@ -9,12 +9,14 @@ from mist.api.volumes.methods import filter_list_volumes
 
 from mist.api.tag.methods import add_tags_to_resource
 from mist.api.auth.methods import auth_context_from_request
+from mist.api.clouds.methods import filter_list_clouds
 
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import CloudNotFoundError
 from mist.api.exceptions import VolumeNotFoundError
 from mist.api.exceptions import MachineNotFoundError
 from mist.api.exceptions import RequiredParameterMissingError
+from mist.api.exceptions import CloudUnauthorizedError, CloudUnavailableError
 
 from mist.api.tasks import async_session_update
 
@@ -27,8 +29,10 @@ from mist.api import config
 OK = Response("OK", 200)
 
 
-@view_config(route_name='api_v1_volumes', request_method='GET',
-             renderer='json')
+@view_config(route_name='api_v1_volumes',
+             request_method='GET', renderer='json')
+@view_config(route_name='api_v1_cloud_volumes',
+             request_method='GET', renderer='json')
 def list_volumes(request):
     """
     Tags: volumes
@@ -47,20 +51,34 @@ def list_volumes(request):
 
     params = params_from_request(request)
 
-    cloud_id = request.matchdict['cloud']
-    cached = bool(params.get('cached', False))
+    cloud_id = request.matchdict.get('cloud')
 
-    try:
-        Cloud.objects.get(owner=auth_context.owner, id=cloud_id, deleted=None)
-    except Cloud.DoesNotExist:
-        raise CloudNotFoundError()
+    if cloud_id:
+        cached = bool(params.get('cached', False))
+        try:
+            Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
+                              deleted=None)
+        except Cloud.DoesNotExist:
+            raise CloudNotFoundError()
+        # SEC
+        auth_context.check_perm('cloud', 'read', cloud_id)
+        volumes = filter_list_volumes(auth_context, cloud_id, cached=cached)
+    else:
+        auth_context.check_perm("cloud", "read", None)
+        clouds = filter_list_clouds(auth_context)
+        volumes = []
+        for cloud in clouds:
+            if cloud.get('enabled'):
+                try:
+                    vols = filter_list_volumes(auth_context, cloud.get('id'))
+                    volumes.append(vols)
+                except (CloudUnavailableError, CloudUnauthorizedError):
+                    pass
 
-    # SEC
-    auth_context.check_perm('cloud', 'read', cloud_id)
-    return filter_list_volumes(auth_context, cloud_id, cached=cached)
+    return volumes
 
 
-@view_config(route_name='api_v1_volumes', request_method='POST',
+@view_config(route_name='api_v1_cloud_volumes', request_method='POST',
              renderer='json')
 def create_volume(request):
     """
@@ -100,7 +118,7 @@ def create_volume(request):
       description: EC2-specific. Needs to be specified if volume_type='io1'
     """
     cloud_id = request.matchdict['cloud']
-
+    # import ipdb; ipdb.set_trace()
     params = params_from_request(request)
     name = params.get('name')
     size = params.get('size')
@@ -152,7 +170,9 @@ def create_volume(request):
     return volume.as_dict()
 
 
-@view_config(route_name='api_v1_volume', request_method='DELETE')
+@view_config(route_name='api_v1_volume',
+             request_method='DELETE', renderer='json')
+@view_config(route_name='api_v1_cloud_volume', request_method='DELETE')
 def delete_volume(request):
     """
     Tags: volumes
@@ -175,22 +195,40 @@ def delete_volume(request):
       schema:
         type: string
     """
-    cloud_id = request.matchdict['cloud']
-    external_id = request.matchdict['volume']
+    cloud_id = request.matchdict.get('cloud')
+    external_id = request.matchdict.get('volume')
+    if external_id:
+        external_id = '/'.join(external_id)
+
+    volume_id = request.matchdict.get('volume_uuid')
 
     auth_context = auth_context_from_request(request)
 
-    try:
-        cloud = Cloud.objects.get(id=cloud_id, owner=auth_context.owner,
-                                  deleted=None)
-    except Cloud.DoesNotExist:
-        raise CloudNotFoundError()
+    if cloud_id:
+        try:
+            cloud = Cloud.objects.get(id=cloud_id, owner=auth_context.owner,
+                                      deleted=None)
+        except Cloud.DoesNotExist:
+            raise CloudNotFoundError()
 
-    try:
-        volume = Volume.objects.get(external_id=external_id, cloud=cloud,
-                                    missing_since=None)
-    except me.DoesNotExist:
-        raise VolumeNotFoundError()
+        if cloud.ctl.provider in ['azure_arm']:
+            external_id = '/' + external_id
+
+        try:
+            volume = Volume.objects.get(external_id=external_id, cloud=cloud,
+                                        missing_since=None)
+        except me.DoesNotExist:
+            raise VolumeNotFoundError()
+
+    else:
+
+        try:
+            volume = Volume.objects.get(id=volume_id,
+                                        missing_since=None)
+        except me.DoesNotExist:
+            raise VolumeNotFoundError()
+
+        cloud = volume.cloud
 
     # SEC
     auth_context.check_perm('cloud', 'read', cloud.id)
@@ -203,7 +241,10 @@ def delete_volume(request):
 
 
 # FIXME: rename to attach/detach in logs
-@view_config(route_name='api_v1_volume', request_method='PUT', renderer='json')
+@view_config(route_name='api_v1_cloud_volume', request_method='PUT',
+             renderer='json')
+@view_config(route_name='api_v1_volume', request_method='PUT',
+             renderer='json')
 def volume_action(request):
     """
     Tags: volumes
@@ -231,13 +272,10 @@ def volume_action(request):
       type: string
       description: eg /dev/sdh. Required for EC2, optional for OpenStack
     """
+
     auth_context = auth_context_from_request(request)
 
     params = params_from_request(request)
-
-    cloud_id = request.matchdict['cloud']
-    external_id = request.matchdict['volume']
-
     action = params.pop('action', '')
     machine_uuid = params.pop('machine', '')
 
@@ -247,21 +285,41 @@ def volume_action(request):
     if not machine_uuid:
         raise RequiredParameterMissingError('machine')
 
-    try:
-        cloud = Cloud.objects.get(id=cloud_id, owner=auth_context.owner,
-                                  deleted=None)
-    except Cloud.DoesNotExist:
-        raise CloudNotFoundError()
+    cloud_id = request.matchdict.get('cloud')
+    external_id = request.matchdict.get('volume')
+    if external_id:
+        external_id = '/'.join(external_id)
+
+    volume_id = request.matchdict.get('volume_uuid')
+
+    if cloud_id:
+
+        try:
+            cloud = Cloud.objects.get(id=cloud_id, owner=auth_context.owner,
+                                      deleted=None)
+        except Cloud.DoesNotExist:
+            raise CloudNotFoundError()
+
+        if cloud.ctl.provider in ['azure_arm']:
+            external_id = '/' + external_id
+
+        try:
+            volume = Volume.objects.get(external_id=external_id, cloud=cloud,
+                                        missing_since=None)
+        except me.DoesNotExist:
+            raise VolumeNotFoundError()
+
+    else:
+
+        try:
+            volume = Volume.objects.get(id=volume_id, missing_since=None)
+        except me.DoesNotExist:
+            raise VolumeNotFoundError()
+
+        cloud = volume.cloud
 
     try:
-        volume = Volume.objects.get(external_id=external_id, cloud=cloud,
-                                    missing_since=None)
-    except me.DoesNotExist:
-        raise VolumeNotFoundError()
-
-    try:
-        machine = Machine.objects.get(id=machine_uuid, cloud=cloud,
-                                      missing_since=None)
+        machine = Machine.objects.get(id=machine_uuid, missing_since=None)
     except Machine.DoesNotExist:
         raise MachineNotFoundError()
 

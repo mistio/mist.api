@@ -33,6 +33,7 @@ from mist.api.exceptions import BadRequestError, MachineCreationError
 from mist.api.exceptions import InternalServerError
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import VolumeNotFoundError
+from mist.api.exceptions import NetworkNotFoundError
 
 from mist.api.helpers import get_temp_file
 
@@ -133,19 +134,16 @@ def list_machines(owner, cloud_id, cached=False):
 def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                    image_id, size, image_extra=None, disk=None,
                    image_name=None, size_name=None, location_name=None,
-                   ips=None, monitoring=False, ex_storage_account='',
-                   machine_password='', ex_resource_group='', networks=[],
-                   subnetwork=None, docker_env=[],
-                   docker_command=None,
+                   ips=None, monitoring=False, storage_account='',
+                   machine_password='', resource_group='',
+                   storage_account_type='', networks=[], subnetwork=None,
+                   docker_env=[], docker_command=None,
                    ssh_port=22, script='', script_id='', script_params='',
                    job_id=None, job=None, docker_port_bindings={},
                    docker_exposed_ports={}, azure_port_bindings='',
                    hostname='', plugins=None, disk_size=None, disk_path=None,
                    post_script_id='', post_script_params='', cloud_init='',
-                   subnet_id='', create_network=False, new_network='',
-                   create_resource_group=False, new_resource_group='',
-                   create_storage_account=False, new_storage_account='',
-                   associate_floating_ip=False,
+                   subnet_id='', associate_floating_ip=False,
                    associate_floating_ip_subnet=None, project_id=None,
                    schedule={}, command=None, tags=None,
                    bare_metal=False, hourly=True,
@@ -381,11 +379,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         node = _create_machine_azure_arm(
             auth_context.owner, cloud_id, conn, public_key, machine_name,
             image, size, location, networks,
-            ex_storage_account, machine_password, ex_resource_group,
-            create_network, new_network,
-            create_resource_group, new_resource_group,
-            create_storage_account, new_storage_account,
-            machine_username
+            storage_account, machine_password, resource_group,
+            machine_username, volumes, storage_account_type
         )
     elif conn.type in [Provider.VCLOUD]:
         node = _create_machine_vcloud(conn, machine_name, image,
@@ -1216,11 +1211,9 @@ def _create_machine_vultr(conn, public_key, machine_name, image,
 
 def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
                               image, size, location, networks,
-                              ex_storage_account, machine_password,
-                              ex_resource_group, create_network, new_network,
-                              create_resource_group, new_resource_group,
-                              create_storage_account, new_storage_account,
-                              machine_username):
+                              storage_account, machine_password,
+                              resource_group, machine_username, volumes,
+                              storage_account_type):
     """Create a machine Azure ARM.
 
     Here there is no checking done, all parameters are expected to be
@@ -1235,37 +1228,67 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
     else:
         k = NodeAuthSSHKey(public_key)
 
-    if create_resource_group:
+    resource_groups = conn.ex_list_resource_groups()
+    ex_resource_group = None
+    for lib_resource_group in resource_groups:
+        if lib_resource_group.id == resource_group:
+            ex_resource_group = lib_resource_group.name
+            break
+
+    if ex_resource_group is None:
         try:
-            conn.ex_create_resource_group(new_resource_group, location)
-            resource_group = new_resource_group
-            # clear resource groups cache
-            taskRG = mist.api.tasks.ListResourceGroups()
-            taskRG.clear_cache(owner.id, cloud_id)
-            taskRG.delay(owner.id, cloud_id)
+            conn.ex_create_resource_group(resource_group, location)
+            ex_resource_group = resource_group
             # add delay cause sometimes the group is not yet ready
             time.sleep(5)
         except Exception as exc:
-            raise InternalServerError("Couldn't create resource group", exc)
-    else:
-        resource_group = ex_resource_group
+            raise InternalServerError("Couldn't create resource group. \
+                %s" % exc)
 
-    if create_storage_account:
+    storage_accounts = conn.ex_list_storage_accounts()
+    ex_storage_account = None
+    for lib_storage_account in storage_accounts:
+        if lib_storage_account.id == storage_account:
+            ex_storage_account = lib_resource_group.name
+            break
+
+    if ex_storage_account is None:
         try:
-            conn.ex_create_storage_account(new_storage_account,
-                                           resource_group,
+            conn.ex_create_storage_account(storage_account,
+                                           ex_resource_group,
                                            'Storage', location)
-            storage_account = new_storage_account
-            # clear storage accounts cache
-            taskSA = mist.api.tasks.ListStorageAccounts()
-            taskSA.clear_cache(owner.id, cloud_id)
-            taskSA.delay(owner.id, cloud_id)
+            ex_storage_account = storage_account
+            # w8 for storage account state to become succedeed
+            timeout = time.time() + 30
+            st_account_ready = False
+            while time.time() < timeout and not st_account_ready:
+                st_accounts = conn.ex_list_storage_accounts()
+                for st_account in st_accounts:
+                    state = st_account.extra.get('provisioningState')
+                    if st_account.name == ex_storage_account and \
+                       state == 'Succeeded':
+                        st_account_ready = True
+                        break
         except Exception as exc:
-            raise InternalServerError("Couldn't create storage account", exc)
-    else:
-        storage_account = ex_storage_account
+            raise InternalServerError("Couldn't create storage account. \
+                %s" % exc)
+    if not isinstance(networks, list):
+        networks = [networks]
+    network = networks[0]
+    if network.get('id'):
+        try:
+            mist_net = Network.objects.get(id=network.get('id'))
+        except me.DoesNotExist:
+            raise NetworkNotFoundError()
 
-    if create_network:
+        libcloud_networks = conn.ex_list_networks()
+        ex_network = None
+        for libcloud_net in libcloud_networks:
+            if mist_net.network_id == libcloud_net.id:
+                ex_network = libcloud_net
+                break
+    elif network.get('name'):   # create network
+
         # create a security group and open ports
         securityRules = [
             {
@@ -1310,54 +1333,56 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
         ]
         try:
             sg = conn.ex_create_network_security_group(
-                new_network,
-                resource_group,
+                network.get('name'),
+                ex_resource_group,
                 location=location,
                 securityRules=securityRules
             )
             # add delay cause sometimes the group is not yet ready
             time.sleep(3)
         except Exception as exc:
-            raise InternalServerError("Couldn't create security group", exc)
+            raise InternalServerError("Couldn't create security group \
+                %s" % exc)
 
         # create the new network
         try:
-            ex_network = conn.ex_create_network(new_network,
-                                                resource_group,
+            ex_network = conn.ex_create_network(network.get('name'),
+                                                ex_resource_group,
                                                 location=location,
                                                 networkSecurityGroup=sg.id)
         except Exception as exc:
             raise InternalServerError("Couldn't create new network", exc)
-    else:
-        # select the right network object
-        ex_network = None
-        sg = ""
-        try:
-            if networks:
-                available_networks = conn.ex_list_networks()
-                mist_net = Network.objects.get(id=networks)
-                for libcloud_net in available_networks:
-                    if mist_net.network_id == libcloud_net.id:
-                        ex_network = libcloud_net
-        except:
-            pass
 
     ex_subnet = conn.ex_list_subnets(ex_network)[0]
 
     try:
         ex_ip = conn.ex_create_public_ip(machine_name,
-                                         resource_group,
+                                         ex_resource_group,
                                          location)
     except Exception as exc:
         raise InternalServerError("Couldn't create new ip", exc)
 
     try:
         ex_nic = conn.ex_create_network_interface(machine_name, ex_subnet,
-                                                  resource_group,
+                                                  ex_resource_group,
                                                   location=location,
                                                   public_ip=ex_ip)
     except Exception as exc:
         raise InternalServerError("Couldn't create network interface", exc)
+
+    data_disks = []
+    for volume in volumes:
+        if volume.get('volume_id'):  # existing volume
+            from mist.api.volumes.models import Volume
+            try:
+                mist_vol = Volume.objects.get(id=volume.get('volume_id'))
+            except me.DoesNotExist:
+                # should we throw the exception?
+                raise VolumeNotFoundError()
+            data_disks.append({'id': mist_vol.external_id})
+
+        else:  # new volume
+            data_disks.append(volume)
 
     try:
         node = conn.create_node(
@@ -1365,11 +1390,14 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
             size=size,
             image=image,
             auth=k,
-            ex_resource_group=resource_group,
-            ex_storage_account=storage_account,
+            ex_resource_group=ex_resource_group,
+            ex_storage_account=ex_storage_account,
             ex_nic=ex_nic,
             location=location,
-            ex_user_name=machine_username
+            ex_user_name=machine_username,
+            ex_use_managed_disks=True,
+            ex_data_disks=data_disks,
+            ex_storage_account_type=storage_account_type
         )
     except Exception as e:
         try:
