@@ -366,7 +366,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         node = _create_machine_digital_ocean(
             conn, key_id, private_key,
             public_key, machine_name,
-            image, size, location, cloud_init)
+            image, size, location, cloud_init, volumes)
     elif conn.type == Provider.AZURE:
         node = _create_machine_azure(
             conn, key_id, private_key,
@@ -969,9 +969,10 @@ def _create_machine_docker(conn, machine_name, image_id,
     return container
 
 
+# FIX ME: cloud init is user_data? WTF????
 def _create_machine_digital_ocean(conn, key_name, private_key, public_key,
                                   machine_name, image, size,
-                                  location, user_data):
+                                  location, user_data, volumes):
     """Create a machine in Digital Ocean.
     """
     key = public_key.replace('\n', '')
@@ -991,6 +992,30 @@ def _create_machine_digital_ocean(conn, key_name, private_key, public_key,
         ex_ssh_key_ids = server_keys
     else:
         ex_ssh_key_ids = [str(server_key.extra.get('id'))]
+
+    _volumes = []
+    for volume in volumes:
+        if volume.get('volume_id'):  # existing volume
+            try:
+                from mist.api.volumes.models import Volume
+                mist_volume = Volume.objects.get(id=volume.get('volume_id'))
+                _volumes.append(mist_volume.external_id)
+            except me.DoesNotExist:
+                # make sure mongo is up-to-date
+                # FIX ME!
+                # cloud.ctl.storage.list_volumes()
+                try:
+                    mist_volume = Volume.objects.get(id=volume.get('volume_id'))
+                    _volumes.append(mist_volume.external_id)
+                except me.DoesNotExist:
+                    # try to find disk using libcloud's id
+                    libcloud_disks = conn.list_volumes()
+                    for libcloud_disk in libcloud_disks:
+                        if libcloud_disk.id == volume.get('volume_id'):
+                            _volumes.append(volume.get('volume_id'))
+                            break
+                    raise VolumeNotFoundError()
+
 
     # check if location allows the private_networking setting
     private_networking = False
@@ -1013,7 +1038,8 @@ def _create_machine_digital_ocean(conn, key_name, private_key, public_key,
             ex_ssh_key_ids=ex_ssh_key_ids,
             location=location,
             ex_create_attr={'private_networking': private_networking},
-            ex_user_data=user_data
+            ex_user_data=user_data,
+            volumes=_volumes
         )
     except Exception as e:
         raise MachineCreationError(
