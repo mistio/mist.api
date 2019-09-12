@@ -118,7 +118,6 @@ def create_volume(request):
       description: EC2-specific. Needs to be specified if volume_type='io1'
     """
     cloud_id = request.matchdict['cloud']
-    # import ipdb; ipdb.set_trace()
     params = params_from_request(request)
     name = params.get('name')
     size = params.get('size')
