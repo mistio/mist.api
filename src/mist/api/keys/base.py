@@ -61,8 +61,7 @@ class BaseKeyController(object):
             self.key.save()
         except me.ValidationError as exc:
             log.error("Error adding %s: %s", self.key.name, exc.to_dict())
-            raise BadRequestError({'msg': str(exc),
-                                   'errors': exc.to_dict()})
+            raise BadRequestError("%s" % str(exc.to_dict()['__all__']))
         except me.NotUniqueError as exc:
             log.error("Key %s not unique error: %s", self.key.name, exc)
             raise KeyExistsError()
