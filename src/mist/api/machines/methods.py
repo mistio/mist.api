@@ -835,15 +835,17 @@ def _create_machine_ec2(conn, key_name, public_key,
     except Exception as e:
         raise MachineCreationError("EC2, got exception %s" % e, e)
 
-    ready = False
-    while not ready:
-        lib_nodes = conn.list_nodes()
-        for lib_node in lib_nodes:
-            if lib_node.id == node.id and lib_node.state == 'running':
-                ready = True
+    # wait for node to be running, in order to attach disks to it
+    if ex_volumes:
+        ready = False
+        while not ready:
+            lib_nodes = conn.list_nodes()
+            for lib_node in lib_nodes:
+                if lib_node.id == node.id and lib_node.state == 'running':
+                    ready = True
 
-    for volume in ex_volumes:
-        conn.attach_volume(node, volume.get('volume'), volume.get('device'))
+        for volume in ex_volumes:
+            conn.attach_volume(node, volume.get('volume'), volume.get('device'))
 
     return node
 
