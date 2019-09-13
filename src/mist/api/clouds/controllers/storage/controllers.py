@@ -147,10 +147,11 @@ class DigitalOceanStorageController(BaseStorageController):
         try:
             location = CloudLocation.objects.get(id=kwargs['location'])
         except CloudLocation.DoesNotExist:
+            _location = kwargs['location']
             try:
-                location = CloudLocation.objects.get(external_id=kwargs['location'])
+                location = CloudLocation.objects.get(external_id=_location)
             except CloudLocation.DoesNotExist:
-                raise NotFoundError("Location with id '%s'." % kwargs['location'])
+                raise NotFoundError("Location with id '%s'." % _location)
         node_location = NodeLocation(id=location.external_id,
                                      name=location.name,
                                      country=location.country, driver=None)
