@@ -200,14 +200,7 @@ class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
     meta = {
         'collection': 'schedules',
         'allow_inheritance': True,
-        'indexes': [
-            {
-                'fields': ['owner', 'name', 'deleted'],
-                'sparse': False,
-                'unique': True,
-                'cls': False,
-            },
-        ],
+        'indexes': ['owner', 'name', 'deleted'],
     }
 
     id = me.StringField(primary_key=True, default=lambda: uuid4().hex)

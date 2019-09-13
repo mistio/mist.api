@@ -134,14 +134,7 @@ class Script(OwnershipMixin, me.Document):
     meta = {
         'allow_inheritance': True,
         'collection': 'scripts',
-        'indexes': [
-            {
-                'fields': ['owner', 'name', 'deleted'],
-                'sparse': False,
-                'unique': True,
-                'cls': False,
-            },
-        ],
+        'indexes': ['owner', 'name', 'deleted'],
     }
 
     id = me.StringField(primary_key=True,

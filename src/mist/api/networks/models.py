@@ -58,14 +58,7 @@ class Network(OwnershipMixin, me.Document):
     meta = {
         'allow_inheritance': True,
         'collection': 'networks',
-        'indexes': [
-            {
-                'fields': ['cloud', 'network_id'],
-                'sparse': False,
-                'unique': True,
-                'cls': False,
-            },
-        ],
+        'indexes': ['cloud', 'network_id'],
     }
 
     def __init__(self, *args, **kwargs):
@@ -238,14 +231,7 @@ class Subnet(me.Document):
     meta = {
         'allow_inheritance': True,
         'collection': 'subnets',
-        'indexes': [
-            {
-                'fields': ['network', 'subnet_id'],
-                'sparse': False,
-                'unique': True,
-                'cls': False,
-            },
-        ],
+        'indexes': ['network', 'subnet_id'],
     }
 
     def __init__(self, *args, **kwargs):

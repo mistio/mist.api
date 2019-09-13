@@ -51,15 +51,7 @@ class Zone(OwnershipMixin, me.Document):
 
     meta = {
         'collection': 'zones',
-        'indexes': [
-            'owner',
-            {
-                'fields': ['cloud', 'zone_id', 'deleted'],
-                'sparse': False,
-                'unique': True,
-                'cls': False,
-            }
-        ],
+        'indexes': ['owner', 'cloud', 'zone_id', 'deleted'],
     }
 
     def __init__(self, *args, **kwargs):
@@ -161,14 +153,7 @@ class Record(OwnershipMixin, me.Document):
     meta = {
         'collection': 'records',
         'allow_inheritance': True,
-        'indexes': [
-            {
-                'fields': ['zone', 'record_id', 'deleted'],
-                'sparse': False,
-                'unique': True,
-                'cls': False,
-            }
-        ],
+        'indexes': ['zone', 'record_id', 'deleted'],
     }
     _record_type = None
 

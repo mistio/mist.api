@@ -101,14 +101,7 @@ class UserNotificationPolicy(me.Document):
 
     meta = {
         'collection': 'notification_policies',
-        'indexes': [
-            {
-                'fields': ['user_id', 'owner'],
-                'sparse': False,
-                'unique': True,
-                'cls': False,
-            },
-        ],
+        'indexes': ['user_id', 'owner'],
     }
 
     @property

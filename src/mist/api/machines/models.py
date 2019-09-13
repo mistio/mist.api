@@ -314,23 +314,7 @@ class Machine(OwnershipMixin, me.Document):
 
     meta = {
         'collection': 'machines',
-        'indexes': [
-            {
-                'fields': [
-                    'cloud',
-                    'machine_id'
-                ],
-                'sparse': False,
-                'unique': True,
-                'cls': False,
-            }, {
-                'fields': [
-                    'monitoring.installation_status.activated_at'
-                ],
-                'sparse': True,
-                'unique': False
-            }
-        ],
+        'indexes': ['cloud', 'machine_id', 'monitoring.installation_status.activated_at'],
         'strict': False,
     }
 

@@ -42,14 +42,7 @@ class Volume(OwnershipMixin, me.Document):
     meta = {
         'allow_inheritance': True,
         'collection': 'volumes',
-        'indexes': [
-            {
-                'fields': ['cloud', 'external_id'],
-                'sparse': False,
-                'unique': True,
-                'cls': False,
-            },
-        ],
+        'indexes': ['cloud', 'external_id'],
     }
 
     def __init__(self, *args, **kwargs):
