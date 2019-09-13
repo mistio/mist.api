@@ -786,7 +786,7 @@ def _create_machine_ec2(conn, key_name, public_key,
     else:
         kwargs.update({'ex_securitygroup': config.EC2_SECURITYGROUP['name']})
 
-    mappings=[]
+    mappings = []
     ex_volumes = []
     for volume in volumes:
         if volume.get('volume_id'):
@@ -817,7 +817,8 @@ def _create_machine_ec2(conn, key_name, public_key,
             if volume.get('name'):
                 mapping.update({'DeviceName': volume.get('name')})
             if volume.get('ex_volume_type'):
-                mapping['Ebs'].update({'VolumeType': volume.get('ex_volume_type')})
+                volume_type = {'VolumeType': volume.get('ex_volume_type')}
+                mapping['Ebs'].update(volume_type)
             if volume.get('ex_iops'):
                 mapping['Ebs'].update({'Iops': volume.get('ex_iops')})
             if volume.get('delete_on_termination'):
