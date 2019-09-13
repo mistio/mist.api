@@ -380,7 +380,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             auth_context.owner, cloud_id, conn, public_key, machine_name,
             image, size, location, networks,
             storage_account, machine_password, resource_group,
-            machine_username, volumes, storage_account_type
+            machine_username, volumes, storage_account_type,
+            cloud_init
         )
     elif conn.type in [Provider.VCLOUD]:
         node = _create_machine_vcloud(conn, machine_name, image,
@@ -1213,7 +1214,7 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
                               image, size, location, networks,
                               storage_account, machine_password,
                               resource_group, machine_username, volumes,
-                              storage_account_type):
+                              storage_account_type, cloud_init):
     """Create a machine Azure ARM.
 
     Here there is no checking done, all parameters are expected to be
@@ -1397,7 +1398,8 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
             ex_user_name=machine_username,
             ex_use_managed_disks=True,
             ex_data_disks=data_disks,
-            ex_storage_account_type=storage_account_type
+            ex_storage_account_type=storage_account_type,
+            ex_customdata=cloud_init
         )
     except Exception as e:
         try:
