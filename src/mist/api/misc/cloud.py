@@ -14,8 +14,13 @@ class CloudImage(me.Document):
     meta = {
         'indexes': [
             'cloud_provider',
-            'cloud_region',
             'image_id',
+            {
+                'fields': ['cloud_provider', 'cloud_region', 'image_id'],
+                'sparse': False,
+                'unique': True,
+                'cls': False,
+            },
         ],
     }
 

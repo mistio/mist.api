@@ -59,7 +59,14 @@ class Key(OwnershipMixin, me.Document):
     meta = {
         'allow_inheritance': True,
         'collection': 'keys',
-        'indexes': ['owner', 'name', 'deleted'],
+        'indexes': [
+            {
+                'fields': ['owner', 'name', 'deleted'],
+                'sparse': False,
+                'unique': True,
+                'cls': False,
+            },
+        ],
     }
 
     id = me.StringField(primary_key=True,

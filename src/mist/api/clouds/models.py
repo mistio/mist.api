@@ -102,7 +102,16 @@ class Cloud(OwnershipMixin, me.Document):
         'strict': False,
         'allow_inheritance': True,
         'collection': 'clouds',  # collection 'cloud' is used by core's model
-        'indexes': ['owner', 'title', 'deleted'],
+        'indexes': [
+            'owner',
+            # Following index ensures owner with title combos are unique
+            {
+                'fields': ['owner', 'title', 'deleted'],
+                'sparse': False,
+                'unique': True,
+                'cls': False,
+            }
+        ],
     }
 
     _private_fields = ()
@@ -224,7 +233,14 @@ class CloudLocation(OwnershipMixin, me.Document):
 
     meta = {
         'collection': 'locations',
-        'indexes': ['cloud', 'external_id']
+        'indexes': [
+            {
+                'fields': ['cloud', 'external_id'],
+                'sparse': False,
+                'unique': True,
+                'cls': False,
+            },
+        ]
     }
 
     def __str__(self):
@@ -265,7 +281,14 @@ class CloudSize(me.Document):
 
     meta = {
         'collection': 'sizes',
-        'indexes': ['cloud', 'external_id'],
+        'indexes': [
+            {
+                'fields': ['cloud', 'external_id'],
+                'sparse': False,
+                'unique': True,
+                'cls': False,
+            },
+        ]
     }
 
     def __str__(self):

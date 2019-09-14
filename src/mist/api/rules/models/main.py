@@ -113,7 +113,14 @@ class Rule(me.Document):
         'strict': False,
         'collection': 'rules',
         'allow_inheritance': True,
-        'indexes': ['owner_id', 'title'],
+        'indexes': [
+            {
+                'fields': ['owner_id', 'title'],
+                'sparse': False,
+                'unique': True,
+                'cls': False,
+            }
+        ]
     }
 
     _controller_cls = None

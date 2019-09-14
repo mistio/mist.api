@@ -665,7 +665,14 @@ class Metric(me.Document):
     unit = me.StringField()
 
     meta = {
-        'indexes': ['owner', 'metric_id']
+        'indexes': [
+            {
+                'fields': ['owner', 'metric_id'],
+                'sparse': False,
+                'unique': True,
+                'cls': False,
+            },
+        ],
     }
 
     def clean(self):
