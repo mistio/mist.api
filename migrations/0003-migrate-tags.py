@@ -1,7 +1,7 @@
 import mongoengine as me
 
 from mist.api.users.models import Owner
-from mist.api.models import *
+from mist.api.models import *  # noqa
 
 
 def migrate_tags():
@@ -27,7 +27,7 @@ def migrate_tags():
 
     from pymongo import MongoClient
     from mist.api.config import MONGO_URI, MONGO_DB
-    db = client=MongoClient(MONGO_URI)[MONGO_DB]
+    db = MongoClient(MONGO_URI)[MONGO_DB]
     db.tag.drop_indexes()
     print('Dropped tag indexes')
     total = Tag.objects.count()
@@ -37,7 +37,7 @@ def migrate_tags():
         try:
             if tag.resource:
                 tag.resource_id = tag.resource.id
-                tag.resource_type = tag.__class__.__name__.lower()
+                tag.resource_type = tag.resource.db_ref().collection.strip('s')
                 tag.resource = None
                 tag.save()
                 migrated += 1
@@ -47,15 +47,18 @@ def migrate_tags():
                 skipped += 1
                 continue
             else:
-                print('Deleting tag %s:%s pointing to no %s' % (tag.key, tag.value, tag.resource_type))
+                print('Deleting tag %s:%s pointing to no %s' % (
+                    tag.key, tag.value, tag.resource_type))
                 tag.delete()
                 deleted += 1
         except me.DoesNotExist:
-            print('Deleting tag %s:%s pointing to missing %s' % (tag.key, tag.value, tag.resource_type))
+            print('Deleting tag %s:%s pointing to missing %s' % (
+                tag.key, tag.value, tag.resource_type))
             tag.delete()
             deleted += 1
 
-    print('Migrated %d, deleted %s, skipped %d, out of %d tags' % (migrated, deleted, skipped, total))
+    print('Migrated %d, deleted %s, skipped %d, out of %d tags' % (
+        migrated, deleted, skipped, total))
 
 
 if __name__ == '__main__':

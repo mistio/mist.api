@@ -181,7 +181,7 @@ class Notification(me.Document):
         'strict': False,
         'allow_inheritance': True,
         'collection': 'notifications',
-        'indexes': ['owner', '-created_at'],
+        'indexes': ['owner', 'created_at'],
     }
 
     _notification_channel_cls = None

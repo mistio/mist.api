@@ -161,24 +161,18 @@ def list_resource_groups(owner, cloud_id):
     this returns an empty list
     """
     cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
-    conn = connect_provider(cloud)
 
-    ret = {}
-    if conn.type in [Provider.AZURE_ARM]:
+    if cloud.ctl.provider in ['azure_arm']:
+        conn = connect_provider(cloud)
         groups = conn.ex_list_resource_groups()
     else:
         groups = []
 
-    ret = [{'id': group.name,
+    ret = [{'id': group.id,
             'name': group.name,
             'extra': group.extra
             }
            for group in groups]
-    return ret
-
-    if conn.type == 'libvirt':
-        # close connection with libvirt
-        conn.disconnect()
     return ret
 
 
@@ -188,25 +182,38 @@ def list_storage_accounts(owner, cloud_id):
     this returns an empty list
     """
     cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
-    conn = connect_provider(cloud)
-
-    ret = {}
-    if conn.type in [Provider.AZURE_ARM]:
+    if cloud.ctl.provider in ['azure_arm']:
+        conn = connect_provider(cloud)
         accounts = conn.ex_list_storage_accounts()
     else:
         accounts = []
 
-    ret = [{'id': account.name,
-            'name': account.name,
-            'extra': account.extra
-            }
-           for account in accounts]
-    return ret
+    storage_accounts = []
+    resource_groups = conn.ex_list_resource_groups()
+    for account in accounts:
+        location_id = account.location
 
-    if conn.type == 'libvirt':
-        # close connection with libvirt
-        conn.disconnect()
-    return ret
+        # FIXME: circular import
+        from mist.api.clouds.models import CloudLocation
+        try:
+            location = CloudLocation.objects.get(external_id=location_id,
+                                                 cloud=cloud)
+        except CloudLocation.DoesNotExist:
+            pass
+        r_group_name = account.id.split('resourceGroups/')[1].split('/')[0]
+        r_group_id = ''
+        for resource_group in resource_groups:
+            if resource_group.name == r_group_name:
+                r_group_id = resource_group.id
+                break
+        storage_account = {'id': account.id,
+                           'name': account.name,
+                           'location': location.id if location else None,
+                           'extra': account.extra,
+                           'resource_group': r_group_id}
+        storage_accounts.append(storage_account)
+
+    return storage_accounts
 
 
 # TODO deprecate this!

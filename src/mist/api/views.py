@@ -173,11 +173,19 @@ def home(request):
         if not page:
             page = 'home'
         if page not in config.LANDING_FORMS:
-            response = requests.get('%s/static/landing/sections/%s.html' % (
-                request.application_url, page))
-            if response.ok:
-                section = response.text
-                template_inputs['section'] = section
+            page_uri = '%s/static/landing/sections/%s.html' % (
+                request.application_url, page)
+            try:
+                response = requests.get(page_uri)
+                if response.ok:
+                    section = response.text
+                    template_inputs['section'] = section
+                else:
+                    log.error("Failed to fetch page `%s` from `%s`: %r" % (
+                        page, page_uri, response))
+            except Exception as exc:
+                log.error("Failed to fetch page `%s` from `%s`: %r" % (
+                    page, page_uri, exc))
         return render_to_response('templates/landing.pt', template_inputs)
 
     if not user.last_active or \
@@ -1142,6 +1150,62 @@ def list_locations(request):
     params = params_from_request(request)
     cached = bool(params.get('cached', False))
     return filter_list_locations(auth_context, cloud_id, cached=cached)
+
+
+@view_config(route_name='api_v1_storage_accounts', request_method='GET',
+             renderer='json')
+def list_storage_accounts(request):
+    """
+    Tags: clouds
+    ---
+    List storage accounts. ARM specific. For other providers this
+    returns an empty list
+    READ permission required on cloud.
+    ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    """
+    cloud_id = request.matchdict['cloud']
+    auth_context = auth_context_from_request(request)
+
+    try:
+        Cloud.objects.get(owner=auth_context.owner, id=cloud_id, deleted=None)
+    except Cloud.DoesNotExist:
+        raise CloudNotFoundError()
+
+    auth_context.check_perm("cloud", "read", cloud_id)
+
+    return methods.list_storage_accounts(auth_context.owner, cloud_id)
+
+
+@view_config(route_name='api_v1_resource_groups', request_method='GET',
+             renderer='json')
+def list_resource_groups(request):
+    """
+    Tags: clouds
+    ---
+    List resource groups. ARM specific. For other providers this
+    returns an empty list
+    READ permission required on cloud.
+    ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    """
+    cloud_id = request.matchdict['cloud']
+    auth_context = auth_context_from_request(request)
+
+    try:
+        Cloud.objects.get(owner=auth_context.owner, id=cloud_id, deleted=None)
+    except Cloud.DoesNotExist:
+        raise CloudNotFoundError()
+
+    auth_context.check_perm("cloud", "read", cloud_id)
+
+    return methods.list_resource_groups(auth_context.owner, cloud_id)
 
 
 @view_config(route_name='api_v1_cloud_probe',

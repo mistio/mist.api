@@ -14,7 +14,7 @@ def get_tags_for_resource(owner, resource_obj, *args, **kwargs):
 def get_tag_objects_for_resource(owner, resource_obj, *args, **kwargs):
     return Tag.objects(
         owner=owner,
-        resource_type=resource_obj.__class__.__name__.lower(),
+        resource_type=resource_obj.to_dbref().collection.rstrip('s'),
         resource_id=resource_obj.id)
 
 
@@ -44,7 +44,7 @@ def add_tags_to_resource(owner, resource_obj, tags, *args, **kwargs):
     # remaining tags in tag_dict have not been found in the db so add them now
     for key, value in tag_dict.items():
         Tag(owner=owner, resource_id=resource_obj.id,
-            resource_type=resource_obj.__class__.__name__.lower(),
+            resource_type=resource_obj.to_dbref().collection.rstrip('s'),
             key=key, value=value).save()
 
     # SEC

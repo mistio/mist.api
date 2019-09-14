@@ -49,6 +49,7 @@ class Network(OwnershipMixin, me.Document):
     name = me.StringField()
     cidr = me.StringField()
     description = me.StringField()
+    location = me.ReferenceField('CloudLocation', required=False)
 
     extra = MistDictField()  # The `extra` dictionary returned by libcloud.
 
@@ -140,6 +141,7 @@ class Network(OwnershipMixin, me.Document):
             'tags': self.tags,
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
+            'location': self.location.id if self.location else '',
         }
         net_dict.update(
             {key: getattr(self, key) for key in self._network_specific_fields}
@@ -164,6 +166,7 @@ class AmazonNetwork(Network):
 class AzureArmNetwork(Network):
     instance_tenancy = me.StringField(default='default', choices=('default',
                                                                   'private'))
+    resource_group = me.StringField()
 
     def clean(self):
         """Extended validation for EC2 Networks to ensure CIDR assignment."""
