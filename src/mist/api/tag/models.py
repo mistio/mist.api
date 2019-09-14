@@ -1,3 +1,5 @@
+import re
+
 import mongoengine as me
 
 from mist.api.users.models import Owner
@@ -27,8 +29,10 @@ class Tag(me.Document):
         from mist.api import models
         return getattr(models, resource_type).objects.get(id=self.resource_id)
 
-    def clean(self):
-        self.resource
+    def validate(self, clean=False):
+        if not re.search(r'^[a-zA-Z0-9_]+(?:[ :.-][a-zA-Z0-9_]+)*$',
+                         self.key):
+            raise me.ValidationError('Invalid key name')
 
     def __str__(self):
         return 'Tag %s:%s for %s' % (self.key, self.value, self.resource)
