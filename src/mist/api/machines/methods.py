@@ -786,26 +786,67 @@ def _create_machine_ec2(conn, key_name, public_key,
     else:
         kwargs.update({'ex_securitygroup': config.EC2_SECURITYGROUP['name']})
 
-    if volumes:
-        mapping = {}
-        mapping.update({'Ebs': {'VolumeSize': volumes[0].get('size')}})
-        if volumes[0].get('name'):
-            mapping.update({'DeviceName': volumes[0].get('name')})
-        if volumes[0].get('type'):
-            mapping['Ebs'].update({'VolumeType': volumes[0].get('type')})
-        if volumes[0].get('iops'):
-            mapping['Ebs'].update({'Iops': volumes[0].get('iops')})
-        if volumes[0].get('delete_on_termination'):
-            delete_on_term = volumes[0].get('delete_on_termination')
-            mapping['Ebs'].update({'DeleteOnTermination': delete_on_term})
+    mappings = []
+    ex_volumes = []
+    for volume in volumes:
+        if volume.get('volume_id'):
+            try:
+                from mist.api.volumes.models import Volume
+                mist_vol = Volume.objects.get(id=volume.get('volume_id'))
+                libcloud_disks = conn.list_volumes()
+                for libcloud_disk in libcloud_disks:
+                    if libcloud_disk.id == mist_vol.external_id:
+                        ex_vol = {'volume': libcloud_disk,
+                                  'device': volume.get('device')}
+                        ex_volumes.append(ex_vol)
+                        break
+            except me.DoesNotExist:
+                # try to find disk using libcloud's id
+                libcloud_disks = conn.list_volumes()
+                for libcloud_disk in libcloud_disks:
+                    if libcloud_disk.id == volume.get('volume_id'):
+                        ex_vol = {'volume': libcloud_disk,
+                                  'device': volume.get('device')}
+                        ex_volumes.append(ex_vol)
+                        break
+                raise VolumeNotFoundError()
 
-        kwargs.update({'ex_blockdevicemappings': [mapping]})
+        else:
+            mapping = {}
+            mapping.update({'Ebs': {'VolumeSize': int(volume.get('size'))}})
+            if volume.get('name'):
+                mapping.update({'DeviceName': volume.get('name')})
+            if volume.get('ex_volume_type'):
+                volume_type = {'VolumeType': volume.get('ex_volume_type')}
+                mapping['Ebs'].update(volume_type)
+            if volume.get('ex_iops'):
+                mapping['Ebs'].update({'Iops': volume.get('ex_iops')})
+            if volume.get('delete_on_termination'):
+                delete_on_term = volume.get('delete_on_termination')
+                mapping['Ebs'].update({'DeleteOnTermination': delete_on_term})
+
+            mappings.append(mapping)
+
+    kwargs.update({'ex_blockdevicemappings': mappings})
 
     try:
         node = conn.create_node(**kwargs)
 
     except Exception as e:
         raise MachineCreationError("EC2, got exception %s" % e, e)
+
+    # wait for node to be running, in order to attach disks to it
+    if ex_volumes:
+        ready = False
+        while not ready:
+            lib_nodes = conn.list_nodes()
+            for lib_node in lib_nodes:
+                if lib_node.id == node.id and lib_node.state == 'running':
+                    ready = True
+
+        for volume in ex_volumes:
+            conn.attach_volume(
+                node, volume.get('volume'), volume.get('device'))
 
     return node
 
