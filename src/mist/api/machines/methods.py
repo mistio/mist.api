@@ -698,7 +698,6 @@ def _create_machine_aliyun(conn, key_name, public_key,
 
     ex_data_disks = []
     ex_volumes = []
-    import ipdb; ipdb.set_trace()
     for volume in volumes:
         if volume.get('volume_id'):
             try:
