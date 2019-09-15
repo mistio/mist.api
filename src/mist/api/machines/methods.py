@@ -845,7 +845,8 @@ def _create_machine_ec2(conn, key_name, public_key,
                     ready = True
 
         for volume in ex_volumes:
-            conn.attach_volume(node, volume.get('volume'), volume.get('device'))
+            conn.attach_volume(
+                node, volume.get('volume'), volume.get('device'))
 
     return node
 
