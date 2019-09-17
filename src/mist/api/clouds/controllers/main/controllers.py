@@ -141,12 +141,6 @@ class SoftLayerMainController(BaseMainController):
     DnsController = dns_ctls.SoftLayerDNSController
 
 
-class NephoScaleMainController(BaseMainController):
-
-    provider = 'nephoscale'
-    ComputeController = compute_ctls.NephoScaleComputeController
-
-
 class AzureMainController(BaseMainController):
 
     provider = 'azure'

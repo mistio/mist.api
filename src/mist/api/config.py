@@ -1250,13 +1250,6 @@ SUPPORTED_PROVIDERS = [
         'provider': Provider.GCE,
         'regions': []
     },
-
-    # NephoScale
-    {
-        'title': 'NephoScale',
-        'provider': Provider.NEPHOSCALE,
-        'regions': []
-    },
     # DigitalOcean
     {
         'title': 'DigitalOcean',

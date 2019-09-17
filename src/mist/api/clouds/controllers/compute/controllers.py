@@ -532,49 +532,6 @@ class SoftLayerComputeController(BaseComputeController):
         self.connection.destroy_node(machine_libcloud)
 
 
-class NephoScaleComputeController(BaseComputeController):
-
-    def _connect(self):
-        return get_driver(Provider.NEPHOSCALE)(self.cloud.username,
-                                               self.cloud.password)
-
-    def _list_machines__machine_actions(self, machine, machine_libcloud):
-        super(
-            NephoScaleComputeController, self
-        )._list_machines__machine_actions(machine, machine_libcloud)
-        machine.actions.rename = True
-
-    def _list_machines__machine_creation_date(self, machine, machine_libcloud):
-        return machine_libcloud.extra.get('create_time')  # iso8601 string
-
-    def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        machine.os_type = 'linux'
-        if 'windows' in str(machine_libcloud.extra.get('image', '')).lower():
-            machine.extra['os_type'] = machine.os_type = 'windows'
-
-        # Size info in the form of: CS05-SSD - 0,5GB, 4Core, 25GB, 10 Gbps
-        regex = r'(?:.*)\ (\d+)Core(?:.*)'
-        match = re.match(regex, machine.extra.get('service_type', ''))
-        machine.extra['cpus'] = match.groups()[0] if match else 0
-
-    def _list_machines__cost_machine(self, machine, machine_libcloud):
-        size = str(machine_libcloud.extra.get('size_id', ''))
-        price = get_size_price(driver_type='compute', driver_name='nephoscale',
-                               size_id=size)
-        return price, 0
-
-    def _list_machines__get_location(self, node):
-        return str(node.extra.get('zone_data').get('id'))
-
-    def _list_machines__get_size(self, node):
-        return str(node.extra.get('size_id'))
-
-    def _list_sizes__fetch_sizes(self):
-        sizes = self.connection.list_sizes(baremetal=False)
-        sizes.extend(self.connection.list_sizes(baremetal=True))
-        return sizes
-
-
 class AzureComputeController(BaseComputeController):
 
     def _connect(self):
