@@ -366,15 +366,6 @@ class SoftLayerCloud(Cloud):
     _controller_cls = controllers.SoftLayerMainController
 
 
-class NephoScaleCloud(Cloud):
-
-    username = me.StringField(required=True)
-    password = me.StringField(required=True)
-
-    _private_fields = ('password', )
-    _controller_cls = controllers.NephoScaleMainController
-
-
 class AzureCloud(Cloud):
 
     subscription_id = me.StringField(required=True)
