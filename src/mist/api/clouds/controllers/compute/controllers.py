@@ -388,6 +388,10 @@ class MaxihostComputeController(BaseComputeController):
         if machine_libcloud.state is NodeState.PAUSED:
             machine.actions.start = True
 
+    def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        hostname = machine_libcloud.extra.get('ips')[0].get('device_hostname')
+        machine.hostname = hostname
+
     def _list_machines__get_location(self, node):
         return node.extra.get('location').get('facility_code')
 
