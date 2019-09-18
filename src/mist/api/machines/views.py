@@ -191,36 +191,21 @@ def create_machine(request):
     azure_port_bindings:
       type: string
       description: Required for Azure
-    create_network:
-      type: boolean
-      description: Required for Azure_arm
-    create_resource_group:
-      type: boolean
-      description: Required for Azure_arm
-    create_storage_account:
-      type: boolean
-      description: Required for Azure_arm
-    ex_storage_account:
+    storage_account:
       type: string
-      description: Required for Azure_arm if not create_storage_account
-    ex_resource_group:
+      description: Required for Azure_arm.
+    resource_group:
       type: string
-      description: Required for Azure_arm if not create_resource_group
+      description: Required for Azure_arm.
+    storage_account_type:
+      type: string
+      description: Required for Azure_arm
     machine_password:
       type: string
       description: Required for Azure_arm
     machine_username:
       type: string
       description: Required for Azure_arm
-    new_network:
-      type: string
-      description: Required for Azure_arm if create_storage_account
-    new_storage_account:
-      type: string
-      description: Required for Azure_arm if create_storage_account
-    new_resource_group:
-      type: string
-      description: Required for Azure_arm if create_resource_group
     bare_metal:
       description: Needed only by SoftLayer cloud
       type: boolean
@@ -286,17 +271,12 @@ def create_machine(request):
     location_name = params.get('location_name', None)
     ips = params.get('ips', None)
     monitoring = params.get('monitoring', False)
-    create_storage_account = params.get('create_storage_account', False)
-    new_storage_account = params.get('new_storage_account', '')
-    ex_storage_account = params.get('ex_storage_account', '')
+    storage_account = params.get('storage_account', '')
+    storage_account_type = params.get('storage_account_type', '')
     machine_password = params.get('machine_password', '')
     machine_username = params.get('machine_username', '')
-    create_resource_group = params.get('create_resource_group', False)
-    new_resource_group = params.get('new_resource_group', '')
-    ex_resource_group = params.get('ex_resource_group', '')
+    resource_group = params.get('resource_group', '')
     volumes = params.get('volumes', [])
-    create_network = params.get('create_network', False)
-    new_network = params.get('new_network', '')
     networks = params.get('networks', [])
     subnet_id = params.get('subnet_id', '')
     subnetwork = params.get('subnetwork', None)
@@ -420,7 +400,8 @@ def create_machine(request):
             location_id, image_id, size,
             image_extra, disk, image_name, size_name,
             location_name, ips, monitoring,
-            ex_storage_account, machine_password, ex_resource_group, networks,
+            storage_account, machine_password, resource_group,
+            storage_account_type, networks,
             subnetwork, docker_env, docker_command)
     kwargs = {'script_id': script_id,
               'script_params': script_params, 'script': script, 'job': job,
@@ -442,17 +423,11 @@ def create_machine(request):
               'hourly': hourly,
               'schedule': schedule,
               'softlayer_backend_vlan_id': softlayer_backend_vlan_id,
-              'create_storage_account': create_storage_account,
-              'new_storage_account': new_storage_account,
-              'create_network': create_network,
-              'new_network': new_network,
-              'create_resource_group': create_resource_group,
-              'new_resource_group': new_resource_group,
               'machine_username': machine_username,
               'volumes': volumes,
               'ip_addresses': ip_addresses,
               'expiration': expiration}
-
+    import ipdb; ipdb.set_trace();
     if not run_async:
         ret = methods.create_machine(auth_context, *args, **kwargs)
     else:
@@ -630,7 +605,7 @@ def edit_machine(request):
     if machine.cloud.owner != auth_context.owner:
         raise NotFoundError("Machine %s doesn't exist" % machine.id)
 
-    auth_context.check_perm('machine', 'edit', machine)
+    auth_context.check_perm('machine', 'edit', machine.id)
 
     return machine.ctl.update(auth_context, params)
 

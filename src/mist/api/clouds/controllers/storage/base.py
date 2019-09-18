@@ -157,6 +157,14 @@ class BaseStorageController(BaseController):
             except Exception as exc:
                 log.exception('Error post-parsing %s: %s', volume, exc)
 
+            # Update with available volume actions.
+            try:
+                self._list_volumes__volume_actions(volume, libcloud_volume)
+            except Exception as exc:
+                log.exception("Error while finding volume actions "
+                              "for volume %s:%s for %s",
+                              volume.id, libcloud_volume.name, self.cloud)
+
             # Ensure JSON-encoding.
             for key, value in volume.extra.items():
                 try:
@@ -238,7 +246,8 @@ class BaseStorageController(BaseController):
         # object at the API. Try 3 times before failing
         for _ in range(3):
             for volume in self.list_volumes():
-                if volume.external_id == libvol.id:
+                # ARM is inconsistent when it comes to lowercase...
+                if volume.external_id.lower() == libvol.id.lower():
                     return volume
             time.sleep(5)
         raise mist.api.exceptions.VolumeListingError()
@@ -269,6 +278,32 @@ class BaseStorageController(BaseController):
         :param libcloud_volume: A libcloud volume object.
         """
         return
+
+    def _list_volumes__volume_actions(self, volume, libcloud_volume):
+        """Add metadata on the volume dict on the allowed actions
+
+        Any subclass that wishes to specially handle its allowed actions, can
+        implement this internal method.
+
+        volume: A volume mongoengine model. The model may not have yet
+            been saved in the database.
+        libcloud_volume: An instance of a libcloud volume, as
+            returned by libcloud's list_volumes.
+        This method is expected to edit `volume` in place and not return
+        anything.
+
+        Subclasses MAY extend this method.
+
+        """
+        volume.actions.tag = True
+        if volume.attached_to:
+            volume.actions.detach = True
+            volume.actions.attach = False
+            volume.actions.delete = False
+        else:
+            volume.actions.attach = True
+            volume.actions.delete = True
+            volume.actions.detach = False
 
     @LibcloudExceptionHandler(mist.api.exceptions.VolumeDeletionError)
     def delete_volume(self, volume):
