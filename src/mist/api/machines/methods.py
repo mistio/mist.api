@@ -1044,7 +1044,6 @@ def _create_machine_docker(conn, machine_name, image_id,
     return container
 
 
-# FIX ME: cloud init is user_data? WTF????
 def _create_machine_digital_ocean(conn, cloud, key_name, private_key,
                                   public_key, machine_name, image, size,
                                   location, user_data, volumes):
