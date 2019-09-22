@@ -33,7 +33,7 @@ class ElasticSearchBackendPlugin(base.BaseBackendPlugin):
         data = handler.search(self.start, self.stop, terms, query.target)
 
         # Compare against the threshold and return the count.
-        return getattr(operator, query.operator)(data, query.threshold), data
+        return getattr(operator, query.operator)(data, float(query.threshold)), data
 
     @staticmethod
     def validate(rule):
