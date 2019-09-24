@@ -991,7 +991,8 @@ def _create_machine_onapp(conn, public_key,
     return node
 
 
-def _create_machine_maxihost(conn, machine_name, image_id, size, location, public_key):
+def _create_machine_maxihost(conn, machine_name, image_id, size,
+                             location, public_key):
     key = str(public_key).replace('\n', '')
     ssh_keys = []
     server_key = ''
@@ -1007,7 +1008,8 @@ def _create_machine_maxihost(conn, machine_name, image_id, size, location, publi
     ssh_keys.append(server_key.fingerprint)
 
     try:
-        node = conn.create_node(machine_name, size, image_id, location, ssh_keys)
+        node = conn.create_node(machine_name, size, image_id,
+                                location, ssh_keys)
     except ValueError as exc:
         raise MachineCreationError('Maxihost, exception %s' % exc)
 
