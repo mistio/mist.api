@@ -857,7 +857,8 @@ class BaseComputeController(BaseController):
             _size.extra = {}
             if size.extra:
                 _size.extra = size.extra
-            _size.extra.update({'description': size.extra.get('description', '')})
+            description = size.extra.get('description', '')
+            _size.extra.update({'description': description})
             _size.extra.update({'price': size.price})
             if size.ram:
                 try:
