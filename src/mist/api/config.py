@@ -1351,6 +1351,12 @@ SUPPORTED_PROVIDERS = [
         'provider': Provider.PACKET,
         'regions': []
     },
+    # Maxihost
+    {
+        'title': 'Maxihost',
+        'provider': Provider.MAXIHOST,
+        'regions': []
+    },
 ]
 
 # Base AMIs
