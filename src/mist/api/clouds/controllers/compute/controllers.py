@@ -970,6 +970,15 @@ class GoogleComputeController(BaseComputeController):
     def _list_sizes__get_cpu(self, size):
         return size.extra.get('guestCpus')
 
+    def _list_sizes__get_extra(self, size):
+        extra = {}
+        description = size.extra.get('description', '')
+        if description:
+            extra.update({'description': description})
+        if size.price:
+            extra.update({'price': size.price})
+        return extra
+
     def _resize_machine(self, machine, machine_libcloud, node_size, kwargs):
         # instance must be in stopped mode
         if machine_libcloud.state != NodeState.STOPPED:

@@ -854,12 +854,7 @@ class BaseComputeController(BaseController):
             _size.disk = size.disk
             _size.bandwidth = size.bandwidth
             _size.missing_since = None
-            _size.extra = {}
-            if size.extra:
-                _size.extra = size.extra
-            description = size.extra.get('description', '')
-            _size.extra.update({'description': description})
-            _size.extra.update({'price': size.price})
+            _size.extra = self._list_sizes__get_extra(size)
             if size.ram:
                 try:
                     _size.ram = int(re.sub("\D", "", str(size.ram)))
@@ -905,6 +900,14 @@ class BaseComputeController(BaseController):
 
     def _list_sizes__get_name(self, size):
         return size.name
+    
+    def _list_sizes__get_extra(self, size):
+        extra = {}
+        if size.extra:
+            extra = size.extra
+        if size.price:
+            extra.update({'price': size.price})
+        return extra
 
     def list_cached_sizes(self):
         """Return list of sizes from database for a specific cloud"""
