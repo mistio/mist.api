@@ -900,7 +900,7 @@ class BaseComputeController(BaseController):
 
     def _list_sizes__get_name(self, size):
         return size.name
-    
+
     def _list_sizes__get_extra(self, size):
         extra = {}
         if size.extra:
