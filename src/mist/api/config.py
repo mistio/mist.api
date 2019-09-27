@@ -89,9 +89,11 @@ JS_LOG_LEVEL = 3
 
 ENABLE_DEV_USERS = False
 
-# If true, on expiration schedule with action destroy, instead of destroying a machine,
-# stop, change ownership, untag the machine and
-# create a new schedule that will destroy the machine in <SAFE_EXPIRATION_DURATION> seconds
+# If true, on expiration schedule with action destroy,
+# instead of destroying a machine,
+# stop it, change ownership, untag the machine and
+# create a new schedule that will destroy the machine
+#  in <SAFE_EXPIRATION_DURATION> seconds
 SAFE_EXPIRATION = False
 SAFE_EXPIRATION_DURATION = 60 * 60 * 24 * 7
 

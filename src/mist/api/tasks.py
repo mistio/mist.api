@@ -37,7 +37,8 @@ from mist.api.machines.models import Machine
 from mist.api.scripts.models import Script
 from mist.api.schedules.models import Schedule
 from mist.api.dns.models import RECORDS
-from mist.api.tag.methods import get_tags_for_resource, remove_tags_from_resource
+from mist.api.tag.methods import get_tags_for_resource
+from mist.api.tag.methods import remove_tags_from_resource
 from mist.api.auth.models import AuthToken
 from mist.api.auth.methods import auth_context_from_auth_token
 
@@ -903,23 +904,23 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
     log.info('Schedule action started: %s', log_dict)
     for machine_uuid in machines_uuids:
         _action = action
-        from mist.api.machines.models import Machine
         try:
             machine = Machine.objects.get(id=machine_uuid)
         except:
             # FIXME: throw exception
             pass
-        if _action in ['destroy'] and config.SAFE_EXPIRATION and machine.expiration == schedule:
+        if _action in ['destroy'] and config.SAFE_EXPIRATION and \
+            machine.expiration == schedule:
             # untag machine
             owner = Owner.objects.get(id=owner_id)  # FIXME: try-except
             existing_tags = get_tags_for_resource(owner, machine)
             if existing_tags:
-                remove_tags_from_resource(owner, machine,
-                                        existing_tags)
+                remove_tags_from_resource(owner, machine, existing_tags)
             # unown machine
             machine.owned_by = None
 
-            # create new schedule that will destroy the machine in SAFE_EXPIRATION_DURATION secs
+            # create new schedule that will destroy the machine
+            # in SAFE_EXPIRATION_DURATION secs
             for team in owner.teams:
                 if team.name == 'Owners':
                     user = team.members[0]
@@ -932,10 +933,9 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
             schedule_entry = datetime.datetime.utcnow() + _delta
             schedule_entry = schedule_entry.strftime('%Y-%m-%d %H:%M:%S')
 
-
             params = {
                 'schedule_type': 'one_off',
-                'description': 'Safe expiration, scheduled to run when machine expires',
+                'description': 'Safe expiration schedule',
                 'schedule_entry': schedule_entry,
                 'action': 'destroy',
                 'conditions': [{'type': 'machines', 'ids': [machine.id]}],
