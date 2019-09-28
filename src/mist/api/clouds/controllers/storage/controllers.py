@@ -342,6 +342,15 @@ class AlibabaStorageController(BaseStorageController):
                 log.error('%s attached to unknown machine "%s"', volume,
                           machine_id)
 
+    def _list_volumes__volume_actions(self, volume, libcloud_volume):
+        super(AlibabaStorageController, self)._list_volumes__volume_actions(
+            volume, libcloud_volume)
+        # need to figure whether this is os disk or not
+        if libcloud_volume.extra.get('instance_id', ''):
+            volume.actions.delete = False
+            if libcloud_volume.extra.get('type') == 'system':
+                volume.actions.detach = False
+
 
 class PacketStorageController(BaseStorageController):
     def _create_volume__prepare_args(self, kwargs):

@@ -605,7 +605,7 @@ def edit_machine(request):
     if machine.cloud.owner != auth_context.owner:
         raise NotFoundError("Machine %s doesn't exist" % machine.id)
 
-    auth_context.check_perm('machine', 'edit', machine)
+    auth_context.check_perm('machine', 'edit', machine.id)
 
     return machine.ctl.update(auth_context, params)
 
