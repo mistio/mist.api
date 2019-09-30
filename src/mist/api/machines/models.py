@@ -12,6 +12,7 @@ from future.utils import string_types
 
 from mist.api.mongoengine_extras import MistDictField
 from mist.api.keys.models import Key
+from mist.api.schedules.models import Schedule
 from mist.api.machines.controllers import MachineController
 from mist.api.ownership.mixins import OwnershipMixin
 
@@ -307,7 +308,7 @@ class Machine(OwnershipMixin, me.Document):
     ssh_probe = me.EmbeddedDocumentField(SSHProbe, required=False)
     ping_probe = me.EmbeddedDocumentField(PingProbe, required=False)
 
-    expiration = me.ReferenceField('Schedule', required=False)
+    expiration = me.ReferenceField(Schedule, required=False)
 
     # Number of vCPUs gathered from various sources. This field is meant to
     # be updated ONLY by the mist.api.metering.tasks:find_machine_cores task.

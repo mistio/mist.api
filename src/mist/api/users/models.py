@@ -224,9 +224,9 @@ class Owner(me.Document):
         super(Owner, self).clean()
 
     def get_rules_dict(self):
-        from mist.api.rules.models import MachineMetricRule
+        from mist.api.rules.models import Rule
         return {rule.id: rule.as_dict()
-                for rule in MachineMetricRule.objects(owner_id=self.id)}
+                for rule in Rule.objects(owner_id=self.id)}
 
     def get_metrics_dict(self):
         return {
