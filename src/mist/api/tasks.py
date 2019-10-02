@@ -910,7 +910,7 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
             # FIXME: throw exception
             pass
         if _action in ['destroy'] and config.SAFE_EXPIRATION and \
-            machine.expiration == schedule:
+           machine.expiration == schedule:
             # untag machine
             owner = Owner.objects.get(id=owner_id)  # FIXME: try-except
             existing_tags = get_tags_for_resource(owner, machine)
