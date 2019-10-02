@@ -902,57 +902,64 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
     }
     log_event(action='schedule_started', **log_dict)
     log.info('Schedule action started: %s', log_dict)
+
     for machine_uuid in machines_uuids:
+        found = False
         _action = action
         try:
             machine = Machine.objects.get(id=machine_uuid)
-        except:
-            # FIXME: throw exception
-            pass
-        if _action in ['destroy'] and config.SAFE_EXPIRATION and \
-           machine.expiration == schedule:
-            # untag machine
-            owner = Owner.objects.get(id=owner_id)  # FIXME: try-except
-            existing_tags = get_tags_for_resource(owner, machine)
-            if existing_tags:
-                remove_tags_from_resource(owner, machine, existing_tags)
-            # unown machine
-            machine.owned_by = None
+            found = True
+        except me.DoesNotExist:
+            log_dict['error'] = "Machine with id %s does not \
+                exist." % machine_uuid
 
-            # create new schedule that will destroy the machine
-            # in SAFE_EXPIRATION_DURATION secs
-            for team in owner.teams:
-                if team.name == 'Owners':
-                    user = team.members[0]
-                    org = Organization.objects.get(teams=team)
-                    break
-            auth_token = AuthToken(user_id=user.id, org=org)
-            auth_context = auth_context_from_auth_token(auth_token)
+        if found:
+            if _action in ['destroy'] and config.SAFE_EXPIRATION and \
+               machine.expiration == schedule:
+                # untag machine
+                owner = Owner.objects.get(id=owner_id)  # FIXME: try-except
+                existing_tags = get_tags_for_resource(owner, machine)
+                if existing_tags:
+                    remove_tags_from_resource(owner, machine, existing_tags)
+                # unown machine
+                machine.owned_by = None
 
-            _delta = datetime.timedelta(0, config.SAFE_EXPIRATION_DURATION)
-            schedule_entry = datetime.datetime.utcnow() + _delta
-            schedule_entry = schedule_entry.strftime('%Y-%m-%d %H:%M:%S')
+                # create new schedule that will destroy the machine
+                # in SAFE_EXPIRATION_DURATION secs
+                for team in owner.teams:
+                    if team.name == 'Owners':
+                        user = team.members[0]
+                        org = Organization.objects.get(teams=team)
+                        break
+                auth_token = AuthToken(user_id=user.id, org=org)
+                auth_context = auth_context_from_auth_token(auth_token)
 
-            params = {
-                'schedule_type': 'one_off',
-                'description': 'Safe expiration schedule',
-                'schedule_entry': schedule_entry,
-                'action': 'destroy',
-                'conditions': [{'type': 'machines', 'ids': [machine.id]}],
-                'task_enabled': True,
-            }
-            _name = machine.name + '-safe-expiration-' + str(randrange(1000))
-            machine.expiration = Schedule.add(auth_context, _name, **params)
-            machine.save()
+                _delta = datetime.timedelta(0, config.SAFE_EXPIRATION_DURATION)
+                schedule_entry = datetime.datetime.utcnow() + _delta
+                schedule_entry = schedule_entry.strftime('%Y-%m-%d %H:%M:%S')
 
-            # change action to be executed now
-            _action = 'stop'
+                params = {
+                    'schedule_type': 'one_off',
+                    'description': 'Safe expiration schedule',
+                    'schedule_entry': schedule_entry,
+                    'action': 'destroy',
+                    'conditions': [{'type': 'machines', 'ids': [machine.id]}],
+                    'task_enabled': True,
+                }
+                _name = machine.name + '-safe-expiration-' + \
+                    str(randrange(1000))
+                machine.expiration = Schedule.add(auth_context, _name,
+                                                  **params)
+                machine.save()
 
-        try:
-            run_machine_action.s(owner_id, _action, name,
-                                 machine_uuid)()
-        except Exception as exc:
-            log_dict['error'] = log_dict.get('error', '') + str(exc) + '\n'
+                # change action to be executed now
+                _action = 'stop'
+
+            try:
+                run_machine_action.s(owner_id, _action, name,
+                                     machine_uuid)()
+            except Exception as exc:
+                log_dict['error'] = log_dict.get('error', '') + str(exc) + '\n'
 
     log_dict.update({'last_run_at': str(schedule.last_run_at or ''),
                     'total_run_count': schedule.total_run_count or 0,
