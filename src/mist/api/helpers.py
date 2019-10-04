@@ -1367,7 +1367,7 @@ def convert_to_timedelta(time_val):
     """
     Receives a time_val param. time_val should be either an integer,
     or a relative delta in the following format:
-    '7s', '7m', '7h', '7d', '7mo', for seconds, minutes, hours, days
+    '_s', '_m', '_h', '_d', '_mo', for seconds, minutes, hours, days
     months respectively. Returns a timedelta object if right param is
     given, else None
     """
