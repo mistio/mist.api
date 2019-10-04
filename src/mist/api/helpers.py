@@ -1391,6 +1391,5 @@ def convert_to_timedelta(time_val):
         except ValueError:
             if time_val.endswith('mo'):
                 num = int(time_val[:-2])
-                return timedelta(days=30*num)
-
+                return timedelta(days=30 * num)
     return None
