@@ -374,7 +374,8 @@ def create_machine(request):
     if location_id:
         auth_context.check_perm("location", "read", location_id)
         auth_context.check_perm("location", "create_resources", location_id)
-    tags = auth_context.check_perm("machine", "create", None) or {}
+    constraints = {'expiration': expiration} if expiration else None
+    tags = auth_context.check_perm("machine", "create", None, constraints) or {}
     if script_id:
         auth_context.check_perm("script", "run", script_id)
     if key_id:
