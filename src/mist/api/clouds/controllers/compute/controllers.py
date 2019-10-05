@@ -397,12 +397,15 @@ class MaxihostComputeController(BaseComputeController):
 
     def _list_sizes__get_name(self, size):
         name = size.extra['specs']['cpus']['type']
-        cpus = size.extra['specs']['cpus']['count']
+        try:
+            cpus = size.extra['specs']['cpus']['cores']
+        except ValueError:  # spot instances return N/A
+            cpus = None
         memory = size.extra['specs']['memory']['total']
         disk_count = size.extra['specs']['drives'][0]['count']
         disk_size = size.extra['specs']['drives'][0]['size']
         disk_type = size.extra['specs']['drives'][0]['type']
-        return name + '/ ' + str(cpus) + ' cores/ ' \
+        return name + '/ ' + ((str(cpus) + ' cores/ ') if cpus else '') \
                            + memory + ' RAM/ ' \
                            + str(disk_count) + ' * ' + disk_size + ' ' \
                            + disk_type
