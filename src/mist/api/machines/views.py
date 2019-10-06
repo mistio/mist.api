@@ -1,5 +1,8 @@
 import uuid
 import logging
+
+from datetime import datetime
+
 from pyramid.response import Response
 
 import mist.api.machines.methods as methods
@@ -14,12 +17,13 @@ from mist.api import tasks
 from mist.api.auth.methods import auth_context_from_request
 from mist.api.helpers import view_config, params_from_request
 from mist.api.helpers import trigger_session_update
-
+from mist.api.helpers import convert_to_timedelta
 
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import BadRequestError, NotFoundError
 from mist.api.exceptions import MachineCreationError, RedirectError
 from mist.api.exceptions import CloudUnauthorizedError, CloudUnavailableError
+from mist.api.exceptions import PolicyUnauthorizedError
 
 from mist.api.monitoring.methods import enable_monitoring
 from mist.api.monitoring.methods import disable_monitoring
@@ -374,9 +378,7 @@ def create_machine(request):
     if location_id:
         auth_context.check_perm("location", "read", location_id)
         auth_context.check_perm("location", "create_resources", location_id)
-    constraints = {'expiration': expiration} if expiration else None
-    tags = auth_context.check_perm("machine", "create", None, constraints) \
-        or {}
+    tags, constraints = auth_context.check_perm("machine", "create", None)
     if script_id:
         auth_context.check_perm("script", "run", script_id)
     if key_id:
@@ -397,6 +399,25 @@ def create_machine(request):
         raise BadRequestError('Invalid tags format. Expecting either a '
                               'dictionary of tags or a list of single-item '
                               'dictionaries')
+
+    # check expiration constraint
+    exp_constraint = constraints.get('expiration', {})
+    if exp_constraint:
+        if not expiration:
+            raise PolicyUnauthorizedError('You have to set an expiration date for the machine.')
+        else:
+            # TODO: improve error messages based on type of max
+            now = datetime.now()
+            given = datetime.strptime(expiration.get('date'), '%Y-%m-%d %H:%M:%S') - now
+            allowed = convert_to_timedelta(exp_constraint.get('max'))
+            if given > allowed:
+                raise PolicyUnauthorizedError('Expiration date should be maximum %s from now.' % exp_constraint.get('max'))
+            if exp_constraint.get('actions', {}) and exp_constraint.get('actions').get('available', []) \
+               and expiration.get('action') not in exp_constraint.get('actions').get('available'):
+                raise PolicyUnauthorizedError('Action for expiration should be one of %s.' % exp_constraint.get('actions').get('available'))
+            if exp_constraint.get('notify', {}) and bool(exp_constraint.get('notify').get('require', False)) \
+               and not expiration.get('notify', ''):
+                raise PolicyUnauthorizedError('You have to set a notification(reminder) for the expiration')
 
     args = (cloud_id, key_id, machine_name,
             location_id, image_id, size,
