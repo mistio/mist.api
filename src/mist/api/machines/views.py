@@ -404,20 +404,28 @@ def create_machine(request):
     exp_constraint = constraints.get('expiration', {})
     if exp_constraint:
         if not expiration:
-            raise PolicyUnauthorizedError('You have to set an expiration date for the machine.')
+            raise PolicyUnauthorizedError('You have to set an expiration date \
+              for the machine.')
         else:
             # TODO: improve error messages based on type of max
             now = datetime.now()
-            given = datetime.strptime(expiration.get('date'), '%Y-%m-%d %H:%M:%S') - now
+            given_date = expiration.get('date')
+            given = datetime.strptime(given_date, '%Y-%m-%d %H:%M:%S') - now
             allowed = convert_to_timedelta(exp_constraint.get('max'))
             if given > allowed:
-                raise PolicyUnauthorizedError('Expiration date should be maximum %s from now.' % exp_constraint.get('max'))
-            if exp_constraint.get('actions', {}) and exp_constraint.get('actions').get('available', []) \
-               and expiration.get('action') not in exp_constraint.get('actions').get('available'):
-                raise PolicyUnauthorizedError('Action for expiration should be one of %s.' % exp_constraint.get('actions').get('available'))
-            if exp_constraint.get('notify', {}) and bool(exp_constraint.get('notify').get('require', False)) \
-               and not expiration.get('notify', ''):
-                raise PolicyUnauthorizedError('You have to set a notification(reminder) for the expiration')
+                raise PolicyUnauthorizedError('Expiration date should be maximum \
+                   %s from now.' % exp_constraint.get('max'))
+            if exp_constraint.get('actions', {}) and \
+               exp_constraint.get('actions').get('available', []) \
+               and expiration.get('action') not in \
+               exp_constraint.get('actions').get('available'):
+                raise PolicyUnauthorizedError('Action for expiration should be one \
+                  of %s.' % exp_constraint.get('actions').get('available'))
+            if exp_constraint.get('notify', {}) and \
+               bool(exp_constraint.get('notify').get('require', False)) and \
+               not expiration.get('notify', ''):
+                raise PolicyUnauthorizedError('You have to set a notification \
+                  for the expiration')
 
     args = (cloud_id, key_id, machine_name,
             location_id, image_id, size,
