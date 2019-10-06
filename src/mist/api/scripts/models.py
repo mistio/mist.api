@@ -149,7 +149,8 @@ class Script(OwnershipMixin, me.Document):
 
     name = me.StringField(required=True)
     description = me.StringField()
-    owner = me.ReferenceField(Owner, required=True)  # TODO Org when port users
+    owner = me.ReferenceField(Owner, required=True,  # TODO Owner -> Org
+                              reverse_delete_rule=me.CASCADE)
     location = me.EmbeddedDocumentField(Location, required=True)
 
     deleted = me.DateTimeField()

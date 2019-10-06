@@ -352,14 +352,16 @@ class Avatar(me.Document):
                         default=lambda: uuid4().hex)
     content_type = me.StringField(default="image/png")
     body = me.BinaryField()
-    owner = me.ReferenceField(Owner, required=True)
+    owner = me.ReferenceField(Owner, required=True,
+                              reverse_delete_rule=me.CASCADE)
 
 
 class Team(me.EmbeddedDocument):
     id = me.StringField(default=lambda: uuid.uuid4().hex)
     name = me.StringField(required=True)
     description = me.StringField()
-    members = me.ListField(me.ReferenceField(User))
+    members = me.ListField(
+        me.ReferenceField(User, reverse_delete_rule=me.PULL))
     visible = me.BooleanField(default=True)
     if config.HAS_RBAC:
         policy = me.EmbeddedDocumentField(
@@ -421,7 +423,8 @@ def _get_default_org_teams():
 
 class Organization(Owner):
     name = me.StringField(required=True)
-    members = me.ListField(me.ReferenceField(User), required=True)
+    members = me.ListField(
+        me.ReferenceField(User, reverse_delete_rule=me.PULL), required=True)
     members_count = me.IntField(default=0)
     teams = me.EmbeddedDocumentListField(Team, default=_get_default_org_teams)
     teams_count = me.IntField(default=0)
@@ -442,7 +445,8 @@ class Organization(Owner):
 
     # used to allow creation of sub-org
     super_org = me.BooleanField(default=False)
-    parent = me.ReferenceField('Organization', required=False)
+    parent = me.ReferenceField('Organization', required=False,
+                               reverse_delete_rule=me.DENY)
 
     poller_updated = me.DateTimeField()
 
@@ -650,8 +654,10 @@ class Organization(Owner):
 
 class MemberInvitation(me.Document):
     id = me.StringField(primary_key=True, default=lambda: uuid4().hex)
-    user = me.ReferenceField(User, required=True)
-    org = me.ReferenceField(Organization, required=True)
+    user = me.ReferenceField(User, required=True,
+                             reverse_delete_rule=me.CASCADE)
+    org = me.ReferenceField(Organization, required=True,
+                            reverse_delete_rule=me.CASCADE)
     teams = me.ListField(me.StringField(), required=True)
     token = me.StringField(required=True)
 
@@ -659,7 +665,8 @@ class MemberInvitation(me.Document):
 class Metric(me.Document):
     """A custom metric"""
 
-    owner = me.ReferenceField(Owner, required=True)
+    owner = me.ReferenceField(Organization, required=True,
+                              reverse_delete_rule=me.CASCADE)
     metric_id = me.StringField(required=True)
     name = me.StringField()
     unit = me.StringField()

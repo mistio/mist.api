@@ -42,14 +42,16 @@ class Network(OwnershipMixin, me.Document):
     """
 
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
-    owner = me.ReferenceField('Organization')
-    cloud = me.ReferenceField(Cloud, required=True)
+    owner = me.ReferenceField('Organization', reverse_delete_rule=me.CASCADE)
+    cloud = me.ReferenceField(Cloud, required=True,
+                              reverse_delete_rule=me.CASCADE)
     network_id = me.StringField()  # required=True)
 
     name = me.StringField()
     cidr = me.StringField()
     description = me.StringField()
-    location = me.ReferenceField('CloudLocation', required=False)
+    location = me.ReferenceField('CloudLocation', required=False,
+                                 reverse_delete_rule=me.DENY)
 
     extra = MistDictField()  # The `extra` dictionary returned by libcloud.
 
@@ -222,7 +224,7 @@ class Subnet(me.Document):
     """
 
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
-    owner = me.ReferenceField('Organization')
+    owner = me.ReferenceField('Organization', reverse_delete_rule=me.CASCADE)
     network = me.ReferenceField('Network', required=True,
                                 reverse_delete_rule=me.CASCADE)
     subnet_id = me.StringField()

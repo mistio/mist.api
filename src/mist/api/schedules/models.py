@@ -215,7 +215,8 @@ class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
     description = me.StringField()
     deleted = me.DateTimeField()
 
-    owner = me.ReferenceField(Organization, required=True)
+    owner = me.ReferenceField(Organization, required=True,
+                              reverse_delete_rule=me.CASCADE)
 
     # celery periodic task specific fields
     queue = me.StringField()
@@ -236,7 +237,8 @@ class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
     total_run_count = me.IntField(min_value=0, default=0)
     max_run_count = me.IntField(min_value=0, default=0)
 
-    reminder = me.ReferenceField('Schedule', required=False)
+    reminder = me.ReferenceField('Schedule', required=False,
+                                 reverse_delete_rule=me.NULLIFY)
 
     no_changes = False
 
