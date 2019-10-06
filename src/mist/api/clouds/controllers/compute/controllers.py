@@ -398,7 +398,7 @@ class MaxihostComputeController(BaseComputeController):
     def _list_sizes__get_name(self, size):
         name = size.extra['specs']['cpus']['type']
         try:
-            cpus = size.extra['specs']['cpus']['cores']
+            cpus = int(size.extra['specs']['cpus']['cores'])
         except ValueError:  # spot instances return N/A
             cpus = None
         memory = size.extra['specs']['memory']['total']
