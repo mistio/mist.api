@@ -360,8 +360,7 @@ class Team(me.EmbeddedDocument):
     id = me.StringField(default=lambda: uuid.uuid4().hex)
     name = me.StringField(required=True)
     description = me.StringField()
-    members = me.ListField(
-        me.ReferenceField(User, reverse_delete_rule=me.PULL))
+    members = me.ListField(me.ReferenceField(User))
     visible = me.BooleanField(default=True)
     if config.HAS_RBAC:
         policy = me.EmbeddedDocumentField(
