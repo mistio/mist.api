@@ -20,7 +20,6 @@ from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import BadRequestError, NotFoundError
 from mist.api.exceptions import MachineCreationError, RedirectError
 from mist.api.exceptions import CloudUnauthorizedError, CloudUnavailableError
-from mist.api.exceptions import PolicyUnauthorizedError
 
 from mist.api.monitoring.methods import enable_monitoring
 from mist.api.monitoring.methods import disable_monitoring
@@ -401,11 +400,11 @@ def create_machine(request):
     # check expiration constraint
     exp_constraint = constraints.get('expiration', {})
     if exp_constraint:
-      try:
-        from mist.rbac.methods import check_expiration
-        check_expiration(expiration, exp_constraint)
-      except ImportError:
-          pass
+        try:
+            from mist.rbac.methods import check_expiration
+            check_expiration(expiration, exp_constraint)
+        except ImportError:
+            pass
 
     args = (cloud_id, key_id, machine_name,
             location_id, image_id, size,
@@ -616,16 +615,16 @@ def edit_machine(request):
     if machine.cloud.owner != auth_context.owner:
         raise NotFoundError("Machine %s doesn't exist" % machine.id)
 
-    tags, constraints = auth_context.check_perm("machine", "create", machine.id)
-
+    tags, constraints = auth_context.check_perm("machine", "edit", machine.id)
+    expiration = params.get('expiration', {})
     # check expiration constraint
     exp_constraint = constraints.get('expiration', {})
     if exp_constraint:
-      try:
-        from mist.rbac.methods import check_expiration
-        check_expiration(expiration, exp_constraint)
-      except ImportError:
-          pass
+        try:
+            from mist.rbac.methods import check_expiration
+            check_expiration(expiration, exp_constraint)
+        except ImportError:
+            pass
 
     return machine.ctl.update(auth_context, params)
 
