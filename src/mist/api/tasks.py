@@ -17,20 +17,19 @@ from base64 import b64encode
 
 from memcache import Client as MemcacheClient
 
-from celery import group
 from celery import Task
 from celery.exceptions import SoftTimeLimitExceeded
 
 from paramiko.ssh_exception import SSHException
 
-from mist.api.exceptions import MistError, NotFoundError
+from mist.api.exceptions import MistError
 from mist.api.exceptions import ServiceUnavailableError
-from mist.api.exceptions import CloudNotFoundError
 from mist.api.shell import Shell
 
 from mist.api.users.models import User, Owner, Organization
 from mist.api.clouds.models import Cloud, DockerCloud, CloudLocation, CloudSize
 from mist.api.networks.models import Network
+from mist.api.dns.models import Zone
 from mist.api.volumes.models import Volume
 from mist.api.machines.models import Machine
 from mist.api.scripts.models import Script
@@ -42,6 +41,7 @@ from mist.api.rules.models import NoDataRule
 from mist.api.poller.models import PollingSchedule
 from mist.api.poller.models import ListMachinesPollingSchedule
 from mist.api.poller.models import ListNetworksPollingSchedule
+from mist.api.poller.models import ListZonesPollingSchedule
 from mist.api.poller.models import ListVolumesPollingSchedule
 from mist.api.poller.models import FindCoresMachinePollingSchedule
 from mist.api.poller.models import PingProbeMachinePollingSchedule
@@ -91,10 +91,9 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                       hostname='', plugins=None, script='',
                       post_script_id='', post_script_params='', schedule={}):
     # TODO: break into subtasks
-
     from mist.api.methods import connect_provider, probe_ssh_only
     from mist.api.methods import notify_user, notify_admin
-
+    from mist.api.keys.models import Key
     from mist.api.monitoring.methods import enable_monitoring
 
     job_id = job_id or uuid.uuid4().hex
@@ -102,10 +101,8 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
 
     def tmp_log(msg, *args):
         log.error('Post deploy: %s' % msg, *args)
-
     tmp_log('Entering post deploy steps for %s %s %s',
             owner.id, cloud_id, machine_id)
-
     try:
         # find the node we're looking for and get its hostname
         node = None
@@ -121,7 +118,9 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                 if n.id == machine_id:
                     node = n
                     break
-            tmp_log('run list_machines')
+            msg = "Cloud:\n  Name: %s\n  Id: %s\n" % (cloud.title, cloud_id)
+            msg += "Machine:\n  Name: %s\n  Id: %s\n" % (node.name, node.id)
+            tmp_log('Machine found, proceeding to post deploy steps\n%s' % msg)
         except:
             raise self.retry(exc=Exception(), countdown=10, max_retries=10)
 
@@ -130,8 +129,8 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
 
         if node:
             # filter out IPv6 addresses
-            ips = filter(lambda ip: ':' not in ip,
-                         node.public_ips + node.private_ips)
+            ips = [ip for ip in node.public_ips + node.private_ips
+                   if ':' not in ip]
             if not ips:
                 raise self.retry(exc=Exception(), countdown=60, max_retries=20)
             host = ips[0]
@@ -146,18 +145,17 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
         machine = Machine.objects.get(cloud=cloud, machine_id=machine_id,
                                       state__ne='terminated')
 
+        log_dict = {
+            'owner_id': owner.id,
+            'event_type': 'job',
+            'cloud_id': cloud_id,
+            'machine_id': machine_id,
+            'job_id': job_id,
+            'job': job,
+            'host': host,
+            'key_id': key_id,
+        }
         if schedule and schedule.get('name'):  # ugly hack to prevent dupes
-            log_dict = {
-                'owner_id': owner.id,
-                'event_type': 'job',
-                'cloud_id': cloud_id,
-                'machine_id': machine_id,
-                'job_id': job_id,
-                'job': job,
-                'host': host,
-                'key_id': key_id,
-            }
-
             try:
                 name = (schedule.get('action') + '-' + schedule.pop('name') +
                         '-' + machine_id[:4])
@@ -174,7 +172,7 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                 log_event(action='Add scheduler entry',
                           scheduler=schedule_info.as_dict(), **log_dict)
             except Exception as e:
-                print repr(e)
+                print(repr(e))
                 error = repr(e)
                 notify_user(owner, "add scheduler entry failed for "
                                    "machine %s" % machine_id, repr(e),
@@ -183,67 +181,6 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                           error=error, **log_dict)
 
         try:
-            from mist.api.shell import Shell
-            shell = Shell(host)
-            try:
-                cloud_post_deploy_steps = config.CLOUD_POST_DEPLOY.get(
-                    cloud_id, [])
-            except AttributeError:
-                cloud_post_deploy_steps = []
-            for post_deploy_step in cloud_post_deploy_steps:
-                from mist.api.keys.models import Key
-                predeployed_key_id = post_deploy_step.get('key')
-                if predeployed_key_id:
-                    # Use predeployed key to deploy the user selected key
-                    shell.autoconfigure(
-                        owner, cloud_id, node.id, predeployed_key_id, username,
-                        password, port
-                    )
-                    retval, output = shell.command(
-                        'echo %s >> ~/.ssh/authorized_keys' % Key.objects.get(
-                            id=key_id).public)
-                    if retval > 0:
-                        notify_admin('Deploy user key failed for machine %s'
-                                     % node.name)
-                command = post_deploy_step.get('script', '').replace(
-                    '${node.name}', node.name)
-                if command:
-                    tmp_log('Executing cloud post deploy cmd: %s' % command)
-                    shell.autoconfigure(
-                        owner, cloud_id, node.id, key_id, username, password,
-                        port
-                    )
-                    retval, output = shell.command(command)
-                    if retval > 0:
-                        notify_admin('Cloud post deploy command `%s` failed '
-                                     'for machine %s' % (command, node.name))
-
-            # connect with ssh even if no command, to create association
-            # to be able to enable monitoring
-            tmp_log('attempting to connect to shell')
-            key_id, ssh_user = shell.autoconfigure(
-                owner, cloud_id, node.id, key_id, username, password, port
-            )
-            tmp_log('connected to shell')
-            result = probe_ssh_only(owner, cloud_id, machine_id, host=None,
-                                    key_id=key_id, ssh_user=ssh_user,
-                                    shell=shell)
-            log_dict = {
-                'owner_id': owner.id,
-                'event_type': 'job',
-                'cloud_id': cloud_id,
-                'machine_id': machine_id,
-                'job_id': job_id,
-                'job': job,
-                'host': host,
-                'key_id': key_id,
-                'ssh_user': ssh_user,
-            }
-            log_event(action='probe', result=result, **log_dict)
-            cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
-            msg = "Cloud:\n  Name: %s\n  Id: %s\n" % (cloud.title, cloud_id)
-            msg += "Machine:\n  Name: %s\n  Id: %s\n" % (node.name, node.id)
-
             if hostname:
                 try:
                     kwargs = {}
@@ -259,6 +196,64 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                 except Exception as exc:
                     log_event(action='Create_A_record', hostname=hostname,
                               error=str(exc), **log_dict)
+
+            from mist.api.shell import Shell
+            shell = Shell(host)
+            try:
+                cloud_post_deploy_steps = config.CLOUD_POST_DEPLOY.get(
+                    cloud_id, [])
+            except AttributeError:
+                cloud_post_deploy_steps = []
+            for post_deploy_step in cloud_post_deploy_steps:
+                predeployed_key_id = post_deploy_step.get('key')
+                if predeployed_key_id and key_id:
+                    # Use predeployed key to deploy the user selected key
+                    shell.autoconfigure(
+                        owner, cloud_id, node.id, predeployed_key_id, username,
+                        password, port
+                    )
+                    retval, output = shell.command(
+                        'echo %s >> ~/.ssh/authorized_keys' % Key.objects.get(
+                            id=key_id).public)
+                    if retval > 0:
+                        notify_admin('Deploy user key failed for machine %s'
+                                     % node.name)
+                command = post_deploy_step.get('script', '').replace(
+                    '${node.name}', node.name)
+                if command and key_id:
+                    tmp_log('Executing cloud post deploy cmd: %s' % command)
+                    shell.autoconfigure(
+                        owner, cloud_id, node.id, key_id, username, password,
+                        port
+                    )
+                    retval, output = shell.command(command)
+                    if retval > 0:
+                        notify_admin('Cloud post deploy command `%s` failed '
+                                     'for machine %s' % (command, node.name))
+
+            if key_id:
+                # connect with ssh even if no command, to create association
+                # to be able to enable monitoring
+                tmp_log('attempting to connect to shell')
+                key_id, ssh_user = shell.autoconfigure(
+                    owner, cloud_id, node.id, key_id, username, password, port
+                )
+                tmp_log('connected to shell')
+                result = probe_ssh_only(owner, cloud_id, machine_id, host=None,
+                                        key_id=key_id, ssh_user=ssh_user,
+                                        shell=shell)
+                log_dict = {
+                    'owner_id': owner.id,
+                    'event_type': 'job',
+                    'cloud_id': cloud_id,
+                    'machine_id': machine_id,
+                    'job_id': job_id,
+                    'job': job,
+                    'host': host,
+                    'key_id': key_id,
+                    'ssh_user': ssh_user,
+                }
+                log_event(action='probe', result=result, **log_dict)
 
             error = False
             if script_id:
@@ -307,7 +302,7 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                         plugins=plugins, deploy_async=False,
                     )
                 except Exception as e:
-                    print repr(e)
+                    print(repr(e))
                     error = True
                     notify_user(
                         owner,
@@ -363,7 +358,6 @@ def openstack_post_create_steps(self, owner_id, cloud_id, machine_id,
                                 job=None, hostname='', plugins=None,
                                 post_script_id='', post_script_params='',
                                 networks=[], schedule={}):
-
     from mist.api.methods import connect_provider
     owner = Owner.objects.get(id=owner_id)
 
@@ -406,8 +400,8 @@ def openstack_post_create_steps(self, owner_id, cloud_id, machine_id,
                 ports = conn.ex_list_ports()
                 machine_port_id = None
                 for port in ports:
-                    if port.get('device_id') == node.id:
-                        machine_port_id = port.get('id')
+                    if port.extra.get('device_id') == node.id:
+                        machine_port_id = port.id
                         break
 
                 if unassociated_floating_ip:
@@ -460,7 +454,7 @@ def azure_post_create_steps(self, owner_id, cloud_id, machine_id, monitoring,
                 break
         if node and node.state == NodeState.RUNNING and len(node.public_ips):
             # filter out IPv6 addresses
-            ips = filter(lambda ip: ':' not in ip, node.public_ips)
+            ips = [ip for ip in node.public_ips if ':' not in ip]
             host = ips[0]
         else:
             raise self.retry(exc=Exception(), max_retries=20)
@@ -540,7 +534,7 @@ def rackspace_first_gen_post_create_steps(
 
         if node and node.state == 0 and len(node.public_ips):
             # filter out IPv6 addresses
-            ips = filter(lambda ip: ':' not in ip, node.public_ips)
+            ips = [ip for ip in node.public_ips if ':' not in ip]
             host = ips[0]
         else:
             raise self.retry(exc=Exception(), max_retries=20)
@@ -572,7 +566,7 @@ def rackspace_first_gen_post_create_steps(
                 script_id=script_id, script_params=script_params,
                 job_id=job_id, job=job, hostname=hostname, plugins=plugins,
                 post_script_id=post_script_id,
-                post_script_params=post_script_params, schedule=schedule
+                post_script_params=post_script_params, schedule=schedule,
             )
 
         except Exception as exc:
@@ -599,7 +593,7 @@ class UserTask(Task):
         """Return cached result if it exists, send job to celery if needed"""
         # check cache
         id_str = json.dumps([self.task_key, args, kwargs])
-        cache_key = b64encode(id_str)
+        cache_key = b64encode(id_str.encode()).decode()
         cached = self.memcache.get(cache_key)
         if cached:
             age = time() - cached['timestamp']
@@ -620,7 +614,7 @@ class UserTask(Task):
 
     def clear_cache(self, *args, **kwargs):
         id_str = json.dumps([self.task_key, args, kwargs])
-        cache_key = b64encode(id_str)
+        cache_key = b64encode(id_str.encode()).decode()
         log.info("Clearing cache for '%s'", id_str)
         return self.memcache.delete(cache_key)
 
@@ -635,7 +629,7 @@ class UserTask(Task):
         # same arguments. it is empty on first run, constant afterwards
         seq_id = kwargs.pop('seq_id', '')
         id_str = json.dumps([self.task_key, args, kwargs])
-        cache_key = b64encode(id_str)
+        cache_key = b64encode(id_str.encode()).decode()
         cached_err = self.memcache.get(cache_key + 'error')
         if cached_err:
             # task has been failing recently
@@ -722,32 +716,6 @@ class UserTask(Task):
             return 60 * 10  # Retry in 10mins after the third error
 
 
-class ListZones(UserTask):
-    task_key = 'list_zones'
-    result_expires = 60 * 60 * 24
-    result_fresh = 0
-    polling = False
-    soft_time_limit = 60
-
-    def execute(self, owner_id, cloud_id):
-        owner = Owner.objects.get(id=owner_id)
-        log.warn('Running list zones for user %s cloud %s'
-                 % (owner.id, cloud_id))
-        from mist.api.dns.methods import list_zones
-        try:
-            cloud = Cloud.objects.get(owner=owner, id=cloud_id)
-        except Cloud.DoesNotExist:
-            raise CloudNotFoundError()
-        if not hasattr(cloud.ctl, 'dns'):
-            return {'cloud_id': cloud_id, 'zones': []}
-        ret = []
-        if cloud.dns_enabled:
-            ret = list_zones(owner, cloud.id)
-            log.warn('Returning list zones for user %s cloud %s'
-                     % (owner.id, cloud_id))
-        return {'cloud_id': cloud_id, 'zones': ret}
-
-
 class ListImages(UserTask):
     task_key = 'list_images'
     result_expires = 60 * 60 * 24 * 7
@@ -784,69 +752,28 @@ class ListProjects(UserTask):
         return {'cloud_id': cloud_id, 'projects': projects}
 
 
-class ListResourceGroups(UserTask):
-    task_key = 'list_resource_groups'
-    result_expires = 60 * 60 * 24 * 7
-    result_fresh = 60 * 60
-    polling = False
-    soft_time_limit = 30
-
-    def execute(self, owner_id, cloud_id):
-        owner = Owner.objects.get(id=owner_id)
-        log.warn('Running list resource groups for user %s cloud %s',
-                 owner.id, cloud_id)
-        from mist.api import methods
-        resource_groups = methods.list_resource_groups(owner, cloud_id)
-        log.warn('Returning list resource groups for user %s cloud %s',
-                 owner.id, cloud_id)
-        return {'cloud_id': cloud_id, 'resource_groups': resource_groups}
-
-
-class ListStorageAccounts(UserTask):
-    task_key = 'list_storage_accounts'
-    result_expires = 60 * 60 * 24 * 7
-    result_fresh = 60 * 60
-    polling = False
-    soft_time_limit = 30
-
-    def execute(self, owner_id, cloud_id):
-        owner = Owner.objects.get(id=owner_id)
-        log.warn('Running list storage accounts for user %s cloud %s',
-                 owner.id, cloud_id)
-        from mist.api import methods
-        storage_accounts = methods.list_storage_accounts(owner, cloud_id)
-        log.warn('Returning list storage accounts for user %s cloud %s',
-                 owner.id, cloud_id)
-        return {'cloud_id': cloud_id, 'storage_accounts': storage_accounts}
-
-
-list_zones = app.register_task(ListZones())
 list_images = app.register_task(ListImages())
 list_projects = app.register_task(ListProjects())
-list_resource_groups = app.register_task(ListResourceGroups())
-list_storage_accounts = app.register_task(ListStorageAccounts())
 
 
 @app.task
 def create_machine_async(
     auth_context_serialized, cloud_id, key_id, machine_name, location_id,
     image_id, size, image_extra, disk,
-    image_name, size_name, location_name, ips, monitoring, ex_disk_id,
-    ex_storage_account, machine_password, ex_resource_group,
+    image_name, size_name, location_name, ips, monitoring,
+    storage_account, machine_password, resource_group, storage_account_type,
     networks, subnetwork, docker_env, docker_command, script='',
     script_id='', script_params='',
     post_script_id='', post_script_params='',
     quantity=1, persist=False, job_id=None, job=None,
     docker_port_bindings={}, docker_exposed_ports={},
     azure_port_bindings='', hostname='', plugins=None,
-    disk_size=None, disk_path=None, create_storage_account=False,
-    new_storage_account='', create_resource_group=False,
-    new_resource_group='', create_network=False,
-    new_network='', cloud_init='', subnet_id='',
+    disk_size=None, disk_path=None, cloud_init='', subnet_id='',
     associate_floating_ip=False,
     associate_floating_ip_subnet=None, project_id=None,
     tags=None, schedule={}, bare_metal=False, hourly=True,
-    softlayer_backend_vlan_id=None, machine_username=''
+    softlayer_backend_vlan_id=None, machine_username='',
+    volumes=[], ip_addresses=[], expiration={}
 ):
     from multiprocessing.dummy import Pool as ThreadPool
     from mist.api.machines.methods import create_machine
@@ -871,7 +798,7 @@ def create_machine_async(
               cloud_id=cloud_id, script=script, script_id=script_id,
               script_params=script_params, monitoring=monitoring,
               persist=persist, quantity=quantity, key_id=key_id,
-              machine_names=names)
+              machine_names=names, volumes=volumes)
 
     THREAD_COUNT = 5
     pool = ThreadPool(THREAD_COUNT)
@@ -880,10 +807,10 @@ def create_machine_async(
         specs.append((
             (auth_context, cloud_id, key_id, name, location_id, image_id,
              size, image_extra, disk, image_name, size_name,
-             location_name, ips, monitoring, ex_disk_id, ex_storage_account,
-             machine_password, ex_resource_group, networks, subnetwork,
-             docker_env, docker_command, 22, script, script_id, script_params,
-             job_id, job),
+             location_name, ips, monitoring, storage_account,
+             machine_password, resource_group, storage_account_type, networks,
+             subnetwork, docker_env, docker_command, 22, script, script_id,
+             script_params, job_id, job),
             {'hostname': hostname, 'plugins': plugins,
              'post_script_id': post_script_id,
              'post_script_params': post_script_params,
@@ -896,15 +823,12 @@ def create_machine_async(
              'tags': tags,
              'schedule': schedule,
              'softlayer_backend_vlan_id': softlayer_backend_vlan_id,
-             'create_network': create_network,
-             'new_network': new_network,
-             'create_resource_group': create_resource_group,
-             'new_resource_group': new_resource_group,
-             'create_storage_account': create_storage_account,
-             'new_storage_account': new_storage_account,
              'bare_metal': bare_metal,
              'hourly': hourly,
-             'machine_username': machine_username}
+             'machine_username': machine_username,
+             'volumes': volumes,
+             'ip_addresses': ip_addresses,
+             'expiration': expiration}
         ))
 
     def create_machine_wrapper(args_kwargs):
@@ -951,13 +875,8 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
     :param action:
     :param name:
     :param machines_uuids:
-    :return: glist
+    :return: log_dict
     """
-    glist = []
-
-    for machine_uuid in machines_uuids:
-        glist.append(run_machine_action.s(owner_id, action, name,
-                                          machine_uuid))
 
     schedule = Schedule.objects.get(owner=owner_id, name=name, deleted=None)
 
@@ -965,7 +884,7 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
         'schedule_id': schedule.id,
         'schedule_name': schedule.name,
         'description': schedule.description or '',
-        'schedule_type': unicode(schedule.schedule_type or ''),
+        'schedule_type': str(schedule.schedule_type or ''),
         'owner_id': owner_id,
         'machines_match': schedule.get_ids(),
         'machine_action': action,
@@ -976,18 +895,21 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
         'error': False,
     }
 
-    log_event(action='Schedule started', **log_dict)
+    log_event(action='schedule_started', **log_dict)
     log.info('Schedule action started: %s', log_dict)
-    try:
-        group(glist)()
-    except Exception as exc:
-        log_dict['error'] = str(exc)
+
+    for machine_uuid in machines_uuids:
+        try:
+            run_machine_action.s(owner_id, action, name,
+                                 machine_uuid)()
+        except Exception as exc:
+            log_dict['error'] = log_dict.get('error', '') + str(exc) + '\n'
 
     log_dict.update({'last_run_at': str(schedule.last_run_at or ''),
                     'total_run_count': schedule.total_run_count or 0,
                      'error': log_dict['error']}
                     )
-    log_event(action='Schedule finished', **log_dict)
+    log_event(action='schedule_finished', **log_dict)
     if log_dict['error']:
         log.info('Schedule action failed: %s', log_dict)
     else:
@@ -1028,7 +950,7 @@ def run_machine_action(owner_id, action, name, machine_uuid):
         machine_id = machine.machine_id
         log_dict.update({'cloud_id': cloud_id,
                          'machine_id': machine_id})
-    except NotFoundError:
+    except me.DoesNotExist:
         log_dict['error'] = "Resource with that id does not exist."
         msg = action + ' failed'
         log_event(action=msg, **log_dict)
@@ -1038,7 +960,7 @@ def run_machine_action(owner_id, action, name, machine_uuid):
         log_event(action=msg, **log_dict)
 
     if not log_dict.get('error'):
-        if action in ('start', 'stop', 'reboot', 'destroy'):
+        if action in ('start', 'stop', 'reboot', 'destroy', 'notify'):
             # call list machines here cause we don't have another way
             # to update machine state if user isn't logged in
             from mist.api.machines.methods import list_machines
@@ -1086,19 +1008,46 @@ def run_machine_action(owner_id, action, name, machine_uuid):
                     log_event(action='Destroy failed', **log_dict)
                 else:
                     log_event(action='Destroy succeeded', **log_dict)
-    # TODO markos asked this
-    log_dict['started_at'] = started_at
-    log_dict['finished_at'] = time()
-    title = "Execution of '%s' action " % action
-    title += "failed" if log_dict.get('error') else "succeeded"
-    from mist.api.methods import notify_user
-    notify_user(
-        owner, title,
-        cloud_id=cloud_id,
-        machine_id=machine_id,
-        duration=log_dict['finished_at'] - log_dict['started_at'],
-        error=log_dict.get('error'),
-    )
+            elif action == 'notify':
+                mails = []
+                for _user in [machine.owned_by, machine.created_by]:
+                    if _user:
+                        mails.append(_user.email)
+                for mail in list(set(mails)):
+                    if mail == machine.owned_by.email:
+                        user = machine.owned_by
+                    else:
+                        user = machine.created_by
+                    machine_uri = config.CORE_URI + '/machines/%s' % machine.id
+                    subject = config.MACHINE_EXPIRE_NOTIFY_EMAIL_SUBJECT
+                    main_body = config.MACHINE_EXPIRE_NOTIFY_EMAIL_BODY
+                    body = main_body % ((user.first_name + " " +
+                                        user.last_name).strip(),
+                                        machine.name,
+                                        machine.expiration.schedule_type.entry,
+                                        machine_uri + '/expiration',
+                                        config.CORE_URI)
+                    log.info('about to send email...')
+                    if not helper_send_email(subject, body, user.email):
+                        raise ServiceUnavailableError("Could not send "
+                                                      "notification email "
+                                                      "about machine that "
+                                                      "is about to expire.")
+
+    if action != 'notify' and log_dict.get('error'):
+        # TODO markos asked this
+        log_dict['started_at'] = started_at
+        log_dict['finished_at'] = time()
+        title = "Execution of '%s' action " % action
+        title += "failed" if log_dict.get('error') else "succeeded"
+        from mist.api.methods import notify_user
+        notify_user(
+            owner, title,
+            cloud_id=cloud_id,
+            machine_id=machine_id,
+            duration=log_dict['finished_at'] - log_dict['started_at'],
+            error=log_dict.get('error'),
+        )
 
 
 @app.task
@@ -1113,20 +1062,14 @@ def group_run_script(owner_id, script_id, name, machines_uuids, params=''):
     :param cloud_machines_pairs:
     :return:
     """
-    glist = []
     job_id = uuid.uuid4().hex
-    for machine_uuid in machines_uuids:
-            glist.append(run_script.s(owner_id, script_id, machine_uuid,
-                                      params=params,
-                                      job_id=job_id, job='schedule'))
-
     schedule = Schedule.objects.get(owner=owner_id, name=name, deleted=None)
 
     log_dict = {
         'schedule_id': schedule.id,
         'schedule_name': schedule.name,
         'description': schedule.description or '',
-        'schedule_type': unicode(schedule.schedule_type or ''),
+        'schedule_type': str(schedule.schedule_type or ''),
         'owner_id': owner_id,
         'machines_match': schedule.get_ids(),
         'script_id': script_id,
@@ -1139,18 +1082,22 @@ def group_run_script(owner_id, script_id, name, machines_uuids, params=''):
         'job_id': job_id,
     }
 
-    log_event(action='Schedule started', **log_dict)
+    log_event(action='schedule_started', **log_dict)
     log.info('Schedule started: %s', log_dict)
-    try:
-        group(glist)()
-    except Exception as exc:
-        log_dict['error'] = str(exc)
+
+    for machine_uuid in machines_uuids:
+        try:
+            run_script.s(owner_id, script_id, machine_uuid,
+                         params=params,
+                         job_id=job_id, job='schedule')()
+        except Exception as exc:
+            log_dict['error'] = log_dict.get('error', '') + str(exc) + '\n'
 
     log_dict.update({'last_run_at': str(schedule.last_run_at or ''),
                      'total_run_count': schedule.total_run_count or 0,
                      'error': log_dict['error']}
                     )
-    log_event(action='Schedule finished', **log_dict)
+    log_event(action='schedule_finished', **log_dict)
     if log_dict['error']:
         log.info('Schedule run_script failed: %s', log_dict)
     else:
@@ -1244,7 +1191,7 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
         exit_code, wstdout = shell.command("command -v python")
 
         if exit_code > 0:
-            command = "/bin/bash %s %s" % (path, params)
+            command = "chmod +x %s && %s %s" % (path, path, params)
         else:
             command = "python - %s << EOF\n%s\nEOF\n" % (wparams, wscript)
         if su:
@@ -1258,7 +1205,6 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
         try:
             exit_code, wstdout = shell.command(command)
             shell.disconnect()
-            wstdout = wstdout.encode('utf-8', 'ignore')
             wstdout = wstdout.replace('\r\n', '\n').replace('\r', '\n')
             ret['wrapper_stdout'] = wstdout
             ret['exit_code'] = exit_code
@@ -1295,16 +1241,17 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
     ret['finished_at'] = time()
     title = "Execution of '%s' script " % script.name
     title += "failed" if ret['error'] else "succeeded"
-    notify_user(
-        owner, title,
-        cloud_id=cloud_id,
-        machine_id=machine_id,
-        machine_name=machine_name,
-        output=ret['stdout'],
-        duration=ret['finished_at'] - ret['started_at'],
-        retval=ret['exit_code'],
-        error=ret['error'],
-    )
+    if ret['error']:
+        notify_user(
+            owner, title,
+            cloud_id=cloud_id,
+            machine_id=machine_id,
+            machine_name=machine_name,
+            output=ret['stdout'],
+            duration=ret['finished_at'] - ret['started_at'],
+            retval=ret['exit_code'],
+            error=ret['error'],
+        )
     if ret['error']:
         title += " for user %s" % str(owner)
         notify_admin(
@@ -1326,6 +1273,8 @@ def update_poller(org_id):
         ListMachinesPollingSchedule.add(cloud=cloud, interval=10, ttl=120)
         if hasattr(cloud.ctl, 'network'):
             ListNetworksPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
+        if hasattr(cloud.ctl, 'dns') and cloud.dns_enabled:
+            ListZonesPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
         if hasattr(cloud.ctl, 'storage'):
             ListVolumesPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
         if config.ACCELERATE_MACHINE_POLLING:
@@ -1374,17 +1323,64 @@ def gc_schedulers():
 
 @app.task
 def set_missing_since(cloud_id):
-    for Model in (Machine, CloudLocation, CloudSize, Network, Volume):
+    for Model in (Machine, CloudLocation, CloudSize, Network, Volume, Zone):
         Model.objects(cloud=cloud_id, missing_since=None).update(
             missing_since=datetime.datetime.utcnow()
         )
 
 
 @app.task
+def create_backup():
+    """Create mongo backup if s3 creds are set.
+    """
+    # If MONGO_URI consists of multiple hosts get the last one
+    mongo_backup_host = config.MONGO_URI.split('//')[-1].split('/')[0].split(
+        ',')[-1]
+    # Strip protocol prefix from influx backup uri
+    influx_backup_host = config.INFLUX.get('backup', '').replace(
+        'http://', '').replace('https://', '')
+    if all(value == '' for value in config.BACKUP.get('gpg', {}).values()):
+        os.system("mongodump --host %s --gzip --archive | s3cmd --access_key=%s \
+        --secret_key=%s put - s3://%s/mongo/%s-%s" % (mongo_backup_host,
+                  config.BACKUP['key'], config.BACKUP['secret'],
+                  config.BACKUP['bucket'], config.CORE_URI.split('//')[1],
+                  datetime.datetime.now().strftime('%Y%m%d%H%M')))
+        if influx_backup_host:
+            os.system("influxd backup -portable -host %s ./influx-snapshot &&\
+            tar cv influx-snapshot | s3cmd --access_key=%s --secret_key=%s \
+            put - s3://%s/influx/%s-%s && rm -rf influx-snapshot" % (
+                influx_backup_host, config.BACKUP['key'],
+                config.BACKUP['secret'], config.BACKUP['bucket'],
+                config.CORE_URI.split('//')[1],
+                datetime.datetime.now().strftime('%Y%m%d%H%M')))
+    elif config.BACKUP['gpg'].get('public'):  # encrypt with gpg if configured
+        f = open('pub.key', 'w+')
+        f.write(config.BACKUP['gpg']['public'])
+        f.close()
+        os.system("gpg --import pub.key && mongodump \
+        --host %s --gzip --archive | gpg --yes --trust-model always \
+        --encrypt --recipient %s | s3cmd --access_key=%s --secret_key=%s put \
+        - s3://%s/mongo/%s-%s.gpg" % (
+            mongo_backup_host, config.BACKUP['gpg']['recipient'],
+            config.BACKUP['key'], config.BACKUP['secret'],
+            config.BACKUP['bucket'], config.CORE_URI.split('//')[1],
+            datetime.datetime.now().strftime('%Y%m%d%H%M')))
+        if influx_backup_host:
+            os.system("influxd backup -portable -host %s ./influx-snapshot \
+            && tar cv influx-snapshot | gpg --yes --trust-model always \
+            --encrypt --recipient %s | s3cmd --access_key=%s --secret_key=%s \
+            put - s3://%s/influx/%s-%s.gpg" % (
+                influx_backup_host, config.BACKUP['gpg']['recipient'],
+                config.BACKUP['key'], config.BACKUP['secret'],
+                config.BACKUP['bucket'], config.CORE_URI.split('//')[1],
+                datetime.datetime.now().strftime('%Y%m%d%H%M')))
+
+
+@app.task
 def async_session_update(owner, sections=None):
     if sections is None:
         sections = [
-            'org', 'user', 'keys', 'zones', 'clouds', 'stacks',
+            'org', 'user', 'keys', 'clouds', 'stacks',
             'scripts', 'schedules', 'templates', 'monitoring'
         ]
     trigger_session_update(owner, sections)

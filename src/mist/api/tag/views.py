@@ -24,6 +24,7 @@ from mist.api.auth.methods import auth_context_from_request
 from mist.api.helpers import get_resource_model
 from mist.api.helpers import view_config, params_from_request
 from mist.api.helpers import amqp_publish_user
+from mist.api.helpers import amqp_owner_listening
 
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import NotFoundError, BadRequestError
@@ -56,7 +57,6 @@ def tag_resources(request):
 
     # FIXME: This implementation is far from OK. We need to re-code the way
     # tags are handled and make sure that RBAC is properly enforced on tags
-
     for resource in params:
         # list of dicts of key-value pairs
         resource_tags = resource.get('tags', '')
@@ -77,7 +77,7 @@ def tag_resources(request):
         if cloud_id:
             auth_context.check_perm('cloud', 'read', cloud_id)
         elif resource_data['type'] in ['machine', 'image',
-                                       'network', 'location']:
+                                       'network', 'volume']:
             raise RequiredParameterMissingError("cloud_id")
         else:
             del resource_data['cloud_id']
@@ -107,13 +107,11 @@ def tag_resources(request):
 
         # split the tags into two lists: those that will be added and those
         # that will be removed
-        tags_to_add = [(tag['key'], tag['value']) for tag in filter(
-            lambda tag: tag.get('op', '+') == '+', resource_tags
-        )]
+        tags_to_add = [(tag['key'], tag['value']) for tag in [
+            tag for tag in resource_tags if tag.get('op', '+') == '+']]
         # also extract the keys from all the tags to be deleted
-        tags_to_remove = map(lambda tag: tag['key'],
-                             filter(lambda tag: tag.get('op', '+') == '-',
-                                    resource_tags))
+        tags_to_remove = [tag['key'] for tag in [
+            tag for tag in resource_tags if tag.get('op', '+') == '-']]
 
         # SEC only Org Owners may edit the secure tags
         tags = {tag[0]: tag[1] for tag in tags_to_add}
@@ -127,16 +125,20 @@ def tag_resources(request):
             remove_tags_from_resource(auth_context.owner, resource_obj,
                                       tags_to_remove)
 
-        if config.MACHINE_PATCHES:
+        if rtype in ['machine', 'network', 'volume', 'zone', 'record']:
             new_tags = get_tags_for_resource(auth_context.owner, resource_obj)
-            if isinstance(resource_obj, Machine):
-                patch = jsonpatch.JsonPatch.from_diff(old_tags, new_tags).patch
-                for item in patch:
-                    item['path'] = '/%s-%s/tags%s' % (resource_obj.id,
-                                                      resource_obj.machine_id,
-                                                      item['path'])
+            try:
+                external_id = getattr(resource_obj, rtype + '_id')
+            except AttributeError:
+                external_id = getattr(resource_obj, 'external_id')
+            patch = jsonpatch.JsonPatch.from_diff(old_tags, new_tags).patch
+            for item in patch:
+                item['path'] = '/%s-%s/tags%s' % (resource_obj.id,
+                                                  external_id,
+                                                  item['path'])
+            if amqp_owner_listening(resource_obj.cloud.owner.id):
                 amqp_publish_user(auth_context.owner.id,
-                                  routing_key='patch_machines',
+                                  routing_key='patch_%ss' % rtype,
                                   data={'cloud_id': resource_obj.cloud.id,
                                         'patch': patch})
     return OK
@@ -323,7 +325,7 @@ def set_cloud_tags(request):
     if not modify_security_tags(auth_context, tags, cloud):
         raise auth_context._raise('cloud', 'edit_security_tags')
 
-    return add_tags_to_resource(auth_context.owner, cloud, tags.items())
+    return add_tags_to_resource(auth_context.owner, cloud, list(tags.items()))
 
 
 @view_config(route_name='api_v1_machine_tags', request_method='POST',
@@ -375,7 +377,7 @@ def set_machine_tags(request):
     # tags without deleting any.
 
     old_tags = get_tags_for_resource(auth_context.owner, machine)
-    add_tags_to_resource(auth_context.owner, machine, tags.items())
+    add_tags_to_resource(auth_context.owner, machine, list(tags.items()))
 
     if config.MACHINE_PATCHES:
         new_tags = get_tags_for_resource(auth_context.owner, machine)
@@ -425,7 +427,8 @@ def set_schedule_tags(request):
     if not modify_security_tags(auth_context, tags, schedule):
         raise auth_context._raise('schedule', 'edit_security_tags')
 
-    return add_tags_to_resource(auth_context.owner, schedule, tags.items())
+    return add_tags_to_resource(
+        auth_context.owner, schedule, list(tags.items()))
 
 
 @view_config(route_name='script_tags', request_method='POST', renderer='json')
@@ -461,7 +464,7 @@ def set_script_tags(request):
     if not modify_security_tags(auth_context, tags, script):
         raise auth_context._raise('script', 'edit_security_tags')
 
-    return add_tags_to_resource(auth_context.owner, script, tags.items())
+    return add_tags_to_resource(auth_context.owner, script, list(tags.items()))
 
 
 @view_config(route_name='key_tags', request_method='POST', renderer='json')
@@ -500,7 +503,7 @@ def set_key_tags(request):
     if not modify_security_tags(auth_context, tags, key):
         raise auth_context._raise('key', 'edit_security_tags')
 
-    return add_tags_to_resource(auth_context.owner, key, tags.items())
+    return add_tags_to_resource(auth_context.owner, key, list(tags.items()))
 
 
 @view_config(route_name='network_tags', request_method='POST', renderer='json')
@@ -545,7 +548,8 @@ def set_network_tags(request):
     if not modify_security_tags(auth_context, tags, network):
         raise auth_context._raise('network', 'edit_security_tags')
 
-    return add_tags_to_resource(auth_context.owner, network, tags.items())
+    return add_tags_to_resource(
+        auth_context.owner, network, list(tags.items()))
 
 
 @view_config(route_name='schedule_tag', request_method='DELETE',

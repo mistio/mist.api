@@ -8,8 +8,11 @@ import mongoengine as me
 
 import mist.api.tag.models
 
+from future.utils import string_types
+
 from mist.api.mongoengine_extras import MistDictField
 from mist.api.keys.models import Key
+from mist.api.schedules.models import Schedule
 from mist.api.machines.controllers import MachineController
 from mist.api.ownership.mixins import OwnershipMixin
 
@@ -75,6 +78,10 @@ class Actions(me.EmbeddedDocument):
     resume = me.BooleanField(default=False)
     suspend = me.BooleanField(default=False)
     undefine = me.BooleanField(default=False)
+    clone = me.BooleanField(default=False)
+    create_snapshot = me.BooleanField(default=False)
+    remove_snapshot = me.BooleanField(default=False)
+    revert_to_snapshot = me.BooleanField(default=False)
 
 
 class Monitoring(me.EmbeddedDocument):
@@ -89,7 +96,7 @@ class Monitoring(me.EmbeddedDocument):
 
     def clean(self):
         if not self.collectd_password:
-            self.collectd_password = os.urandom(32).encode('hex')
+            self.collectd_password = os.urandom(32).hex()
 
     def get_commands(self):
         if self.method in ('telegraf-influxdb', 'telegraf-graphite'):
@@ -218,9 +225,12 @@ class SSHProbe(me.EmbeddedDocument):
 
         for strarr_attr in ('pub_ips', 'priv_ips', 'macs'):
             val = data.get(strarr_attr)
+            # macs may come in dicts that map ip to mac
+            if strarr_attr == 'macs' and isinstance(val, dict):
+                val = list(val.values())
             try:
                 assert isinstance(val, list)
-                assert all(isinstance(item, basestring) for item in val)
+                assert all(isinstance(item, string_types) for item in val)
                 setattr(self, strarr_attr, val)
             except Exception as exc:
                 log.error("Invalid %s '%s': %r", strarr_attr, val, exc)
@@ -276,10 +286,7 @@ class Machine(OwnershipMixin, me.Document):
     image_id = me.StringField()
     # libcloud.compute.types.NodeState
     state = me.StringField(default='unknown',
-                           choices=('running', 'starting', 'rebooting',
-                                    'terminated', 'pending', 'unknown',
-                                    'stopping', 'stopped', 'suspended',
-                                    'error', 'paused', 'reconfiguring'))
+                           choices=tuple(config.STATES.values()))
     machine_type = me.StringField(default='machine',
                                   choices=('machine', 'vm', 'container',
                                            'hypervisor', 'container-host',
@@ -299,6 +306,8 @@ class Machine(OwnershipMixin, me.Document):
 
     ssh_probe = me.EmbeddedDocumentField(SSHProbe, required=False)
     ping_probe = me.EmbeddedDocumentField(PingProbe, required=False)
+
+    expiration = me.ReferenceField(Schedule, required=False)
 
     # Number of vCPUs gathered from various sources. This field is meant to
     # be updated ONLY by the mist.api.metering.tasks:find_machine_cores task.
@@ -336,9 +345,10 @@ class Machine(OwnershipMixin, me.Document):
         # self.key_associations list by iterating over it and popping matched
         # embedded documents in order to ensure that the most recent list is
         # always processed and saved.
-        for ka in reversed(range(len(self.key_associations))):
-            if self.key_associations[ka].keypair.deleted:
-                self.key_associations.pop(ka)
+        key_associations = KeyMachineAssociation.objects(machine=self)
+        for ka in reversed(list(range(len(key_associations)))):
+            if key_associations[ka].key.deleted:
+                key_associations[ka].delete()
 
         # Reset key_associations in case self goes missing/destroyed. This is
         # going to prevent the machine from showing up as "missing" in the
@@ -366,6 +376,8 @@ class Machine(OwnershipMixin, me.Document):
                 self.os_type = 'unix'
 
     def delete(self):
+        if self.expiration:
+            self.expiration.delete()
         super(Machine, self).delete()
         mist.api.tag.models.Tag.objects(resource=self).delete()
         try:
@@ -380,15 +392,9 @@ class Machine(OwnershipMixin, me.Document):
 
     def as_dict(self):
         # Return a dict as it will be returned to the API
-
-        # tags as a list return for the ui
         tags = {tag.key: tag.value for tag in mist.api.tag.models.Tag.objects(
             resource=self
         ).only('key', 'value')}
-        # Optimize tags data structure for js...
-        if isinstance(tags, dict):
-            tags = [{'key': key, 'value': value}
-                    for key, value in tags.iteritems()]
         return {
             'id': self.id,
             'hostname': self.hostname,
@@ -401,7 +407,7 @@ class Machine(OwnershipMixin, me.Document):
             'machine_id': self.machine_id,
             'actions': {action: self.actions[action]
                         for action in self.actions},
-            'extra': self.extra,
+            'extra': dict(self.extra),
             'cost': self.cost.as_dict(),
             'image_id': self.image_id,
             'state': self.state,
@@ -409,7 +415,9 @@ class Machine(OwnershipMixin, me.Document):
             'monitoring':
                 self.monitoring.as_dict() if self.monitoring and
                 self.monitoring.hasmonitoring else '',
-            'key_associations': [ka.as_dict() for ka in self.key_associations],
+            'key_associations':
+                [ka.as_dict() for ka in KeyMachineAssociation.objects(
+                    machine=self)],
             'cloud': self.cloud.id,
             'location': self.location.id if self.location else '',
             'size': self.size.name if self.size else '',
@@ -438,7 +446,43 @@ class Machine(OwnershipMixin, me.Document):
             'subnet': self.subnet.id if self.subnet else '',
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
+            'expiration': {
+                'id': self.expiration.id,
+                'action': self.expiration.task_type.action,
+                'date': self.expiration.schedule_type.entry,
+                'notify': self.expiration.reminder and int((
+                    self.expiration.schedule_type.entry -
+                    self.expiration.reminder.schedule_type.entry
+                ).total_seconds()) or 0,
+            } if self.expiration else None,
         }
 
     def __str__(self):
         return 'Machine %s (%s) in %s' % (self.name, self.id, self.cloud)
+
+
+class KeyMachineAssociation(me.Document):
+    meta = {
+        'allow_inheritance': True,
+        'collection': 'key_association',
+        'indexes': [
+            {
+                'fields': ['key'],
+                'sparse': False,
+                'cls': False,
+            }, {
+                'fields': ['machine'],
+                'sparse': False,
+                'cls': False
+            }
+        ],
+    }
+    key = me.ReferenceField(Key, required=True, reverse_delete_rule=me.CASCADE)
+    machine = me.ReferenceField(Machine, reverse_delete_rule=me.CASCADE)
+    last_used = me.IntField(default=0)
+    ssh_user = me.StringField(default='root')
+    sudo = me.BooleanField(default=False)
+    port = me.IntField(default=22)
+
+    def as_dict(self):
+        return json.loads(self.to_json())

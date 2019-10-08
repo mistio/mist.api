@@ -62,6 +62,8 @@ def _get_alert_details(resource, rule, incident_id,
         'since': _get_time_diff_to_now(timestamp),
         'time': _get_current_local_time(),
         'uri': config.CORE_URI,
+        'portal_name': config.PORTAL_NAME,
+        'email_logo': config.EMAIL_LOGO
     }
 
     # FIXME For backwards compatibility. Note that `name` cannot be
@@ -166,6 +168,8 @@ def _alert_pretty_machine_details(owner, rule_id, value, triggered, timestamp,
         'resource_type': 'machine',
         'rule_data_type': 'metrics',
         'rule_arbitrary': False,
+        'portal_name': config.PORTAL_NAME,
+        'email_logo': config.EMAIL_LOGO
     }
 
 
@@ -189,7 +193,7 @@ def _log_alert(resource, rule, value, triggered, timestamp, incident_id,
 
     # Rename resource-agnostic keys, if applicable.
     if resource_type is not None:
-        for key in info.keys():
+        for key in list(info.keys()):
             if key.startswith('resource_'):
                 rename_kwargs(info,
                               key, key.replace('resource', resource_type))

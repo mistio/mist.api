@@ -14,7 +14,11 @@ class PeriodicTaskThresholdExceeded(Exception):
     pass
 
 
-class LockTakenError(Exception):
+class PeriodicTaskTooRecentLastRun(Exception):
+    pass
+
+
+class PeriodicTaskLockTakenError(Exception):
     pass
 
 
@@ -118,12 +122,12 @@ class PeriodicTaskInfo(me.Document):
             last_run = self.get_last_run()
             if last_run:
                 if now - last_run < self.min_interval:
-                    raise Exception()
+                    raise PeriodicTaskTooRecentLastRun()
 
     def acquire_lock(self, attempts=1, retry_sleep=1):
         """Acquire run lock"""
         # Is another same task running?
-        for i in xrange(attempts):
+        for i in range(attempts):
             if not self.lock:
                 break
             if self.break_lock_after:
@@ -139,7 +143,7 @@ class PeriodicTaskInfo(me.Document):
                 self.reload()
         else:
             log.warning("Lock for task '%s' is taken.", self.key)
-            raise LockTakenError()
+            raise PeriodicTaskLockTakenError()
         self.lock = self.Lock()
         self.save()
 

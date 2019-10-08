@@ -111,7 +111,7 @@ def machine_dashboard(request):
         ret = copy.deepcopy(config.INFLUXDB_MACHINE_DASHBOARD_DEFAULT)
     dashboard = ret['dashboard']
     for m in machine.monitoring.metrics:
-        panels = dashboard['rows'][0]['panels']
+        panels = dashboard['rows'][-1]['panels']
         panels.append({
             "id": len(panels),
             "title": m.replace('mist.python', '').replace('.', ' '),

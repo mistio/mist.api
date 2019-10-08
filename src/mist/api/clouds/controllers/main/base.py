@@ -236,7 +236,7 @@ class BaseMainController(object):
 
         # Check for invalid `kwargs` keys.
         errors = {}
-        for key in kwargs.keys():
+        for key in list(kwargs.keys()):
             if key not in self.cloud._cloud_specific_fields:
                 error = "Invalid parameter %s=%r." % (key, kwargs[key])
                 if fail_on_invalid_params:
@@ -247,18 +247,18 @@ class BaseMainController(object):
         if errors:
             log.error("Error updating %s: %s", self.cloud, errors)
             raise BadRequestError({
-                'msg': "Invalid parameters %s." % errors.keys(),
+                'msg': "Invalid parameters %s." % list(errors.keys()),
                 'errors': errors,
             })
 
         # Set fields to cloud model and perform early validation.
-        for key, value in kwargs.iteritems():
+        for key, value in kwargs.items():
             setattr(self.cloud, key, value)
         try:
             self.cloud.validate(clean=True)
         except me.ValidationError as exc:
             log.error("Error updating %s: %s", self.cloud, exc.to_dict())
-            raise BadRequestError({'msg': exc.message,
+            raise BadRequestError({'msg': str(exc),
                                    'errors': exc.to_dict()})
 
         # Try to connect to cloud.
@@ -280,7 +280,7 @@ class BaseMainController(object):
             self.cloud.save()
         except me.ValidationError as exc:
             log.error("Error updating %s: %s", self.cloud, exc.to_dict())
-            raise BadRequestError({'msg': exc.message,
+            raise BadRequestError({'msg': str(exc),
                                    'errors': exc.to_dict()})
         except me.NotUniqueError as exc:
             log.error("Cloud %s not unique error: %s", self.cloud, exc)
@@ -361,6 +361,7 @@ class BaseMainController(object):
         from mist.api.poller.models import ListNetworksPollingSchedule
         from mist.api.poller.models import ListLocationsPollingSchedule
         from mist.api.poller.models import ListSizesPollingSchedule
+        from mist.api.poller.models import ListZonesPollingSchedule
         from mist.api.poller.models import ListVolumesPollingSchedule
 
         # Add machines' polling schedule.
@@ -369,6 +370,10 @@ class BaseMainController(object):
         # Add networks' polling schedule, if applicable.
         if hasattr(self.cloud.ctl, 'network'):
             ListNetworksPollingSchedule.add(cloud=self.cloud)
+
+        # Add zones' polling schedule, if applicable.
+        if hasattr(self.cloud.ctl, 'dns') and self.cloud.dns_enabled:
+            ListZonesPollingSchedule.add(cloud=self.cloud)
 
         # Add volumes' polling schedule, if applicable.
         if hasattr(self.cloud.ctl, 'storage'):

@@ -157,7 +157,7 @@ class ElasticQueryHandler(object):
 
         # Extend `query` with any additional Term Query to further limit
         # its hits.
-        for key, value in (terms or {}).items():
+        for key, value in list((terms or {}).items()):
             if key not in ('must', 'must_not', ):
                 log.error('Boolean clause "%s" is not supported', key)
                 continue

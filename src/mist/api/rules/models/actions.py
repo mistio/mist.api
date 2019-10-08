@@ -17,7 +17,7 @@ ACTIONS = {}  # This is a map of action types to action classes.
 
 def _populate_actions():
     """Populate ACTIONS variable."""
-    for key, value in globals().iteritems():
+    for key, value in globals().items():
         if key.endswith('Action') and key != 'Action':
             if issubclass(value, BaseAlertAction):
                 if value.atype not in (None, 'no_data', ):  # Exclude these.
@@ -44,7 +44,7 @@ class BaseAlertAction(me.EmbeddedDocument):
     id = me.StringField(required=True, default=lambda: uuid.uuid4().hex)
 
     def update(self, fail_on_error=True, **kwargs):
-        for key, value in kwargs.iteritems():
+        for key, value in kwargs.items():
             if key not in self._fields:
                 if not fail_on_error:
                     continue

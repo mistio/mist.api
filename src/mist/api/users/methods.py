@@ -97,7 +97,7 @@ def create_org_for_user(user, org_name='', promo_code=None, token=None,
     try:
         org.save()
     except ValidationError as e:
-        raise BadRequestError({"msg": e.message, "errors": e.to_dict()})
+        raise BadRequestError({"msg": str(e), "errors": e.to_dict()})
     except OperationError:
         raise OrganizationOperationError()
 
@@ -212,4 +212,4 @@ def update_whitelist_ips(auth_context, ips):
     try:
         user.save()
     except ValidationError as e:
-        raise BadRequestError({"msg": e.message, "errors": e.to_dict()})
+        raise BadRequestError({"msg": str(e), "errors": e.to_dict()})

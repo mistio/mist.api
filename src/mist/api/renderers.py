@@ -4,8 +4,10 @@
 import json
 import csv
 
+from future.utils import string_types
+
 try:
-    from StringIO import StringIO  # python 2
+    from io import StringIO  # python 2
 except ImportError:
     from io import StringIO  # python 3
 
@@ -57,11 +59,13 @@ def json2csv(value, columns=None):
     """
     Transforms a serialized JSON object to CSV format
     """
-    if isinstance(value, basestring):
+    if isinstance(value, string_types):
         value = json.loads(value)
-    flat_value = map(lambda x: flattenjson(x, "__"), value)
+    if isinstance(value, dict) and isinstance(value.get('items'), list):
+        value = value['items']
+    flat_value = [flattenjson(x, "__") for x in value]
     if not columns:
-        columns = [x for row in flat_value for x in row.keys()]
+        columns = [x for row in flat_value for x in list(row.keys())]
     columns = list(set(columns))
     fout = StringIO()
     writer = csv.writer(fout, delimiter=',', quotechar='"',
@@ -69,7 +73,7 @@ def json2csv(value, columns=None):
 
     writer.writerow(columns)
     for row in flat_value:
-        writer.writerow(map(lambda x: row.get(x, ""), columns))
+        writer.writerow([row.get(x, "") for x in columns])
 
     return fout.getvalue()
 
@@ -95,7 +99,7 @@ class CSVRenderer(object):
                 params = params_from_request(request)
                 columns = params.get('columns', '')
                 columns = columns and columns.split(',') or []
-                response.body = json2csv(value, columns)
+                response.text = json2csv(value, columns)
             else:
                 response.content_type = 'application/json'
                 response.json_body = value

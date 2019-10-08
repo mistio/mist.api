@@ -15,7 +15,7 @@ class ShellHubClient(HubClient):
         self.send_to_worker('data', msg)
 
     def on_data(self, msg):
-        print msg
+        print(msg)
 
     def resize(self, columns, rows):
         self.send_to_worker('resize', {'columns': columns, 'rows': rows})

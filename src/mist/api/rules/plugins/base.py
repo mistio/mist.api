@@ -95,7 +95,7 @@ class BaseBackendPlugin(object):
             self.rule.states.update(active_states)
             self.rule.states = {
                 incident: state for
-                incident, state in self.rule.states.iteritems() if
+                incident, state in self.rule.states.items() if
                 state.resource in (set(self.rids) ^ remove_states) and not
                 state.expired()
             }
@@ -121,7 +121,7 @@ class BaseBackendPlugin(object):
 
         """
         assert rid in self.rids, 'Unknown resource %s' % rid
-        for incident, state in self.rule.states.iteritems():
+        for incident, state in self.rule.states.items():
             # There should only be a single non-resolved incident at a
             # time for each of the resources self.rule refers to.
             if state.resource == rid and not state.is_resolved():

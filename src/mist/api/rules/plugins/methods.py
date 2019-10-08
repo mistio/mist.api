@@ -34,11 +34,12 @@ def compute(operator, aggregate, values, threshold):
         states = {value: value < float(threshold) for value in values}
 
     if aggregate == 'all':
-        state = False not in states.values()
+        state = False not in list(states.values())
         if not state:  # If not triggered, find the retval from False values.
-            values = [value for value, _state in states.items() if not _state]
+            values = [value for value, _state in list(states.items())
+                      if not _state]
     else:
-        state = True in states.values()
+        state = True in list(states.values())
 
     if operator == 'gt':
         retval = max(values)

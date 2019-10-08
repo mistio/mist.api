@@ -485,7 +485,7 @@ def _populate_rules():
     """
     public_rule_map = {}
     hidden_rule_cls = (ArbitraryRule, ResourceRule, NoDataRule, )
-    for key, value in globals().items():
+    for key, value in list(globals().items()):
         if not key.endswith('Rule'):
             continue
         if value in hidden_rule_cls:

@@ -5,6 +5,8 @@ from mist.api.celery_app import app
 
 from mist.api.methods import notify_user
 
+from mist.api.concurrency.models import PeriodicTaskLockTakenError
+from mist.api.concurrency.models import PeriodicTaskTooRecentLastRun
 
 log = logging.getLogger(__name__)
 
@@ -25,7 +27,7 @@ def debug(schedule_id):
     sched = DebugPollingSchedule.objects.get(schedule_id)
     path = '/tmp/poller-debug.txt'
     msg = '%s - %s' % (datetime.datetime.now(), sched.value)
-    print msg
+    print(msg)
     with open(path, 'a') as fobj:
         fobj.write(msg)
 
@@ -38,7 +40,10 @@ def list_machines(schedule_id):
     # FIXME: resolve circular deps error
     from mist.api.poller.models import ListMachinesPollingSchedule
     sched = ListMachinesPollingSchedule.objects.get(id=schedule_id)
-    sched.cloud.ctl.compute.list_machines(persist=False)
+    try:
+        sched.cloud.ctl.compute.list_machines(persist=False)
+    except (PeriodicTaskLockTakenError, PeriodicTaskTooRecentLastRun):
+        pass
 
 
 @app.task(time_limit=60, soft_time_limit=55)
@@ -61,11 +66,23 @@ def list_sizes(schedule_id):
 
 @app.task(time_limit=60, soft_time_limit=55)
 def list_networks(schedule_id):
-    """Perform list networks. Cloud controller stores results in mongodb."""
+    """Perform list networks and subnets (inside list_networks).
+    Cloud controller stores results in mongodb."""
 
     from mist.api.poller.models import ListNetworksPollingSchedule
     sched = ListNetworksPollingSchedule.objects.get(id=schedule_id)
     sched.cloud.ctl.network.list_networks(persist=False)
+
+
+@app.task(time_limit=60, soft_time_limit=55)
+def list_zones(schedule_id):
+    """Perform list zones and records.
+       Cloud controller stores results in mongodb.
+    """
+
+    from mist.api.poller.models import ListZonesPollingSchedule
+    sched = ListZonesPollingSchedule.objects.get(id=schedule_id)
+    sched.cloud.ctl.dns.list_zones(persist=False)
 
 
 @app.task(time_limit=60, soft_time_limit=55)

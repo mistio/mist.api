@@ -24,7 +24,7 @@ class AvailableUpgrade(me.EmbeddedDocument):
 
 
 def _generate_secret_key():
-    return os.urandom(32).encode('hex')
+    return os.urandom(32).hex()
 
 
 class Portal(me.Document):

@@ -2,6 +2,8 @@ import datetime
 
 import jsonpatch
 
+from random import randrange
+
 from mist.api.helpers import amqp_publish_user
 
 from mist.api.concurrency.models import PeriodicTaskInfo
@@ -57,6 +59,33 @@ class MachineController(object):
     # def tag(self):
     #     return self.machine.cloud.ctl.compute.tag(self.machine)
 
+    def list_snapshots(self):
+        """List machine snapshots - used in vSphere"""
+        return self.machine.cloud.ctl.compute.list_machine_snapshots(
+            self.machine)
+
+    def create_snapshot(self, snapshot_name, description='',
+                        dump_memory=False, quiesce=False):
+        """Creates a snapshot for machine - used in vSphere"""
+        return self.machine.cloud.ctl.compute.create_machine_snapshot(
+            self.machine, snapshot_name, description, dump_memory, quiesce)
+
+    def remove_snapshot(self, snapshot_name=None):
+        """
+        Removes a machine snapshot - used in vSphere
+        If snapshot_name is None then removes the last one
+        """
+        return self.machine.cloud.ctl.compute.remove_machine_snapshot(
+            self.machine, snapshot_name)
+
+    def revert_to_snapshot(self, snapshot_name=None):
+        """
+        Reverts a machine to a specific snapshot - used in vSphere
+        If snapshot_name is None then reverts to the last one
+        """
+        return self.machine.cloud.ctl.compute.revert_machine_to_snapshot(
+            self.machine, snapshot_name)
+
     def undefine(self):
         """Undefines machine - used in KVM libvirt
         to destroy machine and delete XML conf"""
@@ -76,8 +105,77 @@ class MachineController(object):
             return self.machine.private_ips[0]
         raise RuntimeError("Couldn't find machine host.")
 
-    def ping_probe(self, persist=True):
+    def update(self, auth_context, params={}):
+        if params.get('expiration'):
+            """
+            FIXME: we're recreating instead of updating existing expiration
+                   schedules because updating them doesn't seem to affect the
+                   actual expiration datetime.
+            """
+            from mist.api.schedules.models import Schedule
+            exp_date = params['expiration']['date']
+            exp_reminder = int(params['expiration'].get('notify', 0) or 0)
+            exp_action = params['expiration'].get('action', 'stop')
+            assert exp_action in ['stop', 'destroy'], 'Invalid action'
+            if self.machine.expiration:  # Existing expiration schedule
+                # Delete after removing db ref
+                sched = self.machine.expiration
+                self.machine.expiration = None
+                self.machine.save()
+                sched.delete()
 
+            if exp_date:  # Create new expiration schedule
+                params = {
+                    'description': 'Scheduled to run when machine expires',
+                    'task_enabled': True,
+                    'schedule_type': 'one_off',
+                    'schedule_entry': exp_date,
+                    'action': exp_action,
+                    'conditions': [
+                        {'type': 'machines', 'ids': [self.machine.id]}
+                    ],
+                    'notify': exp_reminder
+                }
+                name = self.machine.name + '-expiration-' + str(
+                    randrange(1000))
+                self.machine.expiration = Schedule.add(auth_context, name,
+                                                       **params)
+                self.machine.save()
+
+            # Prepare exp date JSON patch to update the UI
+            if not self.machine.expiration:
+                patch = [{
+                    'op': 'remove',
+                    'path': '/%s-%s/expiration' % (
+                        self.machine.id, self.machine.machine_id)
+                }]
+            else:
+                patch = [{
+                    'op': 'replace',
+                    'path': '/%s-%s/expiration' % (
+                        self.machine.id, self.machine.machine_id),
+                    'value': not self.machine.expiration and None or {
+                        'id': self.machine.expiration.id,
+                        'date': self.machine.expiration.schedule_type.entry,
+                        'action': self.machine.expiration.task_type.action,
+                        'notify': self.machine.expiration.reminder and int((
+                            self.machine.expiration.schedule_type.entry -
+                            self.machine.expiration.reminder.schedule_type.
+                            entry
+                        ).total_seconds()) or 0
+                    }
+                }]
+            # Publish patches to rabbitmq.
+            amqp_publish_user(self.machine.cloud.owner.id,
+                              routing_key='patch_machines',
+                              data={'cloud_id': self.machine.cloud.id,
+                                    'patch': patch})
+
+        return self.machine
+
+    def ping_probe(self, persist=True):
+        if not self.machine.cloud.enabled:
+            return False
         from mist.api.methods import ping
         from mist.api.machines.models import PingProbe
 
@@ -126,9 +224,12 @@ class MachineController(object):
                                       routing_key='patch_machines',
                                       data={'cloud_id': self.machine.cloud.id,
                                             'patch': patch})
-        return self.machine.ping_probe.as_dict()
+        probe_result = self.machine.ping_probe
+        return probe_result and probe_result.as_dict()
 
     def ssh_probe(self, persist=True):
+        if not self.machine.cloud.enabled:
+            return False
         from mist.api.methods import probe_ssh_only
         from mist.api.machines.models import SSHProbe
 
@@ -173,4 +274,5 @@ class MachineController(object):
                                       routing_key='patch_machines',
                                       data={'cloud_id': self.machine.cloud.id,
                                             'patch': patch})
-        return self.machine.ssh_probe.as_dict()
+        probe_result = self.machine.ssh_probe
+        return probe_result and probe_result.as_dict()

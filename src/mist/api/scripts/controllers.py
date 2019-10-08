@@ -3,7 +3,7 @@ import yaml
 import random
 import logging
 import mist.api.shell
-from StringIO import StringIO
+from io import StringIO
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import ScriptFormatError
 from mist.api.scripts.base import BaseScriptController

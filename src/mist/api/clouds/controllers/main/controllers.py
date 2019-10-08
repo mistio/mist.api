@@ -20,6 +20,7 @@ See `mist.api.clouds.controllers.main.base` for more information.
 """
 
 
+import datetime
 import uuid
 import json
 import socket
@@ -39,6 +40,7 @@ from mist.api.exceptions import MachineUnauthorizedError
 from mist.api.exceptions import RequiredParameterMissingError
 
 from mist.api.helpers import sanitize_host, check_host
+from mist.api.helpers import amqp_owner_listening
 
 from mist.api.keys.models import Key
 
@@ -84,6 +86,7 @@ class AlibabaMainController(AmazonMainController):
 
     provider = 'aliyun_ecs'
     ComputeController = compute_ctls.AlibabaComputeController
+    StorageController = storage_ctls.AlibabaStorageController
     NetworkController = None
     DnsController = None
 
@@ -156,6 +159,7 @@ class AzureArmMainController(BaseMainController):
     provider = 'azure_arm'
     ComputeController = compute_ctls.AzureArmComputeController
     NetworkController = network_ctls.AzureArmNetworkController
+    StorageController = storage_ctls.AzureArmStorageController
 
 
 class GoogleMainController(BaseMainController):
@@ -193,6 +197,7 @@ class PacketMainController(BaseMainController):
 
     provider = 'packet'
     ComputeController = compute_ctls.PacketComputeController
+    StorageController = storage_ctls.PacketStorageController
 
 
 class VultrMainController(BaseMainController):
@@ -309,12 +314,15 @@ class LibvirtMainController(BaseMainController):
         # host.
         from mist.api.machines.models import Machine
 
+        host_machine_id = self.cloud.host.replace('.', '-')
         try:
-            machine = Machine.objects.get(cloud=self.cloud,
-                                          machine_id=self.cloud.host)
+            machine = Machine.objects.get(
+                cloud=self.cloud,
+                machine_id=host_machine_id)
         except me.DoesNotExist:
-            machine = Machine.objects(cloud=self.cloud,
-                                      machine_id=self.cloud.host).save()
+            machine = Machine(cloud=self.cloud,
+                              name=self.cloud.name,
+                              machine_id=host_machine_id).save()
         if self.cloud.key:
             machine.ctl.associate_key(self.cloud.key,
                                       username=self.cloud.username,
@@ -369,7 +377,7 @@ class OtherMainController(BaseMainController):
         try:
             self.cloud.save()
         except me.ValidationError as exc:
-            raise BadRequestError({'msg': exc.message,
+            raise BadRequestError({'msg': str(exc),
                                    'errors': exc.to_dict()})
         except me.NotUniqueError:
             raise CloudExistsError("Cloud with name %s already exists"
@@ -430,7 +438,7 @@ class OtherMainController(BaseMainController):
             kwargs['os_type'] = 'unix'
         kwargs.pop('operating_system', None)
         errors = {}
-        for key in kwargs.keys():
+        for key in list(kwargs.keys()):
             if key not in ('host', 'ssh_user', 'ssh_port', 'ssh_key',
                            'os_type', 'rdp_port'):
                 error = "Invalid parameter %s=%r." % (key, kwargs[key])
@@ -447,9 +455,9 @@ class OtherMainController(BaseMainController):
             name = kwargs['host']
 
         if errors:
-            log.error("Invalid parameters %s." % errors.keys())
+            log.error("Invalid parameters %s." % list(errors.keys()))
             raise BadRequestError({
-                'msg': "Invalid parameters %s." % errors.keys(),
+                'msg': "Invalid parameters %s." % list(errors.keys()),
                 'errors': errors,
             })
 
@@ -459,10 +467,12 @@ class OtherMainController(BaseMainController):
         # Enable monitoring.
         if monitoring:
             from mist.api.monitoring.methods import enable_monitoring
+            from mist.api.machines.models import KeyMachineAssociation
             enable_monitoring(
                 self.cloud.owner, self.cloud.id, machine.machine_id,
                 no_ssh=not (machine.os_type == 'unix' and
-                            machine.key_associations)
+                            KeyMachineAssociation.objects(
+                                machine=machine).count())
             )
 
         return machine
@@ -474,6 +484,10 @@ class OtherMainController(BaseMainController):
 
         This is a special method that exists only on this Cloud subclass.
         """
+
+        old_machines = [m.as_dict() for m in
+                        self.cloud.ctl.compute.list_cached_machines()]
+
         # FIXME: Move ssh command to Machine controller once it is migrated.
         from mist.api.methods import ssh_command
 
@@ -497,7 +511,8 @@ class OtherMainController(BaseMainController):
             machine_id=uuid.uuid4().hex,
             os_type=os_type,
             ssh_port=ssh_port,
-            rdp_port=rdp_port
+            rdp_port=rdp_port,
+            last_seen=datetime.datetime.utcnow()
         )
         if host:
             # Sanitize inputs.
@@ -509,7 +524,7 @@ class OtherMainController(BaseMainController):
                 machine.private_ips = [host]
             else:
                 machine.public_ips = [host]
-        machine.save()
+        machine.save(write_concern={'w': 1, 'fsync': True})
 
         # Attempt to connect.
         if os_type == 'unix' and ssh_key:
@@ -538,6 +553,12 @@ class OtherMainController(BaseMainController):
                 if fail_on_error:
                     machine.delete()
                 raise
+
+        if amqp_owner_listening(self.cloud.owner.id):
+            new_machines = self.cloud.ctl.compute.list_cached_machines()
+            self.cloud.ctl.compute.produce_and_publish_patch(
+                old_machines, new_machines)
+
         return machine
 
 

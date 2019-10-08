@@ -1,5 +1,5 @@
 from mist.api.clouds.models import Cloud
-from mist.api.machines.models import Machine
+from mist.api.machines.models import Machine, KeyMachineAssociation
 from mist.api.keys.models import SSHKey, SignedSSHKey
 
 from mist.api import config
@@ -30,20 +30,20 @@ class MistInventory(object):
                 name, ip_addr = self.find_machine_details(bid, mid)
                 key_id, ssh_user, port = self.find_ssh_settings(bid, mid)
             except Exception as exc:
-                print exc
+                print(exc)
                 continue
             ip_addr, port = dnat(self.owner, ip_addr, port)
             if key_id not in self.keys:
-                keypair = SSHKey.objects.get(owner=self.owner, name=key_id,
-                                             deleted=None)
-                self.keys[key_id] = keypair.private
-                if isinstance(keypair, SignedSSHKey):
+                key = SSHKey.objects.get(owner=self.owner, name=key_id,
+                                         deleted=None)
+                self.keys[key_id] = key.private
+                if isinstance(key, SignedSSHKey):
                     # if signed ssh key, provide the key appending a -cert.pub
                     # on the name since this is how ssh will include it as
                     # an identify file
-                    self.keys['%s-cert.pub' % key_id] = keypair.certificate
+                    self.keys['%s-cert.pub' % key_id] = key.certificate
                     # pub key also needed for openssh 7.2
-                    self.keys['%s.pub' % key_id] = keypair.public
+                    self.keys['%s.pub' % key_id] = key.public
             if name in self.hosts:
                 num = 2
                 while ('%s-%d' % (name, num)) in self.hosts:
@@ -61,20 +61,21 @@ class MistInventory(object):
         ans_inv = ''
         if include_localhost:
             ans_inv += 'localhost\tansible_connection=local\n\n'
-        for name, host in self.hosts.items():
-            vars_part = ' '.join(["%s=%s" % item for item in host.items()])
+        for name, host in list(self.hosts.items()):
+            vars_part = ' '.join(["%s=%s" % item
+                                  for item in list(host.items())])
             ans_inv += '%s\t%s\n' % (name, vars_part)
         ans_inv += ('\n[all:vars]\n'
                     'ansible_python_interpreter="/usr/bin/env python2"\n')
         ans_cfg = '[defaults]\nhostfile=./inventory\nhost_key_checking=False\n'
         files = {'ansible.cfg': ans_cfg, 'inventory': ans_inv}
-        for key_id, private_key in self.keys.items():
+        for key_id, private_key in list(self.keys.items()):
             files.update({'id_rsa/%s' % key_id: private_key})
         return files
 
     def _list_machines(self, cloud_id):
         if cloud_id not in self._cache:
-            print 'Actually doing list_machines for %s' % cloud_id
+            print('Actually doing list_machines for %s' % cloud_id)
             from mist.api.machines.methods import list_machines
             machines = list_machines(self.owner, cloud_id)
             self._cache[cloud_id] = machines
@@ -101,7 +102,8 @@ class MistInventory(object):
     def find_ssh_settings(self, cloud_id, machine_id):
         cloud = Cloud.objects.get(owner=self.owner, id=cloud_id, deleted=None)
         machine = Machine.objects.get(cloud=cloud, machine_id=machine_id)
-        if not machine.key_associations:
+        key_associations = KeyMachineAssociation.objects(machine=machine)
+        if not key_associations:
             raise Exception("Machine doesn't have SSH association")
-        assoc = sorted(machine.key_associations, key=lambda a: a.last_used)[-1]
-        return assoc.keypair.name, assoc.ssh_user or 'root', assoc.port
+        assoc = sorted(key_associations, key=lambda a: a.last_used)[-1]
+        return assoc.key.name, assoc.ssh_user or 'root', assoc.port

@@ -10,10 +10,19 @@ be performed inside the corresponding method functions.
 """
 
 import os
-import urllib
+
+# Python 2 and 3 support
+from future.utils import string_types
+from future.standard_library import install_aliases
+install_aliases()
+import urllib.request
+import urllib.parse
+import urllib.error
+
 import json
 import netaddr
 import traceback
+import requests
 import mongoengine as me
 
 from time import time
@@ -54,6 +63,7 @@ from mist.api.exceptions import TeamForbidden
 from mist.api.exceptions import OrganizationOperationError
 from mist.api.exceptions import MethodNotAllowedError
 from mist.api.exceptions import WhitelistIPError
+from mist.api.exceptions import CloudNotFoundError
 
 from mist.api.helpers import encrypt, decrypt
 from mist.api.helpers import params_from_request
@@ -71,6 +81,8 @@ from mist.api.auth.models import get_secure_rand_token
 
 from mist.api.logs.methods import log_event
 from mist.api.logs.methods import get_events
+
+from mist.api.methods import filter_list_locations
 
 from mist.api import config
 
@@ -157,6 +169,23 @@ def home(request):
             raise RedirectError(url)
 
         get_landing_template()
+        page = request.path.strip('/').replace('.', '')
+        if not page:
+            page = 'home'
+        if page not in config.LANDING_FORMS:
+            page_uri = '%s/static/landing/sections/%s.html' % (
+                request.application_url, page)
+            try:
+                response = requests.get(page_uri)
+                if response.ok:
+                    section = response.text
+                    template_inputs['section'] = section
+                else:
+                    log.error("Failed to fetch page `%s` from `%s`: %r" % (
+                        page, page_uri, response))
+            except Exception as exc:
+                log.error("Failed to fetch page `%s` from `%s`: %r" % (
+                    page, page_uri, exc))
         return render_to_response('templates/landing.pt', template_inputs)
 
     if not user.last_active or \
@@ -236,7 +265,7 @@ def login(request):
     service = request.matchdict.get('service') or params.get('service') or ''
     return_to = params.get('return_to')
     if return_to:
-        return_to = urllib.unquote(return_to)
+        return_to = urllib.parse.unquote(return_to)
     else:
         return_to = '/'
     token_from_params = params.get('token')
@@ -367,7 +396,7 @@ def switch_org(request):
         elif user not in org.members:
             raise ForbiddenError()
     reissue_cookie_session(request, user, org=org, after=1)
-    raise RedirectError(urllib.unquote(return_to) or '/')
+    raise RedirectError(urllib.parse.unquote(return_to) or '/')
 
 
 @view_config(route_name='login', request_method='GET',
@@ -404,7 +433,7 @@ def login_get(request):
     try:
         user_from_request(request)
         if not service:
-            return HTTPFound(urllib.unquote(return_to) or '/')
+            return HTTPFound(urllib.parse.unquote(return_to) or '/')
         raise BadRequestError("Invalid service '%s'." % service)
     except UserUnauthorizedError:
         path = "sign-in"
@@ -414,7 +443,7 @@ def login_get(request):
         if invitoken:
             query_params['invitoken'] = invitoken
         if query_params:
-            path += '?' + urllib.urlencode(query_params)
+            path += '?' + urllib.parse.urlencode(query_params)
         return HTTPFound(path)
 
 
@@ -445,9 +474,9 @@ def register(request):
     New user signs up.
     """
     params = params_from_request(request)
-    email = params.get('email').encode('utf-8', 'ignore')
+    email = params.get('email')
     promo_code = params.get('promo_code')
-    name = params.get('name').encode('utf-8', 'ignore')
+    name = params.get('name')
     token = params.get('token')
     selected_plan = params.get('selected_plan')
     request_demo = params.get('request_demo', False)
@@ -463,7 +492,7 @@ def register(request):
     name = name.strip().split(" ", 1)
     email = email.strip().lower()
 
-    if type(name) == unicode:
+    if type(name) == str:
         name = name.encode('utf-8', 'ignore')
     if not request_beta:
         try:
@@ -614,8 +643,8 @@ def forgot_password(request):
         user.activation_key = get_secure_rand_token()
         user.save()
         subject = config.CONFIRMATION_EMAIL_SUBJECT
-        body = config.CONFIRMATION_EMAIL_BODY % ((user.first_name + " " +
-                                                  user.last_name),
+        full_name = "%s %s" % (user.first_name or '', user.last_name or '')
+        body = config.CONFIRMATION_EMAIL_BODY % (full_name,
                                                  config.CORE_URI,
                                                  user.activation_key,
                                                  ip_from_request(request),
@@ -1111,16 +1140,72 @@ def list_locations(request):
     """
     cloud_id = request.matchdict['cloud']
     auth_context = auth_context_from_request(request)
-    cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
-                              deleted=None)
+
+    try:
+        Cloud.objects.get(owner=auth_context.owner, id=cloud_id, deleted=None)
+    except Cloud.DoesNotExist:
+        raise CloudNotFoundError()
+
     auth_context.check_perm("cloud", "read", cloud_id)
     params = params_from_request(request)
     cached = bool(params.get('cached', False))
-    if cached:
-        locations = cloud.ctl.compute.list_cached_locations()
-    else:
-        locations = cloud.ctl.compute.list_locations()
-    return [location.as_dict() for location in locations]
+    return filter_list_locations(auth_context, cloud_id, cached=cached)
+
+
+@view_config(route_name='api_v1_storage_accounts', request_method='GET',
+             renderer='json')
+def list_storage_accounts(request):
+    """
+    Tags: clouds
+    ---
+    List storage accounts. ARM specific. For other providers this
+    returns an empty list
+    READ permission required on cloud.
+    ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    """
+    cloud_id = request.matchdict['cloud']
+    auth_context = auth_context_from_request(request)
+
+    try:
+        Cloud.objects.get(owner=auth_context.owner, id=cloud_id, deleted=None)
+    except Cloud.DoesNotExist:
+        raise CloudNotFoundError()
+
+    auth_context.check_perm("cloud", "read", cloud_id)
+
+    return methods.list_storage_accounts(auth_context.owner, cloud_id)
+
+
+@view_config(route_name='api_v1_resource_groups', request_method='GET',
+             renderer='json')
+def list_resource_groups(request):
+    """
+    Tags: clouds
+    ---
+    List resource groups. ARM specific. For other providers this
+    returns an empty list
+    READ permission required on cloud.
+    ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    """
+    cloud_id = request.matchdict['cloud']
+    auth_context = auth_context_from_request(request)
+
+    try:
+        Cloud.objects.get(owner=auth_context.owner, id=cloud_id, deleted=None)
+    except Cloud.DoesNotExist:
+        raise CloudNotFoundError()
+
+    auth_context.check_perm("cloud", "read", cloud_id)
+
+    return methods.list_resource_groups(auth_context.owner, cloud_id)
 
 
 @view_config(route_name='api_v1_cloud_probe',
@@ -1259,7 +1344,7 @@ def get_avatar(request):
         raise NotFoundError()
 
     return Response(content_type=str(avatar.content_type),
-                    body=str(avatar.body))
+                    body=avatar.body)
 
 
 @view_config(route_name='api_v1_avatar', request_method='DELETE')
@@ -1355,7 +1440,7 @@ def create_organization(request):
     try:
         org.save()
     except me.ValidationError as e:
-        raise BadRequestError({"msg": e.message, "errors": e.to_dict()})
+        raise BadRequestError({"msg": str(e), "errors": e.to_dict()})
     except me.OperationError:
         raise OrganizationOperationError()
 
@@ -1512,7 +1597,7 @@ def edit_organization(request):
     try:
         auth_context.org.save()
     except me.ValidationError as e:
-        raise BadRequestError({"msg": e.message, "errors": e.to_dict()})
+        raise BadRequestError({"msg": str(e), "errors": e.to_dict()})
     except me.OperationError:
         raise OrganizationOperationError()
 
@@ -1568,7 +1653,7 @@ def add_team(request):
     try:
         auth_context.org.save()
     except me.ValidationError as e:
-        raise BadRequestError({"msg": e.message, "errors": e.to_dict()})
+        raise BadRequestError({"msg": str(e), "errors": e.to_dict()})
     except me.OperationError:
         raise TeamOperationError()
 
@@ -1702,7 +1787,7 @@ def edit_team(request):
     try:
         auth_context.org.save()
     except me.ValidationError as e:
-        raise BadRequestError({"msg": e.message, "errors": e.to_dict()})
+        raise BadRequestError({"msg": str(e), "errors": e.to_dict()})
     except me.OperationError:
         raise TeamOperationError()
 
@@ -1756,7 +1841,7 @@ def delete_team(request):
         team.drop_mappings()
         auth_context.org.update(pull__teams__id=team_id)
     except me.ValidationError as e:
-        raise BadRequestError({"msg": e.message, "errors": e.to_dict()})
+        raise BadRequestError({"msg": str(e), "errors": e.to_dict()})
     except me.OperationError:
         raise TeamOperationError()
 
@@ -1796,7 +1881,7 @@ def delete_teams(request):
             auth_context.org.id == org_id):
         raise OrganizationAuthorizationFailure()
 
-    if not isinstance(team_ids, (list, basestring)) or len(team_ids) == 0:
+    if not isinstance(team_ids, (list, string_types)) or len(team_ids) == 0:
         raise RequiredParameterMissingError('No team ids provided')
     # remove duplicate ids if there are any
     teams_ids = sorted(team_ids)
@@ -1824,16 +1909,16 @@ def delete_teams(request):
                 report[team_id] = 'deleted'
 
     # if no team id was valid raise exception
-    if len(filter(lambda team_id: report[team_id] == 'not_found',
-                  report)) == len(teams_ids):
+    if len([team_id for team_id in report
+            if report[team_id] == 'not_found']) == len(teams_ids):
         raise NotFoundError('No valid team id provided')
     # if team is not empty raise exception
-    if len(filter(lambda team_id: report[team_id] == 'not_empty',
-                  report)) == len(teams_ids):
+    if len([team_id for team_id in report
+            if report[team_id] == 'not_empty']) == len(teams_ids):
         raise BadRequestError('Delete only empty teams')
     # if user was not authorized for any team raise exception
-    if len(filter(lambda team_id: report[team_id] == 'forbidden',
-                  report)) == len(team_ids):
+    if len([team_id for team_id in report
+            if report[team_id] == 'forbidden']) == len(team_ids):
         raise TeamForbidden()
 
     trigger_session_update(auth_context.owner, ['org'])
@@ -2080,7 +2165,7 @@ def delete_member_from_team(request):
                     invitation.delete()
                 except me.ValidationError as e:
                     raise BadRequestError(
-                        {"msg": e.message, "errors": e.to_dict()})
+                        {"msg": str(e), "errors": e.to_dict()})
                 except me.OperationError:
                     raise TeamOperationError()
                 # notify user that his invitation has been revoked
@@ -2090,7 +2175,7 @@ def delete_member_from_team(request):
                     invitation.save()
                 except me.ValidationError as e:
                     raise BadRequestError(
-                        {"msg": e.message, "errors": e.to_dict()})
+                        {"msg": str(e), "errors": e.to_dict()})
                 except me.OperationError:
                     raise TeamOperationError()
 
@@ -2125,7 +2210,7 @@ def delete_member_from_team(request):
     try:
         auth_context.org.save()
     except me.ValidationError as e:
-        raise BadRequestError({"msg": e.message, "errors": e.to_dict()})
+        raise BadRequestError({"msg": str(e), "errors": e.to_dict()})
     except me.OperationError:
         raise TeamOperationError()
 
@@ -2306,6 +2391,6 @@ def section(request):
     '''
     section_id = request.matchdict['section']
 
-    path = '/static/' + section_id.replace('--', '/sections/') + '.json'
+    path = '/static/' + section_id.replace('--', '/sections/') + '.html'
 
     return HTTPFound(path)

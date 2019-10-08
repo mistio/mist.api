@@ -3,12 +3,16 @@
    Also, the configuration from settings.py is exposed through this module.
 """
 import os
-import sys
 import ssl
 import json
 import logging
 import datetime
-import urlparse
+
+# Python 2 and 3 support
+from future.standard_library import install_aliases
+install_aliases()
+
+import urllib.parse
 
 import libcloud.security
 from libcloud.compute.types import Provider
@@ -16,24 +20,23 @@ from libcloud.container.types import Provider as Container_Provider
 
 from libcloud.compute.types import NodeState
 
-
+log = logging.getLogger(__name__)
 libcloud.security.SSL_VERSION = ssl.PROTOCOL_TLSv1_2
 
 
 def dirname(path, num=1):
     """Get absolute path of `num` directories above path"""
     path = os.path.abspath(path)
-    for _ in xrange(num):
+    for _ in range(num):
         path = os.path.dirname(path)
     return path
 
 
 MIST_API_DIR = dirname(__file__, 4)
-print >> sys.stderr, "MIST_API_DIR is %s" % MIST_API_DIR
+log.warn("MIST_API_DIR is %s" % MIST_API_DIR)
 
 
 ###############################################################################
-# The following variables are common for both open.source and mist.core
 ###############################################################################
 
 PORTAL_NAME = "Mist.io"
@@ -44,11 +47,25 @@ MEMCACHED_HOST = ["memcached:11211"]
 BROKER_URL = "amqp://guest:guest@rabbitmq/"
 SSL_VERIFY = True
 THEME = ""
+EMAIL_LOGO = "landing/images/logo-email-440.png"
 
 GC_SCHEDULERS = True
 VERSION_CHECK = True
 USAGE_SURVEY = False
 ENABLE_METERING = True
+BACKUP_INTERVAL = 24
+
+# backups
+BACKUP = {
+    'key': '',
+    'secret': '',
+    'bucket': 'mist-backup',
+    'gpg': {
+        'recipient': '',
+        'public': '',
+        'private': '',
+    }
+}
 
 ELASTICSEARCH = {
     'elastic_host': 'elasticsearch',
@@ -80,9 +97,12 @@ DOMAIN_VALIDATION_WHITELIST = []
 DOCS_URI = 'https://docs.mist.io/'
 SUPPORT_URI = 'https://docs.mist.io/contact'
 
+INTERNAL_API_URL = 'http://api'
+GOCKY_HOST = 'gocky'
+
 # InfluxDB
 INFLUX = {
-    "host": "http://influxdb:8086", "db": "telegraf"
+    "host": "http://influxdb:8086", "db": "telegraf", "backup": "influxdb:8088"
 }
 
 TELEGRAF_TARGET = ""
@@ -250,9 +270,11 @@ INFLUXDB_MACHINE_DASHBOARD_DEFAULT = {
         "id": 1,
         "refresh": "10sec",
         "rows": [{
+            "title": "Load, CPU, RAM, Uptime",
             "panels": [{
                 "id": 0,
                 "title": "Load",
+                "description": "Load average",
                 "type": "graph",
                 "span": 6,
                 "stack": False,
@@ -307,6 +329,24 @@ INFLUXDB_MACHINE_DASHBOARD_DEFAULT = {
                 }]
             }, {
                 "id": 4,
+                "title": "Uptime",
+                "type": "graph",
+                "span": 6,
+                "stack": True,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "Z",
+                    "target": "system.uptime"
+                }],
+                "yaxes": [{
+                    "format": "%"
+                }]
+            }]
+        }, {
+            "title": "Network & Filesystems",
+            "collapsed": True,
+            "panels": [{
+                "id": 5,
                 "title": "NET RX",
                 "type": "graph",
                 "span": 6,
@@ -320,7 +360,7 @@ INFLUXDB_MACHINE_DASHBOARD_DEFAULT = {
                     "format": "B/s"
                 }]
             }, {
-                "id": 5,
+                "id": 6,
                 "title": "NET TX",
                 "type": "graph",
                 "span": 6,
@@ -329,33 +369,6 @@ INFLUXDB_MACHINE_DASHBOARD_DEFAULT = {
                 "targets": [{
                     "refId": "H",
                     "target": "net.bytes_sent"
-                }],
-                "yaxes": [{
-                    "format": "B/s"
-                }]
-            }, {
-                "id": 6,
-                "title": "DISK READ",
-                "type": "graph",
-                "span": 6,
-                "stack": False,
-                "datasource": "mist.monitor",
-                "targets": [{
-                    "refId": "I",
-                    "target": "diskio.read_bytes"
-                }],
-                "x-axis": True,
-                "y-axis": True
-            }, {
-                "id": 7,
-                "title": "DISK WRITE",
-                "type": "graph",
-                "span": 6,
-                "stack": False,
-                "datasource": "mist.monitor",
-                "targets": [{
-                    "refId": "J",
-                    "target": "diskio.write_bytes"
                 }],
                 "yaxes": [{
                     "format": "B/s"
@@ -374,7 +387,40 @@ INFLUXDB_MACHINE_DASHBOARD_DEFAULT = {
                 "yaxes": [{
                     "format": "B"
                 }]
+            }]
+        }, {
+            "title": "Disks",
+            "collapsed": True,
+            "panels": [{
+                "id": 9,
+                "title": "DISK READ",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "I",
+                    "target": "diskio.read_bytes"
+                }],
+                "x-axis": True,
+                "y-axis": True
+            }, {
+                "id": 10,
+                "title": "DISK WRITE",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "J",
+                    "target": "diskio.write_bytes"
+                }],
+                "yaxes": [{
+                    "format": "B/s"
+                }]
             }],
+        }, {
+            "panels": []
         }],
         "time": {
             "from": "now-10m",
@@ -780,6 +826,7 @@ FAILED_LOGIN_RATE_LIMIT = {
 }
 
 BANNED_EMAIL_PROVIDERS = [
+    'qq.com',
     'mailinator.com',
     'bob.info',
     'veryreallemail.com',
@@ -884,7 +931,7 @@ CELERY_SETTINGS = {
     # 'worker_task_log_format': PY_LOG_FORMAT,
     'worker_concurrency': 8,
     'worker_max_tasks_per_child': 32,
-    'worker_max_memory_per_child': 204800,  # 204800 KiB - 200 MiB
+    'worker_max_memory_per_child': 1024000,  # 1024,000 KiB - 1000 MiB
     'mongodb_scheduler_db': 'mist2',
     'mongodb_scheduler_collection': 'schedules',
     'mongodb_scheduler_url': MONGO_URI,
@@ -925,25 +972,24 @@ CELERY_SETTINGS = {
 
         # List volumes
         'mist.api.poller.tasks.list_volumes': {'queue': 'volumes'},
+
+        # List zones
+        'mist.api.poller.tasks.list_zones': {'queue': 'zones'},
+
     },
 }
 
 LANDING_CATEGORIES = [{
     'href': '/',
     'name': 'home',
-    'template': 'home',
     'title': 'Home',
-    'items': {
-        "fold": {
-            "copy": "",
-            "subcopy":
-                "Mist.io is a single dashboard to manage multi-cloud infrastructure",  # noqa
-            "image": "images/mockup-imac-n4.png",
-            "alt": "Mist.io cloud management dashboard",
-            "cta": "Get Started"
-        }
-    }
+    'hiddenFromMenu': 1
 }]
+
+LANDING_FORMS = [
+    'sign-in', 'sign-up', 'reset-password', 'forgot-password', 'set-password',
+    'get-started', 'buy-license', 'request-pricing'
+]
 
 ###############################################################################
 # App constants
@@ -956,18 +1002,26 @@ STATES = {
     NodeState.PENDING: 'pending',
     # we assume unknown means stopped, especially for the EC2 case
     NodeState.UNKNOWN: 'unknown',
+    NodeState.UPDATING: 'updating',
     NodeState.STOPPED: 'stopped',
     NodeState.ERROR: 'error',
     NodeState.PAUSED: 'paused',
     NodeState.SUSPENDED: 'suspended',
     NodeState.STARTING: 'starting',
     NodeState.STOPPING: 'stopping',
-    NodeState.RECONFIGURING: 'reconfiguring'
+    NodeState.RECONFIGURING: 'reconfiguring',
+    NodeState.MIGRATING: 'migrating',
+    NodeState.NORMAL: 'normal',
 }
 
 EC2_SECURITYGROUP = {
     'name': 'mistio',
     'description': 'Security group created by mist.io'
+}
+
+ECS_VPC = {
+    'name': 'mistio',
+    'description': 'Vpc created by mist.io'
 }
 
 # Linode datacenter ids/names mapping
@@ -1015,6 +1069,10 @@ SUPPORTED_PROVIDERS = [
                 'id': 'ap-northeast-2'
             },
             {
+                'location': 'Osaka',
+                'id': 'ap-northeast-3'
+            },
+            {
                 'location': 'Singapore',
                 'id': 'ap-southeast-1'
             },
@@ -1033,6 +1091,14 @@ SUPPORTED_PROVIDERS = [
             {
                 'location': 'London',
                 'id': 'eu-west-2'
+            },
+            {
+                'location': 'Paris',
+                'id': 'eu-west-3'
+            },
+            {
+                'location': 'Stockholm',
+                'id': 'eu-north-1'
             },
             {
                 'location': 'Canada Central',
@@ -1062,6 +1128,26 @@ SUPPORTED_PROVIDERS = [
                 'location': 'Mumbai',
                 'id': 'ap-south-1'
             },
+            {
+                'location': 'Hong Kong',
+                'id': 'ap-east-1'
+            },
+            {
+                'location': 'Beijing',
+                'id': 'cn-north-1'
+            },
+            {
+                'location': 'Ningxia',
+                'id': 'cn-northwest-1'
+            },
+            {
+                'location': 'GovCloud (US)',
+                'id': 'us-gov-west-1'
+            },
+            {
+                'location': 'GovCloud (US-East)',
+                'id': 'us-gov-east-1'
+            },
         ]
     },
     # Alibaba Aliyun
@@ -1070,13 +1156,81 @@ SUPPORTED_PROVIDERS = [
         'provider': Provider.ALIYUN_ECS,
         'regions': [
             {
+                'location': 'China North 1 (Qingdao)',
+                'id': 'cn-qingdao'
+            },
+            {
+                'location': 'China North 2 (Beijing)',
+                'id': 'cn-beijing'
+            },
+            {
+                'location': 'China North 3 (Zhangjiakou)',
+                'id': 'cn-zhangjiakou'
+            },
+            {
+                'location': 'China North 5 (Huhehaote)',
+                'id': 'cn-huhehaote'
+            },
+            {
                 'location': 'China East 1 (Hangzhou)',
                 'id': 'cn-hangzhou'
             },
             {
+                'location': 'China East 2 (Shanghai)',
+                'id': 'cn-shanghai'
+            },
+            {
+                'location': 'China South 1 (Shenzhen)',
+                'id': 'cn-shenzhen'
+            },
+            {
+                'location': 'Hong Kong',
+                'id': 'cn-hongkong'
+            },
+            {
                 'location': 'EU Central 1 (Frankfurt)',
                 'id': 'eu-central-1'
-            }
+            },
+            {
+                'location': 'Middle East 1 (Dubai)',
+                'id': 'me-east-1'
+            },
+            {
+                'location': 'England (London)',
+                'id': 'eu-west-1'
+            },
+            {
+                'location': 'US West 1 (Silicon Valley)',
+                'id': 'us-west-1'
+            },
+            {
+                'location': 'US East 1 (Virginia)',
+                'id': 'us-east-1'
+            },
+            {
+                'location': 'South Asia 1 (Mumbai)',
+                'id': 'ap-south-1'
+            },
+            {
+                'location': 'Southeast Asia 5 (Jakarta)',
+                'id': 'ap-southeast-5'
+            },
+            {
+                'location': 'Southeast Asia 3 (Kuala Lumpur)',
+                'id': 'ap-southeast-3'
+            },
+            {
+                'location': 'Southeast Asia 2 (Sydney)',
+                'id': 'ap-southeast-2'
+            },
+            {
+                'location': 'Southeast Asia 1 (Singapore)',
+                'id': 'ap-southeast-1'
+            },
+            {
+                'location': 'Northeast Asia Pacific 1 (Tokyo)',
+                'id': 'ap-northeast-1'
+            },
         ]
     },
     # GCE
@@ -1191,18 +1345,12 @@ SUPPORTED_PROVIDERS = [
         'provider': Provider.VSPHERE,
         'regions': []
     },
-    # Packet.net
+    # Packet
     {
-        'title': 'Packet.net',
+        'title': 'Packet',
         'provider': Provider.PACKET,
         'regions': []
     },
-    # ClearAPI
-    {
-        'title': 'ClearAPI',
-        'provider': Provider.CLEARAPI,
-        'regions': []
-    }
 ]
 
 # Base AMIs
@@ -1215,8 +1363,6 @@ EC2_IMAGES = {
         'ami-b968bad6': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-c425e4ab': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-25a97a4a': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-        'ami-e37b8e8c': 'CoreOS-stable-1068.8.0 (PV)',
-        'ami-7b7a8f14': 'CoreOS-stable-1068.8.0 (HVM',
     },
     'eu-west-1': {
         'ami-02ace471': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
@@ -1226,8 +1372,6 @@ EC2_IMAGES = {
         'ami-01ccc867': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-9186a1e2': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-09447c6f': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-        'ami-cbb5d5b8': 'CoreOS stable 1068.8.0 (HVM)',
-        'ami-b6b8d8c5': 'CoreOS stable 1068.8.0 (PV)',
     },
     'eu-west-2': {
         'ami-9c363cf8': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
@@ -1253,8 +1397,6 @@ EC2_IMAGES = {
         'ami-c58c1dd3': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-fde4ebea': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-772aa961': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-        'ami-098e011e': 'CoreOS stable 1068.8.0 (PV)',
-        'ami-368c0321': 'CoreOS stable 1068.8.0 (HVM)',
         'ami-8fb03898': 'ClearOS 7.2.0',
         'ami-0397f56a': 'ClearOS Community 6.4.0 ',
         'ami-ff9af896': 'ClearOS Professional 6.4.0'
@@ -1275,8 +1417,6 @@ EC2_IMAGES = {
         'ami-7a85a01a': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-e09acc80': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-1da8f27d': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-        'ami-ae2564ce': 'CoreOS stable 1068.8.0 (PV)',
-        'ami-bc2465dc': 'CoreOS stable 1068.8.0 (HVM)',
     },
     'us-west-2': {
         'ami-6f68cf0f': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
@@ -1286,8 +1426,6 @@ EC2_IMAGES = {
         'ami-4836a428': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-e4a30084': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-7c22b41c': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-        'ami-cfef22af': 'CoreOS stable 1068.8.0 (HVM)',
-        'ami-ecec218c': 'CoreOS stable 1068.8.0 (PV)',
     },
     'ap-northeast-1': {
         'ami-5de0433c': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
@@ -1297,8 +1435,6 @@ EC2_IMAGES = {
         'ami-923d12f5': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-e21c7285': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-d85e7fbf': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-        'ami-d0e21bb1': 'CoreOS stable 1068.8.0 (PV)',
-        'ami-fcd9209d': 'CoreOS stable 1068.8.0 (HVM)',
     },
     'ap-northeast-2': {
         'ami-44db152a': 'Red Hat Enterprise Linux 7.2 (HVM), SSD Volume Type',
@@ -1306,8 +1442,6 @@ EC2_IMAGES = {
         'ami-9d15c7f3': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-5060b73e': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-15d5077b': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-        'ami-91de14ff': 'CoreOS stable 1068.8.0 (HVM)',
-        'ami-9edf15f0': 'CoreOS stable 1068.8.0 (PV)'
     },
     'sa-east-1': {
         'ami-7de77b11': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
@@ -1317,8 +1451,6 @@ EC2_IMAGES = {
         'ami-37cfad5b': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-e1cd558d': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-8df695e1': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-        'ami-0317836f': 'CoreOS stable 1068.8.0 (PV)',
-        'ami-ef43d783': 'CoreOS stable 1068.8.0 (HVM)',
     },
     'ap-southeast-1': {
         'ami-2c95344f': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
@@ -1328,8 +1460,6 @@ EC2_IMAGES = {
         'ami-fc5ae39f': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-67b21d04': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-0a19a669': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-        'ami-3203df51': 'CoreOS stable 1068.8.0 (PV)',
-        'ami-9b00dcf8': 'CoreOS stable 1068.8.0 (HVM)',
     },
     'ap-southeast-2': {
         'ami-39ac915a': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
@@ -1339,8 +1469,6 @@ EC2_IMAGES = {
         'ami-162c2575': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-527b4031': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-807876e3': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-        'ami-e8e4ce8b': 'CoreOS stable 1068.8.0 (HVM)',
-        'ami-ede4ce8e': 'CoreOS stable 1068.8.0 (PV)',
     },
     'ap-south-1': {
         'ami-cdbdd7a2': 'Red Hat Enterprise Linux 7.2 (HVM), SSD Volume Type',
@@ -1359,13 +1487,13 @@ DOCKER_IMAGES = {
 }
 
 AZURE_ARM_IMAGES = {
-    'MicrosoftWindowsServer:WindowsServer:2008-R2-SP1:2.127.20170918': 'MicrosoftWindowsServer WindowsServer 2008-R2-SP1 2.127.20170918',  # noqa
-    'MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20170822': 'MicrosoftWindowsServer WindowsServer 2012-R2-Datacenter 4.127.20170822',  # noqa
-    'MicrosoftWindowsServer:WindowsServer:2016-Datacenter:2016.127.20170918': 'MicrosoftWindowsServer WindowsServer 2016-Datacenter 2016.127.20170918',  # noqa
-    'SUSE:openSUSE-Leap:42.3:2017.07.26': 'SUSE openSUSE-Leap 42.3 2017.07.26',
-    'Canonical:UbuntuServer:16.04-LTS:16.04.201709190': 'Canonical UbuntuServer 16.04-LTS 16.04.201709190',  # noqa
-    'Canonical:UbuntuServer:14.04.5-LTS:14.04.201708310': 'Canonical UbuntuServer 14.04.5-LTS 14.04.201708310',  # noqa
-    'Canonical:UbuntuServer:17.04:17.04.201709220': 'Canonical UbuntuServer 17.04 17.04.201709220',  # noqa
+    'MicrosoftWindowsServer:WindowsServer:2012-Datacenter:9200.22776.20190604': 'MicrosoftWindowsServer WindowsServer 2012-Datacenter', # noqa
+    'MicrosoftWindowsServer:WindowsServer:2012-Datacenter-smalldisk:9200.22830.1908092125': 'MicrosoftWindowsServer WindowsServer 2012-Datacenter-smalldisk', # noqa
+    'MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core-smalldisk:14393.3025.20190604': 'MicrosoftWindowsServer WindowsServer 2016-Datacenter-Server-Core-smalldisk', # noqa
+    'MicrosoftWindowsServer:WindowsServer:2016-Datacenter-with-Containers:2016.127.20190603': 'MicrosoftWindowsServer WindowsServer 2016-Datacenter-with-Containers', # noqa
+    'MicrosoftWindowsServer:WindowsServer:2019-Datacenter:2019.0.20190410': 'MicrosoftWindowsServer WindowsServer 2019-Datacenter', # noqa
+    'Canonical:UbuntuServer:16.04.0-LTS:16.04.201906280': 'Canonical UbuntuServer 16.04.0-LTS', # noqa
+    'Canonical:UbuntuServer:18.04-LTS:18.04.201908131': 'Canonical UbuntuServer 18.04-LTS', # noqa
     'RedHat:RHEL:7.3:7.3.2017090723': 'RedHat RHEL 7.3 7.3.2017090723',
     'RedHat:RHEL:6.9:6.9.2017090105': 'RedHat RHEL 6.9 6.9.2017090105',
 }
@@ -1432,6 +1560,21 @@ The mist.io team
 Govern the clouds
 """
 
+MACHINE_EXPIRE_NOTIFY_EMAIL_SUBJECT = "[mist.io] Machine is about to expire"
+
+MACHINE_EXPIRE_NOTIFY_EMAIL_BODY = """Dear %s,
+
+Your machine `%s` will expire on %s
+
+If you'd like to prevent that, please update the expiration date at %s
+
+Best regards,
+The mist.io team
+
+--
+%s
+Govern the clouds
+"""
 
 WHITELIST_IP_EMAIL_SUBJECT = "[mist.io] Account IP whitelist request"
 
@@ -1609,21 +1752,27 @@ STRIPE_PUBLIC_APIKEY = False
 ENABLE_AB = False
 ENABLE_R12N = False
 ENABLE_MONITORING = True
+ENABLE_SHELL_CAPTURE = False
 MACHINE_PATCHES = True
 ACCELERATE_MACHINE_POLLING = True
 PLUGINS = []
-
+PRE_ACTION_HOOKS = {}
+POST_ACTION_HOOKS = {}
+CURRENCY = {
+    'sign': '$',
+    'rate': '1'
+}
 # DO NOT PUT ANYTHING BELOW HERE UNLESS YOU KNOW WHAT YOU ARE DOING
 
 # Get settings from mist.core.
 CORE_CONFIG_PATH = os.path.join(dirname(MIST_API_DIR, 2),
                                 'src', 'mist', 'core', 'config.py')
 if os.path.exists(CORE_CONFIG_PATH):
-    print >> sys.stderr, "Will load core config from %s" % CORE_CONFIG_PATH
-    execfile(CORE_CONFIG_PATH)
+    log.warn("Will load core config from %s" % CORE_CONFIG_PATH)
+    exec(compile(open(CORE_CONFIG_PATH).read(), CORE_CONFIG_PATH, 'exec'))
     HAS_CORE = True
 else:
-    print >> sys.stderr, "Couldn't find core config in %s" % CORE_CONFIG_PATH
+    log.error("Couldn't find core config in %s" % CORE_CONFIG_PATH)
     HAS_CORE = False
 
 CONFIG_OVERRIDE_FILES = []
@@ -1642,9 +1791,9 @@ CONFIG_OVERRIDE_FILES.append(SETTINGS_FILE)
 # We will load the plugin configs and then we'll reload the config overrides
 for override_file in CONFIG_OVERRIDE_FILES:
     if os.path.exists(override_file):
-        print >> sys.stderr, "Reading settings from %s" % override_file
+        log.warn("Reading settings from %s" % override_file)
         CONF = {}
-        execfile(override_file, CONF)
+        exec(compile(open(override_file).read(), override_file, 'exec'), CONF)
         for key in CONF:
             if isinstance(locals().get(key), dict) and isinstance(CONF[key],
                                                                   dict):
@@ -1652,8 +1801,7 @@ for override_file in CONFIG_OVERRIDE_FILES:
             else:
                 locals()[key] = CONF[key]
     else:
-        print >> sys.stderr, ("Couldn't find settings file in %s" %
-                              override_file)
+        log.error("Couldn't find settings file in %s" % override_file)
 
 # Load all plugin config files. Plugins may define vars that can be overriden
 # by environmental variables
@@ -1676,18 +1824,18 @@ for plugin in PLUGINS:
                 locals()[key].update(plugin_env[key])
             else:
                 locals()[key] = plugin_env[key]
-        print >> sys.stderr, "Imported config of `%s` plugin" % plugin
+        log.warn("Imported config of `%s` plugin" % plugin)
     except Exception as exc:
-        if exc.message != 'No module named config':
-            print >> sys.stderr, "Failed to import config of `%s` plugin" % \
-                plugin
+        log.error("Failed to import config of `%s` plugin" %
+                  plugin)
 
 # Get settings from environmental variables.
 FROM_ENV_STRINGS = [
     'AMQP_URI', 'BROKER_URL', 'CORE_URI', 'MONGO_URI', 'MONGO_DB', 'DOCKER_IP',
     'DOCKER_PORT', 'DOCKER_TLS_KEY', 'DOCKER_TLS_CERT', 'DOCKER_TLS_CA',
     'UI_TEMPLATE_URL', 'LANDING_TEMPLATE_URL', 'THEME',
-    'DEFAULT_MONITORING_METHOD', 'LICENSE_KEY'
+    'DEFAULT_MONITORING_METHOD', 'LICENSE_KEY', 'AWS_ACCESS_KEY',
+    'AWS_SECRET_KEY', 'AWS_MONGO_BUCKET'
 ] + PLUGIN_ENV_STRINGS
 FROM_ENV_INTS = [
     'SHARD_MANAGER_MAX_SHARD_PERIOD', 'SHARD_MANAGER_MAX_SHARD_CLAIMS',
@@ -1700,7 +1848,7 @@ FROM_ENV_BOOLS = [
 FROM_ENV_ARRAYS = [
     'MEMCACHED_HOST', 'PLUGINS'
 ] + PLUGIN_ENV_ARRAYS
-print >> sys.stderr, "Reading settings from environmental variables."
+log.info("Reading settings from environmental variables.")
 for key in FROM_ENV_STRINGS:
     if os.getenv(key):
         locals()[key] = os.getenv(key)
@@ -1709,8 +1857,7 @@ for key in FROM_ENV_INTS:
         try:
             locals()[key] = int(os.getenv(key))
         except (KeyError, ValueError):
-            print >> sys.stderr, "Invalid value for %s: %s" % (key,
-                                                               os.getenv(key))
+            log.error("Invalid value for %s: %s" % (key, os.getenv(key)))
 for key in FROM_ENV_BOOLS:
     if os.getenv(key) is not None:
         locals()[key] = os.getenv(key) in ('1', 'true', 'True')
@@ -1723,9 +1870,9 @@ for key in FROM_ENV_ARRAYS:
 # SETTINGS_FILE should be the last one to load
 for override_file in CONFIG_OVERRIDE_FILES:
     if os.path.exists(override_file):
-        print >> sys.stderr, "Reading settings from %s" % override_file
+        log.info("Reading settings from %s" % override_file)
         CONF = {}
-        execfile(override_file, CONF)
+        exec(compile(open(override_file).read(), override_file, 'exec'), CONF)
         for key in CONF:
             if isinstance(locals().get(key), dict) and isinstance(CONF[key],
                                                                   dict):
@@ -1733,8 +1880,7 @@ for override_file in CONFIG_OVERRIDE_FILES:
             else:
                 locals()[key] = CONF[key]
     else:
-        print >> sys.stderr, ("Couldn't find settings file in %s" %
-                              override_file)
+        log.error("Couldn't find settings file in %s" % override_file)
 
 HAS_BILLING = 'billing' in PLUGINS
 HAS_RBAC = 'rbac' in PLUGINS
@@ -1746,12 +1892,14 @@ HAS_VPN = 'vpn' in PLUGINS
 HAS_EXPERIMENTS = 'experiments' in PLUGINS
 HAS_MANAGE = 'manage' in PLUGINS
 
+# enable backup feature if aws creds have been set
+ENABLE_BACKUPS = bool(BACKUP['key']) and bool(BACKUP['secret'])
 
 # Update TELEGRAF_TARGET.
 
 if not TELEGRAF_TARGET:
-    if urlparse.urlparse(CORE_URI).hostname in ('localhost', '127.0.0.1',
-                                                '172.17.0.1'):
+    if urllib.parse.urlparse(CORE_URI).hostname in ('localhost', '127.0.0.1',
+                                                    '172.17.0.1'):
         TELEGRAF_TARGET = "http://traefik"
     else:
         TELEGRAF_TARGET = CORE_URI + '/ingress'
@@ -1789,6 +1937,11 @@ if ENABLE_MONITORING:
         'task': 'mist.api.monitoring.tasks.reset_traefik_config',
         'schedule': datetime.timedelta(seconds=90),
     }
+if ENABLE_BACKUPS:
+    _schedule['backups'] = {
+        'task': 'mist.api.tasks.create_backup',
+        'schedule': datetime.timedelta(hours=BACKUP_INTERVAL),
+    }
 
 if _schedule:
     CELERY_SETTINGS.update({'beat_schedule': _schedule})
@@ -1825,7 +1978,8 @@ HOMEPAGE_INPUTS = {
         'signin_home': REDIRECT_HOME_TO_SIGNIN,
         'landing_footer': SHOW_FOOTER,
         'docs': DOCS_URI,
-        'support': SUPPORT_URI
+        'support': SUPPORT_URI,
+        'currency': CURRENCY
     },
     'email': {
         'info': EMAIL_INFO,
@@ -1851,4 +2005,4 @@ try:
     with open('/mist-version.json', 'r') as fobj:
         VERSION = json.load(fobj)
 except Exception as exc:
-    print >> sys.stderr, "Couldn't load version info."
+    log.error("Couldn't load version info.")

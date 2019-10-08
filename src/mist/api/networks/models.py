@@ -4,6 +4,7 @@ import netaddr
 import mongoengine as me
 
 from mist.api.ownership.mixins import OwnershipMixin
+from mist.api.mongoengine_extras import MistDictField
 
 from mist.api.exceptions import RequiredParameterMissingError
 
@@ -23,10 +24,10 @@ NETWORKS, SUBNETS = {}, {}
 
 def _populate_class_mapping(mapping, class_suffix, base_class):
     """Populates a dict that matches a provider name with its model class."""
-    for key, value in globals().items():
+    for key, value in list(globals().items()):
         if key.endswith(class_suffix) and key != class_suffix:
             if issubclass(value, base_class) and value is not base_class:
-                for provider, cls in CLOUDS.items():
+                for provider, cls in list(CLOUDS.items()):
                     if key.replace(class_suffix, '') in repr(cls):
                         mapping[provider] = value
 
@@ -48,8 +49,9 @@ class Network(OwnershipMixin, me.Document):
     name = me.StringField()
     cidr = me.StringField()
     description = me.StringField()
+    location = me.ReferenceField('CloudLocation', required=False)
 
-    extra = me.DictField()  # The `extra` dictionary returned by libcloud.
+    extra = MistDictField()  # The `extra` dictionary returned by libcloud.
 
     missing_since = me.DateTimeField()
 
@@ -99,14 +101,12 @@ class Network(OwnershipMixin, me.Document):
                       description=description)
         if id:
             network.id = id
-        network.ctl.create(**kwargs)
-        return network
+        return network.ctl.create(**kwargs)
 
     @property
     def tags(self):
         """Return the tags of this network."""
-        return [{'key': tag.key,
-                 'value': tag.value} for tag in Tag.objects(resource=self)]
+        return {tag.key: tag.value for tag in Tag.objects(resource=self)}
 
     def clean(self):
         """Checks the CIDR to determine if it maps to a valid IPv4 network."""
@@ -128,6 +128,8 @@ class Network(OwnershipMixin, me.Document):
         """Returns the API representation of the `Network` object."""
         net_dict = {
             'id': self.id,
+            'subnets': {s.id: s.as_dict() for s
+                        in Subnet.objects(network=self, missing_since=None)},
             'cloud': self.cloud.id,
             'network_id': self.network_id,
             'name': self.name,
@@ -137,6 +139,7 @@ class Network(OwnershipMixin, me.Document):
             'tags': self.tags,
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
+            'location': self.location.id if self.location else '',
         }
         net_dict.update(
             {key: getattr(self, key) for key in self._network_specific_fields}
@@ -161,6 +164,7 @@ class AmazonNetwork(Network):
 class AzureArmNetwork(Network):
     instance_tenancy = me.StringField(default='default', choices=('default',
                                                                   'private'))
+    resource_group = me.StringField()
 
     def clean(self):
         """Extended validation for EC2 Networks to ensure CIDR assignment."""
@@ -225,7 +229,7 @@ class Subnet(me.Document):
     cidr = me.StringField(required=True)
     description = me.StringField()
 
-    extra = me.DictField()  # The `extra` dictionary returned by libcloud.
+    extra = MistDictField()  # The `extra` dictionary returned by libcloud.
 
     missing_since = me.DateTimeField()
 
@@ -279,14 +283,12 @@ class Subnet(me.Document):
                      description=description)
         if id:
             subnet.id = id
-        subnet.ctl.create(**kwargs)
-        return subnet
+        return subnet.ctl.create(**kwargs)
 
     @property
     def tags(self):
         """Return the tags of this subnet."""
-        return [{'key': tag.key,
-                 'value': tag.value} for tag in Tag.objects(resource=self)]
+        return {tag.key: tag.value for tag in Tag.objects(resource=self)}
 
     def clean(self):
         """Checks the CIDR to determine if it maps to a valid IPv4 network."""

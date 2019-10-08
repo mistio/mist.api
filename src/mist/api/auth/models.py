@@ -3,6 +3,8 @@ import string
 
 import mongoengine as me
 
+from future.utils import string_types
+
 from functools import partial
 from datetime import datetime, timedelta
 
@@ -106,7 +108,7 @@ class AuthToken(me.Document):
         """
         if isinstance(user, User):
             _user = user
-        elif isinstance(user, basestring):
+        elif isinstance(user, string_types):
             if '@' in user:
                 _user = User.objects.get(email=user)
             else:

@@ -107,7 +107,7 @@ class BasePeriodType(me.EmbeddedDocument):
         raise NotImplementedError()
 
     def update(self, fail_on_error=True, **kwargs):
-        for key, value in kwargs.iteritems():
+        for key, value in kwargs.items():
             if key not in type(self)._fields:
                 if not fail_on_error:
                     continue

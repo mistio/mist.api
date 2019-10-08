@@ -70,6 +70,10 @@ class OneOff(Interval):
         }
 
 
+class Reminder(OneOff):
+    type = 'reminder'
+
+
 class Crontab(BaseScheduleType):
     type = 'crontab'
 
@@ -145,6 +149,11 @@ class ActionTask(BaseTaskType):
     def __str__(self):
         return 'Action: %s' % self.action
 
+    def as_dict(self):
+        return {
+            'action': self.action
+        }
+
 
 class ScriptTask(BaseTaskType):
     script_id = me.StringField()
@@ -164,6 +173,12 @@ class ScriptTask(BaseTaskType):
 
     def __str__(self):
         return 'Run script: %s' % self.script_id
+
+    def as_dict(self):
+        return {
+            'script_id': self.script_id,
+            'params': self.params
+        }
 
 
 class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
@@ -220,6 +235,8 @@ class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
     last_run_at = me.DateTimeField()
     total_run_count = me.IntField(min_value=0, default=0)
     max_run_count = me.IntField(min_value=0, default=0)
+
+    reminder = me.ReferenceField('Schedule', required=False)
 
     no_changes = False
 
@@ -325,7 +342,7 @@ class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
         if isinstance(self.schedule_type, Crontab):
             cronj_entry = self.schedule_type.as_dict()
             try:
-                for k, v in cronj_entry.items():
+                for k, v in list(cronj_entry.items()):
                     if k == 'minute':
                         celery.schedules.crontab_parser(60).parse(v)
                     elif k == 'hour':
@@ -343,7 +360,7 @@ class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
                 raise me.ValidationError('Crontab entry is not valid')
             except Exception as exc:
                 raise me.ValidationError('Crontab entry is not valid:%s'
-                                         % exc.message)
+                                         % str(exc))
         super(Schedule, self).validate(clean=True)
 
     def clean(self):
@@ -351,6 +368,8 @@ class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
             self.resource_model_name = 'machine'
 
     def delete(self):
+        if self.reminder:
+            self.reminder.delete()
         super(Schedule, self).delete()
         Tag.objects(resource=self).delete()
         self.owner.mapper.remove(self)
@@ -368,10 +387,10 @@ class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
             'id': self.id,
             'name': self.name,
             'description': self.description or '',
-            'schedule': unicode(self.schedule_type),
+            'schedule': str(self.schedule_type),
             'schedule_type': self.schedule_type.type,
             'schedule_entry': self.schedule_type.as_dict(),
-            'task_type': str(self.task_type),
+            'task_type': self.task_type.as_dict(),
             'expires': str(self.expires or ''),
             'start_after': str(self.start_after or ''),
             'task_enabled': self.task_enabled,

@@ -219,7 +219,7 @@ def get_events(auth_context, owner_id='', user_id='', event_type='', action='',
         })
 
     # Extend query with additional kwargs.
-    for key, value in kwargs.iteritems():
+    for key, value in kwargs.items():
         query["query"]["bool"]["filter"]["bool"]["must"].append(
             {"term": {key: value}}
         )
@@ -251,7 +251,7 @@ def get_events(auth_context, owner_id='', user_id='', event_type='', action='',
         except Exception as exc:
             log.error('Failed to parse extra of event %s: %r', event, exc)
         else:
-            for key, value in extra.iteritems():
+            for key, value in extra.items():
                 event[key] = value
         if event.get('su') and not is_admin:
             continue
@@ -365,7 +365,7 @@ def get_stories(story_type='', owner_id='', user_id='', sort_order=-1, limit=0,
             {"range": range}
         )
     # Extend query based on additional terms.
-    for key, value in kwargs.iteritems():
+    for key, value in kwargs.items():
         if value in (None, ''):
             log.debug('Got key "%s" with empty value', key)
             continue
@@ -448,7 +448,7 @@ def process_stories(buckets, type=None, callback=None):
                     story['type'] = doc['_type']
 
             # Bring more key-value pairs to the top level.
-            for key, value in body.iteritems():
+            for key, value in body.items():
                 if key in FIELDS and key not in story:
                     story[key] = value
 
@@ -456,7 +456,7 @@ def process_stories(buckets, type=None, callback=None):
             if 'extra' in body:
                 try:
                     extra = json.loads(body.pop('extra'))
-                    for key, value in extra.iteritems():
+                    for key, value in extra.items():
                         body[key] = value
                 except Exception as exc:
                     log.error('Error parsing log %s: %s', body['log_id'], exc)
@@ -584,7 +584,7 @@ def associate_stories(event):
     action = 'updates'
     if event['error']:
         action = 'closes'
-    elif event['action'] in (a for v in JOBS.itervalues() for a in v):
+    elif event['action'] in (a for v in JOBS.values() for a in v):
         if job in JOBS:
             action = 'closes'
     elif event['action'] in CLOSES_STORY:

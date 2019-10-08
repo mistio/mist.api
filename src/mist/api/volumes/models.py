@@ -1,11 +1,22 @@
 import uuid
+import logging
 import mongoengine as me
 
 from mist.api.tag.models import Tag
 
 from mist.api.ownership.mixins import OwnershipMixin
+from mist.api.mongoengine_extras import MistDictField
 
 from mist.api.volumes.controllers import StorageController
+
+log = logging.getLogger(__name__)
+
+
+class VolumeActions(me.EmbeddedDocument):
+    attach = me.BooleanField(default=False)
+    detach = me.BooleanField(default=False)
+    delete = me.BooleanField(default=False)
+    tag = me.BooleanField(default=False)
 
 
 class Volume(OwnershipMixin, me.Document):
@@ -22,8 +33,9 @@ class Volume(OwnershipMixin, me.Document):
     size = me.IntField()
     name = me.StringField()
     external_id = me.StringField(required=True)
-
-    extra = me.DictField()
+    actions = me.EmbeddedDocumentField(VolumeActions,
+                                       default=lambda: VolumeActions())
+    extra = MistDictField()
 
     missing_since = me.DateTimeField()
 
@@ -48,8 +60,7 @@ class Volume(OwnershipMixin, me.Document):
     @property
     def tags(self):
         """Return the tags of this volume."""
-        return [{'key': tag.key,
-                 'value': tag.value} for tag in Tag.objects(resource=self)]
+        return {tag.key: tag.value for tag in Tag.objects(resource=self)}
 
     def clean(self):
         self.owner = self.owner or self.cloud.owner
@@ -58,8 +69,11 @@ class Volume(OwnershipMixin, me.Document):
         super(Volume, self).delete()
         self.owner.mapper.remove(self)
         Tag.objects(resource=self).delete()
-        if self.owned_by:
-            self.owned_by.get_ownership_mapper(self.owner).remove(self)
+        try:
+            if self.owned_by:
+                self.owned_by.get_ownership_mapper(self.owner).remove(self)
+        except Exception as exc:
+            log.error("Got error %r while removing volume %s", exc, self.id)
 
     def as_dict(self):
         """Returns the API representation of the `Volume` object."""
@@ -73,6 +87,10 @@ class Volume(OwnershipMixin, me.Document):
             'size': self.size,
             'location': self.location.id if self.location else None,
             'attached_to': [m.id for m in self.attached_to],
+            'actions': {action: self.actions[action]
+                        for action in self.actions},
+            'owned_by': self.owned_by.id if self.owned_by else '',
+            'created_by': self.created_by.id if self.created_by else '',
         }
 
         return volume_dict
