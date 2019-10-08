@@ -986,14 +986,13 @@ def run_machine_action(owner_id, action, name, machine_uuid):
     :param machine_id:
     :return:
     """
-    schedule_id = Schedule.objects.get(owner=owner_id,
-                                       name=name, deleted=None).id
+    schedule = Schedule.objects.get(owner=owner_id, name=name, deleted=None)
 
     log_dict = {
         'owner_id': owner_id,
         'event_type': 'job',
         'machine_uuid': machine_uuid,
-        'schedule_id': schedule_id,
+        'schedule_id': schedule.id,
     }
 
     machine_id = ''
@@ -1074,16 +1073,19 @@ def run_machine_action(owner_id, action, name, machine_uuid):
                         user = machine.owned_by
                     else:
                         user = machine.created_by
-                    machine_uri = config.CORE_URI + '/machines/%s' % machine.id
                     subject = config.MACHINE_EXPIRE_NOTIFY_EMAIL_SUBJECT
-                    main_body = config.MACHINE_EXPIRE_NOTIFY_EMAIL_BODY
-                    body = main_body % ((user.first_name + " " +
-                                        user.last_name).strip(),
-                                        machine.name,
-                                        machine.expiration.schedule_type.entry,
-                                        machine_uri + '/expiration',
-                                        config.CORE_URI)
-                    log.info('about to send email...')
+                    if schedule.schedule_type.type == 'reminder' and schedule.schedule_type.message:
+                        body = schedule.schedule_type.message
+                    else:
+                        machine_uri = config.CORE_URI + '/machines/%s' % machine.id
+                        main_body = config.MACHINE_EXPIRE_NOTIFY_EMAIL_BODY
+                        body = main_body % ((user.first_name + " " +
+                                            user.last_name).strip(),
+                                            machine.name,
+                                            machine.expiration.schedule_type.entry,
+                                            machine_uri + '/expiration',
+                                            config.CORE_URI)
+                    log.info('About to send email...')
                     if not helper_send_email(subject, body, user.email):
                         raise ServiceUnavailableError("Could not send "
                                                       "notification email "
