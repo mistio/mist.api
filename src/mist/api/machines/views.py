@@ -1,8 +1,6 @@
 import uuid
 import logging
 
-from datetime import datetime
-
 from pyramid.response import Response
 
 import mist.api.machines.methods as methods
@@ -17,7 +15,6 @@ from mist.api import tasks
 from mist.api.auth.methods import auth_context_from_request
 from mist.api.helpers import view_config, params_from_request
 from mist.api.helpers import trigger_session_update
-from mist.api.helpers import convert_to_timedelta
 
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import BadRequestError, NotFoundError
@@ -378,6 +375,7 @@ def create_machine(request):
     if location_id:
         auth_context.check_perm("location", "read", location_id)
         auth_context.check_perm("location", "create_resources", location_id)
+
     tags, constraints = auth_context.check_perm("machine", "create", None)
     if script_id:
         auth_context.check_perm("script", "run", script_id)
@@ -403,29 +401,11 @@ def create_machine(request):
     # check expiration constraint
     exp_constraint = constraints.get('expiration', {})
     if exp_constraint:
-        if not expiration:
-            raise PolicyUnauthorizedError('You have to set an expiration date \
-              for the machine.')
-        else:
-            # TODO: improve error messages based on type of max
-            now = datetime.now()
-            given_date = expiration.get('date')
-            given = datetime.strptime(given_date, '%Y-%m-%d %H:%M:%S') - now
-            allowed = convert_to_timedelta(exp_constraint.get('max'))
-            if given > allowed:
-                raise PolicyUnauthorizedError('Expiration date should be maximum \
-                   %s from now.' % exp_constraint.get('max'))
-            if exp_constraint.get('actions', {}) and \
-               exp_constraint.get('actions').get('available', []) \
-               and expiration.get('action') not in \
-               exp_constraint.get('actions').get('available'):
-                raise PolicyUnauthorizedError('Action for expiration should be one \
-                  of %s.' % exp_constraint.get('actions').get('available'))
-            if exp_constraint.get('notify', {}) and \
-               bool(exp_constraint.get('notify').get('require', False)) and \
-               not expiration.get('notify', ''):
-                raise PolicyUnauthorizedError('You have to set a notification \
-                  for the expiration')
+      try:
+        from mist.rbac.methods import check_expiration
+        check_expiration(expiration, exp_constraint)
+      except ImportError:
+          pass
 
     args = (cloud_id, key_id, machine_name,
             location_id, image_id, size,
@@ -636,7 +616,16 @@ def edit_machine(request):
     if machine.cloud.owner != auth_context.owner:
         raise NotFoundError("Machine %s doesn't exist" % machine.id)
 
-    auth_context.check_perm('machine', 'edit', machine.id)
+    tags, constraints = auth_context.check_perm("machine", "create", machine.id)
+
+    # check expiration constraint
+    exp_constraint = constraints.get('expiration', {})
+    if exp_constraint:
+      try:
+        from mist.rbac.methods import check_expiration
+        check_expiration(expiration, exp_constraint)
+      except ImportError:
+          pass
 
     return machine.ctl.update(auth_context, params)
 
