@@ -1074,15 +1074,18 @@ def run_machine_action(owner_id, action, name, machine_uuid):
                     else:
                         user = machine.created_by
                     subject = config.MACHINE_EXPIRE_NOTIFY_EMAIL_SUBJECT
-                    if schedule.schedule_type.type == 'reminder' and schedule.schedule_type.message:
+                    if schedule.schedule_type.type == 'reminder' and \
+                       schedule.schedule_type.message:
                         body = schedule.schedule_type.message
                     else:
-                        machine_uri = config.CORE_URI + '/machines/%s' % machine.id
+                        machine_uri = config.CORE_URI + \
+                            '/machines/%s' % machine.id
                         main_body = config.MACHINE_EXPIRE_NOTIFY_EMAIL_BODY
+                        sch_entry = machine.expiration.schedule_type.entry
                         body = main_body % ((user.first_name + " " +
                                             user.last_name).strip(),
                                             machine.name,
-                                            machine.expiration.schedule_type.entry,
+                                            sch_entry,
                                             machine_uri + '/expiration',
                                             config.CORE_URI)
                     log.info('About to send email...')
