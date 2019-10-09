@@ -96,7 +96,7 @@ def add_script(request):
 
     # SEC
     auth_context = auth_context_from_request(request)
-    script_tags = auth_context.check_perm("script", "add", None)
+    script_tags = auth_context.check_perm("script", "add", None)[0]
 
     kwargs = {}
 

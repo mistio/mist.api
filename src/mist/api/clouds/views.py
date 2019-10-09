@@ -199,7 +199,7 @@ def add_cloud(request):
       SoftLayer, OpenStack, Vcloud, vSphere
     """
     auth_context = auth_context_from_request(request)
-    cloud_tags = auth_context.check_perm("cloud", "add", None)
+    cloud_tags = auth_context.check_perm("cloud", "add", None)[0]
     owner = auth_context.owner
     params = params_from_request(request)
     # remove spaces from start/end of string fields that are often included
@@ -227,7 +227,7 @@ def add_cloud(request):
     # If insights enabled on org, set poller with half hour period.
     if auth_context.org.insights_enabled:
         cloud.ctl.set_polling_interval(1800)
-
+    import ipdb; ipdb.set_trace()
     if cloud_tags:
         add_tags_to_resource(owner, cloud, list(cloud_tags.items()))
 

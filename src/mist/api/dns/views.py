@@ -100,7 +100,7 @@ def create_dns_zone(request):
     cloud_id = request.matchdict['cloud']
     auth_context.check_perm("cloud", "read", cloud_id)
     auth_context.check_perm("cloud", "create_resources", cloud_id)
-    tags = auth_context.check_perm("zone", "add", None)
+    tags = auth_context.check_perm("zone", "add", None)[0]
 
     try:
         cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id)
@@ -157,7 +157,7 @@ def create_dns_record(request):
     auth_context.check_perm("cloud", "read", cloud_id)
     auth_context.check_perm("zone", "read", zone_id)
     auth_context.check_perm("zone", "create_records", zone_id)
-    tags = auth_context.check_perm("record", "add", None)
+    tags = auth_context.check_perm("record", "add", None)[0]
 
     params = params_from_request(request)
     dns_cls = RECORDS[params['type']]
