@@ -33,7 +33,7 @@ class AuthContext(object):
         pass
 
     def check_perm(self, rtype, action, rid):
-        return
+        return None, None
 
     def get_security_tags(self):
         return []
