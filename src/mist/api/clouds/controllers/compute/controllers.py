@@ -234,7 +234,7 @@ class AmazonComputeController(BaseComputeController):
         return locations
 
     def _list_sizes__get_cpu(self, size):
-        return int(size.extra.get('cpu', 1))
+        return int(size.extra.get('vcpu', 1))
 
     def _list_sizes__get_name(self, size):
         return '%s - %s' % (size.id, size.name)
