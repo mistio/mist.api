@@ -182,10 +182,12 @@ def _query_influxdb(query, owner_id):
     results = results['results']
 
     try:
-        series_list = results[0]['series']
-    except (KeyError, IndexError):
+        series_list = results[0]
+    except IndexError:
         # raise BadRequestError('Failed to parse results: %s' % results)
         log.error('Failed to parse results: %s', results)
+        series_list = []
+    except KeyError:
         series_list = []
     else:
         if owner_id and len(series_list) > 1:
