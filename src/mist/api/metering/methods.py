@@ -182,7 +182,7 @@ def _query_influxdb(query, owner_id):
     results = results['results']
 
     try:
-        series_list = results[0]
+        series_list = results[0]['series']
     except IndexError:
         # raise BadRequestError('Failed to parse results: %s' % results)
         log.error('Failed to parse results: %s', results)
