@@ -44,6 +44,9 @@ class AuthContext(object):
     def _get_matching_tags(self, rtype, action):
         return {}
 
+    def _get_matching_constraints(self, rtype, action):
+        return {}
+
     def serialize(self):
         """This returns the basic context info in a dict of strings and can
         safely be passed to celery tasks etc. To recreate the context, just

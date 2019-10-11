@@ -89,6 +89,9 @@ JS_LOG_LEVEL = 3
 
 ENABLE_DEV_USERS = False
 
+# policy to be applied on resources' owners
+OWNER_POLICY = {}
+
 # If true, on expiration schedule with action destroy,
 # instead of destroying a machine,
 # stop it, change ownership, untag the machine and
