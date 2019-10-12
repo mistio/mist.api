@@ -199,7 +199,7 @@ def add_cloud(request):
       SoftLayer, OpenStack, Vcloud, vSphere
     """
     auth_context = auth_context_from_request(request)
-    cloud_tags = auth_context.check_perm("cloud", "add", None)[0]
+    cloud_tags, _ = auth_context.check_perm("cloud", "add", None)
     owner = auth_context.owner
     params = params_from_request(request)
     # remove spaces from start/end of string fields that are often included

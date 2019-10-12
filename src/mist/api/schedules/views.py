@@ -75,7 +75,7 @@ def add_schedule_entry(request):
     # SEC
     auth_context = auth_context_from_request(request)
     # SEC require ADD permission on schedule
-    schedule_tags = auth_context.check_perm("schedule", "add", None)[0]
+    schedule_tags, _ = auth_context.check_perm("schedule", "add", None)
 
     name = params.pop('name')
 
