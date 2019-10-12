@@ -72,6 +72,12 @@ class OneOff(Interval):
 
 class Reminder(OneOff):
     type = 'reminder'
+    message = me.StringField()
+
+    def as_dict(self):
+        return {
+            'message': self.message
+        }
 
 
 class Crontab(BaseScheduleType):
