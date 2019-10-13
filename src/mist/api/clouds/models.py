@@ -80,7 +80,8 @@ class Cloud(OwnershipMixin, me.Document):
     """
 
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
-    owner = me.ReferenceField(Organization, required=True)
+    owner = me.ReferenceField(Organization, required=True,
+                              reverse_delete_rule=me.CASCADE)
 
     title = me.StringField(required=True)
     enabled = me.BooleanField(default=True)
@@ -175,7 +176,7 @@ class Cloud(OwnershipMixin, me.Document):
 
     def delete(self):
         super(Cloud, self).delete()
-        Tag.objects(resource=self).delete()
+        Tag.objects(resource_id=self.id, resource_type='cloud').delete()
         try:
             self.owner.mapper.remove(self)
         except Exception as exc:
@@ -201,8 +202,10 @@ class Cloud(OwnershipMixin, me.Document):
             'polling_interval': self.polling_interval,
             'tags': {
                 tag.key: tag.value
-                for tag in Tag.objects(owner=self.owner,
-                                       resource=self).only('key', 'value')
+                for tag in Tag.objects(
+                    owner=self.owner,
+                    resource_id=self.id,
+                    resource_type='cloud').only('key', 'value')
             },
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
@@ -222,7 +225,8 @@ class CloudLocation(OwnershipMixin, me.Document):
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
     cloud = me.ReferenceField('Cloud', required=True,
                               reverse_delete_rule=me.CASCADE)
-    owner = me.ReferenceField('Organization', required=True)
+    owner = me.ReferenceField('Organization', required=True,
+                              reverse_delete_rule=me.CASCADE)
     external_id = me.StringField(required=True)
     name = me.StringField()
     country = me.StringField()
@@ -497,7 +501,7 @@ class LibvirtCloud(Cloud):
     host = me.StringField(required=True)
     username = me.StringField(default='root')
     port = me.IntField(required=True, default=22)
-    key = me.ReferenceField(Key, required=False)
+    key = me.ReferenceField(Key, required=False, reverse_delete_rule=me.DENY)
     images_location = me.StringField(default="/var/lib/libvirt/images")
 
     _controller_cls = controllers.LibvirtMainController

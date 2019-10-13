@@ -24,9 +24,12 @@ class Volume(OwnershipMixin, me.Document):
 
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
 
-    cloud = me.ReferenceField('Cloud', required=True)
-    owner = me.ReferenceField('Organization', required=True)
-    location = me.ReferenceField('CloudLocation')
+    cloud = me.ReferenceField('Cloud', required=True,
+                              reverse_delete_rule=me.CASCADE)
+    owner = me.ReferenceField('Organization', required=True,
+                              reverse_delete_rule=me.CASCADE)
+    location = me.ReferenceField('CloudLocation',
+                                 reverse_delete_rule=me.DENY)
     attached_to = me.ListField(me.ReferenceField('Machine',
                                                  reverse_delete_rule=me.PULL))
 
@@ -60,7 +63,9 @@ class Volume(OwnershipMixin, me.Document):
     @property
     def tags(self):
         """Return the tags of this volume."""
-        return {tag.key: tag.value for tag in Tag.objects(resource=self)}
+        return {tag.key: tag.value
+                for tag in Tag.objects(resource_id=self.id,
+                                       resource_type='volume')}
 
     def clean(self):
         self.owner = self.owner or self.cloud.owner
@@ -68,7 +73,7 @@ class Volume(OwnershipMixin, me.Document):
     def delete(self):
         super(Volume, self).delete()
         self.owner.mapper.remove(self)
-        Tag.objects(resource=self).delete()
+        Tag.objects(resource_id=self.id, resource_type='volume').delete()
         try:
             if self.owned_by:
                 self.owned_by.get_ownership_mapper(self.owner).remove(self)

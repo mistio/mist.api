@@ -5,7 +5,8 @@ from mist.api.users.models import Owner
 
 
 class ShellCapture(me.Document):
-    owner = me.ReferenceField(Owner, required=True)
+    owner = me.ReferenceField(Owner, required=True,
+                              reverse_delete_rule=me.CASCADE)
     capture_id = me.StringField()
     cloud_id = me.StringField()
     machine_id = me.StringField()
