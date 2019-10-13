@@ -22,7 +22,7 @@ import mongoengine as me
 
 from libcloud.common.types import InvalidCredsError
 from libcloud.compute.types import NodeState
-from libcloud.compute.base import NodeLocation, Node, NodeSize
+from libcloud.compute.base import NodeLocation, Node, NodeSize, NodeImage
 from libcloud.common.exceptions import BaseHTTPError
 from mist.api.clouds.utils import LibcloudExceptionHandler
 
@@ -343,7 +343,9 @@ class BaseComputeController(BaseController):
 
             # Get misc libcloud metadata.
             image_id = ''
-            if isinstance(node.extra.get('image'), dict):
+            if isinstance(node.image, NodeImage):
+                image_id = node.image.id
+            elif isinstance(node.extra.get('image'), dict):
                 image_id = str(node.extra.get('image').get('id'))
 
             if not image_id:

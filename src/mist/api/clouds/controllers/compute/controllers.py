@@ -234,7 +234,7 @@ class AmazonComputeController(BaseComputeController):
         return locations
 
     def _list_sizes__get_cpu(self, size):
-        return int(size.extra.get('cpu', 1))
+        return int(size.extra.get('vcpu', 1))
 
     def _list_sizes__get_name(self, size):
         return '%s - %s' % (size.id, size.name)
@@ -1011,9 +1011,11 @@ class PacketComputeController(BaseComputeController):
 
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         size = machine_libcloud.extra.get('plan')
-        price = get_size_price(driver_type='compute', driver_name='packet',
-                               size_id=size)
-        return price or 0, 0
+        from mist.api.clouds.models import CloudSize
+        price = CloudSize.objects.get(
+            external_id=size, cloud=self.cloud).extra.get('price', 0.0)
+        if machine.extra.get('billing_cycle') == 'hourly':
+            return price, 0
 
     def _list_machines__get_location(self, node):
         return node.extra.get('facility', {}).get('id', '')
