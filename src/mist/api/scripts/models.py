@@ -149,7 +149,8 @@ class Script(OwnershipMixin, me.Document):
 
     name = me.StringField(required=True)
     description = me.StringField()
-    owner = me.ReferenceField(Owner, required=True)  # TODO Org when port users
+    owner = me.ReferenceField(Owner, required=True,  # TODO Owner -> Org
+                              reverse_delete_rule=me.CASCADE)
     location = me.EmbeddedDocumentField(Location, required=True)
 
     deleted = me.DateTimeField()
@@ -209,7 +210,8 @@ class Script(OwnershipMixin, me.Document):
 
     def delete(self):
         super(Script, self).delete()
-        mist.api.tag.models.Tag.objects(resource=self).delete()
+        mist.api.tag.models.Tag.objects(
+            resource_id=self.id, resource_type='script').delete()
         self.owner.mapper.remove(self)
         if self.owned_by:
             self.owned_by.get_ownership_mapper(self.owner).remove(self)
