@@ -127,6 +127,7 @@ def get_data(machine, start, stop, metrics):
                 timestamp_value = timestamp_value.timestamp()
                 # convert the value tuple to list
                 tuple_list = list(fdb.tuple.unpack(v))
+                tuple_list[0] = float(tuple_list[0])
                 # append the timestamp string to the list
                 tuple_list.append(str(int(timestamp_value)))
                 # append value list to the datapoints list
