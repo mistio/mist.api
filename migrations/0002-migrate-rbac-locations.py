@@ -20,7 +20,7 @@ def parse_args():
 def migrate(purge=False):
     error = False
     print("Will update `owner` field in CloudLocation objects")
-    objects = CloudLocation.objects()
+    objects = CloudLocation.objects(owner=None)
     print("Found %d objects without owner:" % (objects.count()))
     counters = {'updated': 0, 'error': 0, 'deleted': 0, 'skipped': 0}
     for item in objects:

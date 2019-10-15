@@ -1839,7 +1839,8 @@ def delete_team(request):
 
     try:
         team.drop_mappings()
-        auth_context.org.update(pull__teams__id=team_id)
+        auth_context.org.teams.remove(team)
+        auth_context.org.save()
     except me.ValidationError as e:
         raise BadRequestError({"msg": str(e), "errors": e.to_dict()})
     except me.OperationError:
