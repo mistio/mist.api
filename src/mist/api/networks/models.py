@@ -42,14 +42,16 @@ class Network(OwnershipMixin, me.Document):
     """
 
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
-    owner = me.ReferenceField('Organization')
-    cloud = me.ReferenceField(Cloud, required=True)
+    owner = me.ReferenceField('Organization', reverse_delete_rule=me.CASCADE)
+    cloud = me.ReferenceField(Cloud, required=True,
+                              reverse_delete_rule=me.CASCADE)
     network_id = me.StringField()  # required=True)
 
     name = me.StringField()
     cidr = me.StringField()
     description = me.StringField()
-    location = me.ReferenceField('CloudLocation', required=False)
+    location = me.ReferenceField('CloudLocation', required=False,
+                                 reverse_delete_rule=me.DENY)
 
     extra = MistDictField()  # The `extra` dictionary returned by libcloud.
 
@@ -106,7 +108,9 @@ class Network(OwnershipMixin, me.Document):
     @property
     def tags(self):
         """Return the tags of this network."""
-        return {tag.key: tag.value for tag in Tag.objects(resource=self)}
+        return {tag.key: tag.value
+                for tag in Tag.objects(resource_id=self.id,
+                                       resource_type='network')}
 
     def clean(self):
         """Checks the CIDR to determine if it maps to a valid IPv4 network."""
@@ -120,7 +124,7 @@ class Network(OwnershipMixin, me.Document):
     def delete(self):
         super(Network, self).delete()
         self.owner.mapper.remove(self)
-        Tag.objects(resource=self).delete()
+        Tag.objects(resource_id=self.id, resource_type='network').delete()
         if self.owned_by:
             self.owned_by.get_ownership_mapper(self.owner).remove(self)
 
@@ -220,7 +224,7 @@ class Subnet(me.Document):
     """
 
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
-    owner = me.ReferenceField('Organization')
+    owner = me.ReferenceField('Organization', reverse_delete_rule=me.CASCADE)
     network = me.ReferenceField('Network', required=True,
                                 reverse_delete_rule=me.CASCADE)
     subnet_id = me.StringField()
@@ -288,7 +292,9 @@ class Subnet(me.Document):
     @property
     def tags(self):
         """Return the tags of this subnet."""
-        return {tag.key: tag.value for tag in Tag.objects(resource=self)}
+        return {tag.key: tag.value
+                for tag in Tag.objects(resource_id=self.id,
+                                       resource_type='subnet')}
 
     def clean(self):
         """Checks the CIDR to determine if it maps to a valid IPv4 network."""
@@ -300,7 +306,7 @@ class Subnet(me.Document):
 
     def delete(self):
         super(Subnet, self).delete()
-        Tag.objects(resource=self).delete()
+        Tag.objects(resource_id=self.id, resource_type='subnet').delete()
 
     def as_dict(self):
         """Returns the API representation of the `Subnet` object."""
