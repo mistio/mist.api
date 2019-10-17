@@ -37,7 +37,8 @@ class Zone(OwnershipMixin, me.Document):
     """
 
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
-    owner = me.ReferenceField('Organization', required=True)
+    owner = me.ReferenceField('Organization', required=True,
+                              reverse_delete_rule=me.CASCADE)
 
     zone_id = me.StringField(required=True)
     domain = me.StringField(required=True)
@@ -98,7 +99,7 @@ class Zone(OwnershipMixin, me.Document):
 
     def delete(self):
         super(Zone, self).delete()
-        Tag.objects(resource=self).delete()
+        Tag.objects(resource_id=self.id, resource_type='zone').delete()
         self.owner.mapper.remove(self)
         if self.owned_by:
             self.owned_by.get_ownership_mapper(self.owner).remove(self)
@@ -106,7 +107,9 @@ class Zone(OwnershipMixin, me.Document):
     @property
     def tags(self):
         """Return the tags of this zone."""
-        return {tag.key: tag.value for tag in Tag.objects(resource=self)}
+        return {tag.key: tag.value
+                for tag in Tag.objects(
+                    resource_id=self.id, resource_type='zone')}
 
     def as_dict(self):
         """Return a dict with the model values."""
@@ -152,7 +155,8 @@ class Record(OwnershipMixin, me.Document):
     # we delete the zone.
     zone = me.ReferenceField(Zone, required=True,
                              reverse_delete_rule=me.CASCADE)
-    owner = me.ReferenceField('Organization', required=True)
+    owner = me.ReferenceField('Organization', required=True,
+                              reverse_delete_rule=me.CASCADE)
 
     deleted = me.DateTimeField()
 
@@ -214,7 +218,7 @@ class Record(OwnershipMixin, me.Document):
 
     def delete(self):
         super(Record, self).delete()
-        Tag.objects(resource=self).delete()
+        Tag.objects(resource_id=self.id, resource_type='record').delete()
         self.zone.owner.mapper.remove(self)
         if self.owned_by:
             self.owned_by.get_ownership_mapper(self.owner).remove(self)
@@ -232,7 +236,9 @@ class Record(OwnershipMixin, me.Document):
     @property
     def tags(self):
         """Return the tags of this record."""
-        return {tag.key: tag.value for tag in Tag.objects(resource=self)}
+        return {tag.key: tag.value
+                for tag in Tag.objects(resource_id=self.id,
+                                       resource_type='record')}
 
     def as_dict(self):
         """ Return a dict with the model values."""
@@ -262,7 +268,8 @@ class ARecord(Record):
             ip_addr = self.rdata[0]
             ip.ip_address(ip_addr)
         except ValueError:
-            raise me.ValidationError('IPv4 address provided is not valid')
+            raise me.ValidationError('IPv4 address provided is not valid %s' %
+                                     self.rdata)
         if not len(self.rdata) == 1:
             raise me.ValidationError('We cannot have more than one rdata'
                                      'values for this type of record.')
