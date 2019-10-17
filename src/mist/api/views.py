@@ -598,7 +598,7 @@ def confirm(request):
     user.password_set_token_created = time()
     user.password_set_user_agent = request.user_agent
     log.debug("will now save (register)")
-    user.save(write_concern={'w':1, 'fsync': True})
+    user.save(write_concern={'w': 1, 'fsync': True})
 
     invitoken = params.get('invitoken')
     if config.ALLOW_SIGNIN_EMAIL:
