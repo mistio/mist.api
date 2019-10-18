@@ -32,7 +32,8 @@ def mongo_connect(*args, **kwargs):
         try:
             log.info("Attempting to connect to %s at %s...", config.MONGO_DB,
                      config.MONGO_URI)
-            me.connect(db=config.MONGO_DB, host=config.MONGO_URI)
+            #me.connect(db=config.MONGO_DB, host=config.MONGO_URI)
+            me.connect(db=config.MONGO_DB, host=config.MONGO_URI, w=1, j=True)
         except Exception as e:
             log.warning("Error connecting to mongo, will retry in 1 sec: %r",
                         e)
