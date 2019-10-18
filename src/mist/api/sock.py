@@ -342,8 +342,10 @@ class MainConnection(MistConnection):
     def update_org(self):
         try:
             org = filter_org(self.auth_context)
-        except:  # Forbidden
+        except Exception as e:  # Forbidden
             org = None
+            log.error('Failed to filter org %s: %r' % (
+                self.auth_context.org, e))
 
         if org:
             self.send('org', org)
