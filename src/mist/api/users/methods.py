@@ -173,7 +173,7 @@ def filter_org(auth_context):
             tags, constraints = owner_policy[resource][action]
             rule = {"operator": "ALLOW", "action": action, "rtype": resource,
                     "rtags": tags, "constraints": constraints}
-            rules.append[rule]
+            rules.append(rule)
 
     org_dict['owner_policy'] = {"rules": rules, "operator": "ALLOW"}
     org_dict['is_owner'] = auth_context.is_owner()
