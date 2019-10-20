@@ -649,6 +649,9 @@ class AzureArmComputeController(BaseComputeController):
 
     def _list_machines__get_location(self, node):
         return node.extra.get('location')
+    
+    def _list_machines__get_size(self, node):
++       return node.extra.get('size')
 
     def _list_machines__get_size(self, node):
         return node.extra.get('size')
