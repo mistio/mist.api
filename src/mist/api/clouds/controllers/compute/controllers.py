@@ -521,9 +521,6 @@ class SoftLayerComputeController(BaseComputeController):
     def _list_machines__get_location(self, node):
         return node.extra.get('datacenter')
 
-    def _list_machines__get_size(self, node):
-        return str(node.extra.get('size'))
-
     def _reboot_machine(self, machine, machine_libcloud):
         self.connection.reboot_node(machine_libcloud)
         return True
