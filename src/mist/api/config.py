@@ -228,6 +228,13 @@ FDB_BUILTIN_METRICS = {
         'max_value': 64,
         'min_value': 0,
     },
+    'cpu.cpu-cpu8.usage_system': {
+        'name': 'cpu.cpu-cpu8.usage_system',
+        'unit': '',
+        'max_value': 100,
+        'min_value': 0,
+    }
+
 }
 
 # Default Dashboards.
@@ -293,7 +300,22 @@ FDB_MACHINE_DASHBOARD_DEFAULT = {
                 }],
                 "x-axis": True,
                 "y-axis": True
-            }],
+            },{
+                "id": 1,
+                "title": "Load CPU 8",
+                "description": "Load average",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "Β",
+                    "target": "cpu.cpu-cpu8.usage_system"
+                }],
+                "x-axis": True,
+                "y-axis": True
+            }
+            ],
         }, {
             "panels": []
         }],

@@ -37,6 +37,9 @@ from mist.api.monitoring.graphite.methods \
 from mist.api.monitoring.graphite.methods \
     import get_load as graphite_get_load
 
+from mist.api.monitoring.foundationdb.methods \
+    import find_metrics as fdb_find_metrics
+
 from mist.api.monitoring import traefik
 
 from mist.api.rules.models import Rule
@@ -110,7 +113,13 @@ def get_stats(machine, start='', stop='', step='', metrics=None):
     # return time-series data from foundationdb
     elif machine.monitoring.method == 'telegraf-foundationdb':
         from mist.api.monitoring.foundationdb.methods import fdb_get_stats
-        metrics = config.FDB_BUILTIN_METRICS
+        #TO:DO need to filter which metrics come in
+        import pdb; pdb.set_trace()
+        metrics = fdb_find_metrics(machine)
+        """if not metrics:
+            metrics = (list(config.FDB_BUILTIN_METRICS.keys()) +
+                       machine.monitoring.metrics)"""
+        #metrics = config.FDB_BUILTIN_METRICS
         return fdb_get_stats(
             machine, start=start, stop=stop, step=step, metrics=metrics
         )
@@ -440,7 +449,10 @@ def find_metrics(machine):
         metrics = {}
         for metric in show_fields(show_measurements(machine.id)):
             metrics[metric['id']] = metric
+        print(metrics)
         return metrics
+    elif machine.monitoring.method == 'telegraf-foundationdb':
+        return fdb_find_metrics(machine)
     else:
         raise Exception("Invalid monitoring method")
 

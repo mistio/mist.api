@@ -32,6 +32,15 @@ def set_dummy_metrics_last_hour(tr, machine_id, metrics):
                                             minute, seconds))
                 tr[tuple_key] = fdb.tuple.pack((value,))
 
+def test_get_data(db,machine_id,monitoring):
+    tuple_key_start = ('1ce5ef661566433a85580db557b753e6', 'system.load1', '2019', '10', '14', '17', '26', '51')
+
+    tuple_key_stop = ('1ce5ef661566433a85580db557b753e6', 'system.load1', '2019', '10', '14', '17', '48', '56')
+    print("yeah")
+    key_timestamp_start = monitoring.pack(tuple_key_start)
+    key_timestamp_stop = monitoring.pack(tuple_key_stop)
+    for k, v in db[key_timestamp_start:key_timestamp_stop]:
+        print(fdb.tuple.unpack(k), '=>', fdb.tuple.unpack(v))
 
 @fdb.transactional
 def set_dummy_metrics_last_three_hours(tr, machine_id, metric):
@@ -82,7 +91,7 @@ def set_dummy_metrics_last_three_hours(tr, machine_id, metric):
 @fdb.transactional
 def get_dummy_metrics(tr, machine_id, metric):
     print('Fetching dummy data..')
-    for k, v in tr[monitoring.range()]:
+    for k, v in tr[monitoring["available_metrics"].range()]:
         print(fdb.tuple.unpack(k), '=>', fdb.tuple.unpack(v))
 
 """Usage of the script:
@@ -96,7 +105,7 @@ if __name__ == '__main__':
     print('initializing fdb..')
     print('Command line args >' + str(sys.argv) )
     if len(sys.argv) == 3 :
-        
+        #import ipdb;ipdb.set_trace()
         db = init_db()
         monitoring = fdb.directory.create_or_open(db, ('monitoring',))
 
@@ -105,9 +114,10 @@ if __name__ == '__main__':
         metrics_per_minute = monitoring['metric_per_minute']
         metrics_per_hour = monitoring['metric_per_hour']
 
-        set_dummy_metrics_last_three_hours(db, machine_id, metric)
+        #set_dummy_metrics_last_three_hours(db, machine_id, metric)
         #  set_dummy_metrics_last_hour(db)
         get_dummy_metrics(db, machine_id, metric)
+        #test_get_data(db,machine_id,monitoring)
     else:
         print('Usage >> init_fdb.py [machine_id] [metric]')
         

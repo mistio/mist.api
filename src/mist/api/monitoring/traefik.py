@@ -12,7 +12,7 @@ def _gen_machine_config(machine):
     """Generate traefik frontend config for machine with monitoring"""
     if not machine.monitoring.hasmonitoring:
         raise Exception("Machine.monitoring.hasmonitoring is False")
-    if machine.monitoring.method == 'telegraf-graphite':
+    if machine.monitoring.method == 'telegraf-foundationdb':     #telegraf-graphite changed temporarily 
         backend_port = 9097
     elif machine.monitoring.method == 'telegraf-influxdb':
         backend_port = 9096
@@ -60,7 +60,7 @@ def _gen_config():
     cfg = {'frontends': {}, 'backends': {}}
     for machine in Machine.objects(
         monitoring__hasmonitoring=True,
-        monitoring__method__in=['telegraf-graphite',
+        monitoring__method__in=['telegraf-foundationdb',  # changed temporarily
                                 'telegraf-influxdb'],
     ):
         frontend, backend = _gen_machine_config(machine)
