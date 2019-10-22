@@ -433,7 +433,7 @@ def create_machine(request):
               'volumes': volumes,
               'ip_addresses': ip_addresses,
               'expiration': expiration}
-    import ipdb; ipdb.set_trace();
+
     if not run_async:
         ret = methods.create_machine(auth_context, *args, **kwargs)
     else:
