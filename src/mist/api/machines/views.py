@@ -412,6 +412,15 @@ def create_machine(request):
         except ImportError:
             pass
 
+    # check cost constraint
+    cost_constraint = constraints.get('cost', {})
+    if cost_constraint:
+        try:
+            from mist.rbac.methods import check_cost
+            check_cost(auth_context.org, cost_constraint)
+        except ImportError:
+            pass
+
     args = (cloud_id, key_id, machine_name,
             location_id, image_id, size,
             image_extra, disk, image_name, size_name,
