@@ -24,9 +24,12 @@ class Volume(OwnershipMixin, me.Document):
 
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
 
-    cloud = me.ReferenceField('Cloud', required=True)
-    owner = me.ReferenceField('Organization', required=True)
-    location = me.ReferenceField('CloudLocation')
+    cloud = me.ReferenceField('Cloud', required=True,
+                              reverse_delete_rule=me.CASCADE)
+    owner = me.ReferenceField('Organization', required=True,
+                              reverse_delete_rule=me.CASCADE)
+    location = me.ReferenceField('CloudLocation',
+                                 reverse_delete_rule=me.DENY)
     attached_to = me.ListField(me.ReferenceField('Machine',
                                                  reverse_delete_rule=me.PULL))
 
