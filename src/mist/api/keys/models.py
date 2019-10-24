@@ -72,7 +72,7 @@ class Key(OwnershipMixin, me.Document):
     id = me.StringField(primary_key=True,
                         default=lambda: uuid4().hex)
     name = me.StringField(required=True)
-    owner = me.ReferenceField(Owner)
+    owner = me.ReferenceField(Owner, reverse_delete_rule=me.CASCADE)
     default = me.BooleanField(default=False)
     deleted = me.DateTimeField()
 

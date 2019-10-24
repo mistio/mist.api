@@ -7,7 +7,8 @@ from mist.api.users.models import Owner
 
 class Tag(me.Document):
 
-    owner = me.ReferenceField(Owner, required=True)
+    owner = me.ReferenceField(Owner, required=True,
+                              reverse_delete_rule=me.CASCADE)
     key = me.StringField(required=True)
 
     resource_type = me.StringField(

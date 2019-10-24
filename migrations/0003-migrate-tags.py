@@ -37,7 +37,8 @@ def migrate_tags():
         try:
             if tag.resource:
                 tag.resource_id = tag.resource.id
-                tag.resource_type = tag.resource.db_ref().collection.strip('s')
+                tag.resource_type = tag.resource.to_dbref().collection.strip(
+                    's')
                 tag.resource = None
                 tag.save()
                 migrated += 1

@@ -37,7 +37,8 @@ class Zone(OwnershipMixin, me.Document):
     """
 
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
-    owner = me.ReferenceField('Organization', required=True)
+    owner = me.ReferenceField('Organization', required=True,
+                              reverse_delete_rule=me.CASCADE)
 
     zone_id = me.StringField(required=True)
     domain = me.StringField(required=True)
@@ -154,7 +155,8 @@ class Record(OwnershipMixin, me.Document):
     # we delete the zone.
     zone = me.ReferenceField(Zone, required=True,
                              reverse_delete_rule=me.CASCADE)
-    owner = me.ReferenceField('Organization', required=True)
+    owner = me.ReferenceField('Organization', required=True,
+                              reverse_delete_rule=me.CASCADE)
 
     deleted = me.DateTimeField()
 

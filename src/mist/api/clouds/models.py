@@ -80,7 +80,8 @@ class Cloud(OwnershipMixin, me.Document):
     """
 
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
-    owner = me.ReferenceField(Organization, required=True)
+    owner = me.ReferenceField(Organization, required=True,
+                              reverse_delete_rule=me.CASCADE)
 
     title = me.StringField(required=True)
     enabled = me.BooleanField(default=True)
@@ -224,7 +225,8 @@ class CloudLocation(OwnershipMixin, me.Document):
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
     cloud = me.ReferenceField('Cloud', required=True,
                               reverse_delete_rule=me.CASCADE)
-    owner = me.ReferenceField('Organization', required=True)
+    owner = me.ReferenceField('Organization', required=True,
+                              reverse_delete_rule=me.CASCADE)
     external_id = me.StringField(required=True)
     name = me.StringField()
     country = me.StringField()
@@ -499,7 +501,7 @@ class LibvirtCloud(Cloud):
     host = me.StringField(required=True)
     username = me.StringField(default='root')
     port = me.IntField(required=True, default=22)
-    key = me.ReferenceField(Key, required=False)
+    key = me.ReferenceField(Key, required=False, reverse_delete_rule=me.DENY)
     images_location = me.StringField(default="/var/lib/libvirt/images")
 
     _controller_cls = controllers.LibvirtMainController

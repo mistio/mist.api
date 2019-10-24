@@ -17,7 +17,7 @@ from mist.api.helpers import trigger_session_update
 
 
 from mist.api.exceptions import RequiredParameterMissingError
-from mist.api.exceptions import BadRequestError, NotFoundError
+from mist.api.exceptions import BadRequestError, NotFoundError, ForbiddenError
 from mist.api.exceptions import MachineCreationError, RedirectError
 from mist.api.exceptions import CloudUnauthorizedError, CloudUnavailableError
 
@@ -390,6 +390,12 @@ def create_machine(request):
                 raise ValueError()
             mtags = {key: val for item in mtags for key,
                      val in list(item.items())}
+        security_tags = auth_context.get_security_tags()
+        for mt in mtags:
+            if mt in security_tags:
+                raise ForbiddenError(
+                    'You may not assign tags included in a Team access policy:'
+                    ' `%s`' % mt)
         tags.update(mtags)
     except ValueError:
         raise BadRequestError('Invalid tags format. Expecting either a '
