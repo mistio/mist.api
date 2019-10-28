@@ -7,6 +7,7 @@ import ssl
 import json
 import logging
 import datetime
+import urllib
 
 # Python 2 and 3 support
 from future.standard_library import install_aliases
@@ -222,8 +223,8 @@ GRAPHITE_BUILTIN_METRICS = {
 }
 
 FDB_BUILTIN_METRICS = {
-    'system.load1': {
-        'name': 'system.load1',
+    'system.load(\d)+': {
+        'name': 'system.load(\d)+',
         'unit': '',
         'max_value': 64,
         'min_value': 0,
@@ -285,39 +286,136 @@ FDB_MACHINE_DASHBOARD_DEFAULT = {
         "id": 1,
         "refresh": "10sec",
         "rows": [{
-            "title": "Load, CPU, RAM, Uptime",
+            "height": 300,
             "panels": [{
                 "id": 0,
                 "title": "Load",
-                "description": "Load average",
                 "type": "graph",
                 "span": 6,
                 "stack": False,
                 "datasource": "mist.monitor",
                 "targets": [{
                     "refId": "A",
-                    "target": "system./load\d/"
+                    "target": urllib.parse.quote("system.load(\d)+")
                 }],
                 "x-axis": True,
                 "y-axis": True
-            },{
+            }, {
                 "id": 1,
-                "title": "Load CPU 8",
-                "description": "Load average",
+                "title": "MEM",
+                "type": "graph",
+                "span": 6,
+                "stack": True,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "D",
+                    "target": urllib.parse.quote("mem.*percent")
+                }],
+                "yaxes": [{
+                    "label": "%"
+                }]
+            }, {
+                "id": 2,
+                "title": "CPU total",
+                "type": "graph",
+                "span": 6,
+                "stack": True,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "C",
+                    "target": urllib.parse.quote("cpu.cpu-cpu-total.*")
+                }],
+                "yaxes": [{
+                    "label": "%"
+                }]
+            }, {
+                "id": 3,
+                "title": "CPU idle per core",
+                "type": "graph",
+                "span": 6,
+                "stack": True,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "Z",
+                    "target": urllib.parse.quote("cpu.*usage_idle")
+                }],
+                "yaxes": [{
+                    "label": "%"
+                }]
+            }, {
+                "id": 4,
+                "title": "NET RX",
                 "type": "graph",
                 "span": 6,
                 "stack": False,
                 "datasource": "mist.monitor",
                 "targets": [{
-                    "refId": "Β",
-                    "target": "cpu.cpu-cpu8.usage_system"
+                    "refId": "G",
+                    "target": urllib.parse.quote("net.*.bytes_recv")
+                }],
+                "yaxes": [{
+                    "label": "B/s"
+                }]
+            }, {
+                "id": 5,
+                "title": "NET TX",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "H",
+                    "target": urllib.parse.quote("net.*.bytes_sent")
+                }],
+                "yaxes": [{
+                    "label": "B/s"
+                }]
+            }, {
+                "id": 6,
+                "title": "DISK READ",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "I",
+                    "target": urllib.parse.quote("diskio.*.read_bytes")
                 }],
                 "x-axis": True,
-                "y-axis": True
-            }
-            ],
-        }, {
-            "panels": []
+                "y-axis": True,
+                "yaxes": [{
+                    "label": "B/s"
+                }]
+            }, {
+                "id": 7,
+                "title": "DISK WRITE",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "J",
+                    "target": urllib.parse.quote("diskio.*.write_bytes")
+                }],
+                "yaxes": [{
+                    "label": "B/s"
+                }]
+            }, {
+                "id": 8,
+                "title": "DF",
+                "type": "graph",
+                "span": 12,
+                "height": 400,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "D",
+                    "target": urllib.parse.quote("disk.*_percent")
+                }],
+                "yaxes": [{
+                    "label": "%"
+                }]
+            }],
         }],
         "time": {
             "from": "now-10m",

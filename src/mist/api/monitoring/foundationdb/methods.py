@@ -1,13 +1,34 @@
+import logging
+
 from mist.api.monitoring.foundationdb.handlers import get_data
 from mist.api.monitoring.helpers import parse_start_stop_params
 from mist.api.machines.models import Machine
 
+from mist.api.exceptions import NotFoundError, ServiceUnavailableError
+from mist.api.exceptions import ForbiddenError
 
-def fdb_get_stats(machine, start, stop, step, metrics):
+
+log = logging.getLogger(__name__)
+
+
+def get_stats(machine, start, stop, step, metrics):
+    time_params_array = parse_start_stop_params(start, stop)
+        
+    return get_data([machine.id], time_params_array[0],
+                    time_params_array[1], metrics)[machine.id]
+
+def get_load(machines, start, stop, step):
     time_params_array = parse_start_stop_params(start, stop)
 
-    return get_data(machine, time_params_array[0],
-                    time_params_array[1], metrics)
+    data = get_data(machines, time_params_array[0],
+                    time_params_array[1], ["system.load1"])
+    
+    for machine in data.keys():
+        data[machine] = data[machine]["system.load1"]
+        data[machine]["name"] = machine
+    
+    return data
+
 
 def find_metrics(machine):
     import fdb
@@ -20,8 +41,6 @@ def find_metrics(machine):
     print(machine.id)
     if fdb.directory.exists(db, 'monitoring'):
         monitoring = fdb.directory.open(db, 'monitoring')
-        print("list test")
-        print(monitoring.list(db))
         #metric = metric_per_hour.pack(machine.id)
 
 
@@ -38,29 +57,23 @@ def find_metrics(machine):
         
         #del db[monitoring["available_metrics"].range(())]
 
-
-        #datatypes = ["float", "int", "string", "bool"]
-        datatypes = ["float", "int"]
-
-        for datatype in datatypes:
-            for k, v in db[monitoring["available_metrics"][machine.id][datatype].range()]:
-                data_tuple = monitoring["available_metrics"][machine.id][datatype].unpack(k)
-                print(data_tuple)
-                metric = {data_tuple[0]+"."+data_tuple[1] : {
-                    'id': data_tuple[0]+"."+data_tuple[1],
-                    'name': data_tuple[0]+"."+data_tuple[1],
-                    'column': data_tuple[0]+"."+data_tuple[1],
-                    'measurement': data_tuple[0]+"."+data_tuple[1],
-                    'max_value': None,
-                    'min_value': None,
-                    'priority': 0,
-                    'unit': ''
-                }}
-                metrics.update(metric)
+        for k, v in db[monitoring["available_metrics"][machine.id].range()]:
+            data_tuple = monitoring["available_metrics"][machine.id].unpack(k)
+            #print(data_tuple)
+            metric = {data_tuple[1]+"."+data_tuple[2] : {
+                'id': data_tuple[1]+"."+data_tuple[2],
+                'name': data_tuple[1]+"."+data_tuple[2],
+                'column': data_tuple[1]+"."+data_tuple[2],
+                'measurement': data_tuple[1]+"."+data_tuple[2],
+                'max_value': None,
+                'min_value': None,
+                'priority': 0,
+                'unit': ''
+            }}
+            metrics.update(metric)
             #print(metrics_machine.unpack(k), '=>', fdb.tuple.unpack(v))
 
     else:
-        #raise ForbiddenError("Machine doesn't have the metrics directory.")
-        print("rekt")
-
+        raise ForbiddenError("Machine doesn't have the metrics directory.")
+        
     return metrics

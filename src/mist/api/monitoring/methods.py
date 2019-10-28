@@ -39,6 +39,10 @@ from mist.api.monitoring.graphite.methods \
 
 from mist.api.monitoring.foundationdb.methods \
     import find_metrics as fdb_find_metrics
+from mist.api.monitoring.foundationdb.methods \
+    import get_stats as fdb_get_stats
+from mist.api.monitoring.foundationdb.methods \
+    import get_load as fdb_get_load
 
 from mist.api.monitoring import traefik
 
@@ -69,6 +73,8 @@ def get_stats(machine, start='', stop='', step='', metrics=None):
         - metrics: the metrics to query for, if explicitly specified
 
     """
+    print("METRICS BEFORE==============================================")
+    print(metrics)
     if not machine.monitoring.hasmonitoring:
         raise MethodNotAllowedError('Machine does not have monitoring enabled')
     if metrics is None:
@@ -112,17 +118,27 @@ def get_stats(machine, start='', stop='', step='', metrics=None):
 
     # return time-series data from foundationdb
     elif machine.monitoring.method == 'telegraf-foundationdb':
-        from mist.api.monitoring.foundationdb.methods import fdb_get_stats
         #TO:DO need to filter which metrics come in
-        import pdb; pdb.set_trace()
-        metrics = fdb_find_metrics(machine)
-        """if not metrics:
+        #import pdb; pdb.set_trace()
+        #import ipdb;ipdb.set_trace()
+        #metrics = fdb_find_metrics(machine)
+        if not metrics:
             metrics = (list(config.FDB_BUILTIN_METRICS.keys()) +
-                       machine.monitoring.metrics)"""
-        #metrics = config.FDB_BUILTIN_METRICS
+                       machine.monitoring.metrics)
+        all_metrics = list(fdb_find_metrics(machine).keys())
+        processed_metrics = []
+        for metric in metrics:
+            try:
+                re.compile(metric)
+            except re.error:
+                processed_metrics.append(metric)
+                continue
+            for candidate in all_metrics:
+                match = re.match("^%s$" % metric,candidate)
+                if match:
+                    processed_metrics.append(candidate)
         return fdb_get_stats(
-            machine, start=start, stop=stop, step=step, metrics=metrics
-        )
+            machine, start=start, stop=stop, step=step, metrics=processed_metrics)
 
     else:
         raise Exception("Invalid monitoring method")
@@ -133,6 +149,7 @@ def get_load(owner, start='', stop='', step='', uuids=None):
     clouds = Cloud.objects(owner=owner, deleted=None).only('id')
     machines = Machine.objects(cloud__in=clouds,
                                monitoring__hasmonitoring=True)
+    #import pdb; pdb.set_trace()
     if uuids:
         machines.filter(id__in=uuids)
 
@@ -140,9 +157,13 @@ def get_load(owner, start='', stop='', step='', uuids=None):
                       if machine.monitoring.method.endswith('-graphite')]
     influx_uuids = [machine.id for machine in machines
                     if machine.monitoring.method.endswith('-influxdb')]
+    fdb_uuids = [machine.id for machine in machines
+                    if machine.monitoring.method.endswith('-foundationdb')]
 
     graphite_data = {}
     influx_data = {}
+    fdb_data = {}
+
     if graphite_uuids:
         graphite_data = graphite_get_load(owner, start=start, stop=stop,
                                           step=step, uuids=graphite_uuids)
@@ -155,8 +176,11 @@ def get_load(owner, start='', stop='', step='', uuids=None):
             start=_start, stop=_stop, step=_step,
         )
 
-    if graphite_data or influx_data:
-        return dict(list(graphite_data.items()) + list(influx_data.items()))
+    if fdb_uuids:
+        fdb_data = fdb_get_load(fdb_uuids, start, stop, step)
+
+    if graphite_data or influx_data or fdb_data:
+        return dict(list(graphite_data.items()) + list(influx_data.items()) + list(fdb_data.items()))
     else:
         raise NotFoundError('No machine has monitoring enabled')
 
