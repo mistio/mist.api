@@ -5,26 +5,27 @@ from mist.api import config
 from mist.api.machines.models import Machine
 
 
-TRAEFIK_API_URL = '%s/api/providers/rest' % config.TRAEFIK_API
+TRAEFIK_API_URL = "%s/api/providers/rest" % config.TRAEFIK_API
 
 
 def _gen_machine_config(machine):
     """Generate traefik frontend config for machine with monitoring"""
     if not machine.monitoring.hasmonitoring:
         raise Exception("Machine.monitoring.hasmonitoring is False")
-    if machine.monitoring.method == 'telegraf-foundationdb':     #telegraf-graphite changed temporarily 
+    # telegraf-graphite changed temporarily
+    if machine.monitoring.method == "telegraf-foundationdb":
         backend_port = 9097
-    elif machine.monitoring.method == 'telegraf-influxdb':
+    elif machine.monitoring.method == "telegraf-influxdb":
         backend_port = 9096
     else:
-        raise Exception("Invalid monitoring method '%s'"
-                        % machine.monitoring.method)
+        raise Exception(
+            "Invalid monitoring method '%s'" % machine.monitoring.method
+        )
     frontend = {
         "routes": {
             "main": {
-                "rule": "PathPrefixStrip:/%s" % (
-                    machine.monitoring.collectd_password
-                ),
+                "rule": "PathPrefixStrip:/%s"
+                % (machine.monitoring.collectd_password),
             },
         },
         "backend": machine.id,
@@ -48,24 +49,24 @@ def _gen_machine_config(machine):
                 "weight": 10,
             },
         },
-        "loadBalancer": {
-            "method": "wrr",
-        },
+        "loadBalancer": {"method": "wrr"},
     }
     return frontend, backend
 
 
 def _gen_config():
     """Generate traefik config from scratch for all machines"""
-    cfg = {'frontends': {}, 'backends': {}}
+    cfg = {"frontends": {}, "backends": {}}
     for machine in Machine.objects(
         monitoring__hasmonitoring=True,
-        monitoring__method__in=['telegraf-foundationdb',  # changed temporarily
-                                'telegraf-influxdb'],
+        monitoring__method__in=[
+            "telegraf-foundationdb",  # changed temporarily
+            "telegraf-influxdb",
+        ],
     ):
         frontend, backend = _gen_machine_config(machine)
-        cfg['frontends'][machine.id] = frontend
-        cfg['backends'][machine.id] = backend
+        cfg["frontends"][machine.id] = frontend
+        cfg["backends"][machine.id] = backend
     return cfg
 
 
@@ -73,8 +74,9 @@ def _get_config():
     """Get current traefik config"""
     resp = requests.get(TRAEFIK_API_URL)
     if not resp.ok:
-        raise Exception("Bad traefik response: %s %s" % (resp.status_code,
-                                                         resp.text))
+        raise Exception(
+            "Bad traefik response: %s %s" % (resp.status_code, resp.text)
+        )
     return resp.json()
 
 
@@ -82,8 +84,9 @@ def _set_config(cfg):
     """Set traefik config"""
     resp = requests.put(TRAEFIK_API_URL, json=cfg)
     if not resp.ok:
-        raise Exception("Bad traefik response: %s %s" % (resp.status_code,
-                                                         resp.text))
+        raise Exception(
+            "Bad traefik response: %s %s" % (resp.status_code, resp.text)
+        )
     return _get_config()
 
 
@@ -96,14 +99,14 @@ def add_machine_to_config(machine):
     """Add frontend rule for machine monitoring"""
     cfg = _get_config()
     frontend, backend = _gen_machine_config(machine)
-    cfg['frontends'][machine.id] = frontend
-    cfg['backends'][machine.id] = backend
+    cfg["frontends"][machine.id] = frontend
+    cfg["backends"][machine.id] = backend
     return _set_config(cfg)
 
 
 def remove_machine_from_config(machine):
     """Remove frontend rule for machine monitoring"""
     cfg = _get_config()
-    cfg['frontends'].pop(machine.id, None)
-    cfg['backends'].pop(machine.id, None)
+    cfg["frontends"].pop(machine.id, None)
+    cfg["backends"].pop(machine.id, None)
     return _set_config(cfg)

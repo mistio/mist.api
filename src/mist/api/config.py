@@ -8,14 +8,13 @@ import json
 import logging
 import datetime
 import urllib
+import urllib.parse
+import libcloud.security
 
 # Python 2 and 3 support
 from future.standard_library import install_aliases
 install_aliases()
 
-import urllib.parse
-
-import libcloud.security
 from libcloud.compute.types import Provider
 from libcloud.container.types import Provider as Container_Provider
 
