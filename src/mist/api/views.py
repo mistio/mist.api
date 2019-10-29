@@ -10,6 +10,7 @@ be performed inside the corresponding method functions.
 """
 
 import os
+import hashlib
 
 # Python 2 and 3 support
 from future.utils import string_types
@@ -592,7 +593,7 @@ def confirm(request):
         else:
             return HTTPFound('/error?msg=already-confirmed')
 
-    token = get_secure_rand_token()
+    token = hashlib.sha1(key.encode()).hexdigest()
     key = encrypt("%s:%s" % (token, user.email), config.SECRET)
     user.password_set_token = token
     user.password_set_token_created = time()

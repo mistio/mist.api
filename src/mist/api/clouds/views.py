@@ -127,7 +127,7 @@ def add_cloud(request):
       description: Required for Vcloud
     password:
       type: string
-      description: Required for Nephoscale, OpenStack, Vcloud, vSphere
+      description: Required for OpenStack, Vcloud, vSphere
     port:
       type: integer
       description: Required for Vcloud
@@ -149,7 +149,6 @@ def add_cloud(request):
       - vsphere
       - ec2
       - rackspace
-      - nephoscale
       - digitalocean
       - softlayer
       - gce
@@ -195,7 +194,7 @@ def add_cloud(request):
       description: Required for Digitalocean
     username:
       type: string
-      description: Required for Nephoscale, Rackspace, OnApp, \
+      description: Required for Rackspace, OnApp, \
       SoftLayer, OpenStack, Vcloud, vSphere
     """
     auth_context = auth_context_from_request(request)
