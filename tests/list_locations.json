@@ -56,9 +56,6 @@
             {"country": "UNKNOWN", "id": "tor01", "name": "tor01"},
             {"country": "US", "id": "wdc01", "name": "Washington, DC"},
             {"country": "US", "id": "wdc04", "name": "Washington 4, DC"}],
-   "nephoscale":
-           [{"country": "US", "id": "86945", "name": "SJC-1"},
-             {"country": "US", "id": "87729", "name": "RIC-1"}],
    "rackspace":
            [{"country": "", "id": "0", "name": ""}],
   "gce":
