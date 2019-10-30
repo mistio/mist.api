@@ -1571,7 +1571,7 @@ MACHINE_EXPIRE_NOTIFY_EMAIL_BODY = """Dear %s,
 Your machine `%s` will expire on %s
 
 If you'd like to prevent that, please update the expiration date at %s
-
+%s
 Best regards,
 The mist.io team
 
