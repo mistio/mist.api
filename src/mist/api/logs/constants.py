@@ -67,7 +67,7 @@ CLOSES_STORY = (
     'rule_untriggered',
     'workflow_finished',
     'schedule_finished',
-) + tuple(a for v in JOBS.itervalues() for a in v) + ('end_job', )
+) + tuple(a for v in JOBS.values() for a in v) + ('end_job', )
 
 # Actions that can close an open incident.
 CLOSES_INCIDENT = (

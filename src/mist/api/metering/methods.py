@@ -117,8 +117,8 @@ def _parse_checks_or_datapoints_series(results, field, owner_id=''):
 
     # Backfill missing points with None.
     for start_iso, result in results:
-        for values in data.values():
-            timestamps = set(zip(*values)[0])
+        for values in list(data.values()):
+            timestamps = set(v[0] for v in values)
             if start_iso not in timestamps:
                 values.append([start_iso, None])
 
@@ -131,7 +131,7 @@ def _parse_checks_or_datapoints_series(results, field, owner_id=''):
                 'owner': o,
             },
             'values': values
-        } for o, values in data.iteritems()
+        } for o, values in data.items()
     ]
 
 
@@ -150,14 +150,14 @@ def _merge_series(ensure_keys=None, *series_lists):
                 if date not in data:
                     data[date] = usage
                 else:
-                    for k, v in usage.items():
+                    for k, v in list(usage.items()):
                         if k not in data[date] or data[date][k] is None:
                             data[date][k] = v
                         elif v is not None:
                             data[date][k] += v
 
     # Ensure keys exists. This is mostly to ensure compatibility.
-    for _, usage in data.iteritems():
+    for _, usage in data.items():
         for key in ensure_keys:
             usage.setdefault(key)
 
@@ -183,9 +183,11 @@ def _query_influxdb(query, owner_id):
 
     try:
         series_list = results[0]['series']
-    except (KeyError, IndexError):
+    except IndexError:
         # raise BadRequestError('Failed to parse results: %s' % results)
         log.error('Failed to parse results: %s', results)
+        series_list = []
+    except KeyError:
         series_list = []
     else:
         if owner_id and len(series_list) > 1:

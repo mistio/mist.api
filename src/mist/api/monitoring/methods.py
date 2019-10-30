@@ -77,15 +77,13 @@ def get_stats(machine, start='', stop='', step='', metrics=None):
         )
     elif machine.monitoring.method == 'telegraf-influxdb':
         if not metrics:
-            metrics = (config.INFLUXDB_BUILTIN_METRICS.keys() +
+            metrics = (list(config.INFLUXDB_BUILTIN_METRICS.keys()) +
                        machine.monitoring.metrics)
 
         # NOTE: For backwards compatibility.
         # Transform "min" and "sec" to "m" and "s", respectively.
-        start, stop, step = map(
-            lambda x: re.sub('in|ec', repl='', string=x),
-            (start.strip('-'), stop.strip('-'), step)
-        )
+        start, stop, step = [re.sub('in|ec', repl='', string=x) for x in (
+            start.strip('-'), stop.strip('-'), step)]
 
         # Fetch series.
         results = {}
@@ -130,17 +128,15 @@ def get_load(owner, start='', stop='', step='', uuids=None):
                                           step=step, uuids=graphite_uuids)
     if influx_uuids:
         # Transform "min" and "sec" to "m" and "s", respectively.
-        _start, _stop, _step = map(
-            lambda x: re.sub('in|ec', repl='', string=x),
-            (start.strip('-'), stop.strip('-'), step)
-        )
+        _start, _stop, _step = [re.sub('in|ec', repl='', string=x) for x in (
+            start.strip('-'), stop.strip('-'), step)]
         influx_data = InfluxMultiLoadHandler(influx_uuids).get_stats(
             metric='system.load1',
             start=_start, stop=_stop, step=_step,
         )
 
     if graphite_data or influx_data:
-        return dict(graphite_data.items() + influx_data.items())
+        return dict(list(graphite_data.items()) + list(influx_data.items()))
     else:
         raise NotFoundError('No machine has monitoring enabled')
 
@@ -149,7 +145,7 @@ def check_monitoring(owner):
     """Return the monitored machines, enabled metrics, and user details."""
 
     custom_metrics = owner.get_metrics_dict()
-    for metric in custom_metrics.values():
+    for metric in list(custom_metrics.values()):
         metric['machines'] = []
 
     monitored_machines = []
@@ -264,7 +260,7 @@ def enable_monitoring(owner, cloud_id, machine_id, no_ssh=False, dry=False,
 
     # Ret dict
     ret_dict = {'extra_vars': extra_vars}
-    for os_type, cmd in machine.monitoring.get_commands().items():
+    for os_type, cmd in list(machine.monitoring.get_commands().items()):
         ret_dict['%s_command' % os_type] = cmd
     # for backwards compatibility
     ret_dict['command'] = ret_dict['unix_command']

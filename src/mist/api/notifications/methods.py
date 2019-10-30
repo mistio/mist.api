@@ -1,6 +1,13 @@
 import os
 import json
-import urllib
+
+# Python 2 and 3 support
+from future.standard_library import install_aliases
+install_aliases()
+import urllib.request
+import urllib.parse
+import urllib.error
+
 import logging
 
 from chameleon import PageTemplateFile
@@ -97,7 +104,8 @@ def send_alert_email(rule, resource, incident_id, value, triggered, timestamp,
         return
 
     # Create the e-mail body.
-    subject = '[mist.io] *** %(state)s *** from %(name)s: %(metric_name)s'
+    subject = \
+        '[%(portal_name)s] *** %(state)s *** from %(name)s: %(metric_name)s'
     alert.subject = subject % info
 
     pt = os.path.join(os.path.dirname(__file__), 'templates/text_alert.pt')
@@ -165,7 +173,7 @@ def suppress_nodata_alert(rule):
         token = {'token': encrypt(json.dumps(params))}
         mac_sign(token)
         return '%s/suppressed-alerts?%s' % (config.CORE_URI,
-                                            urllib.urlencode(token))
+                                            urllib.parse.urlencode(token))
 
     # Otherwise, suppress e-mail notification and notify the portal's admins.
     d = {
@@ -200,9 +208,10 @@ def dismiss_scale_notifications(machine, feedback='NEUTRAL'):
     # Marking the recommendation as "dismissed by everyone" seems a bit wrong.
     # Perhaps recommendations' actions such as this one must be invoked by a
     # distinct API endpoint?
-    recommendation.applied = feedback == "POSITIVE"
-    user_ids = set(user.id for user in machine.owner.members)
-    user_ids ^= set(recommendation.dismissed_by)
-    recommendation.channel.dismiss(
-        users=[user for user in User.objects(id__in=user_ids).only('id')]
-    )
+    if recommendation is not None:
+        recommendation.applied = feedback == "POSITIVE"
+        user_ids = set(user.id for user in machine.owner.members)
+        user_ids ^= set(recommendation.dismissed_by)
+        recommendation.channel.dismiss(
+            users=[user for user in User.objects(id__in=user_ids).only('id')]
+        )

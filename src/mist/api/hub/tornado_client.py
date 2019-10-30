@@ -8,6 +8,8 @@ import tornado.ioloop
 import mist.api.amqp_tornado
 import mist.api.hub.main
 
+from future.utils import string_types
+
 from mist.api import config
 
 
@@ -63,10 +65,14 @@ class _HubTornadoConsumer(mist.api.amqp_tornado.Consumer):
         super(_HubTornadoConsumer, self).on_message(
             unused_channel, basic_deliver, properties, body
         )
+        exc = None
+        if isinstance(body, bytes):
+            body = body.decode()
         if properties.content_type == 'application/json':
             try:
                 body = json.loads(body)
-            except (ValueError, TypeError) as exc:
+            except (ValueError, TypeError) as e:
+                exc = e
                 log.error("%s: Error %s loading json msg %r.",
                           self.lbl, exc, body)
         routing_key = basic_deliver.routing_key
@@ -161,7 +167,7 @@ class HubClient(object):
         if not self.consumer.worker_id:
             raise Exception("Routing key not yet received in RPC response.")
         routing_key = '%s.%s' % (self.consumer.worker_id, action)
-        if isinstance(msg, basestring):
+        if isinstance(msg, string_types):
             self.consumer._channel.basic_publish(exchange=self.exchange,
                                                  routing_key=routing_key,
                                                  body=msg)
@@ -193,11 +199,11 @@ class EchoHubClient(HubClient):
         self.timer.start()
 
     def ping(self):
-        print 'Sending echo request: ping'
+        print('Sending echo request: ping')
         self.send_to_worker('echo', 'ping')
 
     def on_echo(self, msg):
-        print 'Received message:', msg
+        print('Received message:', msg)
 
 
 def prepare_logging(verbosity=2):

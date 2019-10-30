@@ -11,6 +11,7 @@ from mist.api.users.models import Organization
 from mist.api.dns.controllers import ZoneController, RecordController
 from mist.api.clouds.controllers.dns.base import BaseDNSController
 from mist.api.ownership.mixins import OwnershipMixin
+from mist.api.mongoengine_extras import MistDictField
 
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import RequiredParameterMissingError
@@ -23,7 +24,7 @@ RECORDS = {}
 
 def _populate_records():
     """Populates RECORDS variable with mappings from types to records"""
-    for key, value in globals().items():
+    for key, value in list(globals().items()):
         if key.endswith('Record') and key != 'Record':
             value = globals()[key]
             if issubclass(value, Record) and value is not Record:
@@ -36,13 +37,14 @@ class Zone(OwnershipMixin, me.Document):
     """
 
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
-    owner = me.ReferenceField('Organization', required=True)
+    owner = me.ReferenceField('Organization', required=True,
+                              reverse_delete_rule=me.CASCADE)
 
     zone_id = me.StringField(required=True)
     domain = me.StringField(required=True)
     type = me.StringField(required=True)
     ttl = me.IntField(required=True, default=0)
-    extra = me.DictField()
+    extra = MistDictField()
     cloud = me.ReferenceField(Cloud, required=True,
                               reverse_delete_rule=me.CASCADE)
 
@@ -97,7 +99,7 @@ class Zone(OwnershipMixin, me.Document):
 
     def delete(self):
         super(Zone, self).delete()
-        Tag.objects(resource=self).delete()
+        Tag.objects(resource_id=self.id, resource_type='zone').delete()
         self.owner.mapper.remove(self)
         if self.owned_by:
             self.owned_by.get_ownership_mapper(self.owner).remove(self)
@@ -105,7 +107,9 @@ class Zone(OwnershipMixin, me.Document):
     @property
     def tags(self):
         """Return the tags of this zone."""
-        return {tag.key: tag.value for tag in Tag.objects(resource=self)}
+        return {tag.key: tag.value
+                for tag in Tag.objects(
+                    resource_id=self.id, resource_type='zone')}
 
     def as_dict(self):
         """Return a dict with the model values."""
@@ -145,13 +149,14 @@ class Record(OwnershipMixin, me.Document):
     name = me.StringField(required=True)
     type = me.StringField(required=True)
     rdata = me.ListField(required=True)
-    extra = me.DictField()
+    extra = MistDictField()
     ttl = me.IntField(default=0)
     # This ensures that any records that are under a zone are also deleted when
     # we delete the zone.
     zone = me.ReferenceField(Zone, required=True,
                              reverse_delete_rule=me.CASCADE)
-    owner = me.ReferenceField('Organization', required=True)
+    owner = me.ReferenceField('Organization', required=True,
+                              reverse_delete_rule=me.CASCADE)
 
     deleted = me.DateTimeField()
 
@@ -213,7 +218,7 @@ class Record(OwnershipMixin, me.Document):
 
     def delete(self):
         super(Record, self).delete()
-        Tag.objects(resource=self).delete()
+        Tag.objects(resource_id=self.id, resource_type='record').delete()
         self.zone.owner.mapper.remove(self)
         if self.owned_by:
             self.owned_by.get_ownership_mapper(self.owner).remove(self)
@@ -231,7 +236,9 @@ class Record(OwnershipMixin, me.Document):
     @property
     def tags(self):
         """Return the tags of this record."""
-        return {tag.key: tag.value for tag in Tag.objects(resource=self)}
+        return {tag.key: tag.value
+                for tag in Tag.objects(resource_id=self.id,
+                                       resource_type='record')}
 
     def as_dict(self):
         """ Return a dict with the model values."""
@@ -258,10 +265,11 @@ class ARecord(Record):
         """Overriding the default clean method to implement param checking"""
         super(ARecord, self).clean()
         try:
-            ip_addr = self.rdata[0].decode('utf-8')
+            ip_addr = self.rdata[0]
             ip.ip_address(ip_addr)
         except ValueError:
-            raise me.ValidationError('IPv4 address provided is not valid')
+            raise me.ValidationError('IPv4 address provided is not valid %s' %
+                                     self.rdata)
         if not len(self.rdata) == 1:
             raise me.ValidationError('We cannot have more than one rdata'
                                      'values for this type of record.')
@@ -275,7 +283,7 @@ class AAAARecord(Record):
         """Overriding the default clean method to implement param checking"""
         super(AAAARecord, self).clean()
         try:
-            ip_addr = self.rdata[0].decode('utf-8')
+            ip_addr = self.rdata[0]
             ip.ip_address(ip_addr)
         except ValueError:
             raise me.ValidationError('IPv6 address provided is not valid')

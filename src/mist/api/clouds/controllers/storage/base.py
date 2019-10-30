@@ -157,8 +157,16 @@ class BaseStorageController(BaseController):
             except Exception as exc:
                 log.exception('Error post-parsing %s: %s', volume, exc)
 
+            # Update with available volume actions.
+            try:
+                self._list_volumes__volume_actions(volume, libcloud_volume)
+            except Exception as exc:
+                log.exception("Error while finding volume actions "
+                              "for volume %s:%s for %s",
+                              volume.id, libcloud_volume.name, self.cloud)
+
             # Ensure JSON-encoding.
-            for key, value in volume.extra.iteritems():
+            for key, value in volume.extra.items():
                 try:
                     json.dumps(value)
                 except TypeError:
@@ -169,7 +177,7 @@ class BaseStorageController(BaseController):
             except mongoengine.errors.ValidationError as exc:
                 log.error("Error updating %s: %s", volume, exc.to_dict())
                 raise mist.api.exceptions.BadRequestError(
-                    {"msg": exc.message, "errors": exc.to_dict()}
+                    {"msg": str(exc), "errors": exc.to_dict()}
                 )
             except mongoengine.errors.NotUniqueError as exc:
                 log.error("Volume %s is not unique: %s", volume.name, exc)
@@ -184,7 +192,7 @@ class BaseStorageController(BaseController):
         ).update(missing_since=datetime.datetime.utcnow())
 
         # Update RBAC Mappings given the list of new volumes.
-        self.cloud.owner.mapper.update(new_volumes, async=False)
+        self.cloud.owner.mapper.update(new_volumes, asynchronous=False)
 
         return volumes
 
@@ -220,7 +228,7 @@ class BaseStorageController(BaseController):
 
         :param kwargs: A dict of parameters required for volume creation.
         """
-        for param in ('name', 'size', ):
+        for param in ('size', ):
             if not kwargs.get(param):
                 raise mist.api.exceptions.RequiredParameterMissingError(param)
 
@@ -238,9 +246,10 @@ class BaseStorageController(BaseController):
         # object at the API. Try 3 times before failing
         for _ in range(3):
             for volume in self.list_volumes():
-                if volume.external_id == libvol.id:
+                # ARM is inconsistent when it comes to lowercase...
+                if volume.external_id.lower() == libvol.id.lower():
                     return volume
-            time.sleep(1)
+            time.sleep(5)
         raise mist.api.exceptions.VolumeListingError()
 
     def _create_volume__prepare_args(self, kwargs):
@@ -269,6 +278,32 @@ class BaseStorageController(BaseController):
         :param libcloud_volume: A libcloud volume object.
         """
         return
+
+    def _list_volumes__volume_actions(self, volume, libcloud_volume):
+        """Add metadata on the volume dict on the allowed actions
+
+        Any subclass that wishes to specially handle its allowed actions, can
+        implement this internal method.
+
+        volume: A volume mongoengine model. The model may not have yet
+            been saved in the database.
+        libcloud_volume: An instance of a libcloud volume, as
+            returned by libcloud's list_volumes.
+        This method is expected to edit `volume` in place and not return
+        anything.
+
+        Subclasses MAY extend this method.
+
+        """
+        volume.actions.tag = True
+        if volume.attached_to:
+            volume.actions.detach = True
+            volume.actions.attach = False
+            volume.actions.delete = False
+        else:
+            volume.actions.attach = True
+            volume.actions.delete = True
+            volume.actions.detach = False
 
     @LibcloudExceptionHandler(mist.api.exceptions.VolumeDeletionError)
     def delete_volume(self, volume):
@@ -305,6 +340,7 @@ class BaseStorageController(BaseController):
     def _attach_volume(self, libcloud_volume, libcloud_node, **kwargs):
         self.cloud.ctl.compute.connection.attach_volume(libcloud_node,
                                                         libcloud_volume)
+        self.list_volumes()
 
     @LibcloudExceptionHandler(mist.api.exceptions.VolumeAttachmentError)
     def detach_volume(self, volume, machine):
@@ -322,8 +358,12 @@ class BaseStorageController(BaseController):
         self._detach_volume(libcloud_volume, libcloud_node)
 
     def _detach_volume(self, libcloud_volume, libcloud_node):
-        self.cloud.ctl.compute.connection.detach_volume(libcloud_volume,
-                                                        libcloud_node)
+        try:
+            self.cloud.ctl.compute.connection.detach_volume(
+                libcloud_volume, ex_node=libcloud_node)
+        except TypeError:
+            self.cloud.ctl.compute.connection.detach_volume(libcloud_volume)
+        self.list_volumes()
 
     def get_libcloud_volume(self, volume):
         """Returns an instance of a libcloud volume.

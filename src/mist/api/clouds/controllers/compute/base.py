@@ -22,7 +22,7 @@ import mongoengine as me
 
 from libcloud.common.types import InvalidCredsError
 from libcloud.compute.types import NodeState
-from libcloud.compute.base import NodeLocation, Node, NodeSize
+from libcloud.compute.base import NodeLocation, Node, NodeSize, NodeImage
 from libcloud.common.exceptions import BaseHTTPError
 from mist.api.clouds.utils import LibcloudExceptionHandler
 
@@ -81,7 +81,7 @@ def _decide_machine_cost(machine, tags=None, cost=(0, 0)):
 
     # Get machine tags from db
     tags = tags or {tag.key: tag.value for tag in Tag.objects(
-        resource=machine,
+        resource_id=machine.id, resource_type='machine'
     )}
 
     try:
@@ -89,7 +89,7 @@ def _decide_machine_cost(machine, tags=None, cost=(0, 0)):
         cpm = parse_num(tags.get('cost_per_month'))
         if not (cph or cpm) or cph > 100 or cpm > 100 * 24 * 31:
             log.debug("Invalid cost tags for machine %s", machine)
-            cph, cpm = map(parse_num, cost)
+            cph, cpm = list(map(parse_num, cost))
         if not cph:
             cph = float(cpm) / month_days / 24
         elif not cpm:
@@ -229,11 +229,14 @@ class BaseComputeController(BaseController):
                         for m in fresh_machines}
         # Exclude last seen and probe fields from patch.
         for md in old_machines, new_machines:
-            for m in md.values():
+            for m in list(md.values()):
                 m.pop('last_seen')
                 m.pop('probe')
                 if m.get('extra') and m['extra'].get('ports'):
-                    m['extra']['ports'] = sorted(m['extra']['ports'])
+                    m['extra']['ports'] = sorted(
+                        m['extra']['ports'],
+                        key=lambda x: x.get('PublicPort', 0) * 100000 + x.get(
+                            'PrivatePort', 0))
         patch = jsonpatch.JsonPatch.from_diff(old_machines,
                                               new_machines).patch
         if patch:  # Publish patches to rabbitmq.
@@ -271,7 +274,7 @@ class BaseComputeController(BaseController):
         except InvalidCredsError as exc:
             log.warning("Invalid creds on running list_nodes on %s: %s",
                         self.cloud, exc)
-            raise CloudUnauthorizedError(msg=exc.message)
+            raise CloudUnauthorizedError(msg=str(exc))
         except (requests.exceptions.SSLError, ssl.SSLError) as exc:
             log.error("SSLError on running list_nodes on %s: %s",
                       self.cloud, exc)
@@ -317,8 +320,14 @@ class BaseComputeController(BaseController):
                 machine = Machine.objects.get(cloud=self.cloud,
                                               machine_id=node.id)
             except Machine.DoesNotExist:
-                machine = Machine(cloud=self.cloud, machine_id=node.id).save()
-                new_machines.append(machine)
+                try:
+                    machine = Machine(
+                        cloud=self.cloud, machine_id=node.id).save()
+                    new_machines.append(machine)
+                except me.ValidationError as exc:
+                    log.warn("Validation error when saving new machine: %r" %
+                             exc)
+                    continue
 
             # Update machine_model's last_seen fields.
             machine.last_seen = now
@@ -334,7 +343,9 @@ class BaseComputeController(BaseController):
 
             # Get misc libcloud metadata.
             image_id = ''
-            if isinstance(node.extra.get('image'), dict):
+            if isinstance(node.image, NodeImage):
+                image_id = node.image.id
+            elif isinstance(node.extra.get('image'), dict):
                 image_id = str(node.extra.get('image').get('id'))
 
             if not image_id:
@@ -364,7 +375,7 @@ class BaseComputeController(BaseController):
             # later on in the HTTP response.
             extra = self._list_machines__get_machine_extra(machine, node)
 
-            for key, val in extra.items():
+            for key, val in list(extra.items()):
                 try:
                     json.dumps(val)
                 except TypeError:
@@ -445,7 +456,7 @@ class BaseComputeController(BaseController):
                 machine.save()
             except me.ValidationError as exc:
                 log.error("Error adding %s: %s", machine.name, exc.to_dict())
-                raise BadRequestError({"msg": exc.message,
+                raise BadRequestError({"msg": str(exc),
                                        "errors": exc.to_dict()})
             except me.NotUniqueError as exc:
                 log.error("Machine %s not unique error: %s", machine.name, exc)
@@ -482,7 +493,7 @@ class BaseComputeController(BaseController):
                         missing_since=None).update(missing_since=now)
 
         # Update RBAC Mappings given the list of nodes seen for the first time.
-        self.cloud.owner.mapper.update(new_machines, async=False)
+        self.cloud.owner.mapper.update(new_machines, asynchronous=False)
 
         # Update machine counts on cloud and org.
         # FIXME: resolve circular import issues
@@ -519,7 +530,8 @@ class BaseComputeController(BaseController):
         for action in ('start', 'stop', 'reboot', 'destroy', 'rename',
                        'resume', 'suspend', 'undefine', 'remove'):
             setattr(machine.actions, action, False)
-        if machine.key_associations:
+        from mist.api.machines.models import KeyMachineAssociation
+        if KeyMachineAssociation.objects(machine=machine).count():
             machine.actions.reboot = True
         machine.actions.tag = True
 
@@ -702,7 +714,7 @@ class BaseComputeController(BaseController):
 
         # Filter out duplicate images, if any.
         seen_ids = set()
-        for i in reversed(xrange(len(images))):
+        for i in reversed(range(len(images))):
             image = images[i]
             if image.id in seen_ids:
                 images.pop(i)
@@ -816,7 +828,7 @@ class BaseComputeController(BaseController):
         except InvalidCredsError as exc:
             log.warning("Invalid creds on running list_sizes on %s: %s",
                         self.cloud, exc)
-            raise CloudUnauthorizedError(msg=exc.message)
+            raise CloudUnauthorizedError(msg=str(exc))
         except (requests.exceptions.SSLError, ssl.SSLError) as exc:
             log.error("SSLError on running list_sizes on %s: %s",
                       self.cloud, exc)
@@ -861,7 +873,7 @@ class BaseComputeController(BaseController):
                 sizes.append(_size)
             except me.ValidationError as exc:
                 log.error("Error adding %s: %s", size.name, exc.to_dict())
-                raise BadRequestError({"msg": exc.message,
+                raise BadRequestError({"msg": str(exc),
                                        "errors": exc.to_dict()})
 
         # Update missing_since for sizes not returned by libcloud
@@ -987,7 +999,7 @@ class BaseComputeController(BaseController):
                 _location.save()
             except me.ValidationError as exc:
                 log.error("Error adding %s: %s", loc.name, exc.to_dict())
-                raise BadRequestError({"msg": exc.message,
+                raise BadRequestError({"msg": str(exc),
                                        "errors": exc.to_dict()})
             locations.append(_location)
 
@@ -1083,7 +1095,7 @@ class BaseComputeController(BaseController):
             raise
         except Exception as exc:
             log.exception(exc)
-            raise InternalServerError(exc.message)
+            raise InternalServerError(str(exc))
 
     def _start_machine(self, machine, machine_libcloud):
         """Private method to start a given machine
@@ -1241,8 +1253,9 @@ class BaseComputeController(BaseController):
             log.exception(exc)
             raise InternalServerError(exc=exc)
 
-        while machine.key_associations:
-            machine.key_associations.pop()
+        from mist.api.machines.models import KeyMachineAssociation
+        KeyMachineAssociation.objects(machine=machine).delete()
+
         machine.state = 'terminated'
         machine.save()
         return ret
@@ -1355,7 +1368,7 @@ class BaseComputeController(BaseController):
             raise
         except Exception as exc:
             log.exception(exc)
-            raise InternalServerError(exc.message)
+            raise InternalServerError(str(exc))
 
     def _rename_machine(self, machine, machine_libcloud, name):
         """Private method to rename a given machine
@@ -1447,7 +1460,7 @@ class BaseComputeController(BaseController):
             raise
         except Exception as exc:
             log.exception(exc)
-            raise InternalServerError(exc.message)
+            raise InternalServerError(str(exc))
 
     def _suspend_machine(self, machine, machine_libcloud):
         """Private method to suspend a given machine
@@ -1494,7 +1507,7 @@ class BaseComputeController(BaseController):
             raise
         except Exception as exc:
             log.exception(exc)
-            raise BadRequestError(exc.message)
+            raise BadRequestError(str(exc))
 
     def _undefine_machine(self, machine, machine_libcloud):
         """Private method to undefine a given machine
@@ -1546,7 +1559,7 @@ class BaseComputeController(BaseController):
             raise
         except Exception as exc:
             log.exception(exc)
-            raise BadRequestError(exc.message)
+            raise BadRequestError(str(exc))
 
     def _create_machine_snapshot(self, machine, machine_libcloud,
                                  snapshot_name, description='',
@@ -1601,7 +1614,7 @@ class BaseComputeController(BaseController):
             raise
         except Exception as exc:
             log.exception(exc)
-            raise BadRequestError(exc.message)
+            raise BadRequestError(str(exc))
 
     def _remove_machine_snapshot(self, machine, machine_libcloud,
                                  snapshot_name=None):
@@ -1653,7 +1666,7 @@ class BaseComputeController(BaseController):
             raise
         except Exception as exc:
             log.exception(exc)
-            raise BadRequestError(exc.message)
+            raise BadRequestError(str(exc))
 
     def _revert_machine_to_snapshot(self, machine, machine_libcloud,
                                     snapshot_name=None):
@@ -1701,7 +1714,7 @@ class BaseComputeController(BaseController):
             raise
         except Exception as exc:
             log.exception(exc)
-            raise InternalServerError(exc.message)
+            raise InternalServerError(str(exc))
 
     def _list_machine_snapshots(self, machine, machine_libcloud):
         """Private method to list a given machine's snapshots

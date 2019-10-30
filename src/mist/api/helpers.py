@@ -21,7 +21,14 @@ import random
 import socket
 import smtplib
 import logging
-import urlparse
+import codecs
+
+# Python 2 and 3 support
+from future.utils import string_types
+from future.standard_library import install_aliases
+install_aliases()
+import urllib.parse
+
 import datetime
 import tempfile
 import traceback
@@ -69,6 +76,7 @@ from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import PolicyUnauthorizedError
 
 from mist.api import config
+from functools import reduce
 
 if config.HAS_RBAC:
     from mist.rbac.tokens import SuperToken
@@ -119,7 +127,7 @@ def get_temp_file(content, dir=None):
     """
     (tmp_fd, tmp_path) = tempfile.mkstemp(dir=dir)
     f = os.fdopen(tmp_fd, 'w+b')
-    f.write(content)
+    f.write(bytes(content, 'utf-8'))
     f.close()
     try:
         yield tmp_path
@@ -263,10 +271,10 @@ def dirty_cow(os, os_version, kernel_version):
         else:
             return False
 
-    if os not in vulnerables.keys():
+    if os not in list(vulnerables.keys()):
         return None
 
-    if os_version not in vulnerables[os].keys():
+    if os_version not in list(vulnerables[os].keys()):
         return None
 
     vuln_version = vulnerables[os][os_version]
@@ -530,25 +538,24 @@ def check_host(host, allow_localhost=config.ALLOW_CONNECT_LOCALHOST):
         forbidden_subnets['127.0.0.0/8'] = ("used for loopback addresses "
                                             "to the local host")
 
-    cidr = netaddr.smallest_matching_cidr(ipaddr, forbidden_subnets.keys())
+    cidr = netaddr.smallest_matching_cidr(ipaddr,
+                                          list(forbidden_subnets.keys()))
     if cidr:
         raise MistError("%s is not allowed. It belongs to '%s' "
                         "which is %s." % (msg, cidr,
                                           forbidden_subnets[str(cidr)]))
 
 
-def transform_key_machine_associations(machines, key):
-    key_associations = []
-    for machine in machines:
-        for key_assoc in machine.key_associations:
-            if key_assoc.keypair == key:
-                key_associations.append([machine.cloud.id,
-                                        machine.machine_id,
-                                        key_assoc.last_used,
-                                        key_assoc.ssh_user,
-                                        key_assoc.sudo,
-                                        key_assoc.port])
-    return key_associations
+def transform_key_machine_associations(associations):
+    return [
+        [association.machine.cloud.id,
+         association.machine.machine_id,
+         association.last_used,
+         association.ssh_user,
+         association.sudo,
+         association.port]
+        for association in associations
+    ]
 
 
 def get_datetime(timestamp):
@@ -567,7 +574,7 @@ def get_datetime(timestamp):
             return datetime.datetime.fromtimestamp(timestamp / 1000)
         except ValueError:
             pass
-    elif isinstance(timestamp, basestring):
+    elif isinstance(timestamp, string_types):
         try:
             timestamp = float(timestamp)
         except (ValueError, TypeError):
@@ -613,10 +620,10 @@ def snake_to_camel(s):
 
 def ip_from_request(request):
     """Extract IP address from HTTP Request headers."""
-    return (request.get('HTTP_X_REAL_IP') or
-            request.get('HTTP_X_FORWARDED_FOR') or
-            request.get('REMOTE_ADDR') or
-            '0.0.0.0')
+    return (request.environ.get('HTTP_X_REAL_IP') or
+            request.environ.get('HTTP_X_FORWARDED_FOR') or
+            request.environ.get('REMOTE_ADDR') or
+            '0.0.0.0').split(',')[0].strip()
 
 
 def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3,
@@ -629,21 +636,15 @@ def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3,
     sender: the email address of the sender. default value taken from config
 
     """
-    if isinstance(subject, str):
-        subject = subject.decode('utf-8', 'ignore')
-
     if not sender:
         sender = config.EMAIL_FROM
-    if isinstance(recipients, basestring):
+    if isinstance(recipients, string_types):
         recipients = [recipients]
-
-    if isinstance(body, str):
-        body = body.decode('utf8')
 
     if html_body:
         msg = MIMEMultipart('alternative')
     else:
-        msg = MIMEText(body.encode('utf-8', 'ignore'), 'plain')
+        msg = MIMEText(body, 'plain')
 
     msg["Subject"] = subject
     msg["From"] = sender
@@ -707,7 +708,9 @@ rtype_to_classpath = {
     'schedule': 'mist.api.schedules.models.Schedule',
     'network': 'mist.api.networks.models.Network',
     'subnet': 'mist.api.networks.models.Subnet',
-    'volume': 'mist.api.volumes.models.Volume'
+    'volume': 'mist.api.volumes.models.Volume',
+    'location': 'mist.api.clouds.models.CloudLocation',
+    'image': 'mist.api.clouds.models.CloudImage',
 }
 
 if config.HAS_VPN:
@@ -771,18 +774,21 @@ def encrypt(plaintext, key=config.SECRET, key_salt='', no_iv=False):
     """Encrypt shit the right way"""
 
     # sanitize inputs
-    key = SHA256.new(key + key_salt).digest()
+    key = SHA256.new((key + key_salt).encode()).digest()
     if len(key) not in AES.key_size:
         raise Exception()
-    if isinstance(plaintext, unicode):
+    if isinstance(plaintext, string_types):
         plaintext = plaintext.encode('utf-8')
 
     # pad plaintext using PKCS7 padding scheme
     padlen = AES.block_size - len(plaintext) % AES.block_size
-    plaintext += chr(padlen) * padlen
+    plaintext += (chr(padlen) * padlen).encode('utf-8')
 
     # generate random initialization vector using CSPRNG
-    iv = '\0' * AES.block_size if no_iv else get_random_bytes(AES.block_size)
+    if no_iv:
+        iv = ('\0' * AES.block_size).encode()
+    else:
+        iv = get_random_bytes(AES.block_size)
 
     # encrypt using AES in CFB mode
     ciphertext = AES.new(key, AES.MODE_CFB, iv).encrypt(plaintext)
@@ -792,20 +798,20 @@ def encrypt(plaintext, key=config.SECRET, key_salt='', no_iv=False):
         ciphertext = iv + ciphertext
 
     # return ciphertext in hex encoding
-    return ciphertext.encode('hex')
+    return ciphertext.hex()
 
 
 def decrypt(ciphertext, key=config.SECRET, key_salt='', no_iv=False):
     """Decrypt shit the right way"""
 
     # sanitize inputs
-    key = SHA256.new(key + key_salt).digest()
+    key = SHA256.new((key + key_salt).encode()).digest()
     if len(key) not in AES.key_size:
         raise Exception()
     if len(ciphertext) % AES.block_size:
         raise Exception()
     try:
-        ciphertext = ciphertext.decode('hex')
+        ciphertext = codecs.decode(ciphertext, 'hex')
     except TypeError:
         log.warning("Ciphertext wasn't given as a hexadecimal string.")
 
@@ -817,7 +823,7 @@ def decrypt(ciphertext, key=config.SECRET, key_salt='', no_iv=False):
         ciphertext = ciphertext[AES.block_size:]
 
     # decrypt ciphertext using AES in CFB mode
-    plaintext = AES.new(key, AES.MODE_CFB, iv).decrypt(ciphertext)
+    plaintext = AES.new(key, AES.MODE_CFB, iv).decrypt(ciphertext).decode()
 
     # validate padding using PKCS7 padding scheme
     padlen = ord(plaintext[-1])
@@ -844,7 +850,7 @@ def logging_view_decorator(func):
         # and handled by exception handler (otherwise we got exception_handler
         # as view_name)
         if not hasattr(request, 'real_view_name'):
-            request.real_view_name = func.func_name
+            request.real_view_name = func.__name__
 
         # check if exception occurred
         try:
@@ -993,7 +999,7 @@ def logging_view_decorator(func):
         if log_dict.get('action', '') == 'add_template':
             if params.get('location_type') == 'github':
                 git_url = params.get('template_github', '')
-                git_password = urlparse.urlparse(git_url).password
+                git_password = urllib.parse.urlparse(git_url).password
                 if git_password:
                     params['template_github'] = git_url.replace(git_password,
                                                                 '*password*')
@@ -1083,7 +1089,7 @@ def logging_view_decorator(func):
         lines.append("Exception type: %s" % log_dict.pop('_exc_type'))
         lines.append("Time: %s" % strftime("%Y-%m-%d %H:%M %Z"))
         lines += (
-            ["%s: %s" % (key, value) for key, value in log_dict.items()
+            ["%s: %s" % (key, value) for key, value in list(log_dict.items())
              if value and key != '_traceback']
         )
         for key in ('owner', 'user', 'sudoer'):
@@ -1138,9 +1144,9 @@ class AsyncElasticsearch(EsClient):
         return super(AsyncElasticsearch, self).mk_req(url, **kwargs)
 
 
-def es_client(async=False):
+def es_client(asynchronous=False):
     """Returns an initialized Elasticsearch client."""
-    if not async:
+    if not asynchronous:
         return Elasticsearch(
             config.ELASTICSEARCH['elastic_host'],
             port=config.ELASTICSEARCH['elastic_port'],
@@ -1206,7 +1212,7 @@ def mac_sign(kwargs=None, expires=None, key='', mac_len=0, mac_format='hex'):
         kwargs['_expires'] = int(time() + expires)
     parts = ["%s=%s" % (k, kwargs[k]) for k in sorted(kwargs.keys())]
     msg = "&".join(parts)
-    hmac = HMAC(str(key), msg=str(msg), digestmod=SHA256Hash())
+    hmac = HMAC(key.encode(), msg=msg.encode(), digestmod=SHA256Hash())
     if mac_format == 'b64':
         tag = urlsafe_b64encode(hmac.digest()).rstrip('=')
     elif mac_format == 'bin':
@@ -1254,17 +1260,8 @@ def maybe_submit_cloud_task(cloud, task_name):
     celery task.
 
     """
-    if task_name == 'list_zones':
-        if not (hasattr(cloud.ctl, 'dns') and cloud.dns_enabled):
-            return False
-    if task_name == 'list_networks':
-        if not hasattr(cloud.ctl, 'network'):
-            return False
     if task_name == 'list_projects':
         if cloud.ctl.provider != 'packet':
-            return False
-    if task_name in ('list_resource_groups', 'list_storage_accounts', ):
-        if cloud.ctl.provider != 'azure_arm':
             return False
     return True
 
@@ -1301,8 +1298,8 @@ def subscribe_log_events_raw(callback=None, routing_keys=('#')):
         def wrapped(msg):
             try:
                 # bring extra key-value pairs to top level
-                for key, val in json.loads(msg.body.pop('extra')).items():
-                    msg.body[key] = val
+                for k, v in list(json.loads(msg.body.pop('extra')).items()):
+                    msg.body[k] = v
             except:
                 pass
             return func(msg)
@@ -1313,18 +1310,18 @@ def subscribe_log_events_raw(callback=None, routing_keys=('#')):
         # print msg.delivery_info.get('routing_key'),
         try:
             if 'email' in event and 'type' in event and 'action' in event:
-                print event.pop('email'), event.pop('type'), \
-                    event.pop('action')
+                print(event.pop('email'), event.pop('type'),
+                      event.pop('action'))
             err = event.pop('error', False)
             if err:
-                print '  error:', err
+                print('  error:', err)
             time = event.pop('time')
             if time:
-                print '  date:', datetime.datetime.fromtimestamp(time)
-            for key, val in event.items():
-                print '  %s: %s' % (key, val)
+                print('  date:', datetime.datetime.fromtimestamp(time))
+            for key, val in list(event.items()):
+                print('  %s: %s' % (key, val))
         except:
-            print event
+            print(event)
 
     if callback is None:
         callback = echo

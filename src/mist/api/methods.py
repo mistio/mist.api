@@ -1,7 +1,4 @@
-import os
 import re
-import shutil
-import tempfile
 import subprocess
 
 import pingparsing
@@ -18,19 +15,13 @@ from libcloud.dns.types import Provider as DnsProvider
 from libcloud.dns.types import RecordType
 from libcloud.dns.providers import get_driver as get_dns_driver
 
-import ansible.playbook
-import ansible.utils.template
-import ansible.callbacks
-import ansible.utils
-import ansible.constants
-
 from mist.api.shell import Shell
 
 from mist.api.exceptions import MistError
 from mist.api.exceptions import RequiredParameterMissingError
+from mist.api.exceptions import CloudNotFoundError
 
 from mist.api.helpers import amqp_publish_user
-from mist.api.helpers import StdStreamCapture
 
 from mist.api.helpers import dirty_cow, parse_os_release
 
@@ -79,6 +70,34 @@ def ssh_command(owner, cloud_id, machine_id, host, command,
     retval, output = shell.command(command)
     shell.disconnect()
     return output
+
+
+def list_locations(owner, cloud_id, cached=False):
+    """List the locations of the specified cloud"""
+    try:
+        cloud = Cloud.objects.get(owner=owner, id=cloud_id)
+    except Cloud.DoesNotExist:
+        raise CloudNotFoundError()
+    if cached:
+        locations = cloud.ctl.compute.list_cached_locations()
+    else:
+        locations = cloud.ctl.compute.list_locations()
+    return [location.as_dict() for location in locations]
+
+
+def filter_list_locations(auth_context, cloud_id, locations=None, perm='read',
+                          cached=False):
+    """Filter the locations of the specific cloud based on RBAC policy"""
+    if locations is None:
+        locations = list_locations(auth_context.owner, cloud_id, cached)
+    if not auth_context.is_owner():
+        allowed_resources = auth_context.get_allowed_resources(perm)
+        if cloud_id not in allowed_resources['clouds']:
+            return {'cloud_id': cloud_id, 'locations': []}
+        for i in range(len(locations) - 1, -1, -1):
+            if locations[i]['id'] not in allowed_resources['locations']:
+                locations.pop(i)
+    return locations
 
 
 def list_images(owner, cloud_id, term=None):
@@ -142,24 +161,18 @@ def list_resource_groups(owner, cloud_id):
     this returns an empty list
     """
     cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
-    conn = connect_provider(cloud)
 
-    ret = {}
-    if conn.type in [Provider.AZURE_ARM]:
+    if cloud.ctl.provider in ['azure_arm']:
+        conn = connect_provider(cloud)
         groups = conn.ex_list_resource_groups()
     else:
         groups = []
 
-    ret = [{'id': group.name,
+    ret = [{'id': group.id,
             'name': group.name,
             'extra': group.extra
             }
            for group in groups]
-    return ret
-
-    if conn.type == 'libvirt':
-        # close connection with libvirt
-        conn.disconnect()
     return ret
 
 
@@ -169,25 +182,38 @@ def list_storage_accounts(owner, cloud_id):
     this returns an empty list
     """
     cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
-    conn = connect_provider(cloud)
-
-    ret = {}
-    if conn.type in [Provider.AZURE_ARM]:
+    if cloud.ctl.provider in ['azure_arm']:
+        conn = connect_provider(cloud)
         accounts = conn.ex_list_storage_accounts()
     else:
         accounts = []
 
-    ret = [{'id': account.name,
-            'name': account.name,
-            'extra': account.extra
-            }
-           for account in accounts]
-    return ret
+    storage_accounts = []
+    resource_groups = conn.ex_list_resource_groups()
+    for account in accounts:
+        location_id = account.location
 
-    if conn.type == 'libvirt':
-        # close connection with libvirt
-        conn.disconnect()
-    return ret
+        # FIXME: circular import
+        from mist.api.clouds.models import CloudLocation
+        try:
+            location = CloudLocation.objects.get(external_id=location_id,
+                                                 cloud=cloud)
+        except CloudLocation.DoesNotExist:
+            pass
+        r_group_name = account.id.split('resourceGroups/')[1].split('/')[0]
+        r_group_id = ''
+        for resource_group in resource_groups:
+            if resource_group.name == r_group_name:
+                r_group_id = resource_group.id
+                break
+        storage_account = {'id': account.id,
+                           'name': account.name,
+                           'location': location.id if location else None,
+                           'extra': account.extra,
+                           'resource_group': r_group_id}
+        storage_accounts.append(storage_account)
+
+    return storage_accounts
 
 
 # TODO deprecate this!
@@ -300,7 +326,8 @@ def _ping_host(host, pkts=10):
     ping = subprocess.Popen(['ping', '-c', str(pkts), '-i', '0.4', '-W',
                              '1', '-q', host], stdout=subprocess.PIPE)
     ping_parser = pingparsing.PingParsing()
-    ping_parser.parse(ping.stdout.read())
+    output = ping.stdout.read()
+    ping_parser.parse(output.decode().replace('pipe 8\n', ''))
     return ping_parser.as_dict()
 
 
@@ -400,120 +427,12 @@ def notify_user(owner, title, message="", email_notify=True, **kwargs):
     if 'duration' in kwargs:
         body += "Duration: %.2f secs\n" % kwargs['duration']
     if 'output' in kwargs:
-        body += "Output: %s\n" % kwargs['output'].decode('utf-8', 'ignore')
+        body += "Output: %s\n" % kwargs['output']
 
     if email_notify:
         from mist.api.helpers import send_email
         email = owner.email if hasattr(owner, 'email') else owner.get_email()
-        send_email("[%s] %s" % (config.PORTAL_NAME, title),
-                   body.encode('utf-8', 'ignore'),
-                   email)
-
-
-def run_playbook(owner, cloud_id, machine_id, playbook_path, extra_vars=None,
-                 force_handlers=False, debug=False):
-    if not extra_vars:
-        extra_vars = None
-    ret_dict = {
-        'success': False,
-        'started_at': time(),
-        'finished_at': 0,
-        'stdout': '',
-        'error_msg': '',
-        'inventory': '',
-        'stats': {},
-    }
-    inventory = mist.api.inventory.MistInventory(owner,
-                                                 [(cloud_id, machine_id)])
-    if len(inventory.hosts) != 1:
-        log.error("Expected 1 host, found %s", inventory.hosts)
-        ret_dict['error_msg'] = "Expected 1 host, found %s" % inventory.hosts
-        ret_dict['finished_at'] = time()
-        return ret_dict
-    ret_dict['host'] = inventory.hosts.values()[0]['ansible_ssh_host']
-    machine_name = inventory.hosts.keys()[0]
-    log_prefix = "Running playbook '%s' on machine '%s'" % (playbook_path,
-                                                            machine_name)
-    files = inventory.export(include_localhost=False)
-    ret_dict['inventory'] = files['inventory']
-    tmp_dir = tempfile.mkdtemp()
-    old_dir = os.getcwd()
-    os.chdir(tmp_dir)
-    try:
-        log.debug("%s: Saving inventory files", log_prefix)
-        os.mkdir('id_rsa')
-        for name, data in files.items():
-            with open(name, 'w') as f:
-                f.write(data)
-        for name in os.listdir('id_rsa'):
-            os.chmod('id_rsa/%s' % name, 0600)
-        log.debug("%s: Inventory files ready", log_prefix)
-
-        playbook_path = '%s/%s' % (old_dir, playbook_path)
-        ansible_hosts_path = 'inventory'
-        # extra_vars['host_key_checking'] = False
-
-        ansible.utils.VERBOSITY = 4 if debug else 0
-        ansible.constants.HOST_KEY_CHECKING = False
-        ansible.constants.ANSIBLE_NOCOWS = True
-        stats = ansible.callbacks.AggregateStats()
-        playbook_cb = ansible.callbacks.PlaybookCallbacks(
-            verbose=ansible.utils.VERBOSITY
-        )
-        runner_cb = ansible.callbacks.PlaybookRunnerCallbacks(
-            stats, verbose=ansible.utils.VERBOSITY
-        )
-        log.error(old_dir)
-        log.error(tmp_dir)
-        log.error(extra_vars)
-        log.error(playbook_path)
-        capture = StdStreamCapture()
-        try:
-            playbook = ansible.playbook.PlayBook(
-                playbook=playbook_path,
-                host_list=ansible_hosts_path,
-                callbacks=playbook_cb,
-                runner_callbacks=runner_cb,
-                stats=stats,
-                extra_vars=extra_vars,
-                force_handlers=force_handlers,
-            )
-            result = playbook.run()
-        except Exception as exc:
-            log.error("%s: Error %r", log_prefix, exc)
-            ret_dict['error_msg'] = repr(exc)
-        finally:
-            ret_dict['finished_at'] = time()
-            ret_dict['stdout'] = capture.close()
-        if ret_dict['error_msg']:
-            return ret_dict
-        log.debug("%s: Ansible result = %s", log_prefix, result)
-        mresult = result[machine_name]
-        ret_dict['stats'] = mresult
-        if mresult['failures'] or mresult['unreachable']:
-            log.error("%s: Ansible run failed: %s", log_prefix, mresult)
-            return ret_dict
-        log.info("%s: Ansible run succeeded: %s", log_prefix, mresult)
-        ret_dict['success'] = True
-        return ret_dict
-    finally:
-        os.chdir(old_dir)
-        if not debug:
-            shutil.rmtree(tmp_dir)
-
-
-def _notify_playbook_result(owner, res, cloud_id=None, machine_id=None,
-                            extra_vars=None, label='Ansible playbook'):
-    title = label + (' succeeded' if res['success'] else ' failed')
-    kwargs = {
-        'cloud_id': cloud_id,
-        'machine_id': machine_id,
-        'duration': res['finished_at'] - res['started_at'],
-        'error': False if res['success'] else res['error_msg'] or True,
-    }
-    if not res['success']:
-        kwargs['output'] = res['stdout']
-    notify_user(owner, title, **kwargs)
+        send_email("[%s] %s" % (config.PORTAL_NAME, title), body, email)
 
 
 def create_dns_a_record(owner, domain_name, ip_addr):

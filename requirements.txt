@@ -12,13 +12,13 @@
 amqp<3.0
 # ansible v2 has a incompatible api
 # see https://serversforhackers.com/running-ansible-2-programmatically
-ansible==1.9.3
 # celery 5 will only support python3
 celery>=4.0,<5.0
 dnspython
 elasticsearch
 elasticsearch_tornado
 flake8
+future
 gevent
 greenlet
 ipaddress # requests needs this for dns matching
@@ -38,18 +38,20 @@ pastescript  # Required for uwsgi paste logging, can probably be removed.
 pika
 pingparsing
 pretty
+pycryptodome
 pymongo
-# only tested with pyramid 1.4, possible incompatibilities with later versions
-pyramid==1.4
+pyyaml
+pyramid
+pyramid_chameleon
 pytest
 python-memcached
-python-openid
-pyvmomi==6.5
+python3-openid
+pyvmomi
 requests
 s3cmd
 sendgrid-python
 sockjs-tornado
 tornado
-tornado_profile
+#tornado_profile
 uwsgidecorators
 websocket-client

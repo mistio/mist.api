@@ -4,6 +4,8 @@ import time
 import logging
 import requests
 
+from future.utils import string_types
+
 from tornado.httputil import url_concat
 from tornado.httpclient import AsyncHTTPClient
 
@@ -38,7 +40,7 @@ def aggregate(query, field, func='MEAN'):
     return query.replace(field, '%s(%s)' % (func.upper(), field))
 
 
-def filter(query, fields=None, start='', stop=''):
+def add_filter(query, fields=None, start='', stop=''):
     """Add a filter to the query.
 
     This method adds a "WHERE" clause to the provided InfluxDB query based
@@ -50,7 +52,7 @@ def filter(query, fields=None, start='', stop=''):
     filters = []
     or_stmt = []
     assert isinstance(fields, dict)
-    for key, value in fields.iteritems():
+    for key, value in fields.items():
         if isinstance(value, list):
             or_stmt = ['"%s" = \'%s\'' % (key, val) for val in value]
         elif re.match('^/.*/$', value):
@@ -60,9 +62,18 @@ def filter(query, fields=None, start='', stop=''):
     if or_stmt:
         filters.append('(%s)' % ' OR '.join(or_stmt))
     if stop:
-        filters.insert(0, '"time" <= now() - %s' % stop)
+        try:
+            stop = str(int(stop)) + 's'
+            filters.insert(0, '"time" <= %s' % stop)
+        except ValueError:
+            filters.insert(0, '"time" <= now() - %s' % stop)
     if start:
-        filters.insert(0, '"time" >= now() - %s' % start)
+        try:
+            start = str(int(start)) + 's'
+            filters.insert(0, '"time" > %s' % start)
+        except ValueError:
+            filters.insert(0, '"time" > now() - %s' % start)
+
     return '%s WHERE %s' % (query, ' AND '.join(filters))
 
 
@@ -70,7 +81,7 @@ def group(query, fields=None, step=None):
     """Group results by `fields` and/or `step`."""
     if fields is None:
         fields = []
-    if isinstance(fields, basestring):
+    if isinstance(fields, string_types):
         fields = [fields]
     fields = ['"%s"' % f for f in fields]
     if step:
@@ -138,13 +149,15 @@ class BaseStatsHandler(object):
         if functions and not re.match('^/.*/$', self.column):  # Not for regex.
             q += ' AS %s' % self.column
         q += ' FROM "%s"' % self.measurement
-        q = group(filter(q, tags, start, stop), self.group, step)
+        q = group(add_filter(q, tags, start, stop), self.group, step)
 
         if not tornado_async:
             data = requests.get(self.influx, params=dict(q=q))
+            log.warn('Query: %s' % q)
             if not data.ok:
                 log.error('Got %d HTTP status code on get_stats: %s',
                           data.status_code, data.content)
+                log.error('Query: %s' % q)
                 if data.status_code == 400:
                     raise BadRequestError()
                 raise ServiceUnavailableError()
@@ -222,19 +235,20 @@ class BaseStatsHandler(object):
                 columns = series.get('columns', [])
                 # Get tags, if exist.
                 tags = '.'.join(['%s=%s' % (key, val) for key, val in
-                                 series.get('tags', {}).iteritems()])
+                                 series.get('tags', {}).items()])
                 for value in series.get('values', []):
                     timestamp = iso_to_seconds(value[0])
                     for index, point in enumerate(value):
                         if index == 0:  # Skip the "time" column.
                             continue
-                        if isinstance(point, basestring):  # Skip tags.
+                        if isinstance(point, string_types):  # Skip tags.
                             continue
                         name = measurement.upper()
                         column = columns[index]
                         if tags:
                             id = '%s.%s.%s' % (measurement, tags, column)
-                            name += ' %s' % ' '.join(series['tags'].values())
+                            name += ' %s' % ' '.join(
+                                list(series['tags'].values()))
                         else:
                             id = '%s.%s' % (measurement, column)
                         name += ' %s' % column.replace('_', ' ')
@@ -273,9 +287,10 @@ class MainStatsHandler(BaseStatsHandler):
         """
         istatus = self.machine.monitoring.installation_status
         if not istatus.activated_at:
-            for value in results.itervalues():
+            for value in results.values():
                 for point in value['datapoints']:
-                    if point[0] is not None and point[1] >= istatus.started_at:
+                    if point[0] is not None and \
+                       int(point[1]) >= istatus.started_at:
                         if not istatus.finished_at:
                             istatus.finished_at = time.time()
                         istatus.activated_at = time.time()

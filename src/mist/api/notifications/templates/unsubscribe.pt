@@ -123,12 +123,7 @@
         <div id="unsub_button" class="button" onclick="request_unsubscribe()">Unsubscribe</div>
     </div>
 
-    <a class="back" href="${uri}">Back to mist.io</a>
-</div>
-
-<div class="footer">
-    <a href="${uri}" style="text-decoration:none; color:#0099cc;">mist.io</a>, Inc  •  <a href="http://blog.mist.io" style="text-decoration:none; color:#0099cc;">Our Blog</a> <br>
-                            620 Folsom St  •  San Francisco, CA  •  94107
+    <a class="back" href="${uri}">Back to <span tal:content="portal_name|nothing">mist.io</a></a>
 </div>
 
 </body>

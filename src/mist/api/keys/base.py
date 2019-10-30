@@ -1,5 +1,8 @@
 import logging
 import mongoengine as me
+
+from future.utils import string_types
+
 from mist.api.exceptions import KeyExistsError
 from mist.api.exceptions import BadRequestError
 from mist.api.helpers import rename_kwargs
@@ -13,7 +16,7 @@ class BaseKeyController(object):
         """Initialize a key controller given a key
 
         Most times one is expected to access a controller from inside the
-        keypair, like this:
+        key, like this:
 
           key = mist.api.keys.models.Key.objects.get(id=key.id)
           key.ctl.construct_public_from_private()
@@ -44,11 +47,11 @@ class BaseKeyController(object):
         if errors:
             log.error("Error adding %s: %s", self.key, errors)
             raise BadRequestError({
-                'msg': "Invalid parameters %s." % errors.keys(),
+                'msg': "Invalid parameters %s." % list(errors.keys()),
                 'errors': errors,
             })
 
-        for key, value in kwargs.iteritems():
+        for key, value in kwargs.items():
             setattr(self.key, key, value)
 
         if not Key.objects(owner=self.key.owner, default=True):
@@ -58,8 +61,7 @@ class BaseKeyController(object):
             self.key.save()
         except me.ValidationError as exc:
             log.error("Error adding %s: %s", self.key.name, exc.to_dict())
-            raise BadRequestError({'msg': exc.message,
-                                   'errors': exc.to_dict()})
+            raise BadRequestError("%s" % str(exc.to_dict()['__all__']))
         except me.NotUniqueError as exc:
             log.error("Key %s not unique error: %s", self.key.name, exc)
             raise KeyExistsError()
@@ -101,12 +103,12 @@ class BaseKeyController(object):
     def associate(self, machine, username='', port=22, no_connect=False):
         """Associates a key with a machine."""
 
-        from mist.api.machines.models import KeyAssociation
+        from mist.api.machines.models import KeyMachineAssociation
 
         log.info("Associating key %s to machine %s", self.key.id,
                  machine.machine_id)
 
-        if isinstance(port, basestring):
+        if isinstance(port, string_types):
             if port.isdigit():
                 port = int(port)
             elif not port:
@@ -122,9 +124,10 @@ class BaseKeyController(object):
         # create the association.This is only needed if association doesn't
         # exist. Associations will otherwise be
         # created by shell.autoconfigure upon successful connection
-        key_assoc = machine.key_associations.filter(keypair=self.key,
-                                                    ssh_user=username,
-                                                    port=port)
+        key_assoc = KeyMachineAssociation.objects(key=self.key,
+                                                  machine=machine,
+                                                  ssh_user=username,
+                                                  port=port)
         if key_assoc:
             log.warning("Key '%s' already associated with machine '%s' "
                         "in cloud '%s'", self.key.id,
@@ -132,23 +135,22 @@ class BaseKeyController(object):
 
             return key_assoc[0]
 
-        key_assoc = KeyAssociation(keypair=self.key, last_used=0,
-                                   ssh_user=username, sudo=False,
-                                   port=port)
-        machine.key_associations.append(key_assoc)
-        machine.save()
-        trigger_session_update(self.key.owner, ['keys'])
+        key_assoc = KeyMachineAssociation(key=self.key, machine=machine,
+                                          last_used=0, ssh_user=username,
+                                          sudo=False, port=port)
+        key_assoc.save()
 
+        trigger_session_update(self.key.owner, ['keys'])
         return key_assoc
 
     def disassociate(self, machine):
         """Disassociates a key from a machine."""
 
+        from mist.api.machines.models import KeyMachineAssociation
+
         log.info("Disassociating key of machine '%s' " % machine.machine_id)
 
         # removing key association
-        key_assoc = machine.key_associations.filter(keypair=self.key)
-        if key_assoc:
-            machine.key_associations.remove(key_assoc[0])
-            machine.save()
-            trigger_session_update(self.key.owner, ['keys'])
+        KeyMachineAssociation.objects(key=self.key,
+                                      machine=machine).delete()
+        trigger_session_update(self.key.owner, ['keys'])

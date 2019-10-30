@@ -1,6 +1,13 @@
 import uuid
 import json
-import urllib
+
+# Python 2 and 3 support
+from future.standard_library import install_aliases
+install_aliases()
+import urllib.request
+import urllib.parse
+import urllib.error
+
 import datetime
 import mongoengine as me
 
@@ -86,7 +93,8 @@ class NotificationOverride(me.EmbeddedDocument):
 class UserNotificationPolicy(me.Document):
     """A user's notification policy comprised of notification overrides."""
 
-    owner = me.ReferenceField('Organization', required=True)
+    owner = me.ReferenceField('Organization', required=True,
+                              reverse_delete_rule=me.CASCADE)
     email = me.EmailField(domain_whitelist=config.DOMAIN_VALIDATION_WHITELIST)
     user_id = me.StringField()
 
@@ -146,7 +154,8 @@ class Notification(me.Document):
     """The main Notification entity."""
 
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
-    owner = me.ReferenceField('Organization', required=True)
+    owner = me.ReferenceField('Organization', required=True,
+                              reverse_delete_rule=me.CASCADE)
 
     # TODO A list of external email addresses, ie e-mail addresses that do
     # not correspond to members of the organization.
@@ -174,7 +183,7 @@ class Notification(me.Document):
         'strict': False,
         'allow_inheritance': True,
         'collection': 'notifications',
-        'indexes': ['owner', '-created_at'],
+        'indexes': ['owner', 'created_at'],
     }
 
     _notification_channel_cls = None
@@ -191,7 +200,10 @@ class Notification(me.Document):
     @property
     def remind_in(self):
         """Return a timedelta until the next reminder since `created_at`."""
-        remind_in = self.reminder_schedule[self.reminder_count]
+        try:
+            remind_in = self.reminder_schedule[self.reminder_count]
+        except IndexError:
+            remind_in = self.reminder_schedule[-1]
         return datetime.timedelta(seconds=remind_in)
 
     def due_in(self):
@@ -219,7 +231,7 @@ class Notification(me.Document):
         # reminder intervals. Thus we avoid spamming users with back-to-back
         # reminders.
         schedule_size = len(self.reminder_schedule)
-        for c in xrange(schedule_size - 1, self.reminder_count, -1):
+        for c in range(schedule_size - 1, self.reminder_count, -1):
             timedelta = datetime.timedelta(seconds=self.reminder_schedule[c])
             if self.created_at + timedelta < datetime.datetime.utcnow():
                 self.reminder_count = c
@@ -292,7 +304,7 @@ class EmailNotification(Notification):
         token = {'token': encrypt(json.dumps(params))}
         mac_sign(token)
         return '%s/unsubscribe?%s' % (config.CORE_URI,
-                                      urllib.urlencode(token))
+                                      urllib.parse.urlencode(token))
 
 
 class EmailReport(EmailNotification):

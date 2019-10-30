@@ -2,11 +2,20 @@ from mongoengine import Q
 from mist.api.tag.models import Tag
 from mist.api.helpers import trigger_session_update
 from mist.api.helpers import get_object_with_id
+from functools import reduce
 
 
 def get_tags_for_resource(owner, resource_obj, *args, **kwargs):
-    return {tag.key: tag.value for tag in
-            Tag.objects(owner=owner, resource=resource_obj)}
+    return {tag.key: tag.value
+            for tag in get_tag_objects_for_resource(
+                owner, resource_obj, args, kwargs)}
+
+
+def get_tag_objects_for_resource(owner, resource_obj, *args, **kwargs):
+    return Tag.objects(
+        owner=owner,
+        resource_type=resource_obj.to_dbref().collection.rstrip('s'),
+        resource_id=resource_obj.id)
 
 
 def add_tags_to_resource(owner, resource_obj, tags, *args, **kwargs):
@@ -23,7 +32,7 @@ def add_tags_to_resource(owner, resource_obj, tags, *args, **kwargs):
     # that if there are duplicates they will be cleaned up
     tag_dict = dict(tags)
 
-    for tag_obj in Tag.objects(owner=owner, resource=resource_obj):
+    for tag_obj in get_tag_objects_for_resource(owner, resource_obj):
         # if any of the tag keys is already present check if it's value should
         # be changed and remove it from the tag_dict
         if tag_obj.key in tag_dict:
@@ -33,8 +42,10 @@ def add_tags_to_resource(owner, resource_obj, tags, *args, **kwargs):
             del tag_dict[tag_obj.key]
 
     # remaining tags in tag_dict have not been found in the db so add them now
-    for key, value in tag_dict.iteritems():
-        Tag(owner=owner, resource=resource_obj, key=key, value=value).save()
+    for key, value in tag_dict.items():
+        Tag(owner=owner, resource_id=resource_obj.id,
+            resource_type=resource_obj.to_dbref().collection.rstrip('s'),
+            key=key, value=value).save()
 
     # SEC
     owner.mapper.update(resource_obj)
@@ -66,13 +77,9 @@ def remove_tags_from_resource(owner, resource_obj, tags, *args, **kwargs):
 
     # create a query that will return all the tags with
     query = reduce(lambda q1, q2: q1.__or__(q2),
-                   map(lambda key: Q(key=key), key_list))
+                   [Q(key=key) for key in key_list])
 
-    Tag.objects(Q(owner=owner) & Q(resource=resource_obj) & (query)).delete()
-
-    # I think that the above overly complex query could simply be rewritten as
-    # Tag.objects(owner=owner, resource=resource_obj,
-    #             key__in=key_list).delete()
+    get_tag_objects_for_resource(owner, resource_obj).filter(query).delete()
 
     # SEC
     owner.mapper.update(resource_obj)
@@ -145,18 +152,18 @@ def modify_security_tags(auth_context, tags, resource=None):
     if auth_context.is_owner():
         return True
     else:
-        rtags = Tag.objects(owner=auth_context.owner.id,
-                            resource=resource).only('key', 'value')
+        rtags = get_tag_objects_for_resource(
+            auth_context.owner, resource).only('key', 'value')
         rtags = {rtag.key: rtag.value for rtag in rtags}
         security_tags = auth_context.get_security_tags()
         # check whether the new tags tend to modify any of the security_tags
         for security_tag in security_tags:
-            for key, value in security_tag.items():
-                if key not in rtags.keys():
-                    if key in tags.keys():
+            for key, value in list(security_tag.items()):
+                if key not in list(rtags.keys()):
+                    if key in list(tags.keys()):
                         return False
                 else:
-                    if key not in tags.keys():
+                    if key not in list(tags.keys()):
                         return False
                     elif value != tags[key]:
                         return False
@@ -179,7 +186,7 @@ def delete_security_tag(auth_context, tag_key):
     else:
         security_tags = auth_context.get_security_tags()
         for security_tag in security_tags:
-            for key, value in security_tag.items():
+            for key, value in list(security_tag.items()):
                 if key == tag_key:
                     return False
         return True

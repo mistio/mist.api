@@ -339,8 +339,12 @@ class MachinePollingSchedule(PollingSchedule):
 
     @property
     def enabled(self):
-        return bool(Machine.objects(id=self.machine_id,
-                                    missing_since=None).count())
+        try:
+            machine = Machine.objects.get(id=self.machine_id,
+                                          missing_since=None)
+            return machine.cloud and machine.cloud.enabled
+        except Machine.DoesNotExist:
+            return False
 
     def get_name(self):
         return '%s(%s)' % (super(MachinePollingSchedule, self).get_name(),

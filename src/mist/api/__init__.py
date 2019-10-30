@@ -27,15 +27,17 @@ class Root(object):
 
 def mongo_connect(*args, **kwargs):
     """Connect mongoengine to mongo db. This connection is reused everywhere"""
-    for _ in xrange(30):
+    exc = None
+    for _ in range(30):
         try:
             log.info("Attempting to connect to %s at %s...", config.MONGO_DB,
                      config.MONGO_URI)
             me.connect(db=config.MONGO_DB, host=config.MONGO_URI)
-        except Exception as exc:
+        except Exception as e:
             log.warning("Error connecting to mongo, will retry in 1 sec: %r",
-                        exc)
+                        e)
             time.sleep(1)
+            exc = e
         else:
             log.info("Connected...")
             break
@@ -69,6 +71,7 @@ def main(global_config, **settings):
     settings = {}
 
     configurator = Configurator(root_factory=Root, settings=settings)
+    configurator.include('pyramid_chameleon')
 
     # Add custom adapter to the JSON renderer to avoid serialization errors
     json_renderer = JSON()
@@ -98,12 +101,13 @@ def main(global_config, **settings):
     # /FIXME
 
     configurator.include(add_routes)
-    configurator.scan()
+    configurator.scan(ignore=['mist.api.sock', 'mist.api.sockjs_mux'])
 
     for plugin in config.PLUGINS:
         log.info("Loading plugin mist.%s", plugin)
         configurator.include('mist.%s.add_routes' % plugin)
-        configurator.scan('mist.%s' % plugin)
+        ignore_modules = ['mist.%s.sock' % plugin, 'mist.%s.handler' % plugin]
+        configurator.scan('mist.%s' % plugin, ignore=ignore_modules)
 
     app = mist.api.auth.middleware.AuthMiddleware(
         mist.api.auth.middleware.CsrfMiddleware(
@@ -139,6 +143,8 @@ def add_routes(configurator):
                        'schedules', 'zones']
         landing_sections = ['about', 'product', 'pricing',
                             'sign-up', 'sign-in', 'forgot-password',
+                            'buy-license', 'request-pricing', 'get-started',
+                            'privacy-policy', 'pledge', 'tos',
                             'error', 'index']
         for section in ui_sections + landing_sections:
             if request.path.startswith('/' + section):
@@ -238,6 +244,10 @@ def add_routes(configurator):
     configurator.add_route('api_v1_sizes', '/api/v1/clouds/{cloud}/sizes')
     configurator.add_route('api_v1_locations',
                            '/api/v1/clouds/{cloud}/locations')
+    configurator.add_route('api_v1_storage_accounts',
+                           '/api/v1/clouds/{cloud}/storage-accounts')
+    configurator.add_route('api_v1_resource_groups',
+                           '/api/v1/clouds/{cloud}/resource-groups')
 
     configurator.add_route('api_v1_networks',
                            '/api/v1/clouds/{cloud}/networks')
@@ -252,12 +262,20 @@ def add_routes(configurator):
 
     # Volumes
     configurator.add_route(
-        'api_v1_volumes',
+        'api_v1_cloud_volumes',
         '/api/v1/clouds/{cloud}/volumes'
     )
     configurator.add_route(
+        'api_v1_cloud_volume',
+        '/api/v1/clouds/{cloud}/volumes/*volume'
+    )
+    configurator.add_route(
+        'api_v1_volumes',
+        '/api/v1/volumes'
+    )
+    configurator.add_route(
         'api_v1_volume',
-        '/api/v1/clouds/{cloud}/volumes/{volume}'
+        '/api/v1/volumes/{volume_uuid}'
     )
 
     configurator.add_route('api_v1_keys', '/api/v1/keys')

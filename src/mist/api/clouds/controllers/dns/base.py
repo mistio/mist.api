@@ -161,7 +161,7 @@ class BaseDNSController(BaseController):
                 zone.save()
             except me.ValidationError as exc:
                 log.error("Error updating %s: %s", zone, exc.to_dict())
-                raise BadRequestError({'msg': exc.message,
+                raise BadRequestError({'msg': str(exc),
                                        'errors': exc.to_dict()})
             except me.NotUniqueError as exc:
                 log.error("Zone %s not unique error: %s", zone, exc)
@@ -229,6 +229,7 @@ class BaseDNSController(BaseController):
             try:
                 record = Record.objects.get(zone=zone, record_id=pr_record.id,
                                             deleted=None)
+                changed = False
             except Record.DoesNotExist:
                 log.info("Record: %s not in the database, creating.",
                          pr_record.id)
@@ -238,19 +239,36 @@ class BaseDNSController(BaseController):
 
                 record = dns_cls(record_id=pr_record.id, zone=zone)
                 new_records.append(record)
+                changed = True
             # We need to check if any of the information returned by the
             # provider is different than what we have in the DB
-            record.name = pr_record.name or ""
-            record.type = pr_record.type
-            record.ttl = pr_record.ttl
-            record.extra = pr_record.extra
+            if record.name != pr_record.name:
+                record.name = pr_record.name or ""
+                changed = True
+            if record.type != pr_record.type:
+                record.type = pr_record.type
+                changed = True
+            if record.ttl != pr_record.ttl:
+                record.ttl = pr_record.ttl
+                changed = True
+            if record.extra != pr_record.extra:
+                record.extra = pr_record.extra
+                changed = True
 
             self._list_records__postparse_data(pr_record, record)
             try:
-                record.save()
+                if changed:
+                    try:
+                        record.save()
+                    except Exception as exc:
+                        log.exception("Could not save %s record %s for cloud "
+                                      "%s (%s): %r" % (
+                                          record.type, record.name,
+                                          self.cloud.title, self.cloud.id, exc
+                                      ))
             except me.ValidationError as exc:
                 log.error("Error updating %s: %s", record, exc.to_dict())
-                raise BadRequestError({'msg': exc.message,
+                raise BadRequestError({'msg': str(exc),
                                        'errors': exc.to_dict()})
             except me.NotUniqueError as exc:
                 log.error("Record %s not unique error: %s", record, exc)
@@ -427,7 +445,7 @@ class BaseDNSController(BaseController):
             record.clean()
         except me.ValidationError as exc:
             log.error("Error validating %s: %s", record, exc.to_dict())
-            raise BadRequestError({'msg': exc.message,
+            raise BadRequestError({'msg': str(exc),
                                    'errors': exc.to_dict()})
 
         self._create_record__prepare_args(record.zone, kwargs)
@@ -524,7 +542,7 @@ class BaseDNSController(BaseController):
         # any that is matching based on the domain. If one is found
         # then create an "A" type record with the provided name.
         for zone_candidate in zones:
-            for domain, subdomain in all_domains.iteritems():
+            for domain, subdomain in all_domains.items():
                 if zone_candidate.domain == domain:
                     return zone_candidate
         raise BadRequestError("No DNS zone found, can't proceed with "

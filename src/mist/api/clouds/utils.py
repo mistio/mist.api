@@ -31,7 +31,7 @@ def tags_to_dict(tags):
     for tag in tags:
         if isinstance(tag, dict):
             if len(tag) == 1:
-                key = tag.keys()[0]
+                key = list(tag.keys())[0]
                 tdict[tag] = tag[key]
             elif 'key' in tag:
                 tdict[tag['key']] = tag.get('value')
@@ -48,27 +48,27 @@ class LibcloudExceptionHandler(object):
                 return func(*args, **kwargs)
             except InvalidCredsError as exc:
                 log.error("Invalid creds on running %: %s", func.__name__, exc)
-                raise CloudUnauthorizedError(exc=exc, msg=exc.message)
+                raise CloudUnauthorizedError(exc=exc, msg=str(exc))
             except ssl.SSLError as exc:
                 log.error("SSLError on running %s: %s", func.__name__, exc)
-                raise CloudUnavailableError(exc=exc, msg=exc.message)
+                raise CloudUnavailableError(exc=exc, msg=str(exc))
             except MalformedResponseError as exc:
                 log.error("MalformedResponseError on running %s: %s", exc)
                 raise exc
             except RateLimitReachedError as exc:
                 log.error("Rate limit error on running %s: %s", func.__name__,
                           exc)
-                raise RateLimitError(exc=exc, msg=exc.message)
+                raise RateLimitError(exc=exc, msg=str(exc))
             # Libcloud errors caused by invalid parameters are raised as this
             # exception class
             except BaseHTTPError as exc:
                 log.error("Bad request on running %s: %s", func.__name__, exc)
-                if 'unauthorized' in exc.message.lower():
-                    raise CloudUnauthorizedError(exc=exc, msg=exc.message)
+                if 'unauthorized' in str(exc).lower():
+                    raise CloudUnauthorizedError(exc=exc, msg=str(exc))
                 raise BadRequestError(exc=exc,
-                                      msg=exc.message)
+                                      msg=str(exc))
             except LibcloudError as exc:
                 log.error("Error on running %s: %s", func.__name__, exc)
-                raise self.exception_class(exc=exc, msg=exc.message)
+                raise self.exception_class(exc=exc, msg=str(exc))
 
         return wrapper

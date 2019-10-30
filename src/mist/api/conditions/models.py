@@ -26,7 +26,7 @@ class BaseCondition(me.EmbeddedDocument):
     ctype = 'base'
 
     def update(self, **kwargs):
-        for key, value in kwargs.iteritems():
+        for key, value in kwargs.items():
             setattr(self, key, value)
 
     @property
@@ -44,8 +44,9 @@ class ConditionalClassMixin(object):
 
     conditions = me.EmbeddedDocumentListField(BaseCondition)
 
-    resource_model_name = me.StringField(required=True, default='machine',
-                                         choices=rtype_to_classpath.keys())
+    resource_model_name = me.StringField(
+        required=True, default='machine',
+        choices=list(rtype_to_classpath.keys()))
 
     @property
     def condition_resource_cls(self):
@@ -98,9 +99,10 @@ class TaggingCondition(BaseCondition):
 
     @property
     def q(self):
-        rtype = self._instance.condition_resource_cls._meta["collection"]
+        rtype = self._instance.condition_resource_cls._meta[
+            "collection"].rstrip('s')
         ids = set()
-        for key, value in self.tags.iteritems():
+        for key, value in self.tags.items():
             query = {
                 'owner': self._instance.owner,
                 'resource_type': rtype,
@@ -108,13 +110,13 @@ class TaggingCondition(BaseCondition):
             }
             if value:
                 query['value'] = value
-            ids |= set(tag.resource.id for tag in Tag.objects(**query))
+            ids |= set(tag.resource_id for tag in Tag.objects(**query))
         return me.Q(id__in=ids)
 
     def validate(self, clean=True):
         if self.tags:
             regex = re.compile(r'^[a-z0-9_-]+$')
-            for key, value in self.tags.iteritems():
+            for key, value in self.tags.items():
                 if not key:
                     raise me.ValidationError('You cannot add a tag '
                                              'without a key')

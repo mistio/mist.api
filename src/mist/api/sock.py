@@ -78,7 +78,7 @@ def get_conn_info(conn_info):
             user_agent = conn_info.headers[header]
     ip = real_ip or forwarded_for or conn_info.ip
     session_id = ''
-    if 'session.id' in conn_info.cookies.keys():
+    if 'session.id' in list(conn_info.cookies.keys()):
         session_id = conn_info.cookies['session.id'].value
     return ip, user_agent, session_id
 
@@ -133,7 +133,7 @@ class MistConnection(SockJSConnection):
         if path.startswith('/'):
             path = path[1:]
         if isinstance(params, dict):
-            params = params.items()
+            params = list(params.items())
         if params:
             path += '?' + '&'.join('%s=%s' % item
                                    for item in params)
@@ -142,7 +142,7 @@ class MistConnection(SockJSConnection):
             if resp.code == 200:
                 data = json.loads(resp.body)
                 if callback is None:
-                    print data
+                    print(data)
                 else:
                     callback(data)
             else:
@@ -167,7 +167,7 @@ class MistConnection(SockJSConnection):
                     'session_id'):
             if key in conn_dict:
                 parts.append(conn_dict.pop(key))
-        parts.extend(conn_dict.values())
+        parts.extend(list(conn_dict.values()))
         return ' - '.join(map(str, parts))
 
 
@@ -397,59 +397,61 @@ class MainConnection(MistConnection):
         for cloud in clouds:
             if not cloud.enabled:
                 continue
-            self.internal_request(
-                'api/v1/clouds/%s/machines' % cloud.id,
-                params={'cached': True},
-                callback=lambda machines, cloud_id=cloud.id: self.send(
-                    'list_machines',
-                    {'cloud_id': cloud_id, 'machines': machines}
-                ),
-            )
-            self.internal_request(
-                'api/v1/clouds/%s/locations' % cloud.id,
-                params={'cached': True},
-                callback=lambda locations, cloud_id=cloud.id: self.send(
-                    'list_locations',
-                    {'cloud_id': cloud_id, 'locations': locations}
-                ),
-            )
-            self.internal_request(
-                'api/v1/clouds/%s/sizes' % cloud.id,
-                params={'cached': True},
-                callback=lambda sizes, cloud_id=cloud.id: self.send(
-                    'list_sizes',
-                    {'cloud_id': cloud_id, 'sizes': sizes}
-                ),
-            )
-            self.internal_request(
-                'api/v1/clouds/%s/networks' % cloud.id,
-                params={'cached': True},
-                callback=lambda networks, cloud_id=cloud.id: self.send(
-                    'list_networks',
-                    {'cloud_id': cloud_id, 'networks': networks}
-                ),
-            )
-
-            self.internal_request(
-                'api/v1/clouds/%s/zones' % cloud.id,
-                params={'cached': True},
-                callback=lambda zones, cloud_id=cloud.id: self.send(
-                    'list_zones',
-                    {'cloud_id': cloud_id, 'zones': zones}
-                ),
-            )
-            self.internal_request(
-                'api/v1/clouds/%s/volumes' % cloud.id,
-                params={'cached': True},
-                callback=lambda volumes, cloud_id=cloud.id: self.send(
-                    'list_volumes',
-                    {'cloud_id': cloud_id, 'volumes': volumes}
-                ),
-            )
+            if cloud.ctl.ComputeController:
+                self.internal_request(
+                    'api/v1/clouds/%s/machines' % cloud.id,
+                    params={'cached': True},
+                    callback=lambda machines, cloud_id=cloud.id: self.send(
+                        'list_machines',
+                        {'cloud_id': cloud_id, 'machines': machines}
+                    ),
+                )
+                self.internal_request(
+                    'api/v1/clouds/%s/locations' % cloud.id,
+                    params={'cached': True},
+                    callback=lambda locations, cloud_id=cloud.id: self.send(
+                        'list_locations',
+                        {'cloud_id': cloud_id, 'locations': locations}
+                    ),
+                )
+                self.internal_request(
+                    'api/v1/clouds/%s/sizes' % cloud.id,
+                    params={'cached': True},
+                    callback=lambda sizes, cloud_id=cloud.id: self.send(
+                        'list_sizes',
+                        {'cloud_id': cloud_id, 'sizes': sizes}
+                    ),
+                )
+            if cloud.ctl.NetworkController:
+                self.internal_request(
+                    'api/v1/clouds/%s/networks' % cloud.id,
+                    params={'cached': True},
+                    callback=lambda networks, cloud_id=cloud.id: self.send(
+                        'list_networks',
+                        {'cloud_id': cloud_id, 'networks': networks}
+                    ),
+                )
+            if cloud.ctl.DnsController:
+                self.internal_request(
+                    'api/v1/clouds/%s/zones' % cloud.id,
+                    params={'cached': True},
+                    callback=lambda zones, cloud_id=cloud.id: self.send(
+                        'list_zones',
+                        {'cloud_id': cloud_id, 'zones': zones}
+                    ),
+                )
+            if cloud.ctl.StorageController:
+                self.internal_request(
+                    'api/v1/clouds/%s/volumes' % cloud.id,
+                    params={'cached': True},
+                    callback=lambda volumes, cloud_id=cloud.id: self.send(
+                        'list_volumes',
+                        {'cloud_id': cloud_id, 'volumes': volumes}
+                    ),
+                )
 
         # Old Periodic Tasks (must be replaced by poller tasks and api calls.
-        for key in ('list_images', 'list_resource_groups',
-                    'list_storage_accounts', 'list_projects'):
+        for key in ('list_images', 'list_projects'):
             task = getattr(tasks, key)
             for cloud in clouds:
                 # Avoid submitting new celery tasks, when it's certain that
@@ -523,9 +525,7 @@ class MainConnection(MistConnection):
             result = body
         log.info("Got %s", routing_key)
         if routing_key in set(['notify', 'probe', 'list_sizes', 'list_images',
-                               'list_locations', 'list_projects', 'ping',
-                               'list_resource_groups',
-                               'list_storage_accounts']):
+                               'list_locations', 'list_projects', 'ping']):
             self.send(routing_key, result)
 
         elif routing_key == 'update':
@@ -649,7 +649,7 @@ class LogsConnection(MistConnection):
         log.info('Received event from amqp')
         event.pop('_id', None)
         try:
-            for key, value in json.loads(event.pop('extra')).iteritems():
+            for key, value in json.loads(event.pop('extra')).items():
                 event[key] = value
         except:
             pass
@@ -746,4 +746,5 @@ def make_router():
         from mist.manage.sock import ManageLogsConnection
         conns['manage_logs'] = ManageLogsConnection
 
-    return SockJSRouter(MultiplexConnection.get(**conns), '/socket')
+    return SockJSRouter(MultiplexConnection.get(**conns), '/socket',
+                        user_settings={'verify_ip': False})

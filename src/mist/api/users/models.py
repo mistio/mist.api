@@ -7,6 +7,8 @@ import netaddr
 import datetime
 import mongoengine as me
 
+from future.utils import string_types
+
 from uuid import uuid4
 
 from passlib.context import CryptContext
@@ -213,7 +215,7 @@ class Owner(me.Document):
         # TODO: check if these are valid email addresses,
         # to avoid possible spam
         if self.alerts_email:
-            if isinstance(self.alerts_email, basestring):
+            if isinstance(self.alerts_email, string_types):
                 emails = []
                 for email in self.alerts_email.split(','):
                     if re.match("[^@]+@[^@]+\.[^@]+", email):
@@ -222,9 +224,9 @@ class Owner(me.Document):
         super(Owner, self).clean()
 
     def get_rules_dict(self):
-        from mist.api.rules.models import MachineMetricRule
+        from mist.api.rules.models import Rule
         return {rule.id: rule.as_dict()
-                for rule in MachineMetricRule.objects(owner_id=self.id)}
+                for rule in Rule.objects(owner_id=self.id)}
 
     def get_metrics_dict(self):
         return {
@@ -280,15 +282,7 @@ class User(Owner):
     ips = me.EmbeddedDocumentListField(WhitelistIP, default=[])
 
     meta = {
-        'indexes': [
-            {
-                'fields': [
-                    '$email', '$first_name', '$last_name', '$username'
-                ],
-                'default_language': 'english',
-                'weights': {'last_name': 10, 'first_name': 10}
-            },
-        ]
+        'indexes': ['email', 'first_name', 'last_name', 'username']
     }
 
     def __str__(self):
@@ -358,7 +352,8 @@ class Avatar(me.Document):
                         default=lambda: uuid4().hex)
     content_type = me.StringField(default="image/png")
     body = me.BinaryField()
-    owner = me.ReferenceField(Owner, required=True)
+    owner = me.ReferenceField(Owner, required=True,
+                              reverse_delete_rule=me.CASCADE)
 
 
 class Team(me.EmbeddedDocument):
@@ -372,21 +367,7 @@ class Team(me.EmbeddedDocument):
             Policy, default=lambda: Policy(operator='DENY'), required=True
         )
 
-    def clean(self):
-        """Ensure RBAC Mappings are properly initialized."""
-        if config.HAS_RBAC:
-            mappings = RBACMapping.objects(org=self._instance.id,
-                                           team=self.id).only('id')
-            if not mappings:
-                self.init_mappings()
-            elif self.name == 'Owners':
-                raise me.ValidationError('RBAC Mappings are not intended for '
-                                         'Team Owners')
-            elif len(mappings) is not 2:
-                raise me.ValidationError('RBAC Mappings have not been properly'
-                                         ' initialized for Team %s' % self)
-
-    def init_mappings(self):
+    def init_mappings(self, org=None):
         """Initialize RBAC Mappings.
 
         RBAC Mappings always refer to a (Organization, Team) combination.
@@ -400,13 +381,14 @@ class Team(me.EmbeddedDocument):
             return
         if self.name == 'Owners':
             return
-        if RBACMapping.objects(org=self._instance.id, team=self.id).only('id'):
+        org = org or self._instance
+        if RBACMapping.objects(org=org.id, team=self.id).only('id'):
             raise me.ValidationError(
                 'RBAC Mappings already initialized for Team %s' % self
             )
         for perm in ('read', 'read_logs'):
             RBACMapping(
-                org=self._instance.id, team=self.id, permission=perm
+                org=org.id, team=self.id, permission=perm
             ).save()
 
     def drop_mappings(self):
@@ -440,7 +422,8 @@ def _get_default_org_teams():
 
 class Organization(Owner):
     name = me.StringField(required=True)
-    members = me.ListField(me.ReferenceField(User), required=True)
+    members = me.ListField(
+        me.ReferenceField(User, reverse_delete_rule=me.PULL), required=True)
     members_count = me.IntField(default=0)
     teams = me.EmbeddedDocumentListField(Team, default=_get_default_org_teams)
     teams_count = me.IntField(default=0)
@@ -454,14 +437,15 @@ class Organization(Owner):
         choices=config.MONITORING_METHODS)
 
     insights_enabled = me.BooleanField(default=config.HAS_INSIGHTS)
-    ownership_enabled = me.BooleanField()
+    ownership_enabled = me.BooleanField(default=True)
 
     created = me.DateTimeField(default=datetime.datetime.now)
     registered_by = me.StringField()
 
     # used to allow creation of sub-org
     super_org = me.BooleanField(default=False)
-    parent = me.ReferenceField('Organization', required=False)
+    parent = me.ReferenceField('Organization', required=False,
+                               reverse_delete_rule=me.DENY)
 
     poller_updated = me.DateTimeField()
 
@@ -634,6 +618,19 @@ class Organization(Owner):
             if owners.policy.rules:
                 raise me.ValidationError("Can't set policy rules for Owners.")
 
+            # Ensure RBAC Mappings are properly initialized.
+            for team in self.teams:
+                mappings = RBACMapping.objects(org=self.id,
+                                               team=team.id).only('id')
+                if not mappings:
+                    team.init_mappings(org=self)
+                elif team.name == 'Owners':
+                    raise me.ValidationError(
+                        'RBAC Mappings are not intended for Team Owners')
+                elif len(mappings) is not 2:
+                    raise me.ValidationError(
+                        'RBAC Mappings have not been properly initialized for '
+                        'Team %s' % team)
         # make sure org name is unique - we can't use the unique keyword on the
         # field definition because both User and Organization subclass Owner
         # but only Organization has a name
@@ -656,8 +653,10 @@ class Organization(Owner):
 
 class MemberInvitation(me.Document):
     id = me.StringField(primary_key=True, default=lambda: uuid4().hex)
-    user = me.ReferenceField(User, required=True)
-    org = me.ReferenceField(Organization, required=True)
+    user = me.ReferenceField(User, required=True,
+                             reverse_delete_rule=me.CASCADE)
+    org = me.ReferenceField(Organization, required=True,
+                            reverse_delete_rule=me.CASCADE)
     teams = me.ListField(me.StringField(), required=True)
     token = me.StringField(required=True)
 
@@ -665,7 +664,8 @@ class MemberInvitation(me.Document):
 class Metric(me.Document):
     """A custom metric"""
 
-    owner = me.ReferenceField(Owner, required=True)
+    owner = me.ReferenceField(Organization, required=True,
+                              reverse_delete_rule=me.CASCADE)
     metric_id = me.StringField(required=True)
     name = me.StringField()
     unit = me.StringField()

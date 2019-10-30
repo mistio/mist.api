@@ -40,4 +40,5 @@ exec celery beat \
     -A $TASKS \
     -S mist.api.portal.schedulers.RunImmediatelyPersistentScheduler \
     --pidfile= \
+    -s celerybeat-schedule-py3 \
     -l $LOGLEVEL

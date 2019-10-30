@@ -26,7 +26,7 @@ def test_create_machine_list_machines(org, cloud, key,
     random_word = ''.join(random.choice(string.lowercase) for i in range(6))
     machine_name = 'karitest' + random_word
 
-    print ("****Create machine with name %s" % machine_name)
+    print(("****Create machine with name %s" % machine_name))
     result = create_machine(user=org, cloud_id=cloud_id, key_id=key_id,
                             machine_name=machine_name, ips=None,
                             monitoring=False, ssh_port=22, job_id=job_id,
@@ -35,7 +35,7 @@ def test_create_machine_list_machines(org, cloud, key,
     # while time() < timeout:
     if result:
         assert result['job_id'] == job_id
-        print ('****Create machine succeed with job_id: %s' % job_id)
+        print(('****Create machine succeed with job_id: %s' % job_id))
         machine_id = result['id']
         # break
         # sleep(5)
@@ -53,7 +53,7 @@ def test_create_machine_list_machines(org, cloud, key,
 
         for m in machines:
             if m['machine_id'] == machine_id:
-                print "****success, machine exists in list_machines"
+                print("****success, machine exists in list_machines")
                 flag = True
                 break
         if flag:
@@ -79,7 +79,7 @@ def test_create_machine_list_machines(org, cloud, key,
     print("****test all possible actions")
     for action in ('start', 'stop', 'reboot', 'rename'):
         if created_machine.actions[action]:
-            print('make action %s' % action)
+            print(('make action %s' % action))
             if action == 'start':
                 created_machine.ctl.start()
             elif action == 'stop':
@@ -97,5 +97,5 @@ def test_create_machine_list_machines(org, cloud, key,
             elif action == 'reboot':
                 created_machine.ctl.reboot()
 
-    print ("****destroy machine machine")
+    print("****destroy machine machine")
     destroy_machine(org, cloud.id, created_machine['machine_id'])

@@ -67,7 +67,7 @@ def transfer_ownership_to_user(request):
     except User.DoesNotExist:
         raise NotFoundError('User with id %s' % params['user_id'])
 
-    for rtype, rids in params.get('resources', {}).iteritems():
+    for rtype, rids in params.get('resources', {}).items():
         Model = get_resource_model(rtype)
         for rid in rids:
             try:

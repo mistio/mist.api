@@ -37,28 +37,28 @@ def main():
                                 "the password will be asked interactively "
                                 "only if not already set.")
     args = argparser.parse_args()
-    print 'Arguments:', args
+    print('Arguments:', args)
 
     # Find/Update/Create user
     try:
         user = User.objects.get(email=args.email)
-        print "Found user:", user
+        print("Found user:", user)
     except:
-        print "Will create user"
+        print("Will create user")
         user = User(email=args.email)
 
     if args.password is not False or not user.password:
         password = args.password or getpass.getpass('Password: ')
         if not password:
             raise Exception("Password can't be empty")
-        print "Setting user password."
+        print("Setting user password.")
         user.set_password(password)
 
     if args.admin:
-        print "Setting user to admin."
+        print("Setting user to admin.")
         user.role = 'Admin'
     elif args.admin is False:
-        print "Setting user to non-admin."
+        print("Setting user to non-admin.")
         user.role = ''
 
     user.status = 'confirmed'
@@ -69,45 +69,45 @@ def main():
     if args.org:
         try:
             org = Organization.objects.get(id=args.org)
-            print "Found org by id:", org
+            print("Found org by id:", org)
         except Organization.DoesNotExist:
             try:
                 org = Organization.objects.get(name=args.org)
-                print "Found org by name:", org
+                print("Found org by name:", org)
             except Organization.DoesNotExist:
                 raise Exception("No org with id or name: %s" % args.org)
     else:
         org = Organization.objects(members=user).first()
         if org is None:
-            print "Will create new org"
+            print("Will create new org")
             org = Organization(name=user.email)
         else:
-            print "Found org:", org
+            print("Found org:", org)
     org.add_member_to_team('Owners', user)
     org.save()
 
     # Add local docker host
     if args.docker_cloud:
         cloud = None
-        print "Adding/Updating docker host cloud"
+        print("Adding/Updating docker host cloud")
         try:
             cloud = DockerCloud.objects.get(owner=org, title='Mist Docker')
             try:
                 if cloud.host != 'socat' or cloud.port != 2375:
                     cloud.ctl.update(host='socat', port=2375)
             except Exception as exc:
-                print "Error updating docker cloud: %r" % exc
+                print("Error updating docker cloud: %r" % exc)
         except DockerCloud.DoesNotExist:
             try:
                 cloud = DockerCloud.add(owner=org, title='Mist Docker',
                                         host='socat', port=2375)
             except Exception as exc:
-                print "Error adding docker cloud: %r" % exc
+                print("Error adding docker cloud: %r" % exc)
         if cloud is not None:
             try:
                 cloud.ctl.set_polling_interval(600)
             except Exception as exc:
-                print "Error setting polling interval on cloud: %r" % exc
+                print("Error setting polling interval on cloud: %r" % exc)
 
 
 if __name__ == '__main__':
