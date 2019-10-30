@@ -20,6 +20,7 @@ from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 from mist.api.machines.models import InstallationStatus
 
+from mist.api.monitoring.influxdb.helpers import notify_machine_monitoring
 from mist.api.monitoring.influxdb.helpers import show_fields
 from mist.api.monitoring.influxdb.helpers import show_measurements
 from mist.api.monitoring.influxdb.handlers import HANDLERS as INFLUXDB_HANDLERS
