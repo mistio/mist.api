@@ -1076,18 +1076,19 @@ def run_machine_action(owner_id, action, name, machine_uuid):
                     subject = config.MACHINE_EXPIRE_NOTIFY_EMAIL_SUBJECT
                     if schedule.schedule_type.type == 'reminder' and \
                        schedule.schedule_type.message:
-                        body = schedule.schedule_type.message
+                        custom_msg = '\n%s\n' % schedule.schedule_type.message
                     else:
-                        machine_uri = config.CORE_URI + \
-                            '/machines/%s' % machine.id
-                        main_body = config.MACHINE_EXPIRE_NOTIFY_EMAIL_BODY
-                        sch_entry = machine.expiration.schedule_type.entry
-                        body = main_body % ((user.first_name + " " +
-                                            user.last_name).strip(),
-                                            machine.name,
-                                            sch_entry,
-                                            machine_uri + '/expiration',
-                                            config.CORE_URI)
+                        custom_msg = ''
+                    machine_uri = config.CORE_URI + \
+                        '/machines/%s' % machine.id
+                    main_body = config.MACHINE_EXPIRE_NOTIFY_EMAIL_BODY
+                    sch_entry = machine.expiration.schedule_type.entry
+                    body = main_body % ((user.first_name + " " +
+                                        user.last_name).strip(),
+                                        machine.name,
+                                        sch_entry,
+                                        machine_uri + '/expiration',
+                                        custom_msg, config.CORE_URI)
                     log.info('About to send email...')
                     if not helper_send_email(subject, body, user.email):
                         raise ServiceUnavailableError("Could not send "
