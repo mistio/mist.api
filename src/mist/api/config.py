@@ -221,22 +221,6 @@ GRAPHITE_BUILTIN_METRICS = {
     },
 }
 
-FDB_BUILTIN_METRICS = {
-    'system.load(\d)+': {
-        'name': 'system.load(\d)+',
-        'unit': '',
-        'max_value': 64,
-        'min_value': 0,
-    },
-    'cpu.cpu-cpu8.usage_system': {
-        'name': 'cpu.cpu-cpu8.usage_system',
-        'unit': '',
-        'max_value': 100,
-        'min_value': 0,
-    }
-
-}
-
 # Default Dashboards.
 HOME_DASHBOARD_DEFAULT = {
     "meta": {},

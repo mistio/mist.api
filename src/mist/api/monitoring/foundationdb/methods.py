@@ -1,6 +1,6 @@
 import logging
 
-from mist.api.monitoring.foundationdb.handlers import get_data
+from mist.api.monitoring.foundationdb.handlers import get_data, get_metrics
 from mist.api.monitoring.helpers import parse_start_stop_params
 
 from mist.api.exceptions import ForbiddenError
@@ -32,39 +32,6 @@ def get_load(machines, start, stop, step):
 
 
 def find_metrics(machine):
-    import fdb
-
-    fdb.api_version(610)  # set api version for fdb
-    import fdb.tuple
-
     if not machine.monitoring.hasmonitoring:
         raise ForbiddenError("Machine doesn't have monitoring enabled.")
-    metrics = {}
-    db = fdb.open()
-    print(machine.id)
-    if fdb.directory.exists(db, "monitoring"):
-        monitoring = fdb.directory.open(db, "monitoring")
-
-        for k, v in db[monitoring["available_metrics"][machine.id].range()]:
-            data_tuple = monitoring["available_metrics"][machine.id].unpack(k)
-            # print(data_tuple)
-            metric = {
-                data_tuple[1] +
-                "." +
-                data_tuple[2]: {
-                    "id": data_tuple[1] + "." + data_tuple[2],
-                    "name": data_tuple[1] + "." + data_tuple[2],
-                    "column": data_tuple[1] + "." + data_tuple[2],
-                    "measurement": data_tuple[1] + "." + data_tuple[2],
-                    "max_value": None,
-                    "min_value": None,
-                    "priority": 0,
-                    "unit": "",
-                }
-            }
-            metrics.update(metric)
-
-    else:
-        raise ForbiddenError("Machine doesn't have the metrics directory.")
-
-    return metrics
+    return get_metrics(machine.id)

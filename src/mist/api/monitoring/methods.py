@@ -125,10 +125,6 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
 
     # return time-series data from foundationdb
     elif machine.monitoring.method == "telegraf-foundationdb":
-        # TO:DO need to filter which metrics come in
-        # import pdb; pdb.set_trace()
-        # import ipdb;ipdb.set_trace()
-        # metrics = fdb_find_metrics(machine)
         all_metrics = list(fdb_find_metrics(machine).keys())
         if not metrics:
             metrics = all_metrics + machine.monitoring.metrics
@@ -161,7 +157,6 @@ def get_load(owner, start="", stop="", step="", uuids=None):
     machines = Machine.objects(
         cloud__in=clouds, monitoring__hasmonitoring=True
     )
-    # import pdb; pdb.set_trace()
     if uuids:
         machines.filter(id__in=uuids)
 
@@ -275,8 +270,8 @@ def check_monitoring(owner):
         ret.update(
             {
                 # Keep for backwards compatibility
-                "builtin_metrics": config.FDB_BUILTIN_METRICS,
-                "builtin_metrics_foundationdb": config.FDB_BUILTIN_METRICS,
+                "builtin_metrics": {},
+                # "builtin_metrics_foundationdb": config.FDB_BUILTIN_METRICS,
             }
         )
     for key in ("rules", "builtin_metrics", "custom_metrics"):

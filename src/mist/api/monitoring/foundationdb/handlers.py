@@ -1,16 +1,13 @@
 """Set of handlers to query from Foundationdb"""
+from mist.api.exceptions import ForbiddenError
+import fdb
+import fdb.tuple
+import datetime
+fdb.api_version(610)  # set api version for fdb
 
 
 def get_data(machines, start, stop, metrics):
-    import fdb
-
-    fdb.api_version(610)  # set api version for fdb
-    import fdb.tuple
-    import datetime
-
-    # open db connection and create transaction
     db = fdb.open()
-
     results = {}
 
     # get data frequency depending on time range
@@ -194,3 +191,34 @@ def get_data(machines, start, stop, metrics):
     else:
         print("The directory you are trying to read does not exist.")
     return results
+
+
+def get_metrics(machine):
+    db = fdb.open()
+    metrics = {}
+    if fdb.directory.exists(db, "monitoring"):
+        monitoring = fdb.directory.open(db, "monitoring")
+
+        for k, v in db[monitoring["available_metrics"][machine].range()]:
+            data_tuple = monitoring["available_metrics"][machine].unpack(k)
+            # print(data_tuple)
+            metric = {
+                data_tuple[1] +
+                "." +
+                data_tuple[2]: {
+                    "id": data_tuple[1] + "." + data_tuple[2],
+                    "name": data_tuple[1] + "." + data_tuple[2],
+                    "column": data_tuple[1] + "." + data_tuple[2],
+                    "measurement": data_tuple[1] + "." + data_tuple[2],
+                    "max_value": None,
+                    "min_value": None,
+                    "priority": 0,
+                    "unit": "",
+                }
+            }
+            metrics.update(metric)
+
+    else:
+        raise ForbiddenError("Machine doesn't have the metrics directory.")
+
+    return metrics
