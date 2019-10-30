@@ -17,7 +17,7 @@ from mist.api.exceptions import ServiceUnavailableError
 
 from mist.api.machines.models import Machine
 
-from mist.api.monitoring.helpers import notify_machine_monitoring
+from mist.api.monitoring.influxdb.helpers import notify_machine_monitoring
 
 
 log = logging.getLogger(__name__)
