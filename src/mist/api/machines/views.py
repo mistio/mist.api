@@ -780,7 +780,8 @@ def machine_actions(request):
             raise BadRequestError("You must give a name!")
         result = getattr(machine.ctl, action)(name)
     elif action == 'resize':
-        _, constraints = auth_context.check_perm("machine", "resize", machine.id)
+        _, constraints = auth_context.check_perm("machine", "resize",
+                                                 machine.id)
         # check cost constraint
         cost_constraint = constraints.get('cost', {})
         if cost_constraint:
