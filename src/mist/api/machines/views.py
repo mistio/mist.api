@@ -1,5 +1,6 @@
 import uuid
 import logging
+
 from pyramid.response import Response
 
 import mist.api.machines.methods as methods
@@ -14,7 +15,6 @@ from mist.api import tasks
 from mist.api.auth.methods import auth_context_from_request
 from mist.api.helpers import view_config, params_from_request
 from mist.api.helpers import trigger_session_update
-
 
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import BadRequestError, NotFoundError, ForbiddenError
@@ -374,7 +374,8 @@ def create_machine(request):
     if location_id:
         auth_context.check_perm("location", "read", location_id)
         auth_context.check_perm("location", "create_resources", location_id)
-    tags = auth_context.check_perm("machine", "create", None) or {}
+
+    tags, constraints = auth_context.check_perm("machine", "create", None)
     if script_id:
         auth_context.check_perm("script", "run", script_id)
     if key_id:
@@ -401,6 +402,15 @@ def create_machine(request):
         raise BadRequestError('Invalid tags format. Expecting either a '
                               'dictionary of tags or a list of single-item '
                               'dictionaries')
+
+    # check expiration constraint
+    exp_constraint = constraints.get('expiration', {})
+    if exp_constraint:
+        try:
+            from mist.rbac.methods import check_expiration
+            check_expiration(expiration, exp_constraint)
+        except ImportError:
+            pass
 
     args = (cloud_id, key_id, machine_name,
             location_id, image_id, size,
@@ -611,7 +621,16 @@ def edit_machine(request):
     if machine.cloud.owner != auth_context.owner:
         raise NotFoundError("Machine %s doesn't exist" % machine.id)
 
-    auth_context.check_perm('machine', 'edit', machine.id)
+    tags, constraints = auth_context.check_perm("machine", "edit", machine.id)
+    expiration = params.get('expiration', {})
+    # check expiration constraint
+    exp_constraint = constraints.get('expiration', {})
+    if exp_constraint:
+        try:
+            from mist.rbac.methods import check_expiration
+            check_expiration(expiration, exp_constraint)
+        except ImportError:
+            pass
 
     return machine.ctl.update(auth_context, params)
 

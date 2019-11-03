@@ -456,7 +456,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             'action': expiration.get('action'),
             'conditions': [{'type': 'machines', 'ids': [machine.id]}],
             'task_enabled': True,
-            'notify': expiration.get('notify', '')
+            'notify': expiration.get('notify', ''),
+            'notify_msg': expiration.get('notify_msg', '')
         }
         name = machine.name + '-expiration-' + str(randrange(1000))
         from mist.api.schedules.models import Schedule
