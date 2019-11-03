@@ -8,6 +8,8 @@ import mongoengine as me
 
 from time import time
 
+from random import randrange
+
 import paramiko
 
 from libcloud.compute.types import NodeState
@@ -35,6 +37,10 @@ from mist.api.machines.models import Machine
 from mist.api.scripts.models import Script
 from mist.api.schedules.models import Schedule
 from mist.api.dns.models import RECORDS
+from mist.api.tag.methods import get_tags_for_resource
+from mist.api.tag.methods import remove_tags_from_resource
+from mist.api.auth.models import AuthToken
+from mist.api.auth.methods import auth_context_from_auth_token
 
 from mist.api.rules.models import NoDataRule
 
@@ -894,16 +900,66 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
         'event_type': 'job',
         'error': False,
     }
-
     log_event(action='schedule_started', **log_dict)
     log.info('Schedule action started: %s', log_dict)
 
     for machine_uuid in machines_uuids:
+        found = False
+        _action = action
         try:
-            run_machine_action.s(owner_id, action, name,
-                                 machine_uuid)()
-        except Exception as exc:
-            log_dict['error'] = log_dict.get('error', '') + str(exc) + '\n'
+            machine = Machine.objects.get(id=machine_uuid)
+            found = True
+        except me.DoesNotExist:
+            log_dict['error'] = "Machine with id %s does not \
+                exist." % machine_uuid
+
+        if found:
+            if _action in ['destroy'] and config.SAFE_EXPIRATION and \
+               machine.expiration == schedule:
+                # untag machine
+                owner = Owner.objects.get(id=owner_id)  # FIXME: try-except
+                existing_tags = get_tags_for_resource(owner, machine)
+                if existing_tags:
+                    remove_tags_from_resource(owner, machine, existing_tags)
+                # unown machine
+                machine.owned_by = None
+
+                # create new schedule that will destroy the machine
+                # in SAFE_EXPIRATION_DURATION secs
+                for team in owner.teams:
+                    if team.name == 'Owners':
+                        user = team.members[0]
+                        org = Organization.objects.get(teams=team)
+                        break
+                auth_token = AuthToken(user_id=user.id, org=org)
+                auth_context = auth_context_from_auth_token(auth_token)
+
+                _delta = datetime.timedelta(0, config.SAFE_EXPIRATION_DURATION)
+                schedule_entry = datetime.datetime.utcnow() + _delta
+                schedule_entry = schedule_entry.strftime('%Y-%m-%d %H:%M:%S')
+
+                params = {
+                    'schedule_type': 'one_off',
+                    'description': 'Safe expiration schedule',
+                    'schedule_entry': schedule_entry,
+                    'action': 'destroy',
+                    'conditions': [{'type': 'machines', 'ids': [machine.id]}],
+                    'task_enabled': True,
+                }
+                _name = machine.name + '-safe-expiration-' + \
+                    str(randrange(1000))
+                machine.expiration = Schedule.add(auth_context, _name,
+                                                  **params)
+                machine.save()
+
+                # change action to be executed now
+                _action = 'stop'
+
+            try:
+                run_machine_action.s(owner_id, _action, name,
+                                     machine_uuid)()
+            except Exception as exc:
+                log_dict['error'] = log_dict.get('error', '') + str(exc) + '\n'
 
     log_dict.update({'last_run_at': str(schedule.last_run_at or ''),
                     'total_run_count': schedule.total_run_count or 0,
@@ -930,14 +986,13 @@ def run_machine_action(owner_id, action, name, machine_uuid):
     :param machine_id:
     :return:
     """
-    schedule_id = Schedule.objects.get(owner=owner_id,
-                                       name=name, deleted=None).id
+    schedule = Schedule.objects.get(owner=owner_id, name=name, deleted=None)
 
     log_dict = {
         'owner_id': owner_id,
         'event_type': 'job',
         'machine_uuid': machine_uuid,
-        'schedule_id': schedule_id,
+        'schedule_id': schedule.id,
     }
 
     machine_id = ''
@@ -1018,16 +1073,23 @@ def run_machine_action(owner_id, action, name, machine_uuid):
                         user = machine.owned_by
                     else:
                         user = machine.created_by
-                    machine_uri = config.CORE_URI + '/machines/%s' % machine.id
                     subject = config.MACHINE_EXPIRE_NOTIFY_EMAIL_SUBJECT
+                    if schedule.schedule_type.type == 'reminder' and \
+                       schedule.schedule_type.message:
+                        custom_msg = '\n%s\n' % schedule.schedule_type.message
+                    else:
+                        custom_msg = ''
+                    machine_uri = config.CORE_URI + \
+                        '/machines/%s' % machine.id
                     main_body = config.MACHINE_EXPIRE_NOTIFY_EMAIL_BODY
+                    sch_entry = machine.expiration.schedule_type.entry
                     body = main_body % ((user.first_name + " " +
                                         user.last_name).strip(),
                                         machine.name,
-                                        machine.expiration.schedule_type.entry,
+                                        sch_entry,
                                         machine_uri + '/expiration',
-                                        config.CORE_URI)
-                    log.info('about to send email...')
+                                        custom_msg, config.CORE_URI)
+                    log.info('About to send email...')
                     if not helper_send_email(subject, body, user.email):
                         raise ServiceUnavailableError("Could not send "
                                                       "notification email "
