@@ -37,6 +37,27 @@ logging.getLogger('elasticsearch').setLevel(logging.ERROR)
 log = logging.getLogger(__name__)
 
 
+def log_observations(owner_id, cloud_id, resource_type, patch):
+    """Log observation events.
+
+    # FIXME!
+
+    Arguments:
+        - resource_type: one of machine, volume, network
+        - patch: the json patch produced from the diff of
+            old and new resources
+    """
+    log_dict = {
+            'cloud_id': cloud_id,
+            'resource_type': resource_type,
+    }
+    for _patch in patch:
+        if _patch.get('op') == 'add':
+            log_dict.update({'resource_id': _patch.get('value').get('id')})
+            log_event(action='new_resource', event_type='observation', owner_id=owner_id, **log_dict)
+    return
+
+
 def log_event(owner_id, event_type, action, error=None, **kwargs):
     """Log a new event.
 

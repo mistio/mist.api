@@ -240,6 +240,8 @@ class BaseComputeController(BaseController):
         patch = jsonpatch.JsonPatch.from_diff(old_machines,
                                               new_machines).patch
         if patch:  # Publish patches to rabbitmq.
+            from mist.api.logs.methods import log_observations
+            log_observations(self.cloud.owner.id, self.cloud.id, 'machine', patch)
             amqp_publish_user(self.cloud.owner.id,
                               routing_key='patch_machines',
                               data={'cloud_id': self.cloud.id,
