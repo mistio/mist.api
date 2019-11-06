@@ -70,5 +70,8 @@ class LibcloudExceptionHandler(object):
             except LibcloudError as exc:
                 log.error("Error on running %s: %s", func.__name__, exc)
                 raise self.exception_class(exc=exc, msg=str(exc))
+            except Exception as exc:
+                log.error("Error on running %s: %s", func.__name__, exc)
+                raise self.exception_class(exc=exc, msg=str(exc))
 
         return wrapper
