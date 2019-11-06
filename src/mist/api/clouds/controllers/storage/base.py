@@ -91,6 +91,8 @@ class BaseStorageController(BaseController):
                 patch = jsonpatch.JsonPatch.from_diff(cached_volumes,
                                                       new_volumes).patch
                 if patch:
+                    from mist.api.logs.methods import log_observations
+                    log_observations(self.cloud.owner.id, self.cloud.id, 'volume', patch)
                     amqp_publish_user(self.cloud.owner.id,
                                       routing_key='patch_volumes',
                                       data={'cloud_id': self.cloud.id,
