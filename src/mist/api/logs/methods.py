@@ -48,13 +48,34 @@ def log_observations(owner_id, cloud_id, resource_type, patch):
             old and new resources
     """
     log_dict = {
-            'cloud_id': cloud_id,
-            'resource_type': resource_type,
+        'cloud_id': cloud_id,
+        'resource_type': resource_type,
     }
     for _patch in patch:
         if _patch.get('op') == 'add':
-            log_dict.update({'resource_id': _patch.get('value').get('id')})
-            log_event(action='new_resource', event_type='observation', owner_id=owner_id, **log_dict)
+            if isinstance(_patch.get('value'), dict) and \
+               _patch.get('value').get('id', ''):
+                # TODO: make action more specific? eg, new_volume?
+                action = 'new_resource'
+                resource_id = _patch.get('value').get('id')
+            elif 'attached_to' in _patch.get('path'):
+                action = 'volume_attached'
+                resource_id = _patch.get('path').split('-')[0].strip('/')
+                log_dict.update({'machine_id': _patch.get('value')})
+            else:
+                continue
+        elif _patch.get('op') == 'remove':
+            if 'attached_to' in _patch.get('path'):
+                # TODO: also log machine the volume was detached from?
+                action = 'volume_detached'
+                resource_id = _patch.get('path').split('-')[0].strip('/')
+            else:
+                continue
+        else:
+            continue
+        log_dict.update({'resource_id': resource_id})
+        log_event(action=action, event_type='observation',
+                  owner_id=owner_id, **log_dict)
     return
 
 

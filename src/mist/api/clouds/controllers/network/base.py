@@ -259,7 +259,8 @@ class BaseNetworkController(BaseController):
                                                       new_networks).patch
                 if patch:
                     from mist.api.logs.methods import log_observations
-                    log_observations(self.cloud.owner.id, self.cloud.id, 'network', patch)
+                    log_observations(self.cloud.owner.id, self.cloud.id,
+                                     'network', patch)
                     amqp_publish_user(self.cloud.owner.id,
                                       routing_key='patch_networks',
                                       data={'cloud_id': self.cloud.id,
