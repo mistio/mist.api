@@ -356,7 +356,7 @@ class DigitalOceanComputeController(BaseComputeController):
 
     def _resize_machine(self, machine, machine_libcloud, node_size, kwargs):
         try:
-            self.connection.ex_resize_node(machine_libcloud, node_size.id)
+            self.connection.ex_resize_node(machine_libcloud, node_size)
         except Exception as exc:
             raise BadRequestError('Failed to resize node: %s' % exc)
 
