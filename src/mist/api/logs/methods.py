@@ -37,43 +37,64 @@ logging.getLogger('elasticsearch').setLevel(logging.ERROR)
 log = logging.getLogger(__name__)
 
 
-def log_observations(owner_id, cloud_id, resource_type, patch):
+def log_observations(owner_id, cloud_id, resource_type, patch,
+                     cached_resources, new_resources):
     """Log observation events.
-
-    # FIXME!
-
+    An observation event can be one of: create/destroy machine,
+    create/delete volume, create/delete network or attach/detach
+    volume.
     Arguments:
+        - owner_id
+        - cloud_id
         - resource_type: one of machine, volume, network
         - patch: the json patch produced from the diff of
-            old and new resources
+            cached and new resources
     """
     log_dict = {
         'cloud_id': cloud_id,
-        'resource_type': resource_type,
     }
+
     for _patch in patch:
         if _patch.get('op') == 'add':
             if isinstance(_patch.get('value'), dict) and \
                _patch.get('value').get('id', ''):
-                # TODO: make action more specific? eg, new_volume?
-                action = 'new_resource'
+                action = 'create_' + resource_type
                 resource_id = _patch.get('value').get('id')
-            elif 'attached_to' in _patch.get('path'):
-                action = 'volume_attached'
-                resource_id = _patch.get('path').split('-')[0].strip('/')
-                log_dict.update({'machine_id': _patch.get('value')})
+            elif '/attached_to/' in _patch.get('path'):
+                action = 'attach_volume'
+                ids = _patch.get('path').split('-')
+                resource_id = ids.pop(0).strip('/')
+                external_id = '-'.join(ids).split('attached_to')[0][:-1]
+                log_dict.update({'machine_id': _patch.get('value'),
+                                 'external_id': external_id})
             else:
                 continue
         elif _patch.get('op') == 'remove':
-            if 'attached_to' in _patch.get('path'):
-                # TODO: also log machine the volume was detached from?
-                action = 'volume_detached'
-                resource_id = _patch.get('path').split('-')[0].strip('/')
+            if '/attached_to/' in _patch.get('path'):
+                action = 'detach_volume'
+                ids = _patch.get('path').split('-')
+                resource_id = ids.pop(0).strip('/')
+                external_id = '-'.join(ids).split('attached_to')[0][:-1]
+                # find the machine the volume was attached to
+                key = resource_id + '-' + external_id
+                machine_id = cached_resources.get(key).get('attached_to')[0]
+                log_dict.update({'machine_id': machine_id,
+                                 'external_id': external_id})
+            elif len(_patch.get('path').split('/')) < 3:  # '/id-external_id'
+                if resource_type == 'machine':
+                    action = 'destroy_machine'
+                else:
+                    action = 'delete_' + resource_type
+                ids = _patch.get('path').split('-')
+                resource_id = ids.pop(0).strip('/')
+                external_id = '-'.join(ids)
+                log_dict.update({'external_id': external_id})
             else:
                 continue
         else:
             continue
-        log_dict.update({'resource_id': resource_id})
+        log_dict.update({'resource_type': resource_type,
+                         'resource_id': resource_id})
         log_event(action=action, event_type='observation',
                   owner_id=owner_id, **log_dict)
     return
