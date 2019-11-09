@@ -91,6 +91,17 @@ def log_observations(owner_id, cloud_id, resource_type, patch,
                 log_dict.update({'external_id': external_id})
             else:
                 continue
+        elif _patch.get('op') == 'replace' and resource_type == 'machine':
+            if '/state' in _patch.get('path') and _patch.get('value') in \
+               ['running', 'stopped']:
+                action = 'stop_machine' if _patch.get('value') == 'stopped' \
+                    else 'start_machine'
+                ids = _patch.get('path').split('-')
+                resource_id = ids.pop(0).strip('/')
+                external_id = '-'.join(ids)
+                log_dict.update({'external_id': external_id})
+            else:
+                continue
         else:
             continue
         log_dict.update({'resource_type': resource_type,
