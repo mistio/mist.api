@@ -909,7 +909,7 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
 
         if found:
             if _action in ['destroy'] and config.SAFE_EXPIRATION and \
-               machine.expiration == schedule:
+               machine.expiration == schedule and machine.state != 'stopped':
                 from mist.api.machines.methods import machine_safe_expire
                 machine_safe_expire(owner_id, machine)
                 # change action to be executed now
