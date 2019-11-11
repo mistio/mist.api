@@ -393,7 +393,7 @@ def toggle_cloud(request):
         'observation_logs_enabled', None)
 
     if new_state is None and dns_enabled is None and \
-      observation_logs_enabled is None:
+            observation_logs_enabled is None:
         raise RequiredParameterMissingError('new_state or dns_enabled or \
           observation_logs_enabled')
 
