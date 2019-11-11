@@ -82,22 +82,28 @@ class BaseStorageController(BaseController):
 
             volumes = self._list_volumes()
 
-        if amqp_owner_listening(self.cloud.owner.id):
-            volumes_dict = [v.as_dict() for v in volumes]
-            if cached_volumes and volumes_dict:
-                # Publish patches to rabbitmq.
-                new_volumes = {'%s-%s' % (v['id'], v['external_id']): v
-                               for v in volumes_dict}
-                patch = jsonpatch.JsonPatch.from_diff(cached_volumes,
-                                                      new_volumes).patch
-                if patch:
+        volumes_dict = [v.as_dict() for v in volumes]
+        if cached_volumes and volumes_dict:
+            # Publish patches to rabbitmq.
+            new_volumes = {'%s-%s' % (v['id'], v['external_id']): v
+                           for v in volumes_dict}
+            patch = jsonpatch.JsonPatch.from_diff(cached_volumes,
+                                                  new_volumes).patch
+            if patch:
+                if self.cloud.observation_logs_enabled:
+                    from mist.api.logs.methods import log_observations
+                    log_observations(self.cloud.owner.id, self.cloud.id,
+                                     'volume', patch, cached_volumes,
+                                     new_volumes)
+                if amqp_owner_listening(self.cloud.owner.id):
                     amqp_publish_user(self.cloud.owner.id,
                                       routing_key='patch_volumes',
                                       data={'cloud_id': self.cloud.id,
                                             'patch': patch})
-            # FIXME: remove this block, once patches
-            # are implemented in the UI
-            else:
+        # FIXME: remove this block, once patches
+        # are implemented in the UI
+        else:
+            if amqp_owner_listening(self.cloud.owner.id):
                 amqp_publish_user(self.cloud.owner.id,
                                   routing_key='list_volumes',
                                   data={'cloud_id': self.cloud.id,

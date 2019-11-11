@@ -963,13 +963,13 @@ def logging_view_decorator(func):
 
         machine_id = request.environ.get('machine_id')
         if machine_id and not log_dict.get('machine_id'):
-            log_dict['machine_id'] = request.environ.get('machine_id')
+            log_dict['external_id'] = request.environ.get('machine_id')
 
         machine_uuid = (request.matchdict.get('machine_uuid') or
                         params.get('machine_uuid') or
                         request.environ.get('machine_uuid'))
         if machine_uuid and not log_dict.get('machine_uuid'):
-            log_dict['machine_uuid'] = machine_uuid
+            log_dict['machine_id'] = machine_uuid
 
         # Attempt to hide passwords, API keys, certificates, etc.
         for key in ('priv', 'password', 'new_password', 'apikey', 'apisecret',

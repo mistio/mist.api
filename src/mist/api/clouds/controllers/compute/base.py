@@ -220,9 +220,6 @@ class BaseComputeController(BaseController):
         return machines
 
     def produce_and_publish_patch(self, cached_machines, fresh_machines):
-        if not amqp_owner_listening(self.cloud.owner.id):
-            return
-
         old_machines = {'%s-%s' % (m['id'], m['machine_id']): m
                         for m in cached_machines}
         new_machines = {'%s-%s' % (m.id, m.machine_id): m.as_dict()
@@ -240,10 +237,15 @@ class BaseComputeController(BaseController):
         patch = jsonpatch.JsonPatch.from_diff(old_machines,
                                               new_machines).patch
         if patch:  # Publish patches to rabbitmq.
-            amqp_publish_user(self.cloud.owner.id,
-                              routing_key='patch_machines',
-                              data={'cloud_id': self.cloud.id,
-                                    'patch': patch})
+            if self.cloud.observation_logs_enabled:
+                from mist.api.logs.methods import log_observations
+                log_observations(self.cloud.owner.id, self.cloud.id,
+                                 'machine', patch, old_machines, new_machines)
+            if amqp_owner_listening(self.cloud.owner.id):
+                amqp_publish_user(self.cloud.owner.id,
+                                  routing_key='patch_machines',
+                                  data={'cloud_id': self.cloud.id,
+                                        'patch': patch})
 
     def _list_machines(self):
         """Core logic of list_machines method
