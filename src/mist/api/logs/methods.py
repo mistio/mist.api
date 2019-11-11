@@ -100,6 +100,14 @@ def log_observations(owner_id, cloud_id, resource_type, patch,
                 resource_id = ids.pop(0).strip('/')
                 external_id = '-'.join(ids)
                 log_dict.update({'external_id': external_id})
+            elif '/size' in _patch.get('path') and \
+               len(_patch.get('path').split('/')) < 4:
+                action = 'resize_machine'
+                ids = _patch.get('path').split('-')
+                resource_id = ids.pop(0).strip('/')
+                external_id = '-'.join(ids)
+                log_dict.update({'external_id': external_id,
+                                 'new_size': _patch.get('value')})
             else:
                 continue
         else:
