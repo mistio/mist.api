@@ -93,7 +93,7 @@ class Cloud(OwnershipMixin, me.Document):
     polling_interval = me.IntField(default=0)  # in seconds
 
     dns_enabled = me.BooleanField(default=False)
-    observation_logs_enabled = me.BooleanField(default=True)
+    observation_logs_enabled = me.BooleanField(default=False)
 
     default_monitoring_method = me.StringField(
         choices=config.MONITORING_METHODS)

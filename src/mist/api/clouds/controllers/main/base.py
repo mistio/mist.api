@@ -149,6 +149,7 @@ class BaseMainController(object):
 
         # Cloud specific argument preparsing cloud-wide argument
         self.cloud.dns_enabled = kwargs.pop('dns_enabled', False) is True
+        self.cloud.observation_logs_enabled = True
 
         # Cloud specific kwargs preparsing.
         try:
