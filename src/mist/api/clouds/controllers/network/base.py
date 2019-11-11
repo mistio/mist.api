@@ -257,10 +257,11 @@ class BaseNetworkController(BaseController):
             patch = jsonpatch.JsonPatch.from_diff(cached_networks,
                                                   new_networks).patch
             if patch:
-                from mist.api.logs.methods import log_observations
-                log_observations(self.cloud.owner.id, self.cloud.id,
-                                 'network', patch, cached_networks,
-                                 new_networks)
+                if self.cloud.observation_logs_enabled:
+                    from mist.api.logs.methods import log_observations
+                    log_observations(self.cloud.owner.id, self.cloud.id,
+                                    'network', patch, cached_networks,
+                                    new_networks)
                 if amqp_owner_listening(self.cloud.owner.id):
                     amqp_publish_user(self.cloud.owner.id,
                                       routing_key='patch_networks',
