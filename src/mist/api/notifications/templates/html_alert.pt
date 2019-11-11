@@ -32,6 +32,7 @@
 				<div>State: ${inputs.state}</div>
 				<div>Action: ${inputs.action}</div>
 				<div>Date: ${inputs.time}</div>
+				<div tal:condition="inputs.description">Description: ${inputs.description}</div>
 
 			</div>
 			<div style="padding: 30px 0 20px 0; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.5em;">

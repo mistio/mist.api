@@ -19,6 +19,7 @@ from mist.api.rules.models import TriggerOffset
 from mist.api.rules.models import QueryCondition
 from mist.api.rules.models import BaseAlertAction
 from mist.api.rules.models import NotificationAction
+from mist.api.rules.models import WebhookAction
 
 from mist.api.rules.plugins import GraphiteNoDataPlugin
 from mist.api.rules.plugins import GraphiteBackendPlugin
@@ -447,11 +448,13 @@ class ResourceLogsRule(ResourceRule):
     def clean(self):
         super(ResourceLogsRule, self).clean()
         if not (
-            len(self.actions) is 1 and
-            isinstance(self.actions[0], NotificationAction)
+            len(self.actions) is 1 and (
+                isinstance(self.actions[0], NotificationAction) or
+                isinstance(self.actions[0], WebhookAction))
         ):
-            raise me.ValidationError('Only a single notification action may '
-                                     'be performed by this type of rule')
+            raise me.ValidationError('Only a single notification or webhook '
+                                     'action may be performed by this type of '
+                                     'rule')
 
 
 class ArbitraryLogsRule(ArbitraryRule):
@@ -462,11 +465,13 @@ class ArbitraryLogsRule(ArbitraryRule):
     def clean(self):
         super(ArbitraryLogsRule, self).clean()
         if not (
-            len(self.actions) is 1 and
-            isinstance(self.actions[0], NotificationAction)
+            len(self.actions) is 1 and (
+                isinstance(self.actions[0], NotificationAction) or
+                isinstance(self.actions[0], WebhookAction))
         ):
-            raise me.ValidationError('Only a single notification action may '
-                                     'be performed by this type of rule')
+            raise me.ValidationError('Only a single notification or webhook '
+                                     'action may be performed by this type of '
+                                     'rule')
 
 
 def _populate_rules():

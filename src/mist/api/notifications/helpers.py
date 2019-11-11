@@ -22,7 +22,8 @@ from mist.api.machines.models import Machine
 
 
 def _get_alert_details(resource, rule, incident_id,
-                       value, triggered, timestamp, action=''):
+                       value, triggered, timestamp, action='', level='',
+                       description=''):
     """Return a dict with the alert/incident details. For resource-bound
     rules, this method must return a dict that is resource-agnostic, yet
     contains all the necessary information in terms of the corresponding
@@ -50,6 +51,7 @@ def _get_alert_details(resource, rule, incident_id,
     # The basic dict of details for describing every alert. All common
     # alert details among rules should be added here.
     d = {
+        'description': '',
         'rule_id': rule.id,
         'rule_title': rule.title,
         'rule_data_type': rule._data_type_str,
@@ -58,7 +60,7 @@ def _get_alert_details(resource, rule, incident_id,
         'curr_value': value,
         'condition': cond,
         'action': 'alert',
-        'state': 'WARNING' if triggered else 'OK',
+        'state': level.upper() if triggered else 'OK',
         'since': _get_time_diff_to_now(timestamp),
         'time': _get_current_local_time(),
         'uri': config.CORE_URI,
