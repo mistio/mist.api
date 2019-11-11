@@ -6,6 +6,7 @@ Condition: ${inputs.condition}
 State: ${inputs.state}
 Action: ${inputs.action}
 Date: ${inputs.time}
+Description: ${inputs.description}
 
 ===================== Details ======================
 

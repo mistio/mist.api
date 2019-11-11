@@ -36,7 +36,7 @@ log = logging.getLogger(__name__)
 
 
 def send_alert_email(rule, resource, incident_id, value, triggered, timestamp,
-                     emails, action=''):
+                     emails, action='', level='', description=''):
     """Send an alert e-mail to notify users that a rule was triggered.
 
     Arguments:
@@ -58,6 +58,8 @@ def send_alert_email(rule, resource, incident_id, value, triggered, timestamp,
                      vice versa.
         emails:      A list of e-mails to push notifications to.
         action:      An optional action to replace the default "alert".
+        description: An optional description to be added in the alert
+                     email body.
 
     Note that alerts aren't sent out every time a rule gets triggered,
     rather they obey the `EmailAlert.reminder_schedule` schedule that
@@ -69,7 +71,7 @@ def send_alert_email(rule, resource, incident_id, value, triggered, timestamp,
 
     # Get dict with alert details.
     info = _get_alert_details(resource, rule, incident_id, value,
-                              triggered, timestamp, action)
+                              triggered, timestamp, action, level, description)
 
     # Create a new EmailAlert if the alert has just been triggered.
     try:

@@ -75,6 +75,9 @@ class NotificationAction(BaseAlertAction):
     users = me.ListField(me.StringField(), default=lambda: [])
     teams = me.ListField(me.StringField(), default=lambda: [])
     emails = me.ListField(me.StringField(), default=lambda: [])
+    level = me.StringField(default='warning', choices=(
+        'info', 'warning', 'critical'))
+    description = me.StringField(required=False)
 
     def run(self, resource, value, triggered, timestamp, incident_id,
             action=''):
@@ -106,7 +109,8 @@ class NotificationAction(BaseAlertAction):
         # FIXME Imported here due to circular dependency issues.
         from mist.api.notifications.methods import send_alert_email
         send_alert_email(self._instance, resource, incident_id, value,
-                         triggered, timestamp, emails, action=action)
+                         triggered, timestamp, emails, action=action,
+                         level=self.level, description=self.description)
 
     def clean(self):
         """Perform e-mail address validation."""
@@ -116,7 +120,8 @@ class NotificationAction(BaseAlertAction):
 
     def as_dict(self):
         return {'type': self.atype, 'emails': self.emails,
-                'users': self.users, 'teams': self.teams}
+                'users': self.users, 'teams': self.teams,
+                'level': self.level, 'description': self.description}
 
 
 class NoDataAction(NotificationAction):
@@ -134,8 +139,8 @@ class NoDataAction(NotificationAction):
                                machine.machine_id, no_ssh=True)
             log_event(
                 machine.owner.id, 'incident', 'disable_monitoring',
-                cloud_id=machine.cloud.id, machine_id=machine.machine_id,
-                incident_id=incident_id
+                cloud_id=machine.cloud.id, machine_id=machine.id,
+                external_id=machine.machine_id, incident_id=incident_id
             )
             action = 'Disable Monitoring'
         else:
@@ -146,8 +151,6 @@ class NoDataAction(NotificationAction):
 
 class CommandAction(BaseAlertAction):
     """Execute a remote command."""
-
-    # TODO: Deprecate in favor of a ScriptAction?
 
     atype = 'command'
 
@@ -163,6 +166,60 @@ class CommandAction(BaseAlertAction):
 
     def as_dict(self):
         return {'type': self.atype, 'command': self.command}
+
+
+class ScriptAction(BaseAlertAction):
+    """Execute a remote script."""
+
+    atype = 'script'
+
+    script = me.ReferenceField('Script', required=True)
+    params = me.StringField(required=True)
+
+    def run(self, machine, *args, **kwargs):
+        # FIXME Imported here due to circular dependency issues.
+        from mist.api import tasks
+        assert isinstance(machine, Machine)
+        assert machine.owner == self._instance.owner
+        job_id = uuid.uuid4().hex
+        job = 'run_script'
+        tasks.run_script.delay(machine.owner.id, self.script.id,
+                               machine.id, params=self.params,
+                               job_id=job_id, job=job)
+        return {'job_id': job_id, 'job': job}
+
+    def as_dict(self):
+        return {'type': self.atype, 'script': self.script.id,
+                'params': self.params}
+
+
+class WebhookAction(BaseAlertAction):
+    """Execute a remote script."""
+
+    atype = 'webhook'
+
+    method = me.StringField(required=True, default='post', choices=(
+        'post', 'delete', 'put', 'patch'))
+    url = me.StringField(required=True)
+    params = me.StringField(required=False)
+    data = me.StringField(required=False)
+    json = me.StringField(required=False)
+    headers = me.StringField(required=False)
+
+    def run(self, machine, *args, **kwargs):
+        import requests
+        response = requests.request(
+            self.method, self.uri, self.params, self.data, self.json,
+            self.headers)
+
+        if response.status_code > 299 or response.status_code < 200:
+            pass  # TODO
+        return {'status_code': response.status_code}
+
+    def as_dict(self):
+        return {'type': self.atype, 'method': self.method, 'url': self.url,
+                'params': self.params, 'json': self.json,
+                'headers': self.headers}
 
 
 class MachineAction(BaseAlertAction):
