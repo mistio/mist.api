@@ -36,7 +36,8 @@ else:
 logging.getLogger('elasticsearch').setLevel(logging.ERROR)
 log = logging.getLogger(__name__)
 
-
+# FIXME: Once we are consistent with machine_id, external_id
+# etc, sanitize all the chaos below
 def log_observations(owner_id, cloud_id, resource_type, patch,
                      cached_resources, new_resources):
     """Log observation events.
@@ -67,7 +68,7 @@ def log_observations(owner_id, cloud_id, resource_type, patch,
                 external_id = _patch.get('value').get(provider_id)
             elif '/attached_to/' in _patch.get('path'):
                 action = 'attach_volume'
-                key = _patch.get('path')[1:-14]  # strip '/' and '/attached_to/0'
+                key = _patch.get('path')[1:-14]  # strip '/', '/attached_to/0'
                 name = cached_resources.get(key).get('name')
                 ids = _patch.get('path').split('-')
                 resource_id = ids.pop(0).strip('/')
