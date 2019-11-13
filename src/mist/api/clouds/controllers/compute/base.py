@@ -455,7 +455,7 @@ class BaseComputeController(BaseController):
 
             # Save all changes to machine model on the database.
             try:
-                machine.save()
+                machine.save(write_concern={'w': 1, 'fsync': True})
             except me.ValidationError as exc:
                 log.error("Error adding %s: %s", machine.name, exc.to_dict())
                 raise BadRequestError({"msg": str(exc),
@@ -486,7 +486,7 @@ class BaseComputeController(BaseController):
             _decide_machine_cost(machine)
 
             # Save machine
-            machine.save()
+            machine.save(write_concern={'w': 1, 'fsync': True})
             machines.append(machine)
 
         # Set last_seen on machine models we didn't see for the first time now.
