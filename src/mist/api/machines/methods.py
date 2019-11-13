@@ -448,6 +448,11 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
 
     # add schedule if expiration given
 
+    if key is not None:  # Associate key.
+        username = node.extra.get('username', '')
+        machine.ctl.associate_key(key, username=username,
+                                  port=ssh_port, no_connect=True)
+
     if expiration:
         params = {
             'schedule_type': 'one_off',
@@ -463,10 +468,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         machine.expiration = Schedule.add(auth_context, name, **params)
         machine.save(write_concern={'w': 1, 'fsync': True})
 
-    if key is not None:  # Associate key.
-        username = node.extra.get('username', '')
-        machine.ctl.associate_key(key, username=username,
-                                  port=ssh_port, no_connect=True)
     if tags:
         resolve_id_and_set_tags(auth_context. owner, 'machine', node.id, tags,
                                 cloud_id=cloud_id)
