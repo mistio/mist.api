@@ -35,7 +35,8 @@ def get_stats(machine, start, stop, step, metrics):
 
         raw_metrics = list(raw_machine_data["series"].keys())
         for raw_metric in raw_metrics:
-            # We use as key the metric name without the machine id e.g "id.system.load1 => system.load1"
+            # We use as key the metric name without the machine id
+            # e.g "id.system.load1 => system.load1"
             returned_metric = raw_metric.split(".", 1)[1]
             data.update(
                 {
