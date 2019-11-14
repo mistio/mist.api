@@ -16,11 +16,18 @@ def get_stats(machine, start, stop, step, metrics):
     if not metrics:
         metrics = [".*"]
 
-    #import pdb; pdb.set_trace()
     for metric in metrics:
         processed_metric = "%s.%s" % (machine.id, metric)
-        query = 'fetch("%s", start="%s", stop="%s", step="%s")' % (processed_metric, start, stop, step)
-        raw_machine_data = requests.get('%s/v1/datapoints?query=%s' % (config.TSFDB_URI, urllib.parse.quote(query))).json()
+        query = 'fetch("%s", start="%s", stop="%s", step="%s")' % (
+            processed_metric,
+            start,
+            stop,
+            step,
+        )
+        raw_machine_data = requests.get(
+            "%s/v1/datapoints?query=%s"
+            % (config.TSFDB_URI, urllib.parse.quote(query))
+        ).json()
 
         if "series" not in raw_machine_data:
             print("error = ", raw_machine_data)
@@ -30,7 +37,14 @@ def get_stats(machine, start, stop, step, metrics):
         for raw_metric in raw_metrics:
             # We use as key the metric name without the machine id e.g "id.system.load1 => system.load1"
             returned_metric = raw_metric.split(".", 1)[1]
-            data.update({returned_metric: {"name": returned_metric, "datapoints": raw_machine_data["series"][raw_metric]}})
+            data.update(
+                {
+                    returned_metric: {
+                        "name": returned_metric,
+                        "datapoints": raw_machine_data["series"][raw_metric],
+                    }
+                }
+            )
 
     return data
 
@@ -39,9 +53,23 @@ def get_load(machines, start, stop, step):
     data = {}
     for machine in machines:
         metric = "%s.system.load1" % machine
-        query = 'fetch("%s", start="%s", stop="%s", step="%s")' % (metric, start, stop, step)
-        raw_machine_data = requests.get('%s/v1/datapoints?query=%s' % (config.TSFDB_URI, query)).json()
-        data.update({machine: {"name": machine, "datapoints": raw_machine_data["series"][metric]}})
+        query = 'fetch("%s", start="%s", stop="%s", step="%s")' % (
+            metric,
+            start,
+            stop,
+            step,
+        )
+        raw_machine_data = requests.get(
+            "%s/v1/datapoints?query=%s" % (config.TSFDB_URI, query)
+        ).json()
+        data.update(
+            {
+                machine: {
+                    "name": machine,
+                    "datapoints": raw_machine_data["series"][metric],
+                }
+            }
+        )
 
     return data
 

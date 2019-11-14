@@ -132,27 +132,6 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
             step,
             metrics
         )
-        """all_metrics = list(fdb_find_metrics(machine).keys())
-        if not metrics:
-            metrics = all_metrics + machine.monitoring.metrics
-        processed_metrics = []
-        for metric in metrics:
-            try:
-                re.compile(metric)
-            except re.error:
-                processed_metrics.append(metric)
-                continue
-            for candidate in all_metrics:
-                match = re.match("^%s$" % metric, candidate)
-                if match:
-                    processed_metrics.append(candidate)
-        return fdb_get_stats(
-            machine,
-            start=start,
-            stop=stop,
-            step=step,
-            metrics=processed_metrics,
-        )"""
 
     else:
         raise Exception("Invalid monitoring method")
