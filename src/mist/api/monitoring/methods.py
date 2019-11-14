@@ -125,7 +125,14 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
 
     # return time-series data from foundationdb
     elif machine.monitoring.method == "telegraf-foundationdb":
-        all_metrics = list(fdb_find_metrics(machine).keys())
+        return fdb_get_stats(
+            machine,
+            start,
+            stop,
+            step,
+            metrics
+        )
+        """all_metrics = list(fdb_find_metrics(machine).keys())
         if not metrics:
             metrics = all_metrics + machine.monitoring.metrics
         processed_metrics = []
@@ -145,7 +152,7 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
             stop=stop,
             step=step,
             metrics=processed_metrics,
-        )
+        )"""
 
     else:
         raise Exception("Invalid monitoring method")
@@ -548,7 +555,8 @@ def find_metrics(machine):
         print(metrics)
         return metrics
     elif machine.monitoring.method == "telegraf-foundationdb":
-        return fdb_find_metrics(machine)
+        return {}
+        #return fdb_find_metrics(machine)
     else:
         raise Exception("Invalid monitoring method")
 
