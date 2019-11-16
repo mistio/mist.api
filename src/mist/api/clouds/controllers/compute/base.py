@@ -81,7 +81,7 @@ def _decide_machine_cost(machine, tags=None, cost=(0, 0)):
 
     # Get machine tags from db
     tags = tags or {tag.key: tag.value for tag in Tag.objects(
-        resource_id=machine.id, resource_type='machines'
+        resource_id=machine.id, resource_type='machine'
     )}
 
     try:

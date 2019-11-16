@@ -89,6 +89,17 @@ JS_LOG_LEVEL = 3
 
 ENABLE_DEV_USERS = False
 
+# policy to be applied on resources' owners
+OWNER_POLICY = {}
+
+# If true, on expiration schedule with action destroy,
+# instead of destroying a machine,
+# stop it, change ownership, untag the machine and
+# create a new schedule that will destroy the machine
+#  in <SAFE_EXPIRATION_DURATION> seconds
+SAFE_EXPIRATION = False
+SAFE_EXPIRATION_DURATION = 60 * 60 * 24 * 7
+
 MONGO_URI = "mongodb:27017"
 MONGO_DB = "mist2"
 
@@ -1396,13 +1407,6 @@ SUPPORTED_PROVIDERS = [
         'provider': Provider.GCE,
         'regions': []
     },
-
-    # NephoScale
-    {
-        'title': 'NephoScale',
-        'provider': Provider.NEPHOSCALE,
-        'regions': []
-    },
     # DigitalOcean
     {
         'title': 'DigitalOcean',
@@ -1724,7 +1728,7 @@ MACHINE_EXPIRE_NOTIFY_EMAIL_BODY = """Dear %s,
 Your machine `%s` will expire on %s
 
 If you'd like to prevent that, please update the expiration date at %s
-
+%s
 Best regards,
 The mist.io team
 
