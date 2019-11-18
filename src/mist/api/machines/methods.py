@@ -284,6 +284,9 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                             ram=0, disk=0, bandwidth=0,
                             price=0, driver=conn)
 
+    cached_machines = [m.as_dict()
+                       for m in cloud.ctl.compute.list_cached_machines()]
+
     if conn.type is Container_Provider.DOCKER:
         if public_key:
             node = _create_machine_docker(
@@ -440,19 +443,10 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                 else:
                     continue
 
-    cached_machines = [m.as_dict()
-                       for m in cloud.ctl.compute.list_cached_machines()]
-
     # Assign machine's owner/creator
     machine.assign_to(auth_context.user)
 
     # add schedule if expiration given
-
-    if key is not None:  # Associate key.
-        username = node.extra.get('username', '')
-        machine.ctl.associate_key(key, username=username,
-                                  port=ssh_port, no_connect=True)
-
     if expiration:
         params = {
             'schedule_type': 'one_off',
@@ -466,8 +460,12 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         name = machine.name + '-expiration-' + str(randrange(1000))
         from mist.api.schedules.models import Schedule
         machine.expiration = Schedule.add(auth_context, name, **params)
-        machine.save(write_concern={'w': 1, 'fsync': True})
+        machine.save()
 
+    if key is not None:  # Associate key.
+        username = node.extra.get('username', '')
+        machine.ctl.associate_key(key, username=username,
+                                  port=ssh_port, no_connect=True)
     if tags:
         resolve_id_and_set_tags(auth_context. owner, 'machine', node.id, tags,
                                 cloud_id=cloud_id)

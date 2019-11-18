@@ -37,8 +37,6 @@ logging.getLogger('elasticsearch').setLevel(logging.ERROR)
 log = logging.getLogger(__name__)
 
 
-# upon add cloud, resize observation log (check if there was)
-################################
 # consistent (if cached and new)
 # TEST!
 # fix rbac_1
