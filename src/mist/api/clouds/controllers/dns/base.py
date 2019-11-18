@@ -108,14 +108,14 @@ class BaseDNSController(BaseController):
         # Initialize AMQP connection to reuse for multiple messages.
         if amqp_owner_listening(self.cloud.owner.id):
             zones_dict = [z.as_dict() for z in zones]
-            if not first_run and (cached_zones or zones_dict):
+            if cached_zones or zones_dict:
                 # Publish patches to rabbitmq.
                 new_zones = {'%s-%s' % (z['id'], z['zone_id']): z
                              for z in zones_dict}
                 patch = jsonpatch.JsonPatch.from_diff(cached_zones,
                                                       new_zones).patch
                 if patch:
-                    if self.cloud.observation_logs_enabled:
+                    if not first_run and self.cloud.observation_logs_enabled:
                         from mist.api.logs.methods import log_observations
                         log_observations(self.cloud.owner.id, self.cloud.id,
                                          'zone', patch, cached_zones,
