@@ -261,8 +261,8 @@ class BaseNetworkController(BaseController):
                 if not first_run and self.cloud.observation_logs_enabled:
                     from mist.api.logs.methods import log_observations
                     log_observations(self.cloud.owner.id, self.cloud.id,
-                                    'network', patch, cached_networks,
-                                    new_networks)
+                                     'network', patch, cached_networks,
+                                     new_networks)
                 if amqp_owner_listening(self.cloud.owner.id):
                     amqp_publish_user(self.cloud.owner.id,
                                       routing_key='patch_networks',

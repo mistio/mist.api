@@ -208,8 +208,7 @@ class BaseComputeController(BaseController):
             self.cloud.ctl.disable()
             raise
 
-        if not first_run:
-            self.produce_and_publish_patch(cached_machines, machines)
+        self.produce_and_publish_patch(cached_machines, machines, first_run)
 
         # Push historic information for inventory and cost reporting.
         for machine in machines:
@@ -221,7 +220,8 @@ class BaseComputeController(BaseController):
 
         return machines
 
-    def produce_and_publish_patch(self, cached_machines, fresh_machines):
+    def produce_and_publish_patch(self, cached_machines, fresh_machines,
+                                  first_run=False):
         old_machines = {'%s-%s' % (m['id'], m['machine_id']): m
                         for m in cached_machines}
         new_machines = {'%s-%s' % (m.id, m.machine_id): m.as_dict()
@@ -239,7 +239,7 @@ class BaseComputeController(BaseController):
         patch = jsonpatch.JsonPatch.from_diff(old_machines,
                                               new_machines).patch
         if patch:  # Publish patches to rabbitmq.
-            if self.cloud.observation_logs_enabled:
+            if not first_run and self.cloud.observation_logs_enabled:
                 from mist.api.logs.methods import log_observations
                 log_observations(self.cloud.owner.id, self.cloud.id,
                                  'machine', patch, old_machines, new_machines)
