@@ -118,8 +118,8 @@ class BaseDNSController(BaseController):
                     if self.cloud.observation_logs_enabled:
                         from mist.api.logs.methods import log_observations
                         log_observations(self.cloud.owner.id, self.cloud.id,
-                                        'zone', patch, cached_zones,
-                                        new_zones)
+                                         'zone', patch, cached_zones,
+                                         new_zones)
                     amqp_publish_user(self.cloud.owner.id,
                                       routing_key='patch_zones',
                                       data={'cloud_id': self.cloud.id,
