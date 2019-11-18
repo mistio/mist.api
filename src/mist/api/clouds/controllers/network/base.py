@@ -240,7 +240,6 @@ class BaseNetworkController(BaseController):
         """
         task_key = 'cloud:list_networks:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
-        first_run = False if task.last_success else True
         with task.task_runner(persist=persist):
             # Get cached networks as dict
             cached_networks = {'%s-%s' % (n.id, n.network_id): n.as_dict()
@@ -253,7 +252,7 @@ class BaseNetworkController(BaseController):
         new_networks = {'%s-%s' % (n.id, n.network_id): n.as_dict()
                         for n in networks}
         # Exclude last seen and probe field
-        if not first_run and (cached_networks or new_networks):
+        if cached_networks or new_networks:
             # Publish patches to rabbitmq.
             patch = jsonpatch.JsonPatch.from_diff(cached_networks,
                                                   new_networks).patch

@@ -198,7 +198,6 @@ class BaseComputeController(BaseController):
         """
         task_key = 'cloud:list_machines:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
-        first_run = False if task.last_success else True
         try:
             with task.task_runner(persist=persist):
                 cached_machines = [m.as_dict()
@@ -208,8 +207,7 @@ class BaseComputeController(BaseController):
             self.cloud.ctl.disable()
             raise
 
-        if not first_run:
-            self.produce_and_publish_patch(cached_machines, machines)
+        self.produce_and_publish_patch(cached_machines, machines)
 
         # Push historic information for inventory and cost reporting.
         for machine in machines:
