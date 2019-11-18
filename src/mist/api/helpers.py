@@ -36,6 +36,7 @@ import jsonpickle
 import subprocess
 
 from time import time, strftime, sleep
+from datetime import timedelta
 
 from base64 import urlsafe_b64encode
 
@@ -1360,3 +1361,35 @@ def filter_resource_ids(auth_context, cloud_id, resource_type, resource_ids):
 
     allowed_ids = set(auth_context.get_allowed_resources(rtype=resource_type))
     return resource_ids & allowed_ids
+
+
+def convert_to_timedelta(time_val):
+    """
+    Receives a time_val param. time_val should be either an integer,
+    or a relative delta in the following format:
+    '_s', '_m', '_h', '_d', '_mo', for seconds, minutes, hours, days
+    months respectively. Returns a timedelta object if right param is
+    given, else None
+    """
+    try:
+        seconds = int(time_val)
+        return timedelta(seconds=seconds)
+    except ValueError:
+        try:
+            num = int(time_val[:-1])
+            if time_val.endswith('s'):
+                return timedelta(seconds=num)
+            elif time_val.endswith('m'):
+                return timedelta(minutes=num)
+            elif time_val.endswith('h'):
+                return timedelta(hours=num)
+            elif time_val.endswith('d'):
+                return timedelta(days=num)
+            elif time_val.endswith('mo'):
+                num = int(time_val[:-2])
+                return timedelta(months=num)
+        except ValueError:
+            if time_val.endswith('mo'):
+                num = int(time_val[:-2])
+                return timedelta(days=30 * num)
+    return None
