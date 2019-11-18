@@ -37,6 +37,13 @@ logging.getLogger('elasticsearch').setLevel(logging.ERROR)
 log = logging.getLogger(__name__)
 
 
+# upon add cloud, resize observation log (check if there was)
+################################
+# consistent (if cached and new)
+# TEST!
+# fix rbac_1
+
+
 # FIXME: Once we are consistent with machine_id, external_id
 # etc, sanitize all the chaos below
 def log_observations(owner_id, cloud_id, resource_type, patch,
@@ -55,7 +62,6 @@ def log_observations(owner_id, cloud_id, resource_type, patch,
     log_dict = {
         'cloud_id': cloud_id,
     }
-
     for _patch in patch:
         if _patch.get('op') == 'add':
 
@@ -106,10 +112,16 @@ def log_observations(owner_id, cloud_id, resource_type, patch,
         elif _patch.get('op') == 'replace' and resource_type == 'machine':
 
             if '/state' in _patch.get('path') and _patch.get('value') in \
-               ['running', 'stopped']:
-                action = 'stop_machine' if _patch.get('value') == 'stopped' \
-                    else 'start_machine'
+               ['running', 'stopped', 'terminated']:
+                if _patch.get('value') == 'stopped':
+                    action = 'stop_machine'
+                elif _patch.get('value') == 'running':
+                    action = 'start_machine'
+                elif _patch.get('value') == 'terminated':
+                    action = 'destroy_machine'
                 key = _patch.get('path')[1:-6]  # strip '/' and '/state'
+                if action == 'start_machine' and cached_resources.get('key').get('state') == 'pending':
+                    continue
                 name = cached_resources.get(key).get('name')
                 ids = _patch.get('path').split('-')
                 resource_id = ids.pop(0).strip('/')
