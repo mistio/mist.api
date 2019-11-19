@@ -113,7 +113,8 @@ def log_observations(owner_id, cloud_id, resource_type, patch,
                 elif _patch.get('value') == 'terminated':
                     action = 'destroy_machine'
                 key = _patch.get('path')[1:-6]  # strip '/' and '/state'
-                if cached_resources.get('key').get('state') == 'pending' \
+                if cached_resources.get('key') and \
+                    cached_resources.get('key').get('state') == 'pending' \
                         and action == 'start_machine':
                     continue
                 name = cached_resources.get(key).get('name')
