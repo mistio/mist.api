@@ -37,11 +37,6 @@ logging.getLogger('elasticsearch').setLevel(logging.ERROR)
 log = logging.getLogger(__name__)
 
 
-# consistent (if cached and new)
-# TEST!
-# fix rbac_1
-
-
 # FIXME: Once we are consistent with machine_id, external_id
 # etc, sanitize all the chaos below
 def log_observations(owner_id, cloud_id, resource_type, patch,
