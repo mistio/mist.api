@@ -55,6 +55,7 @@ def log_observations(owner_id, cloud_id, resource_type, patch,
     log_dict = {
         'cloud_id': cloud_id,
     }
+
     for _patch in patch:
         if _patch.get('op') == 'add':
 
@@ -95,6 +96,10 @@ def log_observations(owner_id, cloud_id, resource_type, patch,
                 else:
                     action = 'delete_' + resource_type
                 key = _patch.get('path')[1:]  # strip '/'
+                if cached_resources.get(key) and \
+                    cached_resources.get(key).get('state') == 'terminated' \
+                        and action == 'destroy_machine':
+                    continue
                 ids = _patch.get('path').split('-')
                 resource_id = ids.pop(0).strip('/')
                 external_id = '-'.join(ids)
@@ -113,8 +118,8 @@ def log_observations(owner_id, cloud_id, resource_type, patch,
                 elif _patch.get('value') == 'terminated':
                     action = 'destroy_machine'
                 key = _patch.get('path')[1:-6]  # strip '/' and '/state'
-                if cached_resources.get('key') and \
-                    cached_resources.get('key').get('state') == 'pending' \
+                if cached_resources.get(key) and \
+                    cached_resources.get(key).get('state') == 'pending' \
                         and action == 'start_machine':
                     continue
                 name = cached_resources.get(key).get('name')
