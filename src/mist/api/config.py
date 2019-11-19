@@ -110,6 +110,7 @@ SUPPORT_URI = 'https://docs.mist.io/contact'
 
 INTERNAL_API_URL = 'http://api'
 GOCKY_HOST = 'gocky'
+GOCKY_PORT = 9096
 
 # InfluxDB
 INFLUX = {
