@@ -13,7 +13,7 @@ def _gen_machine_config(machine):
     if not machine.monitoring.hasmonitoring:
         raise Exception("Machine.monitoring.hasmonitoring is False")
     if machine.monitoring.method == 'telegraf-graphite':
-        backend_port = 9097
+        backend_port = 9096
     elif machine.monitoring.method == 'telegraf-influxdb':
         backend_port = 9096
     else:
