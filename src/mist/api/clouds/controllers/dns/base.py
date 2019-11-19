@@ -96,6 +96,7 @@ class BaseDNSController(BaseController):
         """
         task_key = 'cloud:list_zones:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
+        first_run = False if task.last_success else True
         with task.task_runner(persist=persist):
             cached_zones = {'%s-%s' % (z.id, z.zone_id): z.as_dict()
                             for z in self.list_cached_zones()}
@@ -103,6 +104,7 @@ class BaseDNSController(BaseController):
             zones = self._list_zones()
             for zone in zones:
                 self.list_records(zone)
+
         # Initialize AMQP connection to reuse for multiple messages.
         if amqp_owner_listening(self.cloud.owner.id):
             zones_dict = [z.as_dict() for z in zones]
@@ -113,6 +115,11 @@ class BaseDNSController(BaseController):
                 patch = jsonpatch.JsonPatch.from_diff(cached_zones,
                                                       new_zones).patch
                 if patch:
+                    if not first_run and self.cloud.observation_logs_enabled:
+                        from mist.api.logs.methods import log_observations
+                        log_observations(self.cloud.owner.id, self.cloud.id,
+                                         'zone', patch, cached_zones,
+                                         new_zones)
                     amqp_publish_user(self.cloud.owner.id,
                                       routing_key='patch_zones',
                                       data={'cloud_id': self.cloud.id,
