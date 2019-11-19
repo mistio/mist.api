@@ -389,6 +389,13 @@ def toggle_cloud(request):
 
     new_state = params_from_request(request).get('new_state', None)
     dns_enabled = params_from_request(request).get('dns_enabled', None)
+    observation_logs_enabled = params_from_request(request).get(
+        'observation_logs_enabled', None)
+
+    if new_state is None and dns_enabled is None and \
+            observation_logs_enabled is None:
+        raise RequiredParameterMissingError('new_state or dns_enabled or \
+          observation_logs_enabled')
 
     if new_state == '1':
         cloud.ctl.enable()
@@ -404,8 +411,12 @@ def toggle_cloud(request):
     elif dns_enabled:
         raise BadRequestError('Invalid DNS state')
 
-    if new_state is None and dns_enabled is None:
-        raise RequiredParameterMissingError('new_state or dns_enabled')
+    if observation_logs_enabled == 1:
+        cloud.ctl.observation_logs_enable()
+    elif observation_logs_enabled == 0:
+        cloud.ctl.observation_logs_disable()
+    elif observation_logs_enabled:
+        raise BadRequestError('Invalid observation_logs_enabled state')
 
     trigger_session_update(auth_context.owner, ['clouds'])
     return OK
