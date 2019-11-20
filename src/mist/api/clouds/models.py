@@ -461,6 +461,7 @@ class OpenStackCloud(Cloud):
     password = me.StringField(required=True)
     url = me.StringField(required=True)
     tenant = me.StringField(required=True)
+    domain = me.StringField(required=False)
     region = me.StringField(required=False)
     compute_endpoint = me.StringField(required=False)
 
