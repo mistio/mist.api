@@ -99,6 +99,9 @@ def add_cloud(request):
       description: Required for Docker
     docker_port:
       type: string
+    domain:
+      type: string
+      description: Optional for OpenStack
     host:
       type: string
       description: Required for OnApp, Vcloud, vSphere
