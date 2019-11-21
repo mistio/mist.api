@@ -199,6 +199,7 @@ class Cloud(OwnershipMixin, me.Document):
             'provider': self.ctl.provider,
             'enabled': self.enabled,
             'dns_enabled': self.dns_enabled,
+            'observation_logs_enabled': self.observation_logs_enabled,
             'state': 'online' if self.enabled else 'offline',
             'polling_interval': self.polling_interval,
             'tags': {

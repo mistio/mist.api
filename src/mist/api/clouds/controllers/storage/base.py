@@ -84,14 +84,14 @@ class BaseStorageController(BaseController):
             volumes = self._list_volumes()
 
         volumes_dict = [v.as_dict() for v in volumes]
-        if not first_run and (cached_volumes or volumes):
+        if cached_volumes or volumes:
             # Publish patches to rabbitmq.
             new_volumes = {'%s-%s' % (v['id'], v['external_id']): v
                            for v in volumes_dict}
             patch = jsonpatch.JsonPatch.from_diff(cached_volumes,
                                                   new_volumes).patch
             if patch:
-                if self.cloud.observation_logs_enabled:
+                if not first_run and self.cloud.observation_logs_enabled:
                     from mist.api.logs.methods import log_observations
                     log_observations(self.cloud.owner.id, self.cloud.id,
                                      'volume', patch, cached_volumes,

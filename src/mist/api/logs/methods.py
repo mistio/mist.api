@@ -96,6 +96,10 @@ def log_observations(owner_id, cloud_id, resource_type, patch,
                 else:
                     action = 'delete_' + resource_type
                 key = _patch.get('path')[1:]  # strip '/'
+                if cached_resources.get(key) and \
+                    cached_resources.get(key).get('state') == 'terminated' \
+                        and action == 'destroy_machine':
+                    continue
                 ids = _patch.get('path').split('-')
                 resource_id = ids.pop(0).strip('/')
                 external_id = '-'.join(ids)
@@ -106,10 +110,18 @@ def log_observations(owner_id, cloud_id, resource_type, patch,
         elif _patch.get('op') == 'replace' and resource_type == 'machine':
 
             if '/state' in _patch.get('path') and _patch.get('value') in \
-               ['running', 'stopped']:
-                action = 'stop_machine' if _patch.get('value') == 'stopped' \
-                    else 'start_machine'
+               ['running', 'stopped', 'terminated']:
+                if _patch.get('value') == 'stopped':
+                    action = 'stop_machine'
+                elif _patch.get('value') == 'running':
+                    action = 'start_machine'
+                elif _patch.get('value') == 'terminated':
+                    action = 'destroy_machine'
                 key = _patch.get('path')[1:-6]  # strip '/' and '/state'
+                if cached_resources.get(key) and \
+                    cached_resources.get(key).get('state') == 'pending' \
+                        and action == 'start_machine':
+                    continue
                 name = cached_resources.get(key).get('name')
                 ids = _patch.get('path').split('-')
                 resource_id = ids.pop(0).strip('/')

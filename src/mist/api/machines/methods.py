@@ -453,12 +453,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     machine.assign_to(auth_context.user)
 
     # add schedule if expiration given
-
-    if key is not None:  # Associate key.
-        username = node.extra.get('username', '')
-        machine.ctl.associate_key(key, username=username,
-                                  port=ssh_port, no_connect=True)
-
     if expiration:
         params = {
             'schedule_type': 'one_off',
@@ -480,7 +474,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                                 cloud_id=cloud_id)
     fresh_machines = cloud.ctl.compute._list_machines()
     cloud.ctl.compute.produce_and_publish_patch(cached_machines,
-                                                fresh_machines)
+                                                fresh_machines,
+                                                first_run=True)
 
     # Call post_deploy_steps for every provider FIXME: Refactor
     if conn.type == Provider.AZURE:

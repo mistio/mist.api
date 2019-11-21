@@ -253,12 +253,12 @@ class BaseNetworkController(BaseController):
         new_networks = {'%s-%s' % (n.id, n.network_id): n.as_dict()
                         for n in networks}
         # Exclude last seen and probe field
-        if not first_run and (cached_networks or new_networks):
+        if cached_networks or new_networks:
             # Publish patches to rabbitmq.
             patch = jsonpatch.JsonPatch.from_diff(cached_networks,
                                                   new_networks).patch
             if patch:
-                if self.cloud.observation_logs_enabled:
+                if not first_run and self.cloud.observation_logs_enabled:
                     from mist.api.logs.methods import log_observations
                     log_observations(self.cloud.owner.id, self.cloud.id,
                                      'network', patch, cached_networks,
