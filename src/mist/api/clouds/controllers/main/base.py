@@ -149,6 +149,7 @@ class BaseMainController(object):
 
         # Cloud specific argument preparsing cloud-wide argument
         self.cloud.dns_enabled = kwargs.pop('dns_enabled', False) is True
+        self.cloud.observation_logs_enabled = True
 
         # Cloud specific kwargs preparsing.
         try:
@@ -335,6 +336,14 @@ class BaseMainController(object):
 
     def dns_disable(self):
         self.cloud.dns_enabled = False
+        self.cloud.save()
+
+    def observation_logs_enable(self):
+        self.cloud.observation_logs_enabled = True
+        self.cloud.save()
+
+    def observation_logs_disable(self):
+        self.cloud.observation_logs_enabled = False
         self.cloud.save()
 
     def set_polling_interval(self, interval):

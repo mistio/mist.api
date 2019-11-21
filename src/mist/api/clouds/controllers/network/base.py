@@ -240,6 +240,7 @@ class BaseNetworkController(BaseController):
         """
         task_key = 'cloud:list_networks:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
+        first_run = False if task.last_success else True
         with task.task_runner(persist=persist):
             # Get cached networks as dict
             cached_networks = {'%s-%s' % (n.id, n.network_id): n.as_dict()
@@ -248,16 +249,21 @@ class BaseNetworkController(BaseController):
             for network in networks:
                 network.ctl.list_subnets()
 
-        if amqp_owner_listening(self.cloud.owner.id):
+        # Publish patches to rabbitmq.
+        new_networks = {'%s-%s' % (n.id, n.network_id): n.as_dict()
+                        for n in networks}
+        # Exclude last seen and probe field
+        if cached_networks or new_networks:
             # Publish patches to rabbitmq.
-            new_networks = {'%s-%s' % (n.id, n.network_id): n.as_dict()
-                            for n in networks}
-            # Exclude last seen and probe field
-            if cached_networks or new_networks:
-                # Publish patches to rabbitmq.
-                patch = jsonpatch.JsonPatch.from_diff(cached_networks,
-                                                      new_networks).patch
-                if patch:
+            patch = jsonpatch.JsonPatch.from_diff(cached_networks,
+                                                  new_networks).patch
+            if patch:
+                if not first_run and self.cloud.observation_logs_enabled:
+                    from mist.api.logs.methods import log_observations
+                    log_observations(self.cloud.owner.id, self.cloud.id,
+                                     'network', patch, cached_networks,
+                                     new_networks)
+                if amqp_owner_listening(self.cloud.owner.id):
                     amqp_publish_user(self.cloud.owner.id,
                                       routing_key='patch_networks',
                                       data={'cloud_id': self.cloud.id,
