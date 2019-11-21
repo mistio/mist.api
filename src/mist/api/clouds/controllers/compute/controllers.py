@@ -1076,7 +1076,8 @@ class OpenStackComputeController(BaseComputeController):
             ex_tenant_name=self.cloud.tenant,
             ex_force_service_region=self.cloud.region,
             ex_force_base_url=self.cloud.compute_endpoint,
-            ex_auth_url=url
+            ex_auth_url=url,
+            ex_domain_name=self.cloud.domain or 'Default'
         )
 
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
