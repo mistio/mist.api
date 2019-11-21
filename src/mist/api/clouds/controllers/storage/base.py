@@ -101,14 +101,6 @@ class BaseStorageController(BaseController):
                                       routing_key='patch_volumes',
                                       data={'cloud_id': self.cloud.id,
                                             'patch': patch})
-        # FIXME: remove this block, once patches
-        # are implemented in the UI
-        else:
-            if amqp_owner_listening(self.cloud.owner.id):
-                amqp_publish_user(self.cloud.owner.id,
-                                  routing_key='list_volumes',
-                                  data={'cloud_id': self.cloud.id,
-                                        'volumes': volumes_dict})
         return volumes
 
     @LibcloudExceptionHandler(mist.api.exceptions.VolumeListingError)
