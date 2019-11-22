@@ -1,12 +1,9 @@
-import re
 import logging
 import datetime
 import operator
 
 from mist.api.rules.plugins import base
 from mist.api.rules.plugins.elastic.handlers import CountQueryHandler
-
-from mist.api.logs.constants import FIELDS
 
 
 log = logging.getLogger(__name__)

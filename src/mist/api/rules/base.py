@@ -139,8 +139,8 @@ class BaseController(object):
                             json.loads(action_cls.headers)
                         except json.decoder.JSONDecodeError as e:
                             raise me.ValidationError(
-                                "HTTP Headers should be defined as a valid JSON "
-                                "dictionary: %s" % e.args[0]
+                                "HTTP Headers should be defined as a valid "
+                                "JSON dictionary: %s" % e.args[0]
                             )
 
             except me.ValidationError as err:
