@@ -208,12 +208,23 @@ class WebhookAction(BaseAlertAction):
 
     def run(self, machine, *args, **kwargs):
         import requests
+        import json
+        json_body = json.loads(self.json) if self.json else None
+        headers = json.loads(self.headers) if self.headers else None
         response = requests.request(
-            self.method, self.uri, self.params, self.data, self.json,
-            self.headers)
+            self.method, self.url, params=self.params, data=self.data,
+            json=json_body, headers=headers)
 
+        # Notify user & admin if response indicates an error
         if response.status_code > 299 or response.status_code < 200:
-            pass  # TODO
+            title = "Webhook for rule `%s` responded with http code `%d`" % (
+                self._instance.title, response.status_code)
+            body = "URL: %s\n Response body: %s\n" % (
+                self.url, response.text or response.json)
+            log.error(title, self._instance.id, body)
+            from mist.api.methods import notify_user, notify_admin
+            notify_user(self._instance.owner, title, message=body)
+            notify_admin(title + ' ' + self._instance.id, body)
         return {'status_code': response.status_code}
 
     def as_dict(self):
