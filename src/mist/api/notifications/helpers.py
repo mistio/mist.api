@@ -51,7 +51,7 @@ def _get_alert_details(resource, rule, incident_id,
     # The basic dict of details for describing every alert. All common
     # alert details among rules should be added here.
     d = {
-        'description': '',
+        'description': description,
         'rule_id': rule.id,
         'rule_title': rule.title,
         'rule_data_type': rule._data_type_str,
