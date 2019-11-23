@@ -194,7 +194,7 @@ class ScriptAction(BaseAlertAction):
 
 
 class WebhookAction(BaseAlertAction):
-    """Execute a remote script."""
+    """Perform an HTTP request."""
 
     atype = 'webhook'
 
