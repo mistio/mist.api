@@ -216,7 +216,7 @@ class WebhookAction(BaseAlertAction):
             json=json_body, headers=headers)
 
         # Notify user & admin if response indicates an error
-        if response.status_code > 299 or response.status_code < 200:
+        if response.ok:
             title = "Webhook for rule `%s` responded with http code `%d`" % (
                 self._instance.title, response.status_code)
             body = "URL: %s\n Response body: %s\n" % (
