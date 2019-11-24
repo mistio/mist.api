@@ -123,26 +123,6 @@ class BaseController(object):
             try:
                 action_cls = ACTIONS[action.pop('type')]()
                 action_cls.update(fail_on_error=fail_on_error, **action)
-                if isinstance(action_cls, ACTIONS['webhook']):
-                    if action_cls.json:
-                        try:
-                            import json
-                            json.loads(action_cls.json)
-                        except json.decoder.JSONDecodeError as e:
-                            ee = me.ValidationError(
-                                "Invalid JSON payload: %s" % e.args[0]
-                            )
-                            raise ee
-                    if action_cls.headers:
-                        try:
-                            import json
-                            json.loads(action_cls.headers)
-                        except json.decoder.JSONDecodeError as e:
-                            raise me.ValidationError(
-                                "HTTP Headers should be defined as a valid "
-                                "JSON dictionary: %s" % e.args[0]
-                            )
-
             except me.ValidationError as err:
                 raise BadRequestError({'msg': str(err),
                                        'errors': err.to_dict()})

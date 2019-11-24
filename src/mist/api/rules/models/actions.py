@@ -1,6 +1,8 @@
 import uuid
 import time
 import logging
+import json
+import requests
 import mongoengine as me
 
 from mist.api.helpers import is_email_valid
@@ -183,7 +185,7 @@ class ScriptAction(BaseAlertAction):
         assert machine.owner == self._instance.owner
         job_id = uuid.uuid4().hex
         job = 'run_script'
-        tasks.run_script.delay(machine.owner.id, self.script.id,
+        tasks.run_script(machine.owner.id, self.script.id,
                                machine.id, params=self.params,
                                job_id=job_id, job=job)
         return {'job_id': job_id, 'job': job}
@@ -206,9 +208,24 @@ class WebhookAction(BaseAlertAction):
     json = me.StringField(required=False)
     headers = me.StringField(required=False)
 
+    def clean(self):
+        if self.json:
+            try:
+                json.loads(action_cls.json)
+            except json.decoder.JSONDecodeError as e:
+                raise me.ValidationError(
+                    "Invalid JSON payload: %s" % e.args[0]
+                )
+        if self.headers:
+            try:
+                json.loads(self.headers)
+            except json.decoder.JSONDecodeError as e:
+                raise me.ValidationError(
+                    "HTTP Headers should be defined as a valid "
+                    "JSON dictionary: %s" % e.args[0]
+                )
+
     def run(self, machine, *args, **kwargs):
-        import requests
-        import json
         json_body = json.loads(self.json) if self.json else None
         headers = json.loads(self.headers) if self.headers else None
         response = requests.request(
@@ -220,7 +237,7 @@ class WebhookAction(BaseAlertAction):
             title = "Webhook for rule `%s` responded with http code `%d`" % (
                 self._instance.title, response.status_code)
             body = "URL: %s\n Response body: %s\n" % (
-                self.url, response.text or response.json)
+                self.url, response.text or str(response.json()))
             log.info(title, self._instance.id, body)
             from mist.api.methods import notify_user, notify_admin
             notify_user(self._instance.owner, title, message=body)

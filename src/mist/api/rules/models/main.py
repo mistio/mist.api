@@ -449,12 +449,10 @@ class ResourceLogsRule(ResourceRule):
         super(ResourceLogsRule, self).clean()
         if not (
             len(self.actions) is 1 and (
-                isinstance(self.actions[0], NotificationAction) or
-                isinstance(self.actions[0], WebhookAction))
+                isinstance(self.actions[0], NotificationAction))
         ):
-            raise me.ValidationError('Only a single notification or webhook '
-                                     'action may be performed by this type of '
-                                     'rule')
+            raise me.ValidationError('Only a single notification action may '
+                                     'be performed by this type of rule')
 
 
 class ArbitraryLogsRule(ArbitraryRule):
@@ -466,12 +464,10 @@ class ArbitraryLogsRule(ArbitraryRule):
         super(ArbitraryLogsRule, self).clean()
         if not (
             len(self.actions) is 1 and (
-                isinstance(self.actions[0], NotificationAction) or
-                isinstance(self.actions[0], WebhookAction))
+                isinstance(self.actions[0], NotificationAction))
         ):
-            raise me.ValidationError('Only a single notification or webhook '
-                                     'action may be performed by this type of '
-                                     'rule')
+            raise me.ValidationError('Only a single notification action may '
+                                     'be performed by this type of rule')
 
 
 def _populate_rules():
