@@ -221,7 +221,7 @@ class WebhookAction(BaseAlertAction):
                 self._instance.title, response.status_code)
             body = "URL: %s\n Response body: %s\n" % (
                 self.url, response.text or response.json)
-            log.error(title, self._instance.id, body)
+            log.info(title, self._instance.id, body)
             from mist.api.methods import notify_user, notify_admin
             notify_user(self._instance.owner, title, message=body)
             notify_admin(title + ' ' + self._instance.id, body)
