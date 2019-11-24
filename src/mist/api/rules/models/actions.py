@@ -186,8 +186,8 @@ class ScriptAction(BaseAlertAction):
         job_id = uuid.uuid4().hex
         job = 'run_script'
         tasks.run_script(machine.owner.id, self.script.id,
-                               machine.id, params=self.params,
-                               job_id=job_id, job=job)
+                         machine.id, params=self.params,
+                         job_id=job_id, job=job)
         return {'job_id': job_id, 'job': job}
 
     def as_dict(self):
@@ -211,7 +211,7 @@ class WebhookAction(BaseAlertAction):
     def clean(self):
         if self.json:
             try:
-                json.loads(action_cls.json)
+                json.loads(self.json)
             except json.decoder.JSONDecodeError as e:
                 raise me.ValidationError(
                     "Invalid JSON payload: %s" % e.args[0]
