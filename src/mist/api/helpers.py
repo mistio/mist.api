@@ -983,7 +983,6 @@ def logging_view_decorator(func):
             censor = {'vcloud': 'password',
                       'ec2': 'api_secret',
                       'rackspace': 'api_key',
-                      'nephoscale': 'password',
                       'softlayer': 'api_key',
                       'onapp': 'api_key',
                       'digitalocean': 'token',
@@ -991,7 +990,6 @@ def logging_view_decorator(func):
                       'azure': 'certificate',
                       'linode': 'api_key',
                       'docker': 'auth_password',
-                      'hp': 'password',
                       'openstack': 'password'}.get(provider)
             if censor and censor in params:
                 params[censor] = '***CENSORED***'
