@@ -30,7 +30,7 @@ def install_telegraf(machine_id, job=None, job_id=None, plugins=None):
     _log = {
         'owner_id': machine.owner.id,
         'cloud_id': machine.cloud.id,
-        'machine_id': machine.machine_id,
+        'machine_id': machine.id,
         'event_type': 'job', 'job_id': job_id or uuid.uuid4().hex, 'job': job,
     }
     log_event(action='telegraf_deployment_started', **_log)
@@ -97,7 +97,7 @@ def uninstall_telegraf(machine_id, job=None, job_id=None):
     _log = {
         'owner_id': machine.owner.id,
         'cloud_id': machine.cloud.id,
-        'machine_id': machine.machine_id,
+        'machine_id': machine.id,
         'event_type': 'job', 'job_id': job_id or uuid.uuid4().hex, 'job': job,
     }
     log_event(action='telegraf_undeployment_started', **_log)
