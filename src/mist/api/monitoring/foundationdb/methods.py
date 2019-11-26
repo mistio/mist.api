@@ -9,21 +9,25 @@ import urllib.parse
 log = logging.getLogger(__name__)
 
 
-def get_stats(machine, start, stop, step, metrics):
+def get_stats(machine, start="", stop="", step="", metrics=None):
     data = {}
+
+    if not isinstance(machine, str):
+        machine = machine.id
 
     # If no metrics are specified, then we get all of them
     if not metrics:
         metrics = [".*"]
 
     for metric in metrics:
-        processed_metric = "%s.%s" % (machine.id, metric)
-        query = 'fetch("%s", start="%s", stop="%s", step="%s")' % (
+        # processed_metric = "%s.%s" % (machine.id, metric)
+        query = metric.format(id=machine, start=start, stop=stop, step=step)
+        """query = 'fetch("%s", start="%s", stop="%s", step="%s")' % (
             processed_metric,
             start,
             stop,
             step,
-        )
+        )"""
         raw_machine_data = requests.get(
             "%s/v1/datapoints?query=%s"
             % (config.TSFDB_URI, urllib.parse.quote(query))

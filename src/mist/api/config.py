@@ -2,6 +2,9 @@
    Here we define constants needed by mist.api
    Also, the configuration from settings.py is exposed through this module.
 """
+from libcloud.compute.types import NodeState
+from libcloud.container.types import Provider as Container_Provider
+from libcloud.compute.types import Provider
 import os
 import ssl
 import json
@@ -15,10 +18,6 @@ import libcloud.security
 from future.standard_library import install_aliases
 install_aliases()
 
-from libcloud.compute.types import Provider
-from libcloud.container.types import Provider as Container_Provider
-
-from libcloud.compute.types import NodeState
 
 log = logging.getLogger(__name__)
 libcloud.security.SSL_VERSION = ssl.PROTOCOL_TLSv1_2
@@ -291,7 +290,10 @@ FDB_MACHINE_DASHBOARD_DEFAULT = {
                 "datasource": "mist.monitor",
                 "targets": [{
                     "refId": "A",
-                    "target": urllib.parse.quote("system.load(\d)+")
+                    "target": urllib.parse.quote(
+                        "fetch(\"{id}.system.load(\d)+\"" +
+                        ", start=\"{start}\", stop=\"{stop}\"" +
+                        ", step=\"{step}\")")
                 }],
                 "x-axis": True,
                 "y-axis": True
@@ -304,7 +306,10 @@ FDB_MACHINE_DASHBOARD_DEFAULT = {
                 "datasource": "mist.monitor",
                 "targets": [{
                     "refId": "D",
-                    "target": urllib.parse.quote("mem.*percent")
+                    "target": urllib.parse.quote(
+                        "fetch(\"{id}.mem.*percent\"" +
+                        ", start=\"{start}\", stop=\"{stop}\"" +
+                        ", step=\"{step}\")")
                 }],
                 "yaxes": [{
                     "label": "%"
@@ -318,7 +323,10 @@ FDB_MACHINE_DASHBOARD_DEFAULT = {
                 "datasource": "mist.monitor",
                 "targets": [{
                     "refId": "C",
-                    "target": urllib.parse.quote("cpu.cpu-cpu-total.*")
+                    "target": urllib.parse.quote(
+                        "fetch(\"{id}.cpu.cpu-cpu-total.usage.*\"" +
+                        ", start=\"{start}\", stop=\"{stop}\"" +
+                        ", step=\"{step}\")")
                 }],
                 "yaxes": [{
                     "label": "%"
@@ -332,7 +340,10 @@ FDB_MACHINE_DASHBOARD_DEFAULT = {
                 "datasource": "mist.monitor",
                 "targets": [{
                     "refId": "Z",
-                    "target": urllib.parse.quote("cpu.*usage_idle")
+                    "target": urllib.parse.quote(
+                        "fetch(\"{id}.cpu.*usage_idle\"" +
+                        ", start=\"{start}\", stop=\"{stop}\"" +
+                        ", step=\"{step}\")")
                 }],
                 "yaxes": [{
                     "label": "%"
@@ -346,7 +357,10 @@ FDB_MACHINE_DASHBOARD_DEFAULT = {
                 "datasource": "mist.monitor",
                 "targets": [{
                     "refId": "G",
-                    "target": urllib.parse.quote("net.*.bytes_recv")
+                    "target": urllib.parse.quote(
+                        "deriv(fetch(\"{id}.net.*.bytes_recv\"" +
+                        ", start=\"{start}\", stop=\"{stop}\"" +
+                        ", step=\"{step}\"))")
                 }],
                 "yaxes": [{
                     "label": "B/s"
@@ -360,7 +374,10 @@ FDB_MACHINE_DASHBOARD_DEFAULT = {
                 "datasource": "mist.monitor",
                 "targets": [{
                     "refId": "H",
-                    "target": urllib.parse.quote("net.*.bytes_sent")
+                    "target": urllib.parse.quote(
+                        "deriv(fetch(\"{id}.net.*.bytes_sent\"" +
+                        ", start=\"{start}\", stop=\"{stop}\"" +
+                        ", step=\"{step}\"))")
                 }],
                 "yaxes": [{
                     "label": "B/s"
@@ -374,7 +391,10 @@ FDB_MACHINE_DASHBOARD_DEFAULT = {
                 "datasource": "mist.monitor",
                 "targets": [{
                     "refId": "I",
-                    "target": urllib.parse.quote("diskio.*.read_bytes")
+                    "target": urllib.parse.quote(
+                        "deriv(fetch(\"{id}.diskio.*.read_bytes\"" +
+                        ", start=\"{start}\", stop=\"{stop}\"" +
+                        ", step=\"{step}\"))")
                 }],
                 "x-axis": True,
                 "y-axis": True,
@@ -390,7 +410,10 @@ FDB_MACHINE_DASHBOARD_DEFAULT = {
                 "datasource": "mist.monitor",
                 "targets": [{
                     "refId": "J",
-                    "target": urllib.parse.quote("diskio.*.write_bytes")
+                    "target": urllib.parse.quote(
+                        "deriv(fetch(\"{id}.diskio.*.write_bytes\"" +
+                        ", start=\"{start}\", stop=\"{stop}\"" +
+                        ", step=\"{step}\"))")
                 }],
                 "yaxes": [{
                     "label": "B/s"
@@ -405,7 +428,10 @@ FDB_MACHINE_DASHBOARD_DEFAULT = {
                 "datasource": "mist.monitor",
                 "targets": [{
                     "refId": "D",
-                    "target": urllib.parse.quote("disk.*_percent")
+                    "target": urllib.parse.quote(
+                        "fetch(\"{id}.disk.*_percent\"" +
+                        ", start=\"{start}\", stop=\"{stop}\"" +
+                        ", step=\"{step}\")")
                 }],
                 "yaxes": [{
                     "label": "%"
@@ -933,6 +959,9 @@ CILIA_GRAPHITE_NODATA_TARGETS = (
     "load.shortterm", "load.midterm", "cpu.0.idle"
 )
 CILIA_INFLUXDB_NODATA_TARGETS = (
+    "system.load1", "system.n_cpus", "cpu.cpu=cpu0.usage_user"
+)
+CILIA_FOUNDATIONDB_NODATA_TARGETS = (
     "system.load1", "system.n_cpus", "cpu.cpu=cpu0.usage_user"
 )
 
@@ -1649,13 +1678,13 @@ DOCKER_IMAGES = {
 }
 
 AZURE_ARM_IMAGES = {
-    'MicrosoftWindowsServer:WindowsServer:2012-Datacenter:9200.22776.20190604': 'MicrosoftWindowsServer WindowsServer 2012-Datacenter', # noqa
-    'MicrosoftWindowsServer:WindowsServer:2012-Datacenter-smalldisk:9200.22830.1908092125': 'MicrosoftWindowsServer WindowsServer 2012-Datacenter-smalldisk', # noqa
-    'MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core-smalldisk:14393.3025.20190604': 'MicrosoftWindowsServer WindowsServer 2016-Datacenter-Server-Core-smalldisk', # noqa
-    'MicrosoftWindowsServer:WindowsServer:2016-Datacenter-with-Containers:2016.127.20190603': 'MicrosoftWindowsServer WindowsServer 2016-Datacenter-with-Containers', # noqa
-    'MicrosoftWindowsServer:WindowsServer:2019-Datacenter:2019.0.20190410': 'MicrosoftWindowsServer WindowsServer 2019-Datacenter', # noqa
-    'Canonical:UbuntuServer:16.04.0-LTS:16.04.201906280': 'Canonical UbuntuServer 16.04.0-LTS', # noqa
-    'Canonical:UbuntuServer:18.04-LTS:18.04.201908131': 'Canonical UbuntuServer 18.04-LTS', # noqa
+    'MicrosoftWindowsServer:WindowsServer:2012-Datacenter:9200.22776.20190604': 'MicrosoftWindowsServer WindowsServer 2012-Datacenter',  # noqa
+    'MicrosoftWindowsServer:WindowsServer:2012-Datacenter-smalldisk:9200.22830.1908092125': 'MicrosoftWindowsServer WindowsServer 2012-Datacenter-smalldisk',  # noqa
+    'MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core-smalldisk:14393.3025.20190604': 'MicrosoftWindowsServer WindowsServer 2016-Datacenter-Server-Core-smalldisk',  # noqa
+    'MicrosoftWindowsServer:WindowsServer:2016-Datacenter-with-Containers:2016.127.20190603': 'MicrosoftWindowsServer WindowsServer 2016-Datacenter-with-Containers',  # noqa
+    'MicrosoftWindowsServer:WindowsServer:2019-Datacenter:2019.0.20190410': 'MicrosoftWindowsServer WindowsServer 2019-Datacenter',  # noqa
+    'Canonical:UbuntuServer:16.04.0-LTS:16.04.201906280': 'Canonical UbuntuServer 16.04.0-LTS',  # noqa
+    'Canonical:UbuntuServer:18.04-LTS:18.04.201908131': 'Canonical UbuntuServer 18.04-LTS',  # noqa
     'RedHat:RHEL:7.3:7.3.2017090723': 'RedHat RHEL 7.3 7.3.2017090723',
     'RedHat:RHEL:6.9:6.9.2017090105': 'RedHat RHEL 6.9 6.9.2017090105',
 }
