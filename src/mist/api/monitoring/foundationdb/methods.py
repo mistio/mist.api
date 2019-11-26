@@ -34,7 +34,7 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
         ).json()
 
         if "series" not in raw_machine_data:
-            print("error = ", raw_machine_data)
+            log.error(raw_machine_data)
             return {}
 
         raw_metrics = list(raw_machine_data["series"].keys())
@@ -67,6 +67,11 @@ def get_load(machines, start, stop, step):
         raw_machine_data = requests.get(
             "%s/v1/datapoints?query=%s" % (config.TSFDB_URI, query)
         ).json()
+
+        if "series" not in raw_machine_data:
+            log.error(raw_machine_data)
+            return {}
+
         data.update(
             {
                 machine: {
