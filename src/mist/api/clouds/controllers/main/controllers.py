@@ -274,6 +274,26 @@ class DockerMainController(BaseMainController):
             check_host(host)
 
 
+class LXCMainController(BaseMainController):
+    """
+    Main controller class for LXC containers
+    """
+
+    provider = 'lxc'
+    ComputeController = compute_ctls.LXCComputeController
+
+    def _update__preparse_kwargs(self, kwargs):
+        kwargs.pop('authentication', None)
+        rename_kwargs(kwargs, 'lxc_port', 'port')
+        rename_kwargs(kwargs, 'lxc_host', 'host')
+        rename_kwargs(kwargs, 'auth_user', 'username')
+        rename_kwargs(kwargs, 'auth_password', 'password')
+        host = kwargs.get('host', self.cloud.host)
+        if host:
+            host = sanitize_host(host)
+            check_host(host)
+
+
 class LibvirtMainController(BaseMainController):
 
     provider = 'libvirt'
