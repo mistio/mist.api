@@ -305,14 +305,35 @@ FDB_MACHINE_DASHBOARD_DEFAULT = {
                 "stack": True,
                 "datasource": "mist.monitor",
                 "targets": [{
-                    "refId": "D",
+                    "refId": "B",
                     "target": urllib.parse.quote(
-                        "fetch(\"{id}.mem.*percent\"" +
+                        "fetch(\"{id}.mem.buffered\"" +
                         ", start=\"{start}\", stop=\"{stop}\"" +
                         ", step=\"{step}\")")
-                }],
+                },
+                    {
+                    "refId": "D",
+                    "target": urllib.parse.quote(
+                        "fetch(\"{id}.mem.cached\"" +
+                        ", start=\"{start}\", stop=\"{stop}\"" +
+                        ", step=\"{step}\")")
+                },
+                    {
+                    "refId": "E",
+                    "target": urllib.parse.quote(
+                        "fetch(\"{id}.mem.free\"" +
+                        ", start=\"{start}\", stop=\"{stop}\"" +
+                        ", step=\"{step}\")")
+                },
+                    {
+                    "refId": "F",
+                    "target": urllib.parse.quote(
+                        "fetch(\"{id}.mem.used\"" +
+                        ", start=\"{start}\", stop=\"{stop}\"" +
+                        ", step=\"{step}\")")
+                }, ],
                 "yaxes": [{
-                    "label": "%"
+                    "label": "B"
                 }]
             }, {
                 "id": 2,
@@ -324,7 +345,7 @@ FDB_MACHINE_DASHBOARD_DEFAULT = {
                 "targets": [{
                     "refId": "C",
                     "target": urllib.parse.quote(
-                        "fetch(\"{id}.cpu.cpu-cpu-total.usage.*\"" +
+                        "fetch(\"{id}.cpu.cpu-cpu-total.usage.*(?<!idle)$\"" +
                         ", start=\"{start}\", stop=\"{stop}\"" +
                         ", step=\"{step}\")")
                 }],
@@ -429,12 +450,12 @@ FDB_MACHINE_DASHBOARD_DEFAULT = {
                 "targets": [{
                     "refId": "D",
                     "target": urllib.parse.quote(
-                        "fetch(\"{id}.disk.*_percent\"" +
+                        "fetch(\"{id}.disk.*\.free\"" +
                         ", start=\"{start}\", stop=\"{stop}\"" +
                         ", step=\"{step}\")")
                 }],
                 "yaxes": [{
-                    "label": "%"
+                    "label": "B"
                 }]
             }],
         }],
