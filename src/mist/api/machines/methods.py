@@ -1057,7 +1057,7 @@ def _create_machine_docker(conn, machine_name, image_id,
 
     return container
 
-def _create_machine_lxc(conn, machine_name, image_id, '', 
+def _create_machine_lxc(conn, machine_name, image_id, script, 
                                    public_key=public_key,
                                    lxc_env = lxc_env, 
                                    lxc_command=None,
