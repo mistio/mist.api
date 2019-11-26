@@ -1353,6 +1353,18 @@ def set_missing_since(cloud_id):
 
 
 @app.task
+def delete_periodic_tasks(cloud_id):
+    from mist.api.concurrency.models import PeriodicTaskInfo
+    for section in ['machines', 'volumes', 'networks', 'zones']:
+        try:
+            key = 'cloud:list_%s:%s' % (section, cloud_id)
+            PeriodicTaskInfo.objects.get(key=key).delete()
+            log.info('Deleted periodic task: %s' % key)
+        except PeriodicTaskInfo.DoesNotExist:
+            pass
+
+
+@app.task
 def create_backup():
     """Create mongo backup if s3 creds are set.
     """
