@@ -307,28 +307,7 @@ FDB_MACHINE_DASHBOARD_DEFAULT = {
                 "targets": [{
                     "refId": "B",
                     "target": urllib.parse.quote(
-                        "fetch(\"{id}.mem.buffered\"" +
-                        ", start=\"{start}\", stop=\"{stop}\"" +
-                        ", step=\"{step}\")")
-                },
-                    {
-                    "refId": "D",
-                    "target": urllib.parse.quote(
-                        "fetch(\"{id}.mem.cached\"" +
-                        ", start=\"{start}\", stop=\"{stop}\"" +
-                        ", step=\"{step}\")")
-                },
-                    {
-                    "refId": "E",
-                    "target": urllib.parse.quote(
-                        "fetch(\"{id}.mem.free\"" +
-                        ", start=\"{start}\", stop=\"{stop}\"" +
-                        ", step=\"{step}\")")
-                },
-                    {
-                    "refId": "F",
-                    "target": urllib.parse.quote(
-                        "fetch(\"{id}.mem.used\"" +
+                        "fetch(\"{id}.mem.(free|used|cached|buffered)$\"" +
                         ", start=\"{start}\", stop=\"{stop}\"" +
                         ", step=\"{step}\")")
                 }, ],
