@@ -489,6 +489,29 @@ class DockerCloud(Cloud):
     _private_fields = ('password', 'key_file')
     _controller_cls = controllers.DockerMainController
 
+class LXCCloud(Cloud):
+    """
+    Model  specializing Cloud for LXC. 
+    """
+
+    # TODO: verify default port for LXC container
+    host = me.StringField(required=True)
+    port = me.IntField(required=True, default=4243)
+
+    # User/Password Authentication (optional)
+    username = me.StringField(required=False)
+    password = me.StringField(required=False)
+
+    # TLS Authentication (optional)
+    key_file = me.StringField(required=False)
+    cert_file = me.StringField(required=False)
+    ca_cert_file = me.StringField(required=False)
+    # Show running and stopped containers
+    show_all = me.BooleanField(default=False)
+
+    _private_fields = ('password', 'key_file')
+    _controller_cls = controllers.LXCMainController
+
 
 class LibvirtCloud(Cloud):
 
