@@ -1433,6 +1433,15 @@ class DockerComputeController(BaseComputeController):
         return []
 
 
+class LXCComputeController(BaseComputeController):
+    """
+    compute controller for LXC containers
+    """
+    def __init__(self, *args, **kwargs):
+        super(LXCComputeController, self).__init__(*args, **kwargs)
+        self._lxchost = None
+        raise "This class is still a stub and should not be instantiated"
+
 class LibvirtComputeController(BaseComputeController):
 
     def _connect(self):
