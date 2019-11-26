@@ -321,10 +321,9 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     elif conn.type is Container_Provider.LXC:
         node = _create_machine_lxc(conn, machine_name, image_id, '', 
                                    public_key=public_key,
-                                   lxc_env = lxc_env, 
-                                   lxc_command=None,
-                                   lxc_port_bindings=None,
-                                   lxc_exposed_ports=None)
+                                   lxc_env = None,  lxc_command=None,
+                                   lxc_port_bindings=None, lxc_exposed_ports=None)
+                                   
     elif conn.type in [Provider.RACKSPACE_FIRST_GEN, Provider.RACKSPACE]:
         node = _create_machine_rackspace(conn, public_key, machine_name, image,
                                          size, location, user_data=cloud_init)
@@ -1058,11 +1057,8 @@ def _create_machine_docker(conn, machine_name, image_id,
     return container
 
 def _create_machine_lxc(conn, machine_name, image_id, script, 
-                                   public_key=public_key,
-                                   lxc_env = lxc_env, 
-                                   lxc_command=None,
-                                   lxc_port_bindings=None,
-                                   lxc_exposed_ports=None):
+                         public_key, lxc_env, 
+                        lxc_command=None, lxc_port_bindings=None, lxc_exposed_ports=None):
 
     raise "Currently just a stub not implemented"
 
