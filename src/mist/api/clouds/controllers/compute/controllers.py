@@ -1442,6 +1442,18 @@ class LXCComputeController(BaseComputeController):
         self._lxchost = None
         raise "This class is still a stub and should not be instantiated"
 
+    def _stop_machine(self, machine):
+        raise "This is a stub yet"
+
+    def _start_machine(self, machine):
+        raise "This is a stub yet"
+
+    def _destroy_machine(self, machine):
+        raise "This is a stub yet"
+
+    def _reboot_machine(self, machine):
+        raise "This is a stub"
+
 class LibvirtComputeController(BaseComputeController):
 
     def _connect(self):
