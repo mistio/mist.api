@@ -70,6 +70,16 @@ class OneOff(Interval):
         }
 
 
+class Reminder(OneOff):
+    type = 'reminder'
+    message = me.StringField()
+
+    def as_dict(self):
+        return {
+            'message': self.message
+        }
+
+
 class Crontab(BaseScheduleType):
     type = 'crontab'
 
@@ -211,7 +221,8 @@ class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
     description = me.StringField()
     deleted = me.DateTimeField()
 
-    owner = me.ReferenceField(Organization, required=True)
+    owner = me.ReferenceField(Organization, required=True,
+                              reverse_delete_rule=me.CASCADE)
 
     # celery periodic task specific fields
     queue = me.StringField()
@@ -231,6 +242,9 @@ class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
     last_run_at = me.DateTimeField()
     total_run_count = me.IntField(min_value=0, default=0)
     max_run_count = me.IntField(min_value=0, default=0)
+
+    reminder = me.ReferenceField('Schedule', required=False,
+                                 reverse_delete_rule=me.NULLIFY)
 
     no_changes = False
 
@@ -362,8 +376,10 @@ class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
             self.resource_model_name = 'machine'
 
     def delete(self):
+        if self.reminder:
+            self.reminder.delete()
         super(Schedule, self).delete()
-        Tag.objects(resource=self).delete()
+        Tag.objects(resource_id=self.id, resource_type='schedule').delete()
         self.owner.mapper.remove(self)
         if self.owned_by:
             self.owned_by.get_ownership_mapper(self.owner).remove(self)

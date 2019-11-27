@@ -36,6 +36,7 @@ import jsonpickle
 import subprocess
 
 from time import time, strftime, sleep
+from datetime import timedelta
 
 from base64 import urlsafe_b64encode
 
@@ -623,7 +624,7 @@ def ip_from_request(request):
     return (request.environ.get('HTTP_X_REAL_IP') or
             request.environ.get('HTTP_X_FORWARDED_FOR') or
             request.environ.get('REMOTE_ADDR') or
-            '0.0.0.0')
+            '0.0.0.0').split(',')[0].strip()
 
 
 def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3,
@@ -962,13 +963,13 @@ def logging_view_decorator(func):
 
         machine_id = request.environ.get('machine_id')
         if machine_id and not log_dict.get('machine_id'):
-            log_dict['machine_id'] = request.environ.get('machine_id')
+            log_dict['external_id'] = request.environ.get('machine_id')
 
         machine_uuid = (request.matchdict.get('machine_uuid') or
                         params.get('machine_uuid') or
                         request.environ.get('machine_uuid'))
         if machine_uuid and not log_dict.get('machine_uuid'):
-            log_dict['machine_uuid'] = machine_uuid
+            log_dict['machine_id'] = machine_uuid
 
         # Attempt to hide passwords, API keys, certificates, etc.
         for key in ('priv', 'password', 'new_password', 'apikey', 'apisecret',
@@ -1260,17 +1261,8 @@ def maybe_submit_cloud_task(cloud, task_name):
     celery task.
 
     """
-    if task_name == 'list_zones':
-        if not (hasattr(cloud.ctl, 'dns') and cloud.dns_enabled):
-            return False
-    if task_name == 'list_networks':
-        if not hasattr(cloud.ctl, 'network'):
-            return False
     if task_name == 'list_projects':
         if cloud.ctl.provider != 'packet':
-            return False
-    if task_name in ('list_resource_groups', 'list_storage_accounts', ):
-        if cloud.ctl.provider != 'azure_arm':
             return False
     return True
 
@@ -1369,3 +1361,35 @@ def filter_resource_ids(auth_context, cloud_id, resource_type, resource_ids):
 
     allowed_ids = set(auth_context.get_allowed_resources(rtype=resource_type))
     return resource_ids & allowed_ids
+
+
+def convert_to_timedelta(time_val):
+    """
+    Receives a time_val param. time_val should be either an integer,
+    or a relative delta in the following format:
+    '_s', '_m', '_h', '_d', '_mo', for seconds, minutes, hours, days
+    months respectively. Returns a timedelta object if right param is
+    given, else None
+    """
+    try:
+        seconds = int(time_val)
+        return timedelta(seconds=seconds)
+    except ValueError:
+        try:
+            num = int(time_val[:-1])
+            if time_val.endswith('s'):
+                return timedelta(seconds=num)
+            elif time_val.endswith('m'):
+                return timedelta(minutes=num)
+            elif time_val.endswith('h'):
+                return timedelta(hours=num)
+            elif time_val.endswith('d'):
+                return timedelta(days=num)
+            elif time_val.endswith('mo'):
+                num = int(time_val[:-2])
+                return timedelta(months=num)
+        except ValueError:
+            if time_val.endswith('mo'):
+                num = int(time_val[:-2])
+                return timedelta(days=30 * num)
+    return None

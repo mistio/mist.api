@@ -1,5 +1,6 @@
 import uuid
 import logging
+
 from pyramid.response import Response
 
 import mist.api.machines.methods as methods
@@ -15,9 +16,8 @@ from mist.api.auth.methods import auth_context_from_request
 from mist.api.helpers import view_config, params_from_request
 from mist.api.helpers import trigger_session_update
 
-
 from mist.api.exceptions import RequiredParameterMissingError
-from mist.api.exceptions import BadRequestError, NotFoundError
+from mist.api.exceptions import BadRequestError, NotFoundError, ForbiddenError
 from mist.api.exceptions import MachineCreationError, RedirectError
 from mist.api.exceptions import CloudUnauthorizedError, CloudUnavailableError
 
@@ -191,36 +191,21 @@ def create_machine(request):
     azure_port_bindings:
       type: string
       description: Required for Azure
-    create_network:
-      type: boolean
-      description: Required for Azure_arm
-    create_resource_group:
-      type: boolean
-      description: Required for Azure_arm
-    create_storage_account:
-      type: boolean
-      description: Required for Azure_arm
-    ex_storage_account:
+    storage_account:
       type: string
-      description: Required for Azure_arm if not create_storage_account
-    ex_resource_group:
+      description: Required for Azure_arm.
+    resource_group:
       type: string
-      description: Required for Azure_arm if not create_resource_group
+      description: Required for Azure_arm.
+    storage_account_type:
+      type: string
+      description: Required for Azure_arm
     machine_password:
       type: string
       description: Required for Azure_arm
     machine_username:
       type: string
       description: Required for Azure_arm
-    new_network:
-      type: string
-      description: Required for Azure_arm if create_storage_account
-    new_storage_account:
-      type: string
-      description: Required for Azure_arm if create_storage_account
-    new_resource_group:
-      type: string
-      description: Required for Azure_arm if create_resource_group
     bare_metal:
       description: Needed only by SoftLayer cloud
       type: boolean
@@ -286,17 +271,12 @@ def create_machine(request):
     location_name = params.get('location_name', None)
     ips = params.get('ips', None)
     monitoring = params.get('monitoring', False)
-    create_storage_account = params.get('create_storage_account', False)
-    new_storage_account = params.get('new_storage_account', '')
-    ex_storage_account = params.get('ex_storage_account', '')
+    storage_account = params.get('storage_account', '')
+    storage_account_type = params.get('storage_account_type', '')
     machine_password = params.get('machine_password', '')
     machine_username = params.get('machine_username', '')
-    create_resource_group = params.get('create_resource_group', False)
-    new_resource_group = params.get('new_resource_group', '')
-    ex_resource_group = params.get('ex_resource_group', '')
+    resource_group = params.get('resource_group', '')
     volumes = params.get('volumes', [])
-    create_network = params.get('create_network', False)
-    new_network = params.get('new_network', '')
     networks = params.get('networks', [])
     subnet_id = params.get('subnet_id', '')
     subnetwork = params.get('subnetwork', None)
@@ -328,6 +308,8 @@ def create_machine(request):
     # servers, while False means the server has montly pricing
     softlayer_backend_vlan_id = params.get('softlayer_backend_vlan_id', None)
     hourly = params.get('hourly', True)
+
+    expiration = params.get('expiration', {})
 
     job_id = params.get('job_id')
     # The `job` variable points to the event that started the job. If a job_id
@@ -389,9 +371,11 @@ def create_machine(request):
 
     auth_context.check_perm("cloud", "read", cloud_id)
     auth_context.check_perm("cloud", "create_resources", cloud_id)
-    auth_context.check_perm("location", "read", location_id)
-    auth_context.check_perm("location", "create_resources", location_id)
-    tags = auth_context.check_perm("machine", "create", None) or {}
+    if location_id:
+        auth_context.check_perm("location", "read", location_id)
+        auth_context.check_perm("location", "create_resources", location_id)
+
+    tags, constraints = auth_context.check_perm("machine", "create", None)
     if script_id:
         auth_context.check_perm("script", "run", script_id)
     if key_id:
@@ -407,17 +391,42 @@ def create_machine(request):
                 raise ValueError()
             mtags = {key: val for item in mtags for key,
                      val in list(item.items())}
+        security_tags = auth_context.get_security_tags()
+        for mt in mtags:
+            if mt in security_tags:
+                raise ForbiddenError(
+                    'You may not assign tags included in a Team access policy:'
+                    ' `%s`' % mt)
         tags.update(mtags)
     except ValueError:
         raise BadRequestError('Invalid tags format. Expecting either a '
                               'dictionary of tags or a list of single-item '
                               'dictionaries')
 
+    # check expiration constraint
+    exp_constraint = constraints.get('expiration', {})
+    if exp_constraint:
+        try:
+            from mist.rbac.methods import check_expiration
+            check_expiration(expiration, exp_constraint)
+        except ImportError:
+            pass
+
+    # check cost constraint
+    cost_constraint = constraints.get('cost', {})
+    if cost_constraint:
+        try:
+            from mist.rbac.methods import check_cost
+            check_cost(auth_context.org, cost_constraint)
+        except ImportError:
+            pass
+
     args = (cloud_id, key_id, machine_name,
             location_id, image_id, size,
             image_extra, disk, image_name, size_name,
             location_name, ips, monitoring,
-            ex_storage_account, machine_password, ex_resource_group, networks,
+            storage_account, machine_password, resource_group,
+            storage_account_type, networks,
             subnetwork, docker_env, docker_command)
     kwargs = {'script_id': script_id,
               'script_params': script_params, 'script': script, 'job': job,
@@ -439,15 +448,11 @@ def create_machine(request):
               'hourly': hourly,
               'schedule': schedule,
               'softlayer_backend_vlan_id': softlayer_backend_vlan_id,
-              'create_storage_account': create_storage_account,
-              'new_storage_account': new_storage_account,
-              'create_network': create_network,
-              'new_network': new_network,
-              'create_resource_group': create_resource_group,
-              'new_resource_group': new_resource_group,
               'machine_username': machine_username,
               'volumes': volumes,
-              'ip_addresses': ip_addresses}
+              'ip_addresses': ip_addresses,
+              'expiration': expiration}
+
     if not run_async:
         ret = methods.create_machine(auth_context, *args, **kwargs)
     else:
@@ -563,6 +568,83 @@ def add_machine(request):
 
 
 @view_config(route_name='api_v1_cloud_machine',
+             request_method='PUT', renderer='json')
+@view_config(route_name='api_v1_machine',
+             request_method='PUT', renderer='json')
+def edit_machine(request):
+    """
+    Tags: machines
+    ---
+    Edits a machine.
+    For now expiration related attributes can change.
+    READ permission required on cloud.
+    EDIT permission required on machine.
+    ---
+    expiration:
+      type: object
+      properties:
+        date:
+          type: string
+          description: format should be ΥΥΥΥ-ΜΜ-DD HH:MM:SS
+        action:
+          type: string
+          description: one of ['stop', 'destroy']
+        notify:
+          type: integer
+          description: seconds before the expiration date to be notified
+    """
+    cloud_id = request.matchdict.get('cloud')
+    params = params_from_request(request)
+    auth_context = auth_context_from_request(request)
+
+    if cloud_id:
+        machine_id = request.matchdict['machine']
+        auth_context.check_perm("cloud", "read", cloud_id)
+        try:
+            machine = Machine.objects.get(cloud=cloud_id,
+                                          machine_id=machine_id,
+                                          state__ne='terminated')
+            # used by logging_view_decorator
+            request.environ['machine_uuid'] = machine.id
+        except Machine.DoesNotExist:
+            raise NotFoundError("Machine %s doesn't exist" % machine_id)
+    else:
+        machine_uuid = request.matchdict['machine_uuid']
+        try:
+            machine = Machine.objects.get(id=machine_uuid)
+            # VMs in libvirt can be started no matter if they are terminated
+            if machine.state == 'terminated' and not isinstance(machine.cloud,
+                                                                LibvirtCloud):
+                raise NotFoundError(
+                    "Machine %s has been terminated" % machine_uuid
+                )
+            # used by logging_view_decorator
+            request.environ['machine_id'] = machine.machine_id
+            request.environ['cloud_id'] = machine.cloud.id
+        except Machine.DoesNotExist:
+            raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
+
+        cloud_id = machine.cloud.id
+        auth_context.check_perm("cloud", "read", cloud_id)
+
+    if machine.cloud.owner != auth_context.owner:
+        raise NotFoundError("Machine %s doesn't exist" % machine.id)
+
+    tags, constraints = auth_context.check_perm("machine", "edit", machine.id)
+    expiration = params.get('expiration', {})
+    # check expiration constraint
+    exp_constraint = constraints.get('expiration', {})
+    if exp_constraint:
+        try:
+            from mist.rbac.methods import check_expiration
+            check_expiration(expiration, exp_constraint)
+        except ImportError:
+            pass
+
+    return machine.ctl.update(auth_context, params)
+
+
+@view_config(route_name='api_v1_cloud_machine',
              request_method='POST', renderer='json')
 @view_config(route_name='api_v1_machine',
              request_method='POST', renderer='json')
@@ -625,7 +707,6 @@ def machine_actions(request):
     auth_context = auth_context_from_request(request)
 
     if cloud_id:
-        # this is depracated, keep it for backwards compatibility
         machine_id = request.matchdict['machine']
         auth_context.check_perm("cloud", "read", cloud_id)
         try:
@@ -699,6 +780,16 @@ def machine_actions(request):
             raise BadRequestError("You must give a name!")
         result = getattr(machine.ctl, action)(name)
     elif action == 'resize':
+        _, constraints = auth_context.check_perm("machine", "resize",
+                                                 machine.id)
+        # check cost constraint
+        cost_constraint = constraints.get('cost', {})
+        if cost_constraint:
+            try:
+                from mist.rbac.methods import check_cost
+                check_cost(auth_context.org, cost_constraint)
+            except ImportError:
+                pass
         kwargs = {}
         if memory:
             kwargs['memory'] = memory

@@ -10,6 +10,7 @@ be performed inside the corresponding method functions.
 """
 
 import os
+import hashlib
 
 # Python 2 and 3 support
 from future.utils import string_types
@@ -173,11 +174,19 @@ def home(request):
         if not page:
             page = 'home'
         if page not in config.LANDING_FORMS:
-            response = requests.get('%s/static/landing/sections/%s.html' % (
-                request.application_url, page))
-            if response.ok:
-                section = response.text
-                template_inputs['section'] = section
+            page_uri = '%s/static/landing/sections/%s.html' % (
+                request.application_url, page)
+            try:
+                response = requests.get(page_uri)
+                if response.ok:
+                    section = response.text
+                    template_inputs['section'] = section
+                else:
+                    log.error("Failed to fetch page `%s` from `%s`: %r" % (
+                        page, page_uri, response))
+            except Exception as exc:
+                log.error("Failed to fetch page `%s` from `%s`: %r" % (
+                    page, page_uri, exc))
         return render_to_response('templates/landing.pt', template_inputs)
 
     if not user.last_active or \
@@ -584,13 +593,13 @@ def confirm(request):
         else:
             return HTTPFound('/error?msg=already-confirmed')
 
-    token = get_secure_rand_token()
+    token = hashlib.sha1(key.encode()).hexdigest()
     key = encrypt("%s:%s" % (token, user.email), config.SECRET)
     user.password_set_token = token
     user.password_set_token_created = time()
     user.password_set_user_agent = request.user_agent
     log.debug("will now save (register)")
-    user.save()
+    user.save(write_concern={'w': 1, 'fsync': True})
 
     invitoken = params.get('invitoken')
     if config.ALLOW_SIGNIN_EMAIL:
@@ -1142,6 +1151,62 @@ def list_locations(request):
     params = params_from_request(request)
     cached = bool(params.get('cached', False))
     return filter_list_locations(auth_context, cloud_id, cached=cached)
+
+
+@view_config(route_name='api_v1_storage_accounts', request_method='GET',
+             renderer='json')
+def list_storage_accounts(request):
+    """
+    Tags: clouds
+    ---
+    List storage accounts. ARM specific. For other providers this
+    returns an empty list
+    READ permission required on cloud.
+    ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    """
+    cloud_id = request.matchdict['cloud']
+    auth_context = auth_context_from_request(request)
+
+    try:
+        Cloud.objects.get(owner=auth_context.owner, id=cloud_id, deleted=None)
+    except Cloud.DoesNotExist:
+        raise CloudNotFoundError()
+
+    auth_context.check_perm("cloud", "read", cloud_id)
+
+    return methods.list_storage_accounts(auth_context.owner, cloud_id)
+
+
+@view_config(route_name='api_v1_resource_groups', request_method='GET',
+             renderer='json')
+def list_resource_groups(request):
+    """
+    Tags: clouds
+    ---
+    List resource groups. ARM specific. For other providers this
+    returns an empty list
+    READ permission required on cloud.
+    ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    """
+    cloud_id = request.matchdict['cloud']
+    auth_context = auth_context_from_request(request)
+
+    try:
+        Cloud.objects.get(owner=auth_context.owner, id=cloud_id, deleted=None)
+    except Cloud.DoesNotExist:
+        raise CloudNotFoundError()
+
+    auth_context.check_perm("cloud", "read", cloud_id)
+
+    return methods.list_resource_groups(auth_context.owner, cloud_id)
 
 
 @view_config(route_name='api_v1_cloud_probe',
@@ -1775,7 +1840,8 @@ def delete_team(request):
 
     try:
         team.drop_mappings()
-        auth_context.org.update(pull__teams__id=team_id)
+        auth_context.org.teams.remove(team)
+        auth_context.org.save()
     except me.ValidationError as e:
         raise BadRequestError({"msg": str(e), "errors": e.to_dict()})
     except me.OperationError:

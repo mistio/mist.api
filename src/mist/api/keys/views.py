@@ -58,7 +58,7 @@ def add_key(request):
     private_key = params.get('priv', None)
     certificate = params.get('certificate', None)
     auth_context = auth_context_from_request(request)
-    key_tags = auth_context.check_perm("key", "add", None)
+    key_tags, _ = auth_context.check_perm("key", "add", None)
 
     if not key_name:
         raise BadRequestError("Key name is not provided")

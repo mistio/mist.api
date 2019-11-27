@@ -12,6 +12,7 @@ from future.utils import string_types
 
 from mist.api.mongoengine_extras import MistDictField
 from mist.api.keys.models import Key
+from mist.api.schedules.models import Schedule
 from mist.api.machines.controllers import MachineController
 from mist.api.ownership.mixins import OwnershipMixin
 
@@ -33,9 +34,8 @@ class KeyAssociation(me.EmbeddedDocument):
 
 
 class InstallationStatus(me.EmbeddedDocument):
-    # automatic: refers to automatic installations from mist.core
-    # manual: refers to manual deployments and everything from
-    #         standalone mist.api
+    # automatic: refers to automatic agent installations
+    # manual: refers to manual agent deployments
 
     # automatic:
     # - preparing: Set on first API call before everything else
@@ -260,12 +260,18 @@ class Machine(OwnershipMixin, me.Document):
 
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
 
-    cloud = me.ReferenceField('Cloud', required=True)
-    owner = me.ReferenceField('Organization', required=True)
-    location = me.ReferenceField('CloudLocation', required=False)
-    size = me.ReferenceField('CloudSize', required=False)
-    network = me.ReferenceField('Network', required=False)
-    subnet = me.ReferenceField('Subnet', required=False)
+    cloud = me.ReferenceField('Cloud', required=True,
+                              reverse_delete_rule=me.CASCADE)
+    owner = me.ReferenceField('Organization', required=True,
+                              reverse_delete_rule=me.CASCADE)
+    location = me.ReferenceField('CloudLocation', required=False,
+                                 reverse_delete_rule=me.DENY)
+    size = me.ReferenceField('CloudSize', required=False,
+                             reverse_delete_rule=me.DENY)
+    network = me.ReferenceField('Network', required=False,
+                                reverse_delete_rule=me.NULLIFY)
+    subnet = me.ReferenceField('Subnet', required=False,
+                               reverse_delete_rule=me.NULLIFY)
     name = me.StringField()
 
     # Info gathered mostly by libcloud (or in some cases user input).
@@ -290,9 +296,10 @@ class Machine(OwnershipMixin, me.Document):
                                   choices=('machine', 'vm', 'container',
                                            'hypervisor', 'container-host',
                                            'ilo-host'))
-    parent = me.ReferenceField('Machine', required=False)
+    parent = me.ReferenceField('Machine', required=False,
+                               reverse_delete_rule=me.NULLIFY)
 
-    # We should think this through a bit.
+    # Deprecated TODO: Remove in v5
     key_associations = me.EmbeddedDocumentListField(KeyAssociation)
 
     last_seen = me.DateTimeField()
@@ -305,6 +312,9 @@ class Machine(OwnershipMixin, me.Document):
 
     ssh_probe = me.EmbeddedDocumentField(SSHProbe, required=False)
     ping_probe = me.EmbeddedDocumentField(PingProbe, required=False)
+
+    expiration = me.ReferenceField(Schedule, required=False,
+                                   reverse_delete_rule=me.NULLIFY)
 
     # Number of vCPUs gathered from various sources. This field is meant to
     # be updated ONLY by the mist.api.metering.tasks:find_machine_cores task.
@@ -373,8 +383,11 @@ class Machine(OwnershipMixin, me.Document):
                 self.os_type = 'unix'
 
     def delete(self):
+        if self.expiration:
+            self.expiration.delete()
         super(Machine, self).delete()
-        mist.api.tag.models.Tag.objects(resource=self).delete()
+        mist.api.tag.models.Tag.objects(
+            resource_id=self.id, resource_type='machine').delete()
         try:
             self.owner.mapper.remove(self)
         except (AttributeError, me.DoesNotExist) as exc:
@@ -388,7 +401,7 @@ class Machine(OwnershipMixin, me.Document):
     def as_dict(self):
         # Return a dict as it will be returned to the API
         tags = {tag.key: tag.value for tag in mist.api.tag.models.Tag.objects(
-            resource=self
+            resource_id=self.id, resource_type='machine'
         ).only('key', 'value')}
         return {
             'id': self.id,
@@ -441,6 +454,15 @@ class Machine(OwnershipMixin, me.Document):
             'subnet': self.subnet.id if self.subnet else '',
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
+            'expiration': {
+                'id': self.expiration.id,
+                'action': self.expiration.task_type.action,
+                'date': self.expiration.schedule_type.entry,
+                'notify': self.expiration.reminder and int((
+                    self.expiration.schedule_type.entry -
+                    self.expiration.reminder.schedule_type.entry
+                ).total_seconds()) or 0,
+            } if self.expiration else None,
         }
 
     def __str__(self):

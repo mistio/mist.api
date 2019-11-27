@@ -99,6 +99,9 @@ def add_cloud(request):
       description: Required for Docker
     docker_port:
       type: string
+    domain:
+      type: string
+      description: Optional for OpenStack
     host:
       type: string
       description: Required for OnApp, Vcloud, vSphere
@@ -127,7 +130,7 @@ def add_cloud(request):
       description: Required for Vcloud
     password:
       type: string
-      description: Required for Nephoscale, OpenStack, Vcloud, vSphere
+      description: Required for OpenStack, Vcloud, vSphere
     port:
       type: integer
       description: Required for Vcloud
@@ -149,7 +152,6 @@ def add_cloud(request):
       - vsphere
       - ec2
       - rackspace
-      - nephoscale
       - digitalocean
       - softlayer
       - gce
@@ -195,11 +197,11 @@ def add_cloud(request):
       description: Required for Digitalocean
     username:
       type: string
-      description: Required for Nephoscale, Rackspace, OnApp, \
+      description: Required for Rackspace, OnApp, \
       SoftLayer, OpenStack, Vcloud, vSphere
     """
     auth_context = auth_context_from_request(request)
-    cloud_tags = auth_context.check_perm("cloud", "add", None)
+    cloud_tags, _ = auth_context.check_perm("cloud", "add", None)
     owner = auth_context.owner
     params = params_from_request(request)
     # remove spaces from start/end of string fields that are often included
@@ -223,10 +225,6 @@ def add_cloud(request):
     monitoring = ret.get('monitoring')
 
     cloud = Cloud.objects.get(owner=owner, id=cloud_id)
-
-    # If insights enabled on org, set poller with half hour period.
-    if auth_context.org.insights_enabled:
-        cloud.ctl.set_polling_interval(1800)
 
     if cloud_tags:
         add_tags_to_resource(owner, cloud, list(cloud_tags.items()))
@@ -394,6 +392,13 @@ def toggle_cloud(request):
 
     new_state = params_from_request(request).get('new_state', None)
     dns_enabled = params_from_request(request).get('dns_enabled', None)
+    observation_logs_enabled = params_from_request(request).get(
+        'observation_logs_enabled', None)
+
+    if new_state is None and dns_enabled is None and \
+            observation_logs_enabled is None:
+        raise RequiredParameterMissingError('new_state or dns_enabled or \
+          observation_logs_enabled')
 
     if new_state == '1':
         cloud.ctl.enable()
@@ -409,8 +414,12 @@ def toggle_cloud(request):
     elif dns_enabled:
         raise BadRequestError('Invalid DNS state')
 
-    if new_state is None and dns_enabled is None:
-        raise RequiredParameterMissingError('new_state or dns_enabled')
+    if observation_logs_enabled == 1:
+        cloud.ctl.observation_logs_enable()
+    elif observation_logs_enabled == 0:
+        cloud.ctl.observation_logs_disable()
+    elif observation_logs_enabled:
+        raise BadRequestError('Invalid observation_logs_enabled state')
 
     trigger_session_update(auth_context.owner, ['clouds'])
     return OK

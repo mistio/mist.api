@@ -89,6 +89,17 @@ JS_LOG_LEVEL = 3
 
 ENABLE_DEV_USERS = False
 
+# policy to be applied on resources' owners
+OWNER_POLICY = {}
+
+# If true, on expiration schedule with action destroy,
+# instead of destroying a machine,
+# stop it, change ownership, untag the machine and
+# create a new schedule that will destroy the machine
+#  in <SAFE_EXPIRATION_DURATION> seconds
+SAFE_EXPIRATION = False
+SAFE_EXPIRATION_DURATION = 60 * 60 * 24 * 7
+
 MONGO_URI = "mongodb:27017"
 MONGO_DB = "mist2"
 
@@ -826,6 +837,7 @@ FAILED_LOGIN_RATE_LIMIT = {
 }
 
 BANNED_EMAIL_PROVIDERS = [
+    'qq.com',
     'mailinator.com',
     'bob.info',
     'veryreallemail.com',
@@ -1016,6 +1028,11 @@ STATES = {
 EC2_SECURITYGROUP = {
     'name': 'mistio',
     'description': 'Security group created by mist.io'
+}
+
+ECS_VPC = {
+    'name': 'mistio',
+    'description': 'Vpc created by mist.io'
 }
 
 # Linode datacenter ids/names mapping
@@ -1233,13 +1250,6 @@ SUPPORTED_PROVIDERS = [
         'provider': Provider.GCE,
         'regions': []
     },
-
-    # NephoScale
-    {
-        'title': 'NephoScale',
-        'provider': Provider.NEPHOSCALE,
-        'regions': []
-    },
     # DigitalOcean
     {
         'title': 'DigitalOcean',
@@ -1357,8 +1367,6 @@ EC2_IMAGES = {
         'ami-b968bad6': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-c425e4ab': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-25a97a4a': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-        'ami-e37b8e8c': 'CoreOS-stable-1068.8.0 (PV)',
-        'ami-7b7a8f14': 'CoreOS-stable-1068.8.0 (HVM',
     },
     'eu-west-1': {
         'ami-02ace471': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
@@ -1368,8 +1376,6 @@ EC2_IMAGES = {
         'ami-01ccc867': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-9186a1e2': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-09447c6f': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-        'ami-cbb5d5b8': 'CoreOS stable 1068.8.0 (HVM)',
-        'ami-b6b8d8c5': 'CoreOS stable 1068.8.0 (PV)',
     },
     'eu-west-2': {
         'ami-9c363cf8': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
@@ -1395,8 +1401,6 @@ EC2_IMAGES = {
         'ami-c58c1dd3': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-fde4ebea': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-772aa961': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-        'ami-098e011e': 'CoreOS stable 1068.8.0 (PV)',
-        'ami-368c0321': 'CoreOS stable 1068.8.0 (HVM)',
         'ami-8fb03898': 'ClearOS 7.2.0',
         'ami-0397f56a': 'ClearOS Community 6.4.0 ',
         'ami-ff9af896': 'ClearOS Professional 6.4.0'
@@ -1417,8 +1421,6 @@ EC2_IMAGES = {
         'ami-7a85a01a': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-e09acc80': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-1da8f27d': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-        'ami-ae2564ce': 'CoreOS stable 1068.8.0 (PV)',
-        'ami-bc2465dc': 'CoreOS stable 1068.8.0 (HVM)',
     },
     'us-west-2': {
         'ami-6f68cf0f': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
@@ -1428,8 +1430,6 @@ EC2_IMAGES = {
         'ami-4836a428': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-e4a30084': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-7c22b41c': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-        'ami-cfef22af': 'CoreOS stable 1068.8.0 (HVM)',
-        'ami-ecec218c': 'CoreOS stable 1068.8.0 (PV)',
     },
     'ap-northeast-1': {
         'ami-5de0433c': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
@@ -1439,8 +1439,6 @@ EC2_IMAGES = {
         'ami-923d12f5': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-e21c7285': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-d85e7fbf': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-        'ami-d0e21bb1': 'CoreOS stable 1068.8.0 (PV)',
-        'ami-fcd9209d': 'CoreOS stable 1068.8.0 (HVM)',
     },
     'ap-northeast-2': {
         'ami-44db152a': 'Red Hat Enterprise Linux 7.2 (HVM), SSD Volume Type',
@@ -1448,8 +1446,6 @@ EC2_IMAGES = {
         'ami-9d15c7f3': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-5060b73e': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-15d5077b': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-        'ami-91de14ff': 'CoreOS stable 1068.8.0 (HVM)',
-        'ami-9edf15f0': 'CoreOS stable 1068.8.0 (PV)'
     },
     'sa-east-1': {
         'ami-7de77b11': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
@@ -1459,8 +1455,6 @@ EC2_IMAGES = {
         'ami-37cfad5b': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-e1cd558d': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-8df695e1': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-        'ami-0317836f': 'CoreOS stable 1068.8.0 (PV)',
-        'ami-ef43d783': 'CoreOS stable 1068.8.0 (HVM)',
     },
     'ap-southeast-1': {
         'ami-2c95344f': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
@@ -1470,8 +1464,6 @@ EC2_IMAGES = {
         'ami-fc5ae39f': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-67b21d04': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-0a19a669': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-        'ami-3203df51': 'CoreOS stable 1068.8.0 (PV)',
-        'ami-9b00dcf8': 'CoreOS stable 1068.8.0 (HVM)',
     },
     'ap-southeast-2': {
         'ami-39ac915a': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
@@ -1481,8 +1473,6 @@ EC2_IMAGES = {
         'ami-162c2575': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-527b4031': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-807876e3': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-        'ami-e8e4ce8b': 'CoreOS stable 1068.8.0 (HVM)',
-        'ami-ede4ce8e': 'CoreOS stable 1068.8.0 (PV)',
     },
     'ap-south-1': {
         'ami-cdbdd7a2': 'Red Hat Enterprise Linux 7.2 (HVM), SSD Volume Type',
@@ -1501,13 +1491,13 @@ DOCKER_IMAGES = {
 }
 
 AZURE_ARM_IMAGES = {
-    'MicrosoftWindowsServer:WindowsServer:2008-R2-SP1:2.127.20170918': 'MicrosoftWindowsServer WindowsServer 2008-R2-SP1 2.127.20170918',  # noqa
-    'MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20170822': 'MicrosoftWindowsServer WindowsServer 2012-R2-Datacenter 4.127.20170822',  # noqa
-    'MicrosoftWindowsServer:WindowsServer:2016-Datacenter:2016.127.20170918': 'MicrosoftWindowsServer WindowsServer 2016-Datacenter 2016.127.20170918',  # noqa
-    'SUSE:openSUSE-Leap:42.3:2017.07.26': 'SUSE openSUSE-Leap 42.3 2017.07.26',
-    'Canonical:UbuntuServer:16.04-LTS:16.04.201709190': 'Canonical UbuntuServer 16.04-LTS 16.04.201709190',  # noqa
-    'Canonical:UbuntuServer:14.04.5-LTS:14.04.201708310': 'Canonical UbuntuServer 14.04.5-LTS 14.04.201708310',  # noqa
-    'Canonical:UbuntuServer:17.04:17.04.201709220': 'Canonical UbuntuServer 17.04 17.04.201709220',  # noqa
+    'MicrosoftWindowsServer:WindowsServer:2012-Datacenter:9200.22776.20190604': 'MicrosoftWindowsServer WindowsServer 2012-Datacenter', # noqa
+    'MicrosoftWindowsServer:WindowsServer:2012-Datacenter-smalldisk:9200.22830.1908092125': 'MicrosoftWindowsServer WindowsServer 2012-Datacenter-smalldisk', # noqa
+    'MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core-smalldisk:14393.3025.20190604': 'MicrosoftWindowsServer WindowsServer 2016-Datacenter-Server-Core-smalldisk', # noqa
+    'MicrosoftWindowsServer:WindowsServer:2016-Datacenter-with-Containers:2016.127.20190603': 'MicrosoftWindowsServer WindowsServer 2016-Datacenter-with-Containers', # noqa
+    'MicrosoftWindowsServer:WindowsServer:2019-Datacenter:2019.0.20190410': 'MicrosoftWindowsServer WindowsServer 2019-Datacenter', # noqa
+    'Canonical:UbuntuServer:16.04.0-LTS:16.04.201906280': 'Canonical UbuntuServer 16.04.0-LTS', # noqa
+    'Canonical:UbuntuServer:18.04-LTS:18.04.201908131': 'Canonical UbuntuServer 18.04-LTS', # noqa
     'RedHat:RHEL:7.3:7.3.2017090723': 'RedHat RHEL 7.3 7.3.2017090723',
     'RedHat:RHEL:6.9:6.9.2017090105': 'RedHat RHEL 6.9 6.9.2017090105',
 }
@@ -1574,6 +1564,21 @@ The mist.io team
 Govern the clouds
 """
 
+MACHINE_EXPIRE_NOTIFY_EMAIL_SUBJECT = "[mist.io] Machine is about to expire"
+
+MACHINE_EXPIRE_NOTIFY_EMAIL_BODY = """Dear %s,
+
+Your machine `%s` will expire on %s
+
+If you'd like to prevent that, please update the expiration date at %s
+%s
+Best regards,
+The mist.io team
+
+--
+%s
+Govern the clouds
+"""
 
 WHITELIST_IP_EMAIL_SUBJECT = "[mist.io] Account IP whitelist request"
 

@@ -185,7 +185,12 @@ class AmazonComputeController(BaseComputeController):
             except Exception as e:
                 bad_ids = re.findall(r'ami-\w*', str(e), re.DOTALL)
                 for bad_id in bad_ids:
-                    self.cloud.starred.remove(bad_id)
+                    try:
+                        self.cloud.starred.remove(bad_id)
+                    except ValueError:
+                        log.error('Starred Image %s not found in cloud %r' % (
+                            bad_id, self.cloud
+                        ))
                 self.cloud.save()
                 images = self.connection.list_images(
                     None, list(default_images.keys()) + self.cloud.starred)
@@ -229,7 +234,7 @@ class AmazonComputeController(BaseComputeController):
         return locations
 
     def _list_sizes__get_cpu(self, size):
-        return int(size.extra.get('cpu', 1))
+        return int(size.extra.get('vcpu', 1))
 
     def _list_sizes__get_name(self, size):
         return '%s - %s' % (size.id, size.name)
@@ -300,6 +305,14 @@ class AlibabaComputeController(AmazonComputeController):
             locations.append(location)
         return locations
 
+    def _list_sizes__get_cpu(self, size):
+        return size.extra['cpu_core_count']
+
+    def _list_sizes__get_name(self, size):
+        specs = str(size.extra['cpu_core_count']) + ' cpus/ ' \
+            + str(size.ram) + 'Gb RAM '
+        return "%s (%s)" % (size.name, specs)
+
 
 class ClearAPIComputeController(BaseComputeController):
 
@@ -343,7 +356,7 @@ class DigitalOceanComputeController(BaseComputeController):
 
     def _resize_machine(self, machine, machine_libcloud, node_size, kwargs):
         try:
-            self.connection.ex_resize_node(machine_libcloud, node_size.id)
+            self.connection.ex_resize_node(machine_libcloud, node_size)
         except Exception as exc:
             raise BadRequestError('Failed to resize node: %s' % exc)
 
@@ -508,58 +521,12 @@ class SoftLayerComputeController(BaseComputeController):
     def _list_machines__get_location(self, node):
         return node.extra.get('datacenter')
 
-    def _list_machines__get_size(self, node):
-        return str(node.extra.get('size'))
-
     def _reboot_machine(self, machine, machine_libcloud):
         self.connection.reboot_node(machine_libcloud)
         return True
 
     def _destroy_machine(self, machine, machine_libcloud):
         self.connection.destroy_node(machine_libcloud)
-
-
-class NephoScaleComputeController(BaseComputeController):
-
-    def _connect(self):
-        return get_driver(Provider.NEPHOSCALE)(self.cloud.username,
-                                               self.cloud.password)
-
-    def _list_machines__machine_actions(self, machine, machine_libcloud):
-        super(
-            NephoScaleComputeController, self
-        )._list_machines__machine_actions(machine, machine_libcloud)
-        machine.actions.rename = True
-
-    def _list_machines__machine_creation_date(self, machine, machine_libcloud):
-        return machine_libcloud.extra.get('create_time')  # iso8601 string
-
-    def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        machine.os_type = 'linux'
-        if 'windows' in str(machine_libcloud.extra.get('image', '')).lower():
-            machine.extra['os_type'] = machine.os_type = 'windows'
-
-        # Size info in the form of: CS05-SSD - 0,5GB, 4Core, 25GB, 10 Gbps
-        regex = r'(?:.*)\ (\d+)Core(?:.*)'
-        match = re.match(regex, machine.extra.get('service_type', ''))
-        machine.extra['cpus'] = match.groups()[0] if match else 0
-
-    def _list_machines__cost_machine(self, machine, machine_libcloud):
-        size = str(machine_libcloud.extra.get('size_id', ''))
-        price = get_size_price(driver_type='compute', driver_name='nephoscale',
-                               size_id=size)
-        return price, 0
-
-    def _list_machines__get_location(self, node):
-        return str(node.extra.get('zone_data').get('id'))
-
-    def _list_machines__get_size(self, node):
-        return str(node.extra.get('size_id'))
-
-    def _list_sizes__fetch_sizes(self):
-        sizes = self.connection.list_sizes(baremetal=False)
-        sizes.extend(self.connection.list_sizes(baremetal=True))
-        return sizes
 
 
 class AzureComputeController(BaseComputeController):
@@ -679,6 +646,9 @@ class AzureArmComputeController(BaseComputeController):
 
     def _list_machines__get_location(self, node):
         return node.extra.get('location')
+
+    def _list_machines__get_size(self, node):
+        return node.extra.get('size')
 
     def _list_images__fetch_images(self, search=None):
         # Fetch mist's recommended images
@@ -818,19 +788,20 @@ class GoogleComputeController(BaseComputeController):
             machine.network = None
 
         subnet = network_interface.get('subnetwork')
-        subnet_name = subnet.split('/')[-1]
-        subnet_region = subnet.split('/')[-3]
-        machine.extra['subnet'] = (subnet_name, subnet_region)
+        if subnet:
+            subnet_name = subnet.split('/')[-1]
+            subnet_region = subnet.split('/')[-3]
+            machine.extra['subnet'] = (subnet_name, subnet_region)
 
-        # Discover subnet of machine.
-        from mist.api.networks.models import Subnet
-        try:
-            machine.subnet = Subnet.objects.get(name=subnet_name,
-                                                network=machine.network,
-                                                region=subnet_region,
-                                                missing_since=None)
-        except Subnet.DoesNotExist:
-            machine.subnet = None
+            # Discover subnet of machine.
+            from mist.api.networks.models import Subnet
+            try:
+                machine.subnet = Subnet.objects.get(name=subnet_name,
+                                                    network=machine.network,
+                                                    region=subnet_region,
+                                                    missing_since=None)
+            except Subnet.DoesNotExist:
+                machine.subnet = None
 
     def _list_machines__machine_actions(self, machine, machine_libcloud):
         super(GoogleComputeController,
@@ -957,9 +928,11 @@ class PacketComputeController(BaseComputeController):
 
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         size = machine_libcloud.extra.get('plan')
-        price = get_size_price(driver_type='compute', driver_name='packet',
-                               size_id=size)
-        return price or 0, 0
+        from mist.api.clouds.models import CloudSize
+        price = CloudSize.objects.get(
+            external_id=size, cloud=self.cloud).extra.get('price', 0.0)
+        if machine.extra.get('billing_cycle') == 'hourly':
+            return price, 0
 
     def _list_machines__get_location(self, node):
         return node.extra.get('facility', {}).get('id', '')
@@ -1103,7 +1076,8 @@ class OpenStackComputeController(BaseComputeController):
             ex_tenant_name=self.cloud.tenant,
             ex_force_service_region=self.cloud.region,
             ex_force_base_url=self.cloud.compute_endpoint,
-            ex_auth_url=url
+            ex_auth_url=url,
+            ex_domain_name=self.cloud.domain or 'Default'
         )
 
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):

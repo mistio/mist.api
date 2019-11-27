@@ -72,7 +72,7 @@ class Key(OwnershipMixin, me.Document):
     id = me.StringField(primary_key=True,
                         default=lambda: uuid4().hex)
     name = me.StringField(required=True)
-    owner = me.ReferenceField(Owner)
+    owner = me.ReferenceField(Owner, reverse_delete_rule=me.CASCADE)
     default = me.BooleanField(default=False)
     deleted = me.DateTimeField()
 
@@ -126,7 +126,8 @@ class Key(OwnershipMixin, me.Document):
 
     def delete(self):
         super(Key, self).delete()
-        mist.api.tag.models.Tag.objects(resource=self).delete()
+        mist.api.tag.models.Tag.objects(
+            resource_id=self.id, resource_type='key').delete()
         self.owner.mapper.remove(self)
         if self.owned_by:
             self.owned_by.get_ownership_mapper(self.owner).remove(self)

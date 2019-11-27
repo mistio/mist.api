@@ -342,8 +342,10 @@ class MainConnection(MistConnection):
     def update_org(self):
         try:
             org = filter_org(self.auth_context)
-        except:  # Forbidden
+        except Exception as e:  # Forbidden
             org = None
+            log.error('Failed to filter org %s: %r' % (
+                self.auth_context.org, e))
 
         if org:
             self.send('org', org)
@@ -451,8 +453,7 @@ class MainConnection(MistConnection):
                 )
 
         # Old Periodic Tasks (must be replaced by poller tasks and api calls.
-        for key in ('list_images', 'list_resource_groups',
-                    'list_storage_accounts', 'list_projects'):
+        for key in ('list_images', 'list_projects'):
             task = getattr(tasks, key)
             for cloud in clouds:
                 # Avoid submitting new celery tasks, when it's certain that
@@ -526,9 +527,7 @@ class MainConnection(MistConnection):
             result = body
         log.info("Got %s", routing_key)
         if routing_key in set(['notify', 'probe', 'list_sizes', 'list_images',
-                               'list_locations', 'list_projects', 'ping',
-                               'list_resource_groups',
-                               'list_storage_accounts']):
+                               'list_locations', 'list_projects', 'ping']):
             self.send(routing_key, result)
 
         elif routing_key == 'update':
@@ -599,12 +598,6 @@ class MainConnection(MistConnection):
                     line['path'] = '/clouds/%s/locations/%s' % (cloud_id, _id)
                 elif routing_key == 'patch_sizes':
                     line['path'] = '/clouds/%s/sizes/%s' % (cloud_id, _id)
-                elif routing_key == 'patch_networks':
-                    line['path'] = '/clouds/%s/networks/%s' % (cloud_id, _id)
-                elif routing_key == 'patch_zones':
-                    line['path'] = '/clouds/%s/zones/%s' % (cloud_id, _id)
-                elif routing_key == 'patch_volumes':
-                    line['path'] = '/clouds/%s/volumes/%s' % (cloud_id, _id)
             if patch:
                 self.batch.extend(patch)
 

@@ -76,32 +76,31 @@ class BaseStorageController(BaseController):
         """
         task_key = 'cloud:list_volumes:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
+        first_run = False if task.last_success else True
         with task.task_runner(persist=persist):
             cached_volumes = {'%s-%s' % (v.id, v.external_id): v.as_dict()
                               for v in self.list_cached_volumes()}
 
             volumes = self._list_volumes()
 
-        if amqp_owner_listening(self.cloud.owner.id):
-            volumes_dict = [v.as_dict() for v in volumes]
-            if cached_volumes and volumes_dict:
-                # Publish patches to rabbitmq.
-                new_volumes = {'%s-%s' % (v['id'], v['external_id']): v
-                               for v in volumes_dict}
-                patch = jsonpatch.JsonPatch.from_diff(cached_volumes,
-                                                      new_volumes).patch
-                if patch:
+        volumes_dict = [v.as_dict() for v in volumes]
+        if cached_volumes or volumes:
+            # Publish patches to rabbitmq.
+            new_volumes = {'%s-%s' % (v['id'], v['external_id']): v
+                           for v in volumes_dict}
+            patch = jsonpatch.JsonPatch.from_diff(cached_volumes,
+                                                  new_volumes).patch
+            if patch:
+                if not first_run and self.cloud.observation_logs_enabled:
+                    from mist.api.logs.methods import log_observations
+                    log_observations(self.cloud.owner.id, self.cloud.id,
+                                     'volume', patch, cached_volumes,
+                                     new_volumes)
+                if amqp_owner_listening(self.cloud.owner.id):
                     amqp_publish_user(self.cloud.owner.id,
                                       routing_key='patch_volumes',
                                       data={'cloud_id': self.cloud.id,
                                             'patch': patch})
-            # FIXME: remove this block, once patches
-            # are implemented in the UI
-            else:
-                amqp_publish_user(self.cloud.owner.id,
-                                  routing_key='list_volumes',
-                                  data={'cloud_id': self.cloud.id,
-                                        'volumes': volumes_dict})
         return volumes
 
     @LibcloudExceptionHandler(mist.api.exceptions.VolumeListingError)
@@ -156,6 +155,14 @@ class BaseStorageController(BaseController):
                 self._list_volumes__postparse_volume(volume, libcloud_volume)
             except Exception as exc:
                 log.exception('Error post-parsing %s: %s', volume, exc)
+
+            # Update with available volume actions.
+            try:
+                self._list_volumes__volume_actions(volume, libcloud_volume)
+            except Exception as exc:
+                log.exception("Error while finding volume actions "
+                              "for volume %s:%s for %s",
+                              volume.id, libcloud_volume.name, self.cloud)
 
             # Ensure JSON-encoding.
             for key, value in volume.extra.items():
@@ -238,7 +245,8 @@ class BaseStorageController(BaseController):
         # object at the API. Try 3 times before failing
         for _ in range(3):
             for volume in self.list_volumes():
-                if volume.external_id == libvol.id:
+                # ARM is inconsistent when it comes to lowercase...
+                if volume.external_id.lower() == libvol.id.lower():
                     return volume
             time.sleep(5)
         raise mist.api.exceptions.VolumeListingError()
@@ -269,6 +277,32 @@ class BaseStorageController(BaseController):
         :param libcloud_volume: A libcloud volume object.
         """
         return
+
+    def _list_volumes__volume_actions(self, volume, libcloud_volume):
+        """Add metadata on the volume dict on the allowed actions
+
+        Any subclass that wishes to specially handle its allowed actions, can
+        implement this internal method.
+
+        volume: A volume mongoengine model. The model may not have yet
+            been saved in the database.
+        libcloud_volume: An instance of a libcloud volume, as
+            returned by libcloud's list_volumes.
+        This method is expected to edit `volume` in place and not return
+        anything.
+
+        Subclasses MAY extend this method.
+
+        """
+        volume.actions.tag = True
+        if volume.attached_to:
+            volume.actions.detach = True
+            volume.actions.attach = False
+            volume.actions.delete = False
+        else:
+            volume.actions.attach = True
+            volume.actions.delete = True
+            volume.actions.detach = False
 
     @LibcloudExceptionHandler(mist.api.exceptions.VolumeDeletionError)
     def delete_volume(self, volume):
