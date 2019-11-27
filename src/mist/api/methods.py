@@ -245,11 +245,11 @@ def probe_ssh_only(owner, cloud_id, machine_id, host, key_id='', ssh_user='',
     # run SSH commands
     command = (
         "echo \""
-        "sudo -n uptime 2>&1|"
+        "LC_NUMERIC=en_US.UTF-8 sudo -n uptime 2>&1|"
         "grep load|"
         "wc -l && "
         "echo -------- && "
-        "uptime && "
+        "LC_NUMERIC=en_US.UTF-8 uptime && "
         "echo -------- && "
         "if [ -f /proc/uptime ]; then cat /proc/uptime | cut -d' ' -f1; "
         "else expr `date '+%s'` - `sysctl kern.boottime | sed -En 's/[^0-9]*([0-9]+).*/\\1/p'`;"  # noqa
@@ -277,7 +277,7 @@ def probe_ssh_only(owner, cloud_id, machine_id, host, key_id='', ssh_user='',
         cmd_output = ssh_command(owner, cloud_id, machine_id,
                                  host, command, key_id=key_id)
     else:
-        retval, cmd_output = shell.command(command)
+        _, cmd_output = shell.command(command)
     cmd_output = [str(part).strip()
                   for part in cmd_output.replace('\r', '').split('--------')]
     log.warn(cmd_output)
@@ -286,8 +286,10 @@ def probe_ssh_only(owner, cloud_id, machine_id, host, key_id='', ssh_user='',
     users = re.split(' users?', uptime_output)[0].split(', ')[-1].strip()
     uptime = cmd_output[2]
     cores = cmd_output[3]
-    ips = re.findall('inet addr:(\S+)', cmd_output[4])
-    m = re.findall('((?:[0-9a-fA-F]{1,2}:){5}[0-9a-fA-F]{1,2})', cmd_output[4])
+    ips = re.findall(r'inet addr:(\S+)', cmd_output[4]) or \
+        re.findall(r'inet (\S+)', cmd_output[4])
+    m = re.findall(r'((?:[0-9a-fA-F]{1,2}:){5}[0-9a-fA-F]{1,2})',
+                   cmd_output[4])
     if '127.0.0.1' in ips:
         ips.remove('127.0.0.1')
     macs = {}

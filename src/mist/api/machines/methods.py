@@ -4,6 +4,7 @@ import base64
 import mongoengine as me
 import time
 import requests
+import datetime
 
 from random import randrange
 
@@ -26,6 +27,8 @@ from mist.api.machines.models import Machine
 from mist.api.keys.models import Key
 from mist.api.networks.models import Network
 from mist.api.networks.models import Subnet
+from mist.api.users.models import Owner, Organization
+from mist.api.auth.models import AuthToken
 
 from mist.api.exceptions import PolicyUnauthorizedError
 from mist.api.exceptions import MachineNameValidationError
@@ -40,10 +43,13 @@ from mist.api.helpers import get_temp_file
 from mist.api.methods import connect_provider
 from mist.api.methods import notify_admin
 from mist.api.networks.methods import list_networks
+from mist.api.auth.methods import auth_context_from_auth_token
 
 from mist.api.monitoring.methods import disable_monitoring
 
 from mist.api.tag.methods import resolve_id_and_set_tags
+from mist.api.tag.methods import get_tags_for_resource
+from mist.api.tag.methods import remove_tags_from_resource
 
 from mist.api import config
 
@@ -450,7 +456,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     machine.assign_to(auth_context.user)
 
     # add schedule if expiration given
-
     if expiration:
         params = {
             'schedule_type': 'one_off',
@@ -459,7 +464,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             'action': expiration.get('action'),
             'conditions': [{'type': 'machines', 'ids': [machine.id]}],
             'task_enabled': True,
-            'notify': expiration.get('notify', '')
+            'notify': expiration.get('notify', ''),
+            'notify_msg': expiration.get('notify_msg', '')
         }
         name = machine.name + '-expiration-' + str(randrange(1000))
         from mist.api.schedules.models import Schedule
@@ -473,9 +479,10 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     if tags:
         resolve_id_and_set_tags(auth_context. owner, 'machine', node.id, tags,
                                 cloud_id=cloud_id)
-    fresh_machines = cloud.ctl.compute.list_cached_machines()
+    fresh_machines = cloud.ctl.compute._list_machines()
     cloud.ctl.compute.produce_and_publish_patch(cached_machines,
-                                                fresh_machines)
+                                                fresh_machines,
+                                                first_run=True)
 
     # Call post_deploy_steps for every provider FIXME: Refactor
     if conn.type == Provider.AZURE:
@@ -1088,7 +1095,6 @@ def _create_machine_digital_ocean(conn, cloud, key_name, private_key,
             server_key = conn.create_key_pair(machine_name, key)
     except:
         server_keys = [str(k.extra.get('id')) for k in keys]
-
     if not server_key:
         ex_ssh_key_ids = server_keys
     else:
@@ -1902,3 +1908,42 @@ def run_action_hooks(action_hooks, machine, user):
         else:
             log.error('Unknown hook type `%s`' % hook_type)
     return True
+
+
+def machine_safe_expire(owner_id, machine):
+    # untag machine
+    owner = Owner.objects.get(id=owner_id)  # FIXME: try-except
+    existing_tags = get_tags_for_resource(owner, machine)
+    if existing_tags:
+        remove_tags_from_resource(owner, machine, existing_tags)
+    # unown machine
+    machine.owned_by = None
+
+    # create new schedule that will destroy the machine
+    # in SAFE_EXPIRATION_DURATION secs
+    for team in owner.teams:
+        if team.name == 'Owners':
+            user = team.members[0]
+            org = Organization.objects.get(teams=team)
+            break
+    auth_token = AuthToken(user_id=user.id, org=org)
+    auth_context = auth_context_from_auth_token(auth_token)
+
+    _delta = datetime.timedelta(0, config.SAFE_EXPIRATION_DURATION)
+    schedule_entry = datetime.datetime.utcnow() + _delta
+    schedule_entry = schedule_entry.strftime('%Y-%m-%d %H:%M:%S')
+
+    params = {
+        'schedule_type': 'one_off',
+        'description': 'Safe expiration schedule',
+        'schedule_entry': schedule_entry,
+        'action': 'destroy',
+        'conditions': [{'type': 'machines', 'ids': [machine.id]}],
+        'task_enabled': True,
+    }
+    _name = machine.name + '-safe-expiration-' + \
+        str(randrange(1000))
+    from mist.api.schedules.models import Schedule
+    machine.expiration = Schedule.add(auth_context, _name,
+                                      **params)
+    machine.save()

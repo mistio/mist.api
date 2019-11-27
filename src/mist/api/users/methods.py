@@ -166,6 +166,16 @@ def get_user_data(auth_context):
 
 def filter_org(auth_context):
     org_dict = auth_context.org.as_dict()
+    owner_policy = config.OWNER_POLICY
+    rules = []
+    for resource in owner_policy.keys():
+        for action in owner_policy[resource].keys():
+            tags, constraints = owner_policy[resource][action]
+            rule = {"operator": "ALLOW", "action": action, "rtype": resource,
+                    "rtags": tags, "constraints": constraints}
+            rules.append(rule)
+
+    org_dict['owner_policy'] = {"rules": rules, "operator": "ALLOW"}
     org_dict['is_owner'] = auth_context.is_owner()
 
     # SEC return my teams + visible teams or all teams if owner

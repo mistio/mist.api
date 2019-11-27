@@ -147,12 +147,6 @@ class SoftLayerMainController(BaseMainController):
     DnsController = dns_ctls.SoftLayerDNSController
 
 
-class NephoScaleMainController(BaseMainController):
-
-    provider = 'nephoscale'
-    ComputeController = compute_ctls.NephoScaleComputeController
-
-
 class AzureMainController(BaseMainController):
 
     provider = 'azure'
@@ -258,6 +252,7 @@ class OpenStackMainController(BaseMainController):
     def _update__preparse_kwargs(self, kwargs):
         rename_kwargs(kwargs, 'auth_url', 'url')
         rename_kwargs(kwargs, 'tenant_name', 'tenant')
+        rename_kwargs(kwargs, 'domain_name', 'domain')
         url = kwargs.get('url', self.cloud.url)
         if url:
             if url.endswith('/v2.0/'):

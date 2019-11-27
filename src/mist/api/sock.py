@@ -342,8 +342,10 @@ class MainConnection(MistConnection):
     def update_org(self):
         try:
             org = filter_org(self.auth_context)
-        except:  # Forbidden
+        except Exception as e:  # Forbidden
             org = None
+            log.error('Failed to filter org %s: %r' % (
+                self.auth_context.org, e))
 
         if org:
             self.send('org', org)
@@ -596,12 +598,6 @@ class MainConnection(MistConnection):
                     line['path'] = '/clouds/%s/locations/%s' % (cloud_id, _id)
                 elif routing_key == 'patch_sizes':
                     line['path'] = '/clouds/%s/sizes/%s' % (cloud_id, _id)
-                elif routing_key == 'patch_networks':
-                    line['path'] = '/clouds/%s/networks/%s' % (cloud_id, _id)
-                elif routing_key == 'patch_zones':
-                    line['path'] = '/clouds/%s/zones/%s' % (cloud_id, _id)
-                elif routing_key == 'patch_volumes':
-                    line['path'] = '/clouds/%s/volumes/%s' % (cloud_id, _id)
             if patch:
                 self.batch.extend(patch)
 

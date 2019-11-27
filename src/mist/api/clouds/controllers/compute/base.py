@@ -81,7 +81,7 @@ def _decide_machine_cost(machine, tags=None, cost=(0, 0)):
 
     # Get machine tags from db
     tags = tags or {tag.key: tag.value for tag in Tag.objects(
-        resource_id=machine.id, resource_type='machines'
+        resource_id=machine.id, resource_type='machine'
     )}
 
     try:
@@ -198,6 +198,7 @@ class BaseComputeController(BaseController):
         """
         task_key = 'cloud:list_machines:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
+        first_run = False if task.last_success else True
         try:
             with task.task_runner(persist=persist):
                 cached_machines = [m.as_dict()
@@ -207,7 +208,7 @@ class BaseComputeController(BaseController):
             self.cloud.ctl.disable()
             raise
 
-        self.produce_and_publish_patch(cached_machines, machines)
+        self.produce_and_publish_patch(cached_machines, machines, first_run)
 
         # Push historic information for inventory and cost reporting.
         for machine in machines:
@@ -219,10 +220,8 @@ class BaseComputeController(BaseController):
 
         return machines
 
-    def produce_and_publish_patch(self, cached_machines, fresh_machines):
-        if not amqp_owner_listening(self.cloud.owner.id):
-            return
-
+    def produce_and_publish_patch(self, cached_machines, fresh_machines,
+                                  first_run=False):
         old_machines = {'%s-%s' % (m['id'], m['machine_id']): m
                         for m in cached_machines}
         new_machines = {'%s-%s' % (m.id, m.machine_id): m.as_dict()
@@ -240,10 +239,15 @@ class BaseComputeController(BaseController):
         patch = jsonpatch.JsonPatch.from_diff(old_machines,
                                               new_machines).patch
         if patch:  # Publish patches to rabbitmq.
-            amqp_publish_user(self.cloud.owner.id,
-                              routing_key='patch_machines',
-                              data={'cloud_id': self.cloud.id,
-                                    'patch': patch})
+            if not first_run and self.cloud.observation_logs_enabled:
+                from mist.api.logs.methods import log_observations
+                log_observations(self.cloud.owner.id, self.cloud.id,
+                                 'machine', patch, old_machines, new_machines)
+            if amqp_owner_listening(self.cloud.owner.id):
+                amqp_publish_user(self.cloud.owner.id,
+                                  routing_key='patch_machines',
+                                  data={'cloud_id': self.cloud.id,
+                                        'patch': patch})
 
     def _list_machines(self):
         """Core logic of list_machines method

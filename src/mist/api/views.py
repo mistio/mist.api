@@ -593,7 +593,6 @@ def confirm(request):
         else:
             return HTTPFound('/error?msg=already-confirmed')
 
-    #token = get_secure_rand_token()
     token = hashlib.sha1(key.encode()).hexdigest()
     key = encrypt("%s:%s" % (token, user.email), config.SECRET)
     user.password_set_token = token
