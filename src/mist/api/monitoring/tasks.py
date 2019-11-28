@@ -38,7 +38,7 @@ def install_telegraf(machine_id, job=None, job_id=None, plugins=None):
     try:
         shell = mist.api.shell.Shell(machine.ctl.get_host())
         key, user = shell.autoconfigure(machine.owner, machine.cloud.id,
-                                        machine.machine_id)
+                                        machine.id)
     except Exception as err:
         log.error('Error during Telegraf installation: %r', err)
         stdout = ''
@@ -105,7 +105,7 @@ def uninstall_telegraf(machine_id, job=None, job_id=None):
     try:
         shell = mist.api.shell.Shell(machine.ctl.get_host())
         key, user = shell.autoconfigure(machine.owner, machine.cloud.id,
-                                        machine.machine_id)
+                                        machine.id)
         exit_code, stdout = shell.command(fetch(unix_uninstall()))
         stdout = stdout.replace('\r\n', '\n').replace('\r', '\n')
     except Exception as err:

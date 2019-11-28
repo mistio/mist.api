@@ -253,7 +253,7 @@ class MachineController(object):
             try:
                 data = probe_ssh_only(
                     self.machine.cloud.owner, self.machine.cloud.id,
-                    self.machine.machine_id, self.get_host(),
+                    self.machine.id, self.get_host(),
                 )
             except:
                 probe = self.machine.ssh_probe
