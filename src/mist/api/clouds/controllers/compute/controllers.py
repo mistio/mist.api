@@ -161,11 +161,18 @@ class AmazonComputeController(BaseComputeController):
         size = machine_libcloud.extra.get('instance_type')
         for node_size in sizes:
             if node_size.id == size and node_size.price:
-                plan_price = node_size.price.get(machine.os_type)
-                if not plan_price:
-                    # Use the default which is linux.
-                    plan_price = node_size.price.get('linux')
-                return plan_price.replace('/hour', '').replace('$', ''), 0
+                if isinstance(node_size.price, dict):
+                    plan_price = node_size.price.get(machine.os_type)
+                    if not plan_price:
+                        # Use the default which is linux.
+                        plan_price = node_size.price.get('linux')
+                else:
+                    plan_price = node_size.price
+                if isinstance(plan_price, float) or isinstance(plan_price,
+                                                               int):
+                    return plan_price, 0
+                else:
+                    return plan_price.replace('/hour', '').replace('$', ''), 0
         return 0, 0
 
     def _list_machines__get_location(self, node):
