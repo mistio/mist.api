@@ -46,9 +46,12 @@ def run_chained_actions(rule_id, incident_id, resource_id, resource_type,
         raise RuleNotFoundError()
     # Log (un)triggered alert.
     skip_log = False if triggered_now or not triggered else True
-    if skip_log is False and not rule.is_arbitrary():
-        Model = get_resource_model(resource_type)
-        resource = Model.objects.get(id=resource_id, owner=rule.owner_id)
+    if skip_log is False:
+        if not rule.is_arbitrary():
+            Model = get_resource_model(resource_type)
+            resource = Model.objects.get(id=resource_id, owner=rule.owner_id)
+        else:
+            resource = rule.owner
         _log_alert(resource, rule, value, triggered, timestamp, incident_id,
                    rule.actions[0])
     # If the rule got un-triggered or re-triggered, just send a notification
