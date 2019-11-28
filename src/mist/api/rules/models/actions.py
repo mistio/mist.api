@@ -225,11 +225,31 @@ class WebhookAction(BaseAlertAction):
                     "JSON dictionary: %s" % e.args[0]
                 )
 
-    def run(self, machine, *args, **kwargs):
-        json_body = json.loads(self.json) if self.json else None
+    def run(self, resource, *args, **kwargs):
+        from mist.api.config import CORE_URI
+        resource_type = self._instance.resource_model_name
+        resource_url = resource_type and '%s/%ss/%s' % (
+            CORE_URI, resource_type, resource.id) or CORE_URI
+        if hasattr(resource, "name"):
+            resource_name = resource.name
+        elif hasattr(resource, "title"):
+            resource_name = resource.title
+        else:
+            resource_name = 'unknown'
+        if self.json:
+            json_body = self.json.replace(
+                "{resource_id}", resource.id).replace(
+                    "{resource_url}", resource_url).replace(
+                        "{resource_name}", resource_name)
+            json_body = json.loads(json_body)
+        else:
+            json_body = None
+        data = self.data.replace("{resource_id}", resource.id).replace(
+            "{resource_url}", resource_url).replace("{resource_name}",
+                                                    resource.name)
         headers = json.loads(self.headers) if self.headers else None
         response = requests.request(
-            self.method, self.url, params=self.params, data=self.data,
+            self.method, self.url, params=self.params, data=data,
             json=json_body, headers=headers)
 
         # Notify user & admin if response indicates an error
