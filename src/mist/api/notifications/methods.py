@@ -28,7 +28,6 @@ from mist.api.notifications.models import EmailAlert
 from mist.api.notifications.models import NoDataRuleTracker
 from mist.api.notifications.models import InAppRecommendation
 
-from mist.api.notifications.helpers import _log_alert
 from mist.api.notifications.helpers import _get_alert_details
 
 
@@ -90,9 +89,7 @@ def send_alert_email(rule, resource, incident_id, value, triggered, timestamp,
         alert.suppressed = suppress_nodata_alert(rule)
         alert.save()
         # Allows to log newly triggered incidents.
-        skip_log = False
     else:
-        skip_log = False if not triggered else True
         reminder = ' - Reminder %d' % alert.reminder_count if triggered else ''
         info['action'] += reminder
 
@@ -110,6 +107,9 @@ def send_alert_email(rule, resource, incident_id, value, triggered, timestamp,
         '[%(portal_name)s] *** %(state)s *** from %(name)s: %(metric_name)s'
     alert.subject = subject % info
 
+    info['condition'] = info['condition'].replace(
+        '>', 'greater than').replace('<', 'less than').replace(
+            '=', 'equals')
     pt = os.path.join(os.path.dirname(__file__), 'templates/text_alert.pt')
     alert.text_body = PageTemplateFile(pt)(inputs=info)
 
@@ -129,11 +129,6 @@ def send_alert_email(rule, resource, incident_id, value, triggered, timestamp,
         alert.save()
     else:
         alert.delete()
-
-    # Log (un)triggered alert.
-    if skip_log is False:
-        _log_alert(resource, rule, value, triggered, timestamp, incident_id,
-                   action)
 
 
 def suppress_nodata_alert(rule):

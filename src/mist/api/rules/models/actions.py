@@ -79,7 +79,7 @@ class NotificationAction(BaseAlertAction):
     emails = me.ListField(me.StringField(), default=lambda: [])
     level = me.StringField(default='warning', choices=(
         'info', 'warning', 'critical'))
-    description = me.StringField(required=False)
+    description = me.StringField(required=False, default='')
 
     def run(self, resource, value, triggered, timestamp, incident_id,
             action=''):
@@ -233,12 +233,16 @@ class WebhookAction(BaseAlertAction):
             json=json_body, headers=headers)
 
         # Notify user & admin if response indicates an error
-        if response.ok:
+        if not response.ok:
             title = "Webhook for rule `%s` responded with http code `%d`" % (
                 self._instance.title, response.status_code)
-            body = "URL: %s\n Response body: %s\n" % (
-                self.url, response.text or str(response.json()))
-            log.info(title, self._instance.id, body)
+            try:
+                body = "URL: %s\n Response body: %s\n" % (
+                    self.url, str(response.json()))
+            except json.JSONDecodeError:
+                body = "URL: %s\n Response body: %s\n" % (
+                    self.url, response.text)
+            log.info("%s - %s - %s", title, self._instance.id, body)
             from mist.api.methods import notify_user, notify_admin
             notify_user(self._instance.owner, title, message=body)
             notify_admin(title + ' ' + self._instance.id, body)

@@ -36,14 +36,13 @@ def _get_alert_details(resource, rule, incident_id,
     if isinstance(rule, MachineMetricRule):
         return _alert_pretty_machine_details(
             rule.owner, rule.title, value, triggered, timestamp,
-            resource.cloud.id, resource.machine_id, action
+            resource.cloud.id, resource.machine_id, action, level, description
         )
 
     # A human-readable string of the query conditions.
     cond = ' & '.join([str(q) for q in rule.queries])
     cond += ' within %d %s' % (rule.window.start - rule.window.stop,
                                rule.window.period)
-
     # A quick description of the metric.
     label = '%s of matching %s' % (rule.queries[-1].aggregation,
                                    rule._data_type_str)
@@ -93,7 +92,8 @@ def _get_alert_details(resource, rule, incident_id,
 
 # TODO Deprecate.
 def _alert_pretty_machine_details(owner, rule_id, value, triggered, timestamp,
-                                  cloud_id='', machine_id='', action=''):
+                                  cloud_id='', machine_id='', action='',
+                                  level='', description=''):
     # Always pass (cloud_id, machine_id) explicitly instead of getting them
     # from  the `Rule` instance, as before, since instances of `NoDataRule`
     # will most likely return multiple resources, which is not supported by
@@ -146,9 +146,10 @@ def _alert_pretty_machine_details(owner, rule_id, value, triggered, timestamp,
             condition += ' within %s mins' % period
         fval = metric.format_value(value)
 
-    state = "WARNING" if triggered else "OK"
+    state =  level.upper() if triggered else 'OK',
 
     return {
+        'description': description,
         'rule_id': rule.id,
         'rule_title': rule.title,
         'cloud_id': cloud_id,
@@ -207,7 +208,7 @@ def _log_alert(resource, rule, value, triggered, timestamp, incident_id,
     # FIXME For backwards compability.
     if isinstance(resource, Machine):
         info['cloud_id'] = resource.cloud.id
-        info['machine_id'] = resource.machine_id
+        info['machine_id'] = resource.id
 
     # Update info with additional kwargs.
     info.update(kwargs)
