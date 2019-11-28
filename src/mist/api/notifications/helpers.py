@@ -47,6 +47,7 @@ def _get_alert_details(resource, rule, incident_id,
     label = '%s of matching %s' % (rule.queries[-1].aggregation,
                                    rule._data_type_str)
 
+    state = level.upper() if triggered else 'OK'
     # The basic dict of details for describing every alert. All common
     # alert details among rules should be added here.
     d = {
@@ -59,7 +60,7 @@ def _get_alert_details(resource, rule, incident_id,
         'curr_value': value,
         'condition': cond,
         'action': 'alert',
-        'state': level.upper() if triggered else 'OK',
+        'state': state,
         'since': _get_time_diff_to_now(timestamp),
         'time': _get_current_local_time(),
         'uri': config.CORE_URI,
