@@ -1196,7 +1196,7 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
             raise MistError("No host provided and none could be discovered.")
         shell = mist.api.shell.Shell(host)
         ret['key_id'], ret['ssh_user'] = shell.autoconfigure(
-            owner, cloud_id, machine.id, username, password, port
+            owner, cloud_id, machine['id'], username, password, port
         )
         # FIXME wrap here script.run_script
         path, params, wparams = script.ctl.run_script(shell,
