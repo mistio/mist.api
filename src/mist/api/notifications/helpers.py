@@ -210,6 +210,7 @@ def _log_alert(resource, rule, value, triggered, timestamp, incident_id,
     if isinstance(resource, Machine):
         info['cloud_id'] = resource.cloud.id
         info['machine_id'] = resource.id
+        info['external_id'] = resource.machine_id
 
     # Update info with additional kwargs.
     info.update(kwargs)
