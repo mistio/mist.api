@@ -237,7 +237,8 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                 # to be able to enable monitoring
                 tmp_log('attempting to connect to shell')
                 key_id, ssh_user = shell.autoconfigure(
-                    owner, cloud_id, machine.id, key_id, username, password, port
+                    owner, cloud_id, machine.id, key_id, username, password,
+                    port
                 )
                 tmp_log('connected to shell')
                 result = probe_ssh_only(owner, cloud_id, machine.id, host=None,
@@ -958,7 +959,7 @@ def run_machine_action(owner_id, action, name, machine_uuid):
         'schedule_id': schedule.id,
     }
 
-    machine_id = ''
+    external_id = ''
     cloud_id = ''
     owner = Owner.objects.get(id=owner_id)
     started_at = time()
