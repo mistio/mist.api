@@ -767,7 +767,7 @@ MONITORING_METHODS = (
 )
 DEFAULT_MONITORING_METHOD = 'telegraf-influxdb'
 
-GRAPHITE_URI = "http://graphite"
+GRAPHITE_URI = "http://m3db:7201/api/v1/graphite"
 
 # Alert service's settings.
 CILIA_TRIGGER_API = "http://api"
