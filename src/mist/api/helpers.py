@@ -943,7 +943,7 @@ def logging_view_decorator(func):
         params = dict(params_from_request(request))
         for key in ['email', 'cloud', 'machine', 'rule', 'script_id',
                     'tunnel_id', 'story_id', 'stack_id', 'template_id',
-                    'zone', 'record', 'network', 'subnet', 'volume']:
+                    'zone', 'record', 'network', 'subnet', 'volume', 'key']:
             if key != 'email' and key in request.matchdict:
                 if not key.endswith('_id'):
                     log_dict[key + '_id'] = request.matchdict[key]
@@ -983,7 +983,6 @@ def logging_view_decorator(func):
             censor = {'vcloud': 'password',
                       'ec2': 'api_secret',
                       'rackspace': 'api_key',
-                      'nephoscale': 'password',
                       'softlayer': 'api_key',
                       'onapp': 'api_key',
                       'digitalocean': 'token',
@@ -991,7 +990,6 @@ def logging_view_decorator(func):
                       'azure': 'certificate',
                       'linode': 'api_key',
                       'docker': 'auth_password',
-                      'hp': 'password',
                       'openstack': 'password'}.get(provider)
             if censor and censor in params:
                 params[censor] = '***CENSORED***'
