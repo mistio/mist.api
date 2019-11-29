@@ -430,6 +430,9 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         node = _create_machine_packet(conn, public_key, machine_name, image,
                                       size, location, cloud_init, cloud,
                                       project_id, volumes, ip_addresses)
+    elif conn.type == Provider.MAXIHOST:
+        node = _create_machine_maxihost(conn, machine_name, image,
+                                        size, location, public_key)
     else:
         raise BadRequestError("Provider unknown.")
 
@@ -773,7 +776,6 @@ def _create_machine_ec2(conn, key_name, public_key,
                         user_data, volumes):
     """Create a machine in Amazon EC2.
     """
-
     # create security group
     name = config.EC2_SECURITYGROUP.get('name', '')
     description = config.EC2_SECURITYGROUP.get('description', '')
@@ -992,6 +994,31 @@ def _create_machine_onapp(conn, public_key,
         )
     except Exception as e:
         raise MachineCreationError("OnApp, got exception %s" % e, e)
+
+    return node
+
+
+def _create_machine_maxihost(conn, machine_name, image_id, size,
+                             location, public_key):
+    key = str(public_key).replace('\n', '')
+    ssh_keys = []
+    server_key = ''
+    keys = conn.list_key_pairs()
+    for k in keys:
+        if key == k.public_key:
+            server_key = k
+            break
+    if not server_key:
+        server_key = conn.create_key_pair(name=machine_name,
+                                          public_key=public_key)
+
+    ssh_keys.append(server_key.fingerprint)
+
+    try:
+        node = conn.create_node(machine_name, size, image_id,
+                                location, ssh_keys)
+    except ValueError as exc:
+        raise MachineCreationError('Maxihost, exception %s' % exc)
 
     return node
 

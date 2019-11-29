@@ -384,6 +384,41 @@ class DigitalOceanComputeController(BaseComputeController):
         return size.extra.get('vcpus')
 
 
+class MaxihostComputeController(BaseComputeController):
+
+    def _connect(self):
+        return get_driver(Provider.MAXIHOST)(self.cloud.token)
+
+    def _list_machines__machine_actions(self, machine, machine_libcloud):
+        super(MaxihostComputeController, self)._list_machines__machine_actions(
+            machine, machine_libcloud)
+        if machine_libcloud.state is NodeState.PAUSED:
+            machine.actions.start = True
+
+    def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        hostname = machine_libcloud.extra.get('ips')[0].get('device_hostname')
+        machine.hostname = hostname
+
+    def _list_machines__get_location(self, node):
+        return node.extra.get('location').get('facility_code')
+
+    def _list_sizes__get_name(self, size):
+        name = size.extra['specs']['cpus']['type']
+        try:
+            cpus = int(size.extra['specs']['cpus']['cores'])
+        except ValueError:  # 'N/A'
+            cpus = None
+        memory = size.extra['specs']['memory']['total']
+        disk_count = size.extra['specs']['drives'][0]['count']
+        disk_size = size.extra['specs']['drives'][0]['size']
+        disk_type = size.extra['specs']['drives'][0]['type']
+        cpus_info = str(cpus) + ' cores/' if cpus else ''
+        return name + '/ ' + cpus_info \
+                           + memory + ' RAM/ ' \
+                           + str(disk_count) + ' * ' + disk_size + ' ' \
+                           + disk_type
+
+
 class LinodeComputeController(BaseComputeController):
 
     def _connect(self):
@@ -902,6 +937,15 @@ class GoogleComputeController(BaseComputeController):
 
     def _list_sizes__get_cpu(self, size):
         return size.extra.get('guestCpus')
+
+    def _list_sizes__get_extra(self, size):
+        extra = {}
+        description = size.extra.get('description', '')
+        if description:
+            extra.update({'description': description})
+        if size.price:
+            extra.update({'price': size.price})
+        return extra
 
     def _resize_machine(self, machine, machine_libcloud, node_size, kwargs):
         # instance must be in stopped mode
