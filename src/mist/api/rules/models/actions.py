@@ -1,6 +1,8 @@
 import uuid
 import time
 import logging
+import json
+import requests
 import mongoengine as me
 
 from mist.api.helpers import is_email_valid
@@ -75,6 +77,9 @@ class NotificationAction(BaseAlertAction):
     users = me.ListField(me.StringField(), default=lambda: [])
     teams = me.ListField(me.StringField(), default=lambda: [])
     emails = me.ListField(me.StringField(), default=lambda: [])
+    level = me.StringField(default='warning', choices=(
+        'info', 'warning', 'critical'))
+    description = me.StringField(required=False, default='')
 
     def run(self, resource, value, triggered, timestamp, incident_id,
             action=''):
@@ -106,7 +111,8 @@ class NotificationAction(BaseAlertAction):
         # FIXME Imported here due to circular dependency issues.
         from mist.api.notifications.methods import send_alert_email
         send_alert_email(self._instance, resource, incident_id, value,
-                         triggered, timestamp, emails, action=action)
+                         triggered, timestamp, emails, action=action,
+                         level=self.level, description=self.description)
 
     def clean(self):
         """Perform e-mail address validation."""
@@ -116,7 +122,8 @@ class NotificationAction(BaseAlertAction):
 
     def as_dict(self):
         return {'type': self.atype, 'emails': self.emails,
-                'users': self.users, 'teams': self.teams}
+                'users': self.users, 'teams': self.teams,
+                'level': self.level, 'description': self.description}
 
 
 class NoDataAction(NotificationAction):
@@ -134,8 +141,8 @@ class NoDataAction(NotificationAction):
                                machine.machine_id, no_ssh=True)
             log_event(
                 machine.owner.id, 'incident', 'disable_monitoring',
-                cloud_id=machine.cloud.id, machine_id=machine.machine_id,
-                incident_id=incident_id
+                cloud_id=machine.cloud.id, machine_id=machine.id,
+                external_id=machine.machine_id, incident_id=incident_id
             )
             action = 'Disable Monitoring'
         else:
@@ -146,8 +153,6 @@ class NoDataAction(NotificationAction):
 
 class CommandAction(BaseAlertAction):
     """Execute a remote command."""
-
-    # TODO: Deprecate in favor of a ScriptAction?
 
     atype = 'command'
 
@@ -163,6 +168,110 @@ class CommandAction(BaseAlertAction):
 
     def as_dict(self):
         return {'type': self.atype, 'command': self.command}
+
+
+class ScriptAction(BaseAlertAction):
+    """Execute a remote script."""
+
+    atype = 'script'
+
+    script = me.ReferenceField('Script', required=True)
+    params = me.StringField(required=True)
+
+    def run(self, machine, *args, **kwargs):
+        # FIXME Imported here due to circular dependency issues.
+        from mist.api import tasks
+        assert isinstance(machine, Machine)
+        assert machine.owner == self._instance.owner
+        job_id = uuid.uuid4().hex
+        job = 'run_script'
+        tasks.run_script(machine.owner.id, self.script.id,
+                         machine.id, params=self.params,
+                         job_id=job_id, job=job)
+        return {'job_id': job_id, 'job': job}
+
+    def as_dict(self):
+        return {'type': self.atype, 'script': self.script.id,
+                'params': self.params}
+
+
+class WebhookAction(BaseAlertAction):
+    """Perform an HTTP request."""
+
+    atype = 'webhook'
+
+    method = me.StringField(required=True, default='post', choices=(
+        'post', 'delete', 'put', 'patch'))
+    url = me.StringField(required=True)
+    params = me.StringField(required=False)
+    data = me.StringField(required=False)
+    json = me.StringField(required=False)
+    headers = me.StringField(required=False)
+
+    def clean(self):
+        if self.json:
+            try:
+                json.loads(self.json)
+            except json.decoder.JSONDecodeError as e:
+                raise me.ValidationError(
+                    "Invalid JSON payload: %s" % e.args[0]
+                )
+        if self.headers:
+            try:
+                json.loads(self.headers)
+            except json.decoder.JSONDecodeError as e:
+                raise me.ValidationError(
+                    "HTTP Headers should be defined as a valid "
+                    "JSON dictionary: %s" % e.args[0]
+                )
+
+    def run(self, resource, *args, **kwargs):
+        from mist.api.config import CORE_URI
+        resource_type = self._instance.resource_model_name
+        resource_url = resource_type and '%s/%ss/%s' % (
+            CORE_URI, resource_type, resource.id) or CORE_URI
+        if hasattr(resource, "name"):
+            resource_name = resource.name
+        elif hasattr(resource, "title"):
+            resource_name = resource.title
+        else:
+            resource_name = 'unknown'
+        if self.json:
+            json_body = self.json.replace(
+                "{resource_id}", resource.id).replace(
+                    "{resource_url}", resource_url).replace(
+                        "{resource_name}", resource_name)
+            json_body = json.loads(json_body)
+        else:
+            json_body = None
+        data = self.data.replace("{resource_id}", resource.id).replace(
+            "{resource_url}", resource_url).replace("{resource_name}",
+                                                    resource.name)
+        headers = json.loads(self.headers) if self.headers else None
+        response = requests.request(
+            self.method, self.url, params=self.params, data=data,
+            json=json_body, headers=headers)
+
+        # Notify user & admin if response indicates an error
+        if not response.ok:
+            title = "Webhook for rule `%s` responded with http code `%d`" % (
+                self._instance.title, response.status_code)
+            try:
+                body = "URL: %s\n Response body: %s\n" % (
+                    self.url, str(response.json()))
+            except json.JSONDecodeError:
+                body = "URL: %s\n Response body: %s\n" % (
+                    self.url, response.text)
+            log.info("%s - %s - %s", title, self._instance.id, body)
+            from mist.api.methods import notify_user, notify_admin
+            notify_user(self._instance.owner, title, message=body)
+            notify_admin(title + ' ' + self._instance.id, body)
+        return {'status_code': response.status_code}
+
+    def as_dict(self):
+        return {'type': self.atype, 'method': self.method, 'url': self.url,
+                'params': self.params, 'json': self.json,
+                'headers': self.headers}
 
 
 class MachineAction(BaseAlertAction):

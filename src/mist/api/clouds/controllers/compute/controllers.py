@@ -161,11 +161,18 @@ class AmazonComputeController(BaseComputeController):
         size = machine_libcloud.extra.get('instance_type')
         for node_size in sizes:
             if node_size.id == size and node_size.price:
-                plan_price = node_size.price.get(machine.os_type)
-                if not plan_price:
-                    # Use the default which is linux.
-                    plan_price = node_size.price.get('linux')
-                return plan_price.replace('/hour', '').replace('$', ''), 0
+                if isinstance(node_size.price, dict):
+                    plan_price = node_size.price.get(machine.os_type)
+                    if not plan_price:
+                        # Use the default which is linux.
+                        plan_price = node_size.price.get('linux')
+                else:
+                    plan_price = node_size.price
+                if isinstance(plan_price, float) or isinstance(plan_price,
+                                                               int):
+                    return plan_price, 0
+                else:
+                    return plan_price.replace('/hour', '').replace('$', ''), 0
         return 0, 0
 
     def _list_machines__get_location(self, node):
@@ -375,6 +382,41 @@ class DigitalOceanComputeController(BaseComputeController):
 
     def _list_sizes__get_cpu(self, size):
         return size.extra.get('vcpus')
+
+
+class MaxihostComputeController(BaseComputeController):
+
+    def _connect(self):
+        return get_driver(Provider.MAXIHOST)(self.cloud.token)
+
+    def _list_machines__machine_actions(self, machine, machine_libcloud):
+        super(MaxihostComputeController, self)._list_machines__machine_actions(
+            machine, machine_libcloud)
+        if machine_libcloud.state is NodeState.PAUSED:
+            machine.actions.start = True
+
+    def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        hostname = machine_libcloud.extra.get('ips')[0].get('device_hostname')
+        machine.hostname = hostname
+
+    def _list_machines__get_location(self, node):
+        return node.extra.get('location').get('facility_code')
+
+    def _list_sizes__get_name(self, size):
+        name = size.extra['specs']['cpus']['type']
+        try:
+            cpus = int(size.extra['specs']['cpus']['cores'])
+        except ValueError:  # 'N/A'
+            cpus = None
+        memory = size.extra['specs']['memory']['total']
+        disk_count = size.extra['specs']['drives'][0]['count']
+        disk_size = size.extra['specs']['drives'][0]['size']
+        disk_type = size.extra['specs']['drives'][0]['type']
+        cpus_info = str(cpus) + ' cores/' if cpus else ''
+        return name + '/ ' + cpus_info \
+                           + memory + ' RAM/ ' \
+                           + str(disk_count) + ' * ' + disk_size + ' ' \
+                           + disk_type
 
 
 class LinodeComputeController(BaseComputeController):
@@ -896,6 +938,15 @@ class GoogleComputeController(BaseComputeController):
     def _list_sizes__get_cpu(self, size):
         return size.extra.get('guestCpus')
 
+    def _list_sizes__get_extra(self, size):
+        extra = {}
+        description = size.extra.get('description', '')
+        if description:
+            extra.update({'description': description})
+        if size.price:
+            extra.update({'price': size.price})
+        return extra
+
     def _resize_machine(self, machine, machine_libcloud, node_size, kwargs):
         # instance must be in stopped mode
         if machine_libcloud.state != NodeState.STOPPED:
@@ -1076,7 +1127,8 @@ class OpenStackComputeController(BaseComputeController):
             ex_tenant_name=self.cloud.tenant,
             ex_force_service_region=self.cloud.region,
             ex_force_base_url=self.cloud.compute_endpoint,
-            ex_auth_url=url
+            ex_auth_url=url,
+            ex_domain_name=self.cloud.domain or 'Default'
         )
 
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
