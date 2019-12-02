@@ -93,6 +93,7 @@ class Cloud(OwnershipMixin, me.Document):
     polling_interval = me.IntField(default=0)  # in seconds
 
     dns_enabled = me.BooleanField(default=False)
+    observation_logs_enabled = me.BooleanField(default=False)
 
     default_monitoring_method = me.StringField(
         choices=config.MONITORING_METHODS)
@@ -198,6 +199,7 @@ class Cloud(OwnershipMixin, me.Document):
             'provider': self.ctl.provider,
             'enabled': self.enabled,
             'dns_enabled': self.dns_enabled,
+            'observation_logs_enabled': self.observation_logs_enabled,
             'state': 'online' if self.enabled else 'offline',
             'polling_interval': self.polling_interval,
             'tags': {
@@ -343,6 +345,14 @@ class DigitalOceanCloud(Cloud):
     _controller_cls = controllers.DigitalOceanMainController
 
 
+class MaxihostCloud(Cloud):
+
+    token = me.StringField(required=True)
+
+    _private_fields = ('token', )
+    _controller_cls = controllers.MaxihostMainController
+
+
 class LinodeCloud(Cloud):
 
     apikey = me.StringField(required=True)
@@ -460,6 +470,7 @@ class OpenStackCloud(Cloud):
     password = me.StringField(required=True)
     url = me.StringField(required=True)
     tenant = me.StringField(required=True)
+    domain = me.StringField(required=False)
     region = me.StringField(required=False)
     compute_endpoint = me.StringField(required=False)
 

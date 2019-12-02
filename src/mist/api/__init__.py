@@ -140,7 +140,7 @@ def add_routes(configurator):
         ui_sections = ['clouds', 'machines', 'images', 'keys', 'scripts',
                        'templates', 'stacks', 'teams', 'networks', 'volumes',
                        'tunnels', 'members', 'insights', 'my-account',
-                       'schedules', 'zones']
+                       'schedules', 'zones', 'rules']
         landing_sections = ['about', 'product', 'pricing',
                             'sign-up', 'sign-in', 'forgot-password',
                             'buy-license', 'request-pricing', 'get-started',
@@ -267,7 +267,7 @@ def add_routes(configurator):
     )
     configurator.add_route(
         'api_v1_cloud_volume',
-        '/api/v1/clouds/{cloud}/volumes/*volume'
+        '/api/v1/clouds/{cloud}/volumes/*volume_ext'
     )
     configurator.add_route(
         'api_v1_volumes',
@@ -275,7 +275,7 @@ def add_routes(configurator):
     )
     configurator.add_route(
         'api_v1_volume',
-        '/api/v1/volumes/{volume_uuid}'
+        '/api/v1/volumes/{volume}'
     )
 
     configurator.add_route('api_v1_keys', '/api/v1/keys')

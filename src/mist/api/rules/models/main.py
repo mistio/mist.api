@@ -450,29 +450,11 @@ class ResourceLogsRule(ResourceRule):
     _data_type_str = 'logs'
     _backend_plugin = ElasticSearchBackendPlugin
 
-    def clean(self):
-        super(ResourceLogsRule, self).clean()
-        if not (
-            len(self.actions) is 1 and
-            isinstance(self.actions[0], NotificationAction)
-        ):
-            raise me.ValidationError('Only a single notification action may '
-                                     'be performed by this type of rule')
-
 
 class ArbitraryLogsRule(ArbitraryRule):
 
     _data_type_str = 'logs'
     _backend_plugin = ElasticSearchBackendPlugin
-
-    def clean(self):
-        super(ArbitraryLogsRule, self).clean()
-        if not (
-            len(self.actions) is 1 and
-            isinstance(self.actions[0], NotificationAction)
-        ):
-            raise me.ValidationError('Only a single notification action may '
-                                     'be performed by this type of rule')
 
 
 def _populate_rules():

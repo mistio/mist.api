@@ -76,32 +76,31 @@ class BaseStorageController(BaseController):
         """
         task_key = 'cloud:list_volumes:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
+        first_run = False if task.last_success else True
         with task.task_runner(persist=persist):
             cached_volumes = {'%s-%s' % (v.id, v.external_id): v.as_dict()
                               for v in self.list_cached_volumes()}
 
             volumes = self._list_volumes()
 
-        if amqp_owner_listening(self.cloud.owner.id):
-            volumes_dict = [v.as_dict() for v in volumes]
-            if cached_volumes and volumes_dict:
-                # Publish patches to rabbitmq.
-                new_volumes = {'%s-%s' % (v['id'], v['external_id']): v
-                               for v in volumes_dict}
-                patch = jsonpatch.JsonPatch.from_diff(cached_volumes,
-                                                      new_volumes).patch
-                if patch:
+        volumes_dict = [v.as_dict() for v in volumes]
+        if cached_volumes or volumes:
+            # Publish patches to rabbitmq.
+            new_volumes = {'%s-%s' % (v['id'], v['external_id']): v
+                           for v in volumes_dict}
+            patch = jsonpatch.JsonPatch.from_diff(cached_volumes,
+                                                  new_volumes).patch
+            if patch:
+                if not first_run and self.cloud.observation_logs_enabled:
+                    from mist.api.logs.methods import log_observations
+                    log_observations(self.cloud.owner.id, self.cloud.id,
+                                     'volume', patch, cached_volumes,
+                                     new_volumes)
+                if amqp_owner_listening(self.cloud.owner.id):
                     amqp_publish_user(self.cloud.owner.id,
                                       routing_key='patch_volumes',
                                       data={'cloud_id': self.cloud.id,
                                             'patch': patch})
-            # FIXME: remove this block, once patches
-            # are implemented in the UI
-            else:
-                amqp_publish_user(self.cloud.owner.id,
-                                  routing_key='list_volumes',
-                                  data={'cloud_id': self.cloud.id,
-                                        'volumes': volumes_dict})
         return volumes
 
     @LibcloudExceptionHandler(mist.api.exceptions.VolumeListingError)

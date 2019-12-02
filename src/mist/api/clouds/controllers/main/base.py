@@ -149,6 +149,7 @@ class BaseMainController(object):
 
         # Cloud specific argument preparsing cloud-wide argument
         self.cloud.dns_enabled = kwargs.pop('dns_enabled', False) is True
+        self.cloud.observation_logs_enabled = True
 
         # Cloud specific kwargs preparsing.
         try:
@@ -312,6 +313,8 @@ class BaseMainController(object):
             raise CloudExistsError()
 
     def enable(self):
+        from mist.api.tasks import delete_periodic_tasks
+        delete_periodic_tasks(self.cloud.id)
         self.cloud.enabled = True
         self.cloud.save()
         self.add_polling_schedules()
@@ -326,8 +329,9 @@ class BaseMainController(object):
         # further polling tasks. This may result in `missing_since` being reset
         # to `None`. For that, we schedule a task in the future to ensure that
         # celery has executed all respective poller tasks first.
-        from mist.api.tasks import set_missing_since
+        from mist.api.tasks import set_missing_since, delete_periodic_tasks
         set_missing_since.apply_async((self.cloud.id, ), countdown=30)
+        delete_periodic_tasks.apply_async((self.cloud.id, ), countdown=30)
 
     def dns_enable(self):
         self.cloud.dns_enabled = True
@@ -335,6 +339,14 @@ class BaseMainController(object):
 
     def dns_disable(self):
         self.cloud.dns_enabled = False
+        self.cloud.save()
+
+    def observation_logs_enable(self):
+        self.cloud.observation_logs_enabled = True
+        self.cloud.save()
+
+    def observation_logs_disable(self):
+        self.cloud.observation_logs_enabled = False
         self.cloud.save()
 
     def set_polling_interval(self, interval):
