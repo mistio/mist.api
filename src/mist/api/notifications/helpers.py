@@ -147,7 +147,7 @@ def _alert_pretty_machine_details(owner, rule_id, value, triggered, timestamp,
             condition += ' within %s mins' % period
         fval = metric.format_value(value)
 
-    state = level.upper() if triggered else 'OK',
+    state = level.upper() if triggered else 'OK'
 
     return {
         'description': description,
