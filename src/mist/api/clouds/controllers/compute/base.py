@@ -355,7 +355,10 @@ class BaseComputeController(BaseController):
             if not image_id:
                 image_id = str(node.image or node.extra.get('imageId') or
                                node.extra.get('image_id') or
-                               node.extra.get('image') or '')
+                               node.extra.get('image') or
+                               node.extra.get('operating_system', {}).get(
+                                   'name') or
+                               '')
 
             # Attempt to map machine's size to a CloudSize object. If not
             # successful, try to discover custom size.
@@ -858,8 +861,7 @@ class BaseComputeController(BaseController):
             _size.disk = size.disk
             _size.bandwidth = size.bandwidth
             _size.missing_since = None
-            _size.extra = {'description': size.extra.get('description', '')}
-            _size.extra.update({'price': size.price})
+            _size.extra = self._list_sizes__get_extra(size)
             if size.ram:
                 try:
                     _size.ram = int(re.sub("\D", "", str(size.ram)))
@@ -905,6 +907,14 @@ class BaseComputeController(BaseController):
 
     def _list_sizes__get_name(self, size):
         return size.name
+
+    def _list_sizes__get_extra(self, size):
+        extra = {}
+        if size.extra:
+            extra = size.extra
+        if size.price:
+            extra.update({'price': size.price})
+        return extra
 
     def list_cached_sizes(self):
         """Return list of sizes from database for a specific cloud"""

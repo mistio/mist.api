@@ -142,7 +142,7 @@ class ElasticQueryHandler(object):
             query['query']['bool']['filter']['bool']['must'].append({
                 'query_string': {
                     'query': query_string,
-                    'analyze_wildcard': False,
+                    'analyze_wildcard': True,
                     'default_operator': 'and',
                     'allow_leading_wildcard': False
                 }
@@ -173,13 +173,6 @@ class ElasticQueryHandler(object):
 
     @property
     def resource_id(self):
-        # FIXME Return the id to use in order to look-up a resource's logs.
-        # Machine logs are indexed with the provider's id, so we need to
-        # fetch the mongoengine object first. Undo this once all machine
-        # logs include a mist-assigned uuid.
-        if self._rtype == 'machine':
-            from mist.api.machines.models import Machine
-            return Machine.objects.get(id=self._rid).machine_id
         return self._rid
 
     @property
