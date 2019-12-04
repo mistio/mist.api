@@ -280,13 +280,13 @@ class DockerMainController(BaseMainController):
             check_host(host)
 
 
-class LXCMainController(BaseMainController):
+class LXDMainController(BaseMainController):
     """
     Main controller class for LXC containers
     """
 
     provider = 'lxc'
-    ComputeController = compute_ctls.LXCComputeController
+    ComputeController = compute_ctls.LXDComputeController
 
     def _update__preparse_kwargs(self, kwargs):
         kwargs.pop('authentication', None)

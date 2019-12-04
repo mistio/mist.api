@@ -1484,12 +1484,12 @@ class DockerComputeController(BaseComputeController):
         return []
 
 
-class LXCComputeController(BaseComputeController):
+class LXDComputeController(BaseComputeController):
     """
     compute controller for LXC containers
     """
     def __init__(self, *args, **kwargs):
-        super(LXCComputeController, self).__init__(*args, **kwargs)
+        super(LXDComputeController, self).__init__(*args, **kwargs)
         self._lxchost = None
         raise "This class is still a stub and should not be instantiated"
 
@@ -1503,7 +1503,107 @@ class LXCComputeController(BaseComputeController):
         raise "This is a stub yet"
 
     def _reboot_machine(self, machine):
+        self.connection.restart_container(container=machine)
         raise "This is a stub"
+
+    def _list_machines__fetch_machines(self):
+        """Perform the actual libcloud call to get list of containers"""
+        containers = self.connection.list_containers(all=self.cloud.show_all)
+
+        """
+        # add public/private ips for mist
+        for container in containers:
+            public_ips, private_ips = [], []
+            host = sanitize_host(self.cloud.host)
+            if is_private_subnet(host):
+                private_ips.append(host)
+            else:
+                public_ips.append(host)
+            container.public_ips = public_ips
+            container.private_ips = private_ips
+            container.size = None
+            container.image = container.image.name
+        """
+        return containers
+
+    def _connect(self):
+        host, port = dnat(self.cloud.owner, self.cloud.host, self.cloud.port)
+
+        try:
+            socket.setdefaulttimeout(15)
+            so = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            so.connect((sanitize_host(host), int(port)))
+            so.close()
+        except:
+            raise Exception("Make sure host is accessible "
+                            "and LXD port is specified")
+
+        tls_auth = self._tls_authenticate(host=host, port=port)
+
+        if tls_auth:
+            return
+
+        """
+        # TLS authentication.
+        if self.cloud.key_file and self.cloud.cert_file:
+            key_temp_file = tempfile.NamedTemporaryFile(delete=False)
+            key_temp_file.write(self.cloud.key_file.encode())
+            key_temp_file.close()
+            cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
+            cert_temp_file.write(self.cloud.cert_file.encode())
+            cert_temp_file.close()
+            ca_cert = None
+            if self.cloud.ca_cert_file:
+                ca_cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
+                ca_cert_temp_file.write(self.cloud.ca_cert_file.encode())
+                ca_cert_temp_file.close()
+                ca_cert = ca_cert_temp_file.name
+
+            # tls auth
+            return get_container_driver(Container_Provider.LXD)(
+                host=host, port=port,
+                key_file=key_temp_file.name,
+                cert_file=cert_temp_file.name,
+                ca_cert=ca_cert)
+        """
+
+        # Username/Password authentication.
+        if self.cloud.username and self.cloud.password:
+
+            return get_container_driver(Container_Provider.LXD)(
+                key=self.cloud.username,
+                secret=self.cloud.password,
+                host=host, port=port)
+        # open authentication.
+        else:
+            return get_container_driver(Container_Provider.LXD)(
+                host=host, port=port)
+
+    def _tls_authenticate(self, host, port):
+
+        # TLS authentication.
+        if self.cloud.key_file and self.cloud.cert_file:
+            key_temp_file = tempfile.NamedTemporaryFile(delete=False)
+            key_temp_file.write(self.cloud.key_file.encode())
+            key_temp_file.close()
+            cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
+            cert_temp_file.write(self.cloud.cert_file.encode())
+            cert_temp_file.close()
+            ca_cert = None
+            if self.cloud.ca_cert_file:
+                ca_cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
+                ca_cert_temp_file.write(self.cloud.ca_cert_file.encode())
+                ca_cert_temp_file.close()
+                ca_cert = ca_cert_temp_file.name
+
+            # tls auth
+            return get_container_driver(Container_Provider.LXD)(
+                host=host, port=port,
+                key_file=key_temp_file.name,
+                cert_file=cert_temp_file.name,
+                ca_cert=ca_cert)
+        return None
+
 
 class LibvirtComputeController(BaseComputeController):
 
