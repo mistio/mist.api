@@ -105,7 +105,8 @@ def _alert_pretty_machine_details(owner, rule_id, value, triggered, timestamp,
     cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
     machine = Machine.objects.get(cloud=cloud, machine_id=machine_id)
 
-    if machine.monitoring.method.endswith('graphite'):
+    if machine.monitoring.method.endswith('graphite') or \
+            machine.monitoring.method.endswith('m3db'):
         metrics = config.GRAPHITE_BUILTIN_METRICS
     if machine.monitoring.method.endswith('influxdb'):
         metrics = config.INFLUXDB_BUILTIN_METRICS

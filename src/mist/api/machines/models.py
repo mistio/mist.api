@@ -98,7 +98,8 @@ class Monitoring(me.EmbeddedDocument):
             self.collectd_password = os.urandom(32).hex()
 
     def get_commands(self):
-        if self.method in ('telegraf-influxdb', 'telegraf-graphite'):
+        if self.method in ('telegraf-influxdb', 'telegraf-graphite',
+                           'telegraf-m3db'):
             from mist.api.monitoring.commands import unix_install
             from mist.api.monitoring.commands import coreos_install
             from mist.api.monitoring.commands import windows_install

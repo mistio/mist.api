@@ -19,7 +19,8 @@ from mist.api.monitoring.graphite.handlers import MultiHandler, get_multi_uuid
 log = logging.getLogger(__name__)
 
 
-def get_stats(machine, start="", stop="", step="", metrics=None):
+def get_stats(machine, start="", stop="", step="", metrics=None,
+              graphite_uri=None):
     if not metrics:
         metrics = (list(config.GRAPHITE_BUILTIN_METRICS.keys()) +
                    machine.monitoring.metrics)
@@ -33,11 +34,13 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
         'network-tx': 'interface.total.if_octets.tx',
     }
     targets = [old_targets.get(metric, metric) for metric in metrics]
-    telegraf = machine.monitoring.method == 'telegraf-graphite'
+    telegraf = machine.monitoring.method == 'telegraf-graphite' or \
+        machine.monitoring.method == 'telegraf-m3db'
     handler = MultiHandler(
         machine.id,
         telegraf=telegraf,
-        telegraf_since=telegraf and machine.monitoring.method_since
+        telegraf_since=telegraf and machine.monitoring.method_since,
+        graphite_uri=graphite_uri
     )
     data = handler.get_data(targets, start, stop, interval_str=step)
     for item in data:
@@ -95,10 +98,11 @@ def _clean_monitor_metrics(owner, data):
     return dict([_clean_monitor_metric(owner, item) for item in data])
 
 
-def find_metrics(machine):
+def find_metrics(machine, graphite_uri=None):
     if not machine.monitoring.hasmonitoring:
         raise ForbiddenError("Machine doesn't have monitoring enabled.")
-    metrics = MultiHandler(machine.id).find_metrics()
+    metrics = MultiHandler(
+        machine.id, graphite_uri=graphite_uri).find_metrics()
     for item in metrics:
         if item['alias'].rfind("%(head)s.") == 0:
             item['alias'] = item['alias'][9:]
@@ -125,7 +129,7 @@ def find_metrics(machine):
 
 
 def _get_multimachine_stats(owner, metric, start='', stop='', step='',
-                            uuids=None):
+                            uuids=None, graphite_uri=None):
     if not uuids:
         uuids = [machine.id for machine in Machine.objects(
             cloud__in=Cloud.objects(owner=owner, deleted=None),
@@ -135,7 +139,8 @@ def _get_multimachine_stats(owner, metric, start='', stop='', step='',
         raise NotFoundError("No machine has monitoring enabled.")
     try:
         data = get_multi_uuid(uuids, metric, start=start, stop=stop,
-                              interval_str=step)
+                              interval_str=step,
+                              graphite_uri=graphite_uri)
     except Exception as exc:
         log.error("Error getting %s: %r", metric, exc)
         raise ServiceUnavailableError()
@@ -147,15 +152,18 @@ def _get_multimachine_stats(owner, metric, start='', stop='', step='',
     return ret
 
 
-def get_load(owner, start='', stop='', step='', uuids=None):
+def get_load(owner, start='', stop='', step='', uuids=None, graphite_uri=None):
     return _get_multimachine_stats(
         owner, 'bucky.%(uuid)s.load.shortterm',
         start=start, stop=stop, step=step, uuids=uuids,
+        graphite_uri=graphite_uri,
     )
 
 
-def get_cores(owner, start='', stop='', step='', uuids=None):
+def get_cores(owner, start='', stop='', step='', uuids=None,
+              graphite_uri=None):
     return _get_multimachine_stats(
         owner, 'groupByNode(bucky.%(uuid)s.cpu.*.system,1,"countSeries")',
         start=start, stop=stop, step=step, uuids=uuids,
+        graphite_uri=graphite_uri,
     )

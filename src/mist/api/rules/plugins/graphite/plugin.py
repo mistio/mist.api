@@ -3,6 +3,7 @@ import logging
 from mist.api.rules.plugins import base
 from mist.api.rules.plugins import methods
 from mist.api.monitoring.graphite import handlers as hrs
+import mist.api.config as config
 
 
 log = logging.getLogger(__name__)
@@ -10,9 +11,14 @@ log = logging.getLogger(__name__)
 
 class GraphiteBackendPlugin(base.BaseBackendPlugin):
 
+    def __init__(self, rule, rids=None):
+        super(GraphiteBackendPlugin, self).__init__(self, rule, rids=None)
+        self.uri = config.GRAPHITE_URI
+
     def execute(self, query, rid=None):
         # Request data given a simple target expression.
-        data = hrs.MultiHandler(rid).get_data(query.target, start=self.window)
+        data = hrs.MultiHandler(rid, graphite_uri=self.uri).get_data(
+            query.target, start=self.window)
 
         # No data ever reached Graphite? Is the whisper file missing?
         if not len(data):

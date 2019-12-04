@@ -66,6 +66,8 @@ def get_stats(machine, start='', stop='', step='', metrics=None):
         - metrics: the metrics to query for, if explicitly specified
 
     """
+    # import ipdb
+    # ipdb.set_trace()
     if not machine.monitoring.hasmonitoring:
         raise MethodNotAllowedError('Machine does not have monitoring enabled')
     if metrics is None:
@@ -106,6 +108,11 @@ def get_stats(machine, start='', stop='', step='', metrics=None):
             if data:
                 results.update(data)
         return results
+    elif machine.monitoring.method == 'telegraf-m3db':
+        return graphite_get_stats(
+            machine, start=start, stop=stop, step=step, metrics=metrics,
+            graphite_uri=config.M3DB_URI
+        )
     else:
         raise Exception("Invalid monitoring method")
 
@@ -122,6 +129,8 @@ def get_load(owner, start='', stop='', step='', uuids=None):
                       if machine.monitoring.method.endswith('-graphite')]
     influx_uuids = [machine.id for machine in machines
                     if machine.monitoring.method.endswith('-influxdb')]
+    m3db_uuids = [machine.id for machine in machines
+                  if machine.monitoring.method.endswith('-m3db')]
 
     graphite_data = {}
     influx_data = {}
@@ -136,9 +145,14 @@ def get_load(owner, start='', stop='', step='', uuids=None):
             metric='system.load1',
             start=_start, stop=_stop, step=_step,
         )
+    if m3db_uuids:
+        m3db_data = graphite_get_load(owner, start=start, stop=stop,
+                                      step=step, uuids=m3db_uuids,
+                                      graphite_uri=config.M3DB_URI)
 
-    if graphite_data or influx_data:
-        return dict(list(graphite_data.items()) + list(influx_data.items()))
+    if graphite_data or influx_data or m3db_data:
+        return dict(list(graphite_data.items()) + list(influx_data.items()) +
+                    list(m3db_data.items()))
     else:
         raise NotFoundError('No machine has monitoring enabled')
 
@@ -194,6 +208,14 @@ def check_monitoring(owner):
         ret.update({
             # Keep for backwards compatibility
             'builtin_metrics': config.INFLUXDB_BUILTIN_METRICS,
+            'builtin_metrics_influxdb': config.INFLUXDB_BUILTIN_METRICS,
+        })
+    elif config.DEFAULT_MONITORING_METHOD.endswith("m3db"):
+        ret.update({
+            # Keep for backwards compatibility
+            'builtin_metrics': config.GRAPHITE_BUILTIN_METRICS,
+            'builtin_metrics_graphite': config.GRAPHITE_BUILTIN_METRICS,
+            'builtin_metrics_m3db': config.GRAPHITE_BUILTIN_METRICS,
             'builtin_metrics_influxdb': config.INFLUXDB_BUILTIN_METRICS,
         })
     for key in ('rules', 'builtin_metrics', 'custom_metrics'):
@@ -255,7 +277,8 @@ def enable_monitoring(owner, cloud_id, machine_id, no_ssh=False, dry=False,
         machine.monitoring.method_since = datetime.datetime.now()
     # Extra vars
     if machine.monitoring.method in ('telegraf-influxdb',
-                                     'telegraf-graphite'):
+                                     'telegraf-graphite',
+                                     'telegraf-m3db'):
         extra_vars = {'uuid': machine.id, 'monitor': config.INFLUX['host']}
     else:
         raise Exception("Invalid monitoring method")
@@ -284,7 +307,8 @@ def enable_monitoring(owner, cloud_id, machine_id, no_ssh=False, dry=False,
     # Attempt to contact monitor server and enable monitoring for the machine
     try:
         if machine.monitoring.method in ('telegraf-influxdb',
-                                         'telegraf-graphite'):
+                                         'telegraf-graphite',
+                                         'telegraf-m3db'):
             traefik.reset_config()
     except Exception as exc:
         machine.monitoring.installation_status.state = 'failed'
@@ -311,7 +335,8 @@ def enable_monitoring(owner, cloud_id, machine_id, no_ssh=False, dry=False,
             job = 'enable_monitoring'
         ret_dict['job'] = job
         if machine.monitoring.method in ('telegraf-influxdb',
-                                         'telegraf-graphite'):
+                                         'telegraf-graphite',
+                                         'telegraf-m3db'):
             # Install Telegraf
             func = mist.api.monitoring.tasks.install_telegraf
             if deploy_async:
@@ -359,7 +384,8 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=''):
         ret_dict['job'] = job
 
         if machine.monitoring.method in ('telegraf-influxdb',
-                                         'telegraf-graphite'):
+                                         'telegraf-graphite',
+                                         'telegraf-m3db'):
             # Schedule undeployment of Telegraf.
             mist.api.monitoring.tasks.uninstall_telegraf.delay(machine.id,
                                                                job, job_id)
@@ -383,7 +409,8 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=''):
     # tell monitor server to no longer monitor this uuid
     try:
         if machine.monitoring.method in ('telegraf-influxdb',
-                                         'telegraf-graphite'):
+                                         'telegraf-graphite',
+                                         'telegraf-m3db'):
             traefik.reset_config()
     except Exception as exc:
         log.error("Exception %s while asking monitor server in "
@@ -422,6 +449,8 @@ def find_metrics(machine):
         for metric in show_fields(show_measurements(machine.id)):
             metrics[metric['id']] = metric
         return metrics
+    elif machine.monitoring.method in ('telegraf-m3db'):
+        return graphite_find_metrics(machine, graphite_uri=config.M3DB_URI)
     else:
         raise Exception("Invalid monitoring method")
 

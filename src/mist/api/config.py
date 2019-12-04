@@ -764,10 +764,14 @@ WINDOWS_MACHINE_DASHBOARD_DEFAULT = {
 
 MONITORING_METHODS = (
     'telegraf-influxdb',
+    'telegraf-graphite',
+    'telegraf-m3db'
 )
-DEFAULT_MONITORING_METHOD = 'telegraf-influxdb'
+DEFAULT_MONITORING_METHOD = 'telegraf-m3db'
 
-GRAPHITE_URI = "http://m3db:7201/api/v1/graphite"
+GRAPHITE_URI = "http://graphite"
+
+M3DB_URI = "http://m3db:7201/api/v1/graphite"
 
 # Alert service's settings.
 CILIA_TRIGGER_API = "http://api"

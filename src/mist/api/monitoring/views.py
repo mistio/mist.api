@@ -102,7 +102,7 @@ def machine_dashboard(request):
     if not machine.monitoring.hasmonitoring:
         raise MethodNotAllowedError("Machine doesn't have monitoring enabled")
 
-    if machine.monitoring.method in ('telegraf-graphite'):
+    if machine.monitoring.method in ('telegraf-graphite', 'telegraf-m3db'):
         if machine.os_type == "windows":
             ret = copy.deepcopy(config.WINDOWS_MACHINE_DASHBOARD_DEFAULT)
         else:

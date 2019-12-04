@@ -56,10 +56,15 @@ def alias(series_list, name):
 
 
 class GenericHandler(object):
-    def __init__(self, uuid, telegraf=False, telegraf_since=None):
+    def __init__(self, uuid, telegraf=False, telegraf_since=None,
+                 graphite_uri=None):
         self.uuid = uuid
         self.telegraf = telegraf
         self.telegraf_since = telegraf and telegraf_since
+        if graphite_uri:
+            self.graphite_uri = graphite_uri
+        else:
+            self.graphite_uri = config.GRAPHITE_URI
 
     def head(self):
         return "bucky.%s" % self.uuid
@@ -97,7 +102,7 @@ class GenericHandler(object):
         params += [('from', start or None),
                    ('until', stop or None),
                    ('format', resp_format or None)]
-        return requests.Request('GET', "%s/render" % config.GRAPHITE_URI,
+        return requests.Request('GET', "%s/render" % self.graphite_uri,
                                 params=params).prepare().url
 
     def graphite_request(self, url):
@@ -176,7 +181,7 @@ class GenericHandler(object):
         }
 
     def _find_metrics(self, query):
-        url = "%s/metrics?query=%s" % (config.GRAPHITE_URI, query)
+        url = "%s/metrics?query=%s" % (self.graphite_uri, query)
         resp = self.graphite_request(url)
         return resp.json()
 
@@ -579,9 +584,11 @@ class PingHandler(CustomHandler):
 
 
 class MultiHandler(GenericHandler):
-    def __init__(self, uuid, telegraf=False, telegraf_since=None):
+    def __init__(self, uuid, telegraf=False, telegraf_since=None,
+                 graphite_uri=None):
         super(MultiHandler, self).__init__(uuid, telegraf=telegraf,
-                                           telegraf_since=telegraf_since)
+                                           telegraf_since=telegraf_since,
+                                           graphite_uri=graphite_uri)
         self.handlers = {
             'generic': GenericHandler,
             'interface': InterfaceHandler,
@@ -604,7 +611,8 @@ class MultiHandler(GenericHandler):
                     plugin = parts[1]
         log.debug("get_handler plugin: %s", plugin)
         return self.handlers[plugin](self.uuid, telegraf=self.telegraf,
-                                     telegraf_since=self.telegraf_since)
+                                     telegraf_since=self.telegraf_since,
+                                     graphite_uri=self.graphite_uri)
 
     def find_metrics(self, plugin=""):
         if plugin:
@@ -663,8 +671,9 @@ class MultiHandler(GenericHandler):
         starts = set()
         stops = set()
         for item in data:
-            starts.add(item['datapoints'][0][1])
-            stops.add(item['datapoints'][-1][1])
+            if item['datapoints']:
+                starts.add(item['datapoints'][0][1])
+                stops.add(item['datapoints'][-1][1])
         start = max(starts) if len(starts) > 1 else 0
         stop = min(stops) if len(stops) > 1 else 0
         if start or stop:
@@ -688,12 +697,16 @@ class MultiHandler(GenericHandler):
         return self.get_handler(target).decorate_target(target)
 
 
-def get_multi_uuid(uuids, target, start="", stop="", interval_str=""):
+def get_multi_uuid(uuids, target, start="", stop="", interval_str="",
+                   graphite_uri=None):
     """Get the same metric for multiple uuids
 
     uuids should be a list of uuids
     target should be a string containing '%(uuid)s'
     """
+    if not graphite_uri:
+        graphite_uri = config.GRAPHITE_URI
+
     target = target % {'uuid': '{' + ','.join(uuids) + '}'}
     if interval_str:
         target = summarize(target, interval_str)
@@ -701,7 +714,7 @@ def get_multi_uuid(uuids, target, start="", stop="", interval_str=""):
               ('from', start or None),
               ('until', stop or None),
               ('format', 'json')]
-    resp = requests.post('%s/render' % config.GRAPHITE_URI, data=params)
+    resp = requests.post('%s/render' % graphite_uri, data=params)
     if not resp.ok:
         log.error(resp.text)
         raise Exception(str(resp))

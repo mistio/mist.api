@@ -22,6 +22,8 @@ from mist.api.rules.models import NotificationAction
 
 from mist.api.rules.plugins import GraphiteNoDataPlugin
 from mist.api.rules.plugins import GraphiteBackendPlugin
+from mist.api.rules.plugins import M3dbNoDataPlugin
+from mist.api.rules.plugins import M3dbBackendPlugin
 from mist.api.rules.plugins import InfluxDBNoDataPlugin
 from mist.api.rules.plugins import InfluxDBBackendPlugin
 from mist.api.rules.plugins import ElasticSearchBackendPlugin
@@ -388,6 +390,8 @@ class MachineMetricRule(ResourceRule):
             return GraphiteBackendPlugin
         if config.DEFAULT_MONITORING_METHOD.endswith('-influxdb'):
             return InfluxDBBackendPlugin
+        if config.DEFAULT_MONITORING_METHOD.endswith('-m3db'):
+            return M3dbBackendPlugin
         raise Exception()
 
     def clean(self):
@@ -408,6 +412,8 @@ class NoDataRule(MachineMetricRule):
             return GraphiteNoDataPlugin
         if config.DEFAULT_MONITORING_METHOD.endswith('-influxdb'):
             return InfluxDBNoDataPlugin
+        if config.DEFAULT_MONITORING_METHOD.endswith('-m3db'):
+            return M3dbNoDataPlugin
         raise Exception()
 
     # FIXME All following properties are for backwards compatibility.

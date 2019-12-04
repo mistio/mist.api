@@ -383,7 +383,7 @@ class NoDataRuleController(ResourceRuleController):
 
     def auto_setup(self, backend='graphite'):
         """Idempotently setup a NoDataRule."""
-        assert backend in ('graphite', 'influxdb')
+        assert backend in ('graphite', 'influxdb', 'm3db')
 
         # The rule's title. There should be a single NoDataRule per Org.
         self.rule.title = 'NoData'
@@ -392,7 +392,7 @@ class NoDataRuleController(ResourceRuleController):
         # the following metrics returns non-None datapoints, the rule
         # will not be triggered.
         self.rule.queries = []
-        if backend == 'graphite':
+        if backend == 'graphite' or backend == 'm3db':
             targets = config.CILIA_GRAPHITE_NODATA_TARGETS
         if backend == 'influxdb':
             targets = config.CILIA_INFLUXDB_NODATA_TARGETS

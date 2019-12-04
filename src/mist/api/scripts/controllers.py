@@ -131,7 +131,8 @@ $(command -v sudo) /opt/mistio/telegraf/usr/bin/telegraf -test -config %s
             for value in values_list:
                 metric = measurement
                 column = value.split('=')[0]
-                if not (machine.monitoring.method == 'telegraf-graphite' and
+                if not (machine.monitoring.method
+                        in ('telegraf-graphite', 'telegraf-m3db') and
                         column == 'value'):
                     metric += '.' + column
                 if metric in machine.monitoring.metrics:
