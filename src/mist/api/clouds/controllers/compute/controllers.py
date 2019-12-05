@@ -1491,24 +1491,30 @@ class LXDComputeController(BaseComputeController):
     def __init__(self, *args, **kwargs):
         super(LXDComputeController, self).__init__(*args, **kwargs)
         self._lxchost = None
-        raise "This class is still a stub and should not be instantiated"
 
     def _stop_machine(self, machine):
-        raise "This is a stub yet"
+        """Stop the given machine"""
+        return self.connection.stop_container(container=machine)
 
     def _start_machine(self, machine):
-        raise "This is a stub yet"
+        """Start the given container"""
+        return self.connection.start_container(container=machine)
 
     def _destroy_machine(self, machine):
-        raise "This is a stub yet"
+        """Delet the given container"""
+        return self.connection.destroy_container(container=machine)
 
     def _reboot_machine(self, machine):
-        self.connection.restart_container(container=machine)
-        raise "This is a stub"
+        """Restart the given container"""
+        return self.connection.restart_container(container=machine)
 
     def _list_machines__fetch_machines(self):
         """Perform the actual libcloud call to get list of containers"""
-        containers = self.connection.list_containers(all=self.cloud.show_all)
+
+        if not self.cloud.show_all:
+            containers = self.connection.list_running_containers()
+        else:
+            containers = self.connection.list_containers()
 
         """
         # add public/private ips for mist
