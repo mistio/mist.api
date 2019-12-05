@@ -318,8 +318,10 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                 docker_port_bindings=docker_port_bindings,
                 docker_exposed_ports=docker_exposed_ports
             )
-    elif conn.type is Container_Provider.LXC:
-        node = _create_machine_lxc(conn, machine_name, image_id)
+    elif conn.type is Container_Provider.LXD:
+        node = _create_machine_lxd(conn=conn, machine_name=machine_name,
+                                   image=image_id, parameters=None,
+                                   start=False, cluster=None)
                                    
     elif conn.type in [Provider.RACKSPACE_FIRST_GEN, Provider.RACKSPACE]:
         node = _create_machine_rackspace(conn, public_key, machine_name, image,
@@ -1080,11 +1082,25 @@ def _create_machine_docker(conn, machine_name, image_id,
 
     return container
 
-def _create_machine_lxc(conn, machine_name, image_id):
 
-    container = conn.deploy_container(config={}, name=machine_name, wait=True, image=image_id)
-    raise "Currently just a stub not implemented"
+def _create_machine_lxd(conn, machine_name, image,
+                        parameters,  start, cluster=None):
+    """
+    Create a new LXC container on the machine described by the given
+    conn argument
+    :param conn: The connection to the machine to create the container
+    :param machine_name: The name of the container
+    :param image: Either a libcloud.ContainerImage or a string representing the fingerprint
+    :param parameters: extra parameters for the container
+    :param cluster: The cluster the container belongs to
+    :param start: Whether the container should be start at creation
+    :return: libcloud.Container
+    """
 
+    container = conn.deploy_container(name=machine_name, image=image,
+                                      parameters=parameters, cluster=cluster,
+                                      start=start)
+    return container
 
 def _create_machine_digital_ocean(conn, cloud, key_name, private_key,
                                   public_key, machine_name, image, size,
