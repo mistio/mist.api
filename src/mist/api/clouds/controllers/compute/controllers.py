@@ -1532,6 +1532,10 @@ class LXDComputeController(BaseComputeController):
         """
         return containers
 
+    def _list_machines__machine_creation_date(self, machine, machine_libcloud):
+        """Unix timestap of when the machine was created"""
+        return machine_libcloud.extra.get('created')  # unix timestamp
+
     def _connect(self):
         host, port = dnat(self.cloud.owner, self.cloud.host, self.cloud.port)
 
@@ -1544,34 +1548,13 @@ class LXDComputeController(BaseComputeController):
             raise Exception("Make sure host is accessible "
                             "and LXD port is specified")
 
-        tls_auth = self._tls_authenticate(host=host, port=port)
-
-        if tls_auth:
-            return
-
-        """
-        # TLS authentication.
         if self.cloud.key_file and self.cloud.cert_file:
-            key_temp_file = tempfile.NamedTemporaryFile(delete=False)
-            key_temp_file.write(self.cloud.key_file.encode())
-            key_temp_file.close()
-            cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
-            cert_temp_file.write(self.cloud.cert_file.encode())
-            cert_temp_file.close()
-            ca_cert = None
-            if self.cloud.ca_cert_file:
-                ca_cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
-                ca_cert_temp_file.write(self.cloud.ca_cert_file.encode())
-                ca_cert_temp_file.close()
-                ca_cert = ca_cert_temp_file.name
+            tls_auth = self._tls_authenticate(host=host, port=port)
 
-            # tls auth
-            return get_container_driver(Container_Provider.LXD)(
-                host=host, port=port,
-                key_file=key_temp_file.name,
-                cert_file=cert_temp_file.name,
-                ca_cert=ca_cert)
-        """
+            if tls_auth is None:
+                raise Exception("key_file and cert_file exist "
+                                "but TLS certification was not possible ")
+            return
 
         # Username/Password authentication.
         if self.cloud.username and self.cloud.password:
@@ -1586,29 +1569,31 @@ class LXDComputeController(BaseComputeController):
                 host=host, port=port)
 
     def _tls_authenticate(self, host, port):
+        """Perform TLS authentication given the host and port"""
 
         # TLS authentication.
-        if self.cloud.key_file and self.cloud.cert_file:
-            key_temp_file = tempfile.NamedTemporaryFile(delete=False)
-            key_temp_file.write(self.cloud.key_file.encode())
-            key_temp_file.close()
-            cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
-            cert_temp_file.write(self.cloud.cert_file.encode())
-            cert_temp_file.close()
-            ca_cert = None
-            if self.cloud.ca_cert_file:
-                ca_cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
-                ca_cert_temp_file.write(self.cloud.ca_cert_file.encode())
-                ca_cert_temp_file.close()
-                ca_cert = ca_cert_temp_file.name
+        #if self.cloud.key_file and self.cloud.cert_file:
 
-            # tls auth
-            return get_container_driver(Container_Provider.LXD)(
+        key_temp_file = tempfile.NamedTemporaryFile(delete=False)
+        key_temp_file.write(self.cloud.key_file.encode())
+        key_temp_file.close()
+        cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
+        cert_temp_file.write(self.cloud.cert_file.encode())
+        cert_temp_file.close()
+        ca_cert = None
+
+        if self.cloud.ca_cert_file:
+            ca_cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
+            ca_cert_temp_file.write(self.cloud.ca_cert_file.encode())
+            ca_cert_temp_file.close()
+            ca_cert = ca_cert_temp_file.name
+
+        # tls auth
+        return get_container_driver(Container_Provider.LXD)(
                 host=host, port=port,
                 key_file=key_temp_file.name,
                 cert_file=cert_temp_file.name,
                 ca_cert=ca_cert)
-        return None
 
 
 class LibvirtComputeController(BaseComputeController):
