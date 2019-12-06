@@ -285,7 +285,7 @@ class LXDMainController(BaseMainController):
     Main controller class for LXC containers
     """
 
-    provider = 'lxc'
+    provider = 'lxd'
     ComputeController = compute_ctls.LXDComputeController
 
     def _update__preparse_kwargs(self, kwargs):

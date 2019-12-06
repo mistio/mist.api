@@ -637,6 +637,9 @@ def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3,
     sender: the email address of the sender. default value taken from config
 
     """
+
+    log.error("send_email:  Start")
+
     if not sender:
         sender = config.EMAIL_FROM
     if isinstance(recipients, string_types):
@@ -647,6 +650,7 @@ def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3,
     else:
         msg = MIMEText(body, 'plain')
 
+    log.error("send_email:  Fixing msg")
     msg["Subject"] = subject
     msg["From"] = sender
     msg["Date"] = formatdate()
@@ -670,6 +674,8 @@ def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3,
     password = mail_settings.get('mail.password')
     tls = mail_settings.get('mail.tls')
     starttls = mail_settings.get('mail.starttls')
+
+    log.error("send_email:  I am ok with mail settings and the rest")
 
     # try 3 times to circumvent network issues
     for attempt in range(attempts):

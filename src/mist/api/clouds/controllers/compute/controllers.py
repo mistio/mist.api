@@ -1486,7 +1486,7 @@ class DockerComputeController(BaseComputeController):
 
 class LXDComputeController(BaseComputeController):
     """
-    compute controller for LXC containers
+    Compute controller for LXC containers
     """
     def __init__(self, *args, **kwargs):
         super(LXDComputeController, self).__init__(*args, **kwargs)
@@ -1572,7 +1572,6 @@ class LXDComputeController(BaseComputeController):
         """Perform TLS authentication given the host and port"""
 
         # TLS authentication.
-        #if self.cloud.key_file and self.cloud.cert_file:
 
         key_temp_file = tempfile.NamedTemporaryFile(delete=False)
         key_temp_file.write(self.cloud.key_file.encode())
