@@ -1511,12 +1511,8 @@ class LXDComputeController(BaseComputeController):
     def _list_machines__fetch_machines(self):
         """Perform the actual libcloud call to get list of containers"""
 
-        if not self.cloud.show_all:
-            containers = self.connection.list_running_containers()
-        else:
-            containers = self.connection.list_containers()
+        containers = self.connection.list_containers()
 
-        """
         # add public/private ips for mist
         for container in containers:
             public_ips, private_ips = [], []
@@ -1525,11 +1521,12 @@ class LXDComputeController(BaseComputeController):
                 private_ips.append(host)
             else:
                 public_ips.append(host)
+
             container.public_ips = public_ips
             container.private_ips = private_ips
             container.size = None
             container.image = container.image.name
-        """
+
         return containers
 
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
@@ -1554,7 +1551,7 @@ class LXDComputeController(BaseComputeController):
             if tls_auth is None:
                 raise Exception("key_file and cert_file exist "
                                 "but TLS certification was not possible ")
-            return
+            return tls_auth
 
         # Username/Password authentication.
         if self.cloud.username and self.cloud.password:
