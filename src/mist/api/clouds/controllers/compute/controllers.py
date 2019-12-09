@@ -1492,19 +1492,19 @@ class LXDComputeController(BaseComputeController):
         super(LXDComputeController, self).__init__(*args, **kwargs)
         self._lxchost = None
 
-    def _stop_machine(self, machine):
+    def _stop_machine(self, machine, machine_libcloud):
         """Stop the given machine"""
         return self.connection.stop_container(container=machine)
 
-    def _start_machine(self, machine):
+    def _start_machine(self, machine, machine_libcloud):
         """Start the given container"""
         return self.connection.start_container(container=machine)
 
-    def _destroy_machine(self, machine):
+    def _destroy_machine(self, machine, machine_libcloud):
         """Delet the given container"""
         return self.connection.destroy_container(container=machine)
 
-    def _reboot_machine(self, machine):
+    def _reboot_machine(self, machine, machine_libcloud):
         """Restart the given container"""
         return self.connection.restart_container(container=machine)
 
@@ -1532,6 +1532,25 @@ class LXDComputeController(BaseComputeController):
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
         """Unix timestap of when the machine was created"""
         return machine_libcloud.extra.get('created')  # unix timestamp
+
+
+    def _get_machine_libcloud(self, machine, no_fail=False):
+        """Return an instance of a libcloud node
+
+        This is a private method, used mainly by machine action methods.
+        """
+        # assert isinstance(machine.cloud, Machine)
+        assert self.cloud == machine.cloud
+        for node in self.connection.list_containers(): #list_nodes():
+            if node.id == machine.machine_id:
+                return node
+        if no_fail:
+            return Node(machine.machine_id, name=machine.machine_id,
+                        state=0, public_ips=[], private_ips=[],
+                        driver=self.connection)
+        raise MachineNotFoundError(
+            "Machine with machine_id '%s'." % machine.machine_id
+        )
 
     def _connect(self):
         host, port = dnat(self.cloud.owner, self.cloud.host, self.cloud.port)
