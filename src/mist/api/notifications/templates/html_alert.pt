@@ -26,13 +26,13 @@
 		<td style="background-color: #ffffff;">
 			<div style="padding: 30px 0 20px 0; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.5em;">
 
-				<div>Machine name: ${inputs.name}</div>
+				<div>${inputs.resource_type.capitalize()} name: ${inputs.resource_name}</div>
 				<div>Host: ${inputs.host}</div>
 				<div>Condition: ${inputs.condition}</div>
 				<div>State: ${inputs.state}</div>
 				<div>Action: ${inputs.action}</div>
 				<div>Date: ${inputs.time}</div>
-				<div>Description: ${inputs.description}</div>
+				<div>${inputs.description}</div>
 
 			</div>
 			<div style="padding: 30px 0 20px 0; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.5em;">
@@ -40,7 +40,7 @@
 				<div>${inputs.state} - ${inputs.metric_name} is ${inputs.curr_value}</div>
 				<div>${inputs.since}</div>
 
-				<div>${inputs.machine_link}</div>
+				<div>${inputs.resource_link}</div>
 
 			</div>
 		</td>
