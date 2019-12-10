@@ -7,7 +7,7 @@ from mist.api.helpers import es_client
 from mist.api.models import Machine
 
 
-def migrate_machine_logs(year=None, delete_missing=False):
+def migrate_machine_logs(year=None, delete_missing=False, print_missing=False):
     if not year:
         year = datetime.datetime.now().year
     # Initialize ES client.
@@ -64,20 +64,29 @@ def migrate_machine_logs(year=None, delete_missing=False):
         "Scrolling..."
         for m in data['hits']['hits']:
             try:
+                # Get machine by external id
                 machine = Machine.objects.get(
                     cloud=m['_source']['cloud_id'],
                     machine_id=m['_source']['machine_id'])
-            except Machine.DoesNotExist:
-                if delete_missing:
-                    es.delete(
-                        index=index,
-                        id=m['_id'],
-                        doc_type=m['_type']
-                    )
-                    deleted += 1
-                else:
-                    skipped += 1
-                continue
+            except (Machine.DoesNotExist, KeyError):
+                try:
+                    # Try to get machine by unique id just in case
+                    machine = Machine.objects.get(
+                        id=m['_source']['machine_id'])
+                except Machine.DoesNotExist:
+                    if delete_missing:
+                        # Delete log that refers to a missing machine
+                        es.delete(
+                            index=index,
+                            id=m['_id'],
+                            doc_type=m['_type']
+                        )
+                        deleted += 1
+                    else:
+                        if print_missing:
+                            print(m['_source'])
+                        skipped += 1
+                    continue
             # Update machine_id & set external_id
             es.update(
                 index=index,
@@ -110,6 +119,10 @@ def parse_args():
         help="Update the anual index for this year"
     )
     argparser.add_argument(
+        '-p', '--print-missing', action='store_true',
+        help="Display log entries that refer to missing machines."
+    )
+    argparser.add_argument(
         '-d', '--delete-missing', action='store_true',
         help="Delete log entries that refer to missing machines."
     )
@@ -118,4 +131,8 @@ def parse_args():
 
 if __name__ == '__main__':
     args = parse_args()
-    migrate_machine_logs(year=args.year, delete_missing=args.delete_missing)
+    migrate_machine_logs(
+        year=args.year,
+        delete_missing=args.delete_missing,
+        print_missing=args.print_missing
+    )
