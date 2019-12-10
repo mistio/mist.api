@@ -1,35 +1,15 @@
 #!/usr/bin/env python
 
-import time
+import argparse
+import datetime
 
-import certifi
-
-from elasticsearch import Elasticsearch
-
-from mist.api import config
+from mist.api.helpers import es_client
 from mist.api.models import Machine
 
 
-def es_client():
-    es = Elasticsearch(
-        config.ELASTICSEARCH['elastic_host'],
-        port=config.ELASTICSEARCH['elastic_port'],
-        http_auth=(config.ELASTICSEARCH['elastic_username'],
-                   config.ELASTICSEARCH['elastic_password']),
-        use_ssl=bool(config.ELASTICSEARCH['elastic_use_ssl']),
-        verify_certs=bool(config.ELASTICSEARCH['elastic_verify_certs']),
-        ca_certs=certifi.where()
-    )
-    for i in range(20):
-        if es.ping():
-            return es
-        print("Elasticsearch not up yet")
-        time.sleep(1)
-    print("Elasticsearch doesn't respond to ping")
-    raise Exception()
-
-
-def migrate_machine_logs():
+def migrate_machine_logs(year=None, delete_missing=False):
+    if not year:
+        year = datetime.datetime.now().year
     # Initialize ES client.
     es = es_client()
     hosts = []
@@ -40,69 +20,102 @@ def migrate_machine_logs():
 
     # Search logs with machine_id, excluding observation logs and entries that
     # already include an external_id
-    index = 'app-logs-*'
+    index = 'app-logs-%d' % int(year)
     batch_size = 10
     query = {
         'query': {
             'bool': {
-                'must': {
-                    'exists': {
-                        'field': 'machine_id'
+                'filter': {
+                    'bool': {
+                        'must': {
+                            'exists': {
+                                'field': 'machine_id'
+                            }
+                        },
+                        'must_not': [{
+                            'term': {
+                                'type': 'observation'
+                            }
+                        }, {
+                            'exists': {
+                                'field': 'external_id'
+                            }
+                        }]
                     }
-                },
-                'must_not': [{
-                    'term': {
-                        'type': 'observation'
-                    }
-                }, {
-                    'exists': {
-                        'field': 'external_id'
-                    }
-                }]
-            },
+                }
+            }
         },
-        'from': 0,
-        'size': batch_size
     }
 
-    machine_logs = es.search(
+    data = es.search(
         index=index,
-        body=query
+        body=query,
+        scroll='2m',
+        size=batch_size
     )
-
-    total = machine_logs['hits']['total']
+    # Get the scroll ID
+    sid = data['_scroll_id']
+    scroll_size = len(data['hits']['hits'])
+    total = data['hits']['total']
     skipped = 0
+    deleted = 0
     migrated = 0
-    while machine_logs['hits']['hits']:
-        for m in machine_logs['hits']['hits']:
+    while scroll_size > 0:
+        "Scrolling..."
+        for m in data['hits']['hits']:
             try:
                 machine = Machine.objects.get(
                     cloud=m['_source']['cloud_id'],
                     machine_id=m['_source']['machine_id'])
-                # Update machine_id & set external_id
-                es.update(
-                    index=index,
-                    id=m['_id'],
-                    doc_type=m['_type'],
-                    body={
-                        "doc": {
-                            "machine_id": machine.id,
-                            "external_id": machine.machine_id
-                        }
-                    }
-                )
-                migrated += 1
             except Machine.DoesNotExist:
-                skipped += 1
+                if delete_missing:
+                    es.delete(
+                        index=index,
+                        id=m['_id'],
+                        doc_type=m['_type']
+                    )
+                    deleted += 1
+                else:
+                    skipped += 1
                 continue
-        query['from'] += batch_size
-        machine_logs = es.search(
-            index=index,
-            body=query
-        )
-    print('Migrated %d, skipped %d, out of %d tags' % (
-        migrated, skipped, total))
+            # Update machine_id & set external_id
+            es.update(
+                index=index,
+                id=m['_id'],
+                doc_type=m['_type'],
+                body={
+                    "doc": {
+                        "machine_id": machine.id,
+                        "external_id": machine.machine_id
+                    }
+                }
+            )
+            migrated += 1
+
+        print('Migrated %d, skipped %d, deleted %d out of %d log entries' % (
+            migrated, skipped, deleted, total))
+
+        # Get next batch
+        data = es.scroll(scroll_id=sid, scroll='2m')
+        # Update the scroll ID
+        sid = data['_scroll_id']
+        # Get the number of results that returned in the last scroll
+        scroll_size = len(data['hits']['hits'])
+
+
+def parse_args():
+    argparser = argparse.ArgumentParser()
+    argparser.add_argument(
+        '-y', '--year',
+        help="Update the anual index for this year"
+    )
+    argparser.add_argument(
+        '-d', '--delete-missing', action='store_true',
+        help="Delete log entries that refer to missing machines."
+    )
+    return argparser.parse_args()
 
 
 if __name__ == '__main__':
-    migrate_machine_logs()
+    args = parse_args()
+    migrate_machine_logs(year=args.year, delete_missing=args.delete_missing)
