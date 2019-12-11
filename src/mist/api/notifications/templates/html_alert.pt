@@ -26,13 +26,13 @@
 		<td style="background-color: #ffffff;">
 			<div style="padding: 30px 0 20px 0; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.5em;">
 
-				<div>Machine name: ${inputs.name}</div>
-				<div>Host: ${inputs.host}</div>
+				<div>${inputs.resource_type.capitalize()} name: ${inputs.resource_name}</div>
+				<div tal:condition="inputs.host|nothing">${inputs.host}</div>
 				<div>Condition: ${inputs.condition}</div>
 				<div>State: ${inputs.state}</div>
 				<div>Action: ${inputs.action}</div>
 				<div>Date: ${inputs.time}</div>
-				<div>Description: ${inputs.description}</div>
+				<div tal:condition="inputs.description|nothing">Description: ${inputs.description}</div>
 
 			</div>
 			<div style="padding: 30px 0 20px 0; font-family: Arial, sans-serif; font-size: 16px; line-height: 1.5em;">
@@ -40,7 +40,7 @@
 				<div>${inputs.state} - ${inputs.metric_name} is ${inputs.curr_value}</div>
 				<div>${inputs.since}</div>
 
-				<div>${inputs.machine_link}</div>
+				<div tal:condition="inputs.resource_link|nothing"><a tal:attributes="href inputs.resource_link" class="white" style="display: block; background-color: #0099cc; color: #ffffff; padding: 10px 24px 10px 24px; letter-spacing: .7px; font-weight: 400; text-decoration: none; width: 220px; margin: 0 auto; text-align: center; text-transform: uppercase; border-radius: 3px;">Link to resource</a></div>
 
 			</div>
 		</td>

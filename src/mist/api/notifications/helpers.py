@@ -71,14 +71,17 @@ def _get_alert_details(resource, rule, incident_id,
     # FIXME For backwards compatibility. Note that `name` cannot be
     # defined for arbitrary rules. The `host` and `machine_link` entries
     # are machine-specific.
-    d.update({'name': '', 'host': '', 'machine_link': ''})
+    d.update({'name': '', 'machine_link': ''})
 
     if isinstance(rule, ArbitraryLogsRule):
         return d
 
     if isinstance(rule, ResourceLogsRule):
         resource_type = resource._get_collection_name().rstrip('s')
+        host = _get_nice_machine_host_label(resource) if resource_type in \
+            ['machine'] else ''
         d.update({
+            'host': host,
             'resource_id': resource.id,
             'resource_type': resource_type,
             'resource_name': _get_resource_name(resource),
