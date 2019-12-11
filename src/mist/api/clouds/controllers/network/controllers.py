@@ -10,6 +10,7 @@ from mist.api.helpers import rename_kwargs
 
 from mist.api.exceptions import SubnetNotFoundError
 from mist.api.exceptions import NetworkNotFoundError
+from mist.api.exceptions import MistNotImplementedError
 
 from mist.api.clouds.controllers.network.base import BaseNetworkController
 
@@ -52,6 +53,26 @@ class AzureArmNetworkController(BaseNetworkController):
 
     def _list_subnets__cidr_range(self, subnet, libcloud_subnet):
         return subnet.extra.pop('addressPrefix')
+
+    def _get_libcloud_subnet(self, subnet):
+        networks = self.cloud.ctl.compute.connection.ex_list_networks()
+        network = None
+        for net in networks:
+            if net.id == subnet.network.network_id:
+                network = net
+                break
+        subnets = self.cloud.ctl.compute.connection.ex_list_subnets(network)
+        for sub in subnets:
+            if sub.id == subnet.subnet_id:
+                return sub
+        raise SubnetNotFoundError('Subnet %s with subnet_id \
+            %s' % (subnet.name, subnet.subnet_id))
+
+    def _delete_network(self, network, libcloud_network):
+        raise MistNotImplementedError()
+
+    def _delete_subnet(self, subnet, libcloud_subnet):
+        raise MistNotImplementedError()
 
 
 class AmazonNetworkController(BaseNetworkController):
