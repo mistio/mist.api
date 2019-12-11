@@ -67,7 +67,6 @@ def _get_alert_details(resource, rule, incident_id,
         'portal_name': config.PORTAL_NAME,
         'email_logo': config.EMAIL_LOGO
     }
-
     # FIXME For backwards compatibility. Note that `name` cannot be
     # defined for arbitrary rules. The `host` and `machine_link` entries
     # are machine-specific.
@@ -78,9 +77,9 @@ def _get_alert_details(resource, rule, incident_id,
         resource_type = 'organization'
         resource_link = config.CORE_URI
     elif isinstance(rule, ResourceLogsRule):
+        resource_type = resource._get_collection_name().rstrip('s')
         resource_link = '%s/%ss/%s' % (config.CORE_URI,
                                        resource_type, resource.id)
-        resource_type = resource._get_collection_name().rstrip('s')
     host = _get_nice_machine_host_label(resource) if resource_type in \
         ['machine'] else ''
     d.update({
