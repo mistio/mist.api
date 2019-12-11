@@ -16,7 +16,7 @@
 						<img src="${inputs.uri}/${inputs.email_logo}" alt="${inputs.portal_name}" width="216" height="97" style="display: block;" />
 					</td>
 					<td align="right" style="background-color: #f4f4f4; padding: 2px 18px 2px 0; font-family: Arial, sans-serif; font-size: 14px;"  width="50%">
-			 			<h4 style="margin: 6px 0 6px 0;">Alert for ${inputs.name}</h4>
+						<h4 style="margin: 6px 0 6px 0;">Alert for ${inputs.resource_type} `${inputs.resource_name}`</h4>
 					</td>
 				</tr>
 			</table>
@@ -40,7 +40,7 @@
 				<div>${inputs.state} - ${inputs.metric_name} is ${inputs.curr_value}</div>
 				<div>${inputs.since}</div>
 
-				<div tal:condition="inputs.resource_link|nothing"><a tal:attributes="href inputs.resource_link" class="white" style="display: block; background-color: #0099cc; color: #ffffff; padding: 10px 24px 10px 24px; letter-spacing: .7px; font-weight: 400; text-decoration: none; width: 220px; margin: 0 auto; text-align: center; text-transform: uppercase; border-radius: 3px;">Link to resource</a></div>
+				<div tal:condition="inputs.resource_link|nothing"><a tal:attributes="href inputs.resource_link" class="white" style="display: block; background-color: #0099cc; color: #ffffff; padding: 10px 24px 10px 24px; letter-spacing: .7px; font-weight: 400; text-decoration: none; width: 220px; margin: 0 auto; text-align: center; text-transform: uppercase; border-radius: 3px;">more info</a></div>
 
 			</div>
 		</td>
