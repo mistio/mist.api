@@ -564,9 +564,13 @@ class BaseNetworkController(BaseController):
 
         for subnet in Subnet.objects(network=network, missing_since=None):
             subnet.ctl.delete()
-
         libcloud_network = self._get_libcloud_network(network)
-        self._delete_network(network, libcloud_network)
+        try:
+            self._delete_network(network, libcloud_network)
+        except MistError as exc:
+            log.error("Could not delete network %s", network)
+            raise
+
         self.list_networks()
         from mist.api.poller.models import ListNetworksPollingSchedule
         ListNetworksPollingSchedule.add(cloud=self.cloud, interval=10, ttl=120)
@@ -598,7 +602,12 @@ class BaseNetworkController(BaseController):
         assert subnet.network.cloud == self.cloud
 
         libcloud_subnet = self._get_libcloud_subnet(subnet)
-        self._delete_subnet(subnet, libcloud_subnet)
+        try:
+            self._delete_subnet(subnet, libcloud_subnet)
+        except mist.api.exceptions.MistError as exc:
+            log.error("Could not delete subnet %s", subnet)
+            raise
+
         from mist.api.poller.models import ListNetworksPollingSchedule
         ListNetworksPollingSchedule.add(cloud=self.cloud, interval=10, ttl=120)
 
