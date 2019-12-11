@@ -65,8 +65,8 @@ class AzureArmNetworkController(BaseNetworkController):
         for sub in subnets:
             if sub.id == subnet.subnet_id:
                 return sub
-        raise mist.api.exceptions.SubnetNotFoundError(
-            'Subnet %s with subnet_id %s' % (subnet.name, subnet.subnet_id))
+        raise SubnetNotFoundError('Subnet %s with subnet_id \
+            %s' % (subnet.name, subnet.subnet_id))
 
     def _delete_network(self, network, libcloud_network):
         raise MistNotImplementedError()
