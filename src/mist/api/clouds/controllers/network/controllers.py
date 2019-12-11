@@ -56,12 +56,12 @@ class AzureArmNetworkController(BaseNetworkController):
 
     def _get_libcloud_subnet(self, subnet):
         networks = self.cloud.ctl.compute.connection.ex_list_networks()
-        libcloud_network = None
+        network = None
         for net in networks:
             if net.id == subnet.network.network_id:
-                libcloud_network = net
+                network = net
                 break
-        subnets = self.cloud.ctl.compute.connection.ex_list_subnets(libcloud_network)
+        subnets = self.cloud.ctl.compute.connection.ex_list_subnets(network)
         for sub in subnets:
             if sub.id == subnet.subnet_id:
                 return sub

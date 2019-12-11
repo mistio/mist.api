@@ -567,7 +567,7 @@ class BaseNetworkController(BaseController):
         libcloud_network = self._get_libcloud_network(network)
         try:
             self._delete_network(network, libcloud_network)
-        except MistError as exc:
+        except mist.api.exceptions.MistError as exc:
             log.error("Could not delete network %s", network)
             raise
 
