@@ -1,7 +1,8 @@
 ================== ${inputs.portal_name} Alert ===================
 
 ${inputs.resource_type.capitalize()} name: ${inputs.resource_name}
-Host: ${inputs.host}
+<?python Host_info = 'Host: %s' % (inputs.get('host', '')) if inputs.get('resource_type', '') == 'machine' else ''?>
+${Host_info}
 Condition: ${inputs.condition}
 State: ${inputs.state}
 Action: ${inputs.action}
