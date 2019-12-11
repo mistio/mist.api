@@ -1,14 +1,12 @@
 ================== ${inputs.portal_name} Alert ===================
-
+<span tal:condition="inputs.host|nothing" tal:omit-tag>
+Host: ${inputs.host}</span>
 ${inputs.resource_type.capitalize()} name: ${inputs.resource_name}
-<?python Host_info = 'Host: %s' % (inputs.get('host', '')) if inputs.get('resource_type', '') == 'machine' else ''?>
-${Host_info}
 Condition: ${inputs.condition}
 State: ${inputs.state}
 Action: ${inputs.action}
-Date: ${inputs.time}
-
-${inputs.description}
+Date: ${inputs.time}<span tal:condition="inputs.description|nothing" tal:omit-tag>
+Description: ${inputs.description}</span>
 
 ===================== Details ======================
 
