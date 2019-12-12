@@ -108,11 +108,11 @@ def send_alert_email(rule, resource, incident_id, value, triggered, timestamp,
     # Create the e-mail body.
     if title:
         subject = \
-        '[%(portal_name)s] *** %(state)s *** %(title)s '
+            '[%(portal_name)s] *** %(state)s *** %(title)s '
     else:
         subject = \
-        '[%(portal_name)s] *** %(state)s *** %(resource_type)s '\
-        '`%(resource_name)s`: %(metric_name)s'
+            '[%(portal_name)s] *** %(state)s *** %(resource_type)s '\
+            '`%(resource_name)s`: %(metric_name)s'
 
     alert.subject = subject % info
 
