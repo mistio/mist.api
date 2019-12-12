@@ -37,6 +37,7 @@ from mist.api.exceptions import MachineNotFoundError
 from mist.api.exceptions import CloudUnavailableError
 from mist.api.exceptions import CloudUnauthorizedError
 from mist.api.exceptions import SSLError
+from mist.api.exceptions import MistNotImplementedError
 
 from mist.api.helpers import get_datetime
 from mist.api.helpers import amqp_publish
@@ -1441,7 +1442,7 @@ class BaseComputeController(BaseController):
         Differnent cloud controllers should override this private method, which
         is called by the public method `resume_machine`.
         """
-        raise NotImplementedError()
+        raise MistNotImplementedError()
 
     def suspend_machine(self, machine):
         """Suspend machine
@@ -1488,7 +1489,7 @@ class BaseComputeController(BaseController):
         Differnent cloud controllers should override this private method, which
         is called by the public method `suspend_machine`.
         """
-        raise NotImplementedError()
+        raise MistNotImplementedError()
 
     def undefine_machine(self, machine):
         """Undefine machine
@@ -1535,7 +1536,7 @@ class BaseComputeController(BaseController):
         Different cloud controllers should override this private method, which
         is called by the public method `undefine_machine`.
         """
-        raise NotImplementedError()
+        raise MistNotImplementedError()
 
     def create_machine_snapshot(self, machine, snapshot_name, description='',
                                 dump_memory=False, quiesce=False):
@@ -1593,7 +1594,7 @@ class BaseComputeController(BaseController):
         Different cloud controllers should override this private method, which
         is called by the public method `create_machine_snapshot`.
         """
-        raise NotImplementedError()
+        raise MistNotImplementedError()
 
     def remove_machine_snapshot(self, machine, snapshot_name=None):
         """Remove a snapshot of a machine
@@ -1644,7 +1645,7 @@ class BaseComputeController(BaseController):
         Different cloud controllers should override this private method, which
         is called by the public method `remove_machine_snapshot`.
         """
-        raise NotImplementedError()
+        raise MistNotImplementedError()
 
     def revert_machine_to_snapshot(self, machine, snapshot_name=None):
         """Revert machine to selected snapshot
@@ -1696,7 +1697,7 @@ class BaseComputeController(BaseController):
         Different cloud controllers should override this private method, which
         is called by the public method `revert_machine_to_snapshot`.
         """
-        raise NotImplementedError()
+        raise MistNotImplementedError()
 
     def list_machine_snapshots(self, machine):
         """List snapshots of a machine
@@ -1742,7 +1743,7 @@ class BaseComputeController(BaseController):
         Different cloud controllers should override this private method, which
         is called by the public method `list_machine_snapshots`.
         """
-        raise NotImplementedError()
+        raise MistNotImplementedError()
 
     def clone_machine(self, machine, name=None, resume=False):
         """Clone machine
@@ -1793,4 +1794,4 @@ class BaseComputeController(BaseController):
         which is called by the public method `clone_machine`.
 
         """
-        raise NotImplementedError()
+        raise MistNotImplementedError()

@@ -104,12 +104,13 @@ def send_alert_email(rule, resource, incident_id, value, triggered, timestamp,
 
     # Create the e-mail body.
     subject = \
-        '[%(portal_name)s] *** %(state)s *** from %(name)s: %(metric_name)s'
+        '[%(portal_name)s] *** %(state)s *** %(resource_type)s '\
+        '`%(resource_name)s`: %(metric_name)s'
     alert.subject = subject % info
 
     info['condition'] = info['condition'].replace(
         '>', 'greater than').replace('<', 'less than').replace(
-            '=', 'equals')
+            '=', 'equals').replace('{}', '')
     pt = os.path.join(os.path.dirname(__file__), 'templates/text_alert.pt')
     alert.text_body = PageTemplateFile(pt)(inputs=info)
 
