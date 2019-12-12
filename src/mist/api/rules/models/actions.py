@@ -79,6 +79,7 @@ class NotificationAction(BaseAlertAction):
     emails = me.ListField(me.StringField(), default=lambda: [])
     level = me.StringField(default='warning', choices=(
         'info', 'warning', 'critical'))
+    title = me.StringField(required=False, default='')
     description = me.StringField(required=False, default='')
 
     def run(self, resource, value, triggered, timestamp, incident_id,
@@ -112,7 +113,8 @@ class NotificationAction(BaseAlertAction):
         from mist.api.notifications.methods import send_alert_email
         send_alert_email(self._instance, resource, incident_id, value,
                          triggered, timestamp, emails, action=action,
-                         level=self.level, description=self.description)
+                         level=self.level, description=self.description,
+                         title=self.title)
 
     def clean(self):
         """Perform e-mail address validation."""
@@ -123,7 +125,8 @@ class NotificationAction(BaseAlertAction):
     def as_dict(self):
         return {'type': self.atype, 'emails': self.emails,
                 'users': self.users, 'teams': self.teams,
-                'level': self.level, 'description': self.description}
+                'level': self.level, 'description': self.description,
+                'title': self.title}
 
 
 class NoDataAction(NotificationAction):

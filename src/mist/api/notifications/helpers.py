@@ -23,7 +23,7 @@ from mist.api.machines.models import Machine
 
 def _get_alert_details(resource, rule, incident_id,
                        value, triggered, timestamp, action='', level='',
-                       description=''):
+                       description='', title=''):
     """Return a dict with the alert/incident details. For resource-bound
     rules, this method must return a dict that is resource-agnostic, yet
     contains all the necessary information in terms of the corresponding
@@ -36,7 +36,8 @@ def _get_alert_details(resource, rule, incident_id,
     if isinstance(rule, MachineMetricRule):
         return _alert_pretty_machine_details(
             rule.owner, rule.title, value, triggered, timestamp,
-            resource.cloud.id, resource.machine_id, action, level, description
+            resource.cloud.id, resource.machine_id, action, level,
+            description, title
         )
 
     # A human-readable string of the query conditions.
@@ -61,6 +62,7 @@ def _get_alert_details(resource, rule, incident_id,
         'condition': cond,
         'action': 'alert',
         'state': state,
+        'title': title,
         'since': _get_time_diff_to_now(timestamp),
         'time': _get_current_local_time(),
         'uri': config.CORE_URI,
@@ -96,7 +98,7 @@ def _get_alert_details(resource, rule, incident_id,
 # TODO Deprecate.
 def _alert_pretty_machine_details(owner, rule_id, value, triggered, timestamp,
                                   cloud_id='', machine_id='', action='',
-                                  level='', description=''):
+                                  level='', description='', title=''):
     # Always pass (cloud_id, machine_id) explicitly instead of getting them
     # from  the `Rule` instance, as before, since instances of `NoDataRule`
     # will most likely return multiple resources, which is not supported by
@@ -162,7 +164,8 @@ def _alert_pretty_machine_details(owner, rule_id, value, triggered, timestamp,
         'resource_repr': _get_resource_repr(machine),
         'host': _get_nice_machine_host_label(machine),  # dns name or ip
         'condition': condition,  # all of load greater than 5 for 2 mins
-        'state': state,  # WARNING or OK
+        'state': state,
+        'title': title,
         'action': action,  # reboot
         'time': _get_current_local_time(),  # time
         'metric_name': label,  # cpu or my_metric or Mon Data
