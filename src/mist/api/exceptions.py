@@ -108,6 +108,11 @@ class InternalServerError(MistError):
     http_code = 500
 
 
+class MistNotImplementedError(MistError):
+    msg = "Not Implemented"
+    http_code = 501
+
+
 # SERVICE UNAVAILABLE (translated as 503 in views)
 class ServiceUnavailableError(MistError):
     msg = "Service unavailable"

@@ -105,6 +105,12 @@ class DigitalOceanMainController(BaseMainController):
     StorageController = storage_ctls.DigitalOceanStorageController
 
 
+class MaxihostMainController(BaseMainController):
+
+    provider = 'maxihost'
+    ComputeController = compute_ctls.MaxihostComputeController
+
+
 class LinodeMainController(BaseMainController):
 
     provider = 'linode'
@@ -532,7 +538,7 @@ class OtherMainController(BaseMainController):
                                           "machine hostname is empty.")
                 to_tunnel(self.cloud.owner, host)  # May raise VPNTunnelError
                 ssh_command(
-                    self.cloud.owner, self.cloud.id, machine.machine_id, host,
+                    self.cloud.owner, self.cloud.id, machine.id, host,
                     'uptime', key_id=ssh_key.id, username=ssh_user,
                     port=ssh_port
                 )
