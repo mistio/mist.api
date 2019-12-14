@@ -220,6 +220,12 @@ class LibvirtNetworkController(BaseNetworkController):
     def _list_subnets__fetch_subnets(self, network):
         return []
 
+    def _delete_network(self, network, libcloud_network):
+        raise MistNotImplementedError()
+
+    def _delete_subnet(self, subnet, libcloud_subnet):
+        raise MistNotImplementedError()
+
 
 class VSphereNetworkController(BaseNetworkController):
 
