@@ -352,14 +352,14 @@ class BaseComputeController(BaseController):
                 image_id = node.image.id
             elif isinstance(node.extra.get('image'), dict):
                 image_id = str(node.extra.get('image').get('id'))
-              
+
             if not image_id:
                 image_id = str(node.image or node.extra.get('imageId') or
                                node.extra.get('image_id') or
-                               node.extra.get('image'))   
-            if not image_id:                                              
-                image_id = node.extra.get('operating_system')             
-                if isinstance(os, dict):                                  
+                               node.extra.get('image'))
+            if not image_id:
+                image_id = node.extra.get('operating_system')
+                if isinstance(image_id, dict):
                     image_id = image_id.get('name')
 
             # Attempt to map machine's size to a CloudSize object. If not
