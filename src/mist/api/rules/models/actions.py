@@ -240,16 +240,17 @@ class WebhookAction(BaseAlertAction):
             resource_name = 'unknown'
         if self.json:
             json_body = self.json.replace(
-                "{resource_id}", resource.id).replace(
+                "{resource_id}", getattr(resource, 'id', '')).replace(
                     "{resource_url}", resource_url).replace(
                         "{resource_name}", resource_name)
             json_body = json.loads(json_body)
         else:
             json_body = None
         if self.data:
-            data = self.data.replace("{resource_id}", resource.id).replace(
-                "{resource_url}", resource_url).replace("{resource_name}",
-                                                        resource.name)
+            data = self.data.replace(
+                "{resource_id}", getattr(resource, 'id', '')).replace(
+                    "{resource_url}", resource_url).replace(
+                        "{resource_name}", resource.name)
         else:
             data = None
         headers = json.loads(self.headers) if self.headers else None
