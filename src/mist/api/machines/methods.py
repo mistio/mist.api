@@ -182,9 +182,11 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     # post_script_id: id of a script that exists - for mist.core. If script_id
     # or monitoring are supplied, this will run after both finish
     # post_script_params: extra params, for post_script_id
+
     log.info('Creating machine %s on cloud %s' % (machine_name, cloud_id))
     cloud = Cloud.objects.get(owner=auth_context.owner,
                               id=cloud_id, deleted=None)
+
     conn = connect_provider(cloud)
 
     machine_name = machine_name_validator(conn.type, machine_name)
@@ -319,8 +321,10 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                 docker_exposed_ports=docker_exposed_ports
             )
     elif conn.type is Container_Provider.LXD:
+        log.info('Create LXD container')
+
         node = _create_machine_lxd(conn=conn, machine_name=machine_name,
-                                   image=image_id, parameters=None,
+                                   image=image, parameters=None,
                                    start=False, cluster=None)
                                    
     elif conn.type in [Provider.RACKSPACE_FIRST_GEN, Provider.RACKSPACE]:
@@ -1084,22 +1088,38 @@ def _create_machine_docker(conn, machine_name, image_id,
 
 
 def _create_machine_lxd(conn, machine_name, image,
-                        parameters,  start, cluster=None):
+                        parameters,  start, cluster=None,
+                        architecture=None, profiles=None, ephemeral=True,
+                        config=None, devices=None, instance_type=None):
     """
     Create a new LXC container on the machine described by the given
     conn argument
+
     :param conn: The connection to the machine to create the container
     :param machine_name: The name of the container
-    :param image: Either a libcloud.ContainerImage or a string representing the fingerprint
-    :param parameters: extra parameters for the container
-    :param cluster: The cluster the container belongs to
+    :param image: a libcloud.NodeImage
+    :param parameters: extra parameters for the ContainerImage
     :param start: Whether the container should be start at creation
+    :param cluster: The cluster the container belongs to
+    :param architecture: e.g "x86_64"
+    :param profiles: A list of profiles e.g ["default"]
+    :param ephemeral: Whether to destroy the container on shutdown
+    :param config: Config override e.g.  {"limits.cpu": "2"},
+    :param devices: optional list of devices the container should have
+    :param instance_type: An optional instance type to use as basis for limits e.g. "c2.micro"
+
     :return: libcloud.Container
     """
 
-    container = conn.deploy_container(name=machine_name, image=image,
-                                      parameters=parameters, cluster=cluster,
+    fingerprint=image.id #"7ed08b435c92cd8a8a884c88e8722f2e7546a51e891982a90ea9c15619d7df9b"
+    container_img = conn.ex_get_image(fingerprint=fingerprint)
+    container_img.extra['type'] = 'image'
+    container = conn.deploy_container(name=machine_name, image=container_img,
+                                      cluster=cluster, parameters=parameters,
                                       start=start)
+                                      #  architecture=architecture,
+                                      #  profiles=profiles, ephemeral=ephemeral,
+                                      #  config=config, devices=devices, instance_type=instance_type)
     return container
 
 def _create_machine_digital_ocean(conn, cloud, key_name, private_key,
