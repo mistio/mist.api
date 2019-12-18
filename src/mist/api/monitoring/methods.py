@@ -483,6 +483,7 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=""):
         if machine.monitoring.method in (
             "telegraf-influxdb",
             "telegraf-graphite",
+            "telegraf-foundationdb",
         ):
             traefik.reset_config()
     except Exception as exc:

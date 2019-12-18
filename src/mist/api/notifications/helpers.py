@@ -1,6 +1,7 @@
 import re
 import time
 import datetime
+import requests
 
 from mist.api import config
 
@@ -111,6 +112,17 @@ def _alert_pretty_machine_details(owner, rule_id, value, triggered, timestamp,
         metrics = config.GRAPHITE_BUILTIN_METRICS
     if machine.monitoring.method.endswith('influxdb'):
         metrics = config.INFLUXDB_BUILTIN_METRICS
+    if machine.monitoring.method.endswith('foundationdb'):
+        raw_metrics = requests.get(
+            "%s/v1/resources/%s"
+            % (config.TSFDB_URI, machine_id)
+        ).json()
+
+        if "metrics" not in raw_metrics:
+            # log.error(raw_metrics)
+            metrics = {}
+        else:
+            metrics = raw_metrics
 
     if isinstance(rule, NoDataRule):
         # no data alert
