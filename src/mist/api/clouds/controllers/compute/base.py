@@ -356,10 +356,11 @@ class BaseComputeController(BaseController):
             if not image_id:
                 image_id = str(node.image or node.extra.get('imageId') or
                                node.extra.get('image_id') or
-                               node.extra.get('image') or
-                               node.extra.get('operating_system', {}).get(
-                                   'name') or
-                               '')
+                               node.extra.get('image'))
+            if not image_id:
+                image_id = node.extra.get('operating_system')
+                if isinstance(image_id, dict):
+                    image_id = image_id.get('name')
 
             # Attempt to map machine's size to a CloudSize object. If not
             # successful, try to discover custom size.
