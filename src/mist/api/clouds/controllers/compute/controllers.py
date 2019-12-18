@@ -1502,11 +1502,23 @@ class LXDComputeController(BaseComputeController):
 
     def _destroy_machine(self, machine, machine_libcloud):
         """Delet the given container"""
-        return self.connection.destroy_container(container=machine)
+
+        from libcloud.container.drivers.lxd import LXDAPIException
+        try:
+            container = self.connection.destroy_container(container=machine)
+            return container
+        except Exception as e:
+
+            if isinstance(e, LXDAPIException):
+                raise MistError(e.message)
+            raise
 
     def _reboot_machine(self, machine, machine_libcloud):
         """Restart the given container"""
         return self.connection.restart_container(container=machine)
+
+    def _list_sizes__fetch_sizes(self):
+        return []
 
     def _list_machines__fetch_machines(self):
         """Perform the actual libcloud call to get list of containers"""
