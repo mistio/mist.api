@@ -12,7 +12,7 @@ log = logging.getLogger(__name__)
 class GraphiteBackendPlugin(base.BaseBackendPlugin):
 
     def __init__(self, rule, rids=None):
-        super(GraphiteBackendPlugin, self).__init__(self, rule, rids=None)
+        super().__init__(rule, rids=rids)
         self.uri = config.GRAPHITE_URI
 
     def execute(self, query, rid=None):

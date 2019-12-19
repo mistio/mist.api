@@ -11,8 +11,7 @@ log = logging.getLogger(__name__)
 class M3dbBackendPlugin(graphite.GraphiteBackendPlugin):
 
     def __init__(self, rule, rids=None):
-        super(graphite.GraphiteBackendPlugin,
-              self).__init__(self, rule, rids=None)
+        super().__init__(rule, rids=rids)
         self.uri = config.M3DB_URI
 
 
