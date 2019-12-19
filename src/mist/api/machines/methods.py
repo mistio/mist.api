@@ -1093,7 +1093,7 @@ def _create_machine_lxd(conn, machine_name, image,
                         config=None, devices=None, instance_type=None):
     """
     Create a new LXC container on the machine described by the given
-    conn argument
+    conn argument. Currently we only support local image identified by its fingerprint
 
     :param conn: The connection to the machine to create the container
     :param machine_name: The name of the container
@@ -1110,16 +1110,11 @@ def _create_machine_lxd(conn, machine_name, image,
 
     :return: libcloud.Container
     """
-
-    fingerprint=image.id #"7ed08b435c92cd8a8a884c88e8722f2e7546a51e891982a90ea9c15619d7df9b"
-    container_img = conn.ex_get_image(fingerprint=fingerprint)
-    container_img.extra['type'] = 'image'
-    container = conn.deploy_container(name=machine_name, image=container_img,
+ 
+    parameters='{"source":{"type":"image", "fingerprint": "%s"}}' % image.id
+    container = conn.deploy_container(name=machine_name, image=None,
                                       cluster=cluster, parameters=parameters,
                                       start=start)
-                                      #  architecture=architecture,
-                                      #  profiles=profiles, ephemeral=ephemeral,
-                                      #  config=config, devices=devices, instance_type=instance_type)
     return container
 
 def _create_machine_digital_ocean(conn, cloud, key_name, private_key,
