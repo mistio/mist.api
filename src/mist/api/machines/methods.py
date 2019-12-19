@@ -1726,7 +1726,8 @@ def _create_machine_vsphere(conn, machine_name, image,
             image=image,
             size=size,
             location=location,
-            ex_network=network_name
+            ex_network=network_name,
+            cluster=location.name,
         )
     except Exception as e:
         raise MachineCreationError("vSphere, got exception %s" % e, e)

@@ -277,6 +277,8 @@ def create_machine(request):
     machine_username = params.get('machine_username', '')
     resource_group = params.get('resource_group', '')
     volumes = params.get('volumes', [])
+    if volumes and volumes[0].get('volume_id'):
+        request.matchdict['volume'] = volumes[0].get('volume_id')
     networks = params.get('networks', [])
     subnet_id = params.get('subnet_id', '')
     subnetwork = params.get('subnetwork', None)
