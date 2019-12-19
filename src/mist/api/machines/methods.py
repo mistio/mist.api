@@ -1110,7 +1110,7 @@ def _create_machine_lxd(conn, machine_name, image,
 
     :return: libcloud.Container
     """
- 
+
     parameters='{"source":{"type":"image", "fingerprint": "%s"}}' % image.id
     container = conn.deploy_container(name=machine_name, image=None,
                                       cluster=cluster, parameters=parameters,
