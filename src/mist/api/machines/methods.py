@@ -1111,7 +1111,13 @@ def _create_machine_lxd(conn, machine_name, image,
     :return: libcloud.Container
     """
 
-    parameters='{"source":{"type":"image", "fingerprint": "%s"}}' % image.id
+    # basic check for SHA 256
+    invalid_characters = ["-", "/", "&", " ", ".", ",", "!"]
+    if not any((c in invalid_characters) for c in image.id):
+        parameters='{"source":{"type":"image", "fingerprint": "%s"}}' % image.id
+    else:
+        parameters='{"source":{"type":"image", "alias": "%s"}}' % image.id
+
     container = conn.deploy_container(name=machine_name, image=None,
                                       cluster=cluster, parameters=parameters,
                                       start=start)
