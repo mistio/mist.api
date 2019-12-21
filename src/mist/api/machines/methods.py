@@ -1099,7 +1099,7 @@ def _create_machine_lxd(conn, machine_name, image,
     :param machine_name: The name of the container
     :param image: a libcloud.NodeImage
     :param parameters: extra parameters for the ContainerImage
-    :param start: Whether the container should be start at creation
+    :param start: Whether the container should be started at creation
     :param cluster: The cluster the container belongs to
     :param architecture: e.g "x86_64"
     :param profiles: A list of profiles e.g ["default"]
