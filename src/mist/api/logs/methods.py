@@ -57,6 +57,7 @@ def log_observations(owner_id, cloud_id, resource_type, patch,
     }
 
     for _patch in patch:
+        name = ''
         if _patch.get('op') == 'add':
 
             if isinstance(_patch.get('value'), dict) and \
@@ -103,7 +104,8 @@ def log_observations(owner_id, cloud_id, resource_type, patch,
                 ids = _patch.get('path').split('-')
                 resource_id = ids.pop(0).strip('/')
                 external_id = '-'.join(ids)
-                name = cached_resources.get(key).get('name')
+                if cached_resources.get(key):
+                    name = cached_resources.get(key).get('name')
             else:
                 continue
 
