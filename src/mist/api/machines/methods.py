@@ -321,7 +321,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                 docker_exposed_ports=docker_exposed_ports
             )
     elif conn.type is Container_Provider.LXD:
-        log.info('Create LXD container')
 
         node = _create_machine_lxd(conn=conn, machine_name=machine_name,
                                    image=image, parameters=None,
@@ -1114,14 +1113,17 @@ def _create_machine_lxd(conn, machine_name, image,
     # basic check for SHA 256
     invalid_characters = ["-", "/", "&", " ", ".", ",", "!"]
     if not any((c in invalid_characters) for c in image.id):
-        parameters='{"source":{"type":"image", "fingerprint": "%s"}}' % image.id
+        parameters = '{"source": {"type":"image", ' \
+                     '"fingerprint": "%s"}}' % image.id
     else:
-        parameters='{"source":{"type":"image", "alias": "%s"}}' % image.id
+        parameters = '{"source":{"type":"image", ' \
+                     '"alias": "%s"}}' % image.id
 
     container = conn.deploy_container(name=machine_name, image=None,
                                       cluster=cluster, parameters=parameters,
                                       start=start)
     return container
+
 
 def _create_machine_digital_ocean(conn, cloud, key_name, private_key,
                                   public_key, machine_name, image, size,
