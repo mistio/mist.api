@@ -1545,7 +1545,6 @@ class LXDComputeController(BaseComputeController):
         """Unix timestap of when the machine was created"""
         return machine_libcloud.extra.get('created')  # unix timestamp
 
-
     def _get_machine_libcloud(self, machine, no_fail=False):
         """Return an instance of a libcloud node
 
@@ -1553,7 +1552,7 @@ class LXDComputeController(BaseComputeController):
         """
         # assert isinstance(machine.cloud, Machine)
         assert self.cloud == machine.cloud
-        for node in self.connection.list_containers(): #list_nodes():
+        for node in self.connection.list_containers():
             if node.id == machine.machine_id:
                 return node
         if no_fail:
