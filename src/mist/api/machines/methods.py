@@ -213,7 +213,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     # For providers, which do not support pre-defined sizes, we expect `size`
     # to be a dict with all the necessary information regarding the machine's
     # size.
-    if cloud.ctl.provider in ('vsphere', 'onapp', 'libvirt', ):
+    if cloud.ctl.provider in ('vsphere', 'onapp', 'libvirt', 'lxd',):
         if not isinstance(size, dict):
             raise BadRequestError('Expected size to be a dict.')
         size_id = 'custom'
