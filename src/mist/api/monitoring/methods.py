@@ -134,6 +134,7 @@ def get_load(owner, start='', stop='', step='', uuids=None):
 
     graphite_data = {}
     influx_data = {}
+    m3db_data = {}
     if graphite_uuids:
         graphite_data = graphite_get_load(owner, start=start, stop=stop,
                                           step=step, uuids=graphite_uuids)
@@ -146,8 +147,11 @@ def get_load(owner, start='', stop='', step='', uuids=None):
             start=_start, stop=_stop, step=_step,
         )
     if m3db_uuids:
-        m3db_data = graphite_get_load(owner, start=start, stop=stop,
-                                      step=step, uuids=m3db_uuids,
+        # Transform "sec" to "s".
+        _start, _stop, _step = [re.sub('ec', repl='', string=x) for x in (
+            start, stop, step)]
+        m3db_data = graphite_get_load(owner, start=_start, stop=_stop,
+                                      step=_step, uuids=m3db_uuids,
                                       graphite_uri=config.M3DB_URI)
 
     if graphite_data or influx_data or m3db_data:
