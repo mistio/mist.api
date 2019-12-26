@@ -453,7 +453,9 @@ def create_machine(request):
               'machine_username': machine_username,
               'volumes': volumes,
               'ip_addresses': ip_addresses,
-              'expiration': expiration}
+              'expiration': expiration,
+              'ephemeral': params.get('ephemeral', False),
+              'architecture': params.get('architecture', '')}
 
     if not run_async:
         ret = methods.create_machine(auth_context, *args, **kwargs)

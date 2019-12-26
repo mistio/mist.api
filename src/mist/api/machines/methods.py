@@ -155,6 +155,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                    bare_metal=False, hourly=True,
                    softlayer_backend_vlan_id=None, machine_username='',
                    volumes=[], ip_addresses=[], expiration={},
+                   ephemeral=False, architecture=''
                    ):
     """Creates a new virtual machine on the specified cloud.
 
@@ -324,7 +325,10 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
 
         node = _create_machine_lxd(conn=conn, machine_name=machine_name,
                                    image=image, parameters=None,
-                                   start=False, cluster=None)
+                                   start=False, cluster=None,
+                                   architecture=architecture,
+                                   ephemeral=ephemeral,
+                                   size_cpu=size_cpu, size_ram=size_ram)
                                    
     elif conn.type in [Provider.RACKSPACE_FIRST_GEN, Provider.RACKSPACE]:
         node = _create_machine_rackspace(conn, public_key, machine_name, image,
@@ -1088,8 +1092,9 @@ def _create_machine_docker(conn, machine_name, image_id,
 
 def _create_machine_lxd(conn, machine_name, image,
                         parameters,  start, cluster=None,
-                        architecture=None, profiles=None, ephemeral=True,
-                        config=None, devices=None, instance_type=None):
+                        architecture='', ephemeral=False,
+                        size_cpu=None,  size_ram=None,
+                        profiles=None,  devices=None, instance_type=None):
     """
     Create a new LXC container on the machine described by the given
     conn argument. Currently we only support local image identified by its fingerprint
@@ -1119,9 +1124,23 @@ def _create_machine_lxd(conn, machine_name, image,
         parameters = '{"source":{"type":"image", ' \
                      '"alias": "%s"}}' % image.id
 
+    #import pdb
+    #pdb.set_trace()
+    config = {}
+
+    if size_cpu is not None:
+        config['limits.cpu'] = str(size_cpu)
+
+    if size_ram is not None:
+        config['limits.memory'] = str(size_ram)+"MB"
+
     container = conn.deploy_container(name=machine_name, image=None,
                                       cluster=cluster, parameters=parameters,
-                                      start=start)
+                                      start=start,
+                                      architecture=architecture,
+                                      ephemeral=ephemeral,
+                                      config=config, instance_type=instance_type,
+                                      devices=devices, profiles=profiles)
     return container
 
 
