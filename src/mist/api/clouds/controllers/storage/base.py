@@ -236,13 +236,20 @@ class BaseStorageController(BaseController):
 
         # Create the volume.
         try:
-            libvol = self.cloud.ctl.compute.connection.create_volume(**kwargs)
+
+            if hasattr(self.cloud.ctl.compute, "is_lxc"):
+                libvol = self.cloud.ctl.compute.connection.ex_create_storage_pool_volume(pool_id=kwargs["pool_id"],
+                                                                                         definition = kwargs["definition"])
+            else:
+
+                libvol = self.cloud.ctl.compute.connection.create_volume(**kwargs)
         except Exception as exc:
             log.exception('Error creating volume in %s: %r', self.cloud, exc)
             raise mist.api.exceptions.CloudUnavailableError(exc=exc)
 
         # Invoke `self.list_volumes` to update the UI and return the Volume
         # object at the API. Try 3 times before failing
+        volumes = self.list_volumes()
         for _ in range(3):
             for volume in self.list_volumes():
                 # ARM is inconsistent when it comes to lowercase...
