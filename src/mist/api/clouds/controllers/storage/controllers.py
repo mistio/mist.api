@@ -7,6 +7,7 @@ This file should only contain subclasses of `BaseStorageController`.
 import logging
 import time
 
+
 from mist.api.clouds.controllers.storage.base import BaseStorageController
 
 from mist.api.exceptions import RequiredParameterMissingError
@@ -398,3 +399,51 @@ class PacketStorageController(BaseStorageController):
             except Machine.DoesNotExist:
                 log.error('%s attached to unknown machine "%s"', volume,
                           machine_id)
+
+class LXDStorageController(BaseStorageController):
+    """
+    Storage controller for LXC containers
+    """
+
+    def _list_volumes__fetch_volumes(self):
+        """Return the original list of libcloud Volume objects
+        """
+
+        # get a list of the storage pools
+        # self.connection.ex_list_storage_pools(detailed=False)
+        storage_pools = self.cloud.ctl.compute.connection.ex_list_storage_pools(detailed=False)
+        volumes = []
+
+        # self.connection.ex_list_storage_pool_volumes(pool_id=pool.name, detailed=True)
+        for pool in storage_pools:
+            vols = self.cloud.ctl.compute.connection.ex_list_storage_pool_volumes(pool_id=pool.name,
+                                                                                  detailed=True)
+
+            for vol in vols:
+                volumes.append(vol)
+        return volumes
+
+    def _create_volume__prepare_args(self, kwargs):
+        """Parses keyword arguments on behalf of `self.create_volume`.
+
+               Creates the parameter structure required by the libcloud method
+               that handles volume creation.
+
+               Subclasses MAY override this method.
+        """
+        kwargs["pool_id"] = "Pool100"
+        kwargs["definition"] = {"config":
+                    { "block.filesystem": "ext4",
+                            "block.mount_options": "discard",
+                            "size": "10737418240"
+                    },
+
+                "name": "vol2",
+                "type": "custom"}
+
+    def _delete_volume(self, libcloud_volume):
+        self.cloud.ctl.compute.connection.ex_delete_storage_pool_volume(pool_id = libcloud_volume.extra["pool_id"],
+                                                                        type=libcloud_volume.extra["type"],
+                                                                        name=libcloud_volume.name)
+
+
