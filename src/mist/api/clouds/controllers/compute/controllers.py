@@ -1491,6 +1491,8 @@ class LXDComputeController(BaseComputeController):
     def __init__(self, *args, **kwargs):
         super(LXDComputeController, self).__init__(*args, **kwargs)
         self._lxchost = None
+        self.is_lxc = True
+
 
     def _stop_machine(self, machine, machine_libcloud):
         """Stop the given machine"""
