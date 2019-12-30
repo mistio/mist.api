@@ -40,9 +40,9 @@ from mist.api.monitoring.graphite.methods import (
 )
 from mist.api.monitoring.graphite.methods import get_load as graphite_get_load
 
-"""from mist.api.monitoring.foundationdb.methods import (
+from mist.api.monitoring.foundationdb.methods import (
     find_metrics as fdb_find_metrics,
-)"""
+)
 from mist.api.monitoring.foundationdb.methods import get_stats as fdb_get_stats
 from mist.api.monitoring.foundationdb.methods import get_load as fdb_get_load
 
@@ -535,8 +535,7 @@ def find_metrics(machine):
         print(metrics)
         return metrics
     elif machine.monitoring.method == "telegraf-foundationdb":
-        return {}
-        # return fdb_find_metrics(machine)
+        return fdb_find_metrics(machine)
     else:
         raise Exception("Invalid monitoring method")
 

@@ -94,4 +94,11 @@ def get_load(machines, start, stop, step):
 def find_metrics(machine):
     if not machine.monitoring.hasmonitoring:
         raise ForbiddenError("Machine doesn't have monitoring enabled.")
-    # return get_metrics(machine.id)
+    data = requests.get("%s/v1/resources/%s" % (config.TSFDB_URI, machine.id))
+
+    if not data.ok:
+        log.error('Got %d on get_load: %s',
+                  data.status_code, data.content)
+        raise ServiceUnavailableError()
+
+    return data.json()
