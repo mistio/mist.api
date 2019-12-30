@@ -97,7 +97,7 @@ def find_metrics(machine):
     data = requests.get("%s/v1/resources/%s" % (config.TSFDB_URI, machine.id))
 
     if not data.ok:
-        log.error('Got %d on get_load: %s',
+        log.error('Got %d on find_metrics: %s',
                   data.status_code, data.content)
         raise ServiceUnavailableError()
 
