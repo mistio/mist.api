@@ -2,6 +2,7 @@ import logging
 import requests
 
 from mist.api.exceptions import ForbiddenError
+from mist.api.exceptions import ServiceUnavailableError
 from mist.api import config
 import urllib.parse
 
@@ -31,13 +32,15 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
         raw_machine_data = requests.get(
             "%s/v1/datapoints?query=%s"
             % (config.TSFDB_URI, urllib.parse.quote(query))
-        ).json()
+        )
 
-        if "series" not in raw_machine_data:
-            log.error(raw_machine_data)
-            return {}
+        if not raw_machine_data.ok:
+            log.error('Got %d on get_stats: %s',
+                      raw_machine_data.status_code, raw_machine_data.content)
+            raise ServiceUnavailableError()
 
-        raw_metrics = list(raw_machine_data["series"].keys())
+        raw_machine_data = raw_machine_data.json()
+        raw_metrics = list(raw_machine_data.get("series", {}).keys())
         for raw_metric in raw_metrics:
             # We use as key the metric name without the machine id
             # e.g "id.system.load1 => system.load1"
@@ -46,7 +49,8 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
                 {
                     returned_metric: {
                         "name": returned_metric,
-                        "datapoints": raw_machine_data["series"][raw_metric],
+                        "datapoints": raw_machine_data["series"].get(
+                            raw_metric, []),
                     }
                 }
             )
@@ -66,17 +70,20 @@ def get_load(machines, start, stop, step):
         )
         raw_machine_data = requests.get(
             "%s/v1/datapoints?query=%s" % (config.TSFDB_URI, query)
-        ).json()
+        )
 
-        if "series" not in raw_machine_data:
-            log.error(raw_machine_data)
-            return {}
+        if not raw_machine_data.ok:
+            log.error('Got %d on get_load: %s',
+                      raw_machine_data.status_code, raw_machine_data.content)
+            raise ServiceUnavailableError()
+
+        raw_machine_data = raw_machine_data.json()
 
         data.update(
             {
                 machine: {
                     "name": machine,
-                    "datapoints": raw_machine_data["series"][metric],
+                    "datapoints": raw_machine_data["series"].get(metric, []),
                 }
             }
         )
