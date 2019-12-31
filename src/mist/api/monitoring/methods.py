@@ -75,8 +75,6 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
         - metrics: the metrics to query for, if explicitly specified
 
     """
-    print("METRICS BEFORE==============================================")
-    print(metrics)
     if not machine.monitoring.hasmonitoring:
         raise MethodNotAllowedError("Machine does not have monitoring enabled")
     if metrics is None:
@@ -532,7 +530,6 @@ def find_metrics(machine):
         metrics = {}
         for metric in show_fields(show_measurements(machine.id)):
             metrics[metric["id"]] = metric
-        print(metrics)
         return metrics
     elif machine.monitoring.method == "telegraf-foundationdb":
         return fdb_find_metrics(machine)
