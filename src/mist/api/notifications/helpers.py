@@ -2,12 +2,14 @@ import re
 import time
 import datetime
 import requests
+import logging
 
 from mist.api import config
 
 from mist.api.helpers import rename_kwargs
 
 from mist.api.exceptions import BadRequestError
+from mist.api.exceptions import ServiceUnavailableError
 
 from mist.api.users.models import Metric
 from mist.api.rules.models import Rule
@@ -20,6 +22,8 @@ from mist.api.logs.methods import log_event
 
 from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
+
+log = logging.getLogger(__name__)
 
 
 def _get_alert_details(resource, rule, incident_id,
@@ -113,16 +117,18 @@ def _alert_pretty_machine_details(owner, rule_id, value, triggered, timestamp,
     if machine.monitoring.method.endswith('influxdb'):
         metrics = config.INFLUXDB_BUILTIN_METRICS
     if machine.monitoring.method.endswith('foundationdb'):
-        raw_metrics = requests.get(
+
+        data = requests.get(
             "%s/v1/resources/%s"
             % (config.TSFDB_URI, machine_id)
-        ).json()
+        )
 
-        if "metrics" not in raw_metrics:
-            # log.error(raw_metrics)
-            metrics = {}
-        else:
-            metrics = raw_metrics
+        if not data.ok:
+            log.error('Got %d on _alert_pretty_machine_details: %s',
+                      data.status_code, data.content)
+            raise ServiceUnavailableError()
+
+        metrics = data.json()
 
     if isinstance(rule, NoDataRule):
         # no data alert
