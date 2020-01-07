@@ -360,7 +360,11 @@ class DockerWebSocket(object):
         self.buffer = ""
 
     def connect(self):
+
+        #import pdb
+        #pdb.set_trace()
         try:
+
             self.ws.connect(self.uri)
         except websocket.WebSocketException:
             raise MachineUnauthorizedError()
@@ -505,6 +509,113 @@ class DockerShell(DockerWebSocket):
             return tempkey.name, tempcert.name
 
 
+class LXDShell(DockerWebSocket):
+    """
+        LXDShell achieved through the LXD host's API by opening a WebSocket
+    """
+
+    def __init__(self, host):
+        self.host = host
+        super(LXDShell, self).__init__()
+
+    def autoconfigure(self, owner, cloud_id, machine_id, **kwargs):
+
+        shell_type = 'logging' if kwargs.get('job_id', '') else 'interactive'
+        config_method = '%s_shell' % shell_type
+
+        """
+        getattr(self, config_method)(owner,
+                                     cloud_id=cloud_id, machine_id=machine_id,
+                                     job_id=kwargs.get('job_id', ''))
+        """
+
+        # create an interactive shell
+        #if shell_type == 'interactive':
+        # it builds the self.uri to connect below
+        self.interactive_shell(owner=owner, machine_id=machine_id, cloud_id=cloud_id, **kwargs)
+
+        self.connect()
+        # This is for compatibility purposes with the ParamikoShell
+        return None, None
+
+    def interactive_shell(self, owner, machine_id, cloud_id, **kwargs):
+
+        lxd_port, cloud = \
+            self.get_lxd_endpoint(owner, cloud_id=cloud_id) #kwargs['cloud_id'])
+
+        log.info("Autoconfiguring LXDShell for machine %s:%s",
+                 cloud.id, machine_id)
+
+        ssl_enabled = cloud.key_file and cloud.cert_file
+
+        from mist.api.methods import connect_provider
+        conn = connect_provider(cloud)
+
+        config = {"wait-for-websocket": True, "interactive": True}
+        cont_id='a-brand-new-lxd-container'
+        response = conn.ex_execute_cmd_on_container(cont_id=cont_id, command=["/bin/bash"], **config)
+
+        uuid = response.uuid
+        secret_0 = response.secret_0
+
+        # build the uri to use for the connection
+        self.uri = self.build_uri(operations_id=uuid, secret_id=secret_0,
+                                  lxd_port=lxd_port, cloud=cloud,
+                                  ssl_enabled=ssl_enabled, **kwargs)
+
+    def get_lxd_endpoint(self, owner, cloud_id, job_id=None):
+
+        if job_id:
+            event = get_story(owner.id, job_id)
+            assert owner.id == event['owner_id'], 'Owner ID mismatch!'
+            self.host, lxd_port = '192.168.2.4', '8443' #config.DOCKER_IP, config.DOCKER_PORT
+            return lxd_port, event['logs'][0]['container_id']
+
+        cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
+        self.host, lxd_port = dnat(owner, self.host, cloud.port)
+        return lxd_port, cloud
+
+    def build_uri(self, operations_id, secret_id,
+                  lxd_port, cloud=None, ssl_enabled=False, **kwargs):
+
+        #if ssl_enabled:
+        self.protocol = 'wss'
+        ssl_key, ssl_cert = self.ssl_credentials(cloud)
+        self.sslopt = {
+                'cert_reqs': ssl.CERT_NONE,
+                'keyfile': ssl_key,
+                'certfile': ssl_cert
+        }
+        self.ws = websocket.WebSocket(sslopt=self.sslopt)
+
+        """
+        if cloud and cloud.username and cloud.password:
+
+            uri = '%s://%s:%s@%s:%s/operations/%s/websocket/?secret=%s' % (  # noqa
+                self.protocol, cloud.username, cloud.password, self.host,
+                lxd_port, operations_id, secret_id
+            )
+        else:
+        """
+        uri = '%s://%s:%s/1.0/operations/%s/websocket?secret=%s' % (  # noqa
+                  self.protocol, self.host, lxd_port, operations_id, secret_id)
+        return uri
+
+    @staticmethod
+    def ssl_credentials(cloud=None):
+        if cloud:
+            _key, _cert = cloud.key_file, cloud.cert_file
+
+            tempkey = tempfile.NamedTemporaryFile(delete=False)
+            with open(tempkey.name, 'w') as f:
+                f.write(_key)
+            tempcert = tempfile.NamedTemporaryFile(delete=False)
+            with open(tempcert.name, 'w') as f:
+                f.write(_cert)
+
+            return tempkey.name, tempcert.name
+
+
 class Shell(object):
     """Proxy Shell Class to distinguish between Docker or Paramiko Shell
     """
@@ -528,6 +639,8 @@ class Shell(object):
 
         if provider == 'docker' and not enforce_paramiko:
             self._shell = DockerShell(host)
+        elif provider == 'lxd' and not enforce_paramiko:
+            self._shell = LXDShell(host=host)
         else:
             self._shell = ParamikoShell(host, username=username, key=key,
                                         password=password, cert_file=cert_file,
@@ -541,28 +654,32 @@ class Shell(object):
                 owner, cloud_id, machine_id, key_id=key_id,
                 username=username, password=password, port=port
             )
-        elif isinstance(self._shell, DockerShell):
-            return self._shell.autoconfigure(owner, cloud_id, machine_id,
+        elif isinstance(self._shell, DockerShell) or isinstance(self._shell, LXDShell):
+            return self._shell.autoconfigure(owner=owner, cloud_id=cloud_id, machine_id=machine_id,
                                              **kwargs)
 
     def connect(self, username, key=None, password=None, cert_file=None,
                 port=22):
+
         if isinstance(self._shell, ParamikoShell):
             self._shell.connect(username, key=key, password=password,
                                 cert_file=cert_file, port=port)
-        elif isinstance(self._shell, DockerShell):
+        elif isinstance(self._shell, DockerShell) or isinstance(self._shell, LXDShell):
             self._shell.connect()
 
     def invoke_shell(self, term='xterm', cols=None, rows=None):
+
+        log.info("Invoking shell....")
+
         if isinstance(self._shell, ParamikoShell):
             return self._shell.ssh.invoke_shell(term, cols, rows)
-        elif isinstance(self._shell, DockerShell):
+        elif isinstance(self._shell, DockerShell) or isinstance(self._shell, LXDShell):
             return self._shell.ws
 
     def recv(self, default=1024):
         if isinstance(self._shell, ParamikoShell):
             return self._shell.ssh.recv(default)
-        elif isinstance(self._shell, DockerShell):
+        elif isinstance(self._shell, DockerShell) or isinstance(self._shell, LXDShell):
             return self._shell.ws.recv()
 
     def disconnect(self):
@@ -571,7 +688,7 @@ class Shell(object):
     def command(self, cmd, pty=True):
         if isinstance(self._shell, ParamikoShell):
             return self._shell.command(cmd, pty=pty)
-        elif isinstance(self._shell, DockerShell):
+        elif isinstance(self._shell, DockerShell) or isinstance(self._shell, LXDShell):
             return self._shell.command(cmd)
 
     def command_stream(self, cmd):
