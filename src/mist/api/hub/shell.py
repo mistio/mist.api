@@ -48,13 +48,47 @@ class ShellHubWorker(mist.api.hub.main.HubWorker):
         if self.shell is not None:
             log.error("%s: Can't call on_connect twice.", self.lbl)
             return
+
         data = self.params
         self.provider = data.get('provider', '')
+
+        if self.provider == '':
+            job_id = data['job_id']
+
+            if job_id == '':
+                job_id = ' job id is empty'
+
+        host = data.get('host', '')
+
+        if host == '':
+            host = 'host is empty'
+
+        cloud_id = data.get('cloud_id', '')
+        machine_id = data.get('machine_id', '')
+
+        if self.provider == '':
+            self.provider = 'lxd'
+
         try:
-            self.shell = mist.api.shell.Shell(data['host'])
-            key_id, ssh_user = self.shell.autoconfigure(
-                self.owner, data['cloud_id'], data['machine_id']
-            )
+
+            if self.provider == '':
+                self.shell = mist.api.shell.Shell(data['host'])
+
+                key_id, ssh_user = self.shell.autoconfigure( self.owner, data['cloud_id'],
+                                                             data['machine_id'])
+            elif self.provider == 'lxd':
+
+                #import pdb
+                #pdb.set_trace()
+                self.shell = mist.api.shell.Shell(data['host'],
+                                                  provider=self.provider)
+
+                key_id, ssh_user = self.shell.autoconfigure(owner=self.owner,
+                                                            cloud_id=data['cloud_id'],
+                                                            machine_id=data['machine_id'],
+                                                            job_id=data['job_id'],)
+                self.emit_shell_data("Connected to shell with LXD...\n")
+
         except Exception as exc:
             if self.provider == 'docker':
                 self.shell = mist.api.shell.Shell(data['host'],
@@ -68,13 +102,19 @@ class ShellHubWorker(mist.api.hub.main.HubWorker):
                             self.lbl, exc)
                 if isinstance(exc,
                               mist.api.exceptions.MachineUnauthorizedError):
-                    err = 'Permission denied (publickey).'
+                    if self.provider == '':
+
+                        err = 'Permission denied (publickey). Provider is: %s. Host is %s job_id is %s' % ('empty provider', host, job_id)
+                    else:
+                        err = 'Permission denied (publickey). Provider is: %s  host is %s cloud is %s machine is %s' % (self.provider, host, cloud_id, machine_id)
                 else:
                     err = str(exc)
                 self.emit_shell_data(err)
                 self.params['error'] = err
                 self.stop()
                 return
+
+        #self.emit_shell_data('connected... user %s \n'% ssh_user)
         self.params.update(key_id=key_id, ssh_user=ssh_user)
         self.channel = self.shell.invoke_shell('xterm',
                                                data['columns'], data['rows'])
@@ -149,6 +189,7 @@ class LoggingShellHubWorker(ShellHubWorker):
                                             shell_id=self.uuid, **self.params)
 
     def emit_shell_data(self, data):
+
         self.capture.append((time.time(), 'data', data))
         super(LoggingShellHubWorker, self).emit_shell_data(data)
 
@@ -213,6 +254,7 @@ class ShellHubClient(mist.api.hub.main.HubClient):
             gevent.sleep(0)
 
     def send_data(self, data):
+        print("Hub/shell: send data to send to worker")
         self.send_to_worker('data', data)
 
     def resize(self, columns, rows):
