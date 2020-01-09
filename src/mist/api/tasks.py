@@ -1284,12 +1284,6 @@ def update_poller(org_id):
         ListLocationsPollingSchedule.add(cloud=cloud, interval=60*60*24, ttl=120)
         ListSizesPollingSchedule.add(cloud=cloud, interval=60*60*24, ttl=120)
         ListImagesPollingSchedule.add(cloud=cloud, interval=60*60*24, ttl=120)
-        for machine in cloud.ctl.compute.list_cached_machines():
-            log.info("Updating poller for machine %s", machine)
-            PingProbeMachinePollingSchedule.add(machine=machine,
-                                                interval=90, ttl=120)
-            SSHProbeMachinePollingSchedule.add(machine=machine,
-                                               interval=90, ttl=120)
         if hasattr(cloud.ctl, 'network'):
             ListNetworksPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
         if hasattr(cloud.ctl, 'dns') and cloud.dns_enabled:
