@@ -4,43 +4,6 @@ import uuid
 import mongoengine as me
 
 
-class CloudLocation(me.Document):
-    """A base Cloud Location Model."""
-    id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
-    cloud = me.ReferenceField('Cloud', required=True)
-    location_id = me.StringField(required=True)
-    provider = me.StringField()
-    name = me.StringField()
-    country = me.StringField()
-
-    meta = {
-        'collection': 'cloud_locations',
-        'indexes': [
-            {
-                'fields': ['cloud', 'location_id'],
-                'sparse': False,
-                'unique': True,
-                'cls': False,
-            },
-        ],
-        'strict': False,
-    }
-
-    def __str__(self):
-        name = "%s, %s (%s)" % (self.name, self.provider, self.location_id)
-        return name
-
-    def as_dict(self):
-        return {
-            'id': self.location_id,
-            'cloud': self.cloud.id,
-            'provider': self.provider,
-            '_id': self.id,
-            'name': self.name,
-            'country': self.country,
-        }
-
-
 class CloudImage(me.Document):
     """A base Cloud Image Model."""
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
