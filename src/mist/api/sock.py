@@ -596,7 +596,7 @@ class MainConnection(MistConnection):
             if patch:
                 self.batch.extend(patch)
 
-        elif routing_key in ['patch_locations', 'patch_sizes']:
+        elif routing_key in ['patch_locations', 'patch_sizes', 'patch_images']:
             cloud_id = result['cloud_id']
             patch = result['patch']
             for line in patch:
@@ -605,27 +605,11 @@ class MainConnection(MistConnection):
                     line['path'] = '/clouds/%s/locations/%s' % (cloud_id, _id)
                 elif routing_key == 'patch_sizes':
                     line['path'] = '/clouds/%s/sizes/%s' % (cloud_id, _id)
+                elif routing_key == 'patch_images':
+                    line['path'] = '/clouds/%s/images/%s' % (cloud_id, _id)
             if patch:
                 self.batch.extend(patch)
 
-        elif routing_key in ['patch_locations', 'patch_sizes', 'patch_images']:
-            cloud_id = result['cloud_id']
-            patch = result['patch']
-
-            # remove '/'
-            for line in patch:
-                resource_id = line['path'][1:]
-                if routing_key == 'patch_locations':
-                    line['path'] = '/clouds/%s/locations/%s' % (cloud_id,
-                                                                resource_id)
-                elif routing_key == 'patch_sizes':
-                    line['path'] = '/clouds/%s/sizes/%s' % (cloud_id,
-                                                            resource_id)
-                elif routing_key == 'patch_images':
-                    line['path'] = '/clouds/%s/images/%s' % (cloud_id,
-                                                             resource_id)
-            if patch:
-                self.send('patch_model', patch)
 
     def on_close(self, stale=False):
         if not self.closed:
