@@ -9,6 +9,56 @@ stages:
 #################### BUILD STAGE ####################
 build_mist_image:
   stage: build
+  before_script:
+    # Configure registries.
+    - |
+        export REGISTRIES=""
+
+        # Login to gitlab docker registry.
+        if [ -n "$CI_REGISTRY_IMAGE" ]; then
+          echo "Logging in to gitlab registry."
+          docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" \
+            $CI_REGISTRY
+          export REGISTRIES="$REGISTRIES $CI_REGISTRY_IMAGE"
+          echo "Logged in to gitlab registry."
+        else
+          echo "No credentials provided for gitlab registry, skipping."
+        fi
+
+        # Login to other registry.
+        if [ -n "$EXT_REGISTRY" ] && \
+           [ -n "$EXT_REGISTRY_IMAGE" ] && \
+           [ -n "$EXT_REGISTRY_USER" ] && \
+           [ -n "$EXT_REGISTRY_PASSWORD" ]
+        then
+          echo "Logging in to $EXT_REGISTRY."
+          docker login -u "$EXT_REGISTRY_USER" -p "$EXT_REGISTRY_PASSWORD" \
+            "$EXT_REGISTRY"
+          export REGISTRIES="$REGISTRIES $EXT_REGISTRY_IMAGE"
+          echo "Logged in to $EXT_REGISTRY."
+        else
+          echo "No credentials provided for external registry, skipping."
+        fi
+
+        # Login to dockerhub.
+        if [ -n "$DOCKERHUB_IMAGE" ] && \
+           [ -n "$DOCKERHUB_USER" ] && \
+           [ -n "$DOCKERHUB_PASSWORD" ]
+        then
+          echo "Logging in to dockerhub."
+          docker login -u "$DOCKERHUB_USER" -p "$DOCKERHUB_PASSWORD"
+          export REGISTRIES="$REGISTRIES $DOCKERHUB_IMAGE"
+          echo "Logged in to dockerhub."
+        else
+          echo "No credentials provided for dockerhub, skipping."
+        fi
+
+        # Check if any registry configured.
+        if [ -z "$REGISTRIES" ]; then
+          echo "No registries configured, exiting."
+          exit 1
+        fi
+
   variables:
     GIT_SUBMODULE_STRATEGY: recursive
   script:

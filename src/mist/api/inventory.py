@@ -1,5 +1,5 @@
 from mist.api.clouds.models import Cloud
-from mist.api.machines.models import Machine
+from mist.api.machines.models import Machine, KeyMachineAssociation
 from mist.api.keys.models import SSHKey, SignedSSHKey
 
 from mist.api import config
@@ -34,16 +34,16 @@ class MistInventory(object):
                 continue
             ip_addr, port = dnat(self.owner, ip_addr, port)
             if key_id not in self.keys:
-                keypair = SSHKey.objects.get(owner=self.owner, name=key_id,
-                                             deleted=None)
-                self.keys[key_id] = keypair.private
-                if isinstance(keypair, SignedSSHKey):
+                key = SSHKey.objects.get(owner=self.owner, name=key_id,
+                                         deleted=None)
+                self.keys[key_id] = key.private
+                if isinstance(key, SignedSSHKey):
                     # if signed ssh key, provide the key appending a -cert.pub
                     # on the name since this is how ssh will include it as
                     # an identify file
-                    self.keys['%s-cert.pub' % key_id] = keypair.certificate
+                    self.keys['%s-cert.pub' % key_id] = key.certificate
                     # pub key also needed for openssh 7.2
-                    self.keys['%s.pub' % key_id] = keypair.public
+                    self.keys['%s.pub' % key_id] = key.public
             if name in self.hosts:
                 num = 2
                 while ('%s-%d' % (name, num)) in self.hosts:
@@ -102,7 +102,8 @@ class MistInventory(object):
     def find_ssh_settings(self, cloud_id, machine_id):
         cloud = Cloud.objects.get(owner=self.owner, id=cloud_id, deleted=None)
         machine = Machine.objects.get(cloud=cloud, machine_id=machine_id)
-        if not machine.key_associations:
+        key_associations = KeyMachineAssociation.objects(machine=machine)
+        if not key_associations:
             raise Exception("Machine doesn't have SSH association")
-        assoc = sorted(machine.key_associations, key=lambda a: a.last_used)[-1]
-        return assoc.keypair.name, assoc.ssh_user or 'root', assoc.port
+        assoc = sorted(key_associations, key=lambda a: a.last_used)[-1]
+        return assoc.key.name, assoc.ssh_user or 'root', assoc.port

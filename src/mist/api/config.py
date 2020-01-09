@@ -47,6 +47,7 @@ MEMCACHED_HOST = ["memcached:11211"]
 BROKER_URL = "amqp://guest:guest@rabbitmq/"
 SSL_VERIFY = True
 THEME = ""
+EMAIL_LOGO = "landing/images/logo-email-440.png"
 
 GC_SCHEDULERS = True
 VERSION_CHECK = True
@@ -88,6 +89,17 @@ JS_LOG_LEVEL = 3
 
 ENABLE_DEV_USERS = False
 
+# policy to be applied on resources' owners
+OWNER_POLICY = {}
+
+# If true, on expiration schedule with action destroy,
+# instead of destroying a machine,
+# stop it, change ownership, untag the machine and
+# create a new schedule that will destroy the machine
+#  in <SAFE_EXPIRATION_DURATION> seconds
+SAFE_EXPIRATION = False
+SAFE_EXPIRATION_DURATION = 60 * 60 * 24 * 7
+
 MONGO_URI = "mongodb:27017"
 MONGO_DB = "mist2"
 
@@ -98,6 +110,7 @@ SUPPORT_URI = 'https://docs.mist.io/contact'
 
 INTERNAL_API_URL = 'http://api'
 GOCKY_HOST = 'gocky'
+GOCKY_PORT = 9096
 
 # InfluxDB
 INFLUX = {
@@ -418,6 +431,8 @@ INFLUXDB_MACHINE_DASHBOARD_DEFAULT = {
                     "format": "B/s"
                 }]
             }],
+        }, {
+            "panels": []
         }],
         "time": {
             "from": "now-10m",
@@ -823,6 +838,7 @@ FAILED_LOGIN_RATE_LIMIT = {
 }
 
 BANNED_EMAIL_PROVIDERS = [
+    'qq.com',
     'mailinator.com',
     'bob.info',
     'veryreallemail.com',
@@ -927,7 +943,7 @@ CELERY_SETTINGS = {
     # 'worker_task_log_format': PY_LOG_FORMAT,
     'worker_concurrency': 8,
     'worker_max_tasks_per_child': 32,
-    'worker_max_memory_per_child': 204800,  # 204800 KiB - 200 MiB
+    'worker_max_memory_per_child': 1024000,  # 1024,000 KiB - 1000 MiB
     'mongodb_scheduler_db': 'mist2',
     'mongodb_scheduler_collection': 'schedules',
     'mongodb_scheduler_url': MONGO_URI,
@@ -978,19 +994,14 @@ CELERY_SETTINGS = {
 LANDING_CATEGORIES = [{
     'href': '/',
     'name': 'home',
-    'template': 'home',
     'title': 'Home',
-    'items': {
-        "fold": {
-            "copy": "",
-            "subcopy":
-                "Mist.io is a single dashboard to manage multi-cloud infrastructure",  # noqa
-            "image": "images/mockup-imac-n4.png",
-            "alt": "Mist.io cloud management dashboard",
-            "cta": "Get Started"
-        }
-    }
+    'hiddenFromMenu': 1
 }]
+
+LANDING_FORMS = [
+    'sign-in', 'sign-up', 'reset-password', 'forgot-password', 'set-password',
+    'get-started', 'buy-license', 'request-pricing'
+]
 
 ###############################################################################
 # App constants
@@ -1018,6 +1029,11 @@ STATES = {
 EC2_SECURITYGROUP = {
     'name': 'mistio',
     'description': 'Security group created by mist.io'
+}
+
+ECS_VPC = {
+    'name': 'mistio',
+    'description': 'Vpc created by mist.io'
 }
 
 # Linode datacenter ids/names mapping
@@ -1065,6 +1081,10 @@ SUPPORTED_PROVIDERS = [
                 'id': 'ap-northeast-2'
             },
             {
+                'location': 'Osaka',
+                'id': 'ap-northeast-3'
+            },
+            {
                 'location': 'Singapore',
                 'id': 'ap-southeast-1'
             },
@@ -1083,6 +1103,14 @@ SUPPORTED_PROVIDERS = [
             {
                 'location': 'London',
                 'id': 'eu-west-2'
+            },
+            {
+                'location': 'Paris',
+                'id': 'eu-west-3'
+            },
+            {
+                'location': 'Stockholm',
+                'id': 'eu-north-1'
             },
             {
                 'location': 'Canada Central',
@@ -1112,6 +1140,26 @@ SUPPORTED_PROVIDERS = [
                 'location': 'Mumbai',
                 'id': 'ap-south-1'
             },
+            {
+                'location': 'Hong Kong',
+                'id': 'ap-east-1'
+            },
+            {
+                'location': 'Beijing',
+                'id': 'cn-north-1'
+            },
+            {
+                'location': 'Ningxia',
+                'id': 'cn-northwest-1'
+            },
+            {
+                'location': 'GovCloud (US)',
+                'id': 'us-gov-west-1'
+            },
+            {
+                'location': 'GovCloud (US-East)',
+                'id': 'us-gov-east-1'
+            },
         ]
     },
     # Alibaba Aliyun
@@ -1120,26 +1168,87 @@ SUPPORTED_PROVIDERS = [
         'provider': Provider.ALIYUN_ECS,
         'regions': [
             {
+                'location': 'China North 1 (Qingdao)',
+                'id': 'cn-qingdao'
+            },
+            {
+                'location': 'China North 2 (Beijing)',
+                'id': 'cn-beijing'
+            },
+            {
+                'location': 'China North 3 (Zhangjiakou)',
+                'id': 'cn-zhangjiakou'
+            },
+            {
+                'location': 'China North 5 (Huhehaote)',
+                'id': 'cn-huhehaote'
+            },
+            {
                 'location': 'China East 1 (Hangzhou)',
                 'id': 'cn-hangzhou'
             },
             {
+                'location': 'China East 2 (Shanghai)',
+                'id': 'cn-shanghai'
+            },
+            {
+                'location': 'China South 1 (Shenzhen)',
+                'id': 'cn-shenzhen'
+            },
+            {
+                'location': 'Hong Kong',
+                'id': 'cn-hongkong'
+            },
+            {
                 'location': 'EU Central 1 (Frankfurt)',
                 'id': 'eu-central-1'
-            }
+            },
+            {
+                'location': 'Middle East 1 (Dubai)',
+                'id': 'me-east-1'
+            },
+            {
+                'location': 'England (London)',
+                'id': 'eu-west-1'
+            },
+            {
+                'location': 'US West 1 (Silicon Valley)',
+                'id': 'us-west-1'
+            },
+            {
+                'location': 'US East 1 (Virginia)',
+                'id': 'us-east-1'
+            },
+            {
+                'location': 'South Asia 1 (Mumbai)',
+                'id': 'ap-south-1'
+            },
+            {
+                'location': 'Southeast Asia 5 (Jakarta)',
+                'id': 'ap-southeast-5'
+            },
+            {
+                'location': 'Southeast Asia 3 (Kuala Lumpur)',
+                'id': 'ap-southeast-3'
+            },
+            {
+                'location': 'Southeast Asia 2 (Sydney)',
+                'id': 'ap-southeast-2'
+            },
+            {
+                'location': 'Southeast Asia 1 (Singapore)',
+                'id': 'ap-southeast-1'
+            },
+            {
+                'location': 'Northeast Asia Pacific 1 (Tokyo)',
+                'id': 'ap-northeast-1'
+            },
         ]
     },
     # GCE
     {
         'title': 'GCE',
         'provider': Provider.GCE,
-        'regions': []
-    },
-
-    # NephoScale
-    {
-        'title': 'NephoScale',
-        'provider': Provider.NEPHOSCALE,
         'regions': []
     },
     # DigitalOcean
@@ -1241,18 +1350,18 @@ SUPPORTED_PROVIDERS = [
         'provider': Provider.VSPHERE,
         'regions': []
     },
-    # Packet.net
+    # Packet
     {
-        'title': 'Packet.net',
+        'title': 'Packet',
         'provider': Provider.PACKET,
         'regions': []
     },
-    # ClearAPI
+    # Maxihost
     {
-        'title': 'ClearAPI',
-        'provider': Provider.CLEARAPI,
+        'title': 'Maxihost',
+        'provider': Provider.MAXIHOST,
         'regions': []
-    }
+    },
 ]
 
 # Base AMIs
@@ -1265,8 +1374,6 @@ EC2_IMAGES = {
         'ami-b968bad6': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-c425e4ab': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-25a97a4a': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-        'ami-e37b8e8c': 'CoreOS-stable-1068.8.0 (PV)',
-        'ami-7b7a8f14': 'CoreOS-stable-1068.8.0 (HVM',
     },
     'eu-west-1': {
         'ami-02ace471': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
@@ -1276,8 +1383,6 @@ EC2_IMAGES = {
         'ami-01ccc867': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-9186a1e2': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-09447c6f': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-        'ami-cbb5d5b8': 'CoreOS stable 1068.8.0 (HVM)',
-        'ami-b6b8d8c5': 'CoreOS stable 1068.8.0 (PV)',
     },
     'eu-west-2': {
         'ami-9c363cf8': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
@@ -1303,8 +1408,6 @@ EC2_IMAGES = {
         'ami-c58c1dd3': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-fde4ebea': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-772aa961': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-        'ami-098e011e': 'CoreOS stable 1068.8.0 (PV)',
-        'ami-368c0321': 'CoreOS stable 1068.8.0 (HVM)',
         'ami-8fb03898': 'ClearOS 7.2.0',
         'ami-0397f56a': 'ClearOS Community 6.4.0 ',
         'ami-ff9af896': 'ClearOS Professional 6.4.0'
@@ -1325,8 +1428,6 @@ EC2_IMAGES = {
         'ami-7a85a01a': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-e09acc80': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-1da8f27d': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-        'ami-ae2564ce': 'CoreOS stable 1068.8.0 (PV)',
-        'ami-bc2465dc': 'CoreOS stable 1068.8.0 (HVM)',
     },
     'us-west-2': {
         'ami-6f68cf0f': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
@@ -1336,8 +1437,6 @@ EC2_IMAGES = {
         'ami-4836a428': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-e4a30084': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-7c22b41c': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-        'ami-cfef22af': 'CoreOS stable 1068.8.0 (HVM)',
-        'ami-ecec218c': 'CoreOS stable 1068.8.0 (PV)',
     },
     'ap-northeast-1': {
         'ami-5de0433c': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
@@ -1347,8 +1446,6 @@ EC2_IMAGES = {
         'ami-923d12f5': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-e21c7285': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-d85e7fbf': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-        'ami-d0e21bb1': 'CoreOS stable 1068.8.0 (PV)',
-        'ami-fcd9209d': 'CoreOS stable 1068.8.0 (HVM)',
     },
     'ap-northeast-2': {
         'ami-44db152a': 'Red Hat Enterprise Linux 7.2 (HVM), SSD Volume Type',
@@ -1356,8 +1453,6 @@ EC2_IMAGES = {
         'ami-9d15c7f3': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-5060b73e': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-15d5077b': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-        'ami-91de14ff': 'CoreOS stable 1068.8.0 (HVM)',
-        'ami-9edf15f0': 'CoreOS stable 1068.8.0 (PV)'
     },
     'sa-east-1': {
         'ami-7de77b11': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
@@ -1367,8 +1462,6 @@ EC2_IMAGES = {
         'ami-37cfad5b': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-e1cd558d': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-8df695e1': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-        'ami-0317836f': 'CoreOS stable 1068.8.0 (PV)',
-        'ami-ef43d783': 'CoreOS stable 1068.8.0 (HVM)',
     },
     'ap-southeast-1': {
         'ami-2c95344f': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
@@ -1378,8 +1471,6 @@ EC2_IMAGES = {
         'ami-fc5ae39f': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-67b21d04': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-0a19a669': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-        'ami-3203df51': 'CoreOS stable 1068.8.0 (PV)',
-        'ami-9b00dcf8': 'CoreOS stable 1068.8.0 (HVM)',
     },
     'ap-southeast-2': {
         'ami-39ac915a': 'Red Hat Enterprise Linux 7.3 (HVM), SSD Volume Type',
@@ -1389,8 +1480,6 @@ EC2_IMAGES = {
         'ami-162c2575': 'Amazon Linux AMI 2017.03.0 (HVM), SSD Volume Type',
         'ami-527b4031': 'SUSE Linux Enterprise Server 12 SP2 (HVM), SSD Volume Type',  # noqa
         'ami-807876e3': 'Ubuntu Server 14.04 LTS (HVM), SSD Volume Type',
-        'ami-e8e4ce8b': 'CoreOS stable 1068.8.0 (HVM)',
-        'ami-ede4ce8e': 'CoreOS stable 1068.8.0 (PV)',
     },
     'ap-south-1': {
         'ami-cdbdd7a2': 'Red Hat Enterprise Linux 7.2 (HVM), SSD Volume Type',
@@ -1409,13 +1498,13 @@ DOCKER_IMAGES = {
 }
 
 AZURE_ARM_IMAGES = {
-    'MicrosoftWindowsServer:WindowsServer:2008-R2-SP1:2.127.20170918': 'MicrosoftWindowsServer WindowsServer 2008-R2-SP1 2.127.20170918',  # noqa
-    'MicrosoftWindowsServer:WindowsServer:2012-R2-Datacenter:4.127.20170822': 'MicrosoftWindowsServer WindowsServer 2012-R2-Datacenter 4.127.20170822',  # noqa
-    'MicrosoftWindowsServer:WindowsServer:2016-Datacenter:2016.127.20170918': 'MicrosoftWindowsServer WindowsServer 2016-Datacenter 2016.127.20170918',  # noqa
-    'SUSE:openSUSE-Leap:42.3:2017.07.26': 'SUSE openSUSE-Leap 42.3 2017.07.26',
-    'Canonical:UbuntuServer:16.04-LTS:16.04.201709190': 'Canonical UbuntuServer 16.04-LTS 16.04.201709190',  # noqa
-    'Canonical:UbuntuServer:14.04.5-LTS:14.04.201708310': 'Canonical UbuntuServer 14.04.5-LTS 14.04.201708310',  # noqa
-    'Canonical:UbuntuServer:17.04:17.04.201709220': 'Canonical UbuntuServer 17.04 17.04.201709220',  # noqa
+    'MicrosoftWindowsServer:WindowsServer:2012-Datacenter:9200.22776.20190604': 'MicrosoftWindowsServer WindowsServer 2012-Datacenter',  # noqa
+    'MicrosoftWindowsServer:WindowsServer:2012-Datacenter-smalldisk:9200.22830.1908092125': 'MicrosoftWindowsServer WindowsServer 2012-Datacenter-smalldisk',  # noqa
+    'MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core-smalldisk:14393.3025.20190604': 'MicrosoftWindowsServer WindowsServer 2016-Datacenter-Server-Core-smalldisk',  # noqa
+    'MicrosoftWindowsServer:WindowsServer:2016-Datacenter-with-Containers:2016.127.20190603': 'MicrosoftWindowsServer WindowsServer 2016-Datacenter-with-Containers',  # noqa
+    'MicrosoftWindowsServer:WindowsServer:2019-Datacenter:2019.0.20190410': 'MicrosoftWindowsServer WindowsServer 2019-Datacenter',  # noqa
+    'Canonical:UbuntuServer:16.04.0-LTS:16.04.201906280': 'Canonical UbuntuServer 16.04.0-LTS',  # noqa
+    'Canonical:UbuntuServer:18.04-LTS:18.04.201908131': 'Canonical UbuntuServer 18.04-LTS',  # noqa
     'RedHat:RHEL:7.3:7.3.2017090723': 'RedHat RHEL 7.3 7.3.2017090723',
     'RedHat:RHEL:6.9:6.9.2017090105': 'RedHat RHEL 6.9 6.9.2017090105',
 }
@@ -1482,6 +1571,21 @@ The mist.io team
 Govern the clouds
 """
 
+MACHINE_EXPIRE_NOTIFY_EMAIL_SUBJECT = "[mist.io] Machine is about to expire"
+
+MACHINE_EXPIRE_NOTIFY_EMAIL_BODY = """Dear %s,
+
+Your machine `%s` will expire on %s
+
+If you'd like to prevent that, please update the expiration date at %s
+%s
+Best regards,
+The mist.io team
+
+--
+%s
+Govern the clouds
+"""
 
 WHITELIST_IP_EMAIL_SUBJECT = "[mist.io] Account IP whitelist request"
 
@@ -1659,6 +1763,7 @@ STRIPE_PUBLIC_APIKEY = False
 ENABLE_AB = False
 ENABLE_R12N = False
 ENABLE_MONITORING = True
+ENABLE_SHELL_CAPTURE = False
 MACHINE_PATCHES = True
 LOCATION_PATCHES = True
 SIZE_PATCHES = True
@@ -1668,7 +1773,10 @@ ACCELERATE_MACHINE_POLLING = True
 PLUGINS = []
 PRE_ACTION_HOOKS = {}
 POST_ACTION_HOOKS = {}
-
+CURRENCY = {
+    'sign': '$',
+    'rate': '1'
+}
 # DO NOT PUT ANYTHING BELOW HERE UNLESS YOU KNOW WHAT YOU ARE DOING
 
 # Get settings from mist.core.
@@ -1885,7 +1993,8 @@ HOMEPAGE_INPUTS = {
         'signin_home': REDIRECT_HOME_TO_SIGNIN,
         'landing_footer': SHOW_FOOTER,
         'docs': DOCS_URI,
-        'support': SUPPORT_URI
+        'support': SUPPORT_URI,
+        'currency': CURRENCY
     },
     'email': {
         'info': EMAIL_INFO,

@@ -28,7 +28,6 @@ from mist.api.notifications.models import EmailAlert
 from mist.api.notifications.models import NoDataRuleTracker
 from mist.api.notifications.models import InAppRecommendation
 
-from mist.api.notifications.helpers import _log_alert
 from mist.api.notifications.helpers import _get_alert_details
 
 
@@ -36,7 +35,7 @@ log = logging.getLogger(__name__)
 
 
 def send_alert_email(rule, resource, incident_id, value, triggered, timestamp,
-                     emails, action=''):
+                     emails, action='', level='', description=''):
     """Send an alert e-mail to notify users that a rule was triggered.
 
     Arguments:
@@ -58,6 +57,8 @@ def send_alert_email(rule, resource, incident_id, value, triggered, timestamp,
                      vice versa.
         emails:      A list of e-mails to push notifications to.
         action:      An optional action to replace the default "alert".
+        description: An optional description to be added in the alert
+                     email body.
 
     Note that alerts aren't sent out every time a rule gets triggered,
     rather they obey the `EmailAlert.reminder_schedule` schedule that
@@ -69,7 +70,7 @@ def send_alert_email(rule, resource, incident_id, value, triggered, timestamp,
 
     # Get dict with alert details.
     info = _get_alert_details(resource, rule, incident_id, value,
-                              triggered, timestamp, action)
+                              triggered, timestamp, action, level, description)
 
     # Create a new EmailAlert if the alert has just been triggered.
     try:
@@ -88,9 +89,7 @@ def send_alert_email(rule, resource, incident_id, value, triggered, timestamp,
         alert.suppressed = suppress_nodata_alert(rule)
         alert.save()
         # Allows to log newly triggered incidents.
-        skip_log = False
     else:
-        skip_log = False if not triggered else True
         reminder = ' - Reminder %d' % alert.reminder_count if triggered else ''
         info['action'] += reminder
 
@@ -104,9 +103,14 @@ def send_alert_email(rule, resource, incident_id, value, triggered, timestamp,
         return
 
     # Create the e-mail body.
-    subject = '[mist.io] *** %(state)s *** from %(name)s: %(metric_name)s'
+    subject = \
+        '[%(portal_name)s] *** %(state)s *** %(resource_type)s '\
+        '`%(resource_name)s`: %(metric_name)s'
     alert.subject = subject % info
 
+    info['condition'] = info['condition'].replace(
+        '>', 'greater than').replace('<', 'less than').replace(
+            '=', 'equals').replace('{}', '')
     pt = os.path.join(os.path.dirname(__file__), 'templates/text_alert.pt')
     alert.text_body = PageTemplateFile(pt)(inputs=info)
 
@@ -126,11 +130,6 @@ def send_alert_email(rule, resource, incident_id, value, triggered, timestamp,
         alert.save()
     else:
         alert.delete()
-
-    # Log (un)triggered alert.
-    if skip_log is False:
-        _log_alert(resource, rule, value, triggered, timestamp, incident_id,
-                   action)
 
 
 def suppress_nodata_alert(rule):
@@ -207,9 +206,10 @@ def dismiss_scale_notifications(machine, feedback='NEUTRAL'):
     # Marking the recommendation as "dismissed by everyone" seems a bit wrong.
     # Perhaps recommendations' actions such as this one must be invoked by a
     # distinct API endpoint?
-    recommendation.applied = feedback == "POSITIVE"
-    user_ids = set(user.id for user in machine.owner.members)
-    user_ids ^= set(recommendation.dismissed_by)
-    recommendation.channel.dismiss(
-        users=[user for user in User.objects(id__in=user_ids).only('id')]
-    )
+    if recommendation is not None:
+        recommendation.applied = feedback == "POSITIVE"
+        user_ids = set(user.id for user in machine.owner.members)
+        user_ids ^= set(recommendation.dismissed_by)
+        recommendation.channel.dismiss(
+            users=[user for user in User.objects(id__in=user_ids).only('id')]
+        )

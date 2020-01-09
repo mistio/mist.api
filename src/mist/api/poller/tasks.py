@@ -5,6 +5,8 @@ from mist.api.celery_app import app
 
 from mist.api.methods import notify_user
 
+from mist.api.concurrency.models import PeriodicTaskLockTakenError
+from mist.api.concurrency.models import PeriodicTaskTooRecentLastRun
 
 log = logging.getLogger(__name__)
 
@@ -38,7 +40,10 @@ def list_machines(schedule_id):
     # FIXME: resolve circular deps error
     from mist.api.poller.models import ListMachinesPollingSchedule
     sched = ListMachinesPollingSchedule.objects.get(id=schedule_id)
-    sched.cloud.ctl.compute.list_machines(persist=False)
+    try:
+        sched.cloud.ctl.compute.list_machines(persist=False)
+    except (PeriodicTaskLockTakenError, PeriodicTaskTooRecentLastRun):
+        pass
 
 
 @app.task(time_limit=60, soft_time_limit=55)

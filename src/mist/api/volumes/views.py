@@ -9,28 +9,38 @@ from mist.api.volumes.methods import filter_list_volumes
 
 from mist.api.tag.methods import add_tags_to_resource
 from mist.api.auth.methods import auth_context_from_request
+from mist.api.clouds.methods import filter_list_clouds
 
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import CloudNotFoundError
 from mist.api.exceptions import VolumeNotFoundError
 from mist.api.exceptions import MachineNotFoundError
 from mist.api.exceptions import RequiredParameterMissingError
+from mist.api.exceptions import CloudUnauthorizedError, CloudUnavailableError
+
+from mist.api.tasks import async_session_update
 
 from mist.api.helpers import params_from_request, view_config
+from mist.api.helpers import trigger_session_update
+
+from mist.api import config
 
 
 OK = Response("OK", 200)
 
 
-@view_config(route_name='api_v1_volumes', request_method='GET',
-             renderer='json')
+@view_config(route_name='api_v1_volumes',
+             request_method='GET', renderer='json')
+@view_config(route_name='api_v1_cloud_volumes',
+             request_method='GET', renderer='json')
 def list_volumes(request):
     """
     Tags: volumes
     ---
     List the volumes of a cloud.
 
-    READ permission required on cloud
+    READ permission required on cloud.
+    READ permission required on location.
     ---
     cloud:
       in: path
@@ -41,20 +51,34 @@ def list_volumes(request):
 
     params = params_from_request(request)
 
-    cloud_id = request.matchdict['cloud']
-    cached = bool(params.get('cached', False))
+    cloud_id = request.matchdict.get('cloud')
 
-    try:
-        Cloud.objects.get(owner=auth_context.owner, id=cloud_id, deleted=None)
-    except Cloud.DoesNotExist:
-        raise CloudNotFoundError()
+    if cloud_id:
+        cached = bool(params.get('cached', False))
+        try:
+            Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
+                              deleted=None)
+        except Cloud.DoesNotExist:
+            raise CloudNotFoundError()
+        # SEC
+        auth_context.check_perm('cloud', 'read', cloud_id)
+        volumes = filter_list_volumes(auth_context, cloud_id, cached=cached)
+    else:
+        auth_context.check_perm("cloud", "read", None)
+        clouds = filter_list_clouds(auth_context)
+        volumes = []
+        for cloud in clouds:
+            if cloud.get('enabled'):
+                try:
+                    vols = filter_list_volumes(auth_context, cloud.get('id'))
+                    volumes.append(vols)
+                except (CloudUnavailableError, CloudUnauthorizedError):
+                    pass
 
-    # SEC
-    auth_context.check_perm('cloud', 'read', cloud_id)
-    return filter_list_volumes(auth_context, cloud_id, cached=cached)
+    return volumes
 
 
-@view_config(route_name='api_v1_volumes', request_method='POST',
+@view_config(route_name='api_v1_cloud_volumes', request_method='POST',
              renderer='json')
 def create_volume(request):
     """
@@ -63,7 +87,9 @@ def create_volume(request):
     Create a new volume.
 
     READ permission required on cloud.
-    CREATE_RESOURCES permission required on cloud
+    CREATE_RESOURCES permission required on cloud.
+    READ permission required on location.
+    CREATE_RESOURCES permission required on location.
     ADD permission required on volumes
     ---
     cloud:
@@ -91,17 +117,14 @@ def create_volume(request):
       type: string
       description: EC2-specific. Needs to be specified if volume_type='io1'
     """
-
     cloud_id = request.matchdict['cloud']
-
     params = params_from_request(request)
     name = params.get('name')
     size = params.get('size')
+    location = params.get('location')
 
     auth_context = auth_context_from_request(request)
-
-    if not name:
-        raise RequiredParameterMissingError('name')
+    owner = auth_context.owner
 
     if not size:
         raise RequiredParameterMissingError('size')
@@ -114,20 +137,43 @@ def create_volume(request):
 
     auth_context.check_perm("cloud", "read", cloud_id)
     auth_context.check_perm("cloud", "create_resources", cloud_id)
-    tags = auth_context.check_perm("volume", "add", None) or {}
+    auth_context.check_perm("location", "read", location)
+    auth_context.check_perm("location", "create_resources", location)
+    tags, _ = auth_context.check_perm("volume", "add", None)
+
+    if not name and cloud.ctl.provider != 'packet':
+        raise RequiredParameterMissingError('name')
 
     if not hasattr(cloud.ctl, 'storage'):
         raise NotImplementedError()
 
     volume = cloud.ctl.storage.create_volume(**params)
+    # ensure logging_view_decorator will log the right volume id
+    request.matchdict['volume'] = volume.id
 
     if tags:
         add_tags_to_resource(auth_context.owner, volume, tags)
 
+    # Set ownership.
+    volume.assign_to(auth_context.user)
+
+    trigger_session_update(owner.id, ['volumes'])
+
+    # SEC
+    # Update the RBAC & User/Ownership mappings with the new volume and finally
+    # trigger a session update by registering it as a chained task.
+    if config.HAS_RBAC:
+        owner.mapper.update(
+            volume,
+            callback=async_session_update, args=(owner.id, ['volumes'], )
+        )
+
     return volume.as_dict()
 
 
-@view_config(route_name='api_v1_volume', request_method='DELETE')
+@view_config(route_name='api_v1_volume',
+             request_method='DELETE', renderer='json')
+@view_config(route_name='api_v1_cloud_volume', request_method='DELETE')
 def delete_volume(request):
     """
     Tags: volumes
@@ -150,22 +196,40 @@ def delete_volume(request):
       schema:
         type: string
     """
-    cloud_id = request.matchdict['cloud']
-    external_id = request.matchdict['volume']
+    cloud_id = request.matchdict.get('cloud')
+    external_id = request.matchdict.get('volume_ext')
+    if external_id:
+        external_id = '/'.join(external_id)
+
+    volume_id = request.matchdict.get('volume_id')
 
     auth_context = auth_context_from_request(request)
 
-    try:
-        cloud = Cloud.objects.get(id=cloud_id, owner=auth_context.owner,
-                                  deleted=None)
-    except Cloud.DoesNotExist:
-        raise CloudNotFoundError()
+    if cloud_id:
+        try:
+            cloud = Cloud.objects.get(id=cloud_id, owner=auth_context.owner,
+                                      deleted=None)
+        except Cloud.DoesNotExist:
+            raise CloudNotFoundError()
 
-    try:
-        volume = Volume.objects.get(external_id=external_id, cloud=cloud,
-                                    missing_since=None)
-    except me.DoesNotExist:
-        raise VolumeNotFoundError()
+        if cloud.ctl.provider in ['azure_arm']:
+            external_id = '/' + external_id
+
+        try:
+            volume = Volume.objects.get(external_id=external_id, cloud=cloud,
+                                        missing_since=None)
+            # ensure logging_view_decorator will log the right volume id
+            request.matchdict['volume'] = volume.id
+        except me.DoesNotExist:
+            raise VolumeNotFoundError()
+    else:
+        try:
+            volume = Volume.objects.get(id=volume_id,
+                                        missing_since=None)
+        except me.DoesNotExist:
+            raise VolumeNotFoundError()
+
+        cloud = volume.cloud
 
     # SEC
     auth_context.check_perm('cloud', 'read', cloud.id)
@@ -178,7 +242,10 @@ def delete_volume(request):
 
 
 # FIXME: rename to attach/detach in logs
-@view_config(route_name='api_v1_volume', request_method='PUT', renderer='json')
+@view_config(route_name='api_v1_cloud_volume', request_method='PUT',
+             renderer='json')
+@view_config(route_name='api_v1_volume', request_method='PUT',
+             renderer='json')
 def volume_action(request):
     """
     Tags: volumes
@@ -206,13 +273,10 @@ def volume_action(request):
       type: string
       description: eg /dev/sdh. Required for EC2, optional for OpenStack
     """
+
     auth_context = auth_context_from_request(request)
 
     params = params_from_request(request)
-
-    cloud_id = request.matchdict['cloud']
-    external_id = request.matchdict['volume']
-
     action = params.pop('action', '')
     machine_uuid = params.pop('machine', '')
 
@@ -222,21 +286,43 @@ def volume_action(request):
     if not machine_uuid:
         raise RequiredParameterMissingError('machine')
 
-    try:
-        cloud = Cloud.objects.get(id=cloud_id, owner=auth_context.owner,
-                                  deleted=None)
-    except Cloud.DoesNotExist:
-        raise CloudNotFoundError()
+    cloud_id = request.matchdict.get('cloud')
+    external_id = request.matchdict.get('volume_ext')
+    if external_id:
+        external_id = '/'.join(external_id)
+
+    volume_id = request.matchdict.get('volume_id')
+
+    if cloud_id:
+
+        try:
+            cloud = Cloud.objects.get(id=cloud_id, owner=auth_context.owner,
+                                      deleted=None)
+        except Cloud.DoesNotExist:
+            raise CloudNotFoundError()
+
+        if cloud.ctl.provider in ['azure_arm']:
+            external_id = '/' + external_id
+
+        try:
+            volume = Volume.objects.get(external_id=external_id, cloud=cloud,
+                                        missing_since=None)
+            # ensure logging_view_decorator will log the right thing
+            request.matchdict['volume'] = volume.id
+        except me.DoesNotExist:
+            raise VolumeNotFoundError()
+
+    else:
+
+        try:
+            volume = Volume.objects.get(id=volume_id, missing_since=None)
+        except me.DoesNotExist:
+            raise VolumeNotFoundError()
+
+        cloud = volume.cloud
 
     try:
-        volume = Volume.objects.get(external_id=external_id, cloud=cloud,
-                                    missing_since=None)
-    except me.DoesNotExist:
-        raise VolumeNotFoundError()
-
-    try:
-        machine = Machine.objects.get(id=machine_uuid, cloud=cloud,
-                                      missing_since=None)
+        machine = Machine.objects.get(id=machine_uuid, missing_since=None)
     except Machine.DoesNotExist:
         raise MachineNotFoundError()
 

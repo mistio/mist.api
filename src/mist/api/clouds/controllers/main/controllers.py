@@ -86,6 +86,7 @@ class AlibabaMainController(AmazonMainController):
 
     provider = 'aliyun_ecs'
     ComputeController = compute_ctls.AlibabaComputeController
+    StorageController = storage_ctls.AlibabaStorageController
     NetworkController = None
     DnsController = None
 
@@ -102,6 +103,12 @@ class DigitalOceanMainController(BaseMainController):
     ComputeController = compute_ctls.DigitalOceanComputeController
     DnsController = dns_ctls.DigitalOceanDNSController
     StorageController = storage_ctls.DigitalOceanStorageController
+
+
+class MaxihostMainController(BaseMainController):
+
+    provider = 'maxihost'
+    ComputeController = compute_ctls.MaxihostComputeController
 
 
 class LinodeMainController(BaseMainController):
@@ -138,12 +145,6 @@ class SoftLayerMainController(BaseMainController):
     provider = 'softlayer'
     ComputeController = compute_ctls.SoftLayerComputeController
     DnsController = dns_ctls.SoftLayerDNSController
-
-
-class NephoScaleMainController(BaseMainController):
-
-    provider = 'nephoscale'
-    ComputeController = compute_ctls.NephoScaleComputeController
 
 
 class AzureMainController(BaseMainController):
@@ -196,6 +197,7 @@ class PacketMainController(BaseMainController):
 
     provider = 'packet'
     ComputeController = compute_ctls.PacketComputeController
+    StorageController = storage_ctls.PacketStorageController
 
 
 class VultrMainController(BaseMainController):
@@ -250,6 +252,7 @@ class OpenStackMainController(BaseMainController):
     def _update__preparse_kwargs(self, kwargs):
         rename_kwargs(kwargs, 'auth_url', 'url')
         rename_kwargs(kwargs, 'tenant_name', 'tenant')
+        rename_kwargs(kwargs, 'domain_name', 'domain')
         url = kwargs.get('url', self.cloud.url)
         if url:
             if url.endswith('/v2.0/'):
@@ -312,12 +315,15 @@ class LibvirtMainController(BaseMainController):
         # host.
         from mist.api.machines.models import Machine
 
+        host_machine_id = self.cloud.host.replace('.', '-')
         try:
-            machine = Machine.objects.get(cloud=self.cloud,
-                                          machine_id=self.cloud.host)
+            machine = Machine.objects.get(
+                cloud=self.cloud,
+                machine_id=host_machine_id)
         except me.DoesNotExist:
-            machine = Machine.objects(cloud=self.cloud,
-                                      machine_id=self.cloud.host).save()
+            machine = Machine(cloud=self.cloud,
+                              name=self.cloud.name,
+                              machine_id=host_machine_id).save()
         if self.cloud.key:
             machine.ctl.associate_key(self.cloud.key,
                                       username=self.cloud.username,
@@ -372,7 +378,7 @@ class OtherMainController(BaseMainController):
         try:
             self.cloud.save()
         except me.ValidationError as exc:
-            raise BadRequestError({'msg': exc.message,
+            raise BadRequestError({'msg': str(exc),
                                    'errors': exc.to_dict()})
         except me.NotUniqueError:
             raise CloudExistsError("Cloud with name %s already exists"
@@ -462,10 +468,12 @@ class OtherMainController(BaseMainController):
         # Enable monitoring.
         if monitoring:
             from mist.api.monitoring.methods import enable_monitoring
+            from mist.api.machines.models import KeyMachineAssociation
             enable_monitoring(
                 self.cloud.owner, self.cloud.id, machine.machine_id,
                 no_ssh=not (machine.os_type == 'unix' and
-                            machine.key_associations)
+                            KeyMachineAssociation.objects(
+                                machine=machine).count())
             )
 
         return machine
@@ -530,7 +538,7 @@ class OtherMainController(BaseMainController):
                                           "machine hostname is empty.")
                 to_tunnel(self.cloud.owner, host)  # May raise VPNTunnelError
                 ssh_command(
-                    self.cloud.owner, self.cloud.id, machine.machine_id, host,
+                    self.cloud.owner, self.cloud.id, machine.id, host,
                     'uptime', key_id=ssh_key.id, username=ssh_user,
                     port=ssh_port
                 )

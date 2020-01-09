@@ -1,10 +1,11 @@
 """Key entity model"""
+import io
 import logging
 from uuid import uuid4
 import mongoengine as me
-import mist.api.tag.models
-from Crypto.PublicKey import RSA
+from paramiko.rsakey import RSAKey
 
+import mist.api.tag.models
 from mist.api.users.models import Owner
 from mist.api.exceptions import BadRequestError
 from mist.api.keys import controllers
@@ -71,7 +72,7 @@ class Key(OwnershipMixin, me.Document):
     id = me.StringField(primary_key=True,
                         default=lambda: uuid4().hex)
     name = me.StringField(required=True)
-    owner = me.ReferenceField(Owner)
+    owner = me.ReferenceField(Owner, reverse_delete_rule=me.CASCADE)
     default = me.BooleanField(default=False)
     deleted = me.DateTimeField()
 
@@ -125,7 +126,8 @@ class Key(OwnershipMixin, me.Document):
 
     def delete(self):
         super(Key, self).delete()
-        mist.api.tag.models.Tag.objects(resource=self).delete()
+        mist.api.tag.models.Tag.objects(
+            resource_id=self.id, resource_type='key').delete()
         self.owner.mapper.remove(self)
         if self.owned_by:
             self.owned_by.get_ownership_mapper(self.owner).remove(self)
@@ -166,13 +168,10 @@ class SSHKey(Key):
         from Crypto import Random
         Random.atfork()
 
-        if 'RSA' not in self.private:
-            raise me.ValidationError("Private key is not a valid RSA key.")
-
         # Generate public key from private key file.
         try:
-            key = RSA.importKey(self.private)
-            self.public = key.publickey().exportKey('OpenSSH').decode()
+            key = RSAKey.from_private_key(io.StringIO(self.private))
+            self.public = 'ssh-rsa ' + key.get_base64()
         except Exception:
             log.exception("Error while constructing public key "
                           "from private.")

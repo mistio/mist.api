@@ -1,0 +1,22 @@
+#!/usr/bin/env python
+
+# Migrate key associations from embedded document inside Machine model to a
+# standalone collection
+
+from mist.api.machines.models import Machine, KeyMachineAssociation
+from mist.api.keys.models import Key
+
+
+def migrate_key_associations():
+    for machine in Machine.objects(key_associations__0__exists=True):
+        for association in machine.key_associations:
+            KeyMachineAssociation(
+                machine=machine, key=association.keypair,
+                port=association.port, ssh_user=association.ssh_user,
+                sudo=association.sudo, last_used=association.last_used).save()
+        machine.key_associations = []
+        machine.save()
+
+
+if __name__ == '__main__':
+    migrate_key_associations()

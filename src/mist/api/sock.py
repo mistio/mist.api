@@ -182,8 +182,7 @@ class ShellConnection(MistConnection):
             self.close()
         try:
             if not data.get('job_id'):
-                m = Machine.objects.get(cloud=data['cloud_id'],
-                                        machine_id=data['machine_id'])
+                m = Machine.objects.get(id=data['machine_id'])
                 self.auth_context.check_perm('machine', 'open_shell', m.id)
         except PolicyUnauthorizedError as err:
             self.emit_shell_data('%s' % err)
@@ -342,8 +341,10 @@ class MainConnection(MistConnection):
     def update_org(self):
         try:
             org = filter_org(self.auth_context)
-        except:  # Forbidden
+        except Exception as e:  # Forbidden
             org = None
+            log.error('Failed to filter org %s: %r' % (
+                self.auth_context.org, e))
 
         if org:
             self.send('org', org)
@@ -397,66 +398,69 @@ class MainConnection(MistConnection):
         for cloud in clouds:
             if not cloud.enabled:
                 continue
-            self.internal_request(
-                'api/v1/clouds/%s/machines' % cloud.id,
-                params={'cached': True},
-                callback=lambda machines, cloud_id=cloud.id: self.send(
-                    'list_machines',
-                    {'cloud_id': cloud_id, 'machines': machines}
-                ),
-            )
-            self.internal_request(
-                'api/v1/clouds/%s/locations' % cloud.id,
-                params={'cached': True},
-                callback=lambda locations, cloud_id=cloud.id: self.send(
-                    'list_locations',
-                    {'cloud_id': cloud_id, 'locations': locations}
-                ),
-            )
-            self.internal_request(
-                'api/v1/clouds/%s/sizes' % cloud.id,
-                params={'cached': True},
-                callback=lambda sizes, cloud_id=cloud.id: self.send(
-                    'list_sizes',
-                    {'cloud_id': cloud_id, 'sizes': sizes}
-                ),
-            )
-            self.internal_request(
-                'api/v1/clouds/%s/networks' % cloud.id,
-                params={'cached': True},
-                callback=lambda networks, cloud_id=cloud.id: self.send(
-                    'list_networks',
-                    {'cloud_id': cloud_id, 'networks': networks}
-                ),
-            )
-            self.internal_request(
-                'api/v1/clouds/%s/zones' % cloud.id,
-                params={'cached': True},
-                callback=lambda zones, cloud_id=cloud.id: self.send(
-                    'list_zones',
-                    {'cloud_id': cloud_id, 'zones': zones}
-                ),
-            )
-            self.internal_request(
-                'api/v1/clouds/%s/volumes' % cloud.id,
-                params={'cached': True},
-                callback=lambda volumes, cloud_id=cloud.id: self.send(
-                    'list_volumes',
-                    {'cloud_id': cloud_id, 'volumes': volumes}
-                ),
-            )
-            self.internal_request(
-                'api/v1/clouds/%s/images' % cloud.id,
-                params={'cached': True},
-                callback=lambda images, cloud_id=cloud.id: self.send(
-                    'list_images',
-                    {'cloud_id': cloud_id, 'images': images}
-                ),
-            )
+            if cloud.ctl.ComputeController:
+                self.internal_request(
+                    'api/v1/clouds/%s/machines' % cloud.id,
+                    params={'cached': True},
+                    callback=lambda machines, cloud_id=cloud.id: self.send(
+                        'list_machines',
+                        {'cloud_id': cloud_id, 'machines': machines}
+                    ),
+                )
+                self.internal_request(
+                    'api/v1/clouds/%s/locations' % cloud.id,
+                    params={'cached': True},
+                    callback=lambda locations, cloud_id=cloud.id: self.send(
+                        'list_locations',
+                        {'cloud_id': cloud_id, 'locations': locations}
+                    ),
+                )
+                self.internal_request(
+                    'api/v1/clouds/%s/sizes' % cloud.id,
+                    params={'cached': True},
+                    callback=lambda sizes, cloud_id=cloud.id: self.send(
+                        'list_sizes',
+                        {'cloud_id': cloud_id, 'sizes': sizes}
+                    ),
+                )
+                self.internal_request(
+                    'api/v1/clouds/%s/images' % cloud.id,
+                    params={'cached': True},
+                    callback=lambda images, cloud_id=cloud.id: self.send(
+                        'list_images',
+                        {'cloud_id': cloud_id, 'images': images}
+                    ),
+                )
+            if cloud.ctl.NetworkController:
+                self.internal_request(
+                    'api/v1/clouds/%s/networks' % cloud.id,
+                    params={'cached': True},
+                    callback=lambda networks, cloud_id=cloud.id: self.send(
+                        'list_networks',
+                        {'cloud_id': cloud_id, 'networks': networks}
+                    ),
+                )
+            if cloud.ctl.DnsController:
+                self.internal_request(
+                    'api/v1/clouds/%s/zones' % cloud.id,
+                    params={'cached': True},
+                    callback=lambda zones, cloud_id=cloud.id: self.send(
+                        'list_zones',
+                        {'cloud_id': cloud_id, 'zones': zones}
+                    ),
+                )
+            if cloud.ctl.StorageController:
+                self.internal_request(
+                    'api/v1/clouds/%s/volumes' % cloud.id,
+                    params={'cached': True},
+                    callback=lambda volumes, cloud_id=cloud.id: self.send(
+                        'list_volumes',
+                        {'cloud_id': cloud_id, 'volumes': volumes}
+                    ),
+                )
 
         # Old Periodic Tasks (must be replaced by poller tasks and api calls.
-        for key in ('list_resource_groups', 'list_storage_accounts',
-                    'list_projects'):
+        for key in ('list_images', 'list_projects'):
             task = getattr(tasks, key)
             for cloud in clouds:
                 # Avoid submitting new celery tasks, when it's certain that
@@ -530,9 +534,7 @@ class MainConnection(MistConnection):
             result = body
         log.info("Got %s", routing_key)
         if routing_key in set(['notify', 'probe', 'list_sizes', 'list_images',
-                               'list_locations', 'list_projects', 'ping',
-                               'list_resource_groups',
-                               'list_storage_accounts']):
+                               'list_locations', 'list_projects', 'ping']):
             self.send(routing_key, result)
 
         elif routing_key == 'update':
@@ -603,12 +605,6 @@ class MainConnection(MistConnection):
                     line['path'] = '/clouds/%s/locations/%s' % (cloud_id, _id)
                 elif routing_key == 'patch_sizes':
                     line['path'] = '/clouds/%s/sizes/%s' % (cloud_id, _id)
-                elif routing_key == 'patch_networks':
-                    line['path'] = '/clouds/%s/networks/%s' % (cloud_id, _id)
-                elif routing_key == 'patch_zones':
-                    line['path'] = '/clouds/%s/zones/%s' % (cloud_id, _id)
-                elif routing_key == 'patch_volumes':
-                    line['path'] = '/clouds/%s/volumes/%s' % (cloud_id, _id)
             if patch:
                 self.batch.extend(patch)
 

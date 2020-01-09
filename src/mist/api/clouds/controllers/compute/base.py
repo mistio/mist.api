@@ -22,7 +22,7 @@ import mongoengine as me
 
 from libcloud.common.types import InvalidCredsError
 from libcloud.compute.types import NodeState
-from libcloud.compute.base import NodeLocation, Node, NodeSize
+from libcloud.compute.base import NodeLocation, Node, NodeSize, NodeImage
 from libcloud.common.exceptions import BaseHTTPError
 from mist.api.clouds.utils import LibcloudExceptionHandler
 
@@ -37,6 +37,7 @@ from mist.api.exceptions import MachineNotFoundError
 from mist.api.exceptions import CloudUnavailableError
 from mist.api.exceptions import CloudUnauthorizedError
 from mist.api.exceptions import SSLError
+from mist.api.exceptions import MistNotImplementedError
 
 from mist.api.helpers import get_datetime
 from mist.api.helpers import amqp_publish
@@ -85,7 +86,7 @@ def _decide_machine_cost(machine, tags=None, cost=(0, 0)):
 
     # Get machine tags from db
     tags = tags or {tag.key: tag.value for tag in Tag.objects(
-        resource=machine,
+        resource_id=machine.id, resource_type='machine'
     )}
 
     try:
@@ -202,6 +203,7 @@ class BaseComputeController(BaseController):
         """
         task_key = 'cloud:list_machines:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
+        first_run = False if task.last_success else True
         try:
             with task.task_runner(persist=persist):
                 cached_machines = [m.as_dict()
@@ -211,7 +213,7 @@ class BaseComputeController(BaseController):
             self.cloud.ctl.disable()
             raise
 
-        self.produce_and_publish_patch(cached_machines, machines)
+        self.produce_and_publish_patch(cached_machines, machines, first_run)
 
         # Push historic information for inventory and cost reporting.
         for machine in machines:
@@ -223,10 +225,8 @@ class BaseComputeController(BaseController):
 
         return machines
 
-    def produce_and_publish_patch(self, cached_machines, fresh_machines):
-        if not amqp_owner_listening(self.cloud.owner.id):
-            return
-
+    def produce_and_publish_patch(self, cached_machines, fresh_machines,
+                                  first_run=False):
         old_machines = {'%s-%s' % (m['id'], m['machine_id']): m
                         for m in cached_machines}
         new_machines = {'%s-%s' % (m.id, m.machine_id): m.as_dict()
@@ -244,10 +244,15 @@ class BaseComputeController(BaseController):
         patch = jsonpatch.JsonPatch.from_diff(old_machines,
                                               new_machines).patch
         if patch:  # Publish patches to rabbitmq.
-            amqp_publish_user(self.cloud.owner.id,
-                              routing_key='patch_machines',
-                              data={'cloud_id': self.cloud.id,
-                                    'patch': patch})
+            if not first_run and self.cloud.observation_logs_enabled:
+                from mist.api.logs.methods import log_observations
+                log_observations(self.cloud.owner.id, self.cloud.id,
+                                 'machine', patch, old_machines, new_machines)
+            if amqp_owner_listening(self.cloud.owner.id):
+                amqp_publish_user(self.cloud.owner.id,
+                                  routing_key='patch_machines',
+                                  data={'cloud_id': self.cloud.id,
+                                        'patch': patch})
 
     def _list_machines(self):
         """Core logic of list_machines method
@@ -278,7 +283,7 @@ class BaseComputeController(BaseController):
         except InvalidCredsError as exc:
             log.warning("Invalid creds on running list_nodes on %s: %s",
                         self.cloud, exc)
-            raise CloudUnauthorizedError(msg=exc.message)
+            raise CloudUnauthorizedError(msg=str(exc))
         except (requests.exceptions.SSLError, ssl.SSLError) as exc:
             log.error("SSLError on running list_nodes on %s: %s",
                       self.cloud, exc)
@@ -328,8 +333,10 @@ class BaseComputeController(BaseController):
                     machine = Machine(
                         cloud=self.cloud, machine_id=node.id).save()
                     new_machines.append(machine)
-                except me.ValidationError:
-                    pass
+                except me.ValidationError as exc:
+                    log.warn("Validation error when saving new machine: %r" %
+                             exc)
+                    continue
 
             # Update machine_model's last_seen fields.
             machine.last_seen = now
@@ -347,16 +354,19 @@ class BaseComputeController(BaseController):
 
             # Get misc libcloud metadata.
             image_id = ''
-            if isinstance(node.extra.get('image'), dict):
+            if isinstance(node.image, NodeImage):
+                image_id = node.image.id
+            elif isinstance(node.extra.get('image'), dict):
                 image_id = str(node.extra.get('image').get('id'))
 
             if not image_id:
                 image_id = str(node.image or node.extra.get('imageId') or
-                            node.extra.get('image_id') or
-                            node.extra.get('image') or '')
-
-            image = self._list_machines_get_image(image_id)
-
+                               node.extra.get('image_id') or
+                               node.extra.get('image'))
+            if not image_id:
+                image_id = node.extra.get('operating_system')
+                if isinstance(image_id, dict):
+                    image_id = image_id.get('name')
 
             # Attempt to map machine's size to a CloudSize object. If not
             # successful, try to discover custom size.
@@ -462,7 +472,7 @@ class BaseComputeController(BaseController):
                 machine.save()
             except me.ValidationError as exc:
                 log.error("Error adding %s: %s", machine.name, exc.to_dict())
-                raise BadRequestError({"msg": exc.message,
+                raise BadRequestError({"msg": str(exc),
                                        "errors": exc.to_dict()})
             except me.NotUniqueError as exc:
                 log.error("Machine %s not unique error: %s", machine.name, exc)
@@ -536,7 +546,8 @@ class BaseComputeController(BaseController):
         for action in ('start', 'stop', 'reboot', 'destroy', 'rename',
                        'resume', 'suspend', 'undefine', 'remove'):
             setattr(machine.actions, action, False)
-        if machine.key_associations:
+        from mist.api.machines.models import KeyMachineAssociation
+        if KeyMachineAssociation.objects(machine=machine).count():
             machine.actions.reboot = True
         machine.actions.tag = True
 
@@ -925,7 +936,7 @@ class BaseComputeController(BaseController):
         except InvalidCredsError as exc:
             log.warning("Invalid creds on running list_sizes on %s: %s",
                         self.cloud, exc)
-            raise CloudUnauthorizedError(msg=exc.message)
+            raise CloudUnauthorizedError(msg=str(exc))
         except (requests.exceptions.SSLError, ssl.SSLError) as exc:
             log.error("SSLError on running list_sizes on %s: %s",
                       self.cloud, exc)
@@ -951,8 +962,7 @@ class BaseComputeController(BaseController):
             _size.disk = size.disk
             _size.bandwidth = size.bandwidth
             _size.missing_since = None
-            _size.extra = {'description': size.extra.get('description', '')}
-            _size.extra.update({'price': size.price})
+            _size.extra = self._list_sizes__get_extra(size)
             if size.ram:
                 try:
                     _size.ram = int(re.sub("\D", "", str(size.ram)))
@@ -970,7 +980,7 @@ class BaseComputeController(BaseController):
                 sizes.append(_size)
             except me.ValidationError as exc:
                 log.error("Error adding %s: %s", size.name, exc.to_dict())
-                raise BadRequestError({"msg": exc.message,
+                raise BadRequestError({"msg": str(exc),
                                        "errors": exc.to_dict()})
 
         # Update missing_since for sizes not returned by libcloud
@@ -1032,6 +1042,14 @@ class BaseComputeController(BaseController):
 
     def _list_sizes__get_name(self, size):
         return size.name
+
+    def _list_sizes__get_extra(self, size):
+        extra = {}
+        if size.extra:
+            extra = size.extra
+        if size.price:
+            extra.update({'price': size.price})
+        return extra
 
     def list_cached_sizes(self):
         """Return list of sizes from database for a specific cloud"""
@@ -1134,7 +1152,7 @@ class BaseComputeController(BaseController):
                 _location.save()
             except me.ValidationError as exc:
                 log.error("Error adding %s: %s", loc.name, exc.to_dict())
-                raise BadRequestError({"msg": exc.message,
+                raise BadRequestError({"msg": str(exc),
                                        "errors": exc.to_dict()})
             locations.append(_location)
 
@@ -1230,7 +1248,7 @@ class BaseComputeController(BaseController):
             raise
         except Exception as exc:
             log.exception(exc)
-            raise InternalServerError(exc.message)
+            raise InternalServerError(str(exc))
 
     def _start_machine(self, machine, machine_libcloud):
         """Private method to start a given machine
@@ -1388,8 +1406,9 @@ class BaseComputeController(BaseController):
             log.exception(exc)
             raise InternalServerError(exc=exc)
 
-        while machine.key_associations:
-            machine.key_associations.pop()
+        from mist.api.machines.models import KeyMachineAssociation
+        KeyMachineAssociation.objects(machine=machine).delete()
+
         machine.state = 'terminated'
         machine.save()
         return ret
@@ -1502,7 +1521,7 @@ class BaseComputeController(BaseController):
             raise
         except Exception as exc:
             log.exception(exc)
-            raise InternalServerError(exc.message)
+            raise InternalServerError(str(exc))
 
     def _rename_machine(self, machine, machine_libcloud, name):
         """Private method to rename a given machine
@@ -1561,7 +1580,7 @@ class BaseComputeController(BaseController):
         Differnent cloud controllers should override this private method, which
         is called by the public method `resume_machine`.
         """
-        raise NotImplementedError()
+        raise MistNotImplementedError()
 
     def suspend_machine(self, machine):
         """Suspend machine
@@ -1594,7 +1613,7 @@ class BaseComputeController(BaseController):
             raise
         except Exception as exc:
             log.exception(exc)
-            raise InternalServerError(exc.message)
+            raise InternalServerError(str(exc))
 
     def _suspend_machine(self, machine, machine_libcloud):
         """Private method to suspend a given machine
@@ -1608,7 +1627,7 @@ class BaseComputeController(BaseController):
         Differnent cloud controllers should override this private method, which
         is called by the public method `suspend_machine`.
         """
-        raise NotImplementedError()
+        raise MistNotImplementedError()
 
     def undefine_machine(self, machine):
         """Undefine machine
@@ -1641,7 +1660,7 @@ class BaseComputeController(BaseController):
             raise
         except Exception as exc:
             log.exception(exc)
-            raise BadRequestError(exc.message)
+            raise BadRequestError(str(exc))
 
     def _undefine_machine(self, machine, machine_libcloud):
         """Private method to undefine a given machine
@@ -1655,7 +1674,7 @@ class BaseComputeController(BaseController):
         Different cloud controllers should override this private method, which
         is called by the public method `undefine_machine`.
         """
-        raise NotImplementedError()
+        raise MistNotImplementedError()
 
     def create_machine_snapshot(self, machine, snapshot_name, description='',
                                 dump_memory=False, quiesce=False):
@@ -1693,7 +1712,7 @@ class BaseComputeController(BaseController):
             raise
         except Exception as exc:
             log.exception(exc)
-            raise BadRequestError(exc.message)
+            raise BadRequestError(str(exc))
 
     def _create_machine_snapshot(self, machine, machine_libcloud,
                                  snapshot_name, description='',
@@ -1713,7 +1732,7 @@ class BaseComputeController(BaseController):
         Different cloud controllers should override this private method, which
         is called by the public method `create_machine_snapshot`.
         """
-        raise NotImplementedError()
+        raise MistNotImplementedError()
 
     def remove_machine_snapshot(self, machine, snapshot_name=None):
         """Remove a snapshot of a machine
@@ -1748,7 +1767,7 @@ class BaseComputeController(BaseController):
             raise
         except Exception as exc:
             log.exception(exc)
-            raise BadRequestError(exc.message)
+            raise BadRequestError(str(exc))
 
     def _remove_machine_snapshot(self, machine, machine_libcloud,
                                  snapshot_name=None):
@@ -1764,7 +1783,7 @@ class BaseComputeController(BaseController):
         Different cloud controllers should override this private method, which
         is called by the public method `remove_machine_snapshot`.
         """
-        raise NotImplementedError()
+        raise MistNotImplementedError()
 
     def revert_machine_to_snapshot(self, machine, snapshot_name=None):
         """Revert machine to selected snapshot
@@ -1800,7 +1819,7 @@ class BaseComputeController(BaseController):
             raise
         except Exception as exc:
             log.exception(exc)
-            raise BadRequestError(exc.message)
+            raise BadRequestError(str(exc))
 
     def _revert_machine_to_snapshot(self, machine, machine_libcloud,
                                     snapshot_name=None):
@@ -1816,7 +1835,7 @@ class BaseComputeController(BaseController):
         Different cloud controllers should override this private method, which
         is called by the public method `revert_machine_to_snapshot`.
         """
-        raise NotImplementedError()
+        raise MistNotImplementedError()
 
     def list_machine_snapshots(self, machine):
         """List snapshots of a machine
@@ -1848,7 +1867,7 @@ class BaseComputeController(BaseController):
             raise
         except Exception as exc:
             log.exception(exc)
-            raise InternalServerError(exc.message)
+            raise InternalServerError(str(exc))
 
     def _list_machine_snapshots(self, machine, machine_libcloud):
         """Private method to list a given machine's snapshots
@@ -1862,7 +1881,7 @@ class BaseComputeController(BaseController):
         Different cloud controllers should override this private method, which
         is called by the public method `list_machine_snapshots`.
         """
-        raise NotImplementedError()
+        raise MistNotImplementedError()
 
     def clone_machine(self, machine, name=None, resume=False):
         """Clone machine
@@ -1913,4 +1932,4 @@ class BaseComputeController(BaseController):
         which is called by the public method `clone_machine`.
 
         """
-        raise NotImplementedError()
+        raise MistNotImplementedError()

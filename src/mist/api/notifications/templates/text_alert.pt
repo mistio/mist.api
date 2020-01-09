@@ -1,24 +1,23 @@
-================== Mist.io Alert ===================
-
-Machine name: ${inputs.name}
-Host: ${inputs.host}
+================== ${inputs.portal_name} Alert ===================
+<span tal:condition="inputs.host|nothing" tal:omit-tag>
+Host: ${inputs.host}</span>
+${inputs.resource_type.capitalize()} name: ${inputs.resource_name}
 Condition: ${inputs.condition}
 State: ${inputs.state}
 Action: ${inputs.action}
-Date: ${inputs.time}
+Date: ${inputs.time}<span tal:condition="inputs.description|nothing" tal:omit-tag>
+Description: ${inputs.description}</span>
 
 ===================== Details ======================
 
 ${inputs.state} - ${inputs.metric_name} is ${inputs.curr_value} since ${inputs.since}
 
-If you wish to access your machine, you can use the following link:
-${inputs.machine_link}
+If you wish to access your ${inputs.resource_type}, you can use the following link:
+${inputs.resource_link}
 
 ====================================================
 
 If you'd prefer not to receive these emails, you can unsubscribe using the link below:
 %nsub%
-
-Made by mist.io, Inc  |  620 Folsom St  |  San Francisco, CA  |  94107
 
 Visit ${inputs.uri}

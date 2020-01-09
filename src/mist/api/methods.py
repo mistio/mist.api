@@ -19,6 +19,7 @@ from mist.api.shell import Shell
 
 from mist.api.exceptions import MistError
 from mist.api.exceptions import RequiredParameterMissingError
+from mist.api.exceptions import CloudNotFoundError
 
 from mist.api.helpers import amqp_publish_user
 
@@ -69,6 +70,34 @@ def ssh_command(owner, cloud_id, machine_id, host, command,
     retval, output = shell.command(command)
     shell.disconnect()
     return output
+
+
+def list_locations(owner, cloud_id, cached=False):
+    """List the locations of the specified cloud"""
+    try:
+        cloud = Cloud.objects.get(owner=owner, id=cloud_id)
+    except Cloud.DoesNotExist:
+        raise CloudNotFoundError()
+    if cached:
+        locations = cloud.ctl.compute.list_cached_locations()
+    else:
+        locations = cloud.ctl.compute.list_locations()
+    return [location.as_dict() for location in locations]
+
+
+def filter_list_locations(auth_context, cloud_id, locations=None, perm='read',
+                          cached=False):
+    """Filter the locations of the specific cloud based on RBAC policy"""
+    if locations is None:
+        locations = list_locations(auth_context.owner, cloud_id, cached)
+    if not auth_context.is_owner():
+        allowed_resources = auth_context.get_allowed_resources(perm)
+        if cloud_id not in allowed_resources['clouds']:
+            return {'cloud_id': cloud_id, 'locations': []}
+        for i in range(len(locations) - 1, -1, -1):
+            if locations[i]['id'] not in allowed_resources['locations']:
+                locations.pop(i)
+    return locations
 
 
 def list_images(owner, cloud_id, term=None):
@@ -132,24 +161,18 @@ def list_resource_groups(owner, cloud_id):
     this returns an empty list
     """
     cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
-    conn = connect_provider(cloud)
 
-    ret = {}
-    if conn.type in [Provider.AZURE_ARM]:
+    if cloud.ctl.provider in ['azure_arm']:
+        conn = connect_provider(cloud)
         groups = conn.ex_list_resource_groups()
     else:
         groups = []
 
-    ret = [{'id': group.name,
+    ret = [{'id': group.id,
             'name': group.name,
             'extra': group.extra
             }
            for group in groups]
-    return ret
-
-    if conn.type == 'libvirt':
-        # close connection with libvirt
-        conn.disconnect()
     return ret
 
 
@@ -159,25 +182,38 @@ def list_storage_accounts(owner, cloud_id):
     this returns an empty list
     """
     cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
-    conn = connect_provider(cloud)
-
-    ret = {}
-    if conn.type in [Provider.AZURE_ARM]:
+    if cloud.ctl.provider in ['azure_arm']:
+        conn = connect_provider(cloud)
         accounts = conn.ex_list_storage_accounts()
     else:
         accounts = []
 
-    ret = [{'id': account.name,
-            'name': account.name,
-            'extra': account.extra
-            }
-           for account in accounts]
-    return ret
+    storage_accounts = []
+    resource_groups = conn.ex_list_resource_groups()
+    for account in accounts:
+        location_id = account.location
 
-    if conn.type == 'libvirt':
-        # close connection with libvirt
-        conn.disconnect()
-    return ret
+        # FIXME: circular import
+        from mist.api.clouds.models import CloudLocation
+        try:
+            location = CloudLocation.objects.get(external_id=location_id,
+                                                 cloud=cloud)
+        except CloudLocation.DoesNotExist:
+            pass
+        r_group_name = account.id.split('resourceGroups/')[1].split('/')[0]
+        r_group_id = ''
+        for resource_group in resource_groups:
+            if resource_group.name == r_group_name:
+                r_group_id = resource_group.id
+                break
+        storage_account = {'id': account.id,
+                           'name': account.name,
+                           'location': location.id if location else None,
+                           'extra': account.extra,
+                           'resource_group': r_group_id}
+        storage_accounts.append(storage_account)
+
+    return storage_accounts
 
 
 # TODO deprecate this!
@@ -209,11 +245,11 @@ def probe_ssh_only(owner, cloud_id, machine_id, host, key_id='', ssh_user='',
     # run SSH commands
     command = (
         "echo \""
-        "sudo -n uptime 2>&1|"
+        "LC_NUMERIC=en_US.UTF-8 sudo -n uptime 2>&1|"
         "grep load|"
         "wc -l && "
         "echo -------- && "
-        "uptime && "
+        "LC_NUMERIC=en_US.UTF-8 uptime && "
         "echo -------- && "
         "if [ -f /proc/uptime ]; then cat /proc/uptime | cut -d' ' -f1; "
         "else expr `date '+%s'` - `sysctl kern.boottime | sed -En 's/[^0-9]*([0-9]+).*/\\1/p'`;"  # noqa
@@ -241,7 +277,7 @@ def probe_ssh_only(owner, cloud_id, machine_id, host, key_id='', ssh_user='',
         cmd_output = ssh_command(owner, cloud_id, machine_id,
                                  host, command, key_id=key_id)
     else:
-        retval, cmd_output = shell.command(command)
+        _, cmd_output = shell.command(command)
     cmd_output = [str(part).strip()
                   for part in cmd_output.replace('\r', '').split('--------')]
     log.warn(cmd_output)
@@ -250,8 +286,10 @@ def probe_ssh_only(owner, cloud_id, machine_id, host, key_id='', ssh_user='',
     users = re.split(' users?', uptime_output)[0].split(', ')[-1].strip()
     uptime = cmd_output[2]
     cores = cmd_output[3]
-    ips = re.findall('inet addr:(\S+)', cmd_output[4])
-    m = re.findall('((?:[0-9a-fA-F]{1,2}:){5}[0-9a-fA-F]{1,2})', cmd_output[4])
+    ips = re.findall(r'inet addr:(\S+)', cmd_output[4]) or \
+        re.findall(r'inet (\S+)', cmd_output[4])
+    m = re.findall(r'((?:[0-9a-fA-F]{1,2}:){5}[0-9a-fA-F]{1,2})',
+                   cmd_output[4])
     if '127.0.0.1' in ips:
         ips.remove('127.0.0.1')
     macs = {}
@@ -290,7 +328,8 @@ def _ping_host(host, pkts=10):
     ping = subprocess.Popen(['ping', '-c', str(pkts), '-i', '0.4', '-W',
                              '1', '-q', host], stdout=subprocess.PIPE)
     ping_parser = pingparsing.PingParsing()
-    ping_parser.parse(ping.stdout.read())
+    output = ping.stdout.read()
+    ping_parser.parse(output.decode().replace('pipe 8\n', ''))
     return ping_parser.as_dict()
 
 

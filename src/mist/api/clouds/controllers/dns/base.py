@@ -96,6 +96,7 @@ class BaseDNSController(BaseController):
         """
         task_key = 'cloud:list_zones:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
+        first_run = False if task.last_success else True
         with task.task_runner(persist=persist):
             cached_zones = {'%s-%s' % (z.id, z.zone_id): z.as_dict()
                             for z in self.list_cached_zones()}
@@ -103,6 +104,7 @@ class BaseDNSController(BaseController):
             zones = self._list_zones()
             for zone in zones:
                 self.list_records(zone)
+
         # Initialize AMQP connection to reuse for multiple messages.
         if amqp_owner_listening(self.cloud.owner.id):
             zones_dict = [z.as_dict() for z in zones]
@@ -113,6 +115,11 @@ class BaseDNSController(BaseController):
                 patch = jsonpatch.JsonPatch.from_diff(cached_zones,
                                                       new_zones).patch
                 if patch:
+                    if not first_run and self.cloud.observation_logs_enabled:
+                        from mist.api.logs.methods import log_observations
+                        log_observations(self.cloud.owner.id, self.cloud.id,
+                                         'zone', patch, cached_zones,
+                                         new_zones)
                     amqp_publish_user(self.cloud.owner.id,
                                       routing_key='patch_zones',
                                       data={'cloud_id': self.cloud.id,
@@ -161,7 +168,7 @@ class BaseDNSController(BaseController):
                 zone.save()
             except me.ValidationError as exc:
                 log.error("Error updating %s: %s", zone, exc.to_dict())
-                raise BadRequestError({'msg': exc.message,
+                raise BadRequestError({'msg': str(exc),
                                        'errors': exc.to_dict()})
             except me.NotUniqueError as exc:
                 log.error("Zone %s not unique error: %s", zone, exc)
@@ -229,6 +236,7 @@ class BaseDNSController(BaseController):
             try:
                 record = Record.objects.get(zone=zone, record_id=pr_record.id,
                                             deleted=None)
+                changed = False
             except Record.DoesNotExist:
                 log.info("Record: %s not in the database, creating.",
                          pr_record.id)
@@ -238,19 +246,36 @@ class BaseDNSController(BaseController):
 
                 record = dns_cls(record_id=pr_record.id, zone=zone)
                 new_records.append(record)
+                changed = True
             # We need to check if any of the information returned by the
             # provider is different than what we have in the DB
-            record.name = pr_record.name or ""
-            record.type = pr_record.type
-            record.ttl = pr_record.ttl
-            record.extra = pr_record.extra
+            if record.name != pr_record.name:
+                record.name = pr_record.name or ""
+                changed = True
+            if record.type != pr_record.type:
+                record.type = pr_record.type
+                changed = True
+            if record.ttl != pr_record.ttl:
+                record.ttl = pr_record.ttl
+                changed = True
+            if record.extra != pr_record.extra:
+                record.extra = pr_record.extra
+                changed = True
 
             self._list_records__postparse_data(pr_record, record)
             try:
-                record.save()
+                if changed:
+                    try:
+                        record.save()
+                    except Exception as exc:
+                        log.exception("Could not save %s record %s for cloud "
+                                      "%s (%s): %r" % (
+                                          record.type, record.name,
+                                          self.cloud.title, self.cloud.id, exc
+                                      ))
             except me.ValidationError as exc:
                 log.error("Error updating %s: %s", record, exc.to_dict())
-                raise BadRequestError({'msg': exc.message,
+                raise BadRequestError({'msg': str(exc),
                                        'errors': exc.to_dict()})
             except me.NotUniqueError as exc:
                 log.error("Record %s not unique error: %s", record, exc)
@@ -427,7 +452,7 @@ class BaseDNSController(BaseController):
             record.clean()
         except me.ValidationError as exc:
             log.error("Error validating %s: %s", record, exc.to_dict())
-            raise BadRequestError({'msg': exc.message,
+            raise BadRequestError({'msg': str(exc),
                                    'errors': exc.to_dict()})
 
         self._create_record__prepare_args(record.zone, kwargs)

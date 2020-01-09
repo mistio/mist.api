@@ -10,6 +10,7 @@ be performed inside the corresponding method functions.
 """
 
 import os
+import hashlib
 
 # Python 2 and 3 support
 from future.utils import string_types
@@ -22,6 +23,7 @@ import urllib.error
 import json
 import netaddr
 import traceback
+import requests
 import mongoengine as me
 
 from time import time
@@ -62,6 +64,7 @@ from mist.api.exceptions import TeamForbidden
 from mist.api.exceptions import OrganizationOperationError
 from mist.api.exceptions import MethodNotAllowedError
 from mist.api.exceptions import WhitelistIPError
+from mist.api.exceptions import CloudNotFoundError
 
 from mist.api.helpers import encrypt, decrypt
 from mist.api.helpers import params_from_request
@@ -79,6 +82,8 @@ from mist.api.auth.models import get_secure_rand_token
 
 from mist.api.logs.methods import log_event
 from mist.api.logs.methods import get_events
+
+from mist.api.methods import filter_list_locations
 
 from mist.api import config
 
@@ -165,6 +170,23 @@ def home(request):
             raise RedirectError(url)
 
         get_landing_template()
+        page = request.path.strip('/').replace('.', '')
+        if not page:
+            page = 'home'
+        if page not in config.LANDING_FORMS:
+            page_uri = '%s/static/landing/sections/%s.html' % (
+                request.application_url, page)
+            try:
+                response = requests.get(page_uri)
+                if response.ok:
+                    section = response.text
+                    template_inputs['section'] = section
+                else:
+                    log.error("Failed to fetch page `%s` from `%s`: %r" % (
+                        page, page_uri, response))
+            except Exception as exc:
+                log.error("Failed to fetch page `%s` from `%s`: %r" % (
+                    page, page_uri, exc))
         return render_to_response('templates/landing.pt', template_inputs)
 
     if not user.last_active or \
@@ -571,13 +593,13 @@ def confirm(request):
         else:
             return HTTPFound('/error?msg=already-confirmed')
 
-    token = get_secure_rand_token()
+    token = hashlib.sha1(key.encode()).hexdigest()
     key = encrypt("%s:%s" % (token, user.email), config.SECRET)
     user.password_set_token = token
     user.password_set_token_created = time()
     user.password_set_user_agent = request.user_agent
     log.debug("will now save (register)")
-    user.save()
+    user.save(write_concern={'w': 1, 'fsync': True})
 
     invitoken = params.get('invitoken')
     if config.ALLOW_SIGNIN_EMAIL:
@@ -1119,16 +1141,72 @@ def list_locations(request):
     """
     cloud_id = request.matchdict['cloud']
     auth_context = auth_context_from_request(request)
-    cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
-                              deleted=None)
+
+    try:
+        Cloud.objects.get(owner=auth_context.owner, id=cloud_id, deleted=None)
+    except Cloud.DoesNotExist:
+        raise CloudNotFoundError()
+
     auth_context.check_perm("cloud", "read", cloud_id)
     params = params_from_request(request)
     cached = bool(params.get('cached', False))
-    if cached:
-        locations = cloud.ctl.compute.list_cached_locations()
-    else:
-        locations = cloud.ctl.compute.list_locations()
-    return [location.as_dict() for location in locations]
+    return filter_list_locations(auth_context, cloud_id, cached=cached)
+
+
+@view_config(route_name='api_v1_storage_accounts', request_method='GET',
+             renderer='json')
+def list_storage_accounts(request):
+    """
+    Tags: clouds
+    ---
+    List storage accounts. ARM specific. For other providers this
+    returns an empty list
+    READ permission required on cloud.
+    ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    """
+    cloud_id = request.matchdict['cloud']
+    auth_context = auth_context_from_request(request)
+
+    try:
+        Cloud.objects.get(owner=auth_context.owner, id=cloud_id, deleted=None)
+    except Cloud.DoesNotExist:
+        raise CloudNotFoundError()
+
+    auth_context.check_perm("cloud", "read", cloud_id)
+
+    return methods.list_storage_accounts(auth_context.owner, cloud_id)
+
+
+@view_config(route_name='api_v1_resource_groups', request_method='GET',
+             renderer='json')
+def list_resource_groups(request):
+    """
+    Tags: clouds
+    ---
+    List resource groups. ARM specific. For other providers this
+    returns an empty list
+    READ permission required on cloud.
+    ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    """
+    cloud_id = request.matchdict['cloud']
+    auth_context = auth_context_from_request(request)
+
+    try:
+        Cloud.objects.get(owner=auth_context.owner, id=cloud_id, deleted=None)
+    except Cloud.DoesNotExist:
+        raise CloudNotFoundError()
+
+    auth_context.check_perm("cloud", "read", cloud_id)
+
+    return methods.list_resource_groups(auth_context.owner, cloud_id)
 
 
 @view_config(route_name='api_v1_cloud_probe',
@@ -1267,7 +1345,7 @@ def get_avatar(request):
         raise NotFoundError()
 
     return Response(content_type=str(avatar.content_type),
-                    body=str(avatar.body))
+                    body=avatar.body)
 
 
 @view_config(route_name='api_v1_avatar', request_method='DELETE')
@@ -1363,7 +1441,7 @@ def create_organization(request):
     try:
         org.save()
     except me.ValidationError as e:
-        raise BadRequestError({"msg": e.message, "errors": e.to_dict()})
+        raise BadRequestError({"msg": str(e), "errors": e.to_dict()})
     except me.OperationError:
         raise OrganizationOperationError()
 
@@ -1520,7 +1598,7 @@ def edit_organization(request):
     try:
         auth_context.org.save()
     except me.ValidationError as e:
-        raise BadRequestError({"msg": e.message, "errors": e.to_dict()})
+        raise BadRequestError({"msg": str(e), "errors": e.to_dict()})
     except me.OperationError:
         raise OrganizationOperationError()
 
@@ -1576,7 +1654,7 @@ def add_team(request):
     try:
         auth_context.org.save()
     except me.ValidationError as e:
-        raise BadRequestError({"msg": e.message, "errors": e.to_dict()})
+        raise BadRequestError({"msg": str(e), "errors": e.to_dict()})
     except me.OperationError:
         raise TeamOperationError()
 
@@ -1710,7 +1788,7 @@ def edit_team(request):
     try:
         auth_context.org.save()
     except me.ValidationError as e:
-        raise BadRequestError({"msg": e.message, "errors": e.to_dict()})
+        raise BadRequestError({"msg": str(e), "errors": e.to_dict()})
     except me.OperationError:
         raise TeamOperationError()
 
@@ -1762,9 +1840,10 @@ def delete_team(request):
 
     try:
         team.drop_mappings()
-        auth_context.org.update(pull__teams__id=team_id)
+        auth_context.org.teams.remove(team)
+        auth_context.org.save()
     except me.ValidationError as e:
-        raise BadRequestError({"msg": e.message, "errors": e.to_dict()})
+        raise BadRequestError({"msg": str(e), "errors": e.to_dict()})
     except me.OperationError:
         raise TeamOperationError()
 
@@ -2088,7 +2167,7 @@ def delete_member_from_team(request):
                     invitation.delete()
                 except me.ValidationError as e:
                     raise BadRequestError(
-                        {"msg": e.message, "errors": e.to_dict()})
+                        {"msg": str(e), "errors": e.to_dict()})
                 except me.OperationError:
                     raise TeamOperationError()
                 # notify user that his invitation has been revoked
@@ -2098,7 +2177,7 @@ def delete_member_from_team(request):
                     invitation.save()
                 except me.ValidationError as e:
                     raise BadRequestError(
-                        {"msg": e.message, "errors": e.to_dict()})
+                        {"msg": str(e), "errors": e.to_dict()})
                 except me.OperationError:
                     raise TeamOperationError()
 
@@ -2133,7 +2212,7 @@ def delete_member_from_team(request):
     try:
         auth_context.org.save()
     except me.ValidationError as e:
-        raise BadRequestError({"msg": e.message, "errors": e.to_dict()})
+        raise BadRequestError({"msg": str(e), "errors": e.to_dict()})
     except me.OperationError:
         raise TeamOperationError()
 
@@ -2314,6 +2393,6 @@ def section(request):
     '''
     section_id = request.matchdict['section']
 
-    path = '/static/' + section_id.replace('--', '/sections/') + '.json'
+    path = '/static/' + section_id.replace('--', '/sections/') + '.html'
 
     return HTTPFound(path)
