@@ -266,6 +266,17 @@ class AzureArmStorageController(BaseStorageController):
             raise RequiredParameterMissingError('resource_group')
         if not kwargs.get('location'):
             raise RequiredParameterMissingError('location')
+
+        # FIXME Imported here due to circular dependency issues.
+        from mist.api.clouds.models import CloudLocation
+        try:
+            location = CloudLocation.objects.get(id=kwargs['location'])
+        except CloudLocation.DoesNotExist:
+            raise NotFoundError("Location with id '%s'." % kwargs['location'])
+        node_location = NodeLocation(id=location.external_id,
+                                     name=location.name,
+                                     country=location.country, driver=None)
+        kwargs['location'] = node_location
         resource_group = kwargs.pop('resource_group')
         conn = self.cloud.ctl.compute.connection
         resource_groups = conn.ex_list_resource_groups()
@@ -279,25 +290,14 @@ class AzureArmStorageController(BaseStorageController):
         if ex_resource_group is None:
             try:
                 conn.ex_create_resource_group(resource_group,
-                                              kwargs.get('location'))
+                                              node_location)
                 ex_resource_group = resource_group
                 # add delay cause sometimes the group is not yet ready
                 time.sleep(5)
             except Exception as exc:
                 raise LibcloudError("Couldn't create resource group. \
                     %s" % exc)
-
         kwargs['ex_resource_group'] = ex_resource_group
-        # FIXME Imported here due to circular dependency issues.
-        from mist.api.clouds.models import CloudLocation
-        try:
-            location = CloudLocation.objects.get(id=kwargs['location'])
-        except CloudLocation.DoesNotExist:
-            raise NotFoundError("Location with id '%s'." % kwargs['location'])
-        node_location = NodeLocation(id=location.external_id,
-                                     name=location.name,
-                                     country=location.country, driver=None)
-        kwargs['location'] = node_location
         account_type = kwargs.pop('storage_account_type', 'Standard_LRS')
         kwargs['ex_storage_account_type'] = account_type
 
