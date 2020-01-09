@@ -379,9 +379,6 @@ class BaseMainController(object):
 
         # Add machines' polling schedule.
         ListMachinesPollingSchedule.add(cloud=self.cloud)
-        ListLocationsPollingSchedule.add(cloud=self.cloud)
-        ListSizesPollingSchedule.add(cloud=self.cloud)
-        ListImagesPollingSchedule.add(cloud=self.cloud)
 
         # Add networks' polling schedule, if applicable.
         if hasattr(self.cloud.ctl, 'network'):
@@ -403,6 +400,10 @@ class BaseMainController(object):
         schedule.save()
 
         schedule = ListSizesPollingSchedule.add(cloud=self.cloud)
+        schedule.set_default_interval(60 * 60 * 24)
+        schedule.save()
+
+        schedule = ListImagesPollingSchedule.add(cloud=self.cloud)
         schedule.set_default_interval(60 * 60 * 24)
         schedule.save()
 
