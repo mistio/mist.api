@@ -297,6 +297,11 @@ class ListSizesPollingSchedule(CloudPollingSchedule):
     task = 'mist.api.poller.tasks.list_sizes'
 
 
+class ListImagesPollingSchedule(CloudPollingSchedule):
+
+    task = 'mist.api.poller.tasks.list_images'
+
+
 class ListNetworksPollingSchedule(CloudPollingSchedule):
 
     # task below is polling both networks and subnets
@@ -327,21 +332,6 @@ class ListVolumesPollingSchedule(CloudPollingSchedule):
     def enabled(self):
         return (super(ListVolumesPollingSchedule, self).enabled and
                 hasattr(self.cloud.ctl, 'storage'))
-
-
-class ListLocationsPollingSchedule(CloudPollingSchedule):
-
-    task = 'mist.api.poller.tasks.list_locations'
-
-
-class ListSizesPollingSchedule(CloudPollingSchedule):
-
-    task = 'mist.api.poller.tasks.list_sizes'
-
-
-class ListImagesPollingSchedule(CloudPollingSchedule):
-
-    task = 'mist.api.poller.tasks.list_images'
 
 
 class MachinePollingSchedule(PollingSchedule):

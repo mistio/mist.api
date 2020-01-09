@@ -611,7 +611,6 @@ class MainConnection(MistConnection):
             if patch:
                 self.batch.extend(patch)
 
-
     def on_close(self, stale=False):
         if not self.closed:
             kwargs = {}
