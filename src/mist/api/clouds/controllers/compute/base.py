@@ -884,31 +884,10 @@ class BaseComputeController(BaseController):
                             for s in self.list_cached_sizes()}
             sizes = self._list_sizes()
 
-        # Fetch sizes, usually from libcloud connection.
-
-        task_key = 'cloud:list_sizes:%s' % self.cloud.id
-        task = PeriodicTaskInfo.get_or_add(task_key)
-        try:
-            with task.task_runner(persist=persist):
-                cached_sizes = {'%s' % s.id: s.as_dict()
-                                for s in self.list_cached_sizes()}
-                sizes = self._list_sizes__fetch_sizes()
-        except PeriodicTaskThresholdExceeded:
-            self.cloud.disable()
-            raise
-
-        # Initialize AMQP connection to reuse for multiple messages.
-        amqp_conn = Connection(config.AMQP_URI)
         if amqp_owner_listening(self.cloud.owner.id):
-            if not config.SIZE_PATCHES:
-                amqp_publish_user(self.cloud.owner.id,
-                                  routing_key='list_sizes',
-                                  data={'cloud_id': self.cloud.id,
-                                        'sizes': sizes})
-            else:
+            if cached_sizes and sizes:
                 # Publish patches to rabbitmq.
-                new_sizes = {'%s' % s.id: s.as_dict()
-                             for s in sizes}
+                new_sizes = {s.id: s.as_dict() for s in sizes}
                 patch = jsonpatch.JsonPatch.from_diff(cached_sizes,
                                                       new_sizes).patch
                 if patch:
@@ -917,8 +896,13 @@ class BaseComputeController(BaseController):
                                       data={'cloud_id': self.cloud.id,
                                             'patch': patch})
 
-                # Format size information.
-        # return [size.as_dict() for size in sizes]
+            else:
+                # TODO: remove this block, once location patches
+                # are implemented in the UI
+                amqp_publish_user(self.cloud.owner.id,
+                                  routing_key='list_sizes',
+                                  data={'cloud_id': self.cloud.id,
+                                        'sizes': [s.as_dict() for s in sizes]})
         return sizes
 
     def _list_sizes(self):
@@ -1003,26 +987,6 @@ class BaseComputeController(BaseController):
         """
         return self.connection.list_sizes()
 
-    # providers to check: gce, aws, openstack, rackspace, vultr
-    def _list_sizes_set_description(self, size, cpu):
-        """Sets description for size, as it will be
-        shown to the end user
-        """
-        return size.name
-
-    def _list_machines_get_size(self, node):
-        """Return size from database for a
-        specific node
-
-        Subclasses MAY override this method.
-        """
-        try:
-            size = CloudSize.objects.get(cloud=self.cloud,
-                                         name=node.size)
-        except CloudSize.DoesNotExist:
-            size = ''
-        return size
-
     def _list_machines_get_image(self, image_id):
         """Return image from database for a
         specific node
@@ -1035,7 +999,6 @@ class BaseComputeController(BaseController):
         except CloudImage.DoesNotExist:
             image = ''
         return image
-
 
     def _list_sizes__get_cpu(self, size):
         return int(size.extra.get('cpus') or 1)
@@ -1071,36 +1034,32 @@ class BaseComputeController(BaseController):
         """
         task_key = 'cloud:list_locations:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
-        try:
-            with task.task_runner(persist=persist):
-                cached_locations = {'%s' % l.id: l.as_dict()
-                                    for l in self.list_cached_locations()}
-                locations = self._list_locations()
-        except PeriodicTaskThresholdExceeded:
-            self.cloud.disable()
-            raise
+        with task.task_runner(persist=persist):
+            cached_locations = {'%s' % l.id: l.as_dict()
+                                for l in self.list_cached_locations()}
 
-        # Initialize AMQP connection to reuse for multiple messages.
-        amqp_conn = Connection(config.AMQP_URI)
+            locations = self._list_locations()
+
         if amqp_owner_listening(self.cloud.owner.id):
-            if not config.LOCATION_PATCHES:
-                amqp_publish_user(self.cloud.owner.id,
-                                  routing_key='list_locations',
-                                  data={'cloud_id': self.cloud.id,
-                                        'locations': [loc.as_dict()
-                                                      for loc in locations]})
-            else:
+            locations_dict = [l.as_dict() for l in locations]
+            if cached_locations and locations_dict:
                 # Publish patches to rabbitmq.
-                new_locations = {'%s' % l.id: l.as_dict()
-                                 for l in locations}
+                new_locations = {'%s' % l['id']: l for l in locations_dict}
                 patch = jsonpatch.JsonPatch.from_diff(cached_locations,
                                                       new_locations).patch
                 if patch:
                     amqp_publish_user(self.cloud.owner.id,
                                       routing_key='patch_locations',
-                                      connection=amqp_conn,
                                       data={'cloud_id': self.cloud.id,
                                             'patch': patch})
+            else:
+                # TODO: remove this block, once location patches
+                # are implemented in the UI
+                amqp_publish_user(self.cloud.owner.id,
+                                  routing_key='list_locations',
+                                  data={'cloud_id': self.cloud.id,
+                                        'locations': locations_dict})
+        return locations
 
     def _list_locations(self):
         """Return list of available locations for current cloud
