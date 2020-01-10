@@ -50,9 +50,6 @@ from mist.api.exceptions import MachineNotFoundError
 from mist.api.exceptions import BadRequestError
 from mist.api.helpers import sanitize_host
 
-from mist.api.misc.cloud import CloudImage
-from mist.api.misc.cloud import CloudSize
-
 from mist.api.clouds.controllers.main.base import BaseComputeController
 
 from mist.api import config
@@ -105,17 +102,18 @@ class AmazonComputeController(BaseComputeController):
             raise BadRequestError('Failed to resize node: %s' % exc)
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        # TODO: FIXME
         # Find os_type.
-        try:
-            machine.os_type = CloudImage.objects.get(
-                cloud_provider=machine_libcloud.driver.type,
-                image_id=machine_libcloud.extra.get('image_id'),
-            ).os_type
-        except:
-            # This is windows for windows servers and None for Linux.
-            machine.os_type = machine_libcloud.extra.get('platform')
-        if not machine.os_type:
-            machine.os_type = 'linux'
+        # try:
+        #     machine.os_type = CloudImage.objects.get(
+        #         cloud_provider=machine_libcloud.driver.type,
+        #         image_id=machine_libcloud.extra.get('image_id'),
+        #     ).os_type
+        # except:
+        #     # This is windows for windows servers and None for Linux.
+        #     machine.os_type = machine_libcloud.extra.get('platform')
+        # if not machine.os_type:
+        #     machine.os_type = 'linux'
 
         try:
             # return list of ids for network interfaces as str
@@ -182,73 +180,47 @@ class AmazonComputeController(BaseComputeController):
     def _list_machines__get_size(self, node):
         return node.extra.get('instance_type')
 
-    def _list_images__fetch_images(self, search=None):
-        default_images = config.EC2_IMAGES[self.cloud.region]
-        image_ids = list(default_images.keys()) + self.cloud.starred
-        if not search:
-            try:
-                # this might break if image_ids contains starred images
-                # that are not valid anymore for AWS
-                images = self.connection.list_images(None, image_ids)
-            except Exception as e:
-                bad_ids = re.findall(r'ami-\w*', str(e), re.DOTALL)
-                for bad_id in bad_ids:
-                    try:
-                        self.cloud.starred.remove(bad_id)
-                    except ValueError:
-                        log.error('Starred Image %s not found in cloud %r' % (
-                            bad_id, self.cloud
-                        ))
-                self.cloud.save()
-                images = self.connection.list_images(
-                    None, list(default_images.keys()) + self.cloud.starred)
-            for image in images:
-                if image.id in default_images:
-                    image.name = default_images[image.id]
-            images += self.connection.list_images(ex_owner='self')
-        else:
-            image_models = CloudImage.objects(
-                me.Q(cloud_provider=self.connection.type,
-                     image_id__icontains=search) |
-                me.Q(cloud_provider=self.connection.type,
-                     name__icontains=search)
-            )[:200]
-            images = [NodeImage(id=image.image_id, name=image.name,
-                                driver=self.connection, extra={})
-                      for image in image_models]
-            if not images:
-                # Actual search on EC2.
-                images = self.connection.list_images(
-                    ex_filters={'name': '*%s*' % search}
-                )
-
-        log.info("List images returned %d results for %s.",
-                 len(images), self.cloud)
-        _images = []
-
-        for image in images:
-
-            # create the object in db if it does not exist
-            try:
-                _image = CloudImage.objects.get(cloud=self.cloud,
-                                                image_id=image.id)
-            except CloudImage.DoesNotExist:
-                _image = CloudImage(cloud=self.cloud,
-                                    name=image.name, image_id=image.id,
-                                    provider=self.provider
-                                    )
-            image.os_type = self.list_images_get_os(image)
-            # self.image_is_starred(img.id)}
-
-            try:
-                _image.save()
-                _images.append(_image)
-            except me.ValidationError as exc:
-                log.error("Error adding %s: %s", _image.name, exc.to_dict())
-                raise BadRequestError({"msg": exc.message,
-                                       "errors": exc.to_dict()})
-
-        return [img.as_dict() for img in _images]
+    # TODO: FIXME
+    # def _list_images__fetch_images(self, search=None):
+    #     default_images = config.EC2_IMAGES[self.cloud.region]
+    #     image_ids = list(default_images.keys()) + self.cloud.starred
+    #     if not search:
+    #         try:
+    #             # this might break if image_ids contains starred images
+    #             # that are not valid anymore for AWS
+    #             images = self.connection.list_images(None, image_ids)
+    #         except Exception as e:
+    #             bad_ids = re.findall(r'ami-\w*', str(e), re.DOTALL)
+    #             for bad_id in bad_ids:
+    #                 try:
+    #                     self.cloud.starred.remove(bad_id)
+    #                 except ValueError:
+    #                     log.error('Starred Image %s not found in cloud %r' % (
+    #                         bad_id, self.cloud
+    #                     ))
+    #             self.cloud.save()
+    #             images = self.connection.list_images(
+    #                 None, list(default_images.keys()) + self.cloud.starred)
+    #         for image in images:
+    #             if image.id in default_images:
+    #                 image.name = default_images[image.id]
+    #         images += self.connection.list_images(ex_owner='self')
+    #     else:
+    #         image_models = CloudImage.objects(
+    #             me.Q(cloud_provider=self.connection.type,
+    #                  image_id__icontains=search) |
+    #             me.Q(cloud_provider=self.connection.type,
+    #                  name__icontains=search)
+    #         )[:200]
+    #         images = [NodeImage(id=image.image_id, name=image.name,
+    #                             driver=self.connection, extra={})
+    #                   for image in image_models]
+    #         if not images:
+    #             # Actual search on EC2.
+    #             images = self.connection.list_images(
+    #                 ex_filters={'name': '*%s*' % search}
+    #             )
+    #     return images
 
     def image_is_default(self, image_id):
         return image_id in config.EC2_IMAGES[self.cloud.region]
@@ -267,49 +239,6 @@ class AmazonComputeController(BaseComputeController):
             except:
                 pass
         return locations
-
-    def _list_machines__get_location(self, node):
-        return node.extra.get('availability')
-
-    def _list_sizes__fetch_sizes(self):
-        """List available sizes for EC2 cloud
-
-        In EC2 we currently do not store price, since it is
-        different for each os.
-
-        """
-        fetched_sizes = self.connection.list_sizes()
-
-        log.info("List sizes returned %d results for %s.",
-                 len(fetched_sizes), self.cloud)
-        sizes = []
-
-        for size in fetched_sizes:
-
-            # create the object in db if it does not exist
-            try:
-                _size = CloudSize.objects.get(cloud=self.cloud,
-                                              size_id=size.id)
-            except CloudSize.DoesNotExist:
-                _size = CloudSize(cloud=self.cloud,
-                                  name=size.name, disk=size.disk,
-                                  ram=size.ram, size_id=size.id,
-                                  bandwidth=size.bandwidth
-                                  )
-            cpus = self._list_sizes_get_cpu(size)
-            _size.cpus = cpus
-            _size.provider = self.provider
-            _size.description = self._list_sizes_set_description(size,
-                                                                 cpus)
-            try:
-                _size.save()
-                sizes.append(_size)
-            except me.ValidationError as exc:
-                log.error("Error adding %s: %s", size.name, exc.to_dict())
-                raise BadRequestError({"msg": exc.message,
-                                       "errors": exc.to_dict()})
-
-        return sizes
 
     def _list_sizes__get_cpu(self, size):
         return int(size.extra.get('vcpu', 1))
@@ -414,14 +343,6 @@ class ClearAPIComputeController(BaseComputeController):
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         machine.machine_type = 'ilo-host'
 
-    def _list_sizes_get_cpu(self, size):
-        if size.extra.get('cpu'):
-            return size.extra.get('cpu')
-        return 1
-
-    def _list_sizes_set_description(self, size, cpu):
-        return '%s - %s' % (size.id, size.name)
-
 
 class DigitalOceanComputeController(BaseComputeController):
 
@@ -453,20 +374,14 @@ class DigitalOceanComputeController(BaseComputeController):
     def _stop_machine(self, machine, machine_libcloud):
         self.connection.ex_shutdown_node(machine_libcloud)
 
-    def _list_sizes_get_cpu(self, size):
-        return size.extra.get('vcpus')
-
     def _list_machines__get_location(self, node):
         return node.extra.get('region')
 
-    def _list_machines_get_size(self, node):
-        size_name = node.extra.get('size_slug')
-        try:
-            _size = CloudSize.objects.get(cloud=self.cloud,
-                                          name=size_name)
-            return _size
-        except CloudSize.DoesNotExist:
-            return ''
+    def _list_machines__get_size(self, node):
+        return node.extra.get('size_slug')
+
+    def _list_sizes__get_cpu(self, size):
+        return size.extra.get('vcpus')
 
 
 class MaxihostComputeController(BaseComputeController):
@@ -584,23 +499,15 @@ class RackSpaceComputeController(BaseComputeController):
                 public_ips.append(ip)
         machine.public_ips = public_ips
 
+        # TODO: FIXME
         # Find os_type.
-        try:
-            machine.os_type = CloudImage.objects.get(
-                cloud_provider=machine_libcloud.driver.type,
-                image_id=machine_libcloud.extra.get('imageId'),
-            ).os_type
-        except:
-            machine.os_type = 'linux'
-
-    def _list_sizes_get_cpu(self, size):
-        return size.vcpus
-
-    def _list_sizes_set_description(self, size, cpu):
-        return size.name + ' (%d cpus)' % cpu
-
-    def list_images_get_os(self, image):
-        return image.extra.get('metadata').get('os_type')
+        # try:
+        #     machine.os_type = CloudImage.objects.get(
+        #         cloud_provider=machine_libcloud.driver.type,
+        #         image_id=machine_libcloud.extra.get('imageId'),
+        #     ).os_type
+        # except:
+        #     machine.os_type = 'linux'
 
     def _list_machines__get_size(self, node):
         return node.extra.get('flavorId')
@@ -790,37 +697,8 @@ class AzureArmComputeController(BaseComputeController):
         # Fetch mist's recommended images
         images = [NodeImage(id=image, name=name,
                             driver=self.connection, extra={})
-                  for image, name in config.AZURE_ARM_IMAGES.items()]
-
-        log.info("List images returned %d results for %s.",
-                 len(images), self.cloud)
-        _images = []
-
-        for image in images:
-
-            # create the object in db if it does not exist
-            try:
-                _image = CloudImage.objects.get(cloud=self.cloud,
-                                                image_id=image.id)
-            except CloudImage.DoesNotExist:
-                _image = CloudImage(cloud=self.cloud,
-                                    name=image.name, image_id=image.id,
-                                    provider=self.provider
-                                    )
-            image.os_type = self.list_images_get_os(image)
-            # self.image_is_starred(img.id)}
-
-            try:
-                _image.save()
-                _images.append(_image)
-            except me.ValidationError as exc:
-                log.error("Error adding %s: %s", _image.name, exc.to_dict())
-                raise BadRequestError({"msg": exc.message,
-                                       "errors": exc.to_dict()})
-
-        #images.sort(key=lambda image: (not image['star'], image['name']))
-
-        return [img.as_dict() for img in _images]
+                  for image, name in list(config.AZURE_ARM_IMAGES.items())]
+        return images
 
     def _reboot_machine(self, machine, machine_libcloud):
         self.connection.reboot_node(machine_libcloud)
@@ -830,46 +708,7 @@ class AzureArmComputeController(BaseComputeController):
 
     def _list_sizes__fetch_sizes(self):
         location = self.connection.list_locations()[0]
-        sizes = self.connection.list_sizes(location)
-
-        log.info("List sizes returned %d results for %s.",
-                 len(sizes), self.cloud)
-
-        _sizes = []
-        for size in sizes:
-
-            # create the object in db if it does not exist
-            try:
-                _size = CloudSize.objects.get(cloud=self.cloud,
-                                              provider=self.provider,
-                                              size_id=size.id)
-            except CloudSize.DoesNotExist:
-                _size = CloudSize(cloud=self.cloud,
-                                  provider=self.provider,
-                                  name=size.name, disk=size.disk,
-                                  ram=size.ram, size_id=size.id,
-                                  bandwidth=size.bandwidth, price=size.price
-                                  )
-            _size.cpus = size.extra.get('numberOfCores')
-
-            desc = size.name + '/ ' + str(size.extra['numberOfCores']) \
-                                    + ' cpus/' + str(size.ram / 1024) \
-                                    + 'G RAM/ ' + str(size.disk) + 'GB SSD'
-
-            _size.description = desc
-
-            try:
-                _size.save()
-                _sizes.append(_size)
-            except me.ValidationError as exc:
-                log.error("Error adding %s: %s", size.name, exc.to_dict())
-                raise BadRequestError({"msg": exc.message,
-                                       "errors": exc.to_dict()})
-
-        return _sizes
-
-    def _list_machines__get_location(self, node):
-        return node.extra.get('location')
+        return self.connection.list_sizes(location)
 
     def _list_sizes__get_cpu(self, size):
         return size.extra.get('numberOfCores')
@@ -1150,9 +989,6 @@ class PacketComputeController(BaseComputeController):
     def _list_machines__get_location(self, node):
         return node.extra.get('facility', {}).get('id', '')
 
-    def _list_machines__fetch_machines(self):
-        return self.connection.list_nodes(self.cloud.project_id)
-
     def _list_machines__get_size(self, node):
         return node.extra.get('plan')
 
@@ -1171,34 +1007,14 @@ class VultrComputeController(BaseComputeController):
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         return 0, machine_libcloud.extra.get('cost_per_month', 0)
 
-    def _list_machines_get_size(self, node):
-        # TODO: check node.extra.get('VPSPLANID')
-        cpus = node.extra.get('vcpu_count')
-        if node.extra.get('ram'):
-            node.ram = [int(s) for s in node.extra.get('ram').split()
-                        if s.isdigit()][0]
-        if node.extra.get('disk'):
-            node.disk = [int(s) for s in node.extra.get('disk').split()
-                         if s.isdigit()][0]
-        try:
-            _size = CloudSize.objects.get(cloud=self.cloud,
-                                          cpus=cpus, ram=node.ram,
-                                          disk=node.disk)
-            return _size
-        except CloudSize.DoesNotExist:
-            return ''
-
-    def _list_sizes_get_cpu(self, size):
-        return size.extra.get('vcpu_count')
-
-    def _list_sizes_set_description(self, size, cpu):
-        return size.name + ' (%d cpus)' % cpu
+    def _list_machines__get_size(self, node):
+        return node.extra.get('VPSPLANID')
 
     def _list_machines__get_location(self, node):
-        return node.extra.get('location') or node.extra.get('DCID')
+        return node.extra.get('DCID')
 
-    def list_images_get_os(self, image):
-        return image.extra.get('family')
+    def _list_sizes__get_cpu(self, size):
+        return size.extra.get('vcpu_count')
 
     def _list_sizes__fetch_sizes(self):
         sizes = self.connection.list_sizes()
@@ -1356,13 +1172,6 @@ class OpenStackComputeController(BaseComputeController):
 
     def _list_machines__get_size(self, node):
         return node.extra.get('flavorId')
-
-    def _list_sizes_get_cpu(self, size):
-        return size.vcpus
-
-    def _list_sizes_set_description(self, size, cpu):
-        return size.name + ' ( %d cpus / %dM RAM)' \
-                           % (cpu, size.ram)
 
 
 class DockerComputeController(BaseComputeController):
@@ -1596,34 +1405,7 @@ class DockerComputeController(BaseComputeController):
             images += self.connection.ex_search_images(term=search)[:100]
         else:
             images += self.connection.list_images()
-
-        log.info("List images returned %d results for %s.",
-                 len(images), self.cloud)
-        _images = []
-
-        for image in images:
-
-            # create the object in db if it does not exist
-            try:
-                _image = CloudImage.objects.get(cloud=self.cloud,
-                                                image_id=image.id)
-            except CloudImage.DoesNotExist:
-                _image = CloudImage(cloud=self.cloud,
-                                    name=image.name, image_id=image.id,
-                                    provider=self.provider
-                                    )
-            image.os_type = self.list_images_get_os(image)
-            # self.image_is_starred(img.id)}
-
-            try:
-                _image.save()
-                _images.append(_image)
-            except me.ValidationError as exc:
-                log.error("Error adding %s: %s", _image.name, exc.to_dict())
-                raise BadRequestError({"msg": exc.message,
-                                       "errors": exc.to_dict()})
-
-        return [img.as_dict() for img in _images]
+        return images
 
     def image_is_default(self, image_id):
         return image_id in config.DOCKER_IMAGES
@@ -1755,34 +1537,7 @@ class LibvirtComputeController(BaseComputeController):
             machine.extra['cpus'] = machine.extra['processors']
 
     def _list_images__fetch_images(self, search=None):
-        location = self.cloud.images_location
-        images = self.connection.list_images(location=location)
-        log.info("List images returned %d results for %s.",
-                 len(images), self.cloud)
-        _images = []
-
-        for image in images:
-
-            # create the object in db if it does not exist
-            try:
-                _image = CloudImage.objects.get(cloud=self.cloud,
-                                                image_id=image.id)
-            except CloudImage.DoesNotExist:
-                _image = CloudImage(cloud=self.cloud,
-                                    name=image.name, image_id=image.id,
-                                    provider=self.provider
-                                    )
-            image.os_type = self.list_images_get_os(image)
-
-            try:
-                _image.save()
-                _images.append(_image)
-            except me.ValidationError as exc:
-                log.error("Error adding %s: %s", _image.name, exc.to_dict())
-                raise BadRequestError({"msg": exc.message,
-                                       "errors": exc.to_dict()})
-
-        return [img.as_dict() for img in _images]
+        return self.connection.list_images(location=self.cloud.images_location)
 
     def _reboot_machine(self, machine, machine_libcloud):
         hypervisor = machine_libcloud.extra.get('tags', {}).get('type', None)
