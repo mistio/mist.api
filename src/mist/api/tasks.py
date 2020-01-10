@@ -740,7 +740,6 @@ class ListProjects(UserTask):
         return {'cloud_id': cloud_id, 'projects': projects}
 
 
-list_images = app.register_task(ListImages())
 list_projects = app.register_task(ListProjects())
 
 

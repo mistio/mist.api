@@ -50,7 +50,6 @@ from mist.api.concurrency.models import PeriodicTaskThresholdExceeded
 from mist.api.clouds.controllers.base import BaseController
 from mist.api.tag.models import Tag
 
-from mist.api.images.models import CloudImage
 
 if config.HAS_VPN:
     from mist.vpn.methods import destination_nat as dnat
@@ -843,6 +842,7 @@ class BaseComputeController(BaseController):
 
     def list_cached_images(self):
         """Return list of images from database for a specific cloud"""
+        from mist.api.images.models import CloudImage
         return CloudImage.objects(cloud=self.cloud, missing_since=None)
 
     def _list_images_get_os(self, image):
