@@ -49,10 +49,8 @@ from mist.api.concurrency.models import PeriodicTaskThresholdExceeded
 
 from mist.api.clouds.controllers.base import BaseController
 from mist.api.tag.models import Tag
-from mist.api.machines.models import Machine
-from mist.api.misc.cloud import CloudLocation
-from mist.api.misc.cloud import CloudSize
-from mist.api.misc.cloud import CloudImage
+
+from mist.api.images.models import CloudImage
 
 if config.HAS_VPN:
     from mist.vpn.methods import destination_nat as dnat
@@ -342,15 +340,13 @@ class BaseComputeController(BaseController):
             machine.last_seen = now
             machine.missing_since = None
 
-            location_name = self._list_machines__get_location(node)
-
-            if location_name:
-                try:
-                    _location = CloudLocation.objects.get(cloud=self.cloud,
-                                                          name=location_name)
-                    machine.location = _location
-                except CloudLocation.DoesNotExist:
-                    pass
+             # Discover location of machine.
+            try:
+                location_id = self._list_machines__get_location(node)
+            except Exception as exc:
+                log.error("Error getting location of %s: %r", machine, exc)
+            else:
+                machine.location = locations_map.get(location_id)
 
             # Get misc libcloud metadata.
             image_id = ''
@@ -380,8 +376,9 @@ class BaseComputeController(BaseController):
                 log.error("Error getting size of %s: %r", machine, exc)
 
             machine.name = node.name
+            # TODO: Below needs to change, image should be RefField and image_id
+            # should be deprecated. Needs migration
             machine.image_id = image_id
-            # machine.image = image
             machine.state = config.STATES[node.state]
             machine.private_ips = list(set(node.private_ips))
             machine.public_ips = list(set(node.public_ips))
@@ -724,38 +721,38 @@ class BaseComputeController(BaseController):
         """
         task_key = 'cloud:list_images:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
+        # TODO: try-except needed?
         try:
             with task.task_runner(persist=persist):
                 cached_images = {'%s' % im.id: im.as_dict()
                                  for im in self.list_cached_images()}
-                images = self._list_images__fetch_images()
+                images = self._list_images()
         except PeriodicTaskThresholdExceeded:
             self.cloud.disable()
             raise
 
-        # Initialize AMQP connection to reuse for multiple messages.
-        amqp_conn = Connection(config.AMQP_URI)
         if amqp_owner_listening(self.cloud.owner.id):
-            if not config.IMAGE_PATCHES:
-                amqp_publish_user(self.cloud.owner.id,
-                                  routing_key='list_images',
-                                  connection=amqp_conn,
-                                  data={'cloud_id': self.cloud.id,
-                                        'images': images})
-            else:
+            images_dict = [img.as_dict() for img in images]
+            if cached_images and images_dict:
                 # Publish patches to rabbitmq.
-                new_images = {'%s' % image.get('image_id'): image
-                              for image in images}
+                new_images = {'%s' % im['id']: im for im in images_dict}
                 patch = jsonpatch.JsonPatch.from_diff(cached_images,
                                                       new_images).patch
                 if patch:
                     amqp_publish_user(self.cloud.owner.id,
                                       routing_key='patch_images',
-                                      connection=amqp_conn,
                                       data={'cloud_id': self.cloud.id,
                                             'patch': patch})
-
+            else:
+                # TODO: is this really needed? same for sizes and locations
+                # TODO: remove this block, once image patches
+                # are implemented in the UI
+                amqp_publish_user(self.cloud.owner.id,
+                                  routing_key='list_images',
+                                  data={'cloud_id': self.cloud.id,
+                                        'images': images_dict})
         return images
+
 
     def _list_images__fetch_images(self, search=None):
         """Fetch image listing in a libcloud compatible format
@@ -832,10 +829,8 @@ class BaseComputeController(BaseController):
         return [img.as_dict() for img in _images]
 
     def list_cached_images(self):
-        """Return list of images from database
-        for a specific cloud
-        """
-        return CloudImage.objects(cloud=self.cloud)
+        """Return list of images from database for a specific cloud"""
+        return CloudImage.objects(cloud=self.cloud, missing_since=None)
 
     def list_images_get_os(self, image):
         if 'coreos' in image.name.lower():
@@ -897,7 +892,7 @@ class BaseComputeController(BaseController):
                                             'patch': patch})
 
             else:
-                # TODO: remove this block, once location patches
+                # TODO: remove this block, once size patches
                 # are implemented in the UI
                 amqp_publish_user(self.cloud.owner.id,
                                   routing_key='list_sizes',
