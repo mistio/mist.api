@@ -269,7 +269,7 @@ class Machine(OwnershipMixin, me.Document):
     size = me.ReferenceField('CloudSize', required=False,
                              reverse_delete_rule=me.DENY)
     image = me.ReferenceField('CloudImage', required=False,
-                             reverse_delete_rule=me.DENY)
+                              reverse_delete_rule=me.DENY)
     network = me.ReferenceField('Network', required=False,
                                 reverse_delete_rule=me.NULLIFY)
     subnet = me.ReferenceField('Subnet', required=False,

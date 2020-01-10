@@ -1280,9 +1280,12 @@ def update_poller(org_id):
     for cloud in Cloud.objects(owner=org, deleted=None, enabled=True):
         log.info("Updating poller for cloud %s", cloud)
         ListMachinesPollingSchedule.add(cloud=cloud, interval=10, ttl=120)
-        ListLocationsPollingSchedule.add(cloud=cloud, interval=60*60*24, ttl=120)
-        ListSizesPollingSchedule.add(cloud=cloud, interval=60*60*24, ttl=120)
-        ListImagesPollingSchedule.add(cloud=cloud, interval=60*60*24, ttl=120)
+        ListLocationsPollingSchedule.add(cloud=cloud, interval=60 * 60 * 24,
+                                         ttl=120)
+        ListSizesPollingSchedule.add(cloud=cloud, interval=60 * 60 * 24,
+                                     ttl=120)
+        ListImagesPollingSchedule.add(cloud=cloud, interval=60 * 60 * 24,
+                                      ttl=120)
         if hasattr(cloud.ctl, 'network'):
             ListNetworksPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
         if hasattr(cloud.ctl, 'dns') and cloud.dns_enabled:

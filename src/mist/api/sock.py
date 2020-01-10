@@ -533,7 +533,7 @@ class MainConnection(MistConnection):
         except:
             result = body
         log.info("Got %s", routing_key)
-        # TODO: list_locations, list_sizes and list_images can be removed... (?)
+        # TODO: list_locations, list_sizes and list_images can be removed...?
         if routing_key in set(['notify', 'probe', 'list_sizes', 'list_images',
                                'list_locations', 'list_projects', 'ping']):
             self.send(routing_key, result)

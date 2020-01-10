@@ -375,8 +375,8 @@ class BaseComputeController(BaseController):
                 log.error("Error getting size of %s: %r", machine, exc)
 
             machine.name = node.name
-            # TODO: Below needs to change, image should be RefField and image_id
-            # should be deprecated. Needs migration
+            # TODO: Below needs to change, image should be RefField and 
+            # image_id should be deprecated. Needs migration
             machine.image_id = image_id
             machine.state = config.STATES[node.state]
             machine.private_ips = list(set(node.private_ips))
@@ -751,7 +751,6 @@ class BaseComputeController(BaseController):
                                   data={'cloud_id': self.cloud.id,
                                         'images': images_dict})
         return images
-
 
     # TODO: R E F A C T O R
     def _list_images(self, search=None):
