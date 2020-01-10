@@ -813,7 +813,7 @@ class BaseComputeController(BaseController):
                                     name=image.name, image_id=image.id,
                                     provider=self.provider
                                     )
-            image.os_type = self.list_images_get_os(image)
+            image.os_type = self._list_images_get_os(image)
             # self.image_is_starred(img.id)}
 
             try:
@@ -832,7 +832,7 @@ class BaseComputeController(BaseController):
         """Return list of images from database for a specific cloud"""
         return CloudImage.objects(cloud=self.cloud, missing_since=None)
 
-    def list_images_get_os(self, image):
+    def _list_images_get_os(self, image):
         if 'coreos' in image.name.lower():
             return 'coreos'
         elif 'centos' in image.name.lower():

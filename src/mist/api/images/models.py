@@ -2,6 +2,8 @@ import uuid
 
 import mongoengine as me
 
+from mist.api.mongoengine_extras import MistDictField
+
 
 # TODO: Needs migration for production, there are CloudImage objects in db
 
