@@ -1,1 +1,1 @@
-from mist.api.clouds.models import Cloud
+from mist.api.clouds.models import Cloud  # noqa: F401

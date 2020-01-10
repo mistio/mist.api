@@ -20,7 +20,7 @@ accessed through a cloud model, using the `ctl` abbreviation, like this:
 """
 
 
-import re
+# import re
 import copy
 import socket
 import logging
@@ -30,7 +30,7 @@ import tempfile
 import iso8601
 import pytz
 
-import mongoengine as me
+# import mongoengine as me
 
 from time import sleep
 
@@ -195,7 +195,7 @@ class AmazonComputeController(BaseComputeController):
     #                 try:
     #                     self.cloud.starred.remove(bad_id)
     #                 except ValueError:
-    #                     log.error('Starred Image %s not found in cloud %r' % (
+    #                     log.error('Starred Image %s not found incloud %r' % (
     #                         bad_id, self.cloud
     #                     ))
     #             self.cloud.save()

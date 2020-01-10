@@ -339,7 +339,7 @@ class BaseComputeController(BaseController):
             machine.last_seen = now
             machine.missing_since = None
 
-             # Discover location of machine.
+            # Discover location of machine.
             try:
                 location_id = self._list_machines__get_location(node)
             except Exception as exc:
@@ -375,7 +375,7 @@ class BaseComputeController(BaseController):
                 log.error("Error getting size of %s: %r", machine, exc)
 
             machine.name = node.name
-            # TODO: Below needs to change, image should be RefField and 
+            # TODO: Below needs to change, image should be RefField and
             # image_id should be deprecated. Needs migration
             machine.image_id = image_id
             machine.state = config.STATES[node.state]
@@ -804,6 +804,7 @@ class BaseComputeController(BaseController):
                 image.extra.pop('licenses', None)
 
             # create the object in db if it does not exist
+            from mist.api.images.models import CloudImage
             try:
                 _image = CloudImage.objects.get(cloud=self.cloud,
                                                 image_id=image.id)
@@ -1000,6 +1001,7 @@ class BaseComputeController(BaseController):
 
         Subclasses MAY override this method.
         """
+        from mist.api.images.models import CloudImage
         try:
             image = CloudImage.objects.get(cloud=self.cloud,
                                            image_id=image_id)
