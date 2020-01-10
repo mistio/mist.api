@@ -995,20 +995,6 @@ class BaseComputeController(BaseController):
         """
         return self.connection.list_sizes()
 
-    def _list_machines_get_image(self, image_id):
-        """Return image from database for a
-        specific node
-
-        Subclasses MAY override this method.
-        """
-        from mist.api.images.models import CloudImage
-        try:
-            image = CloudImage.objects.get(cloud=self.cloud,
-                                           image_id=image_id)
-        except CloudImage.DoesNotExist:
-            image = ''
-        return image
-
     def _list_sizes__get_cpu(self, size):
         return int(size.extra.get('cpus') or 1)
 
