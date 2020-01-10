@@ -33,9 +33,10 @@ class CloudImage(me.Document):
         name = "%s, %s (%s)" % (self.name, self.cloud.id, self.external_id)
         return name
 
+    # TODO: Check below and verify works correctly (ec2 and rackspace)
     def clean(self):
         # os_type is needed for the pricing per VM
-        if self.name and self.provider.startswith('ec2'):
+        if self.name and self.cloud.ctl.provider.startswith('ec2'):
             if 'suse linux enterprise' or 'sles' in self.name.lower():
                 self.os_type = 'sles'
             if 'red hat' or 'rhel' in self.name.lower():
@@ -48,7 +49,7 @@ class CloudImage(me.Document):
                         self.os_type = 'mswinSQLWeb'
             if 'vyatta' in self.name.lower():
                 self.os_type = 'vyatta'
-        if self.name and self.provider.startswith('rackspace'):
+        if self.name and self.cloud.ctl.provider.startswith('rackspace'):
             if 'red hat' in self.name.lower():
                 self.os_type = 'redhat'
             if 'windows server' in self.name.lower():
@@ -64,9 +65,12 @@ class CloudImage(me.Document):
 
     def as_dict(self):
         return {
-            'id': self.image_id,
-            'provider': self.provider,
-            'image_id': self.id,
+            'id': self.id,
+            'cloud': self.cloud.id,
+            'external_id': self.external_id,
             'name': self.name,
-            'os_type': self.os_type
+            'extra': self.extra,
+            'os_type': self.os_type,
+            'missing_since': str(self.missing_since.replace(tzinfo=None)
+                                 if self.missing_since else '')
         }
