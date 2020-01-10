@@ -3,6 +3,8 @@
 import argparse
 import datetime
 
+from elasticsearch.exceptions import NotFoundError
+
 from mist.api.helpers import es_client
 from mist.api.models import Machine
 
@@ -53,7 +55,7 @@ def migrate_machine_logs(year=None, delete_missing=False, print_missing=False):
             scroll='2m',
             size=batch_size
         )
-    except elasticsearch.exceptions.NotFoundError as e:
+    except NotFoundError as e:
         print("Index not found: %r" % e)
         return
     except Exception as e:
