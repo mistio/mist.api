@@ -754,7 +754,8 @@ class BaseComputeController(BaseController):
         return images
 
 
-    def _list_images__fetch_images(self, search=None):
+    # TODO: R E F A C T O R
+    def _list_images(self, search=None):
         """Fetch image listing in a libcloud compatible format
 
         This is to be called exclusively by `self.list_images`.
@@ -827,6 +828,18 @@ class BaseComputeController(BaseController):
         # _images.sort(key=lambda image: (not image['star'], image['name']))
         _images.sort(key=lambda image: (image['name']))
         return [img.as_dict() for img in _images]
+
+    def _list_images__fetch_images(self):
+        """Fetch image listing in a libcloud compatible format
+
+        This is to be called exclusively by `self._list_images`.
+
+        Most subclasses that use a simple libcloud connection, shouldn't
+        need to override or extend this method.
+
+        Subclasses MAY override this method.
+        """
+        return self.connection.list_images()
 
     def list_cached_images(self):
         """Return list of images from database for a specific cloud"""
