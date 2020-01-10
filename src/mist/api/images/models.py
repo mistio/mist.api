@@ -1,32 +1,36 @@
-"""Cloud related classes"""
 import uuid
 
 import mongoengine as me
 
 
+# TODO: Needs migration for production, there are CloudImage objects in db
+
 class CloudImage(me.Document):
     """A base Cloud Image Model."""
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
-    cloud = me.ReferenceField('Cloud', required=True)
-    provider = me.StringField()
-    image_id = me.StringField(required=True)
-    name = me.StringField()
-    os_type = me.StringField(default='linux')
+    cloud = me.ReferenceField('Cloud', required=True,
+                              reverse_delete_rule=me.CASCADE)
+    external_id = me.StringField(required=True)
 
+    name = me.StringField()
+    missing_since = me.DateTimeField()
+    extra = MistDictField()
+    os_type = me.StringField(default='linux')
+    # TODO: CHECK!
     meta = {
-        'collection': 'cloud_images',
+        'collection': 'images',
         'indexes': [
             {
-                'fields': ['cloud', 'image_id'],
+                'fields': ['cloud', 'external_id'],
                 'sparse': False,
                 'unique': True,
                 'cls': False,
             },
-        ],
+        ]
     }
 
     def __str__(self):
-        name = "%s, %s (%s)" % (self.name, self.provider, self.image_id)
+        name = "%s, %s (%s)" % (self.name, self.cloud.id, self.external_id)
         return name
 
     def clean(self):
