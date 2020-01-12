@@ -292,29 +292,32 @@ class BaseComputeController(BaseController):
         machines = []
         now = datetime.datetime.utcnow()
 
-        # FIXME Imported here due to circular dependency issues. Perhaps one
-        # way to solve this would be to move CloudLocation under its own dir.
-        from mist.api.clouds.models import CloudLocation
-
         # This is a map of locations' external IDs and names to CloudLocation
         # mongoengine objects. It is used to lookup cached locations based on
         # a node's metadata in order to associate VM instances to their region.
+        from mist.api.clouds.models import CloudLocation
         locations_map = {}
         for location in CloudLocation.objects(cloud=self.cloud):
             locations_map[location.external_id] = location
             locations_map[location.name] = location
 
-        # FIXME Imported here due to circular dependency issues. Perhaps one
-        # way to solve this would be to move CloudSize under its own dir.
-        from mist.api.clouds.models import CloudSize
-
         # This is a map of sizes' external IDs and names to CloudSize
         # mongoengine objects. It is used to lookup cached sizes based on
         # a node's metadata in order to associate VM instances to their size.
+        from mist.api.clouds.models import CloudSize
         sizes_map = {}
         for size in CloudSize.objects(cloud=self.cloud):
             sizes_map[size.external_id] = size
             sizes_map[size.name] = size
+
+        # This is a map of images' external IDs and names to CloudImage
+        # mongoengine objects. It is used to lookup cached images based on
+        # a node's metadata in order to associate VM instances to their image.
+        from mist.api.images.models import CloudImage
+        images_map = {}
+        for image in CloudImage.objects(cloud=self.cloud):
+            images_map[image.external_id] = image
+            images_map[image.name] = image
 
         from mist.api.machines.models import Machine
         # Process each machine in returned list.
@@ -752,7 +755,6 @@ class BaseComputeController(BaseController):
                                         'images': images_dict})
         return images
 
-    # TODO: R E F A C T O R
     def _list_images(self, search=None):
         """Fetch image listing in a libcloud compatible format
 
@@ -764,21 +766,14 @@ class BaseComputeController(BaseController):
         Subclasses MAY override this method.
 
         """
+        from mist.api.images.models import CloudImage
+        # Fetch images, usually from libcloud connection.
+        fetched_images = self._list_images__fetch_images()
 
-        # Fetch images list, usually from libcloud connection.
-        # import ipdb; ipdb.set_trace()
-        images = self.connection.list_images()
-        if not isinstance(images, list):
-            images = list(images)
+        log.info("List images returned %d results for %s.",
+                 len(fetched_images), self.cloud)
 
-        # Filter out duplicate images, if any.
-        seen_ids = set()
-        for i in reversed(range(len(images))):
-            image = images[i]
-            if image.id in seen_ids:
-                images.pop(i)
-            else:
-                seen_ids.add(image.id)
+        images = []
 
         # Filter images based on search term.
         if search:
@@ -788,15 +783,9 @@ class BaseComputeController(BaseController):
                       search in img.name.lower()]
 
         # Filter out invalid images.
-        images = [img for img in images
-                  if img.name and img.id[:3] not in ('aki', 'ari')]
+        # images = [img for img in images
+        #           if img.name and img.id[:3] not in ('aki', 'ari')]
 
-        # import ipdb; ipdb.set_trace()
-        log.info("List images returned %d results for %s.",
-                 len(images), self.cloud)
-        _images = []
-
-        # import ipdb; ipdb.set_trace()
         for image in images:
 
             # why the hell is this needed?
