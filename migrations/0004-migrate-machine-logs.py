@@ -3,6 +3,8 @@
 import argparse
 import datetime
 
+from elasticsearch.exceptions import NotFoundError
+
 from mist.api.helpers import es_client
 from mist.api.models import Machine
 
@@ -46,13 +48,20 @@ def migrate_machine_logs(year=None, delete_missing=False, print_missing=False):
             }
         },
     }
+    try:
+        data = es.search(
+            index=index,
+            body=query,
+            scroll='2m',
+            size=batch_size
+        )
+    except NotFoundError as e:
+        print("Index not found: %r" % e)
+        return
+    except Exception as e:
+        print("Unknown exception: %r" % e)
+        return
 
-    data = es.search(
-        index=index,
-        body=query,
-        scroll='2m',
-        size=batch_size
-    )
     # Get the scroll ID
     sid = data['_scroll_id']
     scroll_size = len(data['hits']['hits'])
