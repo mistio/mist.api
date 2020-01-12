@@ -411,35 +411,38 @@ class LXDStorageController(BaseStorageController):
 
         # get a list of the storage pools
         # self.connection.ex_list_storage_pools(detailed=False)
+        #import pdb
+        #pdb.set_trace()
         storage_pools = self.cloud.ctl.compute.connection.ex_list_storage_pools(detailed=False)
         volumes = []
 
-        # self.connection.ex_list_storage_pool_volumes(pool_id=pool.name, detailed=True)
         for pool in storage_pools:
+            #log.info("Getting storage pool: ", pool)
             vols = self.cloud.ctl.compute.connection.ex_list_storage_pool_volumes(pool_id=pool.name,
                                                                                   detailed=True)
 
             for vol in vols:
+                #log.info("Getting volume: ", vol.name)
                 volumes.append(vol)
         return volumes
 
     def _create_volume__prepare_args(self, kwargs):
-        """Parses keyword arguments on behalf of `self.create_volume`.
-
-               Creates the parameter structure required by the libcloud method
-               that handles volume creation.
-
-               Subclasses MAY override this method.
         """
-        kwargs["pool_id"] = "Pool100"
-        kwargs["definition"] = {"config":
-                    { "block.filesystem": "ext4",
-                            "block.mount_options": "discard",
-                            "size": "10737418240"
-                    },
+        Parses keyword arguments on behalf of `self.create_volume`.
 
-                "name": "vol2",
-                "type": "custom"}
+        Creates the parameter structure required by the libcloud method
+        that handles volume creation.
+
+        """
+        # kwargs["pool_id"] = "Pool100"
+        kwargs["definition"] = {
+                                "name": kwargs["name"],
+                                "type": kwargs["type"],
+                                "config": {"size": "1",
+                                           "size_type": "GB",
+                                           "block.filesystem": "ext4",
+                                           "block.mount_options": "discard"},
+                                }
 
     def _delete_volume(self, libcloud_volume):
         self.cloud.ctl.compute.connection.ex_delete_storage_pool_volume(pool_id = libcloud_volume.extra["pool_id"],
