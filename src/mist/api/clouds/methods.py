@@ -7,6 +7,11 @@ from mist.api.helpers import trigger_session_update
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import BadRequestError, NotFoundError
 
+from mist.api.poller.models import ListMachinesPollingSchedule
+from mist.api.poller.models import ListLocationsPollingSchedule
+from mist.api.poller.models import ListSizesPollingSchedule
+from mist.api.poller.models import ListImagesPollingSchedule
+
 from mist.api.monitoring.methods import disable_monitoring_cloud
 
 from mist.api import config
@@ -54,6 +59,12 @@ def add_cloud_v_2(owner, title, provider, params):
 
     cloud.polling_interval = 1800  # 30 min * 60 sec/min
     cloud.save()
+
+    # TODO: remove below, most probably doesn't make any difference?
+    ListMachinesPollingSchedule.add(cloud=cloud)
+    ListLocationsPollingSchedule.add(cloud=cloud)
+    ListSizesPollingSchedule.add(cloud=cloud)
+    ListImagesPollingSchedule.add(cloud=cloud)
 
     return ret
 

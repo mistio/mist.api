@@ -423,6 +423,14 @@ class MainConnection(MistConnection):
                         {'cloud_id': cloud_id, 'sizes': sizes}
                     ),
                 )
+                self.internal_request(
+                    'api/v1/clouds/%s/images' % cloud.id,
+                    params={'cached': True},
+                    callback=lambda images, cloud_id=cloud.id: self.send(
+                        'list_images',
+                        {'cloud_id': cloud_id, 'images': images}
+                    ),
+                )
             if cloud.ctl.NetworkController:
                 self.internal_request(
                     'api/v1/clouds/%s/networks' % cloud.id,
@@ -525,6 +533,7 @@ class MainConnection(MistConnection):
         except:
             result = body
         log.info("Got %s", routing_key)
+        # TODO: list_locations, list_sizes and list_images can be removed...?
         if routing_key in set(['notify', 'probe', 'list_sizes', 'list_images',
                                'list_locations', 'list_projects', 'ping']):
             self.send(routing_key, result)
@@ -587,8 +596,9 @@ class MainConnection(MistConnection):
                                                      line['path'])
             if patch:
                 self.batch.extend(patch)
-
-        elif routing_key in ['patch_locations', 'patch_sizes']:
+        # TODO: transfer patch_locations to above `elif`,
+        # locations need filtering
+        elif routing_key in ['patch_locations', 'patch_sizes', 'patch_images']:
             cloud_id = result['cloud_id']
             patch = result['patch']
             for line in patch:
@@ -597,6 +607,8 @@ class MainConnection(MistConnection):
                     line['path'] = '/clouds/%s/locations/%s' % (cloud_id, _id)
                 elif routing_key == 'patch_sizes':
                     line['path'] = '/clouds/%s/sizes/%s' % (cloud_id, _id)
+                elif routing_key == 'patch_images':
+                    line['path'] = '/clouds/%s/images/%s' % (cloud_id, _id)
             if patch:
                 self.batch.extend(patch)
 

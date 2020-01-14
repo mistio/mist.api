@@ -291,29 +291,32 @@ class BaseComputeController(BaseController):
         machines = []
         now = datetime.datetime.utcnow()
 
-        # FIXME Imported here due to circular dependency issues. Perhaps one
-        # way to solve this would be to move CloudLocation under its own dir.
-        from mist.api.clouds.models import CloudLocation
-
         # This is a map of locations' external IDs and names to CloudLocation
         # mongoengine objects. It is used to lookup cached locations based on
         # a node's metadata in order to associate VM instances to their region.
+        from mist.api.clouds.models import CloudLocation
         locations_map = {}
         for location in CloudLocation.objects(cloud=self.cloud):
             locations_map[location.external_id] = location
             locations_map[location.name] = location
 
-        # FIXME Imported here due to circular dependency issues. Perhaps one
-        # way to solve this would be to move CloudSize under its own dir.
-        from mist.api.clouds.models import CloudSize
-
         # This is a map of sizes' external IDs and names to CloudSize
         # mongoengine objects. It is used to lookup cached sizes based on
         # a node's metadata in order to associate VM instances to their size.
+        from mist.api.clouds.models import CloudSize
         sizes_map = {}
         for size in CloudSize.objects(cloud=self.cloud):
             sizes_map[size.external_id] = size
             sizes_map[size.name] = size
+
+        # This is a map of images' external IDs and names to CloudImage
+        # mongoengine objects. It is used to lookup cached images based on
+        # a node's metadata in order to associate VM instances to their image.
+        from mist.api.images.models import CloudImage
+        images_map = {}
+        for image in CloudImage.objects(cloud=self.cloud):
+            images_map[image.external_id] = image
+            images_map[image.name] = image
 
         from mist.api.machines.models import Machine
         # Process each machine in returned list.
@@ -346,8 +349,8 @@ class BaseComputeController(BaseController):
             else:
                 machine.location = locations_map.get(location_id)
 
-            # Get misc libcloud metadata.
-            image_id = ''
+            # TODO: Below needs to change, image should be RefField and
+            # image_id should be deprecated. Needs migration
             if isinstance(node.image, NodeImage):
                 image_id = node.image.id
             elif isinstance(node.extra.get('image'), dict):
@@ -374,7 +377,6 @@ class BaseComputeController(BaseController):
                 log.error("Error getting size of %s: %r", machine, exc)
 
             machine.name = node.name
-            machine.image_id = image_id
             machine.state = config.STATES[node.state]
             machine.private_ips = list(set(node.private_ips))
             machine.public_ips = list(set(node.public_ips))
@@ -697,7 +699,7 @@ class BaseComputeController(BaseController):
         return False
 
     @LibcloudExceptionHandler(CloudUnavailableError)
-    def list_images(self, search=None):
+    def list_images(self, persist=True, search=None):
         """Return list of images for cloud
 
         This returns the results obtained from libcloud, after some processing,
@@ -715,45 +717,36 @@ class BaseComputeController(BaseController):
         default, dummy methods.
 
         """
+        task_key = 'cloud:list_images:%s' % self.cloud.id
+        task = PeriodicTaskInfo.get_or_add(task_key)
+        with task.task_runner(persist=persist):
+            cached_images = {'%s' % im.id: im.as_dict()
+                                for im in self.list_cached_images()}
+            images = self._list_images()
 
-        # Fetch images list, usually from libcloud connection.
-        images = self._list_images__fetch_images(search=search)
-        if not isinstance(images, list):
-            images = list(images)
-
-        # Filter out duplicate images, if any.
-        seen_ids = set()
-        for i in reversed(range(len(images))):
-            image = images[i]
-            if image.id in seen_ids:
-                images.pop(i)
+        if amqp_owner_listening(self.cloud.owner.id):
+            images_dict = [img.as_dict() for img in images]
+            if cached_images and images_dict:
+                # Publish patches to rabbitmq.
+                new_images = {'%s' % im['id']: im for im in images_dict}
+                patch = jsonpatch.JsonPatch.from_diff(cached_images,
+                                                      new_images).patch
+                if patch:
+                    amqp_publish_user(self.cloud.owner.id,
+                                      routing_key='patch_images',
+                                      data={'cloud_id': self.cloud.id,
+                                            'patch': patch})
             else:
-                seen_ids.add(image.id)
-
-        # Filter images based on search term.
-        if search:
-            search = str(search).lower()
-            images = [img for img in images
-                      if search in img.id.lower() or
-                      search in img.name.lower()]
-
-        # Filter out invalid images.
-        images = [img for img in images
-                  if img.name and img.id[:3] not in ('aki', 'ari')]
-
-        # Turn images to dict to return and star them.
-        images = [{'id': img.id,
-                   'name': img.name,
-                   'extra': img.extra,
-                   'star': self.image_is_starred(img.id)}
-                  for img in images]
-
-        # Sort images: Starred first, then alphabetically.
-        images.sort(key=lambda image: (not image['star'], image['name']))
-
+                # TODO: is this really needed? same for sizes and locations
+                # TODO: remove this block, once image patches
+                # are implemented in the UI
+                amqp_publish_user(self.cloud.owner.id,
+                                  routing_key='list_images',
+                                  data={'cloud_id': self.cloud.id,
+                                        'images': images_dict})
         return images
 
-    def _list_images__fetch_images(self, search=None):
+    def _list_images(self, search=None):
         """Fetch image listing in a libcloud compatible format
 
         This is to be called exclusively by `self.list_images`.
@@ -764,7 +757,84 @@ class BaseComputeController(BaseController):
         Subclasses MAY override this method.
 
         """
+        # Fetch images, usually from libcloud connection.
+        fetched_images = self._list_images__fetch_images()
+
+        log.info("List images returned %d results for %s.",
+                 len(fetched_images), self.cloud)
+
+        images = []
+
+        # Filter images based on search term.
+        if search:
+            search = str(search).lower()
+            images = [img for img in images
+                      if search in img.id.lower() or
+                      search in img.name.lower()]
+
+        # Filter out invalid images.
+        # images = [img for img in images
+        #           if img.name and img.id[:3] not in ('aki', 'ari')]
+
+        for image in images:
+
+            # why the hell is this needed?
+            if self.provider == 'gce':
+                image.extra.pop('licenses', None)
+
+            # create the object in db if it does not exist
+            from mist.api.images.models import CloudImage
+            try:
+                _image = CloudImage.objects.get(cloud=self.cloud,
+                                                image_id=image.id)
+            except CloudImage.DoesNotExist:
+                _image = CloudImage(cloud=self.cloud,
+                                    name=image.name, image_id=image.id,
+                                    provider=self.provider
+                                    )
+            image.os_type = self._list_images_get_os(image)
+            # self.image_is_starred(img.id)}
+
+            try:
+                _image.save()
+                _images.append(_image)
+            except me.ValidationError as exc:
+                log.error("Error adding %s: %s", _image.name, exc.to_dict())
+                raise BadRequestError({"msg": exc.message,
+                                       "errors": exc.to_dict()})
+        # Sort images: Starred first, then alphabetically.
+        # _images.sort(key=lambda image: (not image['star'], image['name']))
+        _images.sort(key=lambda image: (image['name']))
+        return [img.as_dict() for img in _images]
+
+    def _list_images__fetch_images(self):
+        """Fetch image listing in a libcloud compatible format
+
+        This is to be called exclusively by `self._list_images`.
+
+        Most subclasses that use a simple libcloud connection, shouldn't
+        need to override or extend this method.
+
+        Subclasses MAY override this method.
+        """
         return self.connection.list_images()
+
+    def list_cached_images(self):
+        """Return list of images from database for a specific cloud"""
+        from mist.api.images.models import CloudImage
+        return CloudImage.objects(cloud=self.cloud, missing_since=None)
+
+    def _list_images_get_os(self, image):
+        if 'coreos' in image.name.lower():
+            return 'coreos'
+        elif 'centos' in image.name.lower():
+            return 'centos'
+        elif 'window' in image.name.lower():
+            return 'windows'
+        elif 'gentoo' in image.name.lower():
+            return 'gentoo'
+        else:
+            return 'linux'
 
     def image_is_starred(self, image_id):
         starred = image_id in self.cloud.starred
@@ -814,7 +884,7 @@ class BaseComputeController(BaseController):
                                             'patch': patch})
 
             else:
-                # TODO: remove this block, once location patches
+                # TODO: remove this block, once size patches
                 # are implemented in the UI
                 amqp_publish_user(self.cloud.owner.id,
                                   routing_key='list_sizes',

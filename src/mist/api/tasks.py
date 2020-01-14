@@ -46,6 +46,9 @@ from mist.api.poller.models import ListVolumesPollingSchedule
 from mist.api.poller.models import FindCoresMachinePollingSchedule
 from mist.api.poller.models import PingProbeMachinePollingSchedule
 from mist.api.poller.models import SSHProbeMachinePollingSchedule
+from mist.api.poller.models import ListLocationsPollingSchedule
+from mist.api.poller.models import ListSizesPollingSchedule
+from mist.api.poller.models import ListImagesPollingSchedule
 
 from mist.api.helpers import send_email as helper_send_email
 from mist.api.helpers import amqp_publish_user
@@ -719,24 +722,6 @@ class UserTask(Task):
             return 60 * 10  # Retry in 10mins after the third error
 
 
-class ListImages(UserTask):
-    task_key = 'list_images'
-    result_expires = 60 * 60 * 24 * 7
-    result_fresh = 60 * 60
-    polling = False
-    soft_time_limit = 60 * 2
-
-    def execute(self, owner_id, cloud_id):
-        from mist.api import methods
-        owner = Owner.objects.get(id=owner_id)
-        log.warn('Running list images for user %s cloud %s',
-                 owner.id, cloud_id)
-        images = methods.list_images(owner, cloud_id)
-        log.warn('Returning list images for user %s cloud %s',
-                 owner.id, cloud_id)
-        return {'cloud_id': cloud_id, 'images': images}
-
-
 class ListProjects(UserTask):
     task_key = 'list_projects'
     result_expires = 60 * 60 * 24 * 7
@@ -755,7 +740,6 @@ class ListProjects(UserTask):
         return {'cloud_id': cloud_id, 'projects': projects}
 
 
-list_images = app.register_task(ListImages())
 list_projects = app.register_task(ListProjects())
 
 
@@ -1296,6 +1280,12 @@ def update_poller(org_id):
     for cloud in Cloud.objects(owner=org, deleted=None, enabled=True):
         log.info("Updating poller for cloud %s", cloud)
         ListMachinesPollingSchedule.add(cloud=cloud, interval=10, ttl=120)
+        ListLocationsPollingSchedule.add(cloud=cloud, interval=60 * 60 * 24,
+                                         ttl=120)
+        ListSizesPollingSchedule.add(cloud=cloud, interval=60 * 60 * 24,
+                                     ttl=120)
+        ListImagesPollingSchedule.add(cloud=cloud, interval=60 * 60 * 24,
+                                      ttl=120)
         if hasattr(cloud.ctl, 'network'):
             ListNetworksPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
         if hasattr(cloud.ctl, 'dns') and cloud.dns_enabled:
