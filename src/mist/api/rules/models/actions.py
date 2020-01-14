@@ -227,9 +227,11 @@ class WebhookAction(BaseAlertAction):
 
     def run(self, resource, *args, **kwargs):
         from mist.api.config import CORE_URI
-        resource_type = self._instance.resource_model_name
-        resource_url = resource_type and '%s/%ss/%s' % (
-            CORE_URI, resource_type, resource.id) or CORE_URI
+        resource_type = getattr(self._instance, 'resource_model_name', 'org')
+        if resource_type == 'org':
+            resource_url = CORE_URI
+        else:
+            resource_url = '%s/%ss/%s' % (CORE_URI, resource_type, resource.id)
         if hasattr(resource, "name"):
             resource_name = resource.name
         elif hasattr(resource, "title"):
@@ -238,15 +240,19 @@ class WebhookAction(BaseAlertAction):
             resource_name = 'unknown'
         if self.json:
             json_body = self.json.replace(
-                "{resource_id}", resource.id).replace(
+                "{resource_id}", getattr(resource, 'id', '')).replace(
                     "{resource_url}", resource_url).replace(
                         "{resource_name}", resource_name)
             json_body = json.loads(json_body)
         else:
             json_body = None
-        data = self.data.replace("{resource_id}", resource.id).replace(
-            "{resource_url}", resource_url).replace("{resource_name}",
-                                                    resource.name)
+        if self.data:
+            data = self.data.replace(
+                "{resource_id}", getattr(resource, 'id', '')).replace(
+                    "{resource_url}", resource_url).replace(
+                        "{resource_name}", resource.name)
+        else:
+            data = None
         headers = json.loads(self.headers) if self.headers else None
         response = requests.request(
             self.method, self.url, params=self.params, data=data,

@@ -67,28 +67,30 @@ def _get_alert_details(resource, rule, incident_id,
         'portal_name': config.PORTAL_NAME,
         'email_logo': config.EMAIL_LOGO
     }
-
     # FIXME For backwards compatibility. Note that `name` cannot be
     # defined for arbitrary rules. The `host` and `machine_link` entries
     # are machine-specific.
-    d.update({'name': '', 'host': '', 'machine_link': ''})
+    d.update({'name': '', 'machine_link': ''})
 
     if isinstance(rule, ArbitraryLogsRule):
-        return d
-
-    if isinstance(rule, ResourceLogsRule):
+        resource = rule.owner
+        resource_type = 'organization'
+        resource_link = config.CORE_URI
+    elif isinstance(rule, ResourceLogsRule):
         resource_type = resource._get_collection_name().rstrip('s')
-        d.update({
-            'resource_id': resource.id,
-            'resource_type': resource_type,
-            'resource_name': _get_resource_name(resource),
-            'resource_repr': _get_resource_repr(resource),
-            'resource_link': '%s/%ss/%s' % (config.CORE_URI,
-                                            resource_type, resource.id)
-        })
-        return d
-
-    raise Exception()
+        resource_link = '%s/%ss/%s' % (config.CORE_URI,
+                                       resource_type, resource.id)
+    host = _get_nice_machine_host_label(resource) if resource_type in \
+        ['machine'] else ''
+    d.update({
+        'host': host,
+        'resource_id': resource.id,
+        'resource_type': resource_type,
+        'resource_name': _get_resource_name(resource),
+        'resource_repr': _get_resource_repr(resource),
+        'resource_link': resource_link
+    })
+    return d
 
 
 # TODO Deprecate.
@@ -148,7 +150,7 @@ def _alert_pretty_machine_details(owner, rule_id, value, triggered, timestamp,
             condition += ' within %s mins' % period
         fval = metric.format_value(value)
 
-    state = level.upper() if triggered else 'OK',
+    state = level.upper() if triggered else 'OK'
 
     return {
         'description': description,
@@ -215,7 +217,7 @@ def _log_alert(resource, rule, value, triggered, timestamp, incident_id,
 
     # Update info with additional kwargs.
     info.update(kwargs)
-
+    info.pop('owner_id', None)
     # Log the alert.
     log_event(
         owner_id=rule.owner_id, event_type='incident', incident_id=incident_id,
