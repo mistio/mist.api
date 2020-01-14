@@ -723,7 +723,7 @@ class BaseComputeController(BaseController):
         with task.task_runner(persist=persist):
             cached_images = {'%s' % im.id: im.as_dict()
                              for im in self.list_cached_images()}
-            images = self._list_images()
+            images = self._list_images(search=search)
 
         if amqp_owner_listening(self.cloud.owner.id):
             images_dict = [img.as_dict() for img in images]
@@ -761,23 +761,23 @@ class BaseComputeController(BaseController):
         from mist.api.images.models import CloudImage
 
         # Fetch images, usually from libcloud connection.
-        fetched_images = self._list_images__fetch_images()
+        libcloud_images = self._list_images__fetch_images()
 
         log.info("List images returned %d results for %s.",
-                 len(fetched_images), self.cloud)
+                 len(libcloud_images), self.cloud)
 
         images = []
 
-        # TODO: Filter images based on search term.
-        # if search:
-        #     search = str(search).lower()
-        #     images = [img for img in images
-        #               if search in img.id.lower() or
-        #               search in img.name.lower()]
-        # Filter out invalid images.
-        # images = [img for img in images
-        #           if img.name and img.id[:3] not in ('aki', 'ari')]
-        for img in fetched_images:
+        # Filter images based on search term.
+        if search:
+            search = str(search).lower()
+            _images = [img for img in libcloud_images
+                       if search in img.id.lower() or
+                       search in img.name.lower()]
+        else:
+            _images = libcloud_images
+
+        for img in _images:
             try:
                 _image = CloudImage.objects.get(cloud=self.cloud,
                                                 external_id=img.id)

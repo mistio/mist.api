@@ -181,6 +181,11 @@ class AmazonComputeController(BaseComputeController):
         return node.extra.get('instance_type')
 
     # TODO: FIXME
+    # Filter out invalid images.
+    # images = [img for img in images
+    #           if img.name and img.id[:3] not in ('aki', 'ari')]
+
+    # TODO: FIXME
     # def _list_images__fetch_images(self, search=None):
     #     default_images = config.EC2_IMAGES[self.cloud.region]
     #     image_ids = list(default_images.keys()) + self.cloud.starred
