@@ -721,7 +721,7 @@ class BaseComputeController(BaseController):
         task = PeriodicTaskInfo.get_or_add(task_key)
         with task.task_runner(persist=persist):
             cached_images = {'%s' % im.id: im.as_dict()
-                                for im in self.list_cached_images()}
+                             for im in self.list_cached_images()}
             images = self._list_images()
 
         if amqp_owner_listening(self.cloud.owner.id):
@@ -757,6 +757,8 @@ class BaseComputeController(BaseController):
         Subclasses MAY override this method.
 
         """
+        from mist.api.images.models import CloudImage
+
         # Fetch images, usually from libcloud connection.
         fetched_images = self._list_images__fetch_images()
 
@@ -765,47 +767,50 @@ class BaseComputeController(BaseController):
 
         images = []
 
-        # Filter images based on search term.
-        if search:
-            search = str(search).lower()
-            images = [img for img in images
-                      if search in img.id.lower() or
-                      search in img.name.lower()]
-
+        # TODO: Filter images based on search term.
+        # if search:
+        #     search = str(search).lower()
+        #     images = [img for img in images
+        #               if search in img.id.lower() or
+        #               search in img.name.lower()]
         # Filter out invalid images.
         # images = [img for img in images
         #           if img.name and img.id[:3] not in ('aki', 'ari')]
 
-        for image in images:
-
-            # why the hell is this needed?
-            if self.provider == 'gce':
-                image.extra.pop('licenses', None)
-
-            # create the object in db if it does not exist
-            from mist.api.images.models import CloudImage
+        for img in fetched_images:
             try:
                 _image = CloudImage.objects.get(cloud=self.cloud,
-                                                image_id=image.id)
+                                                external_id=img.id)
             except CloudImage.DoesNotExist:
                 _image = CloudImage(cloud=self.cloud,
-                                    name=image.name, image_id=image.id,
-                                    provider=self.provider
-                                    )
-            image.os_type = self._list_images_get_os(image)
+                                    external_id=img.id)
+            _image.name = img.name
+            _image.extra = img.extra
+            _image.missing_since = None
+            # image.os_type = self._list_images_get_os(image)
             # self.image_is_starred(img.id)}
 
             try:
                 _image.save()
-                _images.append(_image)
             except me.ValidationError as exc:
                 log.error("Error adding %s: %s", _image.name, exc.to_dict())
                 raise BadRequestError({"msg": exc.message,
                                        "errors": exc.to_dict()})
+            images.append(_image)
+
+        # update missing_since for images not returned by libcloud
+        CloudImage.objects(cloud=self.cloud,
+                           missing_since=None,
+                           external_id__nin=[i.external_id
+                                            for i in images]).update(
+                                                missing_since=datetime.
+                                                datetime.utcnow())
+
         # Sort images: Starred first, then alphabetically.
         # _images.sort(key=lambda image: (not image['star'], image['name']))
-        _images.sort(key=lambda image: (image['name']))
-        return [img.as_dict() for img in _images]
+        #_images.sort(key=lambda image: (image['name']))
+
+        return images
 
     def _list_images__fetch_images(self):
         """Fetch image listing in a libcloud compatible format
