@@ -11,8 +11,8 @@ class CloudImage(me.Document):
     cloud = me.ReferenceField('Cloud', required=True,
                               reverse_delete_rule=me.CASCADE)
     external_id = me.StringField(required=True)
-
     name = me.StringField()
+    starred = me.BooleanField(default=True)
     missing_since = me.DateTimeField()
     extra = MistDictField()
     os_type = me.StringField(default='linux')

@@ -460,7 +460,7 @@ class MainConnection(MistConnection):
                 )
 
         # Old Periodic Tasks (must be replaced by poller tasks and api calls.
-        for key in ('list_images', 'list_projects'):
+        for key in ['list_projects']:
             task = getattr(tasks, key)
             for cloud in clouds:
                 # Avoid submitting new celery tasks, when it's certain that

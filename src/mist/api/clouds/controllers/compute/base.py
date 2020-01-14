@@ -351,6 +351,7 @@ class BaseComputeController(BaseController):
 
             # TODO: Below needs to change, image should be RefField and
             # image_id should be deprecated. Needs migration
+            image_id = ''
             if isinstance(node.image, NodeImage):
                 image_id = node.image.id
             elif isinstance(node.extra.get('image'), dict):
@@ -776,7 +777,6 @@ class BaseComputeController(BaseController):
         # Filter out invalid images.
         # images = [img for img in images
         #           if img.name and img.id[:3] not in ('aki', 'ari')]
-
         for img in fetched_images:
             try:
                 _image = CloudImage.objects.get(cloud=self.cloud,
@@ -788,7 +788,6 @@ class BaseComputeController(BaseController):
             _image.extra = img.extra
             _image.missing_since = None
             # image.os_type = self._list_images_get_os(image)
-            # self.image_is_starred(img.id)}
 
             try:
                 _image.save()
@@ -802,13 +801,12 @@ class BaseComputeController(BaseController):
         CloudImage.objects(cloud=self.cloud,
                            missing_since=None,
                            external_id__nin=[i.external_id
-                                            for i in images]).update(
-                                                missing_since=datetime.
-                                                datetime.utcnow())
+                                             for i in images]).update(
+                                                 missing_since=datetime.
+                                                 datetime.utcnow())
 
         # Sort images: Starred first, then alphabetically.
-        # _images.sort(key=lambda image: (not image['star'], image['name']))
-        #_images.sort(key=lambda image: (image['name']))
+        images.sort(key=lambda image: (not image.starred, image.name))
 
         return images
 
@@ -840,12 +838,6 @@ class BaseComputeController(BaseController):
             return 'gentoo'
         else:
             return 'linux'
-
-    def image_is_starred(self, image_id):
-        starred = image_id in self.cloud.starred
-        unstarred = image_id in self.cloud.unstarred
-        default = self.image_is_default(image_id)
-        return starred or (default and not unstarred)
 
     def image_is_default(self, image_id):
         return True
