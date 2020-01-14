@@ -596,7 +596,8 @@ class MainConnection(MistConnection):
                                                      line['path'])
             if patch:
                 self.batch.extend(patch)
-        # TODO: patch location --> above elif
+        # TODO: transfer patch_locations to above `elif`,
+        # locations need filtering
         elif routing_key in ['patch_locations', 'patch_sizes', 'patch_images']:
             cloud_id = result['cloud_id']
             patch = result['patch']

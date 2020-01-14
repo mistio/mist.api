@@ -5,8 +5,6 @@ import mongoengine as me
 from mist.api.mongoengine_extras import MistDictField
 
 
-# TODO: Needs migration for production, there are CloudImage objects in db
-
 class CloudImage(me.Document):
     """A base Cloud Image Model."""
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)

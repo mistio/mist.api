@@ -50,7 +50,6 @@ from mist.api.concurrency.models import PeriodicTaskThresholdExceeded
 from mist.api.clouds.controllers.base import BaseController
 from mist.api.tag.models import Tag
 
-
 if config.HAS_VPN:
     from mist.vpn.methods import destination_nat as dnat
 else:
@@ -350,8 +349,8 @@ class BaseComputeController(BaseController):
             else:
                 machine.location = locations_map.get(location_id)
 
-            # Get misc libcloud metadata.
-            image_id = ''
+            # TODO: Below needs to change, image should be RefField and
+            # image_id should be deprecated. Needs migration
             if isinstance(node.image, NodeImage):
                 image_id = node.image.id
             elif isinstance(node.extra.get('image'), dict):
@@ -378,9 +377,6 @@ class BaseComputeController(BaseController):
                 log.error("Error getting size of %s: %r", machine, exc)
 
             machine.name = node.name
-            # TODO: Below needs to change, image should be RefField and
-            # image_id should be deprecated. Needs migration
-            machine.image_id = image_id
             machine.state = config.STATES[node.state]
             machine.private_ips = list(set(node.private_ips))
             machine.public_ips = list(set(node.public_ips))
@@ -723,15 +719,10 @@ class BaseComputeController(BaseController):
         """
         task_key = 'cloud:list_images:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
-        # TODO: try-except needed?
-        try:
-            with task.task_runner(persist=persist):
-                cached_images = {'%s' % im.id: im.as_dict()
-                                 for im in self.list_cached_images()}
-                images = self._list_images()
-        except PeriodicTaskThresholdExceeded:
-            self.cloud.disable()
-            raise
+        with task.task_runner(persist=persist):
+            cached_images = {'%s' % im.id: im.as_dict()
+                                for im in self.list_cached_images()}
+            images = self._list_images()
 
         if amqp_owner_listening(self.cloud.owner.id):
             images_dict = [img.as_dict() for img in images]
@@ -766,7 +757,6 @@ class BaseComputeController(BaseController):
         Subclasses MAY override this method.
 
         """
-        from mist.api.images.models import CloudImage
         # Fetch images, usually from libcloud connection.
         fetched_images = self._list_images__fetch_images()
 
