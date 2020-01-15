@@ -52,61 +52,31 @@ class ShellHubWorker(mist.api.hub.main.HubWorker):
         data = self.params
         self.provider = data.get('provider', '')
 
-        if self.provider == '':
-            job_id = data['job_id']
-
-            if job_id == '':
-                job_id = ' job id is empty'
-
         host = data.get('host', '')
-
-        if host == '':
-            host = 'host is empty'
-
         cloud_id = data.get('cloud_id', '')
         machine_id = data.get('machine_id', '')
+        job_id = data.get('job_id', '')
 
         if self.provider == '':
             self.provider = 'lxd'
 
         try:
 
-            if self.provider == '':
-                self.shell = mist.api.shell.Shell(data['host'])
-
-                key_id, ssh_user = self.shell.autoconfigure( self.owner, data['cloud_id'],
-                                                             data['machine_id'])
-            elif self.provider == 'lxd':
-
-                #import pdb
-                #pdb.set_trace()
-                self.shell = mist.api.shell.Shell(data['host'],
-                                                  provider=self.provider)
-
-                key_id, ssh_user = self.shell.autoconfigure(owner=self.owner,
-                                                            cloud_id=data['cloud_id'],
-                                                            machine_id=data['machine_id'],
-                                                            job_id=data['job_id'],)
-                self.emit_shell_data("Connected to shell with LXD...\n")
+            self.shell = mist.api.shell.Shell(host, provider=self.provider)
+            key_id, ssh_user = self.shell.autoconfigure(owner=self.owner,
+                                                        cloud_id=cloud_id,
+                                                        machine_id=machine_id,
+                                                        job_id=job_id)
+            self.params.update(key_id=key_id, ssh_user=ssh_user)
 
         except Exception as exc:
-            if self.provider == 'docker':
-                self.shell = mist.api.shell.Shell(data['host'],
-                                                  provider='docker')
-                key_id, ssh_user = self.shell.autoconfigure(
-                    self.owner, data['cloud_id'], data['machine_id'],
-                    job_id=data['job_id'],
-                )
-            else:
+
                 log.warning("%s: Couldn't connect with SSH, error %r.",
                             self.lbl, exc)
                 if isinstance(exc,
                               mist.api.exceptions.MachineUnauthorizedError):
-                    if self.provider == '':
 
-                        err = 'Permission denied (publickey). Provider is: %s. Host is %s job_id is %s' % ('empty provider', host, job_id)
-                    else:
-                        err = 'Permission denied (publickey). Provider is: %s  host is %s cloud is %s machine is %s' % (self.provider, host, cloud_id, machine_id)
+                    err = 'Permission denied (publickey).'
                 else:
                     err = str(exc)
                 self.emit_shell_data(err)
@@ -114,15 +84,23 @@ class ShellHubWorker(mist.api.hub.main.HubWorker):
                 self.stop()
                 return
 
-        #self.emit_shell_data('connected... user %s \n'% ssh_user)
-        self.params.update(key_id=key_id, ssh_user=ssh_user)
+        # TODO: this returns the underlying object
+        # that handles the connection e.g. the ws object for Docker
+        # and LXD is this the way we want to do it?
         self.channel = self.shell.invoke_shell('xterm',
                                                data['columns'], data['rows'])
         self.greenlets['read_stdout'] = gevent.spawn(self.get_ssh_data)
 
     def on_data(self, body, msg):
         """Received data that must be forwarded to shell's stdin"""
-        self.channel.send(body.encode('utf-8', 'ignore'))
+
+        # TODO: Factory should be moved from here
+        if self.shell.get_type() == "ParamikoShell" or\
+            self.shell.get_type() == "DockerShell":
+
+                self.channel.send(body.encode('utf-8', 'ignore'))
+        elif self.shell.get_type() == "LXDShell":
+            self.channel.send(bytearray(body, encoding='utf-8'), opcode=2)
 
     def on_resize(self, body, msg):
         """Received resize shell window command"""
@@ -233,6 +211,7 @@ class LoggingShellHubWorker(ShellHubWorker):
                                                 shell_id=self.uuid,
                                                 **self.params)
         super(LoggingShellHubWorker, self).stop()
+
 
 
 class ShellHubClient(mist.api.hub.main.HubClient):

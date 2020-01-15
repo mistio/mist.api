@@ -361,10 +361,7 @@ class DockerWebSocket(object):
 
     def connect(self):
 
-        #import pdb
-        #pdb.set_trace()
         try:
-
             self.ws.connect(self.uri)
         except websocket.WebSocketException:
             raise MachineUnauthorizedError()
@@ -406,7 +403,7 @@ class DockerWebSocket(object):
         self.ws.close()
 
     def _on_error(self, ws, error):
-        log.error("Got Websocker error: %s" % error)
+        log.error("Got Websocket error: %s" % error)
 
     def _on_open(self, ws):
         def run(*args):
@@ -427,6 +424,7 @@ class DockerShell(DockerWebSocket):
         super(DockerShell, self).__init__()
 
     def autoconfigure(self, owner, cloud_id, machine_id, **kwargs):
+
         shell_type = 'logging' if kwargs.get('job_id', '') else 'interactive'
         config_method = '%s_shell' % shell_type
 
@@ -438,6 +436,7 @@ class DockerShell(DockerWebSocket):
         return None, None
 
     def interactive_shell(self, owner, **kwargs):
+
         docker_port, cloud = \
             self.get_docker_endpoint(owner, cloud_id=kwargs['cloud_id'])
         log.info("Autoconfiguring DockerShell for machine %s:%s",
@@ -481,12 +480,14 @@ class DockerShell(DockerWebSocket):
             }
             self.ws = websocket.WebSocket(sslopt=self.sslopt)
 
+
         if cloud and cloud.username and cloud.password:
             uri = '%s://%s:%s@%s:%s/containers/%s/attach/ws?logs=%s&stream=1&stdin=%s&stdout=1&stderr=1' % (  # noqa
                 self.protocol, cloud.username, cloud.password, self.host,
                 docker_port, container_id, allow_logs, allow_stdin
             )
         else:
+
             uri = '%s://%s:%s/containers/%s/attach/ws?logs=%s&stream=1&stdin=%s&stdout=1&stderr=1' % (  # noqa
                 self.protocol, self.host, docker_port, container_id,
                 allow_logs, allow_stdin
@@ -520,17 +521,10 @@ class LXDShell(DockerWebSocket):
 
     def autoconfigure(self, owner, cloud_id, machine_id, **kwargs):
 
-        shell_type = 'logging' if kwargs.get('job_id', '') else 'interactive'
-        config_method = '%s_shell' % shell_type
-
-        """
-        getattr(self, config_method)(owner,
-                                     cloud_id=cloud_id, machine_id=machine_id,
-                                     job_id=kwargs.get('job_id', ''))
-        """
+        #shell_type = 'logging' if kwargs.get('job_id', '') else 'interactive'
+        config_method = 'interactive' #%s_shell' % shell_type
 
         # create an interactive shell
-        #if shell_type == 'interactive':
         # it builds the self.uri to connect below
         self.interactive_shell(owner=owner, machine_id=machine_id, cloud_id=cloud_id, **kwargs)
 
@@ -552,7 +546,11 @@ class LXDShell(DockerWebSocket):
         conn = connect_provider(cloud)
 
         config = {"wait-for-websocket": True, "interactive": True}
-        cont_id='a-brand-new-lxd-container'
+
+        # I need here the name not mist id
+        machine = Machine.objects.get(id=machine_id, cloud=cloud_id)
+
+        cont_id= machine.name
         response = conn.ex_execute_cmd_on_container(cont_id=cont_id, command=["/bin/bash"], **config)
 
         uuid = response.uuid
@@ -568,6 +566,8 @@ class LXDShell(DockerWebSocket):
         if job_id:
             event = get_story(owner.id, job_id)
             assert owner.id == event['owner_id'], 'Owner ID mismatch!'
+
+            # who has this information?
             self.host, lxd_port = '192.168.2.4', '8443' #config.DOCKER_IP, config.DOCKER_PORT
             return lxd_port, event['logs'][0]['container_id']
 
@@ -578,7 +578,6 @@ class LXDShell(DockerWebSocket):
     def build_uri(self, operations_id, secret_id,
                   lxd_port, cloud=None, ssl_enabled=False, **kwargs):
 
-        #if ssl_enabled:
         self.protocol = 'wss'
         ssl_key, ssl_cert = self.ssl_credentials(cloud)
         self.sslopt = {
@@ -588,18 +587,20 @@ class LXDShell(DockerWebSocket):
         }
         self.ws = websocket.WebSocket(sslopt=self.sslopt)
 
-        """
-        if cloud and cloud.username and cloud.password:
-
-            uri = '%s://%s:%s@%s:%s/operations/%s/websocket/?secret=%s' % (  # noqa
-                self.protocol, cloud.username, cloud.password, self.host,
-                lxd_port, operations_id, secret_id
-            )
-        else:
-        """
         uri = '%s://%s:%s/1.0/operations/%s/websocket?secret=%s' % (  # noqa
                   self.protocol, self.host, lxd_port, operations_id, secret_id)
         return uri
+
+    def _wrap_command(self, cmd):
+        if cmd[-1] is not "\r":
+            cmd = cmd + "\r"
+        return cmd
+
+    def _on_open(self, ws):
+        def run(*args):
+            ws.send(bytearray(self.cmd, encoding='utf-8'), opcode=2)
+            sleep(1)
+            _thread.start_new_thread(run, ())
 
     @staticmethod
     def ssl_credentials(cloud=None):
@@ -646,6 +647,16 @@ class Shell(object):
                                         password=password, cert_file=cert_file,
                                         port=port)
             self.ssh = self._shell.ssh
+
+    def get_type(self):
+        if isinstance(self._shell, ParamikoShell):
+            return "ParamikoShell"
+        elif isinstance(self._shell, DockerShell) :
+            return "DockerShell"
+        elif isinstance(self._shell, LXDShell):
+            return "LXDShell"
+
+        raise TypeError("Unknown shell type")
 
     def autoconfigure(self, owner, cloud_id, machine_id, key_id=None,
                       username=None, password=None, port=22, **kwargs):
