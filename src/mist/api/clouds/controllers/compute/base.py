@@ -787,7 +787,7 @@ class BaseComputeController(BaseController):
             _image.name = img.name
             _image.extra = img.extra
             _image.missing_since = None
-            # image.os_type = self._list_images_get_os(image)
+            _image.os_type = self._list_images__get_os_type(img)
 
             try:
                 _image.save()
@@ -827,15 +827,9 @@ class BaseComputeController(BaseController):
         from mist.api.images.models import CloudImage
         return CloudImage.objects(cloud=self.cloud, missing_since=None)
 
-    def _list_images_get_os(self, image):
-        if 'coreos' in image.name.lower():
-            return 'coreos'
-        elif 'centos' in image.name.lower():
-            return 'centos'
-        elif 'window' in image.name.lower():
+    def _list_images__get_os_type(self, image):
+        if 'windows' in image.name.lower():
             return 'windows'
-        elif 'gentoo' in image.name.lower():
-            return 'gentoo'
         else:
             return 'linux'
 

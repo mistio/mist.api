@@ -288,11 +288,16 @@ class AlibabaComputeController(AmazonComputeController):
         else:
             return (0, price.get('prepaid', 0))
 
-    def _list_images__fetch_images(self, search=None):
-        return self.connection.list_images()
-
     def image_is_default(self, image_id):
         return True
+
+    def _list_images__get_os_type(self, image):
+        if image.extra.get('os_type', ''):
+            return image.extra.get('os_type').lower()
+        if 'windows' in image.name.lower():
+            return 'windows'
+        else:
+            return 'linux'
 
     def _list_locations__fetch_locations(self):
         """List ECS regions as locations, embed info about zones
@@ -423,6 +428,13 @@ class MaxihostComputeController(BaseComputeController):
                            + str(disk_count) + ' * ' + disk_size + ' ' \
                            + disk_type
 
+    def _list_images__get_os_type(self, image):
+        if image.extra.get('operating_system', ''):
+            return image.extra.get('operating_system').lower()
+        if 'windows' in image.name.lower():
+            return 'windows'
+        else:
+            return 'linux'
 
 class LinodeComputeController(BaseComputeController):
 
@@ -519,6 +531,14 @@ class RackSpaceComputeController(BaseComputeController):
 
     def _list_sizes__get_cpu(self, size):
         return size.vcpus
+
+    def _list_images__get_os_type(self, image):
+        if image.extra.get('metadata', '').get('os_type', ''):
+            return image.extra.get('metadata').get('os_type').lower()
+        if 'windows' in image.name.lower():
+            return 'windows'
+        else:
+            return 'linux'
 
 
 class SoftLayerComputeController(BaseComputeController):
