@@ -266,6 +266,7 @@ class BaseComputeController(BaseController):
             `self._list_machines__postparse_machine`
             `self._list_machines__cost_machine`
             `self._list_machines__fetch_generic_machines`
+            `self._list_machines__machine_creation_date`
 
         Subclasses that require special handling should override these, by
         default, dummy methods.
@@ -349,8 +350,7 @@ class BaseComputeController(BaseController):
             else:
                 machine.location = locations_map.get(location_id)
 
-            # TODO: Below needs to change, image should be RefField and
-            # image_id should be deprecated. Needs migration
+            # Discover image of machine
             image_id = ''
             if isinstance(node.image, NodeImage):
                 image_id = node.image.id
@@ -365,6 +365,8 @@ class BaseComputeController(BaseController):
                 image_id = node.extra.get('operating_system')
                 if isinstance(image_id, dict):
                     image_id = image_id.get('name')
+
+            machine.image = images_map.get(image_id)
 
             # Attempt to map machine's size to a CloudSize object. If not
             # successful, try to discover custom size.
