@@ -480,7 +480,6 @@ class DockerShell(DockerWebSocket):
             }
             self.ws = websocket.WebSocket(sslopt=self.sslopt)
 
-
         if cloud and cloud.username and cloud.password:
             uri = '%s://%s:%s@%s:%s/containers/%s/attach/ws?logs=%s&stream=1&stdin=%s&stdout=1&stderr=1' % (  # noqa
                 self.protocol, cloud.username, cloud.password, self.host,
@@ -510,7 +509,39 @@ class DockerShell(DockerWebSocket):
             return tempkey.name, tempcert.name
 
 
-class LXDShell(DockerWebSocket):
+class LXDWebSocket(DockerWebSocket):
+
+    def __init__(self):
+        super(LXDWebSocket, self).__init__()
+
+        # for interactive shell LXD REST API
+        # returns the operation id
+        # the control sha
+        # the secret sha
+        self._control = ""
+        self._uuid = ""
+        self._secret_0 = ""
+
+    def set_ws_data(self, uuid, secret, control):
+        self._uuid = uuid
+        self._secret_0 = secret
+        self._control = control
+
+
+
+    def _wrap_command(self, cmd):
+        if cmd[-1] is not "\r":
+            cmd = cmd + "\r"
+        return cmd
+
+    def _on_open(self, ws):
+        def run(*args):
+            ws.send(bytearray(self.cmd, encoding='utf-8'), opcode=2)
+            sleep(1)
+            _thread.start_new_thread(run, ())
+
+
+class LXDShell(LXDWebSocket):
     """
         LXDShell achieved through the LXD host's API by opening a WebSocket
     """
@@ -535,7 +566,7 @@ class LXDShell(DockerWebSocket):
     def interactive_shell(self, owner, machine_id, cloud_id, **kwargs):
 
         lxd_port, cloud = \
-            self.get_lxd_endpoint(owner, cloud_id=cloud_id) #kwargs['cloud_id'])
+            self.get_lxd_endpoint(owner, cloud_id=cloud_id, job_id=None)
 
         log.info("Autoconfiguring LXDShell for machine %s:%s",
                  cloud.id, machine_id)
@@ -555,6 +586,8 @@ class LXDShell(DockerWebSocket):
 
         uuid = response.uuid
         secret_0 = response.secret_0
+        self.set_ws_data(control=response.control,
+                         uuid=uuid, secret=secret_0)
 
         # build the uri to use for the connection
         self.uri = self.build_uri(operations_id=uuid, secret_id=secret_0,
@@ -563,6 +596,7 @@ class LXDShell(DockerWebSocket):
 
     def get_lxd_endpoint(self, owner, cloud_id, job_id=None):
 
+        """
         if job_id:
             event = get_story(owner.id, job_id)
             assert owner.id == event['owner_id'], 'Owner ID mismatch!'
@@ -570,6 +604,7 @@ class LXDShell(DockerWebSocket):
             # who has this information?
             self.host, lxd_port = '192.168.2.4', '8443' #config.DOCKER_IP, config.DOCKER_PORT
             return lxd_port, event['logs'][0]['container_id']
+        """
 
         cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
         self.host, lxd_port = dnat(owner, self.host, cloud.port)
@@ -591,16 +626,6 @@ class LXDShell(DockerWebSocket):
                   self.protocol, self.host, lxd_port, operations_id, secret_id)
         return uri
 
-    def _wrap_command(self, cmd):
-        if cmd[-1] is not "\r":
-            cmd = cmd + "\r"
-        return cmd
-
-    def _on_open(self, ws):
-        def run(*args):
-            ws.send(bytearray(self.cmd, encoding='utf-8'), opcode=2)
-            sleep(1)
-            _thread.start_new_thread(run, ())
 
     @staticmethod
     def ssl_credentials(cloud=None):
