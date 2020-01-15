@@ -759,7 +759,6 @@ class BaseComputeController(BaseController):
 
         """
         from mist.api.images.models import CloudImage
-
         # Fetch images, usually from libcloud connection.
         libcloud_images = self._list_images__fetch_images()
 
@@ -830,6 +829,8 @@ class BaseComputeController(BaseController):
     def _list_images__get_os_type(self, image):
         if 'windows' in image.name.lower():
             return 'windows'
+        elif 'vyatta' in image.name.lower():
+            return 'vyatta'
         else:
             return 'linux'
 

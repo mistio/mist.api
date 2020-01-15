@@ -227,6 +227,13 @@ class AmazonComputeController(BaseComputeController):
     #             )
     #     return images
 
+    def _list_images__fetch_images(self, search=None):
+        # Fetch mist's recommended images
+        images = [NodeImage(id=image, name=name,
+                            driver=self.connection, extra={})
+                  for image, name in list(config.EC2_IMAGES[self.cloud.region].items())]
+        return images
+
     def image_is_default(self, image_id):
         return image_id in config.EC2_IMAGES[self.cloud.region]
 
@@ -250,6 +257,24 @@ class AmazonComputeController(BaseComputeController):
 
     def _list_sizes__get_name(self, size):
         return '%s - %s' % (size.id, size.name)
+
+    def _list_images__get_os_type(self, image):
+        # os_type is needed for the pricing per VM
+        if image.name:
+            if any(x in image.name.lower() for x in ['sles',
+                                                     'suse linux enterprise']):
+                return 'sles'
+            if any(x in image.name.lower() for x in ['rhel', 'red hat']):
+                return 'rhel'
+            if 'windows' in image.name.lower():
+                if 'sql' in image.name.lower():
+                    if 'web' in image.name.lower():
+                        return 'mswinSQLWeb'
+                    return 'mswinSQL'
+                return 'mswin'
+            if 'vyatta' in image.name.lower():
+                return 'vyatta'
+            return 'linux'
 
 
 class AlibabaComputeController(AmazonComputeController):
@@ -435,6 +460,7 @@ class MaxihostComputeController(BaseComputeController):
             return 'windows'
         else:
             return 'linux'
+
 
 class LinodeComputeController(BaseComputeController):
 
