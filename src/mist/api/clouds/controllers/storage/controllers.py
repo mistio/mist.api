@@ -400,6 +400,7 @@ class PacketStorageController(BaseStorageController):
                 log.error('%s attached to unknown machine "%s"', volume,
                           machine_id)
 
+
 class LXDStorageController(BaseStorageController):
     """
     Storage controller for LXC containers
@@ -410,19 +411,16 @@ class LXDStorageController(BaseStorageController):
         """
 
         # get a list of the storage pools
-        # self.connection.ex_list_storage_pools(detailed=False)
-        #import pdb
-        #pdb.set_trace()
-        storage_pools = self.cloud.ctl.compute.connection.ex_list_storage_pools(detailed=False)
+        connection = self.cloud.ctl.compute.connection
+        storage_pools = connection.ex_list_storage_pools(detailed=False)
         volumes = []
 
         for pool in storage_pools:
-            #log.info("Getting storage pool: ", pool)
-            vols = self.cloud.ctl.compute.connection.ex_list_storage_pool_volumes(pool_id=pool.name,
-                                                                                  detailed=True)
+
+            vols = connection.ex_list_storage_pool_volumes(pool_id=pool.name,
+                                                           detailed=True)
 
             for vol in vols:
-                #log.info("Getting volume: ", vol.name)
                 volumes.append(vol)
         return volumes
 
@@ -434,19 +432,18 @@ class LXDStorageController(BaseStorageController):
         that handles volume creation.
 
         """
-        # kwargs["pool_id"] = "Pool100"
-        kwargs["definition"] = {
-                                "name": kwargs["name"],
+
+        kwargs["definition"] = {"name": kwargs["name"],
                                 "type": "custom",
-                                "config": {"size": "1",
+                                "config": {"size": kwargs["size"],
                                            "size_type": "GB",
                                            "block.filesystem": "ext4",
-                                           "block.mount_options": "discard"},
-                                }
+                                           "block.mount_options": "discard"}}
 
     def _delete_volume(self, libcloud_volume):
-        self.cloud.ctl.compute.connection.ex_delete_storage_pool_volume(pool_id = libcloud_volume.extra["pool_id"],
-                                                                        type=libcloud_volume.extra["type"],
-                                                                        name=libcloud_volume.name)
+        connection = self.cloud.ctl.compute.connection
+        connection.ex_delete_storage_pool_volume(pool_id=libcloud_volume.extra["pool_id"],
+                                                 type=libcloud_volume.extra["type"],
+                                                 name=libcloud_volume.name)
 
 

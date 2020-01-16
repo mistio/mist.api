@@ -92,8 +92,8 @@ class ShellHubWorker(mist.api.hub.main.HubWorker):
         """Received data that must be forwarded to shell's stdin"""
 
         # TODO: Factory should be moved from here
-        if self.shell.get_type() == "ParamikoShell" or\
-            self.shell.get_type() == "DockerShell":
+        if self.shell.get_type() == "ParamikoShell" or \
+                self.shell.get_type() == "DockerShell":
 
                 self.channel.send(body.encode('utf-8', 'ignore'))
         elif self.shell.get_type() == "LXDShell":
@@ -213,7 +213,6 @@ class LoggingShellHubWorker(ShellHubWorker):
                                                 shell_id=self.uuid,
                                                 **self.params)
         super(LoggingShellHubWorker, self).stop()
-
 
 
 class ShellHubClient(mist.api.hub.main.HubClient):

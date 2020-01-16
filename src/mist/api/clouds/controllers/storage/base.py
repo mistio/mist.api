@@ -249,7 +249,7 @@ class BaseStorageController(BaseController):
 
         # Invoke `self.list_volumes` to update the UI and return the Volume
         # object at the API. Try 3 times before failing
-        volumes = self.list_volumes()
+        self.list_volumes()
         for _ in range(3):
             for volume in self.list_volumes():
                 # ARM is inconsistent when it comes to lowercase...

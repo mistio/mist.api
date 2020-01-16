@@ -1092,14 +1092,15 @@ def _create_machine_docker(conn, machine_name, image_id,
 
 
 def _create_machine_lxd(conn, machine_name, image,
-                        parameters,  start, cluster=None,
+                        parameters, start, cluster=None,
                         architecture='', ephemeral=False,
-                        size_cpu=None,  size_ram=None,
-                        profiles=None,  devices=None, instance_type=None,
+                        size_cpu=None, size_ram=None,
+                        profiles=None, devices=None, instance_type=None,
                         volumes=None):
     """
     Create a new LXC container on the machine described by the given
-    conn argument. Currently we only support local image identified by its fingerprint
+    conn argument. Currently we only support
+    local image identified by its fingerprint
 
     :param conn: The connection to the machine to create the container
     :param machine_name: The name of the container
@@ -1112,7 +1113,8 @@ def _create_machine_lxd(conn, machine_name, image,
     :param ephemeral: Whether to destroy the container on shutdown
     :param config: Config override e.g.  {"limits.cpu": "2"},
     :param devices: optional list of devices the container should have
-    :param instance_type: An optional instance type to use as basis for limits e.g. "c2.micro"
+    :param instance_type: An optional instance type to
+    use as basis for limits e.g. "c2.micro"
 
     :return: libcloud.Container
     """
@@ -1139,14 +1141,16 @@ def _create_machine_lxd(conn, machine_name, image,
         name = volumes[0].get('custom_name', None)
 
         if name is None:
-            raise MachineCreationError("You need to provide a custom name for the storage")
+            raise MachineCreationError("You need to provide"
+                                       " a custom name for the storage")
 
         path = volumes[0].get('path', None)
 
         if path is None:
-            raise MachineCreationError("You need to provide a path for the storage")
+            raise MachineCreationError("You need to provide"
+                                       " a path for the storage")
 
-        volume = {name:{
+        volume = {name: {
             "type": "disk",
             "path": path,
             "source": volumes[0]["name"],
@@ -1158,15 +1162,13 @@ def _create_machine_lxd(conn, machine_name, image,
         else:
             devices = volume
 
-    #import pdb
-    #pdb.set_trace()
     config = {}
 
     if size_cpu is not None:
         config['limits.cpu'] = str(size_cpu)
 
     if size_ram is not None:
-        config['limits.memory'] = str(size_ram)+"MB"
+        config['limits.memory'] = str(size_ram) + "MB"
 
     container = conn.deploy_container(name=machine_name, image=None,
                                       cluster=cluster, parameters=parameters,
