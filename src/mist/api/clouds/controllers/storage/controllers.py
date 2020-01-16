@@ -437,7 +437,7 @@ class LXDStorageController(BaseStorageController):
         # kwargs["pool_id"] = "Pool100"
         kwargs["definition"] = {
                                 "name": kwargs["name"],
-                                "type": kwargs["type"],
+                                "type": "custom",
                                 "config": {"size": "1",
                                            "size_type": "GB",
                                            "block.filesystem": "ext4",
