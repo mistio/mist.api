@@ -1089,7 +1089,14 @@ def star_image(request):
     image_id = request.matchdict['image']
     auth_context = auth_context_from_request(request)
     auth_context.check_perm("cloud", "edit", cloud_id)
-    return methods.star_image(auth_context.owner, cloud_id, image_id)
+    try:
+        Cloud.objects.get(owner=auth_context.owner, id=cloud_id)
+    except Cloud.DoesNotExist:
+        raise NotFoundError('Cloud does not exist')
+
+    image = methods.star_image(auth_context.owner, cloud_id, image_id)
+
+    return image.as_dict()
 
 
 @view_config(route_name='api_v1_sizes', request_method='GET', renderer='json')

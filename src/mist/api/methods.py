@@ -113,24 +113,20 @@ def list_images(owner, cloud_id, term=None):
 
 def star_image(owner, cloud_id, image_id):
     """Toggle image star (star/unstar)"""
-    cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
+    try:
+        Cloud.objects.get(owner=owner, id=cloud_id)
+    except Cloud.DoesNotExist:
+        raise NotFoundError('Cloud does not exist')
+    from mist.api.images.models import CloudImage
+    try:
+        image = CloudImage.objects.get(cloud=cloud_id, id=image_id)
+    except CloudImage.DoesNotExist:
+        raise NotFoundError('CloudImage does not exist')
 
-    star = cloud.ctl.compute.image_is_starred(image_id)
-    if star:
-        if image_id in cloud.starred:
-            cloud.starred.remove(image_id)
-        if image_id not in cloud.unstarred:
-            cloud.unstarred.append(image_id)
-    else:
-        if image_id not in cloud.starred:
-            cloud.starred.append(image_id)
-        if image_id in cloud.unstarred:
-            cloud.unstarred.remove(image_id)
-    cloud.save()
-    task = mist.api.tasks.list_images
-    task.clear_cache(owner.id, cloud_id)
-    task.delay(owner.id, cloud_id)
-    return not star
+    image.starred = False if image.starred else True
+
+    image.save()
+    return image
 
 
 def list_projects(owner, cloud_id):
