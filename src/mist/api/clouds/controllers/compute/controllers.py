@@ -307,6 +307,9 @@ class AlibabaComputeController(AmazonComputeController):
         else:
             return (0, price.get('prepaid', 0))
 
+    def _list_images__fetch_images(self, search=None):
+        return self.connection.list_images()
+
     def image_is_default(self, image_id):
         return True
 

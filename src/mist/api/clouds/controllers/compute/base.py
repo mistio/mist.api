@@ -1117,8 +1117,6 @@ class BaseComputeController(BaseController):
 
     def list_cached_locations(self):
         """Return list of locations from database for a specific cloud"""
-        # FIXME Imported here due to circular dependency issues. Perhaps one
-        # way to solve this would be to move CloudLocation under its own dir.
         from mist.api.clouds.models import CloudLocation
         return CloudLocation.objects(cloud=self.cloud, missing_since=None)
 
