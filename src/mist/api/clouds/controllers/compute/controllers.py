@@ -223,9 +223,10 @@ class AmazonComputeController(BaseComputeController):
 
     def _list_images__fetch_images(self, search=None):
         # Fetch mist's recommended images
+        mist_images = config.EC2_IMAGES[self.cloud.region]
         images = [NodeImage(id=image, name=name,
                             driver=self.connection, extra={})
-                  for image, name in list(config.EC2_IMAGES[self.cloud.region].items())]
+                  for image, name in list(mist_images.items())]
         return images
 
     def image_is_default(self, image_id):
