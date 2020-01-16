@@ -18,7 +18,9 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
 
     # If no metrics are specified, then we get all of them
     if not metrics:
-        metrics = [".*"]
+        metrics = [('fetch(\"{id}.*\"' +
+                    ', start=\"{start}\", stop=\"{stop}\"' +
+                    ', step=\"{step}\")')]
 
     for metric in metrics:
         # processed_metric = "%s.%s" % (machine.id, metric)
