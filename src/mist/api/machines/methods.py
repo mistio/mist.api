@@ -328,7 +328,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                                    start=False, cluster=None,
                                    architecture=architecture,
                                    ephemeral=ephemeral,
-                                   size_cpu=size_cpu, size_ram=size_ram)
+                                   size_cpu=size_cpu, size_ram=size_ram,
+                                   volumes=volumes)
                                    
     elif conn.type in [Provider.RACKSPACE_FIRST_GEN, Provider.RACKSPACE]:
         node = _create_machine_rackspace(conn, public_key, machine_name, image,
@@ -1094,7 +1095,8 @@ def _create_machine_lxd(conn, machine_name, image,
                         parameters,  start, cluster=None,
                         architecture='', ephemeral=False,
                         size_cpu=None,  size_ram=None,
-                        profiles=None,  devices=None, instance_type=None):
+                        profiles=None,  devices=None, instance_type=None,
+                        volumes=None):
     """
     Create a new LXC container on the machine described by the given
     conn argument. Currently we only support local image identified by its fingerprint
@@ -1124,6 +1126,38 @@ def _create_machine_lxd(conn, machine_name, image,
         parameters = '{"source":{"type":"image", ' \
                      '"alias": "%s"}}' % image.id
 
+    # if we have a volume we need to create it also
+    if volumes is not None\
+            and volumes is not []:
+        # we requested volumes as well
+        # if this is a new volume
+        # we must create it otherwise we simply
+        # append to the devices
+
+        # now that we have the volume
+        # let's add it to the devices
+        name = volumes[0].get('custom_name', None)
+
+        if name is None:
+            raise MachineCreationError("You need to provide a custom name for the storage")
+
+        path = volumes[0].get('path', None)
+
+        if path is None:
+            raise MachineCreationError("You need to provide a path for the storage")
+
+        volume = {name:{
+            "type": "disk",
+            "path": path,
+            "source": volumes[0]["name"],
+            "pool": volumes[0]["pool_id"]
+        }}
+
+        if devices is not None:
+            devices.update(volume)
+        else:
+            devices = volume
+
     #import pdb
     #pdb.set_trace()
     config = {}
@@ -1137,10 +1171,10 @@ def _create_machine_lxd(conn, machine_name, image,
     container = conn.deploy_container(name=machine_name, image=None,
                                       cluster=cluster, parameters=parameters,
                                       start=start,
-                                      architecture=architecture,
-                                      ephemeral=ephemeral,
-                                      config=config, instance_type=instance_type,
-                                      devices=devices, profiles=profiles)
+                                      ex_architecture=architecture,
+                                      ex_ephemeral=ephemeral,
+                                      ex_config=config, ex_instance_type=instance_type,
+                                      ex_devices=devices, ex_profiles=profiles)
     return container
 
 
