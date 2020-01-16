@@ -368,6 +368,12 @@ class BaseComputeController(BaseController):
 
             machine.image = images_map.get(image_id)
 
+            # set machine's os_type from image's os_type, but if
+            # info of os_type can be obtained from libcloud node, then
+            # machine.os_type will be overwritten in `postparse_machine`
+            if machine.image:
+                machine.os_type = machine.image.os_type
+
             # Attempt to map machine's size to a CloudSize object. If not
             # successful, try to discover custom size.
             try:

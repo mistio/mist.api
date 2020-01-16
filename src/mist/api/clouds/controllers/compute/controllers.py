@@ -102,18 +102,12 @@ class AmazonComputeController(BaseComputeController):
             raise BadRequestError('Failed to resize node: %s' % exc)
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        # TODO: FIXME
         # Find os_type.
-        # try:
-        #     machine.os_type = CloudImage.objects.get(
-        #         cloud_provider=machine_libcloud.driver.type,
-        #         image_id=machine_libcloud.extra.get('image_id'),
-        #     ).os_type
-        # except:
-        #     # This is windows for windows servers and None for Linux.
-        #     machine.os_type = machine_libcloud.extra.get('platform')
-        # if not machine.os_type:
-        #     machine.os_type = 'linux'
+        if not machine.os_type:
+            # This is windows for windows servers and None for Linux.
+            machine.os_type = machine_libcloud.extra.get('platform', '')
+            if not machine.os_type:
+                machine.os_type = 'linux'
 
         try:
             # return list of ids for network interfaces as str
@@ -542,15 +536,9 @@ class RackSpaceComputeController(BaseComputeController):
                 public_ips.append(ip)
         machine.public_ips = public_ips
 
-        # TODO: FIXME
         # Find os_type.
-        # try:
-        #     machine.os_type = CloudImage.objects.get(
-        #         cloud_provider=machine_libcloud.driver.type,
-        #         image_id=machine_libcloud.extra.get('imageId'),
-        #     ).os_type
-        # except:
-        #     machine.os_type = 'linux'
+        if not machine.os_type:
+            machine.os_type = 'linux'
 
     def _list_machines__get_size(self, node):
         return node.extra.get('flavorId')
@@ -712,7 +700,10 @@ class AzureArmComputeController(BaseComputeController):
                                               self.cloud.secret)
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        machine.os_type = machine_libcloud.extra.get('os_type', 'linux')
+        if machine_libcloud.extra.get('os_type', ''):
+            machine.os_type = machine_libcloud.extra.get('os_type')
+        if not machine.os_type:
+            machine.os_type = 'linux'
 
         net_id = machine_libcloud.extra.get('networkProfile')[0].get('id')
         network_id = net_id.split('/')[-1] + '-vnet'
@@ -1164,7 +1155,8 @@ class VCloudComputeController(BaseComputeController):
             machine.actions.stop = True
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        machine.os_type = machine.extra.get('os_type')
+        if machine.extra.get('os_type', ''):
+            machine.os_type = machine.extra.get('os_type')
 
 
 class OpenStackComputeController(BaseComputeController):
