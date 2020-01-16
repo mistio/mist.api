@@ -441,8 +441,11 @@ class LXDStorageController(BaseStorageController):
 
     def _delete_volume(self, libcloud_volume):
         connection = self.cloud.ctl.compute.connection
-        connection.ex_delete_storage_pool_volume(pool_id=libcloud_volume.extra["pool_id"],
-                                                 type=libcloud_volume.extra["type"],
-                                                 name=libcloud_volume.name)
+        pid = libcloud_volume.extra["pool_id"]
+        type = libcloud_volume.extra["type"]
+        name = libcloud_volume.name
+        connection.ex_delete_storage_pool_volume(pool_id=pid,
+                                                 type=type,
+                                                 name=name)
 
 

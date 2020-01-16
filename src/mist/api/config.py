@@ -1364,9 +1364,9 @@ SUPPORTED_PROVIDERS = [
     },
     #LXD
     {
-      'title': 'LXD',
-       'provider':'lxd',
-        'regions':[]
+        'title': 'LXD',
+        'provider': 'lxd',
+        'regions': []
     },
 ]
 

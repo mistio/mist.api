@@ -834,7 +834,7 @@ def create_machine_async(
              'ip_addresses': ip_addresses,
              'expiration': expiration,
              'ephemeral': ephemeral,
-             'architecture':architecture}
+             'architecture': architecture}
         ))
 
     def create_machine_wrapper(args_kwargs):

@@ -112,7 +112,8 @@ class ShellHubWorker(mist.api.hub.main.HubWorker):
                         self.channel.resize_pty(columns, rows)
                     else:
                         log.warning("Attempt to resize terminal for shell %s. "
-                                    "This is not supported yet ", self.shell.get_type())
+                                    "This is not supported yet ",
+                                    self.shell.get_type())
                     return columns, rows
                 except Exception as exc:
                     log.warning("%s: Error resizing shell to (%s, %s): %r.",

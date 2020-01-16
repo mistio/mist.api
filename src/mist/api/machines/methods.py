@@ -330,7 +330,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                                    ephemeral=ephemeral,
                                    size_cpu=size_cpu, size_ram=size_ram,
                                    volumes=volumes)
-                                   
     elif conn.type in [Provider.RACKSPACE_FIRST_GEN, Provider.RACKSPACE]:
         node = _create_machine_rackspace(conn, public_key, machine_name, image,
                                          size, location, user_data=cloud_init)
@@ -1175,8 +1174,10 @@ def _create_machine_lxd(conn, machine_name, image,
                                       start=start,
                                       ex_architecture=architecture,
                                       ex_ephemeral=ephemeral,
-                                      ex_config=config, ex_instance_type=instance_type,
-                                      ex_devices=devices, ex_profiles=profiles)
+                                      ex_config=config,
+                                      ex_instance_type=instance_type,
+                                      ex_devices=devices,
+                                      ex_profiles=profiles)
     return container
 
 

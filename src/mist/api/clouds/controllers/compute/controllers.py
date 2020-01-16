@@ -1493,7 +1493,6 @@ class LXDComputeController(BaseComputeController):
         self._lxchost = None
         self.is_lxc = True
 
-
     def _stop_machine(self, machine, machine_libcloud):
         """Stop the given machine"""
         return self.connection.stop_container(container=machine)
@@ -1617,11 +1616,13 @@ class LXDComputeController(BaseComputeController):
             ca_cert = ca_cert_temp_file.name
 
         # tls auth
-        return get_container_driver(Container_Provider.LXD)(
-                host=host, port=port,
-                key_file=key_temp_file.name,
-                cert_file=cert_temp_file.name,
-                ca_cert=ca_cert)
+        cert_file = cert_temp_file.name
+        key_file = key_temp_file.name
+        return get_container_driver(Container_Provider.LXD)(host=host,
+                                                            port=port,
+                                                            key_file=key_file,
+                                                            cert_file=cert_file,
+                                                            ca_cert=ca_cert)
 
 
 class LibvirtComputeController(BaseComputeController):
