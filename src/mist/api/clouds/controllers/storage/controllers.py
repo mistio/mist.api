@@ -433,12 +433,11 @@ class LXDStorageController(BaseStorageController):
 
         """
 
-        kwargs["definition"] = {"name": kwargs["name"],
+        kwargs["definition"] = {"name": kwargs.pop("name"),
                                 "type": "custom",
                                 "config": {"size": kwargs["size"],
                                            "size_type": "GB",
-                                           "block.filesystem": "ext4",
-                                           "block.mount_options": "discard"}}
+                                           "block.filesystem": 'ext4'}}
 
     def _delete_volume(self, libcloud_volume):
         connection = self.cloud.ctl.compute.connection
