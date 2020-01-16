@@ -236,13 +236,7 @@ class BaseStorageController(BaseController):
 
         # Create the volume.
         try:
-
-            if hasattr(self.cloud.ctl.compute, "is_lxc"):
-                libvol = self.cloud.ctl.compute.connection.ex_create_storage_pool_volume(pool_id=kwargs["pool_id"],
-                                                                                         definition = kwargs["definition"])
-            else:
-
-                libvol = self.cloud.ctl.compute.connection.create_volume(**kwargs)
+            libvol = self.cloud.ctl.compute.connection.create_volume(**kwargs)
         except Exception as exc:
             log.exception('Error creating volume in %s: %r', self.cloud, exc)
             raise mist.api.exceptions.CloudUnavailableError(exc=exc)
