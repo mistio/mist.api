@@ -34,6 +34,10 @@ def find_machine_cores(machine_id):
         if machine.monitoring.hasmonitoring:
             if machine.monitoring.method.endswith('graphite'):
                 metric = 'cpu.*.idle'
+            elif machine.monitoring.method.endswith('foundationdb'):
+                metric = ('fetch(\"{id}.cpu.*\d.usage_idle\"' +
+                          ', start=\"{start}\", stop=\"{stop}\"' +
+                          ', step=\"{step}\")')
             else:
                 metric = 'cpu.cpu=/cpu\d/.usage_idle'
             return len(get_stats(machine, start='-60sec', metrics=[metric]))
