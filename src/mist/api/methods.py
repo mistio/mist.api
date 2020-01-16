@@ -101,9 +101,14 @@ def filter_list_locations(auth_context, cloud_id, locations=None, perm='read',
 
 
 def list_images(owner, cloud_id, term=None):
-    """List images from each cloud"""
-    return Cloud.objects.get(owner=owner, id=cloud_id,
-                             deleted=None).ctl.compute.list_images(term)
+    """List the images of the specified cloud"""
+    try:
+        cloud = Cloud.objects.get(owner=owner, id=cloud_id)
+    except Cloud.DoesNotExist:
+        raise CloudNotFoundError()
+
+    images = cloud.ctl.compute.list_images()
+    return [image.as_dict() for image in images]
 
 
 def star_image(owner, cloud_id, image_id):

@@ -1052,7 +1052,6 @@ def list_images(request):
     search_term:
       type: string
     """
-
     cloud_id = request.matchdict['cloud']
     try:
         term = request.json_body.get('search_term', '')
