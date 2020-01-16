@@ -439,6 +439,17 @@ class LXDStorageController(BaseStorageController):
                                            "size_type": "GB",
                                            "block.filesystem": 'ext4'}}
 
+    def _attach_volume(self, libcloud_volume, libcloud_node, **kwargs):
+
+        pool_id = libcloud_volume.extra["pool_id"]
+        connection = self.cloud.ctl.compute.connection
+        connection.attach_volume(container_id=libcloud_node.id,
+                                 volume_id=libcloud_volume.id,
+                                 pool_id=pool_id,
+                                 name="MyDummyVolume",
+                                 path="/home/MyData")
+        self.list_volumes()
+
     def _delete_volume(self, libcloud_volume):
         connection = self.cloud.ctl.compute.connection
         pid = libcloud_volume.extra["pool_id"]
