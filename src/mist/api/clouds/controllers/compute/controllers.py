@@ -1618,11 +1618,12 @@ class LXDComputeController(BaseComputeController):
         # tls auth
         cert_file = cert_temp_file.name
         key_file = key_temp_file.name
-        return get_container_driver(Container_Provider.LXD)(host=host,
-                                                            port=port,
-                                                            key_file=key_file,
-                                                            cert_file=cert_file,
-                                                            ca_cert=ca_cert)
+        return \
+            get_container_driver(Container_Provider.LXD)(host=host,
+                                                         port=port,
+                                                         key_file=key_file,
+                                                         cert_file=cert_file,
+                                                         ca_cert=ca_cert)
 
 
 class LibvirtComputeController(BaseComputeController):

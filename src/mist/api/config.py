@@ -1362,7 +1362,7 @@ SUPPORTED_PROVIDERS = [
         'provider': Provider.MAXIHOST,
         'regions': []
     },
-    #LXD
+    # LXD
     {
         'title': 'LXD',
         'provider': 'lxd',

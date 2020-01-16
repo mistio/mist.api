@@ -447,5 +447,3 @@ class LXDStorageController(BaseStorageController):
         connection.ex_delete_storage_pool_volume(pool_id=pid,
                                                  type=type,
                                                  name=name)
-
-
