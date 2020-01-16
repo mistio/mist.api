@@ -57,9 +57,6 @@ class ShellHubWorker(mist.api.hub.main.HubWorker):
         machine_id = data.get('machine_id', '')
         job_id = data.get('job_id', '')
 
-        if self.provider == '':
-            self.provider = 'lxd'
-
         try:
 
             self.shell = mist.api.shell.Shell(host, provider=self.provider)
