@@ -1118,6 +1118,15 @@ def _create_machine_lxd(conn, machine_name, image,
     :return: libcloud.Container
     """
 
+    # check first if we have a url
+    # if there is a url then
+    # url = "https://cloud-images.ubuntu.com/daily"
+    # parameters = '{"source": {"type":"image", ' \
+    #             '"server": "%s", ' \
+    #             '"mode": "pull", ' \
+    #             '"protocol": "lxd", ' \
+    #             '"alias": "16.04"}}' % url
+
     # basic check for SHA 256
     invalid_characters = ["-", "/", "&", " ", ".", ",", "!"]
     if not any((c in invalid_characters) for c in image.id):
@@ -1129,7 +1138,7 @@ def _create_machine_lxd(conn, machine_name, image,
 
     # if we have a volume we need to create it also
     if volumes is not None\
-            and volumes is not []:
+            and len(volumes) != 0:
         # we requested volumes as well
         # if this is a new volume
         # we must create it otherwise we simply
