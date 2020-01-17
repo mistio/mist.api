@@ -521,11 +521,52 @@ class LXDWebSocket(DockerWebSocket):
         self._control = ""
         self._uuid = ""
         self._secret_0 = ""
+        self._cont_id = ""
+        self._cloud = ""
 
     def set_ws_data(self, uuid, secret, control):
         self._uuid = uuid
         self._secret_0 = secret
         self._control = control
+
+    def set_container(self, container_id):
+        self._cont_id = container_id
+
+    def set_cloud(self, cloud):
+        self._cloud = cloud
+
+    def resize_pty(self, columns, rows):
+
+        from mist.api.methods import connect_provider
+        conn = connect_provider(self._cloud)
+        uri = conn.build_operation_websocket_url(uuid=self._uuid,
+                                                 w_secret=self._control)
+
+        ssl_key, ssl_cert = self.ssl_credentials(self._cloud)
+        sslopt = {'cert_reqs': ssl.CERT_NONE,
+                  'keyfile': ssl_key,
+                  'certfile': ssl_cert}
+
+        ws = websocket.WebSocket(sslopt=sslopt)
+
+        try:
+            ws.connect(uri)
+        except websocket.WebSocketException:
+            raise MachineUnauthorizedError()
+
+        data = "{'command':'windo-resize'," \
+               "'args':'{'width': %s, " \
+               "'height':%s}'}" % (columns, rows)
+
+        ws.send(bytearray(data, encoding='utf-8'), opcode=2)
+
+        # finally disconnect
+        try:
+            ws.send_close()
+            ws.close()
+        except:
+            log.error("An error occured whilst "
+                      "closing ws for resizing")
 
     def _wrap_command(self, cmd):
         if cmd[-1] is not "\r":
@@ -537,6 +578,20 @@ class LXDWebSocket(DockerWebSocket):
             ws.send(bytearray(self.cmd, encoding='utf-8'), opcode=2)
             sleep(1)
             _thread.start_new_thread(run, ())
+
+    @staticmethod
+    def ssl_credentials(cloud=None):
+        if cloud:
+            _key, _cert = cloud.key_file, cloud.cert_file
+
+            tempkey = tempfile.NamedTemporaryFile(delete=False)
+            with open(tempkey.name, 'w') as f:
+                f.write(_key)
+            tempcert = tempfile.NamedTemporaryFile(delete=False)
+            with open(tempcert.name, 'w') as f:
+                f.write(_cert)
+
+            return tempkey.name, tempcert.name
 
 
 class LXDShell(LXDWebSocket):
@@ -586,6 +641,8 @@ class LXDShell(LXDWebSocket):
         secret_0 = response.secret_0
         self.set_ws_data(control=response.control,
                          uuid=uuid, secret=secret_0)
+        self.set_cloud(cloud=cloud)
+        self.set_container(container_id=cont_id)
 
         # build the uri to use for the connection
         self.uri = self.build_uri(operations_id=uuid, secret_id=secret_0,
@@ -611,20 +668,6 @@ class LXDShell(LXDWebSocket):
         uri = '%s://%s:%s/1.0/operations/%s/websocket?secret=%s' % (  # noqa
                   self.protocol, self.host, lxd_port, operations_id, secret_id)
         return uri
-
-    @staticmethod
-    def ssl_credentials(cloud=None):
-        if cloud:
-            _key, _cert = cloud.key_file, cloud.cert_file
-
-            tempkey = tempfile.NamedTemporaryFile(delete=False)
-            with open(tempkey.name, 'w') as f:
-                f.write(_key)
-            tempcert = tempfile.NamedTemporaryFile(delete=False)
-            with open(tempcert.name, 'w') as f:
-                f.write(_cert)
-
-            return tempkey.name, tempcert.name
 
 
 class Shell(object):
@@ -719,3 +762,12 @@ class Shell(object):
     def command_stream(self, cmd):
         if isinstance(self._shell, ParamikoShell):
             yield self._shell.command_stream(cmd)
+
+    def resize(self, columns, rows, channel):
+
+        if isinstance(self._shell, ParamikoShell) \
+                or isinstance(self._shell, DockerShell):
+            channel.resize_pty(columns, rows)
+        elif isinstance(self._shell, LXDShell):
+            self._shell.resize_pty(columns, rows)
+        return columns, rows

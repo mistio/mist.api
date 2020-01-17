@@ -107,13 +107,11 @@ class ShellHubWorker(mist.api.hub.main.HubWorker):
                 log.info("%s: Resizing shell to (%s, %s).",
                          self.lbl, columns, rows)
                 try:
-
-                    if self.shell.get_type() != 'LXDShell':
-                        self.channel.resize_pty(columns, rows)
-                    else:
-                        log.warning("Attempt to resize terminal for shell %s. "
-                                    "This is not supported yet ",
-                                    self.shell.get_type())
+                    # also pass the channel to emulate how things
+                    # were done in the past
+                    columns, rows = self.shell.resize(columns=columns,
+                                                      rows=rows,
+                                                      channel=self.channel)
                     return columns, rows
                 except Exception as exc:
                     log.warning("%s: Error resizing shell to (%s, %s): %r.",
@@ -132,6 +130,7 @@ class ShellHubWorker(mist.api.hub.main.HubWorker):
             while True:
                 gevent.socket.wait_read(self.channel.fileno())
                 try:
+                    # TODO: This seems to fail when I type exit at the shell
                     data = self.channel.recv(1024).decode('utf-8', 'ignore')
                 except TypeError:
                     data = self.channel.recv().decode('utf-8', 'ignore')
