@@ -455,7 +455,8 @@ def create_machine(request):
               'ip_addresses': ip_addresses,
               'expiration': expiration,
               'ephemeral': params.get('ephemeral', False),
-              'architecture': params.get('architecture', '')}
+              'architecture': params.get('architecture', ''),
+              'lxd_image_source': params.get('lxd_image_source', None)}
 
     if not run_async:
         ret = methods.create_machine(auth_context, *args, **kwargs)
