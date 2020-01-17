@@ -1137,10 +1137,7 @@ def _create_machine_lxd(conn, machine_name, image,
         img_parameters = '{"source": {"type":"image", ' \
                          '"server": "%s", ' \
                          '"mode": "pull", ' \
-                         '"protocol": "%s", ' \
-                         '"alias": "%s"}}' % (parameters["source"]["server"],
-                                              parameters["source"]["protocol"],
-                                              parameters["source"]["alias"])
+                         '"protocol": "simplestreams"}}' % (parameters)
     elif not any((c in invalid_characters) for c in image.id):
         img_parameters = '{"source": {"type":"image", ' \
                          '"fingerprint": "%s"}}' % image.id
