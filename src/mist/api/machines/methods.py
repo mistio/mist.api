@@ -253,7 +253,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                               driver=conn)
         except me.DoesNotExist:
             image = NodeImage(image_id, name=image_name,
-                             extra={}, driver=conn)
+                              extra={}, driver=conn)
 
     # transform location id to libcloud's NodeLocation object
     try:
@@ -313,7 +313,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     if conn.type is Container_Provider.DOCKER:
         if public_key:
             node = _create_machine_docker(
-                conn, machine_name, image_id, '',
+                conn, machine_name, image.id, '',
                 public_key=public_key,
                 docker_env=docker_env,
                 docker_command=docker_command,
@@ -329,7 +329,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                 pass
         else:
             node = _create_machine_docker(
-                conn, machine_name, image_id, script,
+                conn, machine_name, image.id, script,
                 docker_env=docker_env,
                 docker_command=docker_command,
                 docker_port_bindings=docker_port_bindings,
