@@ -242,6 +242,10 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                           name=cloud_image.name,
                           extra=cloud_image.extra,
                           driver=conn)
+        # star image used for machine
+        if not cloud_image.starred:
+            cloud_image.starred = True
+            cloud_image.save()
     except me.DoesNotExist:
         # make sure mongo is up-to-date
         cloud.ctl.compute.list_images()
@@ -251,6 +255,9 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                               name=cloud_image.name,
                               extra=cloud_image.extra,
                               driver=conn)
+            if not cloud_image.starred:
+                cloud_image.starred = True
+                cloud_image.save()
         except me.DoesNotExist:
             image = NodeImage(image_id, name=image_name,
                               extra={}, driver=conn)
