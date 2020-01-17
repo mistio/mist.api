@@ -32,6 +32,7 @@ from mist.api.networks.models import Network
 from mist.api.dns.models import Zone
 from mist.api.volumes.models import Volume
 from mist.api.machines.models import Machine
+from mist.api.images.models import CloudImage
 from mist.api.scripts.models import Script
 from mist.api.schedules.models import Schedule
 from mist.api.dns.models import RECORDS
@@ -1338,7 +1339,8 @@ def gc_schedulers():
 
 @app.task
 def set_missing_since(cloud_id):
-    for Model in (Machine, CloudLocation, CloudSize, Network, Volume, Zone):
+    for Model in (Machine, CloudLocation, CloudSize, CloudImage,
+                  Network, Volume, Zone):
         Model.objects(cloud=cloud_id, missing_since=None).update(
             missing_since=datetime.datetime.utcnow()
         )
