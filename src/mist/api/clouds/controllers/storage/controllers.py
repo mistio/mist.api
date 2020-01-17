@@ -433,21 +433,39 @@ class LXDStorageController(BaseStorageController):
 
         """
 
+        filesystem = kwargs.get("block_filesystem", '')
+        block_mount_options = kwargs.get('block_mount_options', '')
+        security_shifted = kwargs.get('security_shifted', '')
+
+        # TODO: Need more work on that as not all
+        # volumes seem to accept this
+        config = {"size": kwargs["size"],
+                  "size_type": "GB"}
+
+        if filesystem is not '':
+            config['filesystem'] = filesystem
+
+        if block_mount_options is not '':
+            config['block_mount_options'] = block_mount_options
+
+        if security_shifted is not '':
+            config['security_shifted'] = security_shifted
+
         kwargs["definition"] = {"name": kwargs.pop("name"),
                                 "type": "custom",
-                                "config": {"size": kwargs["size"],
-                                           "size_type": "GB",
-                                           "block.filesystem": 'ext4'}}
+                                "config": config}
 
     def _attach_volume(self, libcloud_volume, libcloud_node, **kwargs):
 
         pool_id = libcloud_volume.extra["pool_id"]
+        name = libcloud_volume.id
+        path = kwargs.get("path", '/home/' + name)
         connection = self.cloud.ctl.compute.connection
         connection.attach_volume(container_id=libcloud_node.id,
                                  volume_id=libcloud_volume.id,
                                  pool_id=pool_id,
-                                 name="MyDummyVolume",
-                                 path="/home/MyData")
+                                 name=name,
+                                 path=path)
         self.list_volumes()
 
     def _delete_volume(self, libcloud_volume):
