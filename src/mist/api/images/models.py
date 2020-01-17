@@ -39,6 +39,7 @@ class CloudImage(me.Document):
             'cloud': self.cloud.id,
             'external_id': self.external_id,
             'name': self.name,
+            'starred': self.starred,
             'extra': self.extra,
             'os_type': self.os_type,
             'missing_since': str(self.missing_since.replace(tzinfo=None)
