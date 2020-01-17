@@ -234,8 +234,26 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     size = NodeSize(size_id, name=size_name, ram='', disk=disk,
                     bandwidth='', price='', driver=conn)
 
-    image = NodeImage(image_id, name=image_name, extra=image_extra,
-                      driver=conn)
+    # transform image id to libcloud's NodeImage object
+    try:
+        from mist.api.images.models import CloudImage
+        cloud_image = CloudImage.objects.get(id=image_id)
+        image = NodeImage(cloud_image.external_id,
+                          name=cloud_image.name,
+                          extra=cloud_image.extra,
+                          driver=conn)
+    except me.DoesNotExist:
+        # make sure mongo is up-to-date
+        cloud.ctl.compute.list_images()
+        try:
+            cloud_image = CloudImage.objects.get(id=image_id)
+            image = NodeImage(cloud_image.external_id,
+                              name=cloud_image.name,
+                              extra=cloud_image.extra,
+                              driver=conn)
+        except me.DoesNotExist:
+            image = NodeImage(image_id, name=image_name,
+                             extra={}, driver=conn)
 
     # transform location id to libcloud's NodeLocation object
     try:
@@ -250,7 +268,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         # make sure mongo is up-to-date
         cloud.ctl.compute.list_locations()
         try:
-            from mist.api.clouds.models import CloudLocation
             cloud_location = CloudLocation.objects.get(id=location_id)
             location = NodeLocation(cloud_location.external_id,
                                     name=cloud_location.name,
