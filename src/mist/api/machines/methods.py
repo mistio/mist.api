@@ -1129,14 +1129,27 @@ def _create_machine_lxd(conn, machine_name, image,
 
     # basic check for SHA 256
     invalid_characters = ["-", "/", "&", " ", ".", ",", "!"]
-    if not any((c in invalid_characters) for c in image.id):
-        parameters = '{"source": {"type":"image", ' \
-                     '"fingerprint": "%s"}}' % image.id
+
+    # assume this is an url for image
+    if parameters:
+
+        img_parameters = '{"source": {"type":"image", ' \
+                         '"server": "%s", ' \
+                         '"mode": "pull", ' \
+                         '"protocol": "%s", ' \
+                         '"alias": "%s"}}' % (parameters["source"]["server"],
+                                              parameters["source"]["protocol"],
+                                              parameters["source"]["alias"])
+    elif not any((c in invalid_characters) for c in image.id):
+        img_parameters = '{"source": {"type":"image", ' \
+                         '"fingerprint": "%s"}}' % image.id
     else:
-        parameters = '{"source":{"type":"image", ' \
-                     '"alias": "%s"}}' % image.id
+        img_parameters = '{"source":{"type":"image", ' \
+                         '"alias": "%s"}}' % image.id
 
     # if we have a volume we need to create it also
+    # simply attach it. Currently assume that the
+    # volume is just given
     if volumes is not None\
             and len(volumes) != 0:
         # we requested volumes as well
@@ -1179,7 +1192,8 @@ def _create_machine_lxd(conn, machine_name, image,
         config['limits.memory'] = str(size_ram) + "MB"
 
     container = conn.deploy_container(name=machine_name, image=None,
-                                      cluster=cluster, parameters=parameters,
+                                      cluster=cluster,
+                                      parameters=img_parameters,
                                       start=start,
                                       ex_architecture=architecture,
                                       ex_ephemeral=ephemeral,
