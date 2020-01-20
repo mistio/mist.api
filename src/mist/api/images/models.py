@@ -16,7 +16,6 @@ class CloudImage(me.Document):
     missing_since = me.DateTimeField()
     extra = MistDictField()
     os_type = me.StringField(default='linux')
-    # TODO: CHECK!
     meta = {
         'collection': 'images',
         'indexes': [

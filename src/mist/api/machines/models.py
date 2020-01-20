@@ -290,8 +290,6 @@ class Machine(OwnershipMixin, me.Document):
     actions = me.EmbeddedDocumentField(Actions, default=lambda: Actions())
     extra = MistDictField()
     cost = me.EmbeddedDocumentField(Cost, default=lambda: Cost())
-    # TODO: needs to be removed!
-    image_id = me.StringField()
     # libcloud.compute.types.NodeState
     state = me.StringField(default='unknown',
                            choices=tuple(config.STATES.values()))

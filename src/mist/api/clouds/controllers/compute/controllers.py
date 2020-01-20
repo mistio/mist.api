@@ -179,54 +179,45 @@ class AmazonComputeController(BaseComputeController):
     # images = [img for img in images
     #           if img.name and img.id[:3] not in ('aki', 'ari')]
 
-    # TODO: FIXME
-    # def _list_images__fetch_images(self, search=None):
-    #     default_images = config.EC2_IMAGES[self.cloud.region]
-    #     image_ids = list(default_images.keys()) + self.cloud.starred
-    #     if not search:
-    #         try:
-    #             # this might break if image_ids contains starred images
-    #             # that are not valid anymore for AWS
-    #             images = self.connection.list_images(None, image_ids)
-    #         except Exception as e:
-    #             bad_ids = re.findall(r'ami-\w*', str(e), re.DOTALL)
-    #             for bad_id in bad_ids:
-    #                 try:
-    #                     self.cloud.starred.remove(bad_id)
-    #                 except ValueError:
-    #                     log.error('Starred Image %s not found incloud %r' % (
-    #                         bad_id, self.cloud
-    #                     ))
-    #             self.cloud.save()
-    #             images = self.connection.list_images(
-    #                 None, list(default_images.keys()) + self.cloud.starred)
-    #         for image in images:
-    #             if image.id in default_images:
-    #                 image.name = default_images[image.id]
-    #         images += self.connection.list_images(ex_owner='self')
-    #     else:
-    #         image_models = CloudImage.objects(
-    #             me.Q(cloud_provider=self.connection.type,
-    #                  image_id__icontains=search) |
-    #             me.Q(cloud_provider=self.connection.type,
-    #                  name__icontains=search)
-    #         )[:200]
-    #         images = [NodeImage(id=image.image_id, name=image.name,
-    #                             driver=self.connection, extra={})
-    #                   for image in image_models]
-    #         if not images:
-    #             # Actual search on EC2.
-    #             images = self.connection.list_images(
-    #                 ex_filters={'name': '*%s*' % search}
-    #             )
-    #     return images
-
     def _list_images__fetch_images(self, search=None):
-        # Fetch mist's recommended images
-        mist_images = config.EC2_IMAGES[self.cloud.region]
-        images = [NodeImage(id=image, name=name,
-                            driver=self.connection, extra={})
-                  for image, name in list(mist_images.items())]
+        default_images = config.EC2_IMAGES[self.cloud.region]
+        image_ids = list(default_images.keys())
+        if not search:
+            try:
+                # this might break if image_ids contains starred images
+                # that are not valid anymore for AWS
+                images = self.connection.list_images(None, image_ids)
+            except Exception as e:
+                # bad_ids = re.findall(r'ami-\w*', str(e), re.DOTALL)
+                # for bad_id in bad_ids:
+                #     try:
+                #         self.cloud.starred.remove(bad_id)
+                #     except ValueError:
+                #         log.error('Starred Image %s not found incloud %r' % (
+                #             bad_id, self.cloud
+                #         ))
+                # self.cloud.save()
+                images = self.connection.list_images(None, list(default_images.keys()))
+            for image in images:
+                if image.id in default_images:
+                    image.name = default_images[image.id]
+            images += self.connection.list_images(ex_owner='self')
+        # TODO: CHECK
+        else:
+            image_models = CloudImage.objects(
+                me.Q(cloud_provider=self.connection.type,
+                     image_id__icontains=search) |
+                me.Q(cloud_provider=self.connection.type,
+                     name__icontains=search)
+            )[:200]
+            images = [NodeImage(id=image.image_id, name=image.name,
+                                driver=self.connection, extra={})
+                      for image in image_models]
+            if not images:
+                # Actual search on EC2.
+                images = self.connection.list_images(
+                    ex_filters={'name': '*%s*' % search}
+                )
         return images
 
     def image_is_default(self, image_id):
