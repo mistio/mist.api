@@ -155,8 +155,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                    bare_metal=False, hourly=True,
                    softlayer_backend_vlan_id=None, machine_username='',
                    volumes=[], ip_addresses=[], expiration={},
-                   ephemeral=False, architecture='',
-                   lxd_image_source=None
+                   ephemeral=False, lxd_image_source=None
                    ):
     """Creates a new virtual machine on the specified cloud.
 
@@ -327,7 +326,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         node = _create_machine_lxd(conn=conn, machine_name=machine_name,
                                    image=image, parameters=lxd_image_source,
                                    start=False, cluster=None,
-                                   architecture=architecture,
                                    ephemeral=ephemeral,
                                    size_cpu=size_cpu, size_ram=size_ram,
                                    volumes=volumes)
@@ -1093,7 +1091,7 @@ def _create_machine_docker(conn, machine_name, image_id,
 
 def _create_machine_lxd(conn, machine_name, image,
                         parameters, start, cluster=None,
-                        architecture='', ephemeral=False,
+                        ephemeral=False,
                         size_cpu=None, size_ram=None,
                         profiles=None, devices=None, instance_type=None,
                         volumes=None):
@@ -1108,7 +1106,6 @@ def _create_machine_lxd(conn, machine_name, image,
     :param parameters: extra parameters for the ContainerImage
     :param start: Whether the container should be started at creation
     :param cluster: The cluster the container belongs to
-    :param architecture: e.g "x86_64"
     :param profiles: A list of profiles e.g ["default"]
     :param ephemeral: Whether to destroy the container on shutdown
     :param config: Config override e.g.  {"limits.cpu": "2"},
@@ -1193,7 +1190,6 @@ def _create_machine_lxd(conn, machine_name, image,
                                       cluster=cluster,
                                       parameters=img_parameters,
                                       start=start,
-                                      ex_architecture=architecture,
                                       ex_ephemeral=ephemeral,
                                       ex_config=config,
                                       ex_instance_type=instance_type,
