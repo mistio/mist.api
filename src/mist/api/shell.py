@@ -524,6 +524,9 @@ class LXDWebSocket(DockerWebSocket):
         self._cont_id = ""
         self._cloud = ""
 
+    def get_control(self):
+        return self._control
+
     def set_ws_data(self, uuid, secret, control):
         self._uuid = uuid
         self._secret_0 = secret
@@ -534,39 +537,6 @@ class LXDWebSocket(DockerWebSocket):
 
     def set_cloud(self, cloud):
         self._cloud = cloud
-
-    def resize_pty(self, columns, rows):
-
-        from mist.api.methods import connect_provider
-        conn = connect_provider(self._cloud)
-        uri = conn.build_operation_websocket_url(uuid=self._uuid,
-                                                 w_secret=self._control)
-
-        ssl_key, ssl_cert = self.ssl_credentials(self._cloud)
-        sslopt = {'cert_reqs': ssl.CERT_NONE,
-                  'keyfile': ssl_key,
-                  'certfile': ssl_cert}
-
-        ws = websocket.WebSocket(sslopt=sslopt)
-
-        try:
-            ws.connect(uri)
-        except websocket.WebSocketException:
-            raise MachineUnauthorizedError()
-
-        data = "{'command':'windo-resize'," \
-               "'args':'{'width': %s, " \
-               "'height':%s}'}" % (columns, rows)
-
-        ws.send(bytearray(data, encoding='utf-8'), opcode=2)
-
-        # finally disconnect
-        try:
-            ws.send_close()
-            ws.close()
-        except:
-            log.error("An error occured whilst "
-                      "closing ws for resizing")
 
     def _wrap_command(self, cmd):
         if cmd[-1] is not "\r":
@@ -611,6 +581,8 @@ class LXDShell(LXDWebSocket):
                                cloud_id=cloud_id, **kwargs)
 
         self.connect()
+        self.connect_control()
+
         # This is for compatibility purposes with the ParamikoShell
         return None, None
 
@@ -628,6 +600,10 @@ class LXDShell(LXDWebSocket):
         conn = connect_provider(cloud)
 
         config = {"wait-for-websocket": True, "interactive": True}
+        environment = {"TERM":"xterm"}
+        config["environment"] = environment
+        config["width"] = kwargs["cols"]
+        config["height"] = kwargs["rows"]
 
         # I need here the name not mist id
         machine = Machine.objects.get(id=machine_id, cloud=cloud_id)
@@ -649,6 +625,10 @@ class LXDShell(LXDWebSocket):
                                   lxd_port=lxd_port, cloud=cloud,
                                   ssl_enabled=ssl_enabled, **kwargs)
 
+        self.control_uri = conn.build_operation_websocket_url(uuid=uuid,
+                                                              w_secret=response.control)
+
+
     def get_lxd_endpoint(self, owner, cloud_id, job_id=None):
 
         cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
@@ -664,11 +644,36 @@ class LXDShell(LXDWebSocket):
                        'keyfile': ssl_key, 'certfile': ssl_cert}
 
         self.ws = websocket.WebSocket(sslopt=self.sslopt)
+        self.contorl_ws = websocket.WebSocket(sslopt=self.sslopt)
 
         uri = '%s://%s:%s/1.0/operations/%s/websocket?secret=%s' % (  # noqa
                   self.protocol, self.host, lxd_port, operations_id, secret_id)
         return uri
 
+    def resize_pty(self, columns, rows):
+
+        data = "{'command':'window-resize'," \
+               "'args':'{'width': '%s', " \
+               "'height':'%s'}}'" % (columns, rows)
+
+        try:
+            import simplejson as json
+        except Exception:
+            import json
+
+        data = json.dumps(data)
+        self.contorl_ws.send(bytearray(data, encoding='utf-8'), opcode=2)
+        return columns, rows
+
+    def connect_control(self):
+        """
+        Connect to the control websocket for LXD
+        """
+
+        try:
+            self.contorl_ws.connect(self.control_uri)
+        except websocket.WebSocketException:
+            raise MachineUnauthorizedError()
 
 class Shell(object):
     """Proxy Shell Class to distinguish between Docker or Paramiko Shell
