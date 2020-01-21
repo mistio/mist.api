@@ -56,6 +56,8 @@ class ShellHubWorker(mist.api.hub.main.HubWorker):
         cloud_id = data.get('cloud_id', '')
         machine_id = data.get('machine_id', '')
         job_id = data.get('job_id', '')
+        cols = data["columns"]
+        rows = data["rows"]
 
         try:
 
@@ -63,7 +65,9 @@ class ShellHubWorker(mist.api.hub.main.HubWorker):
             key_id, ssh_user = self.shell.autoconfigure(owner=self.owner,
                                                         cloud_id=cloud_id,
                                                         machine_id=machine_id,
-                                                        job_id=job_id)
+                                                        job_id=job_id,
+                                                        cols=cols,
+                                                        rows=rows)
             self.params.update(key_id=key_id, ssh_user=ssh_user)
 
         except Exception as exc:
@@ -130,7 +134,6 @@ class ShellHubWorker(mist.api.hub.main.HubWorker):
             while True:
                 gevent.socket.wait_read(self.channel.fileno())
                 try:
-                    # TODO: This seems to fail when I type exit at the shell
                     data = self.channel.recv(1024).decode('utf-8', 'ignore')
                 except TypeError:
                     data = self.channel.recv().decode('utf-8', 'ignore')
@@ -234,7 +237,6 @@ class ShellHubClient(mist.api.hub.main.HubClient):
             gevent.sleep(0)
 
     def send_data(self, data):
-        print("Hub/shell: send data to send to worker")
         self.send_to_worker('data', data)
 
     def resize(self, columns, rows):
