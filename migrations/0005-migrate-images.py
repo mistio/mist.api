@@ -22,7 +22,7 @@ def migrate_images():
 
     failed = migrated = 0
 
-    print ('Will try to update: ' + str(db_machines.count()))
+    print('Will try to update: ' + str(db_machines.count()))
 
     for machine in machines:
         try:
@@ -39,7 +39,8 @@ def migrate_images():
             print('OK')
             migrated += 1
 
-    print ('Machines migrated: ' + str(migrated))
+    print('Machines migrated: ' + str(migrated))
+    print('Failed to migrate: ' + str(failed))
 
     # unset starred field from Cloud
     db_clouds = db['clouds']
@@ -48,7 +49,7 @@ def migrate_images():
 
     failed = migrated = 0
 
-    print ('Will try to update: ' + str(db_clouds.count()))
+    print('Will try to update: ' + str(db_clouds.count()))
     for cloud in clouds:
         try:
             print('Updating cloud ' + cloud['id'])
@@ -64,7 +65,7 @@ def migrate_images():
             print('OK')
             migrated += 1
 
-    print ('Clouds migrated: ' + str(migrated))
+    print('Clouds migrated: ' + str(migrated))
 
     c.close()
 

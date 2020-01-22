@@ -8,6 +8,27 @@ from mist.api.images import methods
 from mist.api.auth.methods import auth_context_from_request
 
 
+@view_config(route_name='api_v1_images', request_method='POST',
+             renderer='json')
+def search_image(request):
+    """
+    Tags: images
+    ---
+    List images from each cloud. Furthermore if a search_term is provided, we
+    loop through each cloud and search for that term in the ids and the names
+    of the community images.
+    READ permission required on cloud.
+    ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    search_term:
+      type: string
+    """
+    return list_images(request)
+
+
 @view_config(route_name='api_v1_images', request_method='GET', renderer='json')
 def list_images(request):
     """

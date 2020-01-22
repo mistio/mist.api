@@ -11,7 +11,7 @@ def list_images(owner, cloud_id, term=None):
     except Cloud.DoesNotExist:
         raise CloudNotFoundError()
 
-    images = cloud.ctl.compute.list_images()
+    images = cloud.ctl.compute.list_images(search=term)
     return [image.as_dict() for image in images]
 
 

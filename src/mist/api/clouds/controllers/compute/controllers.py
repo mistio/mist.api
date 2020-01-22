@@ -30,7 +30,7 @@ import tempfile
 import iso8601
 import pytz
 
-# import mongoengine as me
+import mongoengine as me
 
 from time import sleep
 
@@ -174,11 +174,6 @@ class AmazonComputeController(BaseComputeController):
     def _list_machines__get_size(self, node):
         return node.extra.get('instance_type')
 
-    # TODO: FIXME
-    # Filter out invalid images.
-    # images = [img for img in images
-    #           if img.name and img.id[:3] not in ('aki', 'ari')]
-
     def _list_images__fetch_images(self, search=None):
         default_images = config.EC2_IMAGES[self.cloud.region]
         image_ids = list(default_images.keys())
@@ -202,22 +197,37 @@ class AmazonComputeController(BaseComputeController):
                 if image.id in default_images:
                     image.name = default_images[image.id]
             images += self.connection.list_images(ex_owner='self')
-        # TODO: CHECK
         else:
-            image_models = CloudImage.objects(
-                me.Q(cloud_provider=self.connection.type,
-                     image_id__icontains=search) |
-                me.Q(cloud_provider=self.connection.type,
+            from mist.api.images.models import CloudImage
+            cached_images = CloudImage.objects(
+                me.Q(cloud=self.cloud,
+                     external_id__icontains=search) |
+                me.Q(cloud=self.cloud,
                      name__icontains=search)
             )[:200]
-            images = [NodeImage(id=image.image_id, name=image.name,
-                                driver=self.connection, extra={})
-                      for image in image_models]
-            if not images:
+            if not cached_images:
                 # Actual search on EC2.
-                images = self.connection.list_images(
+                images = []
+                new_images = self.connection.list_images(
                     ex_filters={'name': '*%s*' % search}
                 )
+
+                for img in new_images:
+                    try:
+                        _image = CloudImage.objects.get(cloud=self.cloud,
+                                                        external_id=img.id)
+                    except CloudImage.DoesNotExist:
+                        _image = CloudImage(cloud=self.cloud,
+                                            external_id=img.id)
+                        _image.name = img.name
+                        _image.extra = img.extra
+                        _image.missing_since = None
+                        _image.os_type = self._list_images__get_os_type(img)
+                        _image.save()
+                        images.append(_image)
+            else:
+                return cached_images
+
         return images
 
     def image_is_default(self, image_id):

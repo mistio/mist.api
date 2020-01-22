@@ -768,7 +768,7 @@ class BaseComputeController(BaseController):
         """
         from mist.api.images.models import CloudImage
         # Fetch images, usually from libcloud connection.
-        libcloud_images = self._list_images__fetch_images()
+        libcloud_images = self._list_images__fetch_images(search=search)
 
         log.info("List images returned %d results for %s.",
                  len(libcloud_images), self.cloud)
@@ -817,7 +817,7 @@ class BaseComputeController(BaseController):
 
         return images
 
-    def _list_images__fetch_images(self):
+    def _list_images__fetch_images(self, search=None):
         """Fetch image listing in a libcloud compatible format
 
         This is to be called exclusively by `self._list_images`.
