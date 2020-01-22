@@ -1116,31 +1116,31 @@ def _create_machine_lxd(conn, machine_name, image,
     :return: libcloud.Container
     """
 
-    # check first if we have a url
-    # if there is a url then
-    # url = "https://cloud-images.ubuntu.com/daily"
-    # parameters = '{"source": {"type":"image", ' \
-    #             '"server": "%s", ' \
-    #             '"mode": "pull", ' \
-    #             '"protocol": "lxd", ' \
-    #             '"alias": "16.04"}}' % url
+    if parameters is None:
+        raise ValueError("Image parameters cannot be None")
 
-    # basic check for SHA 256
-    invalid_characters = ["-", "/", "&", " ", ".", ",", "!"]
+    # default time out
+    timeout = conn.default_time_out
 
-    # assume this is an url for image
-    if parameters:
+    # parameters is expected to be a string
+    # representing an image alias
+    url = "https://us.images.linuxcontainers.org/"
+
+    # check if the image exists locally
+    image_exists = conn.ex_has_image(alias=parameters)
+
+    if image_exists:
+        img_parameters = '{"source":{"type":"image", ' \
+                         '"alias": "%s"}}' % parameters
+    else:
 
         img_parameters = '{"source": {"type":"image", ' \
                          '"server": "%s", ' \
                          '"mode": "pull", ' \
-                         '"protocol": "simplestreams"}}' % (parameters)
-    elif not any((c in invalid_characters) for c in image.id):
-        img_parameters = '{"source": {"type":"image", ' \
-                         '"fingerprint": "%s"}}' % image.id
-    else:
-        img_parameters = '{"source":{"type":"image", ' \
-                         '"alias": "%s"}}' % image.id
+                         '"protocol": "simplestreams",' \
+                         '"alias": %s}}' % (url, parameters)
+        # this will take some time
+        timeout = 600
 
     # if we have a volume we need to create it also
     # simply attach it. Currently assume that the
@@ -1194,7 +1194,8 @@ def _create_machine_lxd(conn, machine_name, image,
                                       ex_config=config,
                                       ex_instance_type=instance_type,
                                       ex_devices=devices,
-                                      ex_profiles=profiles)
+                                      ex_profiles=profiles,
+                                      ex_timeout=timeout)
     return container
 
 
