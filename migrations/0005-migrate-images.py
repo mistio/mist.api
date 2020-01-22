@@ -4,14 +4,14 @@ from pymongo import MongoClient
 from mist.api.config import MONGO_URI
 
 from mist.api.clouds.models import Cloud
-from mist.api.images.models import CloudImage
 from mist.api.machines.models import Machine
 from mist.api.poller.models import ListImagesPollingSchedule
 
 
 def migrate_images():
     # first delete deprecated CloudImage objects
-    CloudImage.objects().delete()
+    # from mist.api.images.models import CloudImage
+    # CloudImage.objects().delete()
 
     # unset image_id field from Machine
     c = MongoClient(MONGO_URI)
@@ -20,15 +20,13 @@ def migrate_images():
 
     machines = Machine.objects().only('id')
 
-    print
-    print 'Removing image_id field from %d migrated machines' % db_machines.count()
-    print
-
     failed = migrated = 0
+
+    print ('Will try to update: ' + str(db_machines.count()))
 
     for machine in machines:
         try:
-            print 'Updating machine %s ...' % machine['id'],
+            print('Updating machine ' + machine['id'])
             db_machines.update_one(
                 {'_id': machine['id']},
                 {'$unset': {'image_id': ''}}
@@ -38,26 +36,24 @@ def migrate_images():
             failed += 1
             continue
         else:
-            print 'OK'
+            print('OK')
             migrated += 1
-            print 'migrated: %d' % migrated
+
+    print ('Machines migrated: ' + str(migrated))
 
     # unset starred field from Cloud
     db_clouds = db['clouds']
 
     clouds = Cloud.objects().only('id')
 
-    print
-    print 'Removing starred field from %d migrated clouds' % db_clouds.count()
-    print
-
     failed = migrated = 0
 
+    print ('Will try to update: ' + str(db_clouds.count()))
     for cloud in clouds:
         try:
-            print 'Updating cloud %s ...' % cloud['id'],
-            db_machines.update_one(
-                {'_id': machine['id']},
+            print('Updating cloud ' + cloud['id'])
+            db_clouds.update_one(
+                {'_id': cloud['id']},
                 {'$unset': {'starred': []}}
             )
         except Exception:
@@ -65,18 +61,20 @@ def migrate_images():
             failed += 1
             continue
         else:
-            print 'OK'
+            print('OK')
             migrated += 1
-            print 'migrated: %d' % migrated
+
+    print ('Clouds migrated: ' + str(migrated))
 
     c.close()
 
     # add ListImagesPollingSchedule objects
     print
-    print 'Creating and storing in database ListImagesPollingSchedule'
+    print('Creating and storing in database ListImagesPollingSchedule')
     print
 
     failed = 0
+    clouds = Cloud.objects(deleted=None)
 
     for cloud in clouds:
         try:
@@ -86,32 +84,30 @@ def migrate_images():
             schedule.save()
 
         except Exception as exc:
-            print 'Error: %s' % exc
+            print('Error: %s') % exc
             traceback.print_exc()
             failed += 1
             continue
 
-    print ' ****** Failures: %d *********' % failed
+    print(' ****** Failures: ' + str(failed))
 
-    # trigger list_machines to populate CloudImage RefField
-    clouds = Cloud.objects(deleted=None)
-
+    # trigger list_images and list_machines to populate CloudImage RefField
     failed = 0
 
     print
-    print 'Running list machines to update machine model with image field'
+    print('Listing images and machines to update machine.image field')
     print
-
     for cloud in clouds:
+        print('Updating cloud ' + cloud['id'])
         try:
+            cloud.ctl.compute.list_images()
             cloud.ctl.compute.list_machines()
         except Exception as exc:
-            print 'Error: %s' % exc
             traceback.print_exc()
             failed += 1
             continue
 
-    print ' ****** Failures when running list_machines: %d **********' % failed
+    print('****** Failed to update: ' + str(failed))
 
 
 if __name__ == '__main__':
