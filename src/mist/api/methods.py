@@ -108,9 +108,9 @@ def list_projects(owner, cloud_id):
         conn = connect_provider(cloud)
         projects = conn.ex_list_projects()
         ret = [{'id': project.id,
-            'name': project.name,
-            'extra': project.extra
-            }
+                'name': project.name,
+                'extra': project.extra
+                }
            for project in projects]
     else:
         ret = []
