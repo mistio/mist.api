@@ -189,8 +189,8 @@ def list_storage_pools(owner, cloud_id):
     else:
         storage_pools = []
 
-    ret = [{'name': pool.name,
-            'value': pool.name}
+    ret = [{'title': pool.name,
+            'val': pool.name}
            for pool in storage_pools]
     return ret
 
