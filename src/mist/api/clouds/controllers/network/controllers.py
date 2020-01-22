@@ -233,7 +233,7 @@ class VSphereNetworkController(BaseNetworkController):
         return []
 
 
-class LXDNetwork(BaseNetworkController):
+class LXDNetworkController(BaseNetworkController):
     """
     Network controller for LXD
     """
@@ -245,3 +245,35 @@ class LXDNetwork(BaseNetworkController):
         """
         networks = self.cloud.ctl.compute.connection.ex_get_networks()
         return networks
+
+    def _create_network__prepare_args(**kwargs):
+        pass
+
+    def _delete_network(self, network, libcloud_network):
+
+        """Performs the libcloud call that handles network deletion.
+
+        This method is meant to be called internally by `self.delete_network`.
+
+        Unless naming conventions change or specialized parsing of the libcloud
+        response is needed, subclasses SHOULD NOT need to override this method.
+
+        Subclasses MAY override this method.
+        """
+        conn = self.cloud.ctl.compute.connection
+        conn.ex_delete_network(name=libcloud_network.name)
+
+    def _list_subnets__fetch_subnets(self, network):
+        """Fetches a list of subnets.
+
+        Performs the actual libcloud call that returns a subnet listing.
+
+        This method is meant to be called internally by `self.list_subnets`.
+
+        Due to inconsistent naming conventions and cloud-specific filtering,
+        this method is not implemented in `BaseNetworkController`.
+
+        Subclasses MUST override this method.
+        """
+        return []
+
