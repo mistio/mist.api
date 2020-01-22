@@ -231,3 +231,17 @@ class VSphereNetworkController(BaseNetworkController):
 
     def _list_subnets__fetch_subnets(self, network):
         return []
+
+
+class LXDNetwork(BaseNetworkController):
+    """
+    Network controller for LXD
+    """
+
+    def _list_networks__fetch_networks(self):
+        """
+        Return the LXD networks
+        :return: list of LXDNetwork objects
+        """
+        networks = self.cloud.ctl.compute.connection.ex_get_networks()
+        return networks
