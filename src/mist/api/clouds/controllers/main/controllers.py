@@ -288,6 +288,7 @@ class LXDMainController(BaseMainController):
     provider = 'lxd'
     ComputeController = compute_ctls.LXDComputeController
     StorageController = storage_ctls.LXDStorageController
+    NetworkController = network_ctls.LXDNetworkController
 
     def _update__preparse_kwargs(self, kwargs):
         host = kwargs.get('host', self.cloud.host)
