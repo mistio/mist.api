@@ -1208,6 +1208,7 @@ def list_resource_groups(request):
 
     return methods.list_resource_groups(auth_context.owner, cloud_id)
 
+
 @view_config(route_name='api_v1_storage_pools', request_method='GET',
              renderer='json')
 def list_storage_pools(request):
