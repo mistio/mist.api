@@ -103,6 +103,15 @@ def list_volumes(schedule_id):
     sched.cloud.ctl.storage.list_volumes(persist=False)
 
 
+@app.task(time_limit=60, soft_time_limit=55)
+def list_projects(schedule_id):
+    """Perform list projects. Applies only for Packet clouds."""
+
+    from mist.api.poller.models import ListProjectsPollingSchedule
+    sched = ListProjectsPollingSchedule.objects.get(id=schedule_id)
+    sched.cloud.ctl.compute.list_projects(persist=False)
+
+
 @app.task(time_limit=45, soft_time_limit=40)
 def ping_probe(schedule_id):
     """Perform ping probe"""

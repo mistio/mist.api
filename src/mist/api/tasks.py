@@ -723,27 +723,6 @@ class UserTask(Task):
             return 60 * 10  # Retry in 10mins after the third error
 
 
-class ListProjects(UserTask):
-    task_key = 'list_projects'
-    result_expires = 60 * 60 * 24 * 7
-    result_fresh = 60 * 60
-    polling = False
-    soft_time_limit = 30
-
-    def execute(self, owner_id, cloud_id):
-        owner = Owner.objects.get(id=owner_id)
-        log.warn('Running list projects for user %s cloud %s',
-                 owner.id, cloud_id)
-        from mist.api import methods
-        projects = methods.list_projects(owner, cloud_id)
-        log.warn('Returning list projects for user %s cloud %s',
-                 owner.id, cloud_id)
-        return {'cloud_id': cloud_id, 'projects': projects}
-
-
-list_projects = app.register_task(ListProjects())
-
-
 @app.task
 def create_machine_async(
     auth_context_serialized, cloud_id, key_id, machine_name, location_id,
