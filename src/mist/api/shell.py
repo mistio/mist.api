@@ -571,6 +571,7 @@ class LXDShell(LXDWebSocket):
 
     def __init__(self, host):
         self.host = host
+        self.control_uri = None
         super(LXDShell, self).__init__()
 
     def autoconfigure(self, owner, cloud_id, machine_id, **kwargs):
@@ -600,7 +601,7 @@ class LXDShell(LXDWebSocket):
         conn = connect_provider(cloud)
 
         config = {"wait-for-websocket": True, "interactive": True}
-        environment = {"TERM":"xterm"}
+        environment = {"TERM": "xterm"}
         config["environment"] = environment
         config["width"] = kwargs["cols"]
         config["height"] = kwargs["rows"]
@@ -625,9 +626,9 @@ class LXDShell(LXDWebSocket):
                                   lxd_port=lxd_port, cloud=cloud,
                                   ssl_enabled=ssl_enabled, **kwargs)
 
-        self.control_uri = conn.build_operation_websocket_url(uuid=uuid,
-                                                              w_secret=response.control)
-
+        self.control_uri = \
+            conn.build_operation_websocket_url(uuid=uuid,
+                                               w_secret=response.control)
 
     def get_lxd_endpoint(self, owner, cloud_id, job_id=None):
 
@@ -674,6 +675,7 @@ class LXDShell(LXDWebSocket):
             self.contorl_ws.connect(self.control_uri)
         except websocket.WebSocketException:
             raise MachineUnauthorizedError()
+
 
 class Shell(object):
     """Proxy Shell Class to distinguish between Docker or Paramiko Shell
