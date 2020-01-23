@@ -32,7 +32,8 @@ def find_machine_cores(machine_id):
 
     def _get_cores_from_tsdb(machine):
         if machine.monitoring.hasmonitoring:
-            if machine.monitoring.method.endswith('graphite'):
+            if (machine.monitoring.method.endswith('graphite') or
+                    machine.monitoring.method.endswith('m3db')):
                 metric = 'cpu.*.idle'
             else:
                 metric = 'cpu.cpu=/cpu\d/.usage_idle'
