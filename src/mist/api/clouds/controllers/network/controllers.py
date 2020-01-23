@@ -247,7 +247,24 @@ class LXDNetworkController(BaseNetworkController):
         return networks
 
     def _create_network__prepare_args(**kwargs):
-        pass
+
+        if "description" not in kwargs:
+            kwargs["description"] = "No network description"
+
+        # do not expect that kwargs
+        # have the configuration wrapped
+        # this is the default config
+        kwargs["config"] = {"ipv4.address": "none",
+         "ipv6.address": "none", "ipv6.nat": "false"}
+
+        if "ipv4.address" in kwargs:
+            kwargs["config"]["ipv4.address"] = kwargs["ipv4.address"]
+
+        if "ipv6.address" in kwargs:
+            kwargs["config"]["ipv6.address"] = kwargs["ipv6.address"]
+
+        if "ipv6.nat" in kwargs:
+            kwargs["config"]["ipv6.nat"] = kwargs["ipv6.nat"]
 
     def _delete_network(self, network, libcloud_network):
 
