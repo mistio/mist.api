@@ -1189,13 +1189,16 @@ def _create_machine_lxd(conn, machine_name, image,
             vol_config = {}
 
             if "block_filesystem" in volumes[0]:
-                vol_config["block.filesystem"] = volumes[0]["block_filesystem"]
+                vol_config["block.filesystem"] = \
+                    volumes[0]["block_filesystem"]
 
             if "block_mount_options" in volumes[0]:
-                vol_config["block.mount_options"] = volumes[0]['block_mount_options']
+                vol_config["block.mount_options"] = \
+                    volumes[0]['block_mount_options']
 
             if "security_shifted" in volumes[0]:
-                vol_config["security.shifted"] = volumes[0]['security_shifted']
+                vol_config["security.shifted"] = \
+                    volumes[0]['security_shifted']
 
             definition = {"name": volumes[0]["name"], "type": "custom",
                           "size_type": "GB",
@@ -1203,7 +1206,8 @@ def _create_machine_lxd(conn, machine_name, image,
                           "config": vol_config}
 
             # create the volume
-            volume = conn.create_volume(pool_id=volumes[0]["pool_id"], definition=definition)
+            volume = conn.create_volume(pool_id=volumes[0]["pool_id"],
+                                        definition=definition)
 
             # the volume to attach
             volume = {name: {
