@@ -1166,12 +1166,52 @@ def _create_machine_lxd(conn, machine_name, image,
             raise MachineCreationError("You need to provide"
                                        " a path for the storage")
 
-        volume = {name: {
-            "type": "disk",
-            "path": path,
-            "source": volumes[0]["name"],
-            "pool": volumes[0]["pool_id"]
-        }}
+        pool_id = volumes[0].get('pool_id', None)
+
+        if pool_id is None:
+            # this means we attach an
+            # existing volume
+            volume = conn.ex_get_volume_by_name(name=name)
+
+            if volume.name is None or\
+                    volume.pool_id is None:
+                raise MachineCreationError("No valid pool id found "
+                                           "for volume %s" % name)
+
+            volume = {name: {
+                "type": "disk",
+                "path": path,
+                "source": volume.name,
+                "pool": volume.extra["pool_id"]
+            }}
+        else:
+            # this mean we create a new volume
+            vol_config = {}
+
+            if "block_filesystem" in volumes[0]:
+                vol_config["block.filesystem"] = volumes[0]["block_filesystem"]
+
+            if "block_mount_options" in volumes[0]:
+                vol_config["block.mount_options"] = volumes[0]['block_mount_options']
+
+            if "security_shifted" in volumes[0]:
+                vol_config["security.shifted"] = volumes[0]['security_shifted']
+
+            definition = {"name": volumes[0]["name"], "type": "custom",
+                          "size_type": "GB",
+                          "size": volumes[0]["size"],
+                          "config": vol_config}
+
+            # create the volume
+            volume = conn.create_volume(pool_id=volumes[0]["pool_id"], definition=definition)
+
+            # the volume to attach
+            volume = {name: {
+                "type": "disk",
+                "path": path,
+                "source": volume.name,
+                "pool": volume.extra["pool_id"]
+            }}
 
         if devices is not None:
             devices.update(volume)
