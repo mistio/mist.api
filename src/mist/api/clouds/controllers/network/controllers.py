@@ -255,7 +255,8 @@ class LXDNetworkController(BaseNetworkController):
         # have the configuration wrapped
         # this is the default config
         kwargs["config"] = {"ipv4.address": "none",
-         "ipv6.address": "none", "ipv6.nat": "false"}
+                            "ipv6.address": "none",
+                            "ipv6.nat": "false"}
 
         if "ipv4.address" in kwargs:
             kwargs["config"]["ipv4.address"] = kwargs["ipv4.address"]
