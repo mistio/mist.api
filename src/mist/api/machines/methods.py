@@ -1207,7 +1207,7 @@ def _create_machine_lxd(conn, machine_name, image,
                 vol_config["security.shifted"] = \
                     str(volumes[0]['security_shifted'])
 
-            vol_config['size'] =  volumes[0]["size"]
+            vol_config['size'] = volumes[0]["size"]
 
             definition = {"name": volumes[0]["name"], "type": "custom",
                           "size_type": "GB",
