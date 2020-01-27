@@ -246,7 +246,7 @@ class LXDNetworkController(BaseNetworkController):
         networks = self.cloud.ctl.compute.connection.ex_get_networks()
         return networks
 
-    def _create_network__prepare_args(**kwargs):
+    def _create_network__prepare_args(self, kwargs):
 
         if "description" not in kwargs:
             kwargs["description"] = "No network description"
