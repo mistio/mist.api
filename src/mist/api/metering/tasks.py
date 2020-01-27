@@ -34,7 +34,7 @@ def find_machine_cores(machine_id):
         if machine.monitoring.hasmonitoring:
             if machine.monitoring.method.endswith('graphite'):
                 metric = 'cpu.*.idle'
-            elif machine.monitoring.method.endswith('foundationdb'):
+            elif machine.monitoring.method.endswith('tsfdb'):
                 metric = ('fetch(\"{id}.cpu.*\d.usage_idle\"' +
                           ', start=\"{start}\", stop=\"{stop}\"' +
                           ', step=\"{step}\")')

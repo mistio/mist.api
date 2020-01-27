@@ -390,7 +390,7 @@ class MachineMetricRule(ResourceRule):
             return GraphiteBackendPlugin
         if config.DEFAULT_MONITORING_METHOD.endswith('-influxdb'):
             return InfluxDBBackendPlugin
-        if config.DEFAULT_MONITORING_METHOD.endswith('-foundationdb'):
+        if config.DEFAULT_MONITORING_METHOD.endswith('-tsfdb'):
             return FoundationDBBackendPlugin
         raise Exception()
 
@@ -412,7 +412,7 @@ class NoDataRule(MachineMetricRule):
             return GraphiteNoDataPlugin
         if config.DEFAULT_MONITORING_METHOD.endswith('-influxdb'):
             return InfluxDBNoDataPlugin
-        if config.DEFAULT_MONITORING_METHOD.endswith('-foundationdb'):
+        if config.DEFAULT_MONITORING_METHOD.endswith('-tsfdb'):
             return FoundationDBNoDataPlugin
         raise Exception()
 

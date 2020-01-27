@@ -116,7 +116,7 @@ def _alert_pretty_machine_details(owner, rule_id, value, triggered, timestamp,
         metrics = config.GRAPHITE_BUILTIN_METRICS
     if machine.monitoring.method.endswith('influxdb'):
         metrics = config.INFLUXDB_BUILTIN_METRICS
-    if machine.monitoring.method.endswith('foundationdb'):
+    if machine.monitoring.method.endswith('tsfdb'):
 
         data = requests.get(
             "%s/v1/resources/%s"

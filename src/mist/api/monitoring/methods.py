@@ -157,7 +157,7 @@ def get_load(owner, start="", stop="", step="", uuids=None):
     fdb_uuids = [
         machine.id
         for machine in machines
-        if machine.monitoring.method.endswith("-foundationdb")
+        if machine.monitoring.method.endswith("-tsfdb")
     ]
 
     graphite_data = {}
@@ -250,12 +250,12 @@ def check_monitoring(owner):
                 "builtin_metrics_influxdb": config.INFLUXDB_BUILTIN_METRICS,
             }
         )
-    elif config.DEFAULT_MONITORING_METHOD.endswith("foundationdb"):
+    elif config.DEFAULT_MONITORING_METHOD.endswith("tsfdb"):
         ret.update(
             {
                 # Keep for backwards compatibility
                 "builtin_metrics": {},
-                # "builtin_metrics_foundationdb": config.FDB_BUILTIN_METRICS,
+                # "builtin_metrics_tsfdb": config.FDB_BUILTIN_METRICS,
             }
         )
     for key in ("rules", "builtin_metrics", "custom_metrics"):
