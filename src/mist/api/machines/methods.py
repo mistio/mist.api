@@ -1116,31 +1116,38 @@ def _create_machine_lxd(conn, machine_name, image,
     :return: libcloud.Container
     """
 
-    if parameters is None:
-        raise ValueError("Image parameters cannot be None")
-
     # default time out
     timeout = conn.default_time_out
 
-    # parameters is expected to be a string
-    # representing an image alias
-    url = "https://us.images.linuxcontainers.org/"
+    if parameters is None:
 
-    # check if the image exists locally
-    image_exists = conn.ex_has_image(alias=parameters)
-
-    if image_exists:
+        # then we are not given a url use the image data
         img_parameters = '{"source":{"type":"image", ' \
-                         '"alias": "%s"}}' % parameters
+                         '"alias": "%s"}}' % image.id
+
     else:
 
-        img_parameters = '{"source": {"type":"image", ' \
-                         '"server": "%s", ' \
-                         '"mode": "pull", ' \
-                         '"protocol": "simplestreams",' \
-                         '"alias": %s}}' % (url, parameters)
-        # this will take some time
-        timeout = 600
+        # check if the image exists locally
+        image_exists = conn.ex_has_image(alias=parameters)
+
+        if image_exists:
+            # then the image exists locally
+            # sp use this
+            img_parameters = '{"source":{"type":"image", ' \
+                             '"alias": "%s"}}' % parameters
+        else:
+            # parameters is expected to be a string
+            # representing an image alias
+            url = "https://us.images.linuxcontainers.org/"
+
+            img_parameters = '{"source": {"type":"image", ' \
+                             '"server": "%s", ' \
+                             '"mode": "pull", ' \
+                             '"protocol": "simplestreams", ' \
+                             '"alias": %s}}' % (url, parameters)
+
+            # this will take some time
+            timeout = 600
 
     # if we have a volume we need to create it also
     # simply attach it. Currently assume that the
@@ -1152,14 +1159,6 @@ def _create_machine_lxd(conn, machine_name, image,
         # we must create it otherwise we simply
         # append to the devices
 
-        # now that we have the volume
-        # let's add it to the devices
-        name = volumes[0].get('custom_name', None)
-
-        if name is None:
-            raise MachineCreationError("You need to provide"
-                                       " a custom name for the storage")
-
         path = volumes[0].get('path', None)
 
         if path is None:
@@ -1169,16 +1168,20 @@ def _create_machine_lxd(conn, machine_name, image,
         pool_id = volumes[0].get('pool_id', None)
 
         if pool_id is None:
+
             # this means we attach an
             # existing volume
-            volume = conn.ex_get_volume_by_name(name=name)
+            volume_id = volumes[0].get('volume_id', None)
 
-            if volume.name is None or\
-                    volume.pool_id is None:
-                raise MachineCreationError("No valid pool id found "
-                                           "for volume %s" % name)
+            if volume_id is None:
+                raise MachineCreationError("You need to provide"
+                                           " a volume name to attach to")
 
-            volume = {name: {
+            from mist.api.volumes.models import Volume
+
+            volume = Volume.objects.get(id=volume_id)
+
+            volume = {volume.name: {
                 "type": "disk",
                 "path": path,
                 "source": volume.name,
@@ -1188,21 +1191,26 @@ def _create_machine_lxd(conn, machine_name, image,
             # this mean we create a new volume
             vol_config = {}
 
-            if "block_filesystem" in volumes[0]:
+            if "block_filesystem" in volumes[0] and \
+                    volumes[0]["block_filesystem"] != '':
+
                 vol_config["block.filesystem"] = \
                     volumes[0]["block_filesystem"]
 
-            if "block_mount_options" in volumes[0]:
+            if "block_mount_options" in volumes[0] and \
+                    volumes[0]["block_mount_options"] != '':
+
                 vol_config["block.mount_options"] = \
                     volumes[0]['block_mount_options']
 
             if "security_shifted" in volumes[0]:
                 vol_config["security.shifted"] = \
-                    volumes[0]['security_shifted']
+                    str(volumes[0]['security_shifted'])
+
+            vol_config['size'] =  volumes[0]["size"]
 
             definition = {"name": volumes[0]["name"], "type": "custom",
                           "size_type": "GB",
-                          "size": volumes[0]["size"],
                           "config": vol_config}
 
             # create the volume
@@ -1210,7 +1218,7 @@ def _create_machine_lxd(conn, machine_name, image,
                                         definition=definition)
 
             # the volume to attach
-            volume = {name: {
+            volume = {volume.name: {
                 "type": "disk",
                 "path": path,
                 "source": volume.name,
