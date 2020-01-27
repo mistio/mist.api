@@ -107,7 +107,7 @@ def machine_dashboard(request):
             ret = copy.deepcopy(config.WINDOWS_MACHINE_DASHBOARD_DEFAULT)
         else:
             ret = copy.deepcopy(config.GRAPHITE_MACHINE_DASHBOARD_DEFAULT)
-    elif machine.monitoring.method in ('telegraf-foundationdb'):
+    elif machine.monitoring.method in ('telegraf-tsfdb'):
         ret = copy.deepcopy(config.FDB_MACHINE_DASHBOARD_DEFAULT)
     else:
         ret = copy.deepcopy(config.INFLUXDB_MACHINE_DASHBOARD_DEFAULT)

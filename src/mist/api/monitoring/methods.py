@@ -122,7 +122,7 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
         return results
 
     # return time-series data from foundationdb
-    elif machine.monitoring.method == "telegraf-foundationdb":
+    elif machine.monitoring.method == "telegraf-tsfdb":
         return fdb_get_stats(
             machine,
             start,
@@ -336,7 +336,7 @@ def enable_monitoring(
     if machine.monitoring.method in (
         "telegraf-influxdb",
         "telegraf-graphite",
-        "telegraf-foundationdb",
+        "telegraf-tsfdb",
     ):
         extra_vars = {"uuid": machine.id, "monitor": config.INFLUX["host"]}
     else:
@@ -368,7 +368,7 @@ def enable_monitoring(
         if machine.monitoring.method in (
             "telegraf-influxdb",
             "telegraf-graphite",
-            "telegraf-foundationdb",
+            "telegraf-tsfdb",
         ):
             traefik.reset_config()
     except Exception as exc:
@@ -398,7 +398,7 @@ def enable_monitoring(
         if machine.monitoring.method in (
             "telegraf-influxdb",
             "telegraf-graphite",
-            "telegraf-foundationdb",
+            "telegraf-tsfdb",
         ):
             # Install Telegraf
             func = mist.api.monitoring.tasks.install_telegraf
@@ -453,7 +453,7 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=""):
         if machine.monitoring.method in (
             "telegraf-influxdb",
             "telegraf-graphite",
-            "telegraf-foundationdb",
+            "telegraf-tsfdb",
         ):
             # Schedule undeployment of Telegraf.
             mist.api.monitoring.tasks.uninstall_telegraf.delay(
@@ -481,7 +481,7 @@ def disable_monitoring(owner, cloud_id, machine_id, no_ssh=False, job_id=""):
         if machine.monitoring.method in (
             "telegraf-influxdb",
             "telegraf-graphite",
-            "telegraf-foundationdb",
+            "telegraf-tsfdb",
         ):
             traefik.reset_config()
     except Exception as exc:
@@ -531,7 +531,7 @@ def find_metrics(machine):
         for metric in show_fields(show_measurements(machine.id)):
             metrics[metric["id"]] = metric
         return metrics
-    elif machine.monitoring.method == "telegraf-foundationdb":
+    elif machine.monitoring.method == "telegraf-tsfdb":
         return fdb_find_metrics(machine)
     else:
         raise Exception("Invalid monitoring method")
