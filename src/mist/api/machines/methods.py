@@ -328,7 +328,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                                    start=False, cluster=None,
                                    ephemeral=ephemeral,
                                    size_cpu=size_cpu, size_ram=size_ram,
-                                   volumes=volumes)
+                                   volumes=volumes, networks=networks)
     elif conn.type in [Provider.RACKSPACE_FIRST_GEN, Provider.RACKSPACE]:
         node = _create_machine_rackspace(conn, public_key, machine_name, image,
                                          size, location, user_data=cloud_init)
@@ -1094,7 +1094,7 @@ def _create_machine_lxd(conn, machine_name, image,
                         ephemeral=False,
                         size_cpu=None, size_ram=None,
                         profiles=None, devices=None, instance_type=None,
-                        volumes=None):
+                        volumes=None, networks=None):
     """
     Create a new LXC container on the machine described by the given
     conn argument. Currently we only support
@@ -1229,6 +1229,26 @@ def _create_machine_lxd(conn, machine_name, image,
             devices.update(volume)
         else:
             devices = volume
+
+    if networks is not None\
+            and len(networks) != 0:
+        # we also want to attache a network
+        network_id = networks[0]['network_id']
+
+        from mist.api.networks.models import LXDNetwork
+        network = LXDNetwork.objects.get(id=network_id)
+
+        net_type = network.extra.get("type", "nic")
+        net_nictype = network.extra.get("nictype", "bridged")
+        net_parent = network.extra.get("parent", "lxdbr0")
+
+        # add the network to the devices
+        devices[network.name] = {
+            "source": network.name,
+            "type": net_type,
+            "nictype": net_nictype,
+            "parent": net_parent,
+        }
 
     config = {}
 
