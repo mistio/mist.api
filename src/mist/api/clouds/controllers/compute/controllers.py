@@ -20,7 +20,7 @@ accessed through a cloud model, using the `ctl` abbreviation, like this:
 """
 
 
-# import re
+import re
 import copy
 import socket
 import logging
@@ -175,58 +175,42 @@ class AmazonComputeController(BaseComputeController):
         return node.extra.get('instance_type')
 
     def _list_images__fetch_images(self, search=None):
+        from mist.api.images.models import CloudImage
         default_images = config.EC2_IMAGES[self.cloud.region]
         image_ids = list(default_images.keys())
+
         if not search:
             try:
                 # this might break if image_ids contains starred images
                 # that are not valid anymore for AWS
                 images = self.connection.list_images(None, image_ids)
             except Exception as e:
-                # bad_ids = re.findall(r'ami-\w*', str(e), re.DOTALL)
-                # for bad_id in bad_ids:
-                #     try:
-                #         self.cloud.starred.remove(bad_id)
-                #     except ValueError:
-                #         log.error('Starred Image %s not found incloud %r' % (
-                #             bad_id, self.cloud
-                #         ))
-                # self.cloud.save()
-                images = self.connection.list_images(None, list(default_images.keys()))
+                bad_ids = re.findall(r'ami-\w*', str(e), re.DOTALL)
+                for bad_id in bad_ids:
+                    try:
+                        _image = CloudImage.objects.get(cloud=self.cloud,
+                                                        external_id=bad_id)
+                        _image.delete()
+                    except CloudImage.DoesNotExist:
+                        log.error('Image %s not found in cloud %r' % (
+                            bad_id, self.cloud
+                        ))
+                keys = list(default_images.keys())
+                images = self.connection.list_images(None, keys)
             for image in images:
                 if image.id in default_images:
                     image.name = default_images[image.id]
             images += self.connection.list_images(ex_owner='self')
         else:
-            from mist.api.images.models import CloudImage
-            cached_images = CloudImage.objects(
-                me.Q(cloud=self.cloud,
-                     external_id__icontains=search) |
-                me.Q(cloud=self.cloud,
-                     name__icontains=search)
-            )[:200]
-            if not cached_images:
-                # Actual search on EC2.
-                images = []
-                new_images = self.connection.list_images(
-                    ex_filters={'name': '*%s*' % search}
-                )
+            # search on EC2.
+            libcloud_images = self.connection.list_images(
+                ex_filters={'name': '*%s*' % search}
+            )
 
-                for img in new_images:
-                    try:
-                        _image = CloudImage.objects.get(cloud=self.cloud,
-                                                        external_id=img.id)
-                    except CloudImage.DoesNotExist:
-                        _image = CloudImage(cloud=self.cloud,
-                                            external_id=img.id)
-                        _image.name = img.name
-                        _image.extra = img.extra
-                        _image.missing_since = None
-                        _image.os_type = self._list_images__get_os_type(img)
-                        _image.save()
-                        images.append(_image)
-            else:
-                return cached_images
+            search = search.lower()
+            images = [img for img in libcloud_images
+                    if search in img.id.lower() or
+                    search in img.name.lower()]
 
         return images
 

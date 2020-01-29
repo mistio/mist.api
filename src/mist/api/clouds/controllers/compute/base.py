@@ -775,16 +775,7 @@ class BaseComputeController(BaseController):
 
         images = []
 
-        # Filter images based on search term.
-        if search:
-            search = str(search).lower()
-            _images = [img for img in libcloud_images
-                       if search in img.id.lower() or
-                       search in img.name.lower()]
-        else:
-            _images = libcloud_images
-
-        for img in _images:
+        for img in libcloud_images:
             try:
                 _image = CloudImage.objects.get(cloud=self.cloud,
                                                 external_id=img.id)
