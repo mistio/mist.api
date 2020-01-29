@@ -30,8 +30,6 @@ import tempfile
 import iso8601
 import pytz
 
-import mongoengine as me
-
 from time import sleep
 
 from xml.sax.saxutils import escape
@@ -209,8 +207,8 @@ class AmazonComputeController(BaseComputeController):
 
             search = search.lower()
             images = [img for img in libcloud_images
-                    if search in img.id.lower() or
-                    search in img.name.lower()]
+                      if search in img.id.lower() or
+                      search in img.name.lower()]
 
         return images
 

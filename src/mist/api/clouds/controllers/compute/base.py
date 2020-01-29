@@ -741,6 +741,12 @@ class BaseComputeController(BaseController):
                 patch = jsonpatch.JsonPatch.from_diff(cached_images,
                                                       new_images).patch
                 if patch:
+                    if search:
+                        # do not remove images that were not returned from
+                        # libcloud, since there was a search
+                        patch = [i for i in patch
+                                 if not (i.get('op') in ['remove'])]
+
                     amqp_publish_user(self.cloud.owner.id,
                                       routing_key='patch_images',
                                       data={'cloud_id': self.cloud.id,
@@ -796,12 +802,13 @@ class BaseComputeController(BaseController):
             images.append(_image)
 
         # update missing_since for images not returned by libcloud
-        CloudImage.objects(cloud=self.cloud,
-                           missing_since=None,
-                           external_id__nin=[i.external_id
-                                             for i in images]).update(
-                                                 missing_since=datetime.
-                                                 datetime.utcnow())
+        if not search:
+            CloudImage.objects(cloud=self.cloud,
+                               missing_since=None,
+                               external_id__nin=[i.external_id
+                                                 for i in images]).update(
+                                                     missing_since=datetime.
+                                                     datetime.utcnow())
 
         # Sort images: Starred first, then alphabetically.
         images.sort(key=lambda image: (not image.starred, image.name))
