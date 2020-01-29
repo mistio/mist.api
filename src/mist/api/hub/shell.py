@@ -111,11 +111,16 @@ class ShellHubWorker(mist.api.hub.main.HubWorker):
                 log.info("%s: Resizing shell to (%s, %s).",
                          self.lbl, columns, rows)
                 try:
-                    # also pass the channel to emulate how things
-                    # were done in the past
-                    columns, rows = self.shell.resize(columns=columns,
-                                                      rows=rows,
-                                                      channel=self.channel)
+
+                    if self.shell.get_type() == "LXDShell":
+
+                        # also pass the channel to emulate how things
+                        # were done in the past
+                        columns, rows = self.shell.resize(columns=columns,
+                                                          rows=rows)
+                    else:
+                        self.channel.resize_pty(columns, rows)
+
                     return columns, rows
                 except Exception as exc:
                     log.warning("%s: Error resizing shell to (%s, %s): %r.",
