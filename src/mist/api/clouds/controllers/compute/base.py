@@ -744,12 +744,12 @@ class BaseComputeController(BaseController):
                     # do not remove images that were not returned from
                     # libcloud, since there was a search
                     patch = [i for i in patch
-                                if not (i.get('op') in ['remove'])]
+                             if not (i.get('op') in ['remove'])]
 
                 if patch:
                     amqp_publish_user(self.cloud.owner.id,
-                                    routing_key='patch_images',
-                                    data={'cloud_id': self.cloud.id,
+                                      routing_key='patch_images',
+                                      data={'cloud_id': self.cloud.id,
                                             'patch': patch})
             else:
                 # TODO: is this really needed? same for sizes and locations

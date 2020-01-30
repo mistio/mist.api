@@ -14,9 +14,9 @@ def search_image(request):
     """
     Tags: images
     ---
-    List images from each cloud. Furthermore if a search_term is provided, we
-    loop through each cloud and search for that term in the ids and the names
-    of the community images.
+    Search images from cloud. If a search_term is provided, we
+    search for that term in the ids and the names
+    of the community images. Available for EC2 and Docker.
     READ permission required on cloud.
     ---
     cloud:
@@ -26,6 +26,16 @@ def search_image(request):
     search_term:
       type: string
     """
+    cloud_id = request.matchdict['cloud']
+    try:
+        cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id)
+    except Cloud.DoesNotExist:
+        raise NotFoundError('Cloud does not exist')
+
+    if cloud.ctl.provider not in ['ec2', 'docker']:
+        raise NotImplementedError(
+            "Search images only supported for EC2 and Docker")
+
     return list_images(request)
 
 
