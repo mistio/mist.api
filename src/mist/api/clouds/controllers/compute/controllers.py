@@ -174,10 +174,10 @@ class AmazonComputeController(BaseComputeController):
 
     def _list_images__fetch_images(self, search=None):
         from mist.api.images.models import CloudImage
-        default_images = config.EC2_IMAGES[self.cloud.region]
-        image_ids = list(default_images.keys())
 
         if not search:
+            default_images = config.EC2_IMAGES[self.cloud.region]
+            image_ids = list(default_images.keys())
             try:
                 # this might break if image_ids contains starred images
                 # that are not valid anymore for AWS
@@ -209,6 +209,10 @@ class AmazonComputeController(BaseComputeController):
             images = [img for img in libcloud_images
                       if search in img.id.lower() or
                       search in img.name.lower()]
+
+        # filter out invalid images
+        images = [img for img in images
+                  if img.name and img.id[:3] not in ('aki', 'ari')]
 
         return images
 

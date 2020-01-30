@@ -89,6 +89,4 @@ def star_image(request):
     except Cloud.DoesNotExist:
         raise NotFoundError('Cloud does not exist')
 
-    image = methods.star_image(auth_context.owner, cloud_id, image_id)
-
-    return image.as_dict()
+    return methods.star_image(auth_context.owner, cloud_id, image_id)

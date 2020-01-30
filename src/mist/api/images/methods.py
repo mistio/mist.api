@@ -28,6 +28,6 @@ def star_image(owner, cloud_id, image_id):
         raise NotFoundError('CloudImage does not exist')
 
     image.starred = False if image.starred else True
-
     image.save()
-    return image
+
+    return image.as_dict()
