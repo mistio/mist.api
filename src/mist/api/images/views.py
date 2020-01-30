@@ -27,6 +27,7 @@ def search_image(request):
       type: string
     """
     cloud_id = request.matchdict['cloud']
+    auth_context = auth_context_from_request(request)
     try:
         cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id)
     except Cloud.DoesNotExist:
