@@ -1188,9 +1188,14 @@ def _create_machine_lxd(conn, machine_name, image,
                 "pool": volume.extra["pool_id"]
             }}
         else:
+
             # this mean we create a new volume
             vol_config = {}
+            definition = {"name": volumes[0]["name"], "type": "custom",
+                          "size_type": "GB"}
 
+            # keys are set according to
+            # https://linuxcontainers.org/lxd/docs/master/storage
             if "block_filesystem" in volumes[0] and \
                     volumes[0]["block_filesystem"] != '':
 
@@ -1209,21 +1214,23 @@ def _create_machine_lxd(conn, machine_name, image,
 
             vol_config['size'] = volumes[0]["size"]
 
-            definition = {"name": volumes[0]["name"], "type": "custom",
-                          "size_type": "GB",
-                          "config": vol_config}
+            definition["config"] = vol_config
 
-            # create the volume
-            volume = conn.create_volume(pool_id=volumes[0]["pool_id"],
-                                        definition=definition)
+            try:
+                # create the volume
+                volume = conn.create_volume(pool_id=volumes[0]["pool_id"],
+                                            definition=definition)
 
-            # the volume to attach
-            volume = {volume.name: {
-                "type": "disk",
-                "path": path,
-                "source": volume.name,
-                "pool": volume.extra["pool_id"]
-            }}
+                # the volume to attach
+                volume = {volume.name: {
+                    "type": "disk",
+                    "path": path,
+                    "source": volume.name,
+                    "pool": volume.extra["pool_id"]
+                }}
+            except Exception as e:
+                raise MachineCreationError("LXD volume creation, "
+                                           "got exception %s" % e)
 
         if devices is not None:
             devices.update(volume)
