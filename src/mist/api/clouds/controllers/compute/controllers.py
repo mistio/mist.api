@@ -198,17 +198,6 @@ class AmazonComputeController(BaseComputeController):
                 if image.id in default_images:
                     image.name = default_images[image.id]
             images += self.connection.list_images(ex_owner='self')
-            # also return stored images that are in database,
-            # stored after search, or imported from external repo
-            stored_images = CloudImage.objects(cloud=self.cloud,
-                                               missing_since=None)
-            # avoid duplicates
-            for img in stored_images:
-                if img.external_id not in image_ids:
-                    images.append(NodeImage(id=img.external_id,
-                                            name=img.name,
-                                            driver=self.connection,
-                                            extra=img.extra))
         else:
             # search on EC2.
             libcloud_images = self.connection.list_images(

@@ -789,10 +789,11 @@ class BaseComputeController(BaseController):
                 _image = CloudImage(cloud=self.cloud,
                                     external_id=img.id)
             _image.name = img.name
-            _image.extra = img.extra
+            _image.extra = copy.deepcopy(img.extra)
             _image.missing_since = None
             _image.os_type = self._list_images__get_os_type(img)
-
+            if search:
+                _image.stored_after_search = True
             try:
                 _image.save()
             except me.ValidationError as exc:
@@ -805,15 +806,23 @@ class BaseComputeController(BaseController):
         if not search:
             CloudImage.objects(cloud=self.cloud,
                                missing_since=None,
+                               stored_after_search=False,
                                external_id__nin=[i.external_id
                                                  for i in images]).update(
                                                      missing_since=datetime.
                                                      datetime.utcnow())
+        if search:
+            return images
+        else:
 
-        # Sort images: Starred first, then alphabetically.
-        images.sort(key=lambda image: (not image.starred, image.name))
+            # return images stored in database, because there are also
+            # images stored after search, or imported from external repo
+            all_images = CloudImage.objects(cloud=self.cloud,
+                                            missing_since=None)
 
-        return images
+            # Sort images: Starred first, then alphabetically.
+            # sort(key=lambda image: (not image.starred,image.name))
+            return all_images
 
     def _list_images__fetch_images(self, search=None):
         """Fetch image listing in a libcloud compatible format
