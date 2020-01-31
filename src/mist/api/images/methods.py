@@ -1,5 +1,7 @@
 from mist.api.clouds.models import Cloud
 
+from mist.api.helpers import trigger_session_update
+
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import CloudNotFoundError
 
@@ -29,5 +31,6 @@ def star_image(owner, cloud_id, image_id):
 
     image.starred = False if image.starred else True
     image.save()
+    trigger_session_update(owner, ['images'])
 
     return image.as_dict()

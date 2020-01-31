@@ -391,6 +391,21 @@ class MainConnection(MistConnection):
             callback=lambda tunnels: self.send('list_tunnels', tunnels),
         )
 
+    def list_images(self):
+        clouds = filter_list_clouds(self.auth_context, as_dict=False)
+        for cloud in clouds:
+            if not cloud.enabled:
+                continue
+            if cloud.ctl.ComputeController:
+                self.internal_request(
+                        'api/v1/clouds/%s/images' % cloud.id,
+                        params={'cached': True},
+                        callback=lambda images, cloud_id=cloud.id: self.send(
+                            'list_images',
+                            {'cloud_id': cloud_id, 'images': images}
+                        ),
+                    )
+
     def list_clouds(self):
         self.update_poller()
         clouds = filter_list_clouds(self.auth_context, as_dict=False)
@@ -543,6 +558,8 @@ class MainConnection(MistConnection):
             sections = result
             if 'clouds' in sections:
                 self.list_clouds()
+            if 'images' in sections:
+                self.list_images()
             if 'keys' in sections:
                 self.list_keys()
             if 'scripts' in sections:
