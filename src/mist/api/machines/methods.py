@@ -1149,6 +1149,9 @@ def _create_machine_lxd(conn, machine_name, image,
             # this will take some time
             timeout = 600
 
+    # by deafult no devices
+    devices = {}
+
     # if we have a volume we need to create it also
     # simply attach it. Currently assume that the
     # volume is just given
@@ -1239,10 +1242,12 @@ def _create_machine_lxd(conn, machine_name, image,
 
     if networks is not None\
             and len(networks) != 0:
+
         # we also want to attache a network
-        network_id = networks[0]['network_id']
+        network_id = networks
 
         from mist.api.networks.models import LXDNetwork
+
         network = LXDNetwork.objects.get(id=network_id)
 
         net_type = network.extra.get("type", "nic")
@@ -1251,7 +1256,7 @@ def _create_machine_lxd(conn, machine_name, image,
 
         # add the network to the devices
         devices[network.name] = {
-            "source": network.name,
+            "name": network.name,
             "type": net_type,
             "nictype": net_nictype,
             "parent": net_parent,
