@@ -13,9 +13,11 @@ from mist.api.clouds.controllers.storage.base import BaseStorageController
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import NotFoundError
+from mist.api.exceptions import VolumeInUseError
 
 from libcloud.common.types import LibcloudError
 from libcloud.compute.base import NodeLocation
+
 
 log = logging.getLogger(__name__)
 
@@ -439,20 +441,20 @@ class LXDStorageController(BaseStorageController):
 
         # TODO: Need more work on that as not all
         # volumes seem to accept this
-        config = {"size": kwargs["size"],
-                  "size_type": "GB"}
+        config = {"size": kwargs["size"]}
 
         if filesystem is not '':
-            config['filesystem'] = filesystem
+            config['block.filesystem'] = filesystem
 
         if block_mount_options is not '':
-            config['block_mount_options'] = block_mount_options
+            config['block.mount_options'] = block_mount_options
 
         if security_shifted is not '':
-            config['security_shifted'] = security_shifted
+            config['security.shifted'] = str(security_shifted)
 
         kwargs["definition"] = {"name": kwargs.pop("name"),
                                 "type": "custom",
+                                "size_type": "GB",
                                 "config": config}
 
     def _attach_volume(self, libcloud_volume, libcloud_node, **kwargs):
@@ -469,10 +471,22 @@ class LXDStorageController(BaseStorageController):
         self.list_volumes()
 
     def _delete_volume(self, libcloud_volume):
+
+        from libcloud.container.drivers.lxd import LXDAPIException
+
         connection = self.cloud.ctl.compute.connection
         pid = libcloud_volume.extra["pool_id"]
         type = libcloud_volume.extra["type"]
         name = libcloud_volume.name
-        connection.ex_delete_storage_pool_volume(pool_id=pid,
-                                                 type=type,
-                                                 name=name)
+
+        try:
+            connection.ex_delete_storage_pool_volume(pool_id=pid,
+                                                     type=type, name=name)
+        except LXDAPIException as e:
+
+            if e.message == "The storage volume is still in use":
+                raise VolumeInUseError()
+            else:
+                raise
+        except Exception:
+            raise
