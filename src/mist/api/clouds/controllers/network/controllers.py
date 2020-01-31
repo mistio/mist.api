@@ -243,7 +243,7 @@ class LXDNetworkController(BaseNetworkController):
         Return the LXD networks
         :return: list of LXDNetwork objects
         """
-        networks = self.cloud.ctl.compute.connection.ex_get_networks()
+        networks = self.cloud.ctl.compute.connection.ex_list_networks()
         return networks
 
     def _create_network__prepare_args(self, kwargs):
