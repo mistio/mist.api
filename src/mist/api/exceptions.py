@@ -242,6 +242,10 @@ class VolumeExistsError(ConflictError):
     msg = "Volume already exists"
 
 
+class VolumeInUseError(ConflictError):
+    msg = "Volume is used"
+
+
 #  Rate Limit Error (translated as 429 in views)
 class RateLimitError(MistError):
     msg = "Rate Limit Error"
