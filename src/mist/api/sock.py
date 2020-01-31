@@ -398,13 +398,13 @@ class MainConnection(MistConnection):
                 continue
             if cloud.ctl.ComputeController:
                 self.internal_request(
-                        'api/v1/clouds/%s/images' % cloud.id,
-                        params={'cached': True},
-                        callback=lambda images, cloud_id=cloud.id: self.send(
-                            'list_images',
-                            {'cloud_id': cloud_id, 'images': images}
-                        ),
-                    )
+                    'api/v1/clouds/%s/images' % cloud.id,
+                    params={'cached': True},
+                    callback=lambda images, cloud_id=cloud.id: self.send(
+                        'list_images',
+                        {'cloud_id': cloud_id, 'images': images}
+                    ),
+                )
 
     def list_clouds(self):
         self.update_poller()

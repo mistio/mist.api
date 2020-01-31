@@ -811,18 +811,17 @@ class BaseComputeController(BaseController):
                                                  for i in images]).update(
                                                      missing_since=datetime.
                                                      datetime.utcnow())
-        if search:
-            return images
-        else:
-
+        if not search:
             # return images stored in database, because there are also
             # images stored after search, or imported from external repo
             all_images = CloudImage.objects(cloud=self.cloud,
                                             missing_since=None)
+            images = [img for img in all_images]
 
-            # Sort images: Starred first, then alphabetically.
-            # sort(key=lambda image: (not image.starred,image.name))
-            return all_images
+        # Sort images: Starred first, then alphabetically.
+        images.sort(key=lambda image: (not image.starred, image.name))
+
+        return images
 
     def _list_images__fetch_images(self, search=None):
         """Fetch image listing in a libcloud compatible format
