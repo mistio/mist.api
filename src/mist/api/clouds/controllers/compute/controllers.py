@@ -1425,9 +1425,9 @@ class DockerComputeController(BaseComputeController):
         if not search:
             # Fetch mist's recommended images
             images = [ContainerImage(id=image, name=name, path=None,
-                                    version=None, driver=self.connection,
-                                    extra={})
-                    for image, name in list(config.DOCKER_IMAGES.items())]
+                                     version=None, driver=self.connection,
+                                     extra={})
+                      for image, name in list(config.DOCKER_IMAGES.items())]
             images += self.connection.list_images()
 
         else:
