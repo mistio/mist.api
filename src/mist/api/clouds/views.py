@@ -441,7 +441,6 @@ def list_security_groups(request):
     """
     auth_context = auth_context_from_request(request)
     cloud_id = request.matchdict['cloud']
-    params = params_from_request(request)
 
     # SEC
     auth_context.check_perm("cloud", "read", cloud_id)

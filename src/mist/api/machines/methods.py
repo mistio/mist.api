@@ -784,7 +784,8 @@ def _create_machine_ec2(conn, key_name, public_key,
         description = config.EC2_SECURITYGROUP.get('description', '')
         try:
             log.info("Attempting to create security group")
-            conn.ex_create_security_group(name=sg_name, description=description)
+            conn.ex_create_security_group(
+                name=sg_name, description=description)
             conn.ex_authorize_security_group_permissive(name=sg_name)
         except Exception as exc:
             if 'Duplicate' in str(exc):
