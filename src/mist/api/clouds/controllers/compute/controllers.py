@@ -1422,22 +1422,18 @@ class DockerComputeController(BaseComputeController):
         return [self.dockerhost]
 
     def _list_images__fetch_images(self, search=None):
-        # Fetch mist's recommended images
-        images = [ContainerImage(id=image, name=name, path=None,
-                                 version=None, driver=self.connection,
-                                 extra={})
-                  for image, name in list(config.DOCKER_IMAGES.items())]
-        # Add starred images
-        images += [ContainerImage(id=image, name=image, path=None,
-                                  version=None, driver=self.connection,
-                                  extra={})
-                   for image in self.cloud.starred
-                   if image not in config.DOCKER_IMAGES]
-        # Fetch images from libcloud (supports search).
-        if search:
-            images += self.connection.ex_search_images(term=search)[:100]
-        else:
+        if not search:
+            # Fetch mist's recommended images
+            images = [ContainerImage(id=image, name=name, path=None,
+                                    version=None, driver=self.connection,
+                                    extra={})
+                    for image, name in list(config.DOCKER_IMAGES.items())]
             images += self.connection.list_images()
+
+        else:
+            # search on dockerhub
+            images = self.connection.ex_search_images(term=search)[:100]
+
         return images
 
     def image_is_default(self, image_id):
