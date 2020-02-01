@@ -282,7 +282,8 @@ class User(Owner):
     ips = me.EmbeddedDocumentListField(WhitelistIP, default=[])
 
     meta = {
-        'indexes': ['email', 'first_name', 'last_name', 'username', 'last_login']
+        'indexes': [
+            'email', 'first_name', 'last_name', 'username', 'last_login']
     }
 
     def __str__(self):

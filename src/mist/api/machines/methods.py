@@ -335,7 +335,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                 break
         node = _create_machine_ec2(conn, key.name, public_key,
                                    machine_name, image, size, ec2_location,
-                                   subnet_id, cloud_init, volumes, sec_group=sec_group)
+                                   subnet_id, cloud_init, volumes,
+                                   sec_group=sec_group)
     elif conn.name == 'Aliyun ECS':
         node = _create_machine_aliyun(conn, key.name, public_key,
                                       machine_name, image, size, location,
@@ -789,7 +790,8 @@ def _create_machine_ec2(conn, key_name, public_key,
             if 'Duplicate' in str(exc):
                 log.info('Security group already exists, not doing anything.')
             else:
-                raise InternalServerError("Couldn't create security group", exc)
+                raise InternalServerError(
+                    "Couldn't create security group", exc)
 
     kwargs = {
         'auth': NodeAuthSSHKey(pubkey=public_key.replace('\n', '')),
@@ -827,7 +829,8 @@ def _create_machine_ec2(conn, key_name, public_key,
         if not sec_group:
             groups = conn.ex_list_security_groups()
             for group in groups:
-                if group.get('name') == config.EC2_SECURITYGROUP.get('name', ''):
+                if group.get('name') == config.EC2_SECURITYGROUP.get('name',
+                                                                     ''):
                     security_group_id = group.get('id')
                     break
         else:
@@ -837,7 +840,8 @@ def _create_machine_ec2(conn, key_name, public_key,
             'ex_security_group_ids': security_group_id})
 
     else:
-        kwargs.update({'ex_securitygroup': sec_group or config.EC2_SECURITYGROUP['name']})
+        kwargs.update({
+            'ex_securitygroup': sec_group or config.EC2_SECURITYGROUP['name']})
 
     mappings = []
     ex_volumes = []

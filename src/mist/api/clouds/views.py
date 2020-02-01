@@ -442,7 +442,6 @@ def list_security_groups(request):
     auth_context = auth_context_from_request(request)
     cloud_id = request.matchdict['cloud']
     params = params_from_request(request)
-    cached = bool(params.get('cached', False))
 
     # SEC
     auth_context.check_perm("cloud", "read", cloud_id)
@@ -455,7 +454,8 @@ def list_security_groups(request):
     try:
         sec_groups = cloud.ctl.compute.connection.ex_list_security_groups()
     except Exception as e:
-        log.error("Could not list security groups for cloud %s: %r" % (cloud, e))
+        log.error("Could not list security groups for cloud %s: %r" % (
+            cloud, e))
         raise NotImplementedError
 
     return sec_groups
