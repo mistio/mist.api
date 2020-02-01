@@ -423,3 +423,39 @@ def toggle_cloud(request):
 
     trigger_session_update(auth_context.owner, ['clouds'])
     return OK
+
+
+@view_config(route_name='api_v1_cloud_security_groups', request_method='GET',
+             renderer='json')
+def list_security_groups(request):
+    """
+    Tags: security-groups
+    ---
+    Lists security groups on cloud
+    READ permission required on cloud.
+    ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    """
+    auth_context = auth_context_from_request(request)
+    cloud_id = request.matchdict['cloud']
+    params = params_from_request(request)
+    cached = bool(params.get('cached', False))
+
+    # SEC
+    auth_context.check_perm("cloud", "read", cloud_id)
+    try:
+        cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
+                                  deleted=None)
+    except Cloud.DoesNotExist:
+        raise NotFoundError('Cloud does not exist')
+
+    try:
+        sec_groups = cloud.ctl.compute.connection.ex_list_security_groups()
+    except Exception as e:
+        log.error("Could not list security groups for cloud %s: %r" % (cloud, e))
+        raise NotImplementedError
+
+    return sec_groups
