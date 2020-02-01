@@ -780,18 +780,26 @@ def _create_machine_ec2(conn, key_name, public_key,
     """
     if not sec_group:
         # create security group
-        name = config.EC2_SECURITYGROUP.get('name', '')
+        sg_name = config.EC2_SECURITYGROUP.get('name', '')
         description = config.EC2_SECURITYGROUP.get('description', '')
         try:
             log.info("Attempting to create security group")
-            conn.ex_create_security_group(name=name, description=description)
-            conn.ex_authorize_security_group_permissive(name=name)
+            conn.ex_create_security_group(name=sg_name, description=description)
+            conn.ex_authorize_security_group_permissive(name=sg_name)
         except Exception as exc:
             if 'Duplicate' in str(exc):
                 log.info('Security group already exists, not doing anything.')
             else:
                 raise InternalServerError(
                     "Couldn't create security group", exc)
+    else:
+        sec_groups = conn.ex_list_security_groups()
+        for sg in sec_groups:
+            if sg['id'] == sec_group:
+                sg_name = sg['name']
+                break
+        else:
+            raise BadRequestError("Security group not found: %s" % sec_group)
 
     kwargs = {
         'auth': NodeAuthSSHKey(pubkey=public_key.replace('\n', '')),
@@ -841,7 +849,7 @@ def _create_machine_ec2(conn, key_name, public_key,
 
     else:
         kwargs.update({
-            'ex_securitygroup': sec_group or config.EC2_SECURITYGROUP['name']})
+            'ex_securitygroup': sg_name})
 
     mappings = []
     ex_volumes = []
