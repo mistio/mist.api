@@ -243,6 +243,9 @@ def create_machine(request):
       items:
         type:
           object
+    security_group:
+      type: string
+      description: Machine will join this security group
     """
 
     params = params_from_request(request)
