@@ -8,7 +8,6 @@ from mongoengine import DoesNotExist
 
 from time import time
 
-from libcloud.compute.types import Provider
 from libcloud.common.types import InvalidCredsError
 from libcloud.utils.networking import is_private_subnet
 from libcloud.dns.types import Provider as DnsProvider
@@ -104,14 +103,14 @@ def list_projects(owner, cloud_id):
     """
     cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
 
-    if conn.type in [Provider.PACKET]:
+    if cloud.ctl.provider in ['packet']:
         conn = connect_provider(cloud)
         projects = conn.ex_list_projects()
         ret = [{'id': project.id,
                 'name': project.name,
                 'extra': project.extra
                 }
-           for project in projects]
+               for project in projects]
     else:
         ret = []
 
