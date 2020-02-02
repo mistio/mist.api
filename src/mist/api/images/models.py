@@ -13,6 +13,7 @@ class CloudImage(me.Document):
     external_id = me.StringField(required=True)
     name = me.StringField()
     starred = me.BooleanField(default=True)
+    stored_after_search = me.BooleanField(default=False)
     missing_since = me.DateTimeField()
     extra = MistDictField()
     os_type = me.StringField(default='linux')

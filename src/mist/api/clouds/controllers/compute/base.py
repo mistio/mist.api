@@ -740,6 +740,12 @@ class BaseComputeController(BaseController):
                 new_images = {'%s' % im['id']: im for im in images_dict}
                 patch = jsonpatch.JsonPatch.from_diff(cached_images,
                                                       new_images).patch
+                if search:
+                    # do not remove images that were not returned from
+                    # libcloud, since there was a search
+                    patch = [i for i in patch
+                             if not (i.get('op') in ['remove'])]
+
                 if patch:
                     amqp_publish_user(self.cloud.owner.id,
                                       routing_key='patch_images',
@@ -768,23 +774,14 @@ class BaseComputeController(BaseController):
         """
         from mist.api.images.models import CloudImage
         # Fetch images, usually from libcloud connection.
-        libcloud_images = self._list_images__fetch_images()
+        libcloud_images = self._list_images__fetch_images(search=search)
 
         log.info("List images returned %d results for %s.",
                  len(libcloud_images), self.cloud)
 
         images = []
 
-        # Filter images based on search term.
-        if search:
-            search = str(search).lower()
-            _images = [img for img in libcloud_images
-                       if search in img.id.lower() or
-                       search in img.name.lower()]
-        else:
-            _images = libcloud_images
-
-        for img in _images:
+        for img in libcloud_images:
             try:
                 _image = CloudImage.objects.get(cloud=self.cloud,
                                                 external_id=img.id)
@@ -792,10 +789,11 @@ class BaseComputeController(BaseController):
                 _image = CloudImage(cloud=self.cloud,
                                     external_id=img.id)
             _image.name = img.name
-            _image.extra = img.extra
+            _image.extra = copy.deepcopy(img.extra)
             _image.missing_since = None
             _image.os_type = self._list_images__get_os_type(img)
-
+            if search:
+                _image.stored_after_search = True
             try:
                 _image.save()
             except me.ValidationError as exc:
@@ -805,19 +803,27 @@ class BaseComputeController(BaseController):
             images.append(_image)
 
         # update missing_since for images not returned by libcloud
-        CloudImage.objects(cloud=self.cloud,
-                           missing_since=None,
-                           external_id__nin=[i.external_id
-                                             for i in images]).update(
-                                                 missing_since=datetime.
-                                                 datetime.utcnow())
+        if not search:
+            CloudImage.objects(cloud=self.cloud,
+                               missing_since=None,
+                               stored_after_search=False,
+                               external_id__nin=[i.external_id
+                                                 for i in images]).update(
+                                                     missing_since=datetime.
+                                                     datetime.utcnow())
+        if not search:
+            # return images stored in database, because there are also
+            # images stored after search, or imported from external repo
+            all_images = CloudImage.objects(cloud=self.cloud,
+                                            missing_since=None)
+            images = [img for img in all_images]
 
         # Sort images: Starred first, then alphabetically.
         images.sort(key=lambda image: (not image.starred, image.name))
 
         return images
 
-    def _list_images__fetch_images(self):
+    def _list_images__fetch_images(self, search=None):
         """Fetch image listing in a libcloud compatible format
 
         This is to be called exclusively by `self._list_images`.

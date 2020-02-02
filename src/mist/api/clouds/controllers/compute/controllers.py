@@ -20,7 +20,7 @@ accessed through a cloud model, using the `ctl` abbreviation, like this:
 """
 
 
-# import re
+import re
 import copy
 import socket
 import logging
@@ -29,8 +29,6 @@ import netaddr
 import tempfile
 import iso8601
 import pytz
-
-# import mongoengine as me
 
 from time import sleep
 
@@ -174,50 +172,47 @@ class AmazonComputeController(BaseComputeController):
     def _list_machines__get_size(self, node):
         return node.extra.get('instance_type')
 
-    # TODO: FIXME
-    # Filter out invalid images.
-    # images = [img for img in images
-    #           if img.name and img.id[:3] not in ('aki', 'ari')]
-
     def _list_images__fetch_images(self, search=None):
-        default_images = config.EC2_IMAGES[self.cloud.region]
-        image_ids = list(default_images.keys())
         if not search:
+            from mist.api.images.models import CloudImage
+            default_images = config.EC2_IMAGES[self.cloud.region]
+            image_ids = list(default_images.keys())
             try:
                 # this might break if image_ids contains starred images
                 # that are not valid anymore for AWS
                 images = self.connection.list_images(None, image_ids)
             except Exception as e:
-                # bad_ids = re.findall(r'ami-\w*', str(e), re.DOTALL)
-                # for bad_id in bad_ids:
-                #     try:
-                #         self.cloud.starred.remove(bad_id)
-                #     except ValueError:
-                #         log.error('Starred Image %s not found incloud %r' % (
-                #             bad_id, self.cloud
-                #         ))
-                # self.cloud.save()
-                images = self.connection.list_images(None, list(default_images.keys()))
+                bad_ids = re.findall(r'ami-\w*', str(e), re.DOTALL)
+                for bad_id in bad_ids:
+                    try:
+                        _image = CloudImage.objects.get(cloud=self.cloud,
+                                                        external_id=bad_id)
+                        _image.delete()
+                    except CloudImage.DoesNotExist:
+                        log.error('Image %s not found in cloud %r' % (
+                            bad_id, self.cloud
+                        ))
+                keys = list(default_images.keys())
+                images = self.connection.list_images(None, keys)
             for image in images:
                 if image.id in default_images:
                     image.name = default_images[image.id]
             images += self.connection.list_images(ex_owner='self')
-        # TODO: CHECK
         else:
-            image_models = CloudImage.objects(
-                me.Q(cloud_provider=self.connection.type,
-                     image_id__icontains=search) |
-                me.Q(cloud_provider=self.connection.type,
-                     name__icontains=search)
-            )[:200]
-            images = [NodeImage(id=image.image_id, name=image.name,
-                                driver=self.connection, extra={})
-                      for image in image_models]
-            if not images:
-                # Actual search on EC2.
-                images = self.connection.list_images(
-                    ex_filters={'name': '*%s*' % search}
-                )
+            # search on EC2.
+            libcloud_images = self.connection.list_images(
+                ex_filters={'name': '*%s*' % search}
+            )
+
+            search = search.lower()
+            images = [img for img in libcloud_images
+                      if search in img.id.lower() or
+                      search in img.name.lower()]
+
+        # filter out invalid images
+        images = [img for img in images
+                  if img.name and img.id[:3] not in ('aki', 'ari')]
+
         return images
 
     def image_is_default(self, image_id):
@@ -1427,22 +1422,18 @@ class DockerComputeController(BaseComputeController):
         return [self.dockerhost]
 
     def _list_images__fetch_images(self, search=None):
-        # Fetch mist's recommended images
-        images = [ContainerImage(id=image, name=name, path=None,
-                                 version=None, driver=self.connection,
-                                 extra={})
-                  for image, name in list(config.DOCKER_IMAGES.items())]
-        # Add starred images
-        images += [ContainerImage(id=image, name=image, path=None,
-                                  version=None, driver=self.connection,
-                                  extra={})
-                   for image in self.cloud.starred
-                   if image not in config.DOCKER_IMAGES]
-        # Fetch images from libcloud (supports search).
-        if search:
-            images += self.connection.ex_search_images(term=search)[:100]
-        else:
+        if not search:
+            # Fetch mist's recommended images
+            images = [ContainerImage(id=image, name=name, path=None,
+                                     version=None, driver=self.connection,
+                                     extra={})
+                      for image, name in list(config.DOCKER_IMAGES.items())]
             images += self.connection.list_images()
+
+        else:
+            # search on dockerhub
+            images = self.connection.ex_search_images(term=search)[:100]
+
         return images
 
     def image_is_default(self, image_id):

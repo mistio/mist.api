@@ -8,6 +8,38 @@ from mist.api.images import methods
 from mist.api.auth.methods import auth_context_from_request
 
 
+@view_config(route_name='api_v1_images', request_method='POST',
+             renderer='json')
+def search_image(request):
+    """
+    Tags: images
+    ---
+    Search images from cloud. If a search_term is provided, we
+    search for that term in the ids and the names
+    of the community images. Available for EC2 and Docker.
+    READ permission required on cloud.
+    ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    search_term:
+      type: string
+    """
+    cloud_id = request.matchdict['cloud']
+    auth_context = auth_context_from_request(request)
+    try:
+        cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id)
+    except Cloud.DoesNotExist:
+        raise NotFoundError('Cloud does not exist')
+
+    if cloud.ctl.provider not in ['ec2', 'docker']:
+        raise NotImplementedError(
+            "Search images only supported for EC2 and Docker")
+
+    return list_images(request)
+
+
 @view_config(route_name='api_v1_images', request_method='GET', renderer='json')
 def list_images(request):
     """
@@ -68,6 +100,4 @@ def star_image(request):
     except Cloud.DoesNotExist:
         raise NotFoundError('Cloud does not exist')
 
-    image = methods.star_image(auth_context.owner, cloud_id, image_id)
-
-    return image.as_dict()
+    return methods.star_image(auth_context.owner, cloud_id, image_id)

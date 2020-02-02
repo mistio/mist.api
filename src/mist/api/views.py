@@ -1011,29 +1011,6 @@ def whitelist_ip(request):
     trigger_session_update(auth_context.org, ['user'])
     return OK
 
-# TODO: Check if it is called anywhere from UI
-
-# @view_config(route_name='api_v1_images', request_method='POST',
-#              renderer='json')
-# def list_specific_images(request):
-#     # FIXME: 1) i shouldn't exist, 2) i shouldn't be a post
-#     """
-#     Tags: images
-#     ---
-#     List images from each cloud. Furthermore if a search_term is provided, we
-#     loop through each cloud and search for that term in the ids and the names
-#     of the community images.
-#     READ permission required on cloud.
-#     ---
-#     cloud:
-#       in: path
-#       required: true
-#       type: string
-#     search_term:
-#       type: string
-#     """
-#     return list_images(request)
-
 
 @view_config(route_name='api_v1_sizes', request_method='GET', renderer='json')
 def list_sizes(request):
