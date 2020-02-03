@@ -1508,11 +1508,10 @@ class LXDComputeController(BaseComputeController):
         try:
             container = self.connection.destroy_container(container=machine)
             return container
+        except LXDAPIException as e:
+            raise MistError(msg=e.message, exc=e)
         except Exception as e:
-
-            if isinstance(e, LXDAPIException):
-                raise MistError(e.message)
-            raise
+            raise MistError(exc=e)
 
     def _reboot_machine(self, machine, machine_libcloud):
         """Restart the given container"""
