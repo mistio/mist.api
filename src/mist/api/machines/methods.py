@@ -155,6 +155,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                    bare_metal=False, hourly=True,
                    softlayer_backend_vlan_id=None, machine_username='',
                    volumes=[], ip_addresses=[], expiration={},
+                   sec_group=''
                    ):
     """Creates a new virtual machine on the specified cloud.
 
@@ -358,7 +359,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                 break
         node = _create_machine_ec2(conn, key.name, public_key,
                                    machine_name, image, size, ec2_location,
-                                   subnet_id, cloud_init, volumes)
+                                   subnet_id, cloud_init, volumes,
+                                   sec_group=sec_group)
     elif conn.name == 'Aliyun ECS':
         node = _create_machine_aliyun(conn, key.name, public_key,
                                       machine_name, image, size, location,
@@ -789,21 +791,32 @@ def _create_machine_aliyun(conn, key_name, public_key,
 
 def _create_machine_ec2(conn, key_name, public_key,
                         machine_name, image, size, location, subnet_id,
-                        user_data, volumes):
+                        user_data, volumes, sec_group=''):
     """Create a machine in Amazon EC2.
     """
-    # create security group
-    name = config.EC2_SECURITYGROUP.get('name', '')
-    description = config.EC2_SECURITYGROUP.get('description', '')
-    try:
-        log.info("Attempting to create security group")
-        conn.ex_create_security_group(name=name, description=description)
-        conn.ex_authorize_security_group_permissive(name=name)
-    except Exception as exc:
-        if 'Duplicate' in str(exc):
-            log.info('Security group already exists, not doing anything.')
+    if not sec_group:
+        # create security group
+        sg_name = config.EC2_SECURITYGROUP.get('name', '')
+        description = config.EC2_SECURITYGROUP.get('description', '')
+        try:
+            log.info("Attempting to create security group")
+            conn.ex_create_security_group(
+                name=sg_name, description=description)
+            conn.ex_authorize_security_group_permissive(name=sg_name)
+        except Exception as exc:
+            if 'Duplicate' in str(exc):
+                log.info('Security group already exists, not doing anything.')
+            else:
+                raise InternalServerError(
+                    "Couldn't create security group", exc)
+    else:
+        sec_groups = conn.ex_list_security_groups()
+        for sg in sec_groups:
+            if sg['id'] == sec_group:
+                sg_name = sg['name']
+                break
         else:
-            raise InternalServerError("Couldn't create security group", exc)
+            raise BadRequestError("Security group not found: %s" % sec_group)
 
     kwargs = {
         'auth': NodeAuthSSHKey(pubkey=public_key.replace('\n', '')),
@@ -838,16 +851,22 @@ def _create_machine_ec2(conn, key_name, public_key,
 
         # if subnet is specified, then security group id
         # instead of security group name is needed
-        groups = conn.ex_list_security_groups()
-        for group in groups:
-            if group.get('name') == config.EC2_SECURITYGROUP.get('name', ''):
-                security_group_id = group.get('id')
-                break
-        kwargs.update({'ex_subnet': subnet,
-                      'ex_security_group_ids': security_group_id})
+        if not sec_group:
+            groups = conn.ex_list_security_groups()
+            for group in groups:
+                if group.get('name') == config.EC2_SECURITYGROUP.get('name',
+                                                                     ''):
+                    security_group_id = group.get('id')
+                    break
+        else:
+            security_group_id = sec_group
+        kwargs.update({
+            'ex_subnet': subnet,
+            'ex_security_group_ids': security_group_id})
 
     else:
-        kwargs.update({'ex_securitygroup': config.EC2_SECURITYGROUP['name']})
+        kwargs.update({
+            'ex_securitygroup': sg_name})
 
     mappings = []
     ex_volumes = []
