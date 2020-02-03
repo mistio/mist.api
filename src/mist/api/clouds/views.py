@@ -10,7 +10,7 @@ from mist.api.helpers import view_config, params_from_request
 
 from mist.api.decorators import require_cc
 
-from mist.api.exceptions import BadRequestError
+from mist.api.exceptions import BadRequestError, MistNotImplementedError
 from mist.api.exceptions import RequiredParameterMissingError, NotFoundError
 
 from mist.api.clouds.methods import filter_list_clouds, add_cloud_v_2
@@ -455,6 +455,6 @@ def list_security_groups(request):
     except Exception as e:
         log.error("Could not list security groups for cloud %s: %r" % (
             cloud, e))
-        raise NotImplementedError
+        raise MistNotImplementedError
 
     return sec_groups
