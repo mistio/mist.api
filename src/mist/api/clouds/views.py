@@ -7,6 +7,7 @@ from mist.api.auth.methods import auth_context_from_request
 from mist.api.tasks import async_session_update
 from mist.api.helpers import trigger_session_update
 from mist.api.helpers import view_config, params_from_request
+from mist.api.helpers import list_projects
 
 from mist.api.decorators import require_cc
 
@@ -431,7 +432,8 @@ def list_security_groups(request):
     """
     Tags: security-groups
     ---
-    Lists security groups on cloud
+    Lists security groups on cloud.
+    Currently only supported for AWS.
     READ permission required on cloud.
     ---
     cloud:
@@ -458,3 +460,39 @@ def list_security_groups(request):
         raise MistNotImplementedError
 
     return sec_groups
+
+
+@view_config(route_name='api_v1_cloud_projects', request_method='GET',
+             renderer='json')
+def list_projects(request):
+    """
+    Tags: projects
+    ---
+    Lists projects on cloud.
+    Only supported for Packet.
+    READ permission required on cloud.
+    ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    """
+    auth_context = auth_context_from_request(request)
+    cloud_id = request.matchdict['cloud']
+
+    # SEC
+    auth_context.check_perm("cloud", "read", cloud_id)
+    try:
+        Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
+                          deleted=None)
+    except Cloud.DoesNotExist:
+        raise NotFoundError('Cloud does not exist')
+
+    try:
+        projects = list_projects(auth_context.owner, cloud_id)
+    except Exception as e:
+        log.error("Could not list projects for cloud %s: %r" % (
+            cloud, e))
+        raise MistNotImplementedError
+
+    return projects
