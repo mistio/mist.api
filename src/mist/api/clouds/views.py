@@ -7,7 +7,6 @@ from mist.api.auth.methods import auth_context_from_request
 from mist.api.tasks import async_session_update
 from mist.api.helpers import trigger_session_update
 from mist.api.helpers import view_config, params_from_request
-from mist.api.helpers import list_projects
 
 from mist.api.decorators import require_cc
 
@@ -21,6 +20,8 @@ from mist.api.clouds.methods import delete_cloud as m_delete_cloud
 from mist.api.tag.methods import add_tags_to_resource
 
 from mist.api import config
+
+import mist.api.methods as methods
 
 
 logging.basicConfig(level=config.PY_LOG_LEVEL,
@@ -469,7 +470,7 @@ def list_projects(request):
     Tags: projects
     ---
     Lists projects on cloud.
-    Only supported for Packet.
+    Only supported for Packet. For other providers, returns an empty list
     READ permission required on cloud.
     ---
     cloud:
@@ -483,13 +484,12 @@ def list_projects(request):
     # SEC
     auth_context.check_perm("cloud", "read", cloud_id)
     try:
-        Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
+        cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
                           deleted=None)
     except Cloud.DoesNotExist:
         raise NotFoundError('Cloud does not exist')
-
     try:
-        projects = list_projects(auth_context.owner, cloud_id)
+        projects = methods.list_projects(auth_context.owner, cloud_id)
     except Exception as e:
         log.error("Could not list projects for cloud %s: %r" % (
             cloud, e))
