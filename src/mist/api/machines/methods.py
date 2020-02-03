@@ -1150,7 +1150,7 @@ def _create_machine_lxd(conn, machine_name, image,
                                  '"description":" "}}}' % (url, parameters)
 
                 # this will take some time
-                timeout = 10
+                timeout = 600
 
         # by deafult no devices
         devices = {}
