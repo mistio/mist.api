@@ -1128,7 +1128,7 @@ def _create_machine_lxd(conn, machine_name, image,
     else:
 
         # check if the image exists locally
-        image_exists = conn.ex_has_image(alias=parameters)
+        image_exists, _ = conn.ex_has_image(alias=parameters)
 
         if image_exists:
             # then the image exists locally
@@ -1138,13 +1138,12 @@ def _create_machine_lxd(conn, machine_name, image,
         else:
             # parameters is expected to be a string
             # representing an image alias
-            url = "https://us.images.linuxcontainers.org/"
-
+            URL = "https://us.images.linuxcontainers.org/"
+            url = URL + "/" + parameters
             img_parameters = '{"source": {"type":"image", ' \
-                             '"server": "%s", ' \
-                             '"mode": "pull", ' \
-                             '"protocol": "simplestreams", ' \
-                             '"alias": %s}}' % (url, parameters)
+                             '"url": "%s", "mode": "pull",  ' \
+                             '"aliases": {"name": "%s", ' \
+                             '"description":" "}}}' % (url, parameters)
 
             # this will take some time
             timeout = 600
