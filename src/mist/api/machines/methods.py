@@ -1116,170 +1116,179 @@ def _create_machine_lxd(conn, machine_name, image,
     :return: libcloud.Container
     """
 
-    # default time out
-    timeout = conn.default_time_out
+    from libcloud.container.drivers.lxd import LXDAPIException
 
-    if parameters is None:
+    try:
 
-        # then we are not given a url use the image data
-        img_parameters = '{"source":{"type":"image", ' \
-                         '"alias": "%s"}}' % image.id
+        # default time out
+        timeout = conn.default_time_out
 
-    else:
+        if parameters is None:
 
-        # check if the image exists locally
-        image_exists, _ = conn.ex_has_image(alias=parameters)
-
-        if image_exists:
-            # then the image exists locally
-            # sp use this
+            # then we are not given a url use the image data
             img_parameters = '{"source":{"type":"image", ' \
-                             '"alias": "%s"}}' % parameters
+                             '"alias": "%s"}}' % image.id
+
         else:
-            # parameters is expected to be a string
-            # representing an image alias
-            URL = "https://us.images.linuxcontainers.org/"
-            url = URL + "/" + parameters
-            img_parameters = '{"source": {"type":"image", ' \
-                             '"url": "%s", "mode": "pull",  ' \
-                             '"aliases": {"name": "%s", ' \
-                             '"description":" "}}}' % (url, parameters)
 
-            # this will take some time
-            timeout = 600
+            # check if the image exists locally
+            image_exists, _ = conn.ex_has_image(alias=parameters)
 
-    # by deafult no devices
-    devices = {}
+            if image_exists:
+                # then the image exists locally
+                # sp use this
+                img_parameters = '{"source":{"type":"image", ' \
+                                 '"alias": "%s"}}' % parameters
+            else:
+                # parameters is expected to be a string
+                # representing an image alias
+                URL = "https://us.images.linuxcontainers.org/"
+                url = URL + "/" + parameters
+                img_parameters = '{"source": {"type":"image", ' \
+                                 '"url": "%s", "mode": "pull",  ' \
+                                 '"aliases": {"name": "%s", ' \
+                                 '"description":" "}}}' % (url, parameters)
 
-    # if we have a volume we need to create it also
-    # simply attach it. Currently assume that the
-    # volume is just given
-    if volumes is not None\
-            and len(volumes) != 0:
-        # we requested volumes as well
-        # if this is a new volume
-        # we must create it otherwise we simply
-        # append to the devices
+                # this will take some time
+                timeout = 10
 
-        path = volumes[0].get('path', None)
+        # by deafult no devices
+        devices = {}
 
-        if path is None:
-            raise MachineCreationError("You need to provide"
-                                       " a path for the storage")
+        # if we have a volume we need to create it also
+        # simply attach it. Currently assume that the
+        # volume is just given
+        if volumes is not None\
+                and len(volumes) != 0:
+            # we requested volumes as well
+            # if this is a new volume
+            # we must create it otherwise we simply
+            # append to the devices
 
-        pool_id = volumes[0].get('pool_id', None)
+            path = volumes[0].get('path', None)
 
-        if pool_id is None:
-
-            # this means we attach an
-            # existing volume
-            volume_id = volumes[0].get('volume_id', None)
-
-            if volume_id is None:
+            if path is None:
                 raise MachineCreationError("You need to provide"
-                                           " a volume name to attach to")
+                                           " a path for the storage")
 
-            from mist.api.volumes.models import Volume
+            pool_id = volumes[0].get('pool_id', None)
 
-            volume = Volume.objects.get(id=volume_id)
+            if pool_id is None:
 
-            volume = {volume.name: {
-                "type": "disk",
-                "path": path,
-                "source": volume.name,
-                "pool": volume.extra["pool_id"]
-            }}
-        else:
+                # this means we attach an
+                # existing volume
+                volume_id = volumes[0].get('volume_id', None)
 
-            # this mean we create a new volume
-            vol_config = {}
-            definition = {"name": volumes[0]["name"], "type": "custom",
-                          "size_type": "GB"}
+                if volume_id is None:
+                    raise MachineCreationError("You need to provide"
+                                               " a volume name to attach to")
 
-            # keys are set according to
-            # https://linuxcontainers.org/lxd/docs/master/storage
-            if "block_filesystem" in volumes[0] and \
-                    volumes[0]["block_filesystem"] != '':
+                from mist.api.volumes.models import Volume
 
-                vol_config["block.filesystem"] = \
-                    volumes[0]["block_filesystem"]
+                volume = Volume.objects.get(id=volume_id)
 
-            if "block_mount_options" in volumes[0] and \
-                    volumes[0]["block_mount_options"] != '':
-
-                vol_config["block.mount_options"] = \
-                    volumes[0]['block_mount_options']
-
-            if "security_shifted" in volumes[0]:
-                vol_config["security.shifted"] = \
-                    str(volumes[0]['security_shifted'])
-
-            vol_config['size'] = volumes[0]["size"]
-
-            definition["config"] = vol_config
-
-            try:
-                # create the volume
-                volume = conn.create_volume(pool_id=volumes[0]["pool_id"],
-                                            definition=definition)
-
-                # the volume to attach
                 volume = {volume.name: {
                     "type": "disk",
                     "path": path,
                     "source": volume.name,
                     "pool": volume.extra["pool_id"]
                 }}
-            except Exception as e:
-                raise MachineCreationError("LXD volume creation, "
-                                           "got exception %s" % e)
+            else:
 
-        if devices is not None:
-            devices.update(volume)
-        else:
-            devices = volume
+                # this mean we create a new volume
+                vol_config = {}
+                definition = {"name": volumes[0]["name"], "type": "custom",
+                              "size_type": "GB"}
 
-    if networks is not None\
-            and len(networks) != 0:
+                # keys are set according to
+                # https://linuxcontainers.org/lxd/docs/master/storage
+                if "block_filesystem" in volumes[0] and \
+                        volumes[0]["block_filesystem"] != '':
 
-        # we also want to attache a network
-        network_id = networks
+                    vol_config["block.filesystem"] = \
+                        volumes[0]["block_filesystem"]
 
-        from mist.api.networks.models import LXDNetwork
+                if "block_mount_options" in volumes[0] and \
+                        volumes[0]["block_mount_options"] != '':
 
-        network = LXDNetwork.objects.get(id=network_id)
+                    vol_config["block.mount_options"] = \
+                        volumes[0]['block_mount_options']
 
-        net_type = network.extra.get("type", "nic")
-        net_nictype = network.extra.get("nictype", "bridged")
-        net_parent = network.extra.get("parent", "lxdbr0")
+                if "security_shifted" in volumes[0]:
+                    vol_config["security.shifted"] = \
+                        str(volumes[0]['security_shifted'])
 
-        # add the network to the devices
-        devices[network.name] = {
-            "name": network.name,
-            "type": net_type,
-            "nictype": net_nictype,
-            "parent": net_parent,
-        }
+                vol_config['size'] = volumes[0]["size"]
 
-    config = {}
+                definition["config"] = vol_config
 
-    if size_cpu is not None:
-        config['limits.cpu'] = str(size_cpu)
+                try:
+                    # create the volume
+                    volume = conn.create_volume(pool_id=volumes[0]["pool_id"],
+                                                definition=definition)
 
-    if size_ram is not None:
-        config['limits.memory'] = str(size_ram) + "MB"
+                    # the volume to attach
+                    volume = {volume.name: {
+                        "type": "disk",
+                        "path": path,
+                        "source": volume.name,
+                        "pool": volume.extra["pool_id"]
+                    }}
+                except Exception as e:
+                    raise MachineCreationError("LXD volume creation, "
+                                               "got exception %s" % e)
 
-    container = conn.deploy_container(name=machine_name, image=None,
-                                      cluster=cluster,
-                                      parameters=img_parameters,
-                                      start=start,
-                                      ex_ephemeral=ephemeral,
-                                      ex_config=config,
-                                      ex_instance_type=instance_type,
-                                      ex_devices=devices,
-                                      ex_profiles=profiles,
-                                      ex_timeout=timeout)
-    return container
+            if devices is not None:
+                devices.update(volume)
+            else:
+                devices = volume
+
+        if networks is not None\
+                and len(networks) != 0:
+
+            # we also want to attache a network
+            network_id = networks
+
+            from mist.api.networks.models import LXDNetwork
+
+            network = LXDNetwork.objects.get(id=network_id)
+
+            net_type = network.extra.get("type", "nic")
+            net_nictype = network.extra.get("nictype", "bridged")
+            net_parent = network.extra.get("parent", "lxdbr0")
+
+            # add the network to the devices
+            devices[network.name] = {
+                "name": network.name,
+                "type": net_type,
+                "nictype": net_nictype,
+                "parent": net_parent,
+            }
+
+        config = {}
+
+        if size_cpu is not None:
+            config['limits.cpu'] = str(size_cpu)
+
+        if size_ram is not None:
+            config['limits.memory'] = str(size_ram) + "MB"
+
+        container = conn.deploy_container(name=machine_name, image=None,
+                                          cluster=cluster,
+                                          parameters=img_parameters,
+                                          start=start,
+                                          ex_ephemeral=ephemeral,
+                                          ex_config=config,
+                                          ex_instance_type=instance_type,
+                                          ex_devices=devices,
+                                          ex_profiles=profiles,
+                                          ex_timeout=timeout)
+        return container
+    except LXDAPIException as e:
+        raise MachineCreationError("Could not create "
+                                   "LXD Machine: %s" % e.message)
+    except Exception:
+        raise
 
 
 def _create_machine_digital_ocean(conn, cloud, key_name, private_key,
