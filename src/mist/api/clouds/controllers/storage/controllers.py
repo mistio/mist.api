@@ -13,7 +13,6 @@ from mist.api.clouds.controllers.storage.base import BaseStorageController
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import NotFoundError
-from mist.api.exceptions import VolumeInUseError
 
 from libcloud.common.types import LibcloudError
 from libcloud.compute.base import NodeLocation
@@ -473,6 +472,7 @@ class LXDStorageController(BaseStorageController):
     def _delete_volume(self, libcloud_volume):
 
         from libcloud.container.drivers.lxd import LXDAPIException
+        from mist.api.exceptions import MistError
 
         connection = self.cloud.ctl.compute.connection
         pid = libcloud_volume.extra["pool_id"]
@@ -483,10 +483,6 @@ class LXDStorageController(BaseStorageController):
             connection.ex_delete_storage_pool_volume(pool_id=pid,
                                                      type=type, name=name)
         except LXDAPIException as e:
-
-            if e.message == "The storage volume is still in use":
-                raise VolumeInUseError()
-            else:
-                raise
-        except Exception:
-            raise
+            raise MistError(msg=e.message, exc=e)
+        except Exception as e:
+            raise MistError(exc=e)
