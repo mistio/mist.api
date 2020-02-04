@@ -425,6 +425,27 @@ class LXDStorageController(BaseStorageController):
                 volumes.append(vol)
         return volumes
 
+
+    def _list_volumes__postparse_volume(self, volume, libcloud_volume):
+
+        # FIXME Imported here due to circular dependency issues.
+        from mist.api.machines.models import Machine
+
+        # Find the machines to which the volume is attached.
+        volume.attached_to = []
+
+        for attachment in libcloud_volume.extra.get('used_by', []):
+
+            machine_id = attachment.split('/')[-1]
+
+            try:
+                machine = Machine.objects.get(name=machine_id,
+                                              cloud=self.cloud)
+                volume.attached_to.append(machine)
+            except Machine.DoesNotExist:
+                log.error('%s attached to unknown machine "%s"', volume,
+                          machine_id)
+
     def _create_volume__prepare_args(self, kwargs):
         """
         Parses keyword arguments on behalf of `self.create_volume`.
