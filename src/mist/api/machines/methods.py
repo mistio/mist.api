@@ -325,7 +325,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
 
         node = _create_machine_lxd(conn=conn, machine_name=machine_name,
                                    image=image, parameters=lxd_image_source,
-                                   start=False, cluster=None,
+                                   start=True, cluster=None,
                                    ephemeral=ephemeral,
                                    size_cpu=size_cpu, size_ram=size_ram,
                                    volumes=volumes, networks=networks)
@@ -1090,7 +1090,7 @@ def _create_machine_docker(conn, machine_name, image_id,
 
 
 def _create_machine_lxd(conn, machine_name, image,
-                        parameters, start, cluster=None,
+                        parameters, start=True, cluster=None,
                         ephemeral=False,
                         size_cpu=None, size_ram=None,
                         profiles=None, devices=None, instance_type=None,
@@ -1125,10 +1125,15 @@ def _create_machine_lxd(conn, machine_name, image,
 
         if parameters is None:
 
-            # then we are not given a url use the image data
-            img_parameters = '{"source":{"type":"image", ' \
-                             '"alias": "%s"}}' % image.id
+            # let's check if this is a fingerprint
+            if all([c.isdigit() or c.isalpha() for c in image.id]):
+                img_parameters = '{"source":{"type":"image", ' \
+                                 '"fingerprint": "%s"}}' % image.id
+            else:
 
+                # then we are not given a url use the image data
+                img_parameters = '{"source":{"type":"image", ' \
+                                 '"alias": "%s"}}' % image.id
         else:
 
             # check if the image exists locally
