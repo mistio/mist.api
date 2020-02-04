@@ -472,15 +472,6 @@ class MainConnection(MistConnection):
                         {'cloud_id': cloud_id, 'volumes': volumes}
                     ),
                 )
-            if cloud.ctl.provider in ['packet']:
-                self.internal_request(
-                    'api/v1/clouds/%s/projects' % cloud.id,
-                    params={'cached': True},
-                    callback=lambda projects, cloud_id=cloud.id: self.send(
-                        'list_projects',
-                        {'cloud_id': cloud_id, 'projects': projects}
-                    ),
-                )
 
     def update_notifications(self):
         notifications = [ntf.as_dict() for ntf in InAppNotification.objects(

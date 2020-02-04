@@ -1,7 +1,6 @@
 import os
 import re
 import uuid
-import json
 import logging
 import datetime
 import mongoengine as me
@@ -13,9 +12,6 @@ import paramiko
 from libcloud.compute.types import NodeState
 from libcloud.container.base import Container
 
-from base64 import b64encode
-
-from celery import Task
 from celery.exceptions import SoftTimeLimitExceeded
 
 from paramiko.ssh_exception import SSHException
@@ -24,7 +20,7 @@ from mist.api.exceptions import MistError
 from mist.api.exceptions import ServiceUnavailableError
 from mist.api.shell import Shell
 
-from mist.api.users.models import User, Owner, Organization
+from mist.api.users.models import Owner, Organization
 from mist.api.clouds.models import Cloud, DockerCloud, CloudLocation, CloudSize
 from mist.api.networks.models import Network
 from mist.api.dns.models import Zone
@@ -50,9 +46,6 @@ from mist.api.poller.models import ListSizesPollingSchedule
 from mist.api.poller.models import ListImagesPollingSchedule
 
 from mist.api.helpers import send_email as helper_send_email
-from mist.api.helpers import amqp_publish_user
-from mist.api.helpers import amqp_owner_listening
-from mist.api.helpers import amqp_log
 from mist.api.helpers import trigger_session_update
 
 from mist.api.auth.methods import AuthContext

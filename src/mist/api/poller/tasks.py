@@ -103,33 +103,6 @@ def list_volumes(schedule_id):
     sched.cloud.ctl.storage.list_volumes(persist=False)
 
 
-@app.task(time_limit=60, soft_time_limit=55)
-def list_projects(schedule_id):
-    """Perform list projects. Applies only for Packet clouds."""
-
-    from mist.api.poller.models import ListProjectsPollingSchedule
-    sched = ListProjectsPollingSchedule.objects.get(id=schedule_id)
-    sched.cloud.ctl.compute.list_projects(persist=False)
-
-#     task_key = 'list_projects'
-
-#     def execute(self, owner_id, cloud_id):
-#         owner = Owner.objects.get(id=owner_id)
-#         log.warn('Running list projects for user %s cloud %s',
-#                  owner.id, cloud_id)
-#         from mist.api import methods
-#         projects = methods.list_projects(owner, cloud_id)
-#         log.warn('Returning list projects for user %s cloud %s',
-#                  owner.id, cloud_id)
-#         return {'cloud_id': cloud_id, 'projects': projects}
-
-
-# 1. Create method for above (either in controller, or str8 call method)
-# 2. Create view
-# 3. migration
-# 4. Add ListProjectsPollingSchedule when adding cloud ++
-
-
 @app.task(time_limit=45, soft_time_limit=40)
 def ping_probe(schedule_id):
     """Perform ping probe"""

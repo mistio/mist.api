@@ -485,7 +485,7 @@ def list_projects(request):
     auth_context.check_perm("cloud", "read", cloud_id)
     try:
         cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
-                          deleted=None)
+                                  deleted=None)
     except Cloud.DoesNotExist:
         raise NotFoundError('Cloud does not exist')
     try:
