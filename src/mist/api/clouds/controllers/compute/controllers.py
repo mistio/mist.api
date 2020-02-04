@@ -1505,8 +1505,12 @@ class LXDComputeController(BaseComputeController):
         """Delet the given container"""
 
         from libcloud.container.drivers.lxd import LXDAPIException
+        from libcloud.container.types import ContainerState
         try:
-            self.connection.stop_container(container=machine)
+
+            if machine_libcloud.state == ContainerState.RUNNING:
+                self.connection.stop_container(container=machine)
+
             container = self.connection.destroy_container(container=machine)
             return container
         except LXDAPIException as e:
