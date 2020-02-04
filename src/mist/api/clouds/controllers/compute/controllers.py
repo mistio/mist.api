@@ -1506,6 +1506,7 @@ class LXDComputeController(BaseComputeController):
 
         from libcloud.container.drivers.lxd import LXDAPIException
         try:
+            self.connection.stop_container(container=machine)
             container = self.connection.destroy_container(container=machine)
             return container
         except LXDAPIException as e:
