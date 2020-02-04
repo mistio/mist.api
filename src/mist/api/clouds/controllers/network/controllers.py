@@ -238,14 +238,6 @@ class LXDNetworkController(BaseNetworkController):
     Network controller for LXD
     """
 
-    def _list_networks__fetch_networks(self):
-        """
-        Return the LXD networks
-        :return: list of LXDNetwork objects
-        """
-        networks = self.cloud.ctl.compute.connection.ex_list_networks()
-        return networks
-
     def _create_network__prepare_args(self, kwargs):
 
         if "description" not in kwargs:
@@ -258,8 +250,8 @@ class LXDNetworkController(BaseNetworkController):
                             "ipv6.address": "none",
                             "ipv6.nat": "false"}
 
-        if "ipv4.address" in kwargs:
-            kwargs["config"]["ipv4.address"] = kwargs["ipv4.address"]
+        if "cidr" in kwargs:
+            kwargs["config"]["ipv4.address"] = kwargs["cidr"]
 
         if "ipv6.address" in kwargs:
             kwargs["config"]["ipv6.address"] = kwargs["ipv6.address"]
@@ -294,3 +286,16 @@ class LXDNetworkController(BaseNetworkController):
         Subclasses MUST override this method.
         """
         return []
+
+    def _list_networks__cidr_range(self, network, net):
+        """Returns the network's IP range in CIDR notation.
+
+        This method is meant to be called internally
+        by `self.list_networks` in order to return
+        the network's CIDR, if exists.
+
+        :param network: A network mongoengine model.
+        The model may not have yet been saved in the database.
+        :param libcloud_network: A libcloud network object.
+        """
+        return net.config["ipv4.address"]
