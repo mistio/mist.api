@@ -425,7 +425,6 @@ class LXDStorageController(BaseStorageController):
                 volumes.append(vol)
         return volumes
 
-
     def _list_volumes__postparse_volume(self, volume, libcloud_volume):
 
         # FIXME Imported here due to circular dependency issues.
