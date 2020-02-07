@@ -1902,6 +1902,7 @@ HAS_CLOUDIFY_INSIGHTS = HAS_INSIGHTS and HAS_ORCHESTRATION \
 HAS_VPN = 'vpn' in PLUGINS
 HAS_EXPERIMENTS = 'experiments' in PLUGINS
 HAS_MANAGE = 'manage' in PLUGINS
+HAS_AUTH = 'auth' in PLUGINS
 
 # enable backup feature if aws creds have been set
 ENABLE_BACKUPS = bool(BACKUP['key']) and bool(BACKUP['secret'])
