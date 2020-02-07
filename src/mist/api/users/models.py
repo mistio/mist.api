@@ -326,7 +326,7 @@ class User(Owner):
         if self.email is not None:
             if User.objects(email=self.email, id__ne=self.id):
                 raise me.ValidationError("User with email '%s' already exists."
-                                        % self.email)
+                                         % self.email)
 
         super(User, self).clean()
 

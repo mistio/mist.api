@@ -289,14 +289,15 @@ def login(request):
             user = User(username=username)
         except me.MultipleObjectsReturned:
             users = User.objects(username=username)
+            # TODO: is this really ok?
             for u in users:
                 u.delete()
             user = User(username=username)
 
         if config.HAS_AUTH and config.LDAP_SETTINGS.get('SERVER', ''):
             from mist.auth.social.methods import login_ldap_user
-            ldap_success = login_ldap_user(config.LDAP_SETTINGS.get('SERVER'),
-                                           username, password)
+            login_ldap_user(config.LDAP_SETTINGS.get('SERVER'),
+                            username, password)
         else:
             raise BadRequestError("Cannot use LDAP authentication")
 
@@ -317,27 +318,28 @@ def login(request):
 
             # check if rate limiting in place
             incidents = get_events(auth_context=None, user_id=user.id,
-                                event_type='incident',
-                                action='login_rate_limiting',
-                                start=time() - max_logins_period)
+                                   event_type='incident',
+                                   action='login_rate_limiting',
+                                   start=time() - max_logins_period)
             incidents = [inc for inc in incidents
-                        if inc.get('ip') == ip_from_request(request)]
+                         if inc.get('ip') == ip_from_request(request)]
             if len(incidents):
                 secs = incidents[0]['time'] + block_period - time()
                 raise LoginThrottledError("Try again in %d seconds." % secs)
 
             if not user.check_password(password):
-            # check if rate limiting condition just got triggered
+                # check if rate limiting condition just got triggered
                 logins = list(get_events(
                     auth_context=None, user_id=user.id, event_type='request',
-                    action='login', error=True, start=time() - max_logins_period))
+                    action='login', error=True,
+                    start=time() - max_logins_period))
                 logins = [login for login in logins
-                        if login.get('request_ip') == ip_from_request(request)]
+                          if login.get('request_ip') == ip_from_request(request)]
                 if len(logins) > max_logins:
                     log_event(owner_id=user.id, user_id=user.id,
-                            event_type='incident',
-                            action='login_rate_limiting',
-                            ip=ip_from_request(request))
+                              event_type='incident',
+                              action='login_rate_limiting',
+                              ip=ip_from_request(request))
                     # alert admins something nasty is going on
                     subject = config.FAILED_LOGIN_ATTEMPTS_EMAIL_SUBJECT
                     body = config.FAILED_LOGIN_ATTEMPTS_EMAIL_BODY % (
@@ -352,7 +354,7 @@ def login(request):
         elif token_from_params:
             try:
                 auth_token = ApiToken.objects.get(user_id=user.id,
-                                                token=token_from_params)
+                                                  token=token_from_params)
             except me.DoesNotExist:
                 auth_token = None
             if not (auth_token and auth_token.is_valid()):
