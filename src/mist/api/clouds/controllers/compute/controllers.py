@@ -411,6 +411,10 @@ class MaxihostComputeController(BaseComputeController):
         machine_libcloud.id = machine_libcloud.extra.get('id', '')
         return self.connection.ex_stop_node(machine_libcloud)
 
+    def _reboot_machine(self, machine, machine_libcloud):
+        machine_libcloud.id = machine_libcloud.extra.get('id', '')
+        return self.connection.reboot_node(machine_libcloud)
+
     def _destroy_machine(self, machine, machine_libcloud):
         machine_libcloud.id = machine_libcloud.extra.get('id', '')
         return self.connection.destroy_node(machine_libcloud)
