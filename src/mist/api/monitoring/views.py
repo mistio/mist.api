@@ -14,12 +14,14 @@ from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import UnauthorizedError
 from mist.api.exceptions import MethodNotAllowedError
 from mist.api.exceptions import RequiredParameterMissingError
+from mist.api.exceptions import PolicyUnauthorizedError
 
 from mist.api.auth.methods import auth_context_from_request
 
 from mist.api.clouds.models import Cloud
 from mist.api.scripts.models import TelegrafScript
 from mist.api.machines.models import Machine
+from mist.api.machines.methods import filter_list_machines
 
 from mist.api.clouds.methods import filter_list_clouds
 
