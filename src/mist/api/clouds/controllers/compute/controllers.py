@@ -404,15 +404,15 @@ class MaxihostComputeController(BaseComputeController):
         return node.extra.get('location').get('facility_code')
 
     def _start_machine(self, machine, machine_libcloud):
-        machine_libcloud.id = machine_libcloud.extra.get('id','')
+        machine_libcloud.id = machine_libcloud.extra.get('id', '')
         return self.connection.ex_start_node(machine_libcloud)
 
     def _stop_machine(self, machine, machine_libcloud):
-        machine_libcloud.id = machine_libcloud.extra.get('id','')
+        machine_libcloud.id = machine_libcloud.extra.get('id', '')
         return self.connection.ex_stop_node(machine_libcloud)
 
     def _destroy_machine(self, machine, machine_libcloud):
-        machine_libcloud.id = machine_libcloud.extra.get('id','')
+        machine_libcloud.id = machine_libcloud.extra.get('id', '')
         return self.connection.destroy_node(machine_libcloud)
 
     def _list_sizes__get_name(self, size):
