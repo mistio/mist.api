@@ -999,7 +999,7 @@ LANDING_CATEGORIES = [{
 
 LANDING_FORMS = [
     'sign-in', 'sign-up', 'reset-password', 'forgot-password', 'set-password',
-    'get-started', 'buy-license', 'request-pricing'
+    'get-started', 'buy-license', 'request-pricing', 'request-demo'
 ]
 
 ###############################################################################
