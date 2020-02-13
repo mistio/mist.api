@@ -380,6 +380,25 @@ class DigitalOceanComputeController(BaseComputeController):
     def _list_machines__get_size(self, node):
         return node.extra.get('size_slug')
 
+    def _list_sizes__get_name(self, size):
+        cpus = str(size.extra.get('vcpus', ''))
+        ram = str(size.ram / 1024)
+        disk = str(size.disk)
+        bandwidth = str(size.bandwidth)
+        price_monthly = str(size.extra.get('price_monthly', ''))
+        if cpus:
+            name = cpus + ' CPU/ ' if cpus == '1' else cpus + ' CPUs/ '
+        if ram:
+            name += ram + ' GB/ '
+        if disk:
+            name += disk + ' GB SSD Disk/ '
+        if bandwidth:
+            name += bandwidth + ' TB transfer/ '
+        if price_monthly:
+            name += price_monthly + '$/month'
+
+        return name
+
     def _list_sizes__get_cpu(self, size):
         return size.extra.get('vcpus')
 
