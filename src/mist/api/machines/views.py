@@ -1,5 +1,6 @@
 import uuid
 import logging
+import urllib
 
 from pyramid.response import Response
 from pyramid.renderers import render_to_response
@@ -466,7 +467,8 @@ def create_machine(request):
               'vnfs': vnfs,
               'expiration': expiration,
               'sec_group': sec_group}
-
+    import pdb;pdb.set_trace()
+    run_async=False
     if not run_async:
         ret = methods.create_machine(auth_context, *args, **kwargs)
     else:
@@ -981,6 +983,7 @@ def machine_console(request):
 
     if machine.cloud.ctl.provider not in ['vsphere', 'openstack', 'libvirt']:
         raise NotImplementedError(
+<<<<<<< HEAD
             "VNC console only supported for vSphere, OpenStack or KVM")
 
     if machine.cloud.ctl.provider == 'libvirt':
@@ -1009,7 +1012,12 @@ def machine_console(request):
         return render_to_response('../templates/novnc.pt', {'url': ws_uri})
 
     console_uri = machine.cloud.ctl.compute.connection.ex_open_console(
+=======
+            "VNC console only supported for vSphere and OpenStack")
+    url_param = machine.cloud.ctl.compute.connection.ex_open_console(
+>>>>>>> 5ee55b6d... Added new Vsphere controller compute, commented out the old one
         machine.machine_id
     )
-
-    raise RedirectError(console_uri)
+    params = urllib.parse.urlencode({'url': url_param})
+    console_url = f"/ui/assets/vsphere-console-util-js/console.html?{params}"
+    raise RedirectError(console_url)

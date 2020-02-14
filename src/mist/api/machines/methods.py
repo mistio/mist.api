@@ -395,6 +395,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         node = _create_machine_vcloud(conn, machine_name, image,
                                       size, public_key, networks)
     elif conn.type is Provider.VSPHERE:
+        import pdb; pdb.set_trace()
         size.ram = size_ram
         size.extra['cpu'] = size_cpu
         size.disk = size_disk_primary
@@ -1680,7 +1681,7 @@ def _create_machine_vcloud(conn, machine_name, image,
             ex_vm_ipmode='DHCP'
         )
     except Exception as e:
-        raise MachineCreationError("vCloud, got exception %s" % e, e)
+        raise #MachineCreationError("vCloud, got exception %s" % e, e)
 
     return node
 
@@ -1704,7 +1705,7 @@ def _create_machine_vsphere(conn, machine_name, image,
             size=size,
             location=location,
             ex_network=network_name,
-            cluster=location.name,
+            #cluster=location.name,
         )
     except Exception as e:
         raise MachineCreationError("vSphere, got exception %s" % e, e)
