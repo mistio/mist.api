@@ -11,6 +11,7 @@ import _thread
 import ssl
 import tempfile
 import logging
+import json
 
 from time import sleep
 from io import StringIO
@@ -667,15 +668,12 @@ class LXDShell(LXDWebSocket):
 
     def resize_pty(self, columns, rows):
 
-        data = "{'command':'window-resize'," \
-               "'args':'{'width': '%s', " \
-               "'height':'%s'}}'" % (columns, rows)
-
-        try:
-            import simplejson as json
-        except Exception:
-            import json
-
+        data = {
+            'command': 'window-resize',
+            'args': {
+                'width': str(columns),
+                'height': str(rows)}
+            }
         data = json.dumps(data)
         self.cws.send(bytearray(data, encoding='utf-8'), opcode=2)
         return columns, rows
