@@ -243,6 +243,9 @@ def create_machine(request):
       items:
         type:
           object
+    security_group:
+      type: string
+      description: Machine will join this security group
     """
 
     params = params_from_request(request)
@@ -310,7 +313,7 @@ def create_machine(request):
     # servers, while False means the server has montly pricing
     softlayer_backend_vlan_id = params.get('softlayer_backend_vlan_id', None)
     hourly = params.get('hourly', True)
-
+    sec_group = params.get('security_group', '')
     expiration = params.get('expiration', {})
 
     job_id = params.get('job_id')
@@ -453,7 +456,8 @@ def create_machine(request):
               'machine_username': machine_username,
               'volumes': volumes,
               'ip_addresses': ip_addresses,
-              'expiration': expiration}
+              'expiration': expiration,
+              'sec_group': sec_group}
 
               'expiration': expiration}
     import pdb;pdb.set_trace()
