@@ -1834,3 +1834,87 @@ class ClearCenterComputeController(BaseComputeController):
 
     def list_locations(self, persist=True):
         return []
+
+
+class VSphereRestComputeController(BaseComputeController):
+
+    def _connect(self):
+        from libcloud.compute.drivers.vSphere_rest import VSphereNodeDriver
+        ca_cert = None
+        if self.cloud.ca_cert_file:
+                ca_cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
+                ca_cert_temp_file.write(self.cloud.ca_cert_file.encode())
+                ca_cert_temp_file.close()
+                ca_cert = ca_cert_temp_file.name
+
+        host, port = dnat(self.cloud.owner, self.cloud.host, 443)
+        return VSphereNodeDriver(self.cloud.username,
+                                 secret=self.cloud.password,
+                                 host=host, port=port,
+                                 ca_cert=ca_cert)
+
+    def check_connection(self):
+        """Check connection without performing `list_machines`
+
+        In vSphere we are sure we got a successful connection with the provider
+        if `self.connect` works, no need to run a `list_machines` to find out.
+
+        """
+        self.connect()
+
+#     def _list_machines__get_location(self, node):
+#         cluster = node.extra.get('cluster', '')
+#         host = node.extra.get('host', '')
+#         return cluster or host
+
+#     def _list_locations__fetch_locations(self):
+#         """List locations for vSphere
+
+#         If there are clusters with drs enabled, return those.
+#         Otherwise return the list of available hosts.
+#         """
+#         locations = self.connection.list_locations()
+#         clusters = [l for l in locations
+#                     if l.extra['type'] == 'cluster' and l.extra['drs']]
+#         hosts = [l for l in locations if l.extra['type'] == 'host']
+
+#         return clusters or hosts
+
+#     def _list_machines__fetch_machines(self):
+#         """Perform the actual libcloud call to get list of nodes"""
+#         return self.connection.list_nodes(
+#             max_properties=self.cloud.max_properties_per_request)
+
+#     def _list_machines__machine_actions(self, machine, machine_libcloud):
+#         super(VSphereComputeController, self)._list_machines__machine_actions(
+#             machine, machine_libcloud)
+#         machine.actions.create_snapshot = True
+#         if len(machine.extra.get('snapshots')):
+#             machine.actions.remove_snapshot = True
+#             machine.actions.revert_to_snapshot = True
+#         else:
+#             machine.actions.remove_snapshot = False
+#             machine.actions.revert_to_snapshot = False
+
+#     def _create_machine_snapshot(self, machine, machine_libcloud,
+#                                  snapshot_name, description='',
+#                                  dump_memory=False, quiesce=False):
+#         """Create a snapshot for a given machine"""
+#         return self.connection.ex_create_snapshot(
+#             machine_libcloud, snapshot_name, description,
+#             dump_memory=dump_memory, quiesce=quiesce)
+
+#     def _revert_machine_to_snapshot(self, machine, machine_libcloud,
+#                                     snapshot_name=None):
+#         """Revert a given machine to a previous snapshot"""
+#         return self.connection.ex_revert_to_snapshot(machine_libcloud,
+#                                                      snapshot_name)
+
+#     def _remove_machine_snapshot(self, machine, machine_libcloud,
+#                                  snapshot_name=None):
+#         """Removes a given machine snapshot"""
+#         return self.connection.ex_remove_snapshot(machine_libcloud,
+#                                                   snapshot_name)
+
+#     def _list_machine_snapshots(self, machine, machine_libcloud):
+#         return self.connection.ex_list_snapshots(machine_libcloud)

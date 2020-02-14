@@ -440,17 +440,19 @@ class VSphereCloud(Cloud):
     host = me.StringField(required=True)
     username = me.StringField(required=True)
     password = me.StringField(required=True)
-
+    ca_cert_file = me.StringField(required=False)
     # Some vSphere clouds will timeout when calling list_nodes, unless we
     # perform the requests in batches, fetching a few properties each time.
     # The following property should be set to something like 4 when that
     # happens. It's not clear if it's due a vSphere configuration. In most
     # cases this is not necessary. The default value will fetch all requested
     # properties at once
-    max_properties_per_request = me.IntField(default=20)
+
+    # let's see if rest behaves differently
+    # max_properties_per_request = me.IntField(default=20)
 
     _private_fields = ('password', )
-    _controller_cls = controllers.VSphereMainController
+    _controller_cls = controllers.VSphereRestMainController
 
 
 class VCloud(Cloud):

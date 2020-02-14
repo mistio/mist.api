@@ -455,6 +455,9 @@ def create_machine(request):
               'ip_addresses': ip_addresses,
               'expiration': expiration}
 
+              'expiration': expiration}
+    import pdb;pdb.set_trace()
+    run_async=False
     if not run_async:
         ret = methods.create_machine(auth_context, *args, **kwargs)
     else:
