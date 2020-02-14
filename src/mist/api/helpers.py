@@ -548,15 +548,31 @@ def check_host(host, allow_localhost=config.ALLOW_CONNECT_LOCALHOST):
 
 
 def transform_key_machine_associations(associations):
-    return [
-        [association.machine.cloud.id,
-         association.machine.machine_id,
-         association.last_used,
-         association.ssh_user,
-         association.sudo,
-         association.port]
-        for association in associations
-    ]
+    try:
+        transformed = [
+            [association.machine.cloud.id,
+            association.machine.machine_id,
+            association.last_used,
+            association.ssh_user,
+            association.sudo,
+            association.port]
+            for association in associations
+        ]
+    except DoesNotExist:
+        # If there are broken references get rid of them
+        transformed = []
+        for association in associations:
+            try:
+                transformed.append([
+                    association.machine.cloud.id,
+                    association.machine.machine_id,
+                    association.last_used,
+                    association.ssh_user,
+                    association.sudo,
+                    association.port])
+            except DoesNotExist:
+                association.delete()
+    return transformed
 
 
 def get_datetime(timestamp):
