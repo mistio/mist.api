@@ -380,6 +380,25 @@ class DigitalOceanComputeController(BaseComputeController):
     def _list_machines__get_size(self, node):
         return node.extra.get('size_slug')
 
+    def _list_sizes__get_name(self, size):
+        cpus = str(size.extra.get('vcpus', ''))
+        ram = str(size.ram / 1024)
+        disk = str(size.disk)
+        bandwidth = str(size.bandwidth)
+        price_monthly = str(size.extra.get('price_monthly', ''))
+        if cpus:
+            name = cpus + ' CPU/ ' if cpus == '1' else cpus + ' CPUs/ '
+        if ram:
+            name += ram + ' GB/ '
+        if disk:
+            name += disk + ' GB SSD Disk/ '
+        if bandwidth:
+            name += bandwidth + ' TB transfer/ '
+        if price_monthly:
+            name += price_monthly + '$/month'
+
+        return name
+
     def _list_sizes__get_cpu(self, size):
         return size.extra.get('vcpus')
 
@@ -396,11 +415,28 @@ class MaxihostComputeController(BaseComputeController):
             machine.actions.start = True
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        hostname = machine_libcloud.extra.get('ips')[0].get('device_hostname')
-        machine.hostname = hostname
+        if machine_libcloud.extra.get('ips', []):
+            name = machine_libcloud.extra.get('ips')[0].get('device_hostname')
+            machine.hostname = name
 
     def _list_machines__get_location(self, node):
         return node.extra.get('location').get('facility_code')
+
+    def _start_machine(self, machine, machine_libcloud):
+        machine_libcloud.id = machine_libcloud.extra.get('id', '')
+        return self.connection.ex_start_node(machine_libcloud)
+
+    def _stop_machine(self, machine, machine_libcloud):
+        machine_libcloud.id = machine_libcloud.extra.get('id', '')
+        return self.connection.ex_stop_node(machine_libcloud)
+
+    def _reboot_machine(self, machine, machine_libcloud):
+        machine_libcloud.id = machine_libcloud.extra.get('id', '')
+        return self.connection.reboot_node(machine_libcloud)
+
+    def _destroy_machine(self, machine, machine_libcloud):
+        machine_libcloud.id = machine_libcloud.extra.get('id', '')
+        return self.connection.destroy_node(machine_libcloud)
 
     def _list_sizes__get_name(self, size):
         name = size.extra['specs']['cpus']['type']

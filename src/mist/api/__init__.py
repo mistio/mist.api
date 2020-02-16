@@ -303,6 +303,7 @@ def add_routes(configurator):
     # Ownership
     configurator.add_route('api_v1_ownership', '/api/v1/ownership')
 
+    # DNS
     configurator.add_route('api_v1_zones',
                            '/api/v1/clouds/{cloud}/dns/zones')
     configurator.add_route('api_v1_zone',
@@ -324,6 +325,11 @@ def add_routes(configurator):
         '/api/v1/clouds/{cloud}/zones/{zone}/records/{record}'
     )
 
+    # Security groups
+    configurator.add_route('api_v1_cloud_security_groups',
+                           '/api/v1/clouds/{cloud}/security-groups')
+
+    # Scripts
     configurator.add_route('api_v1_scripts', '/api/v1/scripts')
     configurator.add_route('api_v1_script', '/api/v1/scripts/{script_id}')
     configurator.add_route('api_v1_script_file',
@@ -332,17 +338,21 @@ def add_routes(configurator):
                            '/api/v1/scripts/{script_id}/url')
     configurator.add_route('api_v1_fetch', '/api/v1/fetch')
 
+    # Schedules
     configurator.add_route('api_v1_schedules', '/api/v1/schedules')
     configurator.add_route('api_v1_schedule',
                            '/api/v1/schedules/{schedule_id}')
 
+    # Tokens & sessions
     configurator.add_route('api_v1_tokens', '/api/v1/tokens')
     configurator.add_route('api_v1_sessions', '/api/v1/sessions')
 
+    # Orgs
     configurator.add_route('api_v1_orgs', '/api/v1/orgs')
     configurator.add_route('api_v1_org', '/api/v1/org')
     configurator.add_route('api_v1_org_info', '/api/v1/org/{org_id}')
 
+    # Teams
     configurator.add_route('api_v1_teams', '/api/v1/org/{org_id}/teams')
     configurator.add_route('api_v1_team',
                            '/api/v1/org/{org_id}/teams/{team_id}')

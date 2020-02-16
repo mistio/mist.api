@@ -243,6 +243,9 @@ def create_machine(request):
       items:
         type:
           object
+    security_group:
+      type: string
+      description: Machine will join this security group
     """
 
     params = params_from_request(request)
@@ -310,7 +313,7 @@ def create_machine(request):
     # servers, while False means the server has montly pricing
     softlayer_backend_vlan_id = params.get('softlayer_backend_vlan_id', None)
     hourly = params.get('hourly', True)
-
+    sec_group = params.get('security_group', '')
     expiration = params.get('expiration', {})
 
     job_id = params.get('job_id')
@@ -455,7 +458,8 @@ def create_machine(request):
               'ip_addresses': ip_addresses,
               'expiration': expiration,
               'ephemeral': params.get('ephemeral', False),
-              'lxd_image_source': params.get('lxd_image_source', None)}
+              'lxd_image_source': params.get('lxd_image_source', None),
+              'sec_group': sec_group}
 
     if not run_async:
         ret = methods.create_machine(auth_context, *args, **kwargs)
