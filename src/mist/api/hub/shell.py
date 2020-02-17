@@ -71,7 +71,14 @@ class ShellHubWorker(mist.api.hub.main.HubWorker):
             self.params.update(key_id=key_id, ssh_user=ssh_user)
 
         except Exception as exc:
-
+            if self.provider == 'docker':
+                self.shell = mist.api.shell.Shell(data['host'],
+                                                  provider='docker')
+                key_id, ssh_user = self.shell.autoconfigure(
+                    self.owner, data['cloud_id'], data['machine_id'],
+                    job_id=data['job_id'],
+                )
+            else:
                 log.warning("%s: Couldn't connect with SSH, error %r.",
                             self.lbl, exc)
                 if isinstance(exc,
