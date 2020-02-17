@@ -64,7 +64,9 @@ def get_load(machines, start, stop, step):
     data = {}
     for machine in machines:
         metric = "%s.system.load1" % machine
-        query = 'fetch("%s", start="%s", stop="%s", step="%s")' % (
+        query = ('roundY(fetch("%s", start="%s", stop="%s", step="%s")' +
+                 ', base=5)') % \
+            (
             metric,
             start,
             stop,

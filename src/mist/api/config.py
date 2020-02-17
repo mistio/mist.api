@@ -324,7 +324,7 @@ FDB_MACHINE_DASHBOARD_DEFAULT = {
                 "targets": [{
                     "refId": "C",
                     "target": urllib.parse.quote(
-                        "fetch(\"{id}.cpu.cpu-cpu-total.usage.*(?<!idle)$\"" +
+                        "fetch(\"{id}.cpu.total.usage.*(?<!idle)$\"" +
                         ", start=\"{start}\", stop=\"{stop}\"" +
                         ", step=\"{step}\")")
                 }],
