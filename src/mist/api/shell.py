@@ -240,7 +240,7 @@ class ParamikoShell(object):
                  cloud_id, machine_id)
 
         cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
-        machine = Machine.objects.get(cloud=cloud, id=machine_id)
+        machine = Machine.objects.get(cloud=cloud, machine_id=machine_id)
         key_associations = KeyMachineAssociation.objects(machine=machine)
         log.info('Got cloud & machine: %d key associations' % len(
             key_associations))
@@ -352,6 +352,7 @@ class DockerWebSocket(object):
     """
     Base WebSocket class inherited by DockerShell
     """
+
     def __init__(self):
         self.ws = websocket.WebSocket()
         self.protocol = "ws"
@@ -418,6 +419,7 @@ class DockerShell(DockerWebSocket):
     """
     DockerShell achieved through the Docker host's API by opening a WebSocket
     """
+
     def __init__(self, host):
         self.host = host
         super(DockerShell, self).__init__()
@@ -508,6 +510,7 @@ class DockerShell(DockerWebSocket):
 class Shell(object):
     """Proxy Shell Class to distinguish between Docker or Paramiko Shell
     """
+
     def __init__(self, host, provider=None, username=None, key=None,
                  password=None, cert_file=None, port=22,
                  enforce_paramiko=False):
