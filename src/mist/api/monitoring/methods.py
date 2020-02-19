@@ -45,6 +45,8 @@ from mist.api.monitoring import traefik
 
 from mist.api.rules.models import Rule
 
+from mist.api.tag.methods import get_tags_for_resource
+
 log = logging.getLogger(__name__)
 
 
@@ -467,16 +469,16 @@ def disable_monitoring_cloud(owner, cloud_id, no_ssh=False):
                       "Cloud %s (%s): %s", cloud.id, owner.id, exc)
 
 
-def find_metrics(machine):
-    """Return the metrics associated with the specified machine."""
-    if not machine.monitoring.hasmonitoring:
-        raise MethodNotAllowedError("Machine doesn't have monitoring enabled")
+def find_metrics(resource):
+    """Return the metrics associated with the specified resource."""
+    if not resource.monitoring.hasmonitoring:
+        raise MethodNotAllowedError("Resource doesn't have monitoring enabled")
 
-    if machine.monitoring.method in ('telegraf-graphite'):
-        return graphite_find_metrics(machine)
-    elif machine.monitoring.method == 'telegraf-influxdb':
+    if resource.monitoring.method in ('telegraf-graphite'):
+        return graphite_find_metrics(resource)
+    elif resource.monitoring.method == 'telegraf-influxdb':
         metrics = {}
-        for metric in show_fields(show_measurements(machine.id)):
+        for metric in show_fields(show_measurements(resource.id)):
             metrics[metric['id']] = metric
         return metrics
     else:
@@ -547,3 +549,140 @@ def undeploy_python_plugin(machine, plugin_id):
     # TODO Shouldn't we also `disassociate_metric` and remove relevant Rules?
 
     return {'metric_id': None, 'stdout': stdout}
+
+
+def filter_resources_by_tags(resources, tags):
+    filtered_resources = []
+    for resource in resources:
+        resource_tags = get_tags_for_resource(resource.owner, resource)
+        if tags.items() <= resource_tags.items():
+            filtered_resources.append(resource)
+    return filtered_resources
+
+
+def list_resources(resource_type, owner, as_dict=True):
+    try:
+        resource_objs = getattr(
+            mist.api.models, resource_type.capitalize()).objects(
+            owner=owner)
+    except getattr(
+            mist.api.models, resource_type.capitalize()).DoesNotExist:
+        raise NotFoundError(
+            "Resouce with type %s not found" % resource_type)
+    if as_dict:
+        return [resource.as_dict() for resource in resource_objs]
+    return resource_objs
+
+
+def list_resources_by_id(resource_type, resource_id, as_dict=True):
+    try:
+        resource_objs = getattr(
+            mist.api.models, resource_type.capitalize()).objects(
+            id=resource_id)
+    except getattr(
+            mist.api.models, resource_type.capitalize()).DoesNotExist:
+        raise NotFoundError(
+            "Resouce with type %s not found" % resource_type)
+    if as_dict:
+        return [resource.as_dict() for resource in resource_objs]
+    return resource_objs
+
+# SEC
+
+
+def filter_list_resources(
+        resource_type, auth_context, perm='read', as_dict=True):
+    """Returns a list of resources, which is filtered based on RBAC Mappings for
+    non-Owners.
+    """
+    resources = list_resources(
+        resource_type, auth_context.owner, as_dict=as_dict)
+    if not auth_context.is_owner():
+        if as_dict:
+            resources = [resource for resource in resources if resource['id']
+                         in auth_context.get_allowed_resources(
+                             rtype=resource_type)]
+        else:
+            resources = [resource for resource in resources if resource.id
+                         in auth_context.get_allowed_resources(
+                             rtype=resource_type)]
+    return resources
+
+
+def find_metrics_by_resource_id(auth_context, resource_id, resource_type):
+    from mist.api.machines.methods import filter_list_machines
+    resource_types = ['cloud', 'machine']
+    if resource_type:
+        resource_types = [resource_type]
+    else:
+        # If we have an id which corresponds to a cloud but no resource
+        # type we return all the metrics of all resources of that cloud
+        metrics = {}
+        try:
+            # SEC require permission READ on resource
+            auth_context.check_perm("cloud", "read", resource_id)
+            resource_objs = list_resources_by_id(
+                "cloud", resource_id, as_dict=False)
+            if len(resource_objs):
+                machines = [machine for machine in
+                            filter_list_machines(auth_context,
+                                                 resource_id,
+                                                 as_dict=False)]
+                for machine in machines:
+                    metrics.update(find_metrics(machine))
+                return metrics
+        except:
+            pass
+    for resource_type in resource_types:
+        try:
+            # SEC require permission READ on resource
+            auth_context.check_perm(resource_type, "read", resource_id)
+            resource_objs = list_resources_by_id(
+                resource_type, resource_id, as_dict=False)
+            if len(resource_objs):
+                return find_metrics(resource_objs[0])
+        except:
+            pass
+    raise NotFoundError("resource with id:%s" % resource_id)
+
+
+def find_metrics_by_resource_type(auth_context, resource_type, tags):
+    from mist.api.clouds.methods import filter_list_clouds
+    from mist.api.machines.methods import filter_list_machines
+    resources = []
+    if resource_type == "machine":
+        clouds = filter_list_clouds(auth_context, as_dict=False)
+        for cloud in clouds:
+            resources += filter_list_machines(
+                auth_context, cloud.id, as_dict=False)
+    else:
+        resources = filter_list_resources(
+            resource_type, auth_context, perm='read', as_dict=False)
+
+    if tags and len(resources):
+        resources = filter_resources_by_tags(resources, tags)
+
+    metrics = {}
+
+    for resource in resources:
+        metrics.update(find_metrics(resource))
+
+    return metrics
+
+
+def find_metrics_by_tags(auth_context, tags):
+    resource_types = ['cloud', 'machine']
+    resources = []
+    for resource_type in resource_types:
+        resources += filter_list_resources(
+            resource_type, auth_context, perm='read', as_dict=False)
+
+    if len(resources):
+        resources = filter_resources_by_tags(resources, tags)
+
+    metrics = {}
+
+    for resource in resources:
+        metrics.update(find_metrics(resource))
+
+    return metrics

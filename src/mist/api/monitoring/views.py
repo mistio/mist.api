@@ -279,38 +279,6 @@ def find_metrics(request):
 
     """
 
-    from mist.api.monitoring.methods import find_metrics
-
-    def filter_resources(resources, resource_type, tags):
-        filtered_resources = []
-        for resource in resources:
-            resource_tags = {tag.key: tag.value for tag in
-                             mist.api.tag.models.Tag.objects(
-                                 resource_id=resource.id,
-                                 resource_type=resource_type
-                             )}
-            if resource_tags == tags:
-                filtered_resources.append(resource)
-        return filtered_resources
-
-    def get_resources(resource_type, resource_id, auth_context):
-        try:
-            resource_objs = getattr(
-                mist.api.models, resource_type.capitalize()).objects(
-                id=resource_id)
-        except getattr(
-                mist.api.models, resource_type.capitalize()).DoesNotExist:
-            raise NotFoundError(
-                "Resouce with type %s not found" % resource_type)
-        try:
-            auth_context.check_perm(resource_type, "read", resource_id)
-        except PolicyUnauthorizedError:
-            raise MethodNotAllowedError(
-                "No permissions for resource type: %s with id: %s "
-                % resource_type, resource_id)
-
-        return resource_objs
-
     auth_context = auth_context_from_request(request)
 
     params = params_from_request(request)
@@ -320,92 +288,21 @@ def find_metrics(request):
 
     # Convert the tag list to a dict
     if tags:
-        tags = dict((key, value)
-                    for key, value in (pair.split(':')
-                                       for pair in tags.split(',')))
+        tags = dict((key, value[0] if value else '')
+                    for key, *value in (pair.split(':')
+                                        for pair in tags.split(',')))
 
     if resource_id:
-        # When we have cloud as resource type and an id
-        # we return the metrics of the cloud
-        if resource_type == "cloud":
-            return {}
-        elif resource_type:
-            resource_objs = get_resources(
-                resource_type, resource_id, auth_context)
-            if len(resource_objs):
-                return find_metrics(resource_objs[0])
-            return {}
-
-        metrics = {}
-        for resource_type in ["machine", ]:
-            try:
-                resource_objs = get_resources(
-                    resource_type, resource_id, auth_context)
-                if len(resource_objs):
-                    for resource in resource_objs:
-                        metrics.update(find_metrics(resource_objs[0]))
-                    return metrics
-            except:
-                pass
-
-        # If we have an id which corresponds to a cloud but no resource type
-        # we return all the metrics of all resources of that cloud
-        for resource_type in ["cloud", ]:
-            try:
-                resource_objs = get_resources(
-                    resource_type, resource_id, auth_context)
-                if len(resource_objs):
-                    machines = [machine for machine in
-                                filter_list_machines(auth_context,
-                                                     resource_id,
-                                                     as_dict=False)]
-                    for machine in machines:
-                        metrics.update(find_metrics(machine))
-                    return metrics
-            except:
-                pass
-
-        return {}
+        return mist.api.monitoring.methods.find_metrics_by_resource_id(
+            auth_context, resource_id, resource_type)
 
     if resource_type:
-        if resource_type == "machine":
-            clouds = filter_list_clouds(auth_context, as_dict=False)
-            for cloud in clouds:
-                machines = filter_list_machines(
-                    auth_context, cloud.id, as_dict=False)
-
-            if tags:
-                machines = filter_resources(machines, resource_type, tags)
-
-            metrics = {}
-
-            for machine in machines:
-                if machine.monitoring.hasmonitoring:
-                    metrics.update(
-                        {machine.id: find_metrics(machine)})
-
-            return metrics
-        elif resource_type == "cloud":
-            filtered_clouds = filter_resources(clouds, resource_type, tags)
-            return {}
-        else:
-            return {}
+        return mist.api.monitoring.methods.find_metrics_by_resource_type(
+            auth_context, resource_type, tags)
 
     if tags:
-        clouds = filter_list_clouds(auth_context, as_dict=False)
-        filtered_clouds = filter_resources(clouds, 'cloud', tags)
-        if len(filtered_clouds):
-            return {}
-        filtered_machines = []
-        for cloud in clouds:
-            filtered_machines += filter_resources(filter_list_machines(
-                auth_context, cloud.id, as_dict=False), 'machine', tags)
-        metrics = {}
-        for machine in filtered_machines:
-            if machine.monitoring.hasmonitoring:
-                metrics.update(
-                    {machine.id: find_metrics(machine)})
-        return metrics
+        return mist.api.monitoring.methods.find_metrics_by_tags(
+            auth_context, tags)
 
 
 # SEC FIXME: (Un)deploying a plugin isn't the same as editing a custom metric.
