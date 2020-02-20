@@ -1,10 +1,11 @@
 import logging
 import requests
+import time
+import urllib.parse
 
 from mist.api.exceptions import ForbiddenError
 from mist.api.exceptions import ServiceUnavailableError
 from mist.api import config
-import urllib.parse
 
 
 log = logging.getLogger(__name__)
@@ -12,9 +13,6 @@ log = logging.getLogger(__name__)
 
 def get_stats(machine, start="", stop="", step="", metrics=None):
     data = {}
-
-    if not isinstance(machine, str):
-        machine = machine.id
 
     # If no metrics are specified, then we get all of them
     if not metrics:
@@ -24,7 +22,7 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
 
     for metric in metrics:
         # processed_metric = "%s.%s" % (machine.id, metric)
-        query = metric.format(id=machine, start=start, stop=stop, step=step)
+        query = metric.format(id=machine.id, start=start, stop=stop, step=step)
         """query = 'fetch("%s", start="%s", stop="%s", step="%s")' % (
             processed_metric,
             start,
@@ -56,6 +54,26 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
                     }
                 }
             )
+
+    # set activated_at for collectd/telegraf installation status
+    # if no data previously received for machine
+    from mist.api.helpers import trigger_session_update
+    from mist.api.rules.tasks import add_nodata_rule
+
+    istatus = machine.monitoring.installation_status
+    if not istatus.activated_at:
+        for val in (point[0] for item in list(data.values())
+                    for point in item['datapoints']
+                    if point[1] >= istatus.started_at):
+            if val is not None:
+                if not istatus.finished_at:
+                    istatus.finished_at = time.time()
+                istatus.activated_at = time.time()
+                istatus.state = 'succeeded'
+                machine.save()
+                add_nodata_rule.delay(machine.owner.id)
+                trigger_session_update(machine.owner, ['monitoring'])
+                break
 
     return data
 
