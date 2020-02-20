@@ -53,7 +53,9 @@ from mist.api.rules.models import Rule
 log = logging.getLogger(__name__)
 
 
-def get_stats(machine, start="", stop="", step="", metrics=None):
+def get_stats(
+    machine, start="", stop="", step="",
+        metrics=None, monitoring_method=None):
     """Get all monitoring data for the specified machine.
 
     If a list of `metrics` is provided, each metric needs to comply with the
@@ -75,6 +77,9 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
         - metrics: the metrics to query for, if explicitly specified
 
     """
+    if not monitoring_method:
+        monitoring_method = machine.monitoring.method
+
     if not machine.monitoring.hasmonitoring:
         raise MethodNotAllowedError("Machine does not have monitoring enabled")
     if metrics is None:
@@ -82,11 +87,11 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
     elif not isinstance(metrics, list):
         metrics = [metrics]
 
-    if machine.monitoring.method in ("telegraf-graphite"):
+    if monitoring_method in ("telegraf-graphite"):
         return graphite_get_stats(
             machine, start=start, stop=stop, step=step, metrics=metrics,
         )
-    elif machine.monitoring.method == "telegraf-influxdb":
+    elif monitoring_method == "telegraf-influxdb":
         if not metrics:
             metrics = (
                 list(config.INFLUXDB_BUILTIN_METRICS.keys()) +
@@ -122,7 +127,7 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
         return results
 
     # return time-series data from foundationdb
-    elif machine.monitoring.method == "telegraf-tsfdb":
+    elif monitoring_method == "telegraf-tsfdb":
         return fdb_get_stats(
             machine,
             start,
