@@ -990,6 +990,8 @@ CELERY_SETTINGS = {
     },
 }
 
+LANDING_PROMO_PAGE = {}
+
 LANDING_CATEGORIES = [{
     'href': '/',
     'name': 'home',
@@ -1994,7 +1996,8 @@ HOMEPAGE_INPUTS = {
     'olark_id': OLARK_ID,
     'google_analytics_id': GOOGLE_ANALYTICS_ID,
     'mixpanel_id': MIXPANEL_ID,
-    'categories': LANDING_CATEGORIES
+    'categories': LANDING_CATEGORIES,
+    'promo_page': LANDING_PROMO_PAGE
 }
 
 if HAS_BILLING and STRIPE_PUBLIC_APIKEY:
