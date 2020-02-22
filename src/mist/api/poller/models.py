@@ -342,7 +342,7 @@ class MachinePollingSchedule(PollingSchedule):
         try:
             machine = Machine.objects.get(id=self.machine_id,
                                           missing_since=None)
-            return machine.cloud.enabled
+            return machine.cloud and machine.cloud.enabled
         except Machine.DoesNotExist:
             return False
 

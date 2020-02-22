@@ -8,6 +8,8 @@ from mist.api.auth.methods import auth_context_from_request
 
 from mist.api.helpers import view_config, params_from_request
 
+from mist.api.logs.methods import log_event
+
 from mist.api.keys.methods import filter_list_keys
 from mist.api.keys.methods import delete_key as m_delete_key
 
@@ -58,7 +60,7 @@ def add_key(request):
     private_key = params.get('priv', None)
     certificate = params.get('certificate', None)
     auth_context = auth_context_from_request(request)
-    key_tags = auth_context.check_perm("key", "add", None)
+    key_tags, _ = auth_context.check_perm("key", "add", None)
 
     if not key_name:
         raise BadRequestError("Key name is not provided")
@@ -268,6 +270,10 @@ def get_private_key(request):
         raise NotFoundError('Key id does not exist')
 
     auth_context.check_perm('key', 'read_private', key.id)
+    log_event(
+        auth_context.owner.id, 'request', 'read_private',
+        key_id=key.id, user_id=auth_context.user.id,
+    )
     return key.private
 
 

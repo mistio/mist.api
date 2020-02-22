@@ -89,6 +89,17 @@ JS_LOG_LEVEL = 3
 
 ENABLE_DEV_USERS = False
 
+# policy to be applied on resources' owners
+OWNER_POLICY = {}
+
+# If true, on expiration schedule with action destroy,
+# instead of destroying a machine,
+# stop it, change ownership, untag the machine and
+# create a new schedule that will destroy the machine
+#  in <SAFE_EXPIRATION_DURATION> seconds
+SAFE_EXPIRATION = False
+SAFE_EXPIRATION_DURATION = 60 * 60 * 24 * 7
+
 MONGO_URI = "mongodb:27017"
 MONGO_DB = "mist2"
 
@@ -99,6 +110,7 @@ SUPPORT_URI = 'https://docs.mist.io/contact'
 
 INTERNAL_API_URL = 'http://api'
 GOCKY_HOST = 'gocky'
+GOCKY_PORT = 9096
 
 # InfluxDB
 INFLUX = {
@@ -1239,13 +1251,6 @@ SUPPORTED_PROVIDERS = [
         'provider': Provider.GCE,
         'regions': []
     },
-
-    # NephoScale
-    {
-        'title': 'NephoScale',
-        'provider': Provider.NEPHOSCALE,
-        'regions': []
-    },
     # DigitalOcean
     {
         'title': 'DigitalOcean',
@@ -1349,6 +1354,12 @@ SUPPORTED_PROVIDERS = [
     {
         'title': 'Packet',
         'provider': Provider.PACKET,
+        'regions': []
+    },
+    # Maxihost
+    {
+        'title': 'Maxihost',
+        'provider': Provider.MAXIHOST,
         'regions': []
     },
 ]
@@ -1487,13 +1498,13 @@ DOCKER_IMAGES = {
 }
 
 AZURE_ARM_IMAGES = {
-    'MicrosoftWindowsServer:WindowsServer:2012-Datacenter:9200.22776.20190604': 'MicrosoftWindowsServer WindowsServer 2012-Datacenter', # noqa
-    'MicrosoftWindowsServer:WindowsServer:2012-Datacenter-smalldisk:9200.22830.1908092125': 'MicrosoftWindowsServer WindowsServer 2012-Datacenter-smalldisk', # noqa
-    'MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core-smalldisk:14393.3025.20190604': 'MicrosoftWindowsServer WindowsServer 2016-Datacenter-Server-Core-smalldisk', # noqa
-    'MicrosoftWindowsServer:WindowsServer:2016-Datacenter-with-Containers:2016.127.20190603': 'MicrosoftWindowsServer WindowsServer 2016-Datacenter-with-Containers', # noqa
-    'MicrosoftWindowsServer:WindowsServer:2019-Datacenter:2019.0.20190410': 'MicrosoftWindowsServer WindowsServer 2019-Datacenter', # noqa
-    'Canonical:UbuntuServer:16.04.0-LTS:16.04.201906280': 'Canonical UbuntuServer 16.04.0-LTS', # noqa
-    'Canonical:UbuntuServer:18.04-LTS:18.04.201908131': 'Canonical UbuntuServer 18.04-LTS', # noqa
+    'MicrosoftWindowsServer:WindowsServer:2012-Datacenter:9200.22776.20190604': 'MicrosoftWindowsServer WindowsServer 2012-Datacenter',  # noqa
+    'MicrosoftWindowsServer:WindowsServer:2012-Datacenter-smalldisk:9200.22830.1908092125': 'MicrosoftWindowsServer WindowsServer 2012-Datacenter-smalldisk',  # noqa
+    'MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core-smalldisk:14393.3025.20190604': 'MicrosoftWindowsServer WindowsServer 2016-Datacenter-Server-Core-smalldisk',  # noqa
+    'MicrosoftWindowsServer:WindowsServer:2016-Datacenter-with-Containers:2016.127.20190603': 'MicrosoftWindowsServer WindowsServer 2016-Datacenter-with-Containers',  # noqa
+    'MicrosoftWindowsServer:WindowsServer:2019-Datacenter:2019.0.20190410': 'MicrosoftWindowsServer WindowsServer 2019-Datacenter',  # noqa
+    'Canonical:UbuntuServer:16.04.0-LTS:16.04.201906280': 'Canonical UbuntuServer 16.04.0-LTS',  # noqa
+    'Canonical:UbuntuServer:18.04-LTS:18.04.201908131': 'Canonical UbuntuServer 18.04-LTS',  # noqa
     'RedHat:RHEL:7.3:7.3.2017090723': 'RedHat RHEL 7.3 7.3.2017090723',
     'RedHat:RHEL:6.9:6.9.2017090105': 'RedHat RHEL 6.9 6.9.2017090105',
 }
@@ -1567,7 +1578,7 @@ MACHINE_EXPIRE_NOTIFY_EMAIL_BODY = """Dear %s,
 Your machine `%s` will expire on %s
 
 If you'd like to prevent that, please update the expiration date at %s
-
+%s
 Best regards,
 The mist.io team
 

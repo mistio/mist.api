@@ -93,7 +93,8 @@ class NotificationOverride(me.EmbeddedDocument):
 class UserNotificationPolicy(me.Document):
     """A user's notification policy comprised of notification overrides."""
 
-    owner = me.ReferenceField('Organization', required=True)
+    owner = me.ReferenceField('Organization', required=True,
+                              reverse_delete_rule=me.CASCADE)
     email = me.EmailField(domain_whitelist=config.DOMAIN_VALIDATION_WHITELIST)
     user_id = me.StringField()
 
@@ -153,7 +154,8 @@ class Notification(me.Document):
     """The main Notification entity."""
 
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
-    owner = me.ReferenceField('Organization', required=True)
+    owner = me.ReferenceField('Organization', required=True,
+                              reverse_delete_rule=me.CASCADE)
 
     # TODO A list of external email addresses, ie e-mail addresses that do
     # not correspond to members of the organization.
@@ -181,7 +183,7 @@ class Notification(me.Document):
         'strict': False,
         'allow_inheritance': True,
         'collection': 'notifications',
-        'indexes': ['owner', '-created_at'],
+        'indexes': ['owner', 'created_at'],
     }
 
     _notification_channel_cls = None

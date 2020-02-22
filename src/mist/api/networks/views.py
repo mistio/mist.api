@@ -100,7 +100,7 @@ def create_network(request):
 
     auth_context.check_perm("cloud", "read", cloud_id)
     auth_context.check_perm("cloud", "create_resources", cloud_id)
-    tags = auth_context.check_perm("network", "add", None) or {}
+    tags, _ = auth_context.check_perm("network", "add", None)
 
     try:
         cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id)

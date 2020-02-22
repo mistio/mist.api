@@ -105,6 +105,12 @@ class DigitalOceanMainController(BaseMainController):
     StorageController = storage_ctls.DigitalOceanStorageController
 
 
+class MaxihostMainController(BaseMainController):
+
+    provider = 'maxihost'
+    ComputeController = compute_ctls.MaxihostComputeController
+
+
 class LinodeMainController(BaseMainController):
 
     provider = 'linode'
@@ -139,12 +145,6 @@ class SoftLayerMainController(BaseMainController):
     provider = 'softlayer'
     ComputeController = compute_ctls.SoftLayerComputeController
     DnsController = dns_ctls.SoftLayerDNSController
-
-
-class NephoScaleMainController(BaseMainController):
-
-    provider = 'nephoscale'
-    ComputeController = compute_ctls.NephoScaleComputeController
 
 
 class AzureMainController(BaseMainController):
@@ -252,6 +252,7 @@ class OpenStackMainController(BaseMainController):
     def _update__preparse_kwargs(self, kwargs):
         rename_kwargs(kwargs, 'auth_url', 'url')
         rename_kwargs(kwargs, 'tenant_name', 'tenant')
+        rename_kwargs(kwargs, 'domain_name', 'domain')
         url = kwargs.get('url', self.cloud.url)
         if url:
             if url.endswith('/v2.0/'):
@@ -537,7 +538,7 @@ class OtherMainController(BaseMainController):
                                           "machine hostname is empty.")
                 to_tunnel(self.cloud.owner, host)  # May raise VPNTunnelError
                 ssh_command(
-                    self.cloud.owner, self.cloud.id, machine.machine_id, host,
+                    self.cloud.owner, self.cloud.id, machine.id, host,
                     'uptime', key_id=ssh_key.id, username=ssh_user,
                     port=ssh_port
                 )

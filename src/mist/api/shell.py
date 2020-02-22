@@ -246,7 +246,7 @@ class ParamikoShell(object):
                  cloud_id, machine_id)
 
         cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
-        machine = Machine.objects.get(cloud=cloud, machine_id=machine_id)
+        machine = Machine.objects.get(cloud=cloud, id=machine_id)
         key_associations = KeyMachineAssociation.objects(machine=machine)
         log.info('Got cloud & machine: %d key associations' % len(
             key_associations))

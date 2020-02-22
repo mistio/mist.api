@@ -99,7 +99,8 @@ class TaggingCondition(BaseCondition):
 
     @property
     def q(self):
-        rtype = self._instance.condition_resource_cls._meta["collection"]
+        rtype = self._instance.condition_resource_cls._meta[
+            "collection"].rstrip('s')
         ids = set()
         for key, value in self.tags.items():
             query = {
@@ -109,7 +110,7 @@ class TaggingCondition(BaseCondition):
             }
             if value:
                 query['value'] = value
-            ids |= set(tag.resource.id for tag in Tag.objects(**query))
+            ids |= set(tag.resource_id for tag in Tag.objects(**query))
         return me.Q(id__in=ids)
 
     def validate(self, clean=True):

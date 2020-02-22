@@ -37,6 +37,116 @@ logging.getLogger('elasticsearch').setLevel(logging.ERROR)
 log = logging.getLogger(__name__)
 
 
+# FIXME: Once we are consistent with machine_id, external_id
+# etc, sanitize all the chaos below
+def log_observations(owner_id, cloud_id, resource_type, patch,
+                     cached_resources, new_resources):
+    """Log observation events.
+    An observation event can be one of: create/destroy machine,
+    create/delete volume, create/delete network or attach/detach
+    volume.
+    Arguments:
+        - owner_id
+        - cloud_id
+        - resource_type: one of machine, volume, network
+        - patch: the json patch produced from the diff of
+            cached and new resources
+    """
+    log_dict = {
+        'cloud_id': cloud_id,
+    }
+
+    for _patch in patch:
+        name = ''
+        if _patch.get('op') == 'add':
+
+            if isinstance(_patch.get('value'), dict) and \
+               _patch.get('value').get('id', ''):
+                action = 'create_' + resource_type
+                name = _patch.get('value').get('name')
+                resource_id = _patch.get('value').get('id')
+                provider_id = 'external_id' if resource_type == 'volume' \
+                    else resource_type + '_id'
+                external_id = _patch.get('value').get(provider_id)
+            elif '/attached_to/' in _patch.get('path'):
+                action = 'attach_volume'
+                key = _patch.get('path')[1:-14]  # strip '/', '/attached_to/0'
+                name = cached_resources.get(key).get('name')
+                ids = _patch.get('path').split('-')
+                resource_id = ids.pop(0).strip('/')
+                external_id = '-'.join(ids).split('attached_to')[0][:-1]
+                log_dict.update({'machine_id': _patch.get('value')})
+            else:
+                continue
+
+        elif _patch.get('op') == 'remove':
+
+            if '/attached_to/' in _patch.get('path'):
+                action = 'detach_volume'
+                ids = _patch.get('path').split('-')
+                resource_id = ids.pop(0).strip('/')
+                external_id = '-'.join(ids).split('attached_to')[0][:-1]
+                # find the machine the volume was attached to
+                key = resource_id + '-' + external_id
+                name = cached_resources.get(key).get('name')
+                machine_id = cached_resources.get(key).get('attached_to')[0]
+                log_dict.update({'machine_id': machine_id})
+            elif len(_patch.get('path').split('/')) < 3:  # '/id-external_id'
+                if resource_type == 'machine':
+                    action = 'destroy_machine'
+                else:
+                    action = 'delete_' + resource_type
+                key = _patch.get('path')[1:]  # strip '/'
+                if cached_resources.get(key) and \
+                    cached_resources.get(key).get('state') == 'terminated' \
+                        and action == 'destroy_machine':
+                    continue
+                ids = _patch.get('path').split('-')
+                resource_id = ids.pop(0).strip('/')
+                external_id = '-'.join(ids)
+                if cached_resources.get(key):
+                    name = cached_resources.get(key).get('name')
+            else:
+                continue
+
+        elif _patch.get('op') == 'replace' and resource_type == 'machine':
+            if '/state' in _patch.get('path') and _patch.get('value') in \
+               ['running', 'stopped', 'terminated']:
+                if _patch.get('value') == 'stopped':
+                    action = 'stop_machine'
+                elif _patch.get('value') == 'running':
+                    action = 'start_machine'
+                elif _patch.get('value') == 'terminated':
+                    action = 'destroy_machine'
+                key = _patch.get('path')[1:-6]  # strip '/' and '/state'
+                name = cached_resources.get(key).get('name')
+                ids = _patch.get('path').split('-')
+                resource_id = ids.pop(0).strip('/')
+                external_id = '-'.join(ids)[:-6]  # strip '/state'
+            elif '/size' in _patch.get('path') and \
+                    len(_patch.get('path').split('/')) < 4:
+                action = 'resize_machine'
+                ids = _patch.get('path').split('-')
+                resource_id = ids.pop(0).strip('/')
+                key = _patch.get('path')[1:-5]  # strip '/' and '/size'
+                name = cached_resources.get(key).get('name')
+                external_id = '-'.join(ids)[:-5]  # strip '/size'
+                log_dict.update({'new_size': _patch.get('value')})
+            else:
+                continue
+
+        else:
+            continue
+
+        log_dict.update({'resource_type': resource_type,
+                         resource_type + '_id': resource_id,
+                         'name': name,
+                         'external_id': external_id})
+        log_event(action=action, event_type='observation',
+                  owner_id=owner_id, **log_dict)
+    return
+
+
 def log_event(owner_id, event_type, action, error=None, **kwargs):
     """Log a new event.
 

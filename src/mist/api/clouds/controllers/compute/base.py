@@ -37,6 +37,7 @@ from mist.api.exceptions import MachineNotFoundError
 from mist.api.exceptions import CloudUnavailableError
 from mist.api.exceptions import CloudUnauthorizedError
 from mist.api.exceptions import SSLError
+from mist.api.exceptions import MistNotImplementedError
 
 from mist.api.helpers import get_datetime
 from mist.api.helpers import amqp_publish
@@ -81,7 +82,7 @@ def _decide_machine_cost(machine, tags=None, cost=(0, 0)):
 
     # Get machine tags from db
     tags = tags or {tag.key: tag.value for tag in Tag.objects(
-        resource=machine,
+        resource_id=machine.id, resource_type='machine'
     )}
 
     try:
@@ -198,6 +199,7 @@ class BaseComputeController(BaseController):
         """
         task_key = 'cloud:list_machines:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
+        first_run = False if task.last_success else True
         try:
             with task.task_runner(persist=persist):
                 cached_machines = [m.as_dict()
@@ -207,7 +209,7 @@ class BaseComputeController(BaseController):
             self.cloud.ctl.disable()
             raise
 
-        self.produce_and_publish_patch(cached_machines, machines)
+        self.produce_and_publish_patch(cached_machines, machines, first_run)
 
         # Push historic information for inventory and cost reporting.
         for machine in machines:
@@ -219,10 +221,8 @@ class BaseComputeController(BaseController):
 
         return machines
 
-    def produce_and_publish_patch(self, cached_machines, fresh_machines):
-        if not amqp_owner_listening(self.cloud.owner.id):
-            return
-
+    def produce_and_publish_patch(self, cached_machines, fresh_machines,
+                                  first_run=False):
         old_machines = {'%s-%s' % (m['id'], m['machine_id']): m
                         for m in cached_machines}
         new_machines = {'%s-%s' % (m.id, m.machine_id): m.as_dict()
@@ -240,10 +240,15 @@ class BaseComputeController(BaseController):
         patch = jsonpatch.JsonPatch.from_diff(old_machines,
                                               new_machines).patch
         if patch:  # Publish patches to rabbitmq.
-            amqp_publish_user(self.cloud.owner.id,
-                              routing_key='patch_machines',
-                              data={'cloud_id': self.cloud.id,
-                                    'patch': patch})
+            if not first_run and self.cloud.observation_logs_enabled:
+                from mist.api.logs.methods import log_observations
+                log_observations(self.cloud.owner.id, self.cloud.id,
+                                 'machine', patch, old_machines, new_machines)
+            if amqp_owner_listening(self.cloud.owner.id):
+                amqp_publish_user(self.cloud.owner.id,
+                                  routing_key='patch_machines',
+                                  data={'cloud_id': self.cloud.id,
+                                        'patch': patch})
 
     def _list_machines(self):
         """Core logic of list_machines method
@@ -351,7 +356,13 @@ class BaseComputeController(BaseController):
             if not image_id:
                 image_id = str(node.image or node.extra.get('imageId') or
                                node.extra.get('image_id') or
-                               node.extra.get('image') or '')
+                               node.extra.get('image'))
+            if not image_id:
+                if isinstance(node.extra.get('operating_system', {}), dict):
+                    image_id = node.extra.get('operating_system', {}).get(
+                        'name', '')
+                else:
+                    image_id = node.extra.get('operating_system') or ''
 
             # Attempt to map machine's size to a CloudSize object. If not
             # successful, try to discover custom size.
@@ -854,8 +865,7 @@ class BaseComputeController(BaseController):
             _size.disk = size.disk
             _size.bandwidth = size.bandwidth
             _size.missing_since = None
-            _size.extra = {'description': size.extra.get('description', '')}
-            _size.extra.update({'price': size.price})
+            _size.extra = self._list_sizes__get_extra(size)
             if size.ram:
                 try:
                     _size.ram = int(re.sub("\D", "", str(size.ram)))
@@ -901,6 +911,14 @@ class BaseComputeController(BaseController):
 
     def _list_sizes__get_name(self, size):
         return size.name
+
+    def _list_sizes__get_extra(self, size):
+        extra = {}
+        if size.extra:
+            extra = size.extra
+        if size.price:
+            extra.update({'price': size.price})
+        return extra
 
     def list_cached_sizes(self):
         """Return list of sizes from database for a specific cloud"""
@@ -1427,7 +1445,7 @@ class BaseComputeController(BaseController):
         Differnent cloud controllers should override this private method, which
         is called by the public method `resume_machine`.
         """
-        raise NotImplementedError()
+        raise MistNotImplementedError()
 
     def suspend_machine(self, machine):
         """Suspend machine
@@ -1474,7 +1492,7 @@ class BaseComputeController(BaseController):
         Differnent cloud controllers should override this private method, which
         is called by the public method `suspend_machine`.
         """
-        raise NotImplementedError()
+        raise MistNotImplementedError()
 
     def undefine_machine(self, machine):
         """Undefine machine
@@ -1521,7 +1539,7 @@ class BaseComputeController(BaseController):
         Different cloud controllers should override this private method, which
         is called by the public method `undefine_machine`.
         """
-        raise NotImplementedError()
+        raise MistNotImplementedError()
 
     def create_machine_snapshot(self, machine, snapshot_name, description='',
                                 dump_memory=False, quiesce=False):
@@ -1579,7 +1597,7 @@ class BaseComputeController(BaseController):
         Different cloud controllers should override this private method, which
         is called by the public method `create_machine_snapshot`.
         """
-        raise NotImplementedError()
+        raise MistNotImplementedError()
 
     def remove_machine_snapshot(self, machine, snapshot_name=None):
         """Remove a snapshot of a machine
@@ -1630,7 +1648,7 @@ class BaseComputeController(BaseController):
         Different cloud controllers should override this private method, which
         is called by the public method `remove_machine_snapshot`.
         """
-        raise NotImplementedError()
+        raise MistNotImplementedError()
 
     def revert_machine_to_snapshot(self, machine, snapshot_name=None):
         """Revert machine to selected snapshot
@@ -1682,7 +1700,7 @@ class BaseComputeController(BaseController):
         Different cloud controllers should override this private method, which
         is called by the public method `revert_machine_to_snapshot`.
         """
-        raise NotImplementedError()
+        raise MistNotImplementedError()
 
     def list_machine_snapshots(self, machine):
         """List snapshots of a machine
@@ -1728,7 +1746,7 @@ class BaseComputeController(BaseController):
         Different cloud controllers should override this private method, which
         is called by the public method `list_machine_snapshots`.
         """
-        raise NotImplementedError()
+        raise MistNotImplementedError()
 
     def clone_machine(self, machine, name=None, resume=False):
         """Clone machine
@@ -1779,4 +1797,4 @@ class BaseComputeController(BaseController):
         which is called by the public method `clone_machine`.
 
         """
-        raise NotImplementedError()
+        raise MistNotImplementedError()

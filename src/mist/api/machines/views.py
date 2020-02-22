@@ -1,5 +1,6 @@
 import uuid
 import logging
+
 from pyramid.response import Response
 
 import mist.api.machines.methods as methods
@@ -15,9 +16,8 @@ from mist.api.auth.methods import auth_context_from_request
 from mist.api.helpers import view_config, params_from_request
 from mist.api.helpers import trigger_session_update
 
-
 from mist.api.exceptions import RequiredParameterMissingError
-from mist.api.exceptions import BadRequestError, NotFoundError
+from mist.api.exceptions import BadRequestError, NotFoundError, ForbiddenError
 from mist.api.exceptions import MachineCreationError, RedirectError
 from mist.api.exceptions import CloudUnauthorizedError, CloudUnavailableError
 
@@ -243,6 +243,9 @@ def create_machine(request):
       items:
         type:
           object
+    security_group:
+      type: string
+      description: Machine will join this security group
     """
 
     params = params_from_request(request)
@@ -277,6 +280,8 @@ def create_machine(request):
     machine_username = params.get('machine_username', '')
     resource_group = params.get('resource_group', '')
     volumes = params.get('volumes', [])
+    if volumes and volumes[0].get('volume_id'):
+        request.matchdict['volume'] = volumes[0].get('volume_id')
     networks = params.get('networks', [])
     subnet_id = params.get('subnet_id', '')
     subnetwork = params.get('subnetwork', None)
@@ -308,7 +313,7 @@ def create_machine(request):
     # servers, while False means the server has montly pricing
     softlayer_backend_vlan_id = params.get('softlayer_backend_vlan_id', None)
     hourly = params.get('hourly', True)
-
+    sec_group = params.get('security_group', '')
     expiration = params.get('expiration', {})
 
     job_id = params.get('job_id')
@@ -374,7 +379,8 @@ def create_machine(request):
     if location_id:
         auth_context.check_perm("location", "read", location_id)
         auth_context.check_perm("location", "create_resources", location_id)
-    tags = auth_context.check_perm("machine", "create", None) or {}
+
+    tags, constraints = auth_context.check_perm("machine", "create", None)
     if script_id:
         auth_context.check_perm("script", "run", script_id)
     if key_id:
@@ -390,11 +396,35 @@ def create_machine(request):
                 raise ValueError()
             mtags = {key: val for item in mtags for key,
                      val in list(item.items())}
+        security_tags = auth_context.get_security_tags()
+        for mt in mtags:
+            if mt in security_tags:
+                raise ForbiddenError(
+                    'You may not assign tags included in a Team access policy:'
+                    ' `%s`' % mt)
         tags.update(mtags)
     except ValueError:
         raise BadRequestError('Invalid tags format. Expecting either a '
                               'dictionary of tags or a list of single-item '
                               'dictionaries')
+
+    # check expiration constraint
+    exp_constraint = constraints.get('expiration', {})
+    if exp_constraint:
+        try:
+            from mist.rbac.methods import check_expiration
+            check_expiration(expiration, exp_constraint)
+        except ImportError:
+            pass
+
+    # check cost constraint
+    cost_constraint = constraints.get('cost', {})
+    if cost_constraint:
+        try:
+            from mist.rbac.methods import check_cost
+            check_cost(auth_context.org, cost_constraint)
+        except ImportError:
+            pass
 
     args = (cloud_id, key_id, machine_name,
             location_id, image_id, size,
@@ -426,7 +456,8 @@ def create_machine(request):
               'machine_username': machine_username,
               'volumes': volumes,
               'ip_addresses': ip_addresses,
-              'expiration': expiration}
+              'expiration': expiration,
+              'sec_group': sec_group}
 
     if not run_async:
         ret = methods.create_machine(auth_context, *args, **kwargs)
@@ -605,7 +636,16 @@ def edit_machine(request):
     if machine.cloud.owner != auth_context.owner:
         raise NotFoundError("Machine %s doesn't exist" % machine.id)
 
-    auth_context.check_perm('machine', 'edit', machine.id)
+    tags, constraints = auth_context.check_perm("machine", "edit", machine.id)
+    expiration = params.get('expiration', {})
+    # check expiration constraint
+    exp_constraint = constraints.get('expiration', {})
+    if exp_constraint:
+        try:
+            from mist.rbac.methods import check_expiration
+            check_expiration(expiration, exp_constraint)
+        except ImportError:
+            pass
 
     return machine.ctl.update(auth_context, params)
 
@@ -746,6 +786,16 @@ def machine_actions(request):
             raise BadRequestError("You must give a name!")
         result = getattr(machine.ctl, action)(name)
     elif action == 'resize':
+        _, constraints = auth_context.check_perm("machine", "resize",
+                                                 machine.id)
+        # check cost constraint
+        cost_constraint = constraints.get('cost', {})
+        if cost_constraint:
+            try:
+                from mist.rbac.methods import check_cost
+                check_cost(auth_context.org, cost_constraint)
+            except ImportError:
+                pass
         kwargs = {}
         if memory:
             kwargs['memory'] = memory

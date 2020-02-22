@@ -4,6 +4,7 @@ import base64
 import mongoengine as me
 import time
 import requests
+import datetime
 
 from random import randrange
 
@@ -26,6 +27,8 @@ from mist.api.machines.models import Machine
 from mist.api.keys.models import Key
 from mist.api.networks.models import Network
 from mist.api.networks.models import Subnet
+from mist.api.users.models import Owner, Organization
+from mist.api.auth.models import AuthToken
 
 from mist.api.exceptions import PolicyUnauthorizedError
 from mist.api.exceptions import MachineNameValidationError
@@ -40,10 +43,13 @@ from mist.api.helpers import get_temp_file
 from mist.api.methods import connect_provider
 from mist.api.methods import notify_admin
 from mist.api.networks.methods import list_networks
+from mist.api.auth.methods import auth_context_from_auth_token
 
 from mist.api.monitoring.methods import disable_monitoring
 
 from mist.api.tag.methods import resolve_id_and_set_tags
+from mist.api.tag.methods import get_tags_for_resource
+from mist.api.tag.methods import remove_tags_from_resource
 
 from mist.api import config
 
@@ -149,6 +155,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                    bare_metal=False, hourly=True,
                    softlayer_backend_vlan_id=None, machine_username='',
                    volumes=[], ip_addresses=[], expiration={},
+                   sec_group=''
                    ):
     """Creates a new virtual machine on the specified cloud.
 
@@ -328,7 +335,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                 break
         node = _create_machine_ec2(conn, key.name, public_key,
                                    machine_name, image, size, ec2_location,
-                                   subnet_id, cloud_init, volumes)
+                                   subnet_id, cloud_init, volumes,
+                                   sec_group=sec_group)
     elif conn.name == 'Aliyun ECS':
         node = _create_machine_aliyun(conn, key.name, public_key,
                                       machine_name, image, size, location,
@@ -424,6 +432,9 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         node = _create_machine_packet(conn, public_key, machine_name, image,
                                       size, location, cloud_init, cloud,
                                       project_id, volumes, ip_addresses)
+    elif conn.type == Provider.MAXIHOST:
+        node = _create_machine_maxihost(conn, machine_name, image,
+                                        size, location, public_key)
     else:
         raise BadRequestError("Provider unknown.")
 
@@ -447,7 +458,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     machine.assign_to(auth_context.user)
 
     # add schedule if expiration given
-
     if expiration:
         params = {
             'schedule_type': 'one_off',
@@ -456,7 +466,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             'action': expiration.get('action'),
             'conditions': [{'type': 'machines', 'ids': [machine.id]}],
             'task_enabled': True,
-            'notify': expiration.get('notify', '')
+            'notify': expiration.get('notify', ''),
+            'notify_msg': expiration.get('notify_msg', '')
         }
         name = machine.name + '-expiration-' + str(randrange(1000))
         from mist.api.schedules.models import Schedule
@@ -470,9 +481,10 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     if tags:
         resolve_id_and_set_tags(auth_context. owner, 'machine', node.id, tags,
                                 cloud_id=cloud_id)
-    fresh_machines = cloud.ctl.compute.list_cached_machines()
+    fresh_machines = cloud.ctl.compute._list_machines()
     cloud.ctl.compute.produce_and_publish_patch(cached_machines,
-                                                fresh_machines)
+                                                fresh_machines,
+                                                first_run=True)
 
     # Call post_deploy_steps for every provider FIXME: Refactor
     if conn.type == Provider.AZURE:
@@ -763,22 +775,32 @@ def _create_machine_aliyun(conn, key_name, public_key,
 
 def _create_machine_ec2(conn, key_name, public_key,
                         machine_name, image, size, location, subnet_id,
-                        user_data, volumes):
+                        user_data, volumes, sec_group=''):
     """Create a machine in Amazon EC2.
     """
-
-    # create security group
-    name = config.EC2_SECURITYGROUP.get('name', '')
-    description = config.EC2_SECURITYGROUP.get('description', '')
-    try:
-        log.info("Attempting to create security group")
-        conn.ex_create_security_group(name=name, description=description)
-        conn.ex_authorize_security_group_permissive(name=name)
-    except Exception as exc:
-        if 'Duplicate' in str(exc):
-            log.info('Security group already exists, not doing anything.')
+    if not sec_group:
+        # create security group
+        sg_name = config.EC2_SECURITYGROUP.get('name', '')
+        description = config.EC2_SECURITYGROUP.get('description', '')
+        try:
+            log.info("Attempting to create security group")
+            conn.ex_create_security_group(
+                name=sg_name, description=description)
+            conn.ex_authorize_security_group_permissive(name=sg_name)
+        except Exception as exc:
+            if 'Duplicate' in str(exc):
+                log.info('Security group already exists, not doing anything.')
+            else:
+                raise InternalServerError(
+                    "Couldn't create security group", exc)
+    else:
+        sec_groups = conn.ex_list_security_groups()
+        for sg in sec_groups:
+            if sg['id'] == sec_group:
+                sg_name = sg['name']
+                break
         else:
-            raise InternalServerError("Couldn't create security group", exc)
+            raise BadRequestError("Security group not found: %s" % sec_group)
 
     kwargs = {
         'auth': NodeAuthSSHKey(pubkey=public_key.replace('\n', '')),
@@ -813,16 +835,22 @@ def _create_machine_ec2(conn, key_name, public_key,
 
         # if subnet is specified, then security group id
         # instead of security group name is needed
-        groups = conn.ex_list_security_groups()
-        for group in groups:
-            if group.get('name') == config.EC2_SECURITYGROUP.get('name', ''):
-                security_group_id = group.get('id')
-                break
-        kwargs.update({'ex_subnet': subnet,
-                      'ex_security_group_ids': security_group_id})
+        if not sec_group:
+            groups = conn.ex_list_security_groups()
+            for group in groups:
+                if group.get('name') == config.EC2_SECURITYGROUP.get('name',
+                                                                     ''):
+                    security_group_id = group.get('id')
+                    break
+        else:
+            security_group_id = sec_group
+        kwargs.update({
+            'ex_subnet': subnet,
+            'ex_security_group_ids': security_group_id})
 
     else:
-        kwargs.update({'ex_securitygroup': config.EC2_SECURITYGROUP['name']})
+        kwargs.update({
+            'ex_securitygroup': sg_name})
 
     mappings = []
     ex_volumes = []
@@ -989,6 +1017,31 @@ def _create_machine_onapp(conn, public_key,
     return node
 
 
+def _create_machine_maxihost(conn, machine_name, image_id, size,
+                             location, public_key):
+    key = str(public_key).replace('\n', '')
+    ssh_keys = []
+    server_key = ''
+    keys = conn.list_key_pairs()
+    for k in keys:
+        if key == k.public_key:
+            server_key = k
+            break
+    if not server_key:
+        server_key = conn.create_key_pair(name=machine_name,
+                                          public_key=public_key)
+
+    ssh_keys.append(server_key.fingerprint)
+
+    try:
+        node = conn.create_node(machine_name, size, image_id,
+                                location, ssh_keys)
+    except ValueError as exc:
+        raise MachineCreationError('Maxihost, exception %s' % exc)
+
+    return node
+
+
 def _create_machine_docker(conn, machine_name, image_id,
                            script=None, public_key=None,
                            docker_env={}, docker_command=None,
@@ -1061,7 +1114,6 @@ def _create_machine_digital_ocean(conn, cloud, key_name, private_key,
             server_key = conn.create_key_pair(machine_name, key)
     except:
         server_keys = [str(k.extra.get('id')) for k in keys]
-
     if not server_key:
         ex_ssh_key_ids = server_keys
     else:
@@ -1649,7 +1701,8 @@ def _create_machine_vsphere(conn, machine_name, image,
             image=image,
             size=size,
             location=location,
-            ex_network=network_name
+            ex_network=network_name,
+            cluster=location.name,
         )
     except Exception as e:
         raise MachineCreationError("vSphere, got exception %s" % e, e)
@@ -1875,3 +1928,42 @@ def run_action_hooks(action_hooks, machine, user):
         else:
             log.error('Unknown hook type `%s`' % hook_type)
     return True
+
+
+def machine_safe_expire(owner_id, machine):
+    # untag machine
+    owner = Owner.objects.get(id=owner_id)  # FIXME: try-except
+    existing_tags = get_tags_for_resource(owner, machine)
+    if existing_tags:
+        remove_tags_from_resource(owner, machine, existing_tags)
+    # unown machine
+    machine.owned_by = None
+
+    # create new schedule that will destroy the machine
+    # in SAFE_EXPIRATION_DURATION secs
+    for team in owner.teams:
+        if team.name == 'Owners':
+            user = team.members[0]
+            org = Organization.objects.get(teams=team)
+            break
+    auth_token = AuthToken(user_id=user.id, org=org)
+    auth_context = auth_context_from_auth_token(auth_token)
+
+    _delta = datetime.timedelta(0, config.SAFE_EXPIRATION_DURATION)
+    schedule_entry = datetime.datetime.utcnow() + _delta
+    schedule_entry = schedule_entry.strftime('%Y-%m-%d %H:%M:%S')
+
+    params = {
+        'schedule_type': 'one_off',
+        'description': 'Safe expiration schedule',
+        'schedule_entry': schedule_entry,
+        'action': 'destroy',
+        'conditions': [{'type': 'machines', 'ids': [machine.id]}],
+        'task_enabled': True,
+    }
+    _name = machine.name + '-safe-expiration-' + \
+        str(randrange(1000))
+    from mist.api.schedules.models import Schedule
+    machine.expiration = Schedule.add(auth_context, _name,
+                                      **params)
+    machine.save()

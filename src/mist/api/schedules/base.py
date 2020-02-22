@@ -210,12 +210,14 @@ class BaseController(object):
                         'Please contact Marty McFly')
 
                 delta = future_date - now
+                notify_msg = kwargs.get('notify_msg', '')
 
                 if schedule_type == 'reminder':
                     self.schedule.schedule_type = schedules.Reminder(
                         period='seconds',
                         every=delta.seconds,
-                        entry=future_date)
+                        entry=future_date,
+                        message=notify_msg)
                 else:
                     self.schedule.schedule_type = schedules.OneOff(
                         period='seconds',
@@ -234,7 +236,8 @@ class BaseController(object):
                         'description': 'Machine expiration reminder',
                         'task_enabled': True,
                         'schedule_entry': notify_at,
-                        'conditions': kwargs.get('conditions')
+                        'conditions': kwargs.get('conditions'),
+                        'notify_msg': notify_msg
                     }
                     name = self.schedule.name + '-reminder'
                     if self.schedule.reminder:

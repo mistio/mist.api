@@ -139,7 +139,7 @@ def create_volume(request):
     auth_context.check_perm("cloud", "create_resources", cloud_id)
     auth_context.check_perm("location", "read", location)
     auth_context.check_perm("location", "create_resources", location)
-    tags = auth_context.check_perm("volume", "add", None) or {}
+    tags, _ = auth_context.check_perm("volume", "add", None)
 
     if not name and cloud.ctl.provider != 'packet':
         raise RequiredParameterMissingError('name')
@@ -148,6 +148,8 @@ def create_volume(request):
         raise NotImplementedError()
 
     volume = cloud.ctl.storage.create_volume(**params)
+    # ensure logging_view_decorator will log the right volume id
+    request.matchdict['volume'] = volume.id
 
     if tags:
         add_tags_to_resource(auth_context.owner, volume, tags)
@@ -195,11 +197,11 @@ def delete_volume(request):
         type: string
     """
     cloud_id = request.matchdict.get('cloud')
-    external_id = request.matchdict.get('volume')
+    external_id = request.matchdict.get('volume_ext')
     if external_id:
         external_id = '/'.join(external_id)
 
-    volume_id = request.matchdict.get('volume_uuid')
+    volume_id = request.matchdict.get('volume_id')
 
     auth_context = auth_context_from_request(request)
 
@@ -216,11 +218,11 @@ def delete_volume(request):
         try:
             volume = Volume.objects.get(external_id=external_id, cloud=cloud,
                                         missing_since=None)
+            # ensure logging_view_decorator will log the right volume id
+            request.matchdict['volume'] = volume.id
         except me.DoesNotExist:
             raise VolumeNotFoundError()
-
     else:
-
         try:
             volume = Volume.objects.get(id=volume_id,
                                         missing_since=None)
@@ -285,11 +287,11 @@ def volume_action(request):
         raise RequiredParameterMissingError('machine')
 
     cloud_id = request.matchdict.get('cloud')
-    external_id = request.matchdict.get('volume')
+    external_id = request.matchdict.get('volume_ext')
     if external_id:
         external_id = '/'.join(external_id)
 
-    volume_id = request.matchdict.get('volume_uuid')
+    volume_id = request.matchdict.get('volume_id')
 
     if cloud_id:
 
@@ -305,6 +307,8 @@ def volume_action(request):
         try:
             volume = Volume.objects.get(external_id=external_id, cloud=cloud,
                                         missing_since=None)
+            # ensure logging_view_decorator will log the right thing
+            request.matchdict['volume'] = volume.id
         except me.DoesNotExist:
             raise VolumeNotFoundError()
 
