@@ -1,5 +1,6 @@
 import uuid
 import logging
+import urllib
 
 from pyramid.response import Response
 
@@ -458,8 +459,6 @@ def create_machine(request):
               'ip_addresses': ip_addresses,
               'expiration': expiration,
               'sec_group': sec_group}
-
-              'expiration': expiration}
     import pdb;pdb.set_trace()
     run_async=False
     if not run_async:
@@ -975,9 +974,9 @@ def machine_console(request):
     if machine.cloud.ctl.provider not in ['vsphere', 'openstack']:
         raise NotImplementedError(
             "VNC console only supported for vSphere and OpenStack")
-
-    console_uri = machine.cloud.ctl.compute.connection.ex_open_console(
+    url_param = machine.cloud.ctl.compute.connection.ex_open_console(
         machine.machine_id
     )
-
-    raise RedirectError(console_uri)
+    params = urllib.parse.urlencode({'url': url_param})
+    console_url = f"/ui/assets/vsphere-console-util-js/console.html?{params}"
+    raise RedirectError(console_url)

@@ -1875,7 +1875,8 @@ class ClearCenterComputeController(BaseComputeController):
 class VSphereRestComputeController(BaseComputeController):
 
     def _connect(self):
-        from libcloud.compute.drivers.vSphere_rest import VSphereNodeDriver
+        from libcloud.compute.drivers.vsphere import VSphere_6_5_NodeDriver
+        from libcloud.compute.drivers.vsphere import VSphere_6_7_NodeDriver
         ca_cert = None
         if self.cloud.ca_cert_file:
                 ca_cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
@@ -1884,10 +1885,19 @@ class VSphereRestComputeController(BaseComputeController):
                 ca_cert = ca_cert_temp_file.name
 
         host, port = dnat(self.cloud.owner, self.cloud.host, 443)
-        return VSphereNodeDriver(self.cloud.username,
-                                 secret=self.cloud.password,
-                                 host=host, port=port,
-                                 ca_cert=ca_cert)
+        driver_6_5 = VSphere_6_5_NodeDriver(host=host,
+                                            username=self.cloud.username,
+                                            password=self.cloud.password,
+                                            port=port,
+                                            ca_cert=ca_cert)
+        version = driver_6_5._get_version()
+        if '6.7' in version:
+            return VSphere_6_7_NodeDriver(self.cloud.username,
+                                          secret=self.cloud.password,
+                                          host=host,
+                                          port=port,
+                                          ca_cert=ca_cert)
+        return driver_6_5
 
     def check_connection(self):
         """Check connection without performing `list_machines`
