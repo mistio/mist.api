@@ -190,7 +190,7 @@ def log_event(owner_id, event_type, action, error=None, **kwargs):
 
         if 'user_id' in event:
             try:
-                event['email'] = User.objects.get(id=event['user_id']).email # TODO: username?
+                event['email'] = User.objects.get(id=event['user_id']).email
             except User.DoesNotExist:
                 log.debug('User %s does not exist', event['user_id'])
 

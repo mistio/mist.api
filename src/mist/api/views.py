@@ -295,8 +295,6 @@ def login(request):
 
         if config.HAS_AUTH and config.LDAP_SETTINGS.get('SERVER', ''):
             from mist.auth.social.methods import login_ldap_user
-            # TODO: below should return tuple, email and teams user belongs to
-
             email, teams = login_ldap_user(config.LDAP_SETTINGS.get('SERVER'),
                                            username, password, user)
         else:

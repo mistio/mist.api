@@ -200,7 +200,7 @@ def add_cloud(request):
       description: Required for Rackspace, OnApp, \
       SoftLayer, OpenStack, Vcloud, vSphere
     """
-    import ipdb; ipdb.set_trace()
+
     auth_context = auth_context_from_request(request)
     cloud_tags, _ = auth_context.check_perm("cloud", "add", None)
     owner = auth_context.owner
@@ -220,7 +220,7 @@ def add_cloud(request):
         raise RequiredParameterMissingError('provider')
 
     monitoring = None
-    import ipdb; ipdb.set_trace()
+
     ret = add_cloud_v_2(owner, title, provider, params)
 
     cloud_id = ret['cloud_id']
