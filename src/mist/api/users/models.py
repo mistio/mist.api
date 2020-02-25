@@ -323,9 +323,10 @@ class User(Owner):
         # make sure user.email is unique - we can't use the unique keyword on
         # the field definition because both User and Organization subclass
         # Owner but only user has an email field
-        if User.objects(email=self.email, id__ne=self.id):
-            raise me.ValidationError("User with email '%s' already exists."
-                                     % self.email)
+        if self.email is not None:
+            if User.objects(email=self.email, id__ne=self.id):
+                raise me.ValidationError("User with email '%s' already exists."
+                                         % self.email)
 
         super(User, self).clean()
 

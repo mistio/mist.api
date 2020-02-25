@@ -184,10 +184,6 @@ class RecordNotFoundError(NotFoundError):
     msg = "No record found for the provided id"
 
 
-class VolumeNotFoundError(NotFoundError):
-    msg = "Volume not found"
-
-
 # Machine related exceptions
 class MachineUnauthorizedError(UnauthorizedError):
     msg = "Couldn't authenticate to machine"
@@ -236,10 +232,6 @@ class ZoneExistsError(ConflictError):
 
 class RecordExistsError(ConflictError):
     msg = "Record already exists"
-
-
-class VolumeExistsError(ConflictError):
-    msg = "Volume already exists"
 
 
 #  Rate Limit Error (translated as 429 in views)
@@ -299,6 +291,7 @@ class SubnetDeletionError(InternalServerError):
     msg = "Subnet deletion failed"
 
 
+# Volume related exceptions
 class VolumeListingError(InternalServerError):
     msg = "Error while getting a volume listing"
 
@@ -313,6 +306,19 @@ class VolumeDeletionError(InternalServerError):
 
 class VolumeAttachmentError(InternalServerError):
     msg = "Volume attachment failed"
+
+
+class VolumeNotFoundError(NotFoundError):
+    msg = "Volume not found"
+
+
+class VolumeExistsError(ConflictError):
+    msg = "Volume already exists"
+
+
+# LDAP related exceptions
+class LDAPServerUnreachableError(ServiceUnavailableError):
+    msg = "LDAP Server Error"
 
 
 #  BAD GATEWAY (translated as 502 in views)

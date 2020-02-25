@@ -1,7 +1,7 @@
 FROM mist/python3:latest
 
 # Install libvirt which requires system dependencies.
-RUN apk add --update --no-cache g++ gcc libvirt libvirt-dev libxml2-dev libxslt-dev gnupg ca-certificates wget mongodb-tools
+RUN apk add --update --no-cache g++ gcc libvirt libvirt-dev libxml2-dev libxslt-dev gnupg ca-certificates wget mongodb-tools openldap-dev
 
 RUN wget https://dl.influxdata.com/influxdb/releases/influxdb-1.6.0-static_linux_amd64.tar.gz && \
     tar xvfz influxdb-1.6.0-static_linux_amd64.tar.gz && rm influxdb-1.6.0-static_linux_amd64.tar.gz

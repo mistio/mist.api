@@ -989,7 +989,7 @@ def logging_view_decorator(func):
 
         # Attempt to hide passwords, API keys, certificates, etc.
         for key in ('priv', 'password', 'new_password', 'apikey', 'apisecret',
-                    'cert_file', 'key_file'):
+                    'cert_file', 'key_file', 'token'):
             if params.get(key):
                 params[key] = '***CENSORED***'
 
