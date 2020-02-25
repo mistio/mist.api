@@ -832,7 +832,8 @@ def create_machine_async(
              'volumes': volumes,
              'ip_addresses': ip_addresses,
              'expiration': expiration,
-             'sec_group': sec_group}
+             'sec_group': sec_group,
+             'vnfs': vnfs}
         ))
 
     def create_machine_wrapper(args_kwargs):
