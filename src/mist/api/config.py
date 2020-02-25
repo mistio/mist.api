@@ -1759,6 +1759,7 @@ ALLOW_SIGNUP_GITHUB = False
 ALLOW_SIGNIN_EMAIL = True
 ALLOW_SIGNIN_GOOGLE = False
 ALLOW_SIGNIN_GITHUB = False
+ALLOW_SIGNIN_LDAP = True #if LDAP_SETTINGS.get('SERVER', '') else False
 STRIPE_PUBLIC_APIKEY = False
 ENABLE_AB = False
 ENABLE_R12N = False
@@ -1987,6 +1988,7 @@ HOMEPAGE_INPUTS = {
         'signin_email': ALLOW_SIGNIN_EMAIL,
         'signin_google': ALLOW_SIGNIN_GOOGLE,
         'signin_github': ALLOW_SIGNIN_GITHUB,
+        'signin_ldap': ALLOW_SIGNIN_LDAP,
         'signin_home': REDIRECT_HOME_TO_SIGNIN,
         'landing_footer': SHOW_FOOTER,
         'docs': DOCS_URI,

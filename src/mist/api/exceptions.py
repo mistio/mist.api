@@ -315,6 +315,7 @@ class VolumeNotFoundError(NotFoundError):
 class VolumeExistsError(ConflictError):
     msg = "Volume already exists"
 
+
 # LDAP related exceptions
 class LDAPServerUnreachableError(ServiceUnavailableError):
     msg = "LDAP Server Error"

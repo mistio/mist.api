@@ -278,11 +278,10 @@ def login(request):
     token_from_params = params.get('token')
     if not email and not username:
         raise RequiredParameterMissingError('You must provide email or username')
-    if email and username:
-        raise BadRequestError('You can specify either an email or a username')
+    #if email and username:
+    #    raise BadRequestError('You can specify either an email or a username')
 
-    if username:
-        # try to bind with LDAP server
+    if username:            # try to bind with LDAP server
         try:
             user = User.objects.get(username=username)
         except (UserNotFoundError, me.DoesNotExist):
@@ -296,8 +295,10 @@ def login(request):
 
         if config.HAS_AUTH and config.LDAP_SETTINGS.get('SERVER', ''):
             from mist.auth.social.methods import login_ldap_user
-            login_ldap_user(config.LDAP_SETTINGS.get('SERVER'),
-                            username, password)
+            # TODO: below should return tuple, email and teams user belongs to
+
+            email, teams = login_ldap_user(config.LDAP_SETTINGS.get('SERVER'),
+                                           username, password, user)
         else:
             raise BadRequestError("Cannot use LDAP authentication")
 
@@ -545,7 +546,6 @@ def register(request):
                                                      user.activation_key,
                                                      ip_from_request(request),
                                                      config.CORE_URI)
-
             if not send_email(subject, body, user.email):
                 raise ServiceUnavailableError("Could not send "
                                               "confirmation email.")
