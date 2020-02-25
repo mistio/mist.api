@@ -295,7 +295,7 @@ def login(request):
 
         if config.HAS_AUTH and config.LDAP_SETTINGS.get('SERVER', ''):
             from mist.auth.social.methods import login_ldap_user
-            email, teams = login_ldap_user(config.LDAP_SETTINGS.get('SERVER'),
+            email = login_ldap_user(config.LDAP_SETTINGS.get('SERVER'),
                                            username, password, user)
         else:
             raise BadRequestError("Cannot use LDAP authentication")
