@@ -911,7 +911,9 @@ def machine_rdp(request):
 @view_config(route_name='api_v1_cloud_machine_console',
              request_method='POST', renderer='json')
 @view_config(route_name='api_v1_machine_console',
-             request_method=['GET', 'POST'], renderer='json')
+             request_method='GET', renderer='json')
+@view_config(route_name='api_v1_machine_console',
+             request_method='POST', renderer='json')
 def machine_console(request):
     """
     Tags: machines
