@@ -521,7 +521,7 @@ def update_metric(request):
 
 @view_config(route_name='api_v1_cloud_metrics',
              request_method='PUT', renderer='json')
-@view_config(route_name='api_v1_metrics',
+@view_config(route_name='api_v1_machine_metrics',
              request_method='PUT', renderer='json')
 def associate_metric(request):
     """
@@ -556,7 +556,7 @@ def associate_metric(request):
 
 @view_config(route_name='api_v1_cloud_metrics',
              request_method='DELETE', renderer='json')
-@view_config(route_name='api_v1_metrics',
+@view_config(route_name='api_v1_machine_metrics',
              request_method='DELETE', renderer='json')
 def disassociate_metric(request):
     """
