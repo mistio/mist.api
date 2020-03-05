@@ -1573,7 +1573,17 @@ class LibvirtComputeController(BaseComputeController):
         # Number of CPUs allocated to guest.
         if 'processors' in machine.extra:
             machine.extra['cpus'] = machine.extra['processors']
-        machine.hostname = machine.extra.get('hypervisor_name', '')
+
+        # set machine's parent
+        hypervisor = machine.extra.get('hypervisor_name', '')
+        if hypervisor:
+            try:
+                from mist.api.clouds.models import Cloud
+                from mist.api.machines.models import Machine
+                cloud = Cloud.objects.get(id=machine.cloud.id)
+                machine.parent = Machine.objects.get(cloud=cloud, name=hypervisor)
+            except Machine.DoesNotExist:
+                machine.parent = None
 
     def _list_images__fetch_images(self, search=None):
         return self.connection.list_images(location=self.cloud.images_location)
@@ -1597,6 +1607,7 @@ class LibvirtComputeController(BaseComputeController):
                 raise
             except Exception as exc:
                 log.exception(exc)
+                # FIXME: Do not raise InternalServerError!
                 raise InternalServerError(exc=exc)
         else:
             machine_libcloud.reboot()
