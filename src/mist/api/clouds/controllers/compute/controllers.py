@@ -1573,6 +1573,7 @@ class LibvirtComputeController(BaseComputeController):
         # Number of CPUs allocated to guest.
         if 'processors' in machine.extra:
             machine.extra['cpus'] = machine.extra['processors']
+        machine.hostname = machine.extra.get('hypervisor_name', '')
 
     def _list_images__fetch_images(self, search=None):
         return self.connection.list_images(location=self.cloud.images_location)
