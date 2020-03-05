@@ -1574,7 +1574,6 @@ class LibvirtComputeController(BaseComputeController):
         if 'processors' in machine.extra:
             machine.extra['cpus'] = machine.extra['processors']
 
-
     def _list_images__fetch_images(self, search=None):
         return self.connection.list_images(location=self.cloud.images_location)
 
