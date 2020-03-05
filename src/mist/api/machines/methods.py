@@ -1689,7 +1689,7 @@ def _create_machine_vsphere(conn, machine_name, image,
     """Create a machine in vSphere.
 
     """
-
+    # get location as object from database
     try:
         from mist.api.networks.models import VSphereNetwork
         network_name = VSphereNetwork.objects.get(id=network).name
