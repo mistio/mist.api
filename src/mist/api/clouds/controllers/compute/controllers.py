@@ -1569,7 +1569,7 @@ class LibvirtComputeController(BaseComputeController):
             machine.extra['xml_description'] = escape(xml_desc)
             import xml.etree.ElementTree as ET
             root = ET.fromstring(unescape(xml_desc))
-            devices=root.find('devices')
+            devices = root.find('devices')
             disks = devices.findall('disk')
             for disk in disks:
                 if disk.attrib.get('device', '') == 'cdrom':
