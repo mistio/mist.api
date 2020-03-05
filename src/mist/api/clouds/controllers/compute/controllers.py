@@ -1566,10 +1566,14 @@ class LibvirtComputeController(BaseComputeController):
         xml_desc = machine_libcloud.extra.get('xml_description')
         if xml_desc:
             machine.extra['xml_description'] = escape(xml_desc)
+            res = escape(xml_desc).split('source file=')
+            if res and res[-1].split('/&gt'):
+                machine.image_id = res[-1].split('/&gt')[0].strip("'")
 
         # Number of CPUs allocated to guest.
         if 'processors' in machine.extra:
             machine.extra['cpus'] = machine.extra['processors']
+
 
     def _list_images__fetch_images(self, search=None):
         return self.connection.list_images(location=self.cloud.images_location)
