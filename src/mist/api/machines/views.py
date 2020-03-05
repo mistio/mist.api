@@ -786,7 +786,7 @@ def machine_actions(request):
         result = machine.ctl.remove()
         # Schedule a UI update
         trigger_session_update(auth_context.owner, ['clouds'])
-    elif action in ('start', 'stop', 'reboot',
+    elif action in ('start', 'stop', 'reboot', 'clone',
                     'undefine', 'suspend', 'resume'):
         result = getattr(machine.ctl, action)()
     elif action == 'rename':
