@@ -571,3 +571,4 @@ class ClearCenterMainController(BaseMainController):
 class VSphereRestMainController(BaseMainController):
     provider = "vsphere"
     ComputeController = compute_ctls.VSphereRestComputeController
+    NetworkController = network_ctls.VSphereNetworkController

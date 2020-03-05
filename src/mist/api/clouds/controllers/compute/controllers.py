@@ -1925,14 +1925,17 @@ class VSphereRestComputeController(BaseComputeController):
                                             password=self.cloud.password,
                                             port=port,
                                             ca_cert=ca_cert)
-        version = driver_6_5._get_version()
-        if '6.7' in version:
+        self.version = driver_6_5._get_version()
+        if '6.7'in self.version:
+            self.version = '6.7'
             return VSphere_6_7_NodeDriver(self.cloud.username,
                                           secret=self.cloud.password,
                                           host=host,
                                           port=port,
                                           ca_cert=ca_cert)
-        return driver_6_5
+        else:
+            self.version = "6.5-"
+            return driver_6_5
 
     def check_connection(self):
         """Check connection without performing `list_machines`
@@ -1943,10 +1946,15 @@ class VSphereRestComputeController(BaseComputeController):
         """
         self.connect()
 
-#     def _list_machines__get_location(self, node):
-#         cluster = node.extra.get('cluster', '')
-#         host = node.extra.get('host', '')
-#         return cluster or host
+    def _list_machines__get_location(self, node):
+        cluster = node.extra.get('cluster', '')
+        host = node.extra.get('host', '')
+        return cluster or host
+    
+    def list_vm_folders(self):
+        all_folders = self.connection.ex_list_folders()
+        vm_folders = [folder for folder in all_folders if folder['type']=="VIRTUAL_MACHINE"]
+        return vm_folders
 
 #     def _list_locations__fetch_locations(self):
 #         """List locations for vSphere
@@ -1966,16 +1974,16 @@ class VSphereRestComputeController(BaseComputeController):
 #         return self.connection.list_nodes(
 #             max_properties=self.cloud.max_properties_per_request)
 
-#     def _list_machines__machine_actions(self, machine, machine_libcloud):
-#         super(VSphereComputeController, self)._list_machines__machine_actions(
-#             machine, machine_libcloud)
-#         machine.actions.create_snapshot = True
-#         if len(machine.extra.get('snapshots')):
-#             machine.actions.remove_snapshot = True
-#             machine.actions.revert_to_snapshot = True
-#         else:
-#             machine.actions.remove_snapshot = False
-#             machine.actions.revert_to_snapshot = False
+    def _list_machines__machine_actions(self, machine, machine_libcloud):
+        super(VSphereComputeController, self)._list_machines__machine_actions(
+            machine, machine_libcloud)
+        machine.actions.create_snapshot = True
+        if len(machine.extra.get('snapshots')):
+            machine.actions.remove_snapshot = True
+            machine.actions.revert_to_snapshot = True
+        else:
+            machine.actions.remove_snapshot = False
+            machine.actions.revert_to_snapshot = False
 
 #     def _create_machine_snapshot(self, machine, machine_libcloud,
 #                                  snapshot_name, description='',
