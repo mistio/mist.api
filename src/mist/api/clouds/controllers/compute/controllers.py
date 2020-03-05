@@ -1581,7 +1581,8 @@ class LibvirtComputeController(BaseComputeController):
                 from mist.api.clouds.models import Cloud
                 from mist.api.machines.models import Machine
                 cloud = Cloud.objects.get(id=machine.cloud.id)
-                machine.parent = Machine.objects.get(cloud=cloud, name=hypervisor)
+                machine.parent = Machine.objects.get(cloud=cloud,
+                                                     name=hypervisor)
             except Machine.DoesNotExist:
                 machine.parent = None
 
