@@ -1584,10 +1584,8 @@ class LibvirtComputeController(BaseComputeController):
         hypervisor = machine.extra.get('hypervisor_name', '')
         if hypervisor:
             try:
-                from mist.api.clouds.models import Cloud
                 from mist.api.machines.models import Machine
-                cloud = Cloud.objects.get(id=machine.cloud.id)
-                machine.parent = Machine.objects.get(cloud=cloud,
+                machine.parent = Machine.objects.get(cloud=machine.cloud,
                                                      name=hypervisor)
             except Machine.DoesNotExist:
                 machine.parent = None
