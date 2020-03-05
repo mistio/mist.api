@@ -33,6 +33,7 @@ import pytz
 import mongoengine as me
 
 from time import sleep
+from html import unescape
 
 from xml.sax.saxutils import escape
 
@@ -1566,9 +1567,14 @@ class LibvirtComputeController(BaseComputeController):
         xml_desc = machine_libcloud.extra.get('xml_description')
         if xml_desc:
             machine.extra['xml_description'] = escape(xml_desc)
-            res = escape(xml_desc).split('source file=')
-            if res and res[-1].split('/&gt'):
-                machine.image_id = res[-1].split('/&gt')[0].strip("'")
+            import xml.etree.ElementTree as ET
+            root = ET.fromstring(unescape(xml_desc))
+            devices=root.find('devices')
+            disks = devices.findall('disk')
+            for disk in disks:
+                if disk.attrib.get('device', '') == 'cdrom':
+                    image = disk.find('source').attrib.get('file', '')
+                    machine.image_id = image
 
         # Number of CPUs allocated to guest.
         if 'processors' in machine.extra:
