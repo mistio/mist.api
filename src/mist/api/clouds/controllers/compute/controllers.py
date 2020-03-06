@@ -456,6 +456,18 @@ class MaxihostComputeController(BaseComputeController):
                            + disk_type
 
 
+class GigG8ComputeController(BaseComputeController):
+
+    def _connect(self):
+        return get_driver(Provider.GIG_G8)(self.cloud.token)
+
+    def _list_machines__machine_actions(self, machine, machine_libcloud):
+        super(GigG8ComputeController, self)._list_machines__machine_actions(
+              machine, machine_libcloud)
+        if machine_libcloud.state is NodeState.PAUSED:
+            machine.actions.start = True
+
+
 class LinodeComputeController(BaseComputeController):
 
     def _connect(self):

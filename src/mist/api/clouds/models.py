@@ -353,6 +353,14 @@ class MaxihostCloud(Cloud):
     _controller_cls = controllers.MaxihostMainController
 
 
+class GigG8Cloud(Cloud):
+
+    token = me.StringField(required=True)
+
+    _private_fields = ('token', )
+    _controller_cls = controllers.GigG8MainController
+
+
 class LinodeCloud(Cloud):
 
     apikey = me.StringField(required=True)

@@ -111,6 +111,12 @@ class MaxihostMainController(BaseMainController):
     ComputeController = compute_ctls.MaxihostComputeController
 
 
+class GigG8MainController(BaseMainController):
+
+    provider = 'gig_g8'
+    ComputeController = compute_ctls.GigG8ComputeController
+
+
 class LinodeMainController(BaseMainController):
 
     provider = 'linode'
