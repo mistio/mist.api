@@ -33,6 +33,7 @@ import pytz
 import mongoengine as me
 
 from time import sleep
+from html import unescape
 
 from xml.sax.saxutils import escape
 
@@ -1566,10 +1567,28 @@ class LibvirtComputeController(BaseComputeController):
         xml_desc = machine_libcloud.extra.get('xml_description')
         if xml_desc:
             machine.extra['xml_description'] = escape(xml_desc)
+            import xml.etree.ElementTree as ET
+            root = ET.fromstring(unescape(xml_desc))
+            devices = root.find('devices')
+            disks = devices.findall('disk')
+            for disk in disks:
+                if disk.attrib.get('device', '') == 'cdrom':
+                    image = disk.find('source').attrib.get('file', '')
+                    machine.image_id = image
 
         # Number of CPUs allocated to guest.
         if 'processors' in machine.extra:
             machine.extra['cpus'] = machine.extra['processors']
+
+        # set machine's parent
+        hypervisor = machine.extra.get('hypervisor_name', '')
+        if hypervisor:
+            try:
+                from mist.api.machines.models import Machine
+                machine.parent = Machine.objects.get(cloud=machine.cloud,
+                                                     name=hypervisor)
+            except Machine.DoesNotExist:
+                machine.parent = None
 
     def _list_images__fetch_images(self, search=None):
         return self.connection.list_images(location=self.cloud.images_location)
@@ -1593,6 +1612,7 @@ class LibvirtComputeController(BaseComputeController):
                 raise
             except Exception as exc:
                 log.exception(exc)
+                # FIXME: Do not raise InternalServerError!
                 raise InternalServerError(exc=exc)
         else:
             machine_libcloud.reboot()
