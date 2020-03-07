@@ -1580,10 +1580,10 @@ class LibvirtComputeController(BaseComputeController):
             for hostdev in hostdevs:
                 address = hostdev.find('source').find('address')
                 vnf_addr = '%s:%s:%s.%s' % (
-                    address.attrib.get('domain').replace('0x',''),
-                    address.attrib.get('bus').replace('0x',''),
-                    address.attrib.get('slot').replace('0x',''),
-                    address.attrib.get('function').replace('0x',''),
+                    address.attrib.get('domain').replace('0x', ''),
+                    address.attrib.get('bus').replace('0x', ''),
+                    address.attrib.get('slot').replace('0x', ''),
+                    address.attrib.get('function').replace('0x', ''),
                 )
                 vnfs.append(vnf_addr)
             if vnfs:
