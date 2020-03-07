@@ -1575,6 +1575,19 @@ class LibvirtComputeController(BaseComputeController):
                 if disk.attrib.get('device', '') == 'cdrom':
                     image = disk.find('source').attrib.get('file', '')
                     machine.image_id = image
+            hostdevs = devices.findall('hostdev')
+            vnfs = []
+            for hostdev in hostdevs:
+                address = hostdev.find('source').find('address')
+                vnf_addr = '%s:%s:%s.%s' % (
+                    address.attrib.get('domain').replace('0x',''),
+                    address.attrib.get('bus').replace('0x',''),
+                    address.attrib.get('slot').replace('0x',''),
+                    address.attrib.get('function').replace('0x',''),
+                )
+                vnfs.append(vnf_addr)
+            if vnfs:
+                machine.extra['vnfs'] = vnfs
 
         # Number of CPUs allocated to guest.
         if 'processors' in machine.extra:
