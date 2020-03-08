@@ -318,7 +318,7 @@ class VolumeExistsError(ConflictError):
 
 # LDAP related exceptions
 class LDAPServerUnreachableError(ServiceUnavailableError):
-    msg = "LDAP Server Error"
+    msg = "LDAP Server Unreachable"
 
 
 #  BAD GATEWAY (translated as 502 in views)

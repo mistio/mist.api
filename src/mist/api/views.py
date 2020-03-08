@@ -253,8 +253,9 @@ def login(request):
     email:
       description: user's email
       type: string
+      required: true
     username:
-      description: LDAP's cn
+      description: LDAP's username
       type: string
     password:
       description: user's password
@@ -267,6 +268,7 @@ def login(request):
     """
     params = params_from_request(request)
     email = params.get('email')
+    username = params.get('username', '')
     password = params.get('password', '')
     username = params.get('username', '')
     service = request.matchdict.get('service') or params.get('service') or ''
@@ -278,8 +280,8 @@ def login(request):
     token_from_params = params.get('token')
     if not email and not username:
         raise RequiredParameterMissingError('You must provide email or username')
-    #if email and username:
-    #    raise BadRequestError('You can specify either an email or a username')
+    if email and username:
+        raise BadRequestError('You can specify either an email or a username')
 
     if username:            # try to bind with LDAP server
         try:
@@ -294,9 +296,16 @@ def login(request):
             user = User(username=username)
 
         if config.HAS_AUTH and config.LDAP_SETTINGS.get('SERVER', ''):
-            from mist.auth.social.methods import login_ldap_user
-            email = login_ldap_user(config.LDAP_SETTINGS.get('SERVER'),
-                                           username, password, user)
+            if config.LDAP_SETTINGS.get('AD'):
+                from mist.auth.social.methods import login_a_d_user
+                email = login_a_d_user(config.LDAP_SETTINGS.get('SERVER'),
+                                       username, password, user)
+            else:
+                from mist.auth.social.methods import login_ldap_user
+                email = login_ldap_user(config.LDAP_SETTINGS.get('SERVER'),
+                                            username, password, user)
+            user.email = email
+            user.save()
         else:
             raise BadRequestError("Cannot use LDAP authentication")
 
