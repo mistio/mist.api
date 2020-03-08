@@ -24,6 +24,7 @@ import json
 import netaddr
 import traceback
 import requests
+import logging
 import mongoengine as me
 
 from time import time
@@ -84,10 +85,9 @@ from mist.api.logs.methods import log_event
 from mist.api.logs.methods import get_events
 
 from mist.api.methods import filter_list_locations
-
 from mist.api import config
 
-import logging
+
 logging.basicConfig(level=config.PY_LOG_LEVEL,
                     format=config.PY_LOG_FORMAT,
                     datefmt=config.PY_LOG_FORMAT_DATE)
@@ -277,7 +277,8 @@ def login(request):
         return_to = '/'
     token_from_params = params.get('token')
     if not email and not username:
-        raise RequiredParameterMissingError('You must provide email or username')
+        raise RequiredParameterMissingError('You must provide email or '
+                                            'username')
     if email and username:
         raise BadRequestError('You can specify either an email or a username')
 
@@ -296,13 +297,17 @@ def login(request):
         if config.HAS_AUTH and config.LDAP_SETTINGS.get('SERVER', ''):
             if config.LDAP_SETTINGS.get('AD'):
                 from mist.auth.social.methods import login_a_d_user
-                email = login_a_d_user(config.LDAP_SETTINGS.get('SERVER'),
-                                       username, password, user)
+                email, fname, lname = login_a_d_user(
+                    config.LDAP_SETTINGS.get('SERVER'),
+                    username, password, user)
             else:
                 from mist.auth.social.methods import login_ldap_user
-                email = login_ldap_user(config.LDAP_SETTINGS.get('SERVER'),
-                                            username, password, user)
+                email, fname, lname = login_ldap_user(
+                    config.LDAP_SETTINGS.get('SERVER'),
+                    username, password, user)
             user.email = email
+            user.first_name = fname
+            user.last_name = lname
             user.save()
         else:
             raise BadRequestError("Cannot use LDAP authentication")
@@ -319,7 +324,8 @@ def login(request):
         if password:
             # rate limit user logins
             max_logins = config.FAILED_LOGIN_RATE_LIMIT['max_logins']
-            max_logins_period = config.FAILED_LOGIN_RATE_LIMIT['max_logins_period']
+            max_logins_period = config.FAILED_LOGIN_RATE_LIMIT[
+                'max_logins_period']
             block_period = config.FAILED_LOGIN_RATE_LIMIT['block_period']
 
             # check if rate limiting in place
@@ -340,7 +346,8 @@ def login(request):
                     action='login', error=True,
                     start=time() - max_logins_period))
                 logins = [login for login in logins
-                          if login.get('request_ip') == ip_from_request(request)]
+                          if login.get(
+                              'request_ip') == ip_from_request(request)]
                 if len(logins) > max_logins:
                     log_event(owner_id=user.id, user_id=user.id,
                               event_type='incident',
