@@ -1759,7 +1759,6 @@ ALLOW_SIGNUP_GITHUB = False
 ALLOW_SIGNIN_EMAIL = True
 ALLOW_SIGNIN_GOOGLE = False
 ALLOW_SIGNIN_GITHUB = False
-ALLOW_SIGNIN_LDAP = True  # make it dependent on LDAP_SETTINGS
 STRIPE_PUBLIC_APIKEY = False
 ENABLE_AB = False
 ENABLE_R12N = False
@@ -1969,6 +1968,9 @@ if NO_VERIFY_HOSTS:
 WHITELIST_CIDR = [
 ]
 
+ALLOW_SIGNIN_LDAP = True if LDAP_SETTINGS['SERVER'] and not LDAP_SETTINGS['AD'] else False
+ALLOW_SIGNIN_AD = True if LDAP_SETTINGS['SERVER'] and LDAP_SETTINGS['AD'] else False
+
 HOMEPAGE_INPUTS = {
     'portal_name': PORTAL_NAME,
     'theme': THEME,
@@ -1989,6 +1991,7 @@ HOMEPAGE_INPUTS = {
         'signin_google': ALLOW_SIGNIN_GOOGLE,
         'signin_github': ALLOW_SIGNIN_GITHUB,
         'signin_ldap': ALLOW_SIGNIN_LDAP,
+        'signin_ad': ALLOW_SIGNIN_AD,
         'signin_home': REDIRECT_HOME_TO_SIGNIN,
         'landing_footer': SHOW_FOOTER,
         'docs': DOCS_URI,
