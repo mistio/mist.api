@@ -1521,8 +1521,7 @@ class DockerComputeController(BaseComputeController):
         return []
 
 
-class LibvirtComputeController(BaseComputeController):
-
+class LibvirtHostComputeController(BaseComputeController):
     def _connect(self):
         """Three supported ways to connect: local system, qemu+tcp, qemu+ssh"""
 
@@ -1544,6 +1543,43 @@ class LibvirtComputeController(BaseComputeController):
                                                 hypervisor=self.cloud.host,
                                                 user=self.cloud.username,
                                                 tcp_port=int(port))
+
+    def _list_machines__fetch_machines(self):
+        # to make sure that no machine is stored under 'LIbvirtHost cloud'
+        return []
+
+class LibvirtComputeController(BaseComputeController):
+    # TODO: CHECK BELOW! Needs fix
+    def _connect(self):
+        """Three supported ways to connect: local system, qemu+tcp, qemu+ssh"""
+
+        import libcloud.compute.drivers.libvirt_driver
+        libvirt_driver = libcloud.compute.drivers.libvirt_driver
+        libvirt_driver.ALLOW_LIBVIRT_LOCALHOST = config.ALLOW_LIBVIRT_LOCALHOST
+
+        for libvirt_host in self.cloud.hosts:
+            if libvirt_host.key:
+                host, port = dnat(self.cloud.owner,
+                                  libvirt_host.host, libvirt_host.port)
+                return get_driver(Provider.LIBVIRT)(host,
+                                                    hypervisor=libvirt_host.host,
+                                                    user=libvirt_host.username,
+                                                    ssh_key=libvirt_host.key.private,
+                                                    ssh_port=int(port))
+            else:
+                host, port = dnat(self.cloud.owner, libvirt_host.host, 5000)
+                return get_driver(Provider.LIBVIRT)(host,
+                                                    hypervisor=libvirt_host.host,
+                                                    user=libvirt_host.username,
+                                                    tcp_port=int(port))
+
+    def _list_machines__fetch_machines(self):
+        """Perform the actual libcloud call to get list of nodes"""
+        nodes = []
+        for host in self.cloud.hosts:
+            nodes += host.ctl.compute.connection.list_nodes()
+
+        return nodes
 
     def _list_machines__machine_actions(self, machine, machine_libcloud):
         super(LibvirtComputeController, self)._list_machines__machine_actions(
@@ -1587,11 +1623,18 @@ class LibvirtComputeController(BaseComputeController):
                 from mist.api.machines.models import Machine
                 machine.parent = Machine.objects.get(cloud=machine.cloud,
                                                      name=hypervisor)
-            except Machine.DoesNotExist:
+            except me.DoesNotExist:
                 machine.parent = None
 
     def _list_images__fetch_images(self, search=None):
-        return self.connection.list_images(location=self.cloud.images_location)
+        # TODO: Needs to fetch images for all connections
+        return self.connection.list_images(location=self.cloud.hosts[0].images_location)
+
+    def remove_machine(self, machine):
+        from mist.api.machines.models import KeyMachineAssociation
+        KeyMachineAssociation.objects(machine=machine).delete()
+        machine.missing_since = datetime.datetime.now()
+        machine.save()
 
     def _reboot_machine(self, machine, machine_libcloud):
         hypervisor = machine_libcloud.extra.get('tags', {}).get('type', None)

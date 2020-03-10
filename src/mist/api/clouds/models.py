@@ -498,7 +498,7 @@ class DockerCloud(Cloud):
     _controller_cls = controllers.DockerMainController
 
 
-class LibvirtCloud(Cloud):
+class LibvirtHost(Cloud):
 
     host = me.StringField(required=True)
     username = me.StringField(default='root')
@@ -506,11 +506,27 @@ class LibvirtCloud(Cloud):
     key = me.ReferenceField(Key, required=False, reverse_delete_rule=me.DENY)
     images_location = me.StringField(default="/var/lib/libvirt/images")
 
+    _controller_cls = controllers.LibvirtHostMainController
+
+    def as_dict(self):
+        return {
+            'host': self.host,
+            'username': self.username,
+            'port': self.port,
+            'key': self.key.id if self.key else None,
+            'images_location': self.images_location
+        }
+
+
+class LibvirtCloud(Cloud):
+
+    hosts = me.ListField(me.ReferenceField(LibvirtHost), required=True)
+
     _controller_cls = controllers.LibvirtMainController
 
     def as_dict(self):
         cdict = super(LibvirtCloud, self).as_dict()
-        cdict['key'] = self.key.id
+        cdict['hosts'] = [host.as_dict() for host in self.hosts]
         return cdict
 
 

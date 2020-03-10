@@ -280,6 +280,11 @@ class DockerMainController(BaseMainController):
             check_host(host)
 
 
+class LibvirtHostMainController(BaseMainController):
+
+    provider = 'libvirt_host'
+    ComputeController = compute_ctls.LibvirtHostComputeController
+
 class LibvirtMainController(BaseMainController):
 
     provider = 'libvirt'
@@ -302,6 +307,38 @@ class LibvirtMainController(BaseMainController):
             except Key.DoesNotExist:
                 raise NotFoundError("Key does not exist.")
 
+    def _update__preparse_kwargs(self, kwargs):
+        from mist.api.clouds.models import LibvirtHost
+        _hosts = kwargs.pop('hosts')
+        libvirt_hosts = []
+        key = None
+        for _host in _hosts:
+            host = _host.get('machine_hostname')
+            username = _host.get('machine_user')
+            key_id = _host.get('machine_key')
+            port = _host.get('ssh_port')
+            images_location = _host.get('images_location')
+            if key_id:
+                try:
+                    key = Key.objects.get(owner=self.cloud.owner,
+                                        id=key_id,
+                                        deleted=None)
+                except Key.DoesNotExist:
+                    raise NotFoundError("Key does not exist.")
+
+            libvirt_host = LibvirtHost(host=host, username=username,
+                                       port=port, key=key,
+                                       images_location=images_location)
+            libvirt_host.owner = self.cloud.owner
+            # TODO: fix
+            import random
+            libvirt_host.title = self.cloud.title + str(random.randint(1,30000))
+            libvirt_host.save()
+            libvirt_hosts.append(libvirt_host)
+
+        kwargs['hosts'] = libvirt_hosts
+
+
     def add(self, fail_on_error=True, fail_on_invalid_params=True, **kwargs):
         """This is a hack to associate a key with the VM hosting this cloud"""
         super(LibvirtMainController, self).add(
@@ -314,20 +351,20 @@ class LibvirtMainController(BaseMainController):
         # FIXME: Add type field to differentiate between actual vm's and the
         # host.
         from mist.api.machines.models import Machine
-
-        host_machine_id = self.cloud.host.replace('.', '-')
-        try:
-            machine = Machine.objects.get(
-                cloud=self.cloud,
-                machine_id=host_machine_id)
-        except me.DoesNotExist:
-            machine = Machine(cloud=self.cloud,
-                              name=self.cloud.name,
-                              machine_id=host_machine_id).save()
-        if self.cloud.key:
-            machine.ctl.associate_key(self.cloud.key,
-                                      username=self.cloud.username,
-                                      port=self.cloud.port)
+        for libvirt_host in self.cloud.hosts:
+            host_machine_id = libvirt_host.host.replace('.', '-')
+            try:
+                machine = Machine.objects.get(
+                    cloud=self.cloud,
+                    machine_id=host_machine_id)
+            except me.DoesNotExist:
+                machine = Machine(cloud=self.cloud,
+                                name=self.cloud.name,
+                                machine_id=host_machine_id).save()
+            if libvirt_host.key:
+                machine.ctl.associate_key(libvirt_host.key,
+                                        username=libvirt_host.username,
+                                        port=libvirt_host.port)
 
     def update(self, fail_on_error=True, fail_on_invalid_params=True,
                add=False, **kwargs):
@@ -341,6 +378,18 @@ class LibvirtMainController(BaseMainController):
             fail_on_invalid_params=fail_on_invalid_params,
             **kwargs
         )
+
+    def disable(self):
+        """ For KVM/Libvirt clouds we do not want to set the missing_since
+        on the cloud machines when we disable the cloud because we are using
+        the missing_since field to remove them.
+
+        Setting the cloud enabled field to False is enough to not return
+        them during listing machine actions because we are not using
+        the cloud on listings.
+        """
+        self.cloud.enabled = False
+        self.cloud.save()
 
 
 class OtherMainController(BaseMainController):
