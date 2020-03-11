@@ -1295,25 +1295,27 @@ def update_poller(org_id):
         return  # Poller was recently updated
     log.info("Updating poller for %s", org)
     for cloud in Cloud.objects(owner=org, deleted=None, enabled=True):
-        log.info("Updating poller for cloud %s", cloud)
-        ListMachinesPollingSchedule.add(cloud=cloud, interval=10, ttl=120)
-        if hasattr(cloud.ctl, 'network'):
-            ListNetworksPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
-        if hasattr(cloud.ctl, 'dns') and cloud.dns_enabled:
-            ListZonesPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
-        if hasattr(cloud.ctl, 'storage'):
-            ListVolumesPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
-        if config.ACCELERATE_MACHINE_POLLING:
-            for machine in cloud.ctl.compute.list_cached_machines():
-                if machine.machine_type != 'container':
-                    log.info("Updating poller for machine %s", machine)
-                    FindCoresMachinePollingSchedule.add(machine=machine,
-                                                        interval=600, ttl=360,
-                                                        run_immediately=False)
-                    PingProbeMachinePollingSchedule.add(machine=machine,
+        import mist.api.clouds.models as cloud_models
+        if not isinstance(cloud, cloud_models.LibvirtHostCloud):
+            log.info("Updating poller for cloud %s", cloud)
+            ListMachinesPollingSchedule.add(cloud=cloud, interval=10, ttl=120)
+            if hasattr(cloud.ctl, 'network'):
+                ListNetworksPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
+            if hasattr(cloud.ctl, 'dns') and cloud.dns_enabled:
+                ListZonesPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
+            if hasattr(cloud.ctl, 'storage'):
+                ListVolumesPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
+            if config.ACCELERATE_MACHINE_POLLING:
+                for machine in cloud.ctl.compute.list_cached_machines():
+                    if machine.machine_type != 'container':
+                        log.info("Updating poller for machine %s", machine)
+                        FindCoresMachinePollingSchedule.add(machine=machine,
+                                                            interval=600, ttl=360,
+                                                            run_immediately=False)
+                        PingProbeMachinePollingSchedule.add(machine=machine,
+                                                            interval=300, ttl=120)
+                        SSHProbeMachinePollingSchedule.add(machine=machine,
                                                         interval=300, ttl=120)
-                    SSHProbeMachinePollingSchedule.add(machine=machine,
-                                                       interval=300, ttl=120)
     org.poller_updated = datetime.datetime.now()
     org.save()
 

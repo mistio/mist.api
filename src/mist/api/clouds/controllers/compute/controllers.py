@@ -1628,14 +1628,41 @@ class LibvirtComputeController(BaseComputeController):
                 machine.parent = None
 
     def _list_images__fetch_images(self, search=None):
-        # TODO: Needs to fetch images for all connections
-        return self.connection.list_images(location=self.cloud.hosts[0].images_location)
+        images = []
+        for host in self.cloud.hosts:
+            host_conn = host.ctl.compute.connection
+            images += host_conn.list_images(location=host.images_location)
+
+        return images
 
     def remove_machine(self, machine):
+        if machine.extra.get('tags', {}).get('type') != 'hypervisor':
+            raise BadRequestError('You can only remove a hypervisor')
+        host_to_remove = None
+        for _host in self.cloud.hosts:
+            if _host.host == machine.hostname:
+                host_to_remove = _host
+                break
+        if not host_to_remove:
+            raise BadRequestError('Could not find host to remove')
+
+        self.cloud.hosts.remove(host_to_remove)
+        self.cloud.save()
+
+        host_to_remove.missing_since = datetime.datetime.now()
+        host_to_remove.save()
+
+        from mist.api.machines.models import Machine
+        machines = Machine.objects(owner=self.cloud.owner, cloud=self.cloud,
+                                   missing_since=None)
         from mist.api.machines.models import KeyMachineAssociation
-        KeyMachineAssociation.objects(machine=machine).delete()
-        machine.missing_since = datetime.datetime.now()
-        machine.save()
+        for _machine in machines:
+            # remove KeyMachineAssociation and set missing_since
+            # for hypervisor and its machines
+            if _machine == machine or _machine.parent == machine:
+                KeyMachineAssociation.objects(machine=_machine).delete()
+                _machine.missing_since = datetime.datetime.now()
+                _machine.save()
 
     def _reboot_machine(self, machine, machine_libcloud):
         hypervisor = machine_libcloud.extra.get('tags', {}).get('type', None)

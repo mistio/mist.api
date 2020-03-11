@@ -506,6 +506,8 @@ class LibvirtHost(Cloud):
     key = me.ReferenceField(Key, required=False, reverse_delete_rule=me.DENY)
     images_location = me.StringField(default="/var/lib/libvirt/images")
 
+    missing_since = me.DateTimeField()
+
     _controller_cls = controllers.LibvirtHostMainController
 
     def as_dict(self):
@@ -519,8 +521,8 @@ class LibvirtHost(Cloud):
 
 
 class LibvirtCloud(Cloud):
-
-    hosts = me.ListField(me.ReferenceField(LibvirtHost), required=True)
+    # required?
+    hosts = me.ListField(me.ReferenceField(LibvirtHost))
 
     _controller_cls = controllers.LibvirtMainController
 
