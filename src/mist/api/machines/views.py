@@ -130,14 +130,14 @@ def create_machine(request):
       required: true
       example: "my-digital-ocean-machine"
     image:
-      description: Provider's image id to be used on creation
+      description: Provider's image id
       required: true
       type: string
       example: "17384153"
     size:
       type: string
-      description: Provider's size id to be used on creation
-      example: "512mb"
+      description: Mist internal size id
+      example: "9417745961a84bffbf6419e5of68faa5"
     location:
       type: string
       description: Mist internal location id
@@ -247,6 +247,9 @@ def create_machine(request):
     security_group:
       type: string
       description: Machine will join this security group
+    host:
+      type: string
+      description: Required for KVM
     """
 
     params = params_from_request(request)
@@ -315,6 +318,7 @@ def create_machine(request):
     softlayer_backend_vlan_id = params.get('softlayer_backend_vlan_id', None)
     hourly = params.get('hourly', True)
     sec_group = params.get('security_group', '')
+    host = params.get('host', '')
     expiration = params.get('expiration', {})
 
     job_id = params.get('job_id')
@@ -441,24 +445,19 @@ def create_machine(request):
               'azure_port_bindings': azure_port_bindings,
               'hostname': hostname, 'plugins': plugins,
               'post_script_id': post_script_id,
-              'post_script_params': post_script_params,
-              'disk_size': disk_size,
-              'disk_path': disk_path,
-              'cloud_init': cloud_init,
+              'post_script_params': post_script_params, 'disk_size': disk_size,
+              'disk_path': disk_path, 'cloud_init': cloud_init,
               'subnet_id': subnet_id,
               'associate_floating_ip': associate_floating_ip,
               'associate_floating_ip_subnet': associate_floating_ip_subnet,
-              'project_id': project_id,
-              'bare_metal': bare_metal,
-              'tags': tags,
-              'hourly': hourly,
+              'project_id': project_id, 'bare_metal': bare_metal,
+              'tags': tags, 'hourly': hourly,
               'schedule': schedule,
               'softlayer_backend_vlan_id': softlayer_backend_vlan_id,
               'machine_username': machine_username,
-              'volumes': volumes,
-              'ip_addresses': ip_addresses,
-              'expiration': expiration,
-              'sec_group': sec_group}
+              'volumes': volumes, 'ip_addresses': ip_addresses,
+              'expiration': expiration, 'sec_group': sec_group,
+              'host': host}
 
     if not run_async:
         ret = methods.create_machine(auth_context, *args, **kwargs)
@@ -477,7 +476,10 @@ def add_machine(request):
     """
     Tags: machines
     ---
-    Add a machine to an OtherServer Cloud. This works for bare_metal clouds.
+    Add a machine to an OtherServer/Libvirt Cloud.
+    READ permission required on cloud.
+    EDIT permission required on cloud.
+    READ permission required on key.
     ---
     cloud:
       in: path
@@ -500,6 +502,8 @@ def add_machine(request):
       type: string
     monitoring:
       type: boolean
+    images_locations:
+      type: string
     """
     cloud_id = request.matchdict.get('cloud')
     params = params_from_request(request)
@@ -524,6 +528,7 @@ def add_machine(request):
 
     auth_context = auth_context_from_request(request)
     auth_context.check_perm("cloud", "read", cloud_id)
+    auth_context.check_perm("cloud", "edit", cloud_id)
 
     if machine_key:
         auth_context.check_perm("key", "read", machine_key)
@@ -536,8 +541,12 @@ def add_machine(request):
 
     log.info('Adding bare metal machine %s on cloud %s'
              % (machine_name, cloud_id))
-    cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
+
+    try:
+      cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
                               deleted=None)
+    except Cloud.DoesNotExist:
+      raise BadRequestError('Cloud does not exist')
 
     try:
         machine = cloud.ctl.add_machine(machine_name, host=machine_ip,

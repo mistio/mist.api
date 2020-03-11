@@ -332,7 +332,8 @@ class LibvirtMainController(BaseMainController):
                                        port=port, key=key,
                                        images_location=images_location)
             libvirt_host.owner = self.cloud.owner
-            libvirt_host.title = self.cloud.title + '-' + str(random.randint(1, 100000))
+            libvirt_host.title = self.cloud.title + '-' + \
+                str(random.randint(1, 100000))
             libvirt_host.save()
             libvirt_hosts.append(libvirt_host)
 
@@ -389,9 +390,23 @@ class LibvirtMainController(BaseMainController):
                                    port=port, key=key,
                                    images_location=images_location)
         libvirt_host.owner = self.cloud.owner
-        libvirt_host.title = self.cloud.title + '-' + str(random.randint(1, 100000))
+        libvirt_host.title = self.cloud.title + '-' + \
+            str(random.randint(1, 100000))
         libvirt_host.save()
 
+        from mist.api.machines.models import Machine
+        host_machine_id = libvirt_host.host.replace('.', '-')
+        try:
+            machine = Machine.objects.get(cloud=self.cloud,
+                                          machine_id=host_machine_id)
+        except me.DoesNotExist:
+            machine = Machine(cloud=self.cloud,
+                              name=self.cloud.name,
+                              machine_id=host_machine_id).save()
+        if libvirt_host.key:
+            machine.ctl.associate_key(libvirt_host.key,
+                                      username=libvirt_host.username,
+                                      port=libvirt_host.port)
         self.cloud.hosts.append(libvirt_host)
         self.cloud.save()
 

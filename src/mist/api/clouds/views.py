@@ -517,9 +517,9 @@ def add_host(request):
     log.info('Adding host %s on cloud %s'
              % (machine_hostname, cloud_id))
     try:
-        machine = cloud.ctl.add_host(machine_hostname, username=machine_user,
-                                     port=machine_port, key=machine_key,
-                                     images_location=images_location)
+        cloud.ctl.add_host(machine_hostname, username=machine_user,
+                           port=machine_port, key=machine_key,
+                           images_location=images_location)
     except Exception as e:
         raise CloudAddHostError("Couldn't add host, got exception %r" % e,
                                 exc=e)

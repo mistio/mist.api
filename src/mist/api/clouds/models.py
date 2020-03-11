@@ -512,6 +512,7 @@ class LibvirtHost(Cloud):
 
     def as_dict(self):
         return {
+            'id': self.id,
             'host': self.host,
             'username': self.username,
             'port': self.port,

@@ -776,7 +776,7 @@ def create_machine_async(
     associate_floating_ip_subnet=None, project_id=None,
     tags=None, schedule={}, bare_metal=False, hourly=True,
     softlayer_backend_vlan_id=None, machine_username='',
-    volumes=[], ip_addresses=[], expiration={}, sec_group=''
+    volumes=[], ip_addresses=[], expiration={}, sec_group='', host=''
 ):
     from multiprocessing.dummy import Pool as ThreadPool
     from mist.api.machines.methods import create_machine
@@ -832,7 +832,8 @@ def create_machine_async(
              'volumes': volumes,
              'ip_addresses': ip_addresses,
              'expiration': expiration,
-             'sec_group': sec_group}
+             'sec_group': sec_group,
+             'host': host}
         ))
 
     def create_machine_wrapper(args_kwargs):
@@ -1317,7 +1318,8 @@ def update_poller(org_id):
                                                             ttl=360,
                                                             run_immediately=False)
                         PingProbeMachinePollingSchedule.add(machine=machine,
-                                                            interval=300, ttl=120)
+                                                            interval=300,
+                                                            ttl=120)
                         SSHProbeMachinePollingSchedule.add(machine=machine,
                                                            interval=300,
                                                            ttl=120)
