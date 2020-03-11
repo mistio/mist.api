@@ -222,6 +222,10 @@ class CloudUnauthorizedError(UnauthorizedError):
     msg = "Unauthorized cloud credentials"
 
 
+class CloudAddHostError(InternalServerError):
+    msg = "Error adding host"
+
+
 class NetworkExistsError(ConflictError):
     msg = "Network already exists"
 

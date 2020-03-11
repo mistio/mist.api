@@ -25,6 +25,7 @@ import uuid
 import json
 import socket
 import logging
+import random
 
 import mongoengine as me
 
@@ -331,9 +332,7 @@ class LibvirtMainController(BaseMainController):
                                        port=port, key=key,
                                        images_location=images_location)
             libvirt_host.owner = self.cloud.owner
-            # TODO: fix
-            import random
-            libvirt_host.title = self.cloud.title + str(random.randint(1, 30000))
+            libvirt_host.title = self.cloud.title + '-' + str(random.randint(1, 100000))
             libvirt_host.save()
             libvirt_hosts.append(libvirt_host)
 
@@ -378,6 +377,23 @@ class LibvirtMainController(BaseMainController):
             fail_on_invalid_params=fail_on_invalid_params,
             **kwargs
         )
+
+    def add_host(self, host, username='root', port=22, key=None,
+                 images_location=''):
+        """
+        Add a host(LibvirtHostCloud) in a KVM/Libvirt cloud.
+        """
+        # TODO: Verify that can connect
+        from mist.api.clouds.models import LibvirtHost
+        libvirt_host = LibvirtHost(host=host, username=username,
+                                   port=port, key=key,
+                                   images_location=images_location)
+        libvirt_host.owner = self.cloud.owner
+        libvirt_host.title = self.cloud.title + '-' + str(random.randint(1, 100000))
+        libvirt_host.save()
+
+        self.cloud.hosts.append(libvirt_host)
+        self.cloud.save()
 
     def disable(self):
         """ For KVM/Libvirt clouds we do not want to set the missing_since

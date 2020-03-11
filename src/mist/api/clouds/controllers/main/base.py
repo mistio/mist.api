@@ -427,7 +427,14 @@ class BaseMainController(object):
 
     def add_machine(self, **kwargs):
         """
-        Add a machine in a bare metal or a KVM/Libvirt cloud.
+        Add a machine in a bare metal cloud.
         """
         raise BadRequestError("Adding machines is only supported in Bare"
-                              "Metal and KVM/Libvirt clouds.")
+                              "Metal clouds.")
+
+    def add_host(self, **kwargs):
+        """
+        Add a host in a KVM/Libvirt cloud.
+        """
+        raise BadRequestError("Adding hosts is only supported in KVM/Libvirt "
+                              "clouds.")

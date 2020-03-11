@@ -12,6 +12,7 @@ from mist.api.decorators import require_cc
 
 from mist.api.exceptions import BadRequestError, MistNotImplementedError
 from mist.api.exceptions import RequiredParameterMissingError, NotFoundError
+from mist.api.exceptions import CloudAddHostError
 
 from mist.api.clouds.methods import filter_list_clouds, add_cloud_v_2
 from mist.api.clouds.methods import rename_cloud as m_rename_cloud
@@ -245,6 +246,7 @@ def add_cloud(request):
 
     c_count = Cloud.objects(owner=owner, deleted=None).count()
     ret = cloud.as_dict()
+    # TODO: What is below doing? need for eliminating libvirthost clouds?
     ret['index'] = c_count - 1
     if monitoring:
         ret['monitoring'] = monitoring
@@ -458,3 +460,68 @@ def list_security_groups(request):
         raise MistNotImplementedError
 
     return sec_groups
+
+
+@view_config(route_name='api_v1_cloud_hosts', request_method='PUT',
+             renderer='json')
+def add_host(request):
+    """
+    Tags: clouds
+    ---
+    Add a host to a Libvirt Cloud.
+    READ permission required on cloud.
+    EDIT permission required on cloud.
+    READ permission required on key.
+    ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    machine_hostname:
+      type: string
+      required: true
+    machine_key:
+      type: string
+    machine_user:
+      type: string
+    machine_port:
+      type: string
+    images_location:
+      type: string
+    """
+    cloud_id = request.matchdict.get('cloud')
+    params = params_from_request(request)
+    params = {'machine_hostname': '34.220.189.254', 'machine_key': '63f27fb2c123473aa5d4258194f870d1', 'machine_user': 'ubuntu', 'machine_port': '22', 'images_location': '/var/lib/libvirt/images'}
+    machine_hostname = params.get('machine_hostname')
+    if not machine_hostname:
+        raise RequiredParameterMissingError("machine_hostname")
+
+    machine_key = params.get('machine_key', '')
+    machine_user = params.get('machine_user', '')
+    machine_port = params.get('machine_port', '')
+    images_location = params.get('images_location')
+
+    auth_context = auth_context_from_request(request)
+    auth_context.check_perm("cloud", "read", cloud_id)
+    auth_context.check_perm("cloud", "edit", cloud_id)
+
+    if machine_key:
+        auth_context.check_perm("key", "read", machine_key)
+
+    try:
+        cloud = Cloud.objects.get(owner=auth_context.owner,
+                                  id=cloud_id, deleted=None)
+    except Cloud.DoesNotExist:
+        raise NotFoundError('Cloud does not exist')
+
+    log.info('Adding host %s on cloud %s'
+             % (machine_hostname, cloud_id))
+    try:
+        machine = cloud.ctl.add_host(machine_hostname, username=machine_user,
+                                     port=machine_port, key=machine_key,
+                                     images_location=images_location)
+    except Exception as e:
+        raise CloudAddHostError("Couldn't add host, got exception %r" % e,
+                                exc=e)
+
+    return cloud.as_dict()

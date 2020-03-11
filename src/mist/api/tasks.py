@@ -1300,22 +1300,27 @@ def update_poller(org_id):
             log.info("Updating poller for cloud %s", cloud)
             ListMachinesPollingSchedule.add(cloud=cloud, interval=10, ttl=120)
             if hasattr(cloud.ctl, 'network'):
-                ListNetworksPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
+                ListNetworksPollingSchedule.add(cloud=cloud, interval=60,
+                                                ttl=120)
             if hasattr(cloud.ctl, 'dns') and cloud.dns_enabled:
-                ListZonesPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
+                ListZonesPollingSchedule.add(cloud=cloud, interval=60,
+                                             ttl=120)
             if hasattr(cloud.ctl, 'storage'):
-                ListVolumesPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
+                ListVolumesPollingSchedule.add(cloud=cloud, interval=60,
+                                               ttl=120)
             if config.ACCELERATE_MACHINE_POLLING:
                 for machine in cloud.ctl.compute.list_cached_machines():
                     if machine.machine_type != 'container':
                         log.info("Updating poller for machine %s", machine)
                         FindCoresMachinePollingSchedule.add(machine=machine,
-                                                            interval=600, ttl=360,
+                                                            interval=600,
+                                                            ttl=360,
                                                             run_immediately=False)
                         PingProbeMachinePollingSchedule.add(machine=machine,
                                                             interval=300, ttl=120)
                         SSHProbeMachinePollingSchedule.add(machine=machine,
-                                                        interval=300, ttl=120)
+                                                           interval=300,
+                                                           ttl=120)
     org.poller_updated = datetime.datetime.now()
     org.save()
 

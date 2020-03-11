@@ -321,7 +321,9 @@ def add_routes(configurator):
         'api_v1_cloud_record',
         '/api/v1/clouds/{cloud}/zones/{zone}/records/{record}'
     )
-
+    # KVM hosts
+    configurator.add_route('api_v1_cloud_hosts',
+                           '/api/v1/clouds/{cloud}/hosts')
     # Security groups
     configurator.add_route('api_v1_cloud_security_groups',
                            '/api/v1/clouds/{cloud}/security-groups')

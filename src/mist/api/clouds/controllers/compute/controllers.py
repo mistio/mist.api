@@ -1589,6 +1589,7 @@ class LibvirtComputeController(BaseComputeController):
             # Allow only reboot and tag actions for hypervisor.
             for action in ('start', 'stop', 'destroy', 'rename'):
                 setattr(machine.actions, action, False)
+            machine.actions.remove = False
         else:
             machine.actions.clone = True
             machine.actions.undefine = True
