@@ -209,12 +209,20 @@ class OpenStackNetworkController(BaseNetworkController):
         self.cloud.ctl.compute.connection.ex_delete_subnet(libcloud_subnet.id)
 
 
+class LibvirtHostNetworkController(BaseNetworkController):
+
+    def _list_networks__fetch_networks(self):
+        # to make sure that no network is stored under 'LIbvirtHost cloud'
+        return []
+
+
 class LibvirtNetworkController(BaseNetworkController):
 
     def _list_networks__fetch_networks(self):
-        networks = super(LibvirtNetworkController,
-                         self)._list_networks__fetch_networks()
-        networks.extend(self.cloud.ctl.compute.connection.ex_list_interfaces())
+        networks = []
+        for host in self.cloud.hosts:
+            networks += host.ctl.compute.connection.ex_list_networks()
+            networks += host.ctl.compute.connection.ex_list_interfaces()
         return networks
 
     def _list_subnets__fetch_subnets(self, network):

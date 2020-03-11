@@ -1548,6 +1548,7 @@ class LibvirtHostComputeController(BaseComputeController):
         # to make sure that no machine is stored under 'LIbvirtHost cloud'
         return []
 
+
 class LibvirtComputeController(BaseComputeController):
     # TODO: CHECK BELOW! Needs fix
     def _connect(self):
@@ -1557,20 +1558,20 @@ class LibvirtComputeController(BaseComputeController):
         libvirt_driver = libcloud.compute.drivers.libvirt_driver
         libvirt_driver.ALLOW_LIBVIRT_LOCALHOST = config.ALLOW_LIBVIRT_LOCALHOST
 
-        for libvirt_host in self.cloud.hosts:
-            if libvirt_host.key:
+        for lib_host in self.cloud.hosts:
+            if lib_host.key:
                 host, port = dnat(self.cloud.owner,
-                                  libvirt_host.host, libvirt_host.port)
+                                  lib_host.host, lib_host.port)
                 return get_driver(Provider.LIBVIRT)(host,
-                                                    hypervisor=libvirt_host.host,
-                                                    user=libvirt_host.username,
-                                                    ssh_key=libvirt_host.key.private,
+                                                    hypervisor=lib_host.host,
+                                                    user=lib_host.username,
+                                                    ssh_key=lib_host.key.private,
                                                     ssh_port=int(port))
             else:
-                host, port = dnat(self.cloud.owner, libvirt_host.host, 5000)
+                host, port = dnat(self.cloud.owner, lib_host.host, 5000)
                 return get_driver(Provider.LIBVIRT)(host,
-                                                    hypervisor=libvirt_host.host,
-                                                    user=libvirt_host.username,
+                                                    hypervisor=lib_host.host,
+                                                    user=lib_host.username,
                                                     tcp_port=int(port))
 
     def _list_machines__fetch_machines(self):

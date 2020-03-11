@@ -284,6 +284,8 @@ class LibvirtHostMainController(BaseMainController):
 
     provider = 'libvirt_host'
     ComputeController = compute_ctls.LibvirtHostComputeController
+    NetworkController = network_ctls.LibvirtHostNetworkController
+
 
 class LibvirtMainController(BaseMainController):
 
@@ -321,8 +323,7 @@ class LibvirtMainController(BaseMainController):
             if key_id:
                 try:
                     key = Key.objects.get(owner=self.cloud.owner,
-                                        id=key_id,
-                                        deleted=None)
+                                          id=key_id, deleted=None)
                 except Key.DoesNotExist:
                     raise NotFoundError("Key does not exist.")
 
@@ -332,12 +333,11 @@ class LibvirtMainController(BaseMainController):
             libvirt_host.owner = self.cloud.owner
             # TODO: fix
             import random
-            libvirt_host.title = self.cloud.title + str(random.randint(1,30000))
+            libvirt_host.title = self.cloud.title + str(random.randint(1, 30000))
             libvirt_host.save()
             libvirt_hosts.append(libvirt_host)
 
         kwargs['hosts'] = libvirt_hosts
-
 
     def add(self, fail_on_error=True, fail_on_invalid_params=True, **kwargs):
         """This is a hack to associate a key with the VM hosting this cloud"""
@@ -359,12 +359,12 @@ class LibvirtMainController(BaseMainController):
                     machine_id=host_machine_id)
             except me.DoesNotExist:
                 machine = Machine(cloud=self.cloud,
-                                name=self.cloud.name,
-                                machine_id=host_machine_id).save()
+                                  name=self.cloud.name,
+                                  machine_id=host_machine_id).save()
             if libvirt_host.key:
                 machine.ctl.associate_key(libvirt_host.key,
-                                        username=libvirt_host.username,
-                                        port=libvirt_host.port)
+                                          username=libvirt_host.username,
+                                          port=libvirt_host.port)
 
     def update(self, fail_on_error=True, fail_on_invalid_params=True,
                add=False, **kwargs):

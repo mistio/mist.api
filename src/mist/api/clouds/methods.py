@@ -47,7 +47,10 @@ def add_cloud_v_2(owner, title, provider, params):
 
     log.info("Cloud with id '%s' added succesfully.", cloud.id)
 
-    c_count = Cloud.objects(owner=owner, deleted=None).count()
+    clouds = Cloud.objects(owner=owner, deleted=None)
+    clouds = [cloud for cloud in clouds
+        if cloud._controller_cls.provider not in ['libvirt_host']]
+    c_count = len(clouds)
     if owner.clouds_count != c_count:
         owner.clouds_count = c_count
         owner.save()
@@ -87,7 +90,10 @@ def delete_cloud(owner, cloud_id):
 
     log.info("Successfully deleted cloud '%s'", cloud_id)
     trigger_session_update(owner, ['clouds'])
-    c_count = Cloud.objects(owner=owner, deleted=None).count()
+    clouds = Cloud.objects(owner=owner, deleted=None)
+    clouds = [cloud for cloud in clouds
+        if cloud._controller_cls.provider not in ['libvirt_host']]
+    c_count = len(clouds)
     if owner.clouds_count != c_count:
         owner.clouds_count = c_count
         owner.save()
@@ -107,6 +113,8 @@ def filter_list_clouds(auth_context, perm='read', as_dict=True):
 
 def list_clouds(owner, as_dict=True):
     clouds = Cloud.objects(owner=owner, deleted=None)
+    clouds = [cloud for cloud in clouds
+        if cloud._controller_cls.provider not in ['libvirt_host']]
     if as_dict:
         return [cloud.as_dict() for cloud in clouds]
     else:
