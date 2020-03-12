@@ -1655,8 +1655,10 @@ class LibvirtComputeController(BaseComputeController):
                     if machine.image_id != image:
                         machine.image_id = image
                         updated = True
-            hostdevs = devices.findall('hostdev')
+
             vnfs = []
+            hostdevs = devices.findall('hostdev') + \
+                devices.findall('interface[@type="hostdev"]')
             for hostdev in hostdevs:
                 address = hostdev.find('source').find('address')
                 vnf_addr = '%s:%s:%s.%s' % (
@@ -1671,8 +1673,10 @@ class LibvirtComputeController(BaseComputeController):
                 updated = True
 
         # Number of CPUs allocated to guest.
-        if 'processors' in machine.extra:
+        if 'processors' in machine.extra and \
+                machine.extra['cpus'] != machine.extra['processors']:
             machine.extra['cpus'] = machine.extra['processors']
+            updated = True
 
         # set machine's parent
         hypervisor = machine.extra.get('hypervisor_name', '')
