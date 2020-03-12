@@ -1575,8 +1575,10 @@ class LibvirtComputeController(BaseComputeController):
                 if disk.attrib.get('device', '') == 'cdrom':
                     image = disk.find('source').attrib.get('file', '')
                     machine.image_id = image
-            hostdevs = devices.findall('hostdev')
+
             vnfs = []
+            hostdevs = devices.findall('hostdev') + \
+                devices.findall('interface[@type="hostdev"]')
             for hostdev in hostdevs:
                 address = hostdev.find('source').find('address')
                 vnf_addr = '%s:%s:%s.%s' % (
