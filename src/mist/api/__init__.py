@@ -181,8 +181,11 @@ def add_routes(configurator):
     configurator.add_route('api_v1_providers', '/api/v1/providers')
     configurator.add_route('api_v1_clouds', '/api/v1/clouds')
     configurator.add_route('api_v1_cloud_action', '/api/v1/clouds/{cloud}')
-
-    configurator.add_route('api_v1_cloud_folders', '/api/v1/clouds/{cloud}/folders')
+    # VSphere routes
+    configurator.add_route('api_v1_cloud_folders',
+                           '/api/v1/clouds/{cloud}/folders')
+    configurator.add_route('api_v1_cloud_datastores',
+                           '/api/v1/clouds/{cloud}/datastores')
 
     configurator.add_route('api_v1_machines',
                            '/api/v1/machines')

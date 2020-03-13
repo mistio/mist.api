@@ -1915,24 +1915,24 @@ class VSphereRestComputeController(BaseComputeController):
         cluster = node.extra.get('cluster', '')
         host = node.extra.get('host', '')
         return cluster or host
-    
+
     def list_vm_folders(self):
         all_folders = self.connection.ex_list_folders()
-        vm_folders = [folder for folder in all_folders if folder['type']=="VIRTUAL_MACHINE"]
+        vm_folders = [folder for folder in all_folders if folder[
+            'type'] in {"VIRTUAL_MACHINE", "VirtualMachine"}]
         return vm_folders
 
-#     def _list_locations__fetch_locations(self):
-#         """List locations for vSphere
+    def list_datastores(self):
+        datastores_raw = self.connection.ex_list_datastores()
+        return datastores_raw
 
-#         If there are clusters with drs enabled, return those.
-#         Otherwise return the list of available hosts.
-#         """
-#         locations = self.connection.list_locations()
-#         clusters = [l for l in locations
-#                     if l.extra['type'] == 'cluster' and l.extra['drs']]
-#         hosts = [l for l in locations if l.extra['type'] == 'host']
-
-#         return clusters or hosts
+    def _list_locations__fetch_locations(self):
+        """List locations for vSphere
+        If there are clusters with drs enabled, return those plus the
+        host that are standalone or in clusters with drs disabled.
+        Otherwise return the list of available hosts.
+        """
+        return self.connection.list_locations(ex_show_hosts_in_drs=False)
 
 #     def _list_machines__fetch_machines(self):
 #         """Perform the actual libcloud call to get list of nodes"""
@@ -1940,7 +1940,8 @@ class VSphereRestComputeController(BaseComputeController):
 #             max_properties=self.cloud.max_properties_per_request)
 
     def _list_machines__machine_actions(self, machine, machine_libcloud):
-        super(VSphereComputeController, self)._list_machines__machine_actions(
+        super(VSphereRestComputeController,
+              self)._list_machines__machine_actions(
             machine, machine_libcloud)
         machine.actions.create_snapshot = True
         if len(machine.extra.get('snapshots')):
@@ -1950,25 +1951,31 @@ class VSphereRestComputeController(BaseComputeController):
             machine.actions.remove_snapshot = False
             machine.actions.revert_to_snapshot = False
 
-#     def _create_machine_snapshot(self, machine, machine_libcloud,
-#                                  snapshot_name, description='',
-#                                  dump_memory=False, quiesce=False):
-#         """Create a snapshot for a given machine"""
-#         return self.connection.ex_create_snapshot(
-#             machine_libcloud, snapshot_name, description,
-#             dump_memory=dump_memory, quiesce=quiesce)
+    def _stop_machine(self, machine, machine_libcloud):
+        return self.connection.stop_node(machine_libcloud)
 
-#     def _revert_machine_to_snapshot(self, machine, machine_libcloud,
-#                                     snapshot_name=None):
-#         """Revert a given machine to a previous snapshot"""
-#         return self.connection.ex_revert_to_snapshot(machine_libcloud,
-#                                                      snapshot_name)
+    def _start_machine(self, machine, machine_libcloud):
+        return self.connection.start_node(machine_libcloud)
 
-#     def _remove_machine_snapshot(self, machine, machine_libcloud,
-#                                  snapshot_name=None):
-#         """Removes a given machine snapshot"""
-#         return self.connection.ex_remove_snapshot(machine_libcloud,
-#                                                   snapshot_name)
+    def _create_machine_snapshot(self, machine, machine_libcloud,
+                                 snapshot_name, description='',
+                                 dump_memory=False, quiesce=False):
+        """Create a snapshot for a given machine"""
+        return self.connection.ex_create_snapshot(
+            machine_libcloud, snapshot_name, description,
+            dump_memory=dump_memory, quiesce=quiesce)
 
-#     def _list_machine_snapshots(self, machine, machine_libcloud):
-#         return self.connection.ex_list_snapshots(machine_libcloud)
+    def _revert_machine_to_snapshot(self, machine, machine_libcloud,
+                                    snapshot_name=None):
+        """Revert a given machine to a previous snapshot"""
+        return self.connection.ex_revert_to_snapshot(machine_libcloud,
+                                                     snapshot_name)
+
+    def _remove_machine_snapshot(self, machine, machine_libcloud,
+                                 snapshot_name=None):
+        """Removes a given machine snapshot"""
+        return self.connection.ex_remove_snapshot(machine_libcloud,
+                                                  snapshot_name)
+
+    def _list_machine_snapshots(self, machine, machine_libcloud):
+        return self.connection.ex_list_snapshots(machine_libcloud)
