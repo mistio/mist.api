@@ -247,6 +247,11 @@ def create_machine(request):
     security_group:
       type: string
       description: Machine will join this security group
+    vnfs:
+      description: Network Virtual Functions to configure in machine
+      type: array
+      items:
+        type: string
     """
 
     params = params_from_request(request)
@@ -315,6 +320,7 @@ def create_machine(request):
     softlayer_backend_vlan_id = params.get('softlayer_backend_vlan_id', None)
     hourly = params.get('hourly', True)
     sec_group = params.get('security_group', '')
+    vnfs = params.get('vnfs', [])
     expiration = params.get('expiration', {})
 
     job_id = params.get('job_id')
@@ -457,6 +463,7 @@ def create_machine(request):
               'machine_username': machine_username,
               'volumes': volumes,
               'ip_addresses': ip_addresses,
+              'vnfs': vnfs,
               'expiration': expiration,
               'sec_group': sec_group}
 

@@ -431,7 +431,7 @@ def get_stories(story_type='', owner_id='', user_id='', sort_order=-1, limit=0,
     query["aggs"] = {
         "stories": {
             "terms": {
-                "field": "stories",
+                "field": "stories.keyword",
                 "size": limit or 10000
             },
             "aggs": {

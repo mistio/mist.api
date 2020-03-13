@@ -24,6 +24,7 @@ import json
 import netaddr
 import traceback
 import requests
+import logging
 import mongoengine as me
 
 from time import time
@@ -84,10 +85,9 @@ from mist.api.logs.methods import log_event
 from mist.api.logs.methods import get_events
 
 from mist.api.methods import filter_list_locations
-
 from mist.api import config
 
-import logging
+
 logging.basicConfig(level=config.PY_LOG_LEVEL,
                     format=config.PY_LOG_FORMAT,
                     datefmt=config.PY_LOG_FORMAT_DATE)
@@ -241,7 +241,9 @@ def not_found(request):
              renderer='json')
 def login(request):
     """
-    User posts authentication credentials (email, password).
+    User posts authentication credentials (email/username, password).
+    One of email/username must be given, not both.
+    In case of binding with LDAP server, username must be given.
     If there is a 'return_to' parameter the user will be redirected to this
     local url upon successful authentication.
     There is also an optional 'service' parameter, mainly meant to be used for
@@ -251,6 +253,9 @@ def login(request):
       description: user's email
       type: string
       required: true
+    username:
+      description: LDAP's username
+      type: string
     password:
       description: user's password
       type: string
@@ -262,6 +267,7 @@ def login(request):
     """
     params = params_from_request(request)
     email = params.get('email')
+    username = params.get('username', '')
     password = params.get('password', '')
     service = request.matchdict.get('service') or params.get('service') or ''
     return_to = params.get('return_to')
@@ -270,69 +276,106 @@ def login(request):
     else:
         return_to = '/'
     token_from_params = params.get('token')
+    if not email and not username:
+        raise RequiredParameterMissingError('You must provide email or '
+                                            'username')
+    if email and username:
+        raise BadRequestError('You can specify either an email or a username')
 
-    if not email:
-        raise RequiredParameterMissingError('email')
-    email = email.lower()
-    try:
-        user = User.objects.get(email=email)
-    except (UserNotFoundError, me.DoesNotExist):
-        raise UserUnauthorizedError()
-    if not user.status == 'confirmed':
-        raise UserUnauthorizedError("User account has not been confirmed.")
-
-    if password:
-        # rate limit user logins
-        max_logins = config.FAILED_LOGIN_RATE_LIMIT['max_logins']
-        max_logins_period = config.FAILED_LOGIN_RATE_LIMIT['max_logins_period']
-        block_period = config.FAILED_LOGIN_RATE_LIMIT['block_period']
-
-        # check if rate limiting in place
-        incidents = get_events(auth_context=None, user_id=user.id,
-                               event_type='incident',
-                               action='login_rate_limiting',
-                               start=time() - max_logins_period)
-        incidents = [inc for inc in incidents
-                     if inc.get('ip') == ip_from_request(request)]
-        if len(incidents):
-            secs = incidents[0]['time'] + block_period - time()
-            raise LoginThrottledError("Try again in %d seconds." % secs)
-
-        if not user.check_password(password):
-            # check if rate limiting condition just got triggered
-            logins = list(get_events(
-                auth_context=None, user_id=user.id, event_type='request',
-                action='login', error=True, start=time() - max_logins_period))
-            logins = [login for login in logins
-                      if login.get('request_ip') == ip_from_request(request)]
-            if len(logins) > max_logins:
-                log_event(owner_id=user.id, user_id=user.id,
-                          event_type='incident',
-                          action='login_rate_limiting',
-                          ip=ip_from_request(request))
-                # alert admins something nasty is going on
-                subject = config.FAILED_LOGIN_ATTEMPTS_EMAIL_SUBJECT
-                body = config.FAILED_LOGIN_ATTEMPTS_EMAIL_BODY % (
-                    user.email,
-                    ip_from_request(request),
-                    max_logins,
-                    max_logins_period,
-                    block_period
-                )
-                send_email(subject, body, config.NOTIFICATION_EMAIL['ops'])
-            raise UserUnauthorizedError()
-    elif token_from_params:
+    if username:            # try to bind with LDAP server
         try:
-            auth_token = ApiToken.objects.get(user_id=user.id,
-                                              token=token_from_params)
-        except me.DoesNotExist:
-            auth_token = None
-        if not (auth_token and auth_token.is_valid()):
-            raise UserUnauthorizedError()
-        auth_token.touch()
-        auth_token.save()
+            user = User.objects.get(username=username)
+        except (UserNotFoundError, me.DoesNotExist):
+            user = User(username=username)
+        except me.MultipleObjectsReturned:
+            users = User.objects(username=username)
+            # TODO: is this really ok?
+            for u in users:
+                u.delete()
+            user = User(username=username)
+
+        if config.HAS_AUTH and config.LDAP_SETTINGS.get('SERVER', ''):
+            if config.LDAP_SETTINGS.get('AD'):
+                from mist.auth.social.methods import login_a_d_user
+                email, fname, lname = login_a_d_user(
+                    config.LDAP_SETTINGS.get('SERVER'),
+                    username, password, user)
+            else:
+                from mist.auth.social.methods import login_ldap_user
+                email, fname, lname = login_ldap_user(
+                    config.LDAP_SETTINGS.get('SERVER'),
+                    username, password, user)
+            user.email = email
+            user.first_name = fname
+            user.last_name = lname
+            user.save()
+        else:
+            raise BadRequestError("Cannot use LDAP authentication")
+
     else:
-        raise RequiredParameterMissingError("'password' or 'token'")
+        email = email.lower()
+        try:
+            user = User.objects.get(email=email)
+        except (UserNotFoundError, me.DoesNotExist):
+            raise UserUnauthorizedError()
+        if not user.status == 'confirmed':
+            raise UserUnauthorizedError("User account has not been confirmed.")
+
+        if password:
+            # rate limit user logins
+            max_logins = config.FAILED_LOGIN_RATE_LIMIT['max_logins']
+            max_logins_period = config.FAILED_LOGIN_RATE_LIMIT[
+                'max_logins_period']
+            block_period = config.FAILED_LOGIN_RATE_LIMIT['block_period']
+
+            # check if rate limiting in place
+            incidents = get_events(auth_context=None, user_id=user.id,
+                                   event_type='incident',
+                                   action='login_rate_limiting',
+                                   start=time() - max_logins_period)
+            incidents = [inc for inc in incidents
+                         if inc.get('ip') == ip_from_request(request)]
+            if len(incidents):
+                secs = incidents[0]['time'] + block_period - time()
+                raise LoginThrottledError("Try again in %d seconds." % secs)
+
+            if not user.check_password(password):
+                # check if rate limiting condition just got triggered
+                logins = list(get_events(
+                    auth_context=None, user_id=user.id, event_type='request',
+                    action='login', error=True,
+                    start=time() - max_logins_period))
+                logins = [login for login in logins
+                          if login.get(
+                              'request_ip') == ip_from_request(request)]
+                if len(logins) > max_logins:
+                    log_event(owner_id=user.id, user_id=user.id,
+                              event_type='incident',
+                              action='login_rate_limiting',
+                              ip=ip_from_request(request))
+                    # alert admins something nasty is going on
+                    subject = config.FAILED_LOGIN_ATTEMPTS_EMAIL_SUBJECT
+                    body = config.FAILED_LOGIN_ATTEMPTS_EMAIL_BODY % (
+                        user.email,
+                        ip_from_request(request),
+                        max_logins,
+                        max_logins_period,
+                        block_period
+                    )
+                    send_email(subject, body, config.NOTIFICATION_EMAIL['ops'])
+                raise UserUnauthorizedError()
+        elif token_from_params:
+            try:
+                auth_token = ApiToken.objects.get(user_id=user.id,
+                                                  token=token_from_params)
+            except me.DoesNotExist:
+                auth_token = None
+            if not (auth_token and auth_token.is_valid()):
+                raise UserUnauthorizedError()
+            auth_token.touch()
+            auth_token.save()
+        else:
+            raise RequiredParameterMissingError("'password' or 'token'")
 
     # Check whether the request IP is in the user whitelisted ones.
     current_user_ip = netaddr.IPAddress(ip_from_request(request))

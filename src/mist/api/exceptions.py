@@ -315,6 +315,11 @@ class VolumeAttachmentError(InternalServerError):
     msg = "Volume attachment failed"
 
 
+# LDAP related exceptions
+class LDAPServerUnreachableError(ServiceUnavailableError):
+    msg = "LDAP Server Unreachable"
+
+
 #  BAD GATEWAY (translated as 502 in views)
 class BadGatewayError(MistError):
     """Used to notify about failures in upstream services
