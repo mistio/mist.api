@@ -983,7 +983,6 @@ def machine_console(request):
 
     if machine.cloud.ctl.provider not in ['vsphere', 'openstack', 'libvirt']:
         raise NotImplementedError(
-<<<<<<< HEAD
             "VNC console only supported for vSphere, OpenStack or KVM")
 
     if machine.cloud.ctl.provider == 'libvirt':
@@ -1010,14 +1009,22 @@ def machine_console(request):
         ws_uri = '%s/proxy/%s/%s/%s/%s/%s/%s' % (
             base_ws_uri, host, key_id, vnc_host, vnc_port, expiry, mac)
         return render_to_response('../templates/novnc.pt', {'url': ws_uri})
+<<<<<<< HEAD
 
     console_uri = machine.cloud.ctl.compute.connection.ex_open_console(
-=======
             "VNC console only supported for vSphere and OpenStack")
     url_param = machine.cloud.ctl.compute.connection.ex_open_console(
->>>>>>> 5ee55b6d... Added new Vsphere controller compute, commented out the old one
         machine.machine_id
     )
     params = urllib.parse.urlencode({'url': url_param})
     console_url = f"/ui/assets/vsphere-console-util-js/console.html?{params}"
     raise RedirectError(console_url)
+=======
+    if machine.cloud.ctl.provider == 'vsphere':
+        url_param = machine.cloud.ctl.compute.connection.ex_open_console(
+            machine.machine_id
+        )
+        params = urllib.parse.urlencode({'url': url_param})
+        console_url = f"/ui/assets/vsphere-console-util-js/console.html?{params}"
+        raise RedirectError(console_url)
+>>>>>>> 3810f4b9... Fixed console conflict
