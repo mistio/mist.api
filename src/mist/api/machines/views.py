@@ -323,7 +323,8 @@ def create_machine(request):
     sec_group = params.get('security_group', '')
     vnfs = params.get('vnfs', [])
     expiration = params.get('expiration', {})
-
+    folder = params.get('folders', None)
+    datastore = params.get('datastore', None)
     job_id = params.get('job_id')
     # The `job` variable points to the event that started the job. If a job_id
     # is not provided, then it means that this is the beginning of a new story
@@ -466,9 +467,9 @@ def create_machine(request):
               'ip_addresses': ip_addresses,
               'vnfs': vnfs,
               'expiration': expiration,
-              'sec_group': sec_group}
-    import pdb;pdb.set_trace()
-    run_async=False
+              'sec_group': sec_group,
+              'folder': folder,
+              'datastore': datastore}
     if not run_async:
         ret = methods.create_machine(auth_context, *args, **kwargs)
     else:
