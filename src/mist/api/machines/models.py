@@ -441,7 +441,7 @@ class Machine(OwnershipMixin, me.Document):
             'created': str(self.created.replace(tzinfo=None)
                            if self.created else ''),
             'machine_type': self.machine_type,
-            'parent_id': self.parent.id if self.parent is not None else '',
+            'parent': self.parent.id if self.parent is not None else '',
             'probe': {
                 'ping': (self.ping_probe.as_dict()
                          if self.ping_probe is not None
