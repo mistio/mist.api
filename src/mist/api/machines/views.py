@@ -1015,5 +1015,10 @@ def machine_console(request):
             machine.machine_id
         )
         params = urllib.parse.urlencode({'url': url_param})
-        console_url = f"/ui/assets/vsphere-console-util-js/console.html?{params}"
-        raise RedirectError(console_url)
+        console_url = ("/ui/assets/vsphere-console-util-js/"
+                       f"console.html?{params}")
+    else:
+        console_url = machine.cloud.ctl.compute.connection.ex_open_console(
+            machine.machine_id
+        )
+    raise RedirectError(console_url)
