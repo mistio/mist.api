@@ -1015,5 +1015,6 @@ def machine_console(request):
             machine.machine_id
         )
         params = urllib.parse.urlencode({'url': url_param})
-        console_url = f"/ui/assets/vsphere-console-util-js/console.html?{params}"
+        console_url = (f"/ui/assets/vsphere-console-util-js/"
+                        "console.html?{params}")
         raise RedirectError(console_url)
