@@ -1765,6 +1765,7 @@ ALLOW_SIGNUP_GITHUB = False
 ALLOW_SIGNIN_EMAIL = True
 ALLOW_SIGNIN_GOOGLE = False
 ALLOW_SIGNIN_GITHUB = False
+LDAP_SETTINGS = {}
 STRIPE_PUBLIC_APIKEY = False
 ENABLE_AB = False
 ENABLE_R12N = False
@@ -1908,6 +1909,7 @@ HAS_CLOUDIFY_INSIGHTS = HAS_INSIGHTS and HAS_ORCHESTRATION \
 HAS_VPN = 'vpn' in PLUGINS
 HAS_EXPERIMENTS = 'experiments' in PLUGINS
 HAS_MANAGE = 'manage' in PLUGINS
+HAS_AUTH = 'auth' in PLUGINS
 
 # enable backup feature if aws creds have been set
 ENABLE_BACKUPS = bool(BACKUP['key']) and bool(BACKUP['secret'])
@@ -1973,6 +1975,17 @@ if NO_VERIFY_HOSTS:
 WHITELIST_CIDR = [
 ]
 
+if LDAP_SETTINGS and LDAP_SETTINGS.get('SERVER'):
+    if LDAP_SETTINGS.get('AD'):
+        ALLOW_SIGNIN_AD = True
+        ALLOW_SIGNIN_LDAP = False
+    else:
+        ALLOW_SIGNIN_AD = False
+        ALLOW_SIGNIN_LDAP = True
+else:
+    ALLOW_SIGNIN_AD = False
+    ALLOW_SIGNIN_LDAP = False
+
 HOMEPAGE_INPUTS = {
     'portal_name': PORTAL_NAME,
     'theme': THEME,
@@ -1992,6 +2005,8 @@ HOMEPAGE_INPUTS = {
         'signin_email': ALLOW_SIGNIN_EMAIL,
         'signin_google': ALLOW_SIGNIN_GOOGLE,
         'signin_github': ALLOW_SIGNIN_GITHUB,
+        'signin_ldap': ALLOW_SIGNIN_LDAP,
+        'signin_ad': ALLOW_SIGNIN_AD,
         'signin_home': REDIRECT_HOME_TO_SIGNIN,
         'landing_footer': SHOW_FOOTER,
         'docs': DOCS_URI,

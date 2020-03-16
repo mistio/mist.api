@@ -351,8 +351,8 @@ class LibvirtMainController(BaseMainController):
         # FIXME: Add update support, need to clean up kvm 'host' from libcloud,
         # and especially stop using cloud.host as the machine id ffs.
         if not add:
-            raise BadRequestError("Update action is not currently support for "
-                                  "Libvirt/KVM clouds.")
+            raise BadRequestError("Update action is not currently supported "
+                                  "for Libvirt/KVM clouds.")
         super(LibvirtMainController, self).update(
             fail_on_error=fail_on_error,
             fail_on_invalid_params=fail_on_invalid_params,

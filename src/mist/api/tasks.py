@@ -776,9 +776,8 @@ def create_machine_async(
     associate_floating_ip_subnet=None, project_id=None,
     tags=None, schedule={}, bare_metal=False, hourly=True,
     softlayer_backend_vlan_id=None, machine_username='',
-    volumes=[], ip_addresses=[], expiration={},
     ephemeral=False, lxd_image_source=None,
-    sec_group=''
+    volumes=[], ip_addresses=[], expiration={}, sec_group='', vnfs=[]
 ):
     from multiprocessing.dummy import Pool as ThreadPool
     from mist.api.machines.methods import create_machine
@@ -836,7 +835,8 @@ def create_machine_async(
              'expiration': expiration,
              'ephemeral': ephemeral,
              'lxd_image_source': lxd_image_source,
-             'sec_group': sec_group}
+             'sec_group': sec_group,
+             'vnfs': vnfs}
         ))
 
     def create_machine_wrapper(args_kwargs):

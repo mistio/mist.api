@@ -551,11 +551,11 @@ def transform_key_machine_associations(associations):
     try:
         transformed = [
             [association.machine.cloud.id,
-            association.machine.machine_id,
-            association.last_used,
-            association.ssh_user,
-            association.sudo,
-            association.port]
+             association.machine.machine_id,
+             association.last_used,
+             association.ssh_user,
+             association.sudo,
+             association.port]
             for association in associations
         ]
     except DoesNotExist:

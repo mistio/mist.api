@@ -262,6 +262,8 @@ def add_routes(configurator):
         'api_v1_subnet',
         '/api/v1/clouds/{cloud}/networks/{network}/subnets/{subnet}'
     )
+    configurator.add_route('api_v1_cloud_vnfs',
+                           '/api/v1/clouds/{cloud}/vnfs')
 
     # Volumes
     configurator.add_route(

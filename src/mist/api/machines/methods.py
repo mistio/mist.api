@@ -156,7 +156,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                    softlayer_backend_vlan_id=None, machine_username='',
                    volumes=[], ip_addresses=[], expiration={},
                    ephemeral=False, lxd_image_source=None,
-                   sec_group=''
+                   sec_group='', vnfs=[]
                    ):
     """Creates a new virtual machine on the specified cloud.
 
@@ -438,7 +438,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                                        disk_path=disk_path,
                                        networks=networks,
                                        public_key=public_key,
-                                       cloud_init=cloud_init)
+                                       cloud_init=cloud_init,
+                                       vnfs=vnfs)
     elif conn.type == Provider.PACKET:
         node = _create_machine_packet(conn, public_key, machine_name, image,
                                       size, location, cloud_init, cloud,
@@ -1401,7 +1402,7 @@ def _create_machine_digital_ocean(conn, cloud, key_name, private_key,
 
 def _create_machine_libvirt(conn, machine_name, disk_size, ram, cpu,
                             image, disk_path, networks,
-                            public_key, cloud_init):
+                            public_key, cloud_init, vnfs=[]):
     """Create a machine in Libvirt.
     """
     # The libvirt drivers expects network names.
@@ -1435,7 +1436,8 @@ def _create_machine_libvirt(conn, machine_name, disk_size, ram, cpu,
             disk_path=disk_path,
             networks=network_names,
             public_key=public_key,
-            cloud_init=cloud_init
+            cloud_init=cloud_init,
+            vnfs=vnfs
         )
 
     except Exception as e:
