@@ -1851,7 +1851,7 @@ class VSphereRestComputeController(BaseComputeController):
                                             port=port,
                                             ca_cert=ca_cert)
         self.version = driver_6_5._get_version()
-        if '6.7'in self.version:
+        if '6.7'in self.version and config.ENABLE_VSPHERE_REST:
             self.version = '6.7'
             return VSphere_6_7_NodeDriver(self.cloud.username,
                                           secret=self.cloud.password,
