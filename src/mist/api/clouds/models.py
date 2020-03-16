@@ -359,7 +359,7 @@ class GigG8Cloud(Cloud):
     user_id = me.IntField(required=True)
     url = me.StringField(required=True)
 
-    _private_fields = ('token', )
+    _private_fields = ('apikey', )
     _controller_cls = controllers.GigG8MainController
 
 
