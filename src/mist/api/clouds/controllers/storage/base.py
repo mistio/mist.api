@@ -139,10 +139,10 @@ class BaseStorageController(BaseController):
         for libcloud_volume in libcloud_volumes:
             try:
                 volume = Volume.objects.get(cloud=self.cloud,
-                                            external_id=libcloud_volume.id)
+                                            external_id=str(libcloud_volume.id))
             except Volume.DoesNotExist:
                 volume = Volume(cloud=self.cloud,
-                                external_id=libcloud_volume.id)
+                                external_id=str(libcloud_volume.id))
                 new_volumes.append(volume)
 
             volume.name = libcloud_volume.name
@@ -155,7 +155,6 @@ class BaseStorageController(BaseController):
                 self._list_volumes__postparse_volume(volume, libcloud_volume)
             except Exception as exc:
                 log.exception('Error post-parsing %s: %s', volume, exc)
-
             # Update with available volume actions.
             try:
                 self._list_volumes__volume_actions(volume, libcloud_volume)
@@ -374,7 +373,7 @@ class BaseStorageController(BaseController):
         """
         volumes = self._list_volumes__fetch_volumes()
         for vol in volumes:
-            if vol.id == volume.external_id:
+            if str(vol.id) == volume.external_id:
                 return vol
         raise mist.api.exceptions.VolumeNotFoundError(
             'Volume %s with external_id %s' % (volume.name, volume.external_id)

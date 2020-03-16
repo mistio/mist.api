@@ -398,3 +398,24 @@ class PacketStorageController(BaseStorageController):
             except Machine.DoesNotExist:
                 log.error('%s attached to unknown machine "%s"', volume,
                           machine_id)
+
+
+class GigG8StorageController(BaseStorageController):
+
+    def _list_volumes__postparse_volume(self, volume, libcloud_volume):
+        # Find the machine to which the volume is attached
+        volume.attached_to = []
+        machine_id = libcloud_volume.extra.get('machineId', None)
+        if machine_id:
+            try:
+                from mist.api.machines.models import Machine
+                machine = Machine.objects.get(
+                    machine_id=str(machine_id), cloud=self.cloud,
+                    missing_since=None
+                )
+                volume.attached_to = [machine]
+            except Machine.DoesNotExist:
+                log.error('%s attached to unknown machine "%s"', volume,
+                          machine_id)
+
+    # _create_volume__prepare_args

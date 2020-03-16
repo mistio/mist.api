@@ -469,6 +469,13 @@ class GigG8ComputeController(BaseComputeController):
         if machine_libcloud.state is NodeState.PAUSED:
             machine.actions.start = True
 
+    def list_sizes(self, persist=True):
+        # only custom sizes are supported
+        return []
+
+    def list_locations(self, persist=True):
+        return []
+
 
 class LinodeComputeController(BaseComputeController):
 
