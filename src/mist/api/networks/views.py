@@ -15,6 +15,7 @@ from mist.api.exceptions import CloudNotFoundError
 from mist.api.exceptions import SubnetNotFoundError
 from mist.api.exceptions import NetworkNotFoundError
 from mist.api.exceptions import RequiredParameterMissingError
+from mist.api.exceptions import MistNotImplementedError
 
 from mist.api.helpers import params_from_request, view_config
 
@@ -395,3 +396,36 @@ def associate_ip(request):
         return OK
     else:
         return Response("Bad Request", 400)
+
+
+@view_config(route_name='api_v1_cloud_vnfs', request_method='GET',
+             renderer='json')
+def list_vnfs(request):
+    """
+    Tags: networks
+    ---
+    List the virtual network functions of a cloud (KVM only)
+
+    READ permission required on cloud
+    ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    """
+    cloud_id = request.matchdict['cloud']
+
+    auth_context = auth_context_from_request(request)
+
+    # SEC
+    auth_context.check_perm('cloud', 'read', cloud_id)
+
+    try:
+        cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id)
+    except Cloud.DoesNotExist:
+        raise CloudNotFoundError()
+
+    try:
+        return cloud.ctl.compute.connection.ex_list_vnfs()
+    except NotImplementedError:
+        raise MistNotImplementedError

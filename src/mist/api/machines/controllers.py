@@ -91,6 +91,12 @@ class MachineController(object):
         to destroy machine and delete XML conf"""
         return self.machine.cloud.ctl.compute.undefine_machine(self.machine)
 
+    def clone(self):
+        """
+        Clones machine - used in KVM libvirt
+        """
+        return self.machine.cloud.ctl.compute.clone_machine(self.machine)
+
     def associate_key(self, key, username=None, port=22, no_connect=False):
         """Associate an sshkey with a machine"""
         return key.ctl.associate(self.machine, username=username,
