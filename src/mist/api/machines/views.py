@@ -1011,7 +1011,7 @@ def machine_console(request):
             base_ws_uri, host, key_id, vnc_host, vnc_port, expiry, mac)
         return render_to_response('../templates/novnc.pt', {'url': ws_uri})
     if machine.cloud.ctl.provider == 'vsphere':
-        console_uri = machine.cloud.ctl.compute.connection.ex_open_console(
+        url_param = machine.cloud.ctl.compute.connection.ex_open_console(
             machine.machine_id
         )
         params = urllib.parse.urlencode({'url': url_param})
