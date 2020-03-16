@@ -459,7 +459,9 @@ class MaxihostComputeController(BaseComputeController):
 class GigG8ComputeController(BaseComputeController):
 
     def _connect(self):
-        return get_driver(Provider.GIG_G8)(self.cloud.token)
+        return get_driver(Provider.GIG_G8)(self.cloud.user_id,
+                                           self.cloud.apikey,
+                                           self.cloud.url)
 
     def _list_machines__machine_actions(self, machine, machine_libcloud):
         super(GigG8ComputeController, self)._list_machines__machine_actions(
