@@ -814,10 +814,10 @@ class GoogleComputeController(BaseComputeController):
                     os_type = 'win'
                     machine.os_type = 'windows'
                 machine.extra['os_type'] = os_type
-
-            if 'windows-cloud' in extra['disks'][0]['licenses'][0]:
-                machine.os_type = 'windows'
-                machine.extra['os_type'] = 'win'
+            if extra['disks'][0].get('licenses', []):
+                if 'windows-cloud' in extra['disks'][0]['licenses'][0]:
+                    machine.os_type = 'windows'
+                    machine.extra['os_type'] = 'win'
         except:
             log.exception("Couldn't parse os_type for machine %s:%s for %s",
                           machine.id, machine.name, self.cloud)
