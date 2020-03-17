@@ -463,6 +463,19 @@ class GigG8ComputeController(BaseComputeController):
                                            self.cloud.apikey,
                                            self.cloud.url)
 
+    def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        # Discover network of machine.
+        network = machine_libcloud.extra.get('network', None)
+        network_id = str(network.id)
+        if network:
+            from mist.api.networks.models import Network
+            try:
+                machine.network = Network.objects.get(cloud=self.cloud,
+                                                    network_id=network_id,
+                                                    missing_since=None)
+            except Network.DoesNotExist:
+                machine.network = None
+
     def _list_machines__machine_actions(self, machine, machine_libcloud):
         super(GigG8ComputeController, self)._list_machines__machine_actions(
             machine, machine_libcloud)
@@ -475,6 +488,15 @@ class GigG8ComputeController(BaseComputeController):
 
     def list_locations(self, persist=True):
         return []
+
+    def _stop_machine(self, machine, machine_libcloud):
+        self.connection.stop_node(machine_libcloud)
+
+    def _start_machine(self, machine, machine_libcloud):
+        self.connection.start_node(machine_libcloud)
+
+    def _reboot_machine(self, machine, machine_libcloud):
+        self.connection.reboot_node(machine_libcloud)
 
 
 class LinodeComputeController(BaseComputeController):
