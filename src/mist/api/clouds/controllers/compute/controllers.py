@@ -1899,6 +1899,36 @@ class VSphereRestComputeController(BaseComputeController):
 #         return self.connection.list_nodes(
 #             max_properties=self.cloud.max_properties_per_request)
 
+    def _list_machines__get_size(self, node):
+        """Return key of size_map dict for a specific node
+
+        Subclasses MAY override this method.
+        """
+                
+        return None
+    
+    def _list_machines__get_custom_size(self, node):
+        # FIXME: resolve circular import issues
+        from mist.api.clouds.models import CloudSize
+        try:
+            _size = CloudSize.objects.get(external_id=node.size.id)
+        except me.DoesNotExist:
+            _size = CloudSize(cloud=self.cloud,
+                            external_id=str(node.size.id))
+        _size.ram = node.size.ram
+        _size.cpus = node.size.extra.get('cpus')
+        _size.disk = node.size.disk
+        name = ""
+        if _size.cpus:
+            name += f'{_size.cpus}v CPUs, '
+        if _size.ram:
+            name += f'{_size.ram}MB RAM, '
+        if _size.disk:            
+            name += f'{_size.disk}GB disk.'
+        _size.name = name
+        _size.save()
+        return _size
+
     def _list_machines__machine_actions(self, machine, machine_libcloud):
         super(VSphereRestComputeController,
               self)._list_machines__machine_actions(
