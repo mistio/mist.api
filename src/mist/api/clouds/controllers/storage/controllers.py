@@ -420,3 +420,7 @@ class GigG8StorageController(BaseStorageController):
 
     def _create_volume__prepare_args(self, kwargs):
         kwargs['ex_description'] = kwargs.pop('description')
+
+    def _detach_volume(self, libcloud_volume, libcloud_node):
+        self.cloud.ctl.compute.connection.detach_volume(libcloud_node,
+                                                        libcloud_volume)
