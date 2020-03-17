@@ -405,7 +405,7 @@ class GigG8StorageController(BaseStorageController):
     def _list_volumes__postparse_volume(self, volume, libcloud_volume):
         # Find the machine to which the volume is attached
         volume.attached_to = []
-        machine_id = libcloud_volume.extra.get('machineId', None)
+        machine_id = libcloud_volume.extra.get('node_id', None)
         if machine_id:
             try:
                 from mist.api.machines.models import Machine
@@ -418,4 +418,5 @@ class GigG8StorageController(BaseStorageController):
                 log.error('%s attached to unknown machine "%s"', volume,
                           machine_id)
 
-    # _create_volume__prepare_args
+    def _create_volume__prepare_args(self, kwargs):
+        kwargs['ex_description'] = kwargs.pop('description')

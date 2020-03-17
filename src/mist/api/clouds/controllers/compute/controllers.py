@@ -471,8 +471,8 @@ class GigG8ComputeController(BaseComputeController):
             from mist.api.networks.models import Network
             try:
                 machine.network = Network.objects.get(cloud=self.cloud,
-                                                    network_id=network_id,
-                                                    missing_since=None)
+                                                      network_id=network_id,
+                                                      missing_since=None)
             except Network.DoesNotExist:
                 machine.network = None
 
