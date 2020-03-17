@@ -116,6 +116,7 @@ class GigG8MainController(BaseMainController):
     provider = 'gig_g8'
     ComputeController = compute_ctls.GigG8ComputeController
     StorageController = storage_ctls.GigG8StorageController
+    NetworkController = network_ctls.GigG8NetworkController
 
 
 class LinodeMainController(BaseMainController):

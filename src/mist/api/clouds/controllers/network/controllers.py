@@ -231,3 +231,9 @@ class VSphereNetworkController(BaseNetworkController):
 
     def _list_subnets__fetch_subnets(self, network):
         return []
+
+
+class GigG8NetworkController(BaseNetworkController):
+
+    def _list_subnets__fetch_subnets(self, network):
+        return []
