@@ -496,11 +496,13 @@ def list_datastores(request):
         try:
             cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
                                       deleted=None)
-        except Cloud.DoesNotExist:
+        except Cloud.vmDoesNotExist:
             raise NotFoundError('Cloud does not exist')
         # SEC
         auth_context.check_perm('cloud', 'read', cloud_id)
         datastores = cloud.ctl.compute.list_datastores()
         return datastores
     else:
-        raise BadRequestError("Not possible at this time")
+        raise BadRequestError("The cloud with the give id was not found,"
+                              " please make sure it is was typed correctly"
+                              " in the url.")
