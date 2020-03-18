@@ -1904,9 +1904,8 @@ class VSphereRestComputeController(BaseComputeController):
 
         Subclasses MAY override this method.
         """
-                
         return None
-    
+
     def _list_machines__get_custom_size(self, node):
         # FIXME: resolve circular import issues
         from mist.api.clouds.models import CloudSize
@@ -1914,7 +1913,7 @@ class VSphereRestComputeController(BaseComputeController):
             _size = CloudSize.objects.get(external_id=node.size.id)
         except me.DoesNotExist:
             _size = CloudSize(cloud=self.cloud,
-                            external_id=str(node.size.id))
+                              external_id=str(node.size.id))
         _size.ram = node.size.ram
         _size.cpus = node.size.extra.get('cpus')
         _size.disk = node.size.disk
@@ -1923,7 +1922,7 @@ class VSphereRestComputeController(BaseComputeController):
             name += f'{_size.cpus}v CPUs, '
         if _size.ram:
             name += f'{_size.ram}MB RAM, '
-        if _size.disk:            
+        if _size.disk:
             name += f'{_size.disk}GB disk.'
         _size.name = name
         _size.save()
