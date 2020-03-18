@@ -92,9 +92,6 @@ class ShellHubWorker(mist.api.hub.main.HubWorker):
                 self.stop()
                 return
 
-        # TODO: this returns the underlying object
-        # that handles the connection e.g. the ws object for Docker
-        # and LXD is this the way we want to do it?
         self.channel = self.shell.invoke_shell('xterm',
                                                data['columns'], data['rows'])
         self.greenlets['read_stdout'] = gevent.spawn(self.get_ssh_data)
@@ -106,7 +103,7 @@ class ShellHubWorker(mist.api.hub.main.HubWorker):
         if self.shell.get_type() == "ParamikoShell" or \
                 self.shell.get_type() == "DockerShell":
 
-                self.channel.send(body.encode('utf-8', 'ignore'))
+            self.channel.send(body.encode('utf-8', 'ignore'))
         elif self.shell.get_type() == "LXDShell":
             self.channel.send(bytearray(body, encoding='utf-8'), opcode=2)
 
