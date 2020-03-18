@@ -215,7 +215,9 @@ class VSphereNetwork(Network):
 
 
 class GigG8Network(Network):
-    pass
+    private_network = me.StringField(required=True)
+    type = me.StringField(default='vgw',
+                          choices=('vgw', 'routeros'))
 
 
 class Subnet(me.Document):
