@@ -5,6 +5,7 @@ import mongoengine as me
 import time
 import requests
 import datetime
+import json
 
 from random import randrange
 
@@ -36,7 +37,7 @@ from mist.api.exceptions import BadRequestError, MachineCreationError
 from mist.api.exceptions import InternalServerError
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import VolumeNotFoundError
-from mist.api.exceptions import NetworkNotFoundError
+from mist.api.exceptions import NetworkNotFoundError, MistNotImplementedError
 
 from mist.api.helpers import get_temp_file
 
@@ -155,6 +156,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                    bare_metal=False, hourly=True,
                    softlayer_backend_vlan_id=None, machine_username='',
                    volumes=[], ip_addresses=[], expiration={},
+                   ephemeral=False, lxd_image_source=None,
                    sec_group='', vnfs=[], description=''
                    ):
     """Creates a new virtual machine on the specified cloud.
@@ -183,9 +185,11 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     # post_script_id: id of a script that exists - for mist.core. If script_id
     # or monitoring are supplied, this will run after both finish
     # post_script_params: extra params, for post_script_id
+
     log.info('Creating machine %s on cloud %s' % (machine_name, cloud_id))
     cloud = Cloud.objects.get(owner=auth_context.owner,
                               id=cloud_id, deleted=None)
+
     conn = connect_provider(cloud)
 
     machine_name = machine_name_validator(conn.type, machine_name)
@@ -212,7 +216,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     # For providers, which do not support pre-defined sizes, we expect `size`
     # to be a dict with all the necessary information regarding the machine's
     # size.
-    if cloud.ctl.provider in ('vsphere', 'onapp', 'libvirt', 'gig_g8', ):
+    if cloud.ctl.provider in ('vsphere', 'onapp', 'libvirt', 'lxd', 'gig_g8',):
         if not isinstance(size, dict):
             raise BadRequestError('Expected size to be a dict.')
         size_id = 'custom'
@@ -319,6 +323,14 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                 docker_port_bindings=docker_port_bindings,
                 docker_exposed_ports=docker_exposed_ports
             )
+    elif conn.type is Container_Provider.LXD:
+
+        node = _create_machine_lxd(conn=conn, machine_name=machine_name,
+                                   image=image, parameters=lxd_image_source,
+                                   start=True, cluster=None,
+                                   ephemeral=ephemeral,
+                                   size_cpu=size_cpu, size_ram=size_ram,
+                                   volumes=volumes, networks=networks)
     elif conn.type in [Provider.RACKSPACE_FIRST_GEN, Provider.RACKSPACE]:
         node = _create_machine_rackspace(conn, public_key, machine_name, image,
                                          size, location, user_data=cloud_init)
@@ -1146,6 +1158,198 @@ def _create_machine_docker(conn, machine_name, image_id,
         raise MachineCreationError("Docker, got exception %s" % e, e)
 
     return container
+
+
+def _create_machine_lxd(conn, machine_name, image,
+                        parameters, start=True, cluster=None,
+                        ephemeral=False,
+                        size_cpu=None, size_ram=None,
+                        profiles=None, devices=None, instance_type=None,
+                        volumes=None, networks=None):
+    """
+    Create a new LXC container on the machine described by the given
+    conn argument. Currently we only support
+    local image identified by its fingerprint
+
+    :param conn: The connection to the machine to create the container
+    :param machine_name: The name of the container
+    :param image: a libcloud.NodeImage
+    :param parameters: extra parameters for the ContainerImage
+    :param start: Whether the container should be started at creation
+    :param cluster: The cluster the container belongs to
+    :param profiles: A list of profiles e.g ["default"]
+    :param ephemeral: Whether to destroy the container on shutdown
+    :param config: Config override e.g.  {"limits.cpu": "2"},
+    :param devices: optional list of devices the container should have
+    :param instance_type: An optional instance type to
+    use as basis for limits e.g. "c2.micro"
+
+    :return: libcloud.Container
+    """
+
+    from libcloud.container.drivers.lxd import LXDAPIException
+    image = ContainerImage(id=image.id, name=image.name,
+                           extra={}, driver=conn, path=None,
+                           version=None)
+    try:
+
+        # default time out
+        timeout = conn.default_time_out
+        img_params = {
+            "source": {
+                "type": "image",
+            }
+        }
+        if parameters is None:
+            img_params["source"]["fingerprint"] = image.id
+        else:
+            # check if the image exists locally
+            image_exists, _ = conn.ex_has_image(alias=parameters)
+
+            if image_exists:
+                # then the image exists locally
+                # sp use this
+                img_params["source"]["alias"] = parameters
+            else:
+                raise MistNotImplementedError()
+
+        # by default no devices
+        devices = {}
+
+        # if we have a volume we need to create it also
+        # simply attach it. Currently assume that the
+        # volume is just given
+        if volumes is not None\
+                and len(volumes) != 0:
+            # we requested volumes as well
+            # if this is a new volume
+            # we must create it otherwise we simply
+            # append to the devices
+
+            path = volumes[0].get('path', None)
+
+            if path is None:
+                raise MachineCreationError("You need to provide"
+                                           " a path for the storage")
+
+            pool_id = volumes[0].get('pool_id', None)
+
+            if pool_id is None:
+
+                # this means we attach an
+                # existing volume
+                volume_id = volumes[0].get('volume_id', None)
+
+                if volume_id is None:
+                    raise MachineCreationError("You need to provide"
+                                               " a volume name to attach to")
+
+                from mist.api.volumes.models import Volume
+
+                volume = Volume.objects.get(id=volume_id)
+
+                volume = {volume.name: {
+                    "type": "disk",
+                    "path": path,
+                    "source": volume.name,
+                    "pool": volume.extra["pool_id"]
+                }}
+            else:
+
+                # this mean we create a new volume
+                vol_config = {}
+                definition = {"name": volumes[0]["name"], "type": "custom",
+                              "size_type": "GB"}
+
+                # keys are set according to
+                # https://linuxcontainers.org/lxd/docs/master/storage
+                if "block_filesystem" in volumes[0] and \
+                        volumes[0]["block_filesystem"] != '':
+
+                    vol_config["block.filesystem"] = \
+                        volumes[0]["block_filesystem"]
+
+                if "block_mount_options" in volumes[0] and \
+                        volumes[0]["block_mount_options"] != '':
+
+                    vol_config["block.mount_options"] = \
+                        volumes[0]['block_mount_options']
+
+                if "security_shifted" in volumes[0]:
+                    vol_config["security.shifted"] = \
+                        str(volumes[0]['security_shifted'])
+
+                vol_config['size'] = volumes[0]["size"]
+
+                definition["config"] = vol_config
+
+                try:
+                    # create the volume
+                    volume = conn.create_volume(pool_id=volumes[0]["pool_id"],
+                                                definition=definition)
+
+                    # the volume to attach
+                    volume = {volume.name: {
+                        "type": "disk",
+                        "path": path,
+                        "source": volume.name,
+                        "pool": volume.extra["pool_id"]
+                    }}
+                except Exception as e:
+                    raise MachineCreationError("LXD volume creation, "
+                                               "got exception %s" % e)
+
+            if devices is not None:
+                devices.update(volume)
+            else:
+                devices = volume
+
+        if networks is not None\
+                and len(networks) != 0:
+
+            # we also want to attache a network
+            network_id = networks
+
+            from mist.api.networks.models import LXDNetwork
+
+            network = LXDNetwork.objects.get(id=network_id)
+
+            net_type = network.extra.get("type", "nic")
+            net_nictype = network.extra.get("nictype", "bridged")
+            net_parent = network.extra.get("parent", "lxdbr0")
+
+            # add the network to the devices
+            devices[network.name] = {
+                "name": network.name,
+                "type": net_type,
+                "nictype": net_nictype,
+                "parent": net_parent,
+            }
+
+        config = {}
+
+        if size_cpu is not None:
+            config['limits.cpu'] = str(size_cpu)
+
+        if size_ram is not None:
+            config['limits.memory'] = str(size_ram) + "MB"
+
+        container = conn.deploy_container(name=machine_name, image=None,
+                                          cluster=cluster,
+                                          parameters=json.dumps(img_params),
+                                          start=start,
+                                          ex_ephemeral=ephemeral,
+                                          ex_config=config,
+                                          ex_instance_type=instance_type,
+                                          ex_devices=devices,
+                                          ex_profiles=profiles,
+                                          ex_timeout=timeout)
+        return container
+    except LXDAPIException as e:
+        raise MachineCreationError("Could not create "
+                                   "LXD Machine: %s" % e.message)
+    except Exception:
+        raise
 
 
 def _create_machine_digital_ocean(conn, cloud, key_name, private_key,

@@ -1368,6 +1368,12 @@ SUPPORTED_PROVIDERS = [
         'provider': Provider.GIG_G8,
         'regions': []
     },
+    # LXD
+    {
+        'title': 'LXD',
+        'provider': 'lxd',
+        'regions': []
+    },
 ]
 
 # Base AMIs
@@ -1773,6 +1779,7 @@ ENABLE_MONITORING = True
 ENABLE_SHELL_CAPTURE = False
 MACHINE_PATCHES = True
 ACCELERATE_MACHINE_POLLING = True
+PROCESS_POOL_WORKERS = 0
 PLUGINS = []
 PRE_ACTION_HOOKS = {}
 POST_ACTION_HOOKS = {}
