@@ -5,6 +5,7 @@ import mongoengine as me
 import time
 import requests
 import datetime
+import json
 
 from random import randrange
 
@@ -36,7 +37,7 @@ from mist.api.exceptions import BadRequestError, MachineCreationError
 from mist.api.exceptions import InternalServerError
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import VolumeNotFoundError
-from mist.api.exceptions import NetworkNotFoundError
+from mist.api.exceptions import NetworkNotFoundError, MistNotImplementedError
 
 from mist.api.helpers import get_temp_file
 
@@ -1137,47 +1138,32 @@ def _create_machine_lxd(conn, machine_name, image,
     """
 
     from libcloud.container.drivers.lxd import LXDAPIException
-
+    image = ContainerImage(id=image.id, name=image.name,
+                           extra={}, driver=conn, path=None,
+                           version=None)
     try:
 
         # default time out
         timeout = conn.default_time_out
-
+        img_parameters = {
+            "source": {
+                "type": "image",
+            }
+        }
         if parameters is None:
-
-            # let's check if this is a fingerprint
-            if all([c.isdigit() or c.isalpha() for c in image.id]):
-                img_parameters = '{"source":{"type":"image", ' \
-                                 '"fingerprint": "%s"}}' % image.id
-            else:
-
-                # then we are not given a url use the image data
-                img_parameters = '{"source":{"type":"image", ' \
-                                 '"alias": "%s"}}' % image.id
+            img_parameters["source"]["fingerprint"] = image.id
         else:
-
             # check if the image exists locally
             image_exists, _ = conn.ex_has_image(alias=parameters)
 
             if image_exists:
                 # then the image exists locally
                 # sp use this
-                img_parameters = '{"source":{"type":"image", ' \
-                                 '"alias": "%s"}}' % parameters
+                img_parameters["source"]["alias"] = parameters
             else:
-                # parameters is expected to be a string
-                # representing an image alias
-                URL = "https://us.images.linuxcontainers.org/"
-                url = URL + "/" + parameters
-                img_parameters = '{"source": {"type":"image", ' \
-                                 '"url": "%s", "mode": "pull",  ' \
-                                 '"aliases": {"name": "%s", ' \
-                                 '"description":" "}}}' % (url, parameters)
+                raise MistNotImplementedError()
 
-                # this will take some time
-                timeout = 600
-
-        # by deafult no devices
+        # by default no devices
         devices = {}
 
         # if we have a volume we need to create it also
@@ -1300,7 +1286,7 @@ def _create_machine_lxd(conn, machine_name, image,
 
         container = conn.deploy_container(name=machine_name, image=None,
                                           cluster=cluster,
-                                          parameters=img_parameters,
+                                          parameters=json.dumps(img_parameters),
                                           start=start,
                                           ex_ephemeral=ephemeral,
                                           ex_config=config,

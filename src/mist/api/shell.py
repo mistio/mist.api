@@ -648,7 +648,7 @@ class LXDShell(LXDWebSocket):
 
         cont_id = machine.name
         response = conn.ex_execute_cmd_on_container(cont_id=cont_id,
-                                                    command=["/bin/bash"],
+                                                    command=["/bin/sh"],
                                                     **config)
 
         uuid = response.uuid
