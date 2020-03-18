@@ -1145,13 +1145,13 @@ def _create_machine_lxd(conn, machine_name, image,
 
         # default time out
         timeout = conn.default_time_out
-        img_parameters = {
+        img_params = {
             "source": {
                 "type": "image",
             }
         }
         if parameters is None:
-            img_parameters["source"]["fingerprint"] = image.id
+            img_params["source"]["fingerprint"] = image.id
         else:
             # check if the image exists locally
             image_exists, _ = conn.ex_has_image(alias=parameters)
@@ -1159,7 +1159,7 @@ def _create_machine_lxd(conn, machine_name, image,
             if image_exists:
                 # then the image exists locally
                 # sp use this
-                img_parameters["source"]["alias"] = parameters
+                img_params["source"]["alias"] = parameters
             else:
                 raise MistNotImplementedError()
 
@@ -1286,7 +1286,7 @@ def _create_machine_lxd(conn, machine_name, image,
 
         container = conn.deploy_container(name=machine_name, image=None,
                                           cluster=cluster,
-                                          parameters=json.dumps(img_parameters),
+                                          parameters=json.dumps(img_params),
                                           start=start,
                                           ex_ephemeral=ephemeral,
                                           ex_config=config,

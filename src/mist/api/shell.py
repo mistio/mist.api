@@ -672,8 +672,9 @@ class LXDShell(LXDWebSocket):
             'command': 'window-resize',
             'args': {
                 'width': str(columns),
-                'height': str(rows)}
+                'height': str(rows)
             }
+        }
         data = json.dumps(data)
         self.cws.send(bytearray(data, encoding='utf-8'), opcode=2)
         return columns, rows
