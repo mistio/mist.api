@@ -448,11 +448,10 @@ class VSphereCloud(Cloud):
     # cases this is not necessary. The default value will fetch all requested
     # properties at once
 
-    # let's see if rest behaves differently
-    # max_properties_per_request = me.IntField(default=20)
+    max_properties_per_request = me.IntField(default=20)
 
     _private_fields = ('password', )
-    _controller_cls = controllers.VSphereRestMainController
+    _controller_cls = controllers.VSphereMainController
 
 
 class VCloud(Cloud):

@@ -207,6 +207,19 @@ class VultrMainController(BaseMainController):
     DnsController = dns_ctls.VultrDNSController
 
 
+class VSphereMainController(BaseMainController):
+
+    provider = 'vsphere'
+    ComputeController = compute_ctls.VSphereComputeController
+    NetworkController = network_ctls.VSphereNetworkController
+
+    def _update__preparse_kwargs(self, kwargs):
+        host = kwargs.get('host', self.cloud.host)
+        if host:
+            kwargs['host'] = sanitize_host(host)
+            check_host(kwargs['host'])
+
+
 class VCloudMainController(BaseMainController):
 
     provider = 'vcloud'
@@ -554,15 +567,3 @@ class ClearCenterMainController(BaseMainController):
 
     provider = 'clearcenter'
     ComputeController = compute_ctls.ClearCenterComputeController
-
-
-class VSphereRestMainController(BaseMainController):
-    provider = "vsphere"
-    ComputeController = compute_ctls.VSphereRestComputeController
-    NetworkController = network_ctls.VSphereNetworkController
-
-    def _update__preparse_kwargs(self, kwargs):
-        host = kwargs.get('host', self.cloud.host)
-        if host:
-            kwargs['host'] = sanitize_host(host)
-            check_host(kwargs['host'])
