@@ -139,10 +139,10 @@ class BaseStorageController(BaseController):
         for libcloud_volume in libcloud_volumes:
             try:
                 volume = Volume.objects.get(cloud=self.cloud,
-                                            external_id=str(libcloud_volume.id))
+                                            external_id=libcloud_volume.id)
             except Volume.DoesNotExist:
                 volume = Volume(cloud=self.cloud,
-                                external_id=str(libcloud_volume.id))
+                                external_id=libcloud_volume.id)
                 new_volumes.append(volume)
 
             volume.name = libcloud_volume.name
@@ -373,7 +373,7 @@ class BaseStorageController(BaseController):
         """
         volumes = self._list_volumes__fetch_volumes()
         for vol in volumes:
-            if str(vol.id) == volume.external_id:
+            if vol.id == volume.external_id:
                 return vol
         raise mist.api.exceptions.VolumeNotFoundError(
             'Volume %s with external_id %s' % (volume.name, volume.external_id)

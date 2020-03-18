@@ -362,7 +362,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     elif conn.type is Provider.GIG_G8:
         node = create_machine_g8(
             conn, machine_name, image, size_ram, size_cpu,
-            size_disk_primary, public_key, description, networks
+            size_disk_primary, public_key, description, networks, volumes
         )
     elif conn.type is Provider.ONAPP:
         node = _create_machine_onapp(
@@ -555,9 +555,11 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
 
 
 def create_machine_g8(conn, machine_name, image, ram, cpu, disk,
-                      public_key, description, networks):
-    # key = public_key.replace('\n', '')
-    # auth = NodeAuthSSHKey(pubkey=key)
+                      public_key, description, networks, volumes):
+    auth = None
+    if public_key:
+        key = public_key.replace('\n', '')
+        auth = NodeAuthSSHKey(pubkey=key)
 
     try:
         mist_net = Network.objects.get(id=networks[0])
@@ -577,6 +579,10 @@ def create_machine_g8(conn, machine_name, image, ram, cpu, disk,
         "disk_size": disk
     }
 
+    if volumes:
+        disks = [volume.get('size') for volume in volumes]
+        ex_create_attr.update({"data_disks": disks})
+
     try:
         node = conn.create_node(
             name=machine_name,
@@ -584,7 +590,7 @@ def create_machine_g8(conn, machine_name, image, ram, cpu, disk,
             image=image,
             ex_network=ex_network,
             description=description,
-            auth=None,
+            auth=auth,
             ex_create_attr=ex_create_attr
         )
     except Exception as e:

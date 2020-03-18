@@ -125,7 +125,7 @@ class BaseNetworkController(BaseController):
 
         # Invoke `self.list_networks` to update the UI and return the Network
         # object at the API. Try 3 times before failing
-        for _ in range(3):
+        for _ in range(5):
             for net in self.list_networks():
                 if net.network_id == libcloud_net.id:
                     return net
@@ -310,10 +310,10 @@ class BaseNetworkController(BaseController):
         for net in libcloud_nets:
             try:
                 network = Network.objects.get(cloud=self.cloud,
-                                              network_id=net.id)
+                                              network_id=str(net.id))
             except Network.DoesNotExist:
                 network = NETWORKS[self.provider](cloud=self.cloud,
-                                                  network_id=net.id)
+                                                  network_id=str(net.id))
                 new_networks.append(network)
 
             network.name = net.name
@@ -633,7 +633,7 @@ class BaseNetworkController(BaseController):
         """
         networks = self.cloud.ctl.compute.connection.ex_list_networks()
         for net in networks:
-            if net.id == network.network_id:
+            if str(net.id) == network.network_id:
                 return net
         raise mist.api.exceptions.NetworkNotFoundError(
             'Network %s with network_id %s' %
