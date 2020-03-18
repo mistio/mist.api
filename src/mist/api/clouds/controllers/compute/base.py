@@ -597,8 +597,8 @@ class BaseComputeController(BaseController):
                     machine.created = created
                     updated = True
         except Exception as exc:
-            log.exception("Error finding creation date for %s in %s.",
-                          self.cloud, machine)
+            log.exception("Error finding creation date for %s in %s.\n%r",
+                          self.cloud, machine, exc)
         # TODO: Consider if we should fall back to using current date.
         # if not machine_model.created and is_new:
         #     machine_model.created = datetime.datetime.utcnow()
@@ -612,16 +612,16 @@ class BaseComputeController(BaseController):
                 updated = True
         except Exception as exc:
             log.exception("Error while finding machine actions "
-                          "for machine %s:%s for %s",
-                          machine.id, node.name, self.cloud)
+                          "for machine %s:%s for %s \n %r",
+                          machine.id, node.name, self.cloud, exc)
 
         # Apply any cloud/provider specific post processing.
         try:
             updated = updated or \
                 self._list_machines__postparse_machine(machine, node)
         except Exception as exc:
-            log.exception("Error while post parsing machine %s:%s for %s",
-                          machine.id, node.name, self.cloud)
+            log.exception("Error while post parsing machine %s:%s for %s\n%r",
+                          machine.id, node.name, self.cloud, exc)
 
         # Apply any cloud/provider cost reporting.
         try:
@@ -635,8 +635,8 @@ class BaseComputeController(BaseController):
                 updated = True
         except Exception as exc:
             log.exception("Error while calculating cost "
-                          "for machine %s:%s for %s",
-                          machine.id, node.name, self.cloud)
+                          "for machine %s:%s for %s \n%r",
+                          machine.id, node.name, self.cloud, exc)
         if node.state.lower() == 'terminated':
             if machine.cost.hourly or machine.cost.monthly:
                 machine.cost.hourly = 0
@@ -764,13 +764,14 @@ class BaseComputeController(BaseController):
         machine_libcloud: An instance of a libcloud compute node,
             as returned by libcloud's list_nodes.
 
-        This method is expected to edit its arguments in place and not return
-        anything.
+        This method is expected to edit its arguments in place and return
+        True if any updates have been made.
 
         Subclasses MAY override this method.
 
         """
-        return
+        updated = False
+        return updated
 
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         """Perform cost calculations for a machine

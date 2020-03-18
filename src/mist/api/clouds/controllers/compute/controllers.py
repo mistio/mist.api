@@ -1826,7 +1826,7 @@ class LibvirtComputeController(BaseComputeController):
                     address.attrib.get('function').replace('0x', ''),
                 )
                 vnfs.append(vnf_addr)
-            if vnfs and machine.extra['vnfs'] != vnfs:
+            if machine.extra['vnfs'] != vnfs:
                 machine.extra['vnfs'] = vnfs
                 updated = True
 
