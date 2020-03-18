@@ -7,6 +7,7 @@ This file should only contain subclasses of `BaseStorageController`.
 import logging
 import time
 
+
 from mist.api.clouds.controllers.storage.base import BaseStorageController
 
 from mist.api.exceptions import RequiredParameterMissingError
@@ -15,6 +16,7 @@ from mist.api.exceptions import NotFoundError
 
 from libcloud.common.types import LibcloudError
 from libcloud.compute.base import NodeLocation
+
 
 log = logging.getLogger(__name__)
 
@@ -398,3 +400,109 @@ class PacketStorageController(BaseStorageController):
             except Machine.DoesNotExist:
                 log.error('%s attached to unknown machine "%s"', volume,
                           machine_id)
+
+
+class LXDStorageController(BaseStorageController):
+    """
+    Storage controller for LXC containers
+    """
+
+    def _list_volumes__fetch_volumes(self):
+        """Return the original list of libcloud Volume objects
+        """
+
+        # get a list of the storage pools
+        connection = self.cloud.ctl.compute.connection
+        storage_pools = connection.ex_list_storage_pools(detailed=False)
+        volumes = []
+
+        for pool in storage_pools:
+
+            vols = connection.ex_list_storage_pool_volumes(pool_id=pool.name,
+                                                           detailed=True)
+
+            for vol in vols:
+                volumes.append(vol)
+        return volumes
+
+    def _list_volumes__postparse_volume(self, volume, libcloud_volume):
+
+        # FIXME Imported here due to circular dependency issues.
+        from mist.api.machines.models import Machine
+
+        # Find the machines to which the volume is attached.
+        volume.attached_to = []
+
+        for attachment in libcloud_volume.extra.get('used_by', []):
+
+            machine_id = attachment.split('/')[-1]
+
+            try:
+                machine = Machine.objects.get(name=machine_id,
+                                              cloud=self.cloud)
+                volume.attached_to.append(machine)
+            except Machine.DoesNotExist:
+                log.error('%s attached to unknown machine "%s"', volume,
+                          machine_id)
+
+    def _create_volume__prepare_args(self, kwargs):
+        """
+        Parses keyword arguments on behalf of `self.create_volume`.
+
+        Creates the parameter structure required by the libcloud method
+        that handles volume creation.
+
+        """
+
+        filesystem = kwargs.get("block_filesystem", '')
+        block_mount_options = kwargs.get('block_mount_options', '')
+        security_shifted = kwargs.get('security_shifted', '')
+
+        # TODO: Need more work on that as not all
+        # volumes seem to accept this
+        config = {"size": kwargs["size"]}
+
+        if filesystem is not '':
+            config['block.filesystem'] = filesystem
+
+        if block_mount_options is not '':
+            config['block.mount_options'] = block_mount_options
+
+        if security_shifted is not '':
+            config['security.shifted'] = str(security_shifted)
+
+        kwargs["definition"] = {"name": kwargs.pop("name"),
+                                "type": "custom",
+                                "size_type": "GB",
+                                "config": config}
+
+    def _attach_volume(self, libcloud_volume, libcloud_node, **kwargs):
+
+        pool_id = libcloud_volume.extra["pool_id"]
+        name = libcloud_volume.id
+        path = kwargs.get("path", '/home/' + name)
+        connection = self.cloud.ctl.compute.connection
+        connection.attach_volume(container_id=libcloud_node.id,
+                                 volume_id=libcloud_volume.id,
+                                 pool_id=pool_id,
+                                 name=name,
+                                 path=path)
+        self.list_volumes()
+
+    def _delete_volume(self, libcloud_volume):
+
+        from libcloud.container.drivers.lxd import LXDAPIException
+        from mist.api.exceptions import MistError
+
+        connection = self.cloud.ctl.compute.connection
+        pid = libcloud_volume.extra["pool_id"]
+        type = libcloud_volume.extra["type"]
+        name = libcloud_volume.name
+
+        try:
+            connection.ex_delete_storage_pool_volume(pool_id=pid,
+                                                     type=type, name=name)
+        except LXDAPIException as e:
+            raise MistError(msg=e.message, exc=e)
+        except Exception as e:
+            raise MistError(exc=e)

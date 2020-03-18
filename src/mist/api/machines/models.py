@@ -463,6 +463,7 @@ class Machine(OwnershipMixin, me.Document):
                     self.expiration.reminder.schedule_type.entry
                 ).total_seconds()) or 0,
             } if self.expiration else None,
+            'provider': self.cloud.ctl.provider
         }
 
     def __str__(self):

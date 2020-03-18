@@ -176,6 +176,25 @@ def list_resource_groups(owner, cloud_id):
     return ret
 
 
+def list_storage_pools(owner, cloud_id):
+    """
+    List storage pools for LXD containers.
+    """
+
+    cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
+
+    if cloud.ctl.provider in ['lxd']:
+        conn = connect_provider(cloud)
+        storage_pools = conn.ex_list_storage_pools(detailed=False)
+    else:
+        storage_pools = []
+
+    ret = [{'title': pool.name,
+            'val': pool.name}
+           for pool in storage_pools]
+    return ret
+
+
 def list_storage_accounts(owner, cloud_id):
     """List storage accounts for each account.
     Currently supported for Azure Arm. For other providers

@@ -280,6 +280,23 @@ class DockerMainController(BaseMainController):
             check_host(host)
 
 
+class LXDMainController(BaseMainController):
+    """
+    Main controller class for LXC containers
+    """
+
+    provider = 'lxd'
+    ComputeController = compute_ctls.LXDComputeController
+    StorageController = storage_ctls.LXDStorageController
+    NetworkController = network_ctls.LXDNetworkController
+
+    def _update__preparse_kwargs(self, kwargs):
+        host = kwargs.get('host', self.cloud.host)
+        if host:
+            host = sanitize_host(host)
+            check_host(host)
+
+
 class LibvirtMainController(BaseMainController):
 
     provider = 'libvirt'

@@ -1362,6 +1362,12 @@ SUPPORTED_PROVIDERS = [
         'provider': Provider.MAXIHOST,
         'regions': []
     },
+    # LXD
+    {
+        'title': 'LXD',
+        'provider': 'lxd',
+        'regions': []
+    },
 ]
 
 # Base AMIs
