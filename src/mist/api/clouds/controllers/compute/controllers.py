@@ -49,6 +49,7 @@ from mist.api.exceptions import MistError
 from mist.api.exceptions import InternalServerError
 from mist.api.exceptions import MachineNotFoundError
 from mist.api.exceptions import BadRequestError
+from mist.api.exceptions import NotFoundError
 from mist.api.helpers import sanitize_host
 
 from mist.api.misc.cloud import CloudImage
@@ -1017,8 +1018,18 @@ class PacketComputeController(BaseComputeController):
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         size = machine_libcloud.extra.get('plan')
         from mist.api.clouds.models import CloudSize
-        price = CloudSize.objects.get(
-            external_id=size, cloud=self.cloud).extra.get('price', 0.0)
+        try:
+            _size = CloudSize.objects.get(external_id=size, cloud=self.cloud)
+        except CloudSize.DoesNotExist:
+            # for some sizes, part of the name instead of id is returned
+            # eg. t1.small.x86 for size is returned for size with external_id
+            # baremetal_0 and name t1.small.x86 - 8192 RAM
+            try:
+                _size = CloudSize.objects.get(cloud=self.cloud,
+                                              name__contains=size)
+            except CloudSize.DoesNotExist:
+                raise NotFoundError()
+        price = _size.extra.get('price', 0.0)
         if machine.extra.get('billing_cycle') == 'hourly':
             return price, 0
 
