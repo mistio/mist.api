@@ -252,6 +252,9 @@ def create_machine(request):
       type: array
       items:
         type: string
+      description:
+        description: Description of machine. Only for GigG8 machines
+        type: string
     """
 
     params = params_from_request(request)
@@ -322,6 +325,7 @@ def create_machine(request):
     sec_group = params.get('security_group', '')
     vnfs = params.get('vnfs', [])
     expiration = params.get('expiration', {})
+    description = params.get('description', '')
 
     job_id = params.get('job_id')
     # The `job` variable points to the event that started the job. If a job_id
@@ -465,7 +469,8 @@ def create_machine(request):
               'ip_addresses': ip_addresses,
               'vnfs': vnfs,
               'expiration': expiration,
-              'sec_group': sec_group}
+              'sec_group': sec_group,
+              'description': description}
 
     if not run_async:
         ret = methods.create_machine(auth_context, *args, **kwargs)

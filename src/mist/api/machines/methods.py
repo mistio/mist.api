@@ -155,7 +155,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                    bare_metal=False, hourly=True,
                    softlayer_backend_vlan_id=None, machine_username='',
                    volumes=[], ip_addresses=[], expiration={},
-                   sec_group='', vnfs=[]
+                   sec_group='', vnfs=[], description=''
                    ):
     """Creates a new virtual machine on the specified cloud.
 
@@ -212,7 +212,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     # For providers, which do not support pre-defined sizes, we expect `size`
     # to be a dict with all the necessary information regarding the machine's
     # size.
-    if cloud.ctl.provider in ('vsphere', 'onapp', 'libvirt', ):
+    if cloud.ctl.provider in ('vsphere', 'onapp', 'libvirt', 'gig_g8', ):
         if not isinstance(size, dict):
             raise BadRequestError('Expected size to be a dict.')
         size_id = 'custom'
@@ -358,6 +358,11 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             machine_name, image, size,
             location, bare_metal, cloud_init,
             hourly, softlayer_backend_vlan_id
+        )
+    elif conn.type is Provider.GIG_G8:
+        node = create_machine_g8(
+            conn, machine_name, image, size_ram, size_cpu,
+            size_disk_primary, public_key, description, networks
         )
     elif conn.type is Provider.ONAPP:
         node = _create_machine_onapp(
@@ -547,6 +552,45 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         ret.update({'public_ips': [],
                     'private_ips': []})
     return ret
+
+
+def create_machine_g8(conn, machine_name, image, ram, cpu, disk,
+                      public_key, description, networks):
+    # key = public_key.replace('\n', '')
+    # auth = NodeAuthSSHKey(pubkey=key)
+
+    try:
+        mist_net = Network.objects.get(id=networks[0])
+    except me.DoesNotExist:
+        raise NetworkNotFoundError()
+
+    libcloud_networks = conn.ex_list_networks()
+    ex_network = None
+    for libcloud_net in libcloud_networks:
+        if mist_net.network_id == libcloud_net.id:
+            ex_network = libcloud_net
+            break
+
+    ex_create_attr = {
+        "memory": ram,
+        "vcpus": cpu,
+        "disk_size": disk
+    }
+
+    try:
+        node = conn.create_node(
+            name=machine_name,
+            size=None,  # only custom sizes supported
+            image=image,
+            ex_network=ex_network,
+            description=description,
+            auth=None,
+            ex_create_attr=ex_create_attr
+        )
+    except Exception as e:
+        raise MachineCreationError("Gig G8, got exception %s" % e, e)
+
+    return node
 
 
 def _create_machine_rackspace(conn, public_key, machine_name,
