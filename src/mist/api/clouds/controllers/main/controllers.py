@@ -91,12 +91,6 @@ class AlibabaMainController(AmazonMainController):
     DnsController = None
 
 
-class ClearAPIMainController(BaseMainController):
-
-    provider = 'clearapi'
-    ComputeController = compute_ctls.ClearAPIComputeController
-
-
 class DigitalOceanMainController(BaseMainController):
 
     provider = 'digitalocean'
@@ -578,9 +572,3 @@ class OtherMainController(BaseMainController):
                 old_machines, new_machines)
 
         return machine
-
-
-class ClearCenterMainController(BaseMainController):
-
-    provider = 'clearcenter'
-    ComputeController = compute_ctls.ClearCenterComputeController

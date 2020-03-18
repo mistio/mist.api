@@ -106,17 +106,20 @@ class AmazonComputeController(BaseComputeController):
             raise BadRequestError('Failed to resize node: %s' % exc)
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        updated = False
         # Find os_type.
         try:
-            machine.os_type = CloudImage.objects.get(
+            os_type = CloudImage.objects.get(
                 cloud_provider=machine_libcloud.driver.type,
                 image_id=machine_libcloud.extra.get('image_id'),
             ).os_type
         except:
             # This is windows for windows servers and None for Linux.
-            machine.os_type = machine_libcloud.extra.get('platform')
-        if not machine.os_type:
-            machine.os_type = 'linux'
+            os_type = machine_libcloud.extra.get('platform')
+        os_type = os_type or 'linux'
+        if machine.os_type != os_type:
+            machine.os_type = os_type
+            updated = True
 
         try:
             # return list of ids for network interfaces as str
@@ -124,33 +127,50 @@ class AmazonComputeController(BaseComputeController):
             network_interfaces = [network_interface.id for network_interface
                                   in network_interfaces]
             network_interfaces = ','.join(network_interfaces)
-            machine.extra['network_interfaces'] = network_interfaces
         except:
-            machine.extra['network_interfaces'] = []
+            network_interfaces = []
+
+        if network_interfaces != machine.extra['network_interfaces']:
+            machine.extra['network_interfaces'] = network_interfaces
+            updated = True
 
         network_id = machine_libcloud.extra.get('vpc_id')
-        machine.extra['network'] = network_id
+
+        if machine.extra['network'] != network_id:
+            machine.extra['network'] = network_id
+            updated = True
 
         # Discover network of machine.
         from mist.api.networks.models import Network
         try:
-            machine.network = Network.objects.get(cloud=self.cloud,
-                                                  network_id=network_id,
-                                                  missing_since=None)
+            network = Network.objects.get(cloud=self.cloud,
+                                          network_id=network_id,
+                                          missing_since=None)
         except Network.DoesNotExist:
-            machine.network = None
+            network = None
+
+        if network != machine.network:
+            machine.network = network
+            updated = True
 
         subnet_id = machine.extra.get('subnet_id')
-        machine.extra['subnet'] = subnet_id
+        if machine.extra['subnet'] != subnet_id:
+            machine.extra['subnet'] = subnet_id
+            updated = True
 
         # Discover subnet of machine.
         from mist.api.networks.models import Subnet
         try:
-            machine.subnet = Subnet.objects.get(subnet_id=subnet_id,
-                                                network=machine.network,
-                                                missing_since=None)
+            subnet = Subnet.objects.get(subnet_id=subnet_id,
+                                        network=machine.network,
+                                        missing_since=None)
         except Subnet.DoesNotExist:
-            machine.subnet = None
+            subnet = None
+        if subnet != machine.subnet:
+            machine.subnet = subnet
+            updated = True
+
+        return updated
 
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         # TODO: stopped instances still charge for the EBS device
@@ -323,36 +343,18 @@ class AlibabaComputeController(AmazonComputeController):
         return "%s (%s)" % (size.name, specs)
 
 
-class ClearAPIComputeController(BaseComputeController):
-
-    def _connect(self):
-        return get_driver(Provider.CLEARAPI)(key=self.cloud.apikey,
-                                             url=self.cloud.url)
-
-    def _list_machines__machine_actions(self, machine, machine_libcloud):
-        super(ClearAPIComputeController, self)._list_machines__machine_actions(
-            machine, machine_libcloud)
-        machine.actions.reboot = False
-        machine.actions.destroy = False
-
-        if machine_libcloud.state is NodeState.RUNNING:
-            machine.actions.stop = True
-            machine.actions.start = False
-        else:
-            machine.actions.start = True
-            machine.actions.stop = False
-
-    def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        machine.machine_type = 'ilo-host'
-
-
 class DigitalOceanComputeController(BaseComputeController):
 
     def _connect(self):
         return get_driver(Provider.DIGITAL_OCEAN)(self.cloud.token)
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        machine.extra['cpus'] = machine.extra.get('size', {}).get('vcpus', 0)
+        updated = False
+        cpus = machine.extra.get('size', {}).get('vcpus', 0)
+        if machine.extra['cpus'] != cpus:
+            machine.extra['cpus'] = cpus
+            updated = True
+        return updated
 
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
         return machine_libcloud.extra.get('created_at')  # iso8601 string
@@ -417,9 +419,13 @@ class MaxihostComputeController(BaseComputeController):
             machine.actions.start = True
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        updated = False
         if machine_libcloud.extra.get('ips', []):
             name = machine_libcloud.extra.get('ips')[0].get('device_hostname')
-            machine.hostname = name
+            if machine.hostname != name:
+                machine.hostname = name
+                updated = True
+        return updated
 
     def _list_machines__get_location(self, node):
         return node.extra.get('location').get('facility_code')
@@ -530,21 +536,19 @@ class RackSpaceComputeController(BaseComputeController):
             # there's a minimum service charge of $50/mo across all servers.
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        # do not include ipv6 on public ips
-        public_ips = []
-        for ip in machine.public_ips:
-            if ip and ':' not in ip:
-                public_ips.append(ip)
-        machine.public_ips = public_ips
-
+        updated = False
         # Find os_type.
         try:
-            machine.os_type = CloudImage.objects.get(
+            os_type = CloudImage.objects.get(
                 cloud_provider=machine_libcloud.driver.type,
                 image_id=machine_libcloud.extra.get('imageId'),
             ).os_type
         except:
-            machine.os_type = 'linux'
+            os_type = 'linux'
+        if machine.os_type != os_type:
+            machine.os_type = os_type
+            updated = True
+        return updated
 
     def _list_machines__get_size(self, node):
         return node.extra.get('flavorId')
@@ -563,15 +567,24 @@ class SoftLayerComputeController(BaseComputeController):
         return machine_libcloud.extra.get('created')  # iso8601 string
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        machine.os_type = 'linux'
+        updated = False
+        os_type = 'linux'
         if 'windows' in str(machine_libcloud.extra.get('image', '')).lower():
-            machine.os_type = 'windows'
+            os_type = 'windows'
+        if os_type != machine.os_type:
+            machine.os_type = os_type
+            updated = True
 
         # Get number of vCPUs for bare metal and cloud servers, respectively.
-        if 'cpu' in machine.extra:
+        if 'cpu' in machine.extra and \
+                machine.extra['cpus'] != machine.extra['cpu']:
             machine.extra['cpus'] = machine.extra['cpu']
-        if 'maxCpu' in machine.extra:
+            updated = True
+        if 'maxCpu' in machine.extra and \
+                machine.extra['cpus'] != machine.extra['maxCpu']:
             machine.extra['cpus'] = machine.extra['maxCpu']
+            updated = True
+        return updated
 
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         # SoftLayer includes recurringFee on the VM metadata but
@@ -619,7 +632,12 @@ class AzureComputeController(BaseComputeController):
                                           tmp_cert_file.name)
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        machine.os_type = machine_libcloud.extra.get('os_type', 'linux')
+        updated = False
+        os_type = machine_libcloud.extra.get('os_type', 'linux')
+        if machine.os_type != os_type:
+            machine.os_type = os_type
+            updated = True
+        return updated
 
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         if machine_libcloud.state not in [NodeState.RUNNING, NodeState.PAUSED]:
@@ -698,20 +716,32 @@ class AzureArmComputeController(BaseComputeController):
                                               self.cloud.secret)
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        machine.os_type = machine_libcloud.extra.get('os_type', 'linux')
+        updated = False
+        os_type = machine_libcloud.extra.get('os_type', 'linux')
+        if os_type != machine.os_type:
+            machine.os_type = os_type
+            updated = True
 
         net_id = machine_libcloud.extra.get('networkProfile')[0].get('id')
         network_id = net_id.split('/')[-1] + '-vnet'
-        machine.extra['network'] = network_id
+        if machine.extra['network'] != network_id:
+            machine.extra['network'] = network_id
+            updated = True
 
         # Discover network of machine.
         from mist.api.networks.models import Network
         try:
-            machine.network = Network.objects.get(cloud=self.cloud,
-                                                  network_id=network_id,
-                                                  missing_since=None)
+            network = Network.objects.get(cloud=self.cloud,
+                                          network_id=network_id,
+                                          missing_since=None)
         except Network.DoesNotExist:
-            machine.network = None
+            network = None
+
+        if network != machine.network:
+            machine.network = network
+            updated = True
+
+        return updated
 
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         if machine_libcloud.state not in [NodeState.RUNNING, NodeState.PAUSED]:
@@ -797,28 +827,33 @@ class GoogleComputeController(BaseComputeController):
             return _size
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        updated = False
         extra = machine_libcloud.extra
 
         # Wrap in try/except to prevent from future GCE API changes.
         # Identify server OS.
         os_type = 'linux'
-        machine.os_type = machine.extra['os_type'] = os_type
 
         try:
             license = extra.get('license')
             if license:
                 if 'sles' in license:
-                    os_type = 'sles'
+                    extra_os_type = 'sles'
                 if 'rhel' in license:
-                    os_type = 'rhel'
+                    extra_os_type = 'rhel'
                 if 'win' in license:
-                    os_type = 'win'
-                    machine.os_type = 'windows'
-                machine.extra['os_type'] = os_type
-            if extra['disks'][0].get('licenses', []):
-                if 'windows-cloud' in extra['disks'][0]['licenses'][0]:
-                    machine.os_type = 'windows'
-                    machine.extra['os_type'] = 'win'
+                    extra_os_type = 'win'
+                    os_type = 'windows'
+            if extra.get('disks') and extra['disks'][0].get('licenses') and \
+                    'windows-cloud' in extra['disks'][0]['licenses'][0]:
+                os_type = 'windows'
+                extra_os_type = 'win'
+            if machine.extra['os_type'] != extra_os_type:
+                machine.extra['os_type'] = extra_os_type
+                updated = True
+            if machine.os_type != os_type:
+                machine.os_type = os_type
+                updated = True
         except:
             log.exception("Couldn't parse os_type for machine %s:%s for %s",
                           machine.id, machine.name, self.cloud)
@@ -826,10 +861,17 @@ class GoogleComputeController(BaseComputeController):
         # Get disk metadata.
         try:
             if extra.get('boot_disk'):
-                machine.extra['boot_disk_size'] = extra['boot_disk'].size
-                machine.extra['boot_disk_type'] = extra[
-                    'boot_disk'].extra.get('type')
-                machine.extra.pop('boot_disk')
+                if machine.extra['boot_disk_size'] != extra['boot_disk'].size:
+                    machine.extra['boot_disk_size'] = extra['boot_disk'].size
+                    updated = True
+                if machine.extra['boot_disk_type'] != extra[
+                        'boot_disk'].extra.get('type'):
+                    machine.extra['boot_disk_type'] = extra[
+                        'boot_disk'].extra.get('type')
+                    updated = True
+                if machine.extra.get('boot_disk'):
+                    machine.extra.pop('boot_disk')
+                    updated = True
         except:
             log.exception("Couldn't parse disk for machine %s:%s for %s",
                           machine.id, machine.name, self.cloud)
@@ -837,7 +879,9 @@ class GoogleComputeController(BaseComputeController):
         # Get zone name.
         try:
             if extra.get('zone'):
-                machine.extra['zone'] = extra['zone'].name
+                if machine.extra['zone'] != extra['zone'].name:
+                    machine.extra['zone'] = extra['zone'].name
+                    updated = True
         except:
             log.exception("Couldn't parse zone for machine %s:%s for %s",
                           machine.id, machine.name, self.cloud)
@@ -846,42 +890,55 @@ class GoogleComputeController(BaseComputeController):
         try:
             if extra.get('machineType'):
                 machine_type = extra['machineType'].split('/')[-1]
-                machine.extra['machine_type'] = machine_type
+                if machine.extra['machine_type'] != machine_type:
+                    machine.extra['machine_type'] = machine_type
+                    updated = True
         except:
             log.exception("Couldn't parse machine type "
                           "for machine %s:%s for %s",
                           machine.id, machine.name, self.cloud)
 
         network_interface = machine_libcloud.extra.get('networkInterfaces')[0]
-
         network = network_interface.get('network')
         network_name = network.split('/')[-1]
-        machine.extra['network'] = network_name
+        if machine.extra['network'] != network_name:
+            machine.extra['network'] = network_name
+            updated = True
 
         # Discover network of machine.
         from mist.api.networks.models import Network
         try:
-            machine.network = Network.objects.get(cloud=self.cloud,
-                                                  name=network_name,
-                                                  missing_since=None)
+            network = Network.objects.get(cloud=self.cloud,
+                                          name=network_name,
+                                          missing_since=None)
         except Network.DoesNotExist:
-            machine.network = None
+            network = None
+
+        if machine.network != network:
+            machine.network = network
+            updated = True
 
         subnet = network_interface.get('subnetwork')
         if subnet:
             subnet_name = subnet.split('/')[-1]
             subnet_region = subnet.split('/')[-3]
-            machine.extra['subnet'] = (subnet_name, subnet_region)
-
+            if machine.extra['subnet'] != (subnet_name, subnet_region):
+                machine.extra['subnet'] = (subnet_name, subnet_region)
+                updated = True
             # Discover subnet of machine.
             from mist.api.networks.models import Subnet
             try:
-                machine.subnet = Subnet.objects.get(name=subnet_name,
-                                                    network=machine.network,
-                                                    region=subnet_region,
-                                                    missing_since=None)
+                subnet = Subnet.objects.get(name=subnet_name,
+                                            network=machine.network,
+                                            region=subnet_region,
+                                            missing_since=None)
             except Subnet.DoesNotExist:
-                machine.subnet = None
+                subnet = None
+            if subnet != machine.subnet:
+                machine.subnet = subnet
+                updated = True
+
+            return updated
 
     def _list_machines__machine_actions(self, machine, machine_libcloud):
         super(GoogleComputeController,
@@ -1046,7 +1103,11 @@ class VultrComputeController(BaseComputeController):
         return get_driver(Provider.VULTR)(self.cloud.apikey)
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        machine.extra['cpus'] = machine.extra.get('vcpu_count', 0)
+        updated = False
+        if machine.extra['cpus'] != machine.extra.get('vcpu_count', 0):
+            machine.extra['cpus'] = machine.extra.get('vcpu_count', 0)
+            updated = True
+        return updated
 
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
         return machine_libcloud.extra.get('date_created')  # iso8601 string
@@ -1160,7 +1221,11 @@ class VCloudComputeController(BaseComputeController):
             machine.actions.stop = True
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        machine.os_type = machine.extra.get('os_type')
+        updated = False
+        if machine.os_type != machine.extra.get('os_type'):
+            machine.os_type = machine.extra.get('os_type')
+            updated = True
+        return updated
 
 
 class OpenStackComputeController(BaseComputeController):
@@ -1207,12 +1272,16 @@ class OpenStackComputeController(BaseComputeController):
                 raise BadRequestError('Failed to resize node: %s' % exc)
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        updated = False
         # do not include ipv6 on public ips
         public_ips = []
         for ip in machine.public_ips:
             if ip and ':' not in ip:
                 public_ips.append(ip)
-        machine.public_ips = public_ips
+        if machine.public_ips != public_ips:
+            machine.public_ips = public_ips
+            updated = True
+        return updated
 
     def _list_sizes__get_cpu(self, size):
         return size.vcpus
@@ -1316,8 +1385,14 @@ class DockerComputeController(BaseComputeController):
             machine.actions.rename = False
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        machine.machine_type = 'container'
-        machine.parent = self.dockerhost
+        updated = False
+        if machine.machine_type != 'container':
+            machine.machine_type = 'container'
+            updated = True
+        if machine.parent != self.dockerhost:
+            machine.parent = self.dockerhost
+            updated = True
+        return updated
 
     @property
     def dockerhost(self):
@@ -1721,9 +1796,13 @@ class LibvirtComputeController(BaseComputeController):
                 machine.actions.resume = True
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        updated = False
         xml_desc = machine_libcloud.extra.get('xml_description')
         if xml_desc:
-            machine.extra['xml_description'] = escape(xml_desc)
+            escaped_xml_desc = escape(xml_desc)
+            if machine.extra['xml_description'] != escaped_xml_desc:
+                machine.extra['xml_description'] = escaped_xml_desc
+                updated = True
             import xml.etree.ElementTree as ET
             root = ET.fromstring(unescape(xml_desc))
             devices = root.find('devices')
@@ -1731,7 +1810,9 @@ class LibvirtComputeController(BaseComputeController):
             for disk in disks:
                 if disk.attrib.get('device', '') == 'cdrom':
                     image = disk.find('source').attrib.get('file', '')
-                    machine.image_id = image
+                    if machine.image_id != image:
+                        machine.image_id = image
+                        updated = True
 
             vnfs = []
             hostdevs = devices.findall('hostdev') + \
@@ -1745,22 +1826,29 @@ class LibvirtComputeController(BaseComputeController):
                     address.attrib.get('function').replace('0x', ''),
                 )
                 vnfs.append(vnf_addr)
-            if vnfs:
+            if machine.extra['vnfs'] != vnfs:
                 machine.extra['vnfs'] = vnfs
+                updated = True
 
         # Number of CPUs allocated to guest.
-        if 'processors' in machine.extra:
+        if 'processors' in machine.extra and \
+                machine.extra['cpus'] != machine.extra['processors']:
             machine.extra['cpus'] = machine.extra['processors']
+            updated = True
 
         # set machine's parent
         hypervisor = machine.extra.get('hypervisor_name', '')
         if hypervisor:
             try:
                 from mist.api.machines.models import Machine
-                machine.parent = Machine.objects.get(cloud=machine.cloud,
-                                                     name=hypervisor)
+                parent = Machine.objects.get(cloud=machine.cloud,
+                                             name=hypervisor)
             except Machine.DoesNotExist:
-                machine.parent = None
+                parent = None
+            if machine.parent != parent:
+                machine.parent = parent
+                updated = True
+        return updated
 
     def _list_images__fetch_images(self, search=None):
         return self.connection.list_images(location=self.cloud.images_location)
@@ -1831,18 +1919,34 @@ class OnAppComputeController(BaseComputeController):
         return created_at
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        machine.os_type = machine_libcloud.extra.get('operating_system',
-                                                     'linux')
+        updated = False
+
+        os_type = machine_libcloud.extra.get('operating_system', 'linux')
         # on a VM this has been freebsd and it caused list_machines to raise
         # exception due to validation of machine model
-        if machine.os_type not in ('unix', 'linux', 'windows', 'coreos'):
-            machine.os_type = 'linux'
+        if os_type not in ('unix', 'linux', 'windows', 'coreos'):
+            os_type = 'linux'
+        if os_type != machine.os_type:
+            machine.os_type = os_type
+            updated = True
 
-        machine.extra['image_id'] = machine.extra.get('template_label') \
+        image_id = machine.extra.get('template_label') \
             or machine.extra.get('operating_system_distro')
-        machine.extra.pop('template_label', None)
-        machine.extra['size'] = "%scpu, %sM ram" % \
+        if image_id != machine.extra['image_id']:
+            machine.extra['image_id'] = image_id
+            updated = True
+
+        if machine.extra.get('template_label'):
+            machine.extra.pop('template_label', None)
+            updated = True
+
+        size = "%scpu, %sM ram" % \
             (machine.extra.get('cpus'), machine.extra.get('memory'))
+        if size != machine.extra['size']:
+            machine.extra['size'] = size
+            updated = True
+
+        return updated
 
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         if machine_libcloud.state == NodeState.STOPPED:
@@ -2018,41 +2122,6 @@ class OtherComputeController(BaseComputeController):
         KeyMachineAssociation.objects(machine=machine).delete()
         machine.missing_since = datetime.datetime.now()
         machine.save()
-
-    def list_images(self, search=None):
-        return []
-
-    def list_sizes(self, persist=True):
-        return []
-
-    def list_locations(self, persist=True):
-        return []
-
-
-class ClearCenterComputeController(BaseComputeController):
-
-    def _connect(self):
-        return get_driver(Provider.CLEARCENTER)(key=self.cloud.apikey,
-                                                uri=self.cloud.uri,
-                                                verify=self.cloud.verify)
-
-    def _list_machines__machine_creation_date(self, machine, machine_libcloud):
-        return machine_libcloud.extra.get('created_timestamp')
-
-    def _list_machines__machine_actions(self, machine, machine_libcloud):
-        super(ClearCenterComputeController,
-              self)._list_machines__machine_actions(machine, machine_libcloud)
-        machine.actions.remove = False
-        machine.actions.destroy = False
-        machine.actions.rename = False
-        machine.actions.reboot = False
-        machine.actions.stop = False
-
-    def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        machine.hostname = machine_libcloud.extra['hostname']
-
-    def _list_machines__cost_machine(self, machine, machine_libcloud):
-        return 0, machine_libcloud.extra['monthly_cost_estimate']
 
     def list_images(self, search=None):
         return []
