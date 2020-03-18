@@ -49,6 +49,7 @@ from mist.api.exceptions import MistError
 from mist.api.exceptions import InternalServerError
 from mist.api.exceptions import MachineNotFoundError
 from mist.api.exceptions import BadRequestError
+from mist.api.exceptions import NotFoundError
 from mist.api.helpers import sanitize_host
 
 from mist.api.misc.cloud import CloudImage
@@ -843,7 +844,8 @@ class GoogleComputeController(BaseComputeController):
                 if 'win' in license:
                     extra_os_type = 'win'
                     os_type = 'windows'
-            if 'windows-cloud' in extra['disks'][0]['licenses'][0]:
+            if extra.get('disks') and extra['disks'][0].get('licenses') and \
+                    'windows-cloud' in extra['disks'][0]['licenses'][0]:
                 os_type = 'windows'
                 extra_os_type = 'win'
             if machine.extra['os_type'] != extra_os_type:
@@ -1073,8 +1075,18 @@ class PacketComputeController(BaseComputeController):
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         size = machine_libcloud.extra.get('plan')
         from mist.api.clouds.models import CloudSize
-        price = CloudSize.objects.get(
-            external_id=size, cloud=self.cloud).extra.get('price', 0.0)
+        try:
+            _size = CloudSize.objects.get(external_id=size, cloud=self.cloud)
+        except CloudSize.DoesNotExist:
+            # for some sizes, part of the name instead of id is returned
+            # eg. t1.small.x86 for size is returned for size with external_id
+            # baremetal_0 and name t1.small.x86 - 8192 RAM
+            try:
+                _size = CloudSize.objects.get(cloud=self.cloud,
+                                              name__contains=size)
+            except CloudSize.DoesNotExist:
+                raise NotFoundError()
+        price = _size.extra.get('price', 0.0)
         if machine.extra.get('billing_cycle') == 'hourly':
             return price, 0
 
@@ -1593,6 +1605,152 @@ class DockerComputeController(BaseComputeController):
 
     def _list_sizes__fetch_sizes(self):
         return []
+
+
+class LXDComputeController(BaseComputeController):
+    """
+    Compute controller for LXC containers
+    """
+    def __init__(self, *args, **kwargs):
+        super(LXDComputeController, self).__init__(*args, **kwargs)
+        self._lxchost = None
+        self.is_lxc = True
+
+    def _stop_machine(self, machine, machine_libcloud):
+        """Stop the given machine"""
+        return self.connection.stop_container(container=machine)
+
+    def _start_machine(self, machine, machine_libcloud):
+        """Start the given container"""
+        return self.connection.start_container(container=machine)
+
+    def _destroy_machine(self, machine, machine_libcloud):
+        """Delet the given container"""
+
+        from libcloud.container.drivers.lxd import LXDAPIException
+        from libcloud.container.types import ContainerState
+        try:
+
+            if machine_libcloud.state == ContainerState.RUNNING:
+                self.connection.stop_container(container=machine)
+
+            container = self.connection.destroy_container(container=machine)
+            return container
+        except LXDAPIException as e:
+            raise MistError(msg=e.message, exc=e)
+        except Exception as e:
+            raise MistError(exc=e)
+
+    def _reboot_machine(self, machine, machine_libcloud):
+        """Restart the given container"""
+        return self.connection.restart_container(container=machine)
+
+    def _list_sizes__fetch_sizes(self):
+        return []
+
+    def _list_machines__fetch_machines(self):
+        """Perform the actual libcloud call to get list of containers"""
+
+        containers = self.connection.list_containers()
+
+        # add public/private ips for mist
+        for container in containers:
+            public_ips, private_ips = [], []
+            host = sanitize_host(self.cloud.host)
+            if is_private_subnet(host):
+                private_ips.append(host)
+            else:
+                public_ips.append(host)
+
+            container.public_ips = public_ips
+            container.private_ips = private_ips
+            container.size = None
+            container.image = container.image.name
+
+        return containers
+
+    def _list_machines__machine_creation_date(self, machine, machine_libcloud):
+        """Unix timestap of when the machine was created"""
+        return machine_libcloud.extra.get('created')  # unix timestamp
+
+    def _get_machine_libcloud(self, machine, no_fail=False):
+        """Return an instance of a libcloud node
+
+        This is a private method, used mainly by machine action methods.
+        """
+        # assert isinstance(machine.cloud, Machine)
+        assert self.cloud == machine.cloud
+        for node in self.connection.list_containers():
+            if node.id == machine.machine_id:
+                return node
+        if no_fail:
+            return Node(machine.machine_id, name=machine.machine_id,
+                        state=0, public_ips=[], private_ips=[],
+                        driver=self.connection)
+        raise MachineNotFoundError(
+            "Machine with machine_id '%s'." % machine.machine_id
+        )
+
+    def _connect(self):
+        host, port = dnat(self.cloud.owner, self.cloud.host, self.cloud.port)
+
+        try:
+            socket.setdefaulttimeout(15)
+            so = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            so.connect((sanitize_host(host), int(port)))
+            so.close()
+        except:
+            raise Exception("Make sure host is accessible "
+                            "and LXD port is specified")
+
+        if self.cloud.key_file and self.cloud.cert_file:
+            tls_auth = self._tls_authenticate(host=host, port=port)
+
+            if tls_auth is None:
+                raise Exception("key_file and cert_file exist "
+                                "but TLS certification was not possible ")
+            return tls_auth
+
+        # Username/Password authentication.
+        if self.cloud.username and self.cloud.password:
+
+            return get_container_driver(Container_Provider.LXD)(
+                key=self.cloud.username,
+                secret=self.cloud.password,
+                host=host, port=port)
+        # open authentication.
+        else:
+            return get_container_driver(Container_Provider.LXD)(
+                host=host, port=port)
+
+    def _tls_authenticate(self, host, port):
+        """Perform TLS authentication given the host and port"""
+
+        # TLS authentication.
+
+        key_temp_file = tempfile.NamedTemporaryFile(delete=False)
+        key_temp_file.write(self.cloud.key_file.encode())
+        key_temp_file.close()
+        cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
+        cert_temp_file.write(self.cloud.cert_file.encode())
+        cert_temp_file.close()
+        ca_cert = None
+
+        if self.cloud.ca_cert_file:
+            ca_cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
+            ca_cert_temp_file.write(self.cloud.ca_cert_file.encode())
+            ca_cert_temp_file.close()
+            ca_cert = ca_cert_temp_file.name
+
+        # tls auth
+        cert_file = cert_temp_file.name
+        key_file = key_temp_file.name
+        return \
+            get_container_driver(Container_Provider.LXD)(host=host,
+                                                         port=port,
+                                                         key_file=key_file,
+                                                         cert_file=cert_file,
+                                                         ca_cert=ca_cert)
 
 
 class LibvirtComputeController(BaseComputeController):

@@ -48,13 +48,28 @@ class ShellHubWorker(mist.api.hub.main.HubWorker):
         if self.shell is not None:
             log.error("%s: Can't call on_connect twice.", self.lbl)
             return
+
         data = self.params
         self.provider = data.get('provider', '')
+
+        host = data.get('host', '')
+        cloud_id = data.get('cloud_id', '')
+        machine_id = data.get('machine_id', '')
+        job_id = data.get('job_id', '')
+        cols = data["columns"]
+        rows = data["rows"]
+
         try:
-            self.shell = mist.api.shell.Shell(data['host'])
-            key_id, ssh_user = self.shell.autoconfigure(
-                self.owner, data['cloud_id'], data['machine_id']
-            )
+
+            self.shell = mist.api.shell.Shell(host, provider=self.provider)
+            key_id, ssh_user = self.shell.autoconfigure(owner=self.owner,
+                                                        cloud_id=cloud_id,
+                                                        machine_id=machine_id,
+                                                        job_id=job_id,
+                                                        cols=cols,
+                                                        rows=rows)
+            self.params.update(key_id=key_id, ssh_user=ssh_user)
+
         except Exception as exc:
             if self.provider == 'docker':
                 self.shell = mist.api.shell.Shell(data['host'],
@@ -68,6 +83,7 @@ class ShellHubWorker(mist.api.hub.main.HubWorker):
                             self.lbl, exc)
                 if isinstance(exc,
                               mist.api.exceptions.MachineUnauthorizedError):
+
                     err = 'Permission denied (publickey).'
                 else:
                     err = str(exc)
@@ -75,14 +91,21 @@ class ShellHubWorker(mist.api.hub.main.HubWorker):
                 self.params['error'] = err
                 self.stop()
                 return
-        self.params.update(key_id=key_id, ssh_user=ssh_user)
+
         self.channel = self.shell.invoke_shell('xterm',
                                                data['columns'], data['rows'])
         self.greenlets['read_stdout'] = gevent.spawn(self.get_ssh_data)
 
     def on_data(self, body, msg):
         """Received data that must be forwarded to shell's stdin"""
-        self.channel.send(body.encode('utf-8', 'ignore'))
+
+        # TODO: Factory should be moved from here
+        if self.shell.get_type() == "ParamikoShell" or \
+                self.shell.get_type() == "DockerShell":
+
+            self.channel.send(body.encode('utf-8', 'ignore'))
+        elif self.shell.get_type() == "LXDShell":
+            self.channel.send(bytearray(body, encoding='utf-8'), opcode=2)
 
     def on_resize(self, body, msg):
         """Received resize shell window command"""
@@ -92,7 +115,16 @@ class ShellHubWorker(mist.api.hub.main.HubWorker):
                 log.info("%s: Resizing shell to (%s, %s).",
                          self.lbl, columns, rows)
                 try:
-                    self.channel.resize_pty(columns, rows)
+
+                    if self.shell.get_type() == "LXDShell":
+
+                        # also pass the channel to emulate how things
+                        # were done in the past
+                        columns, rows = self.shell.resize(columns=columns,
+                                                          rows=rows)
+                    else:
+                        self.channel.resize_pty(columns, rows)
+
                     return columns, rows
                 except Exception as exc:
                     log.warning("%s: Error resizing shell to (%s, %s): %r.",
@@ -149,6 +181,7 @@ class LoggingShellHubWorker(ShellHubWorker):
                                             shell_id=self.uuid, **self.params)
 
     def emit_shell_data(self, data):
+
         self.capture.append((time.time(), 'data', data))
         super(LoggingShellHubWorker, self).emit_shell_data(data)
 

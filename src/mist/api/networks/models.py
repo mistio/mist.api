@@ -214,6 +214,10 @@ class VSphereNetwork(Network):
     pass
 
 
+class LXDNetwork(Network):
+    pass
+
+
 class Subnet(me.Document):
     """The basic Subnet model.
 

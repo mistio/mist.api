@@ -465,6 +465,8 @@ def create_machine(request):
               'ip_addresses': ip_addresses,
               'vnfs': vnfs,
               'expiration': expiration,
+              'ephemeral': params.get('ephemeral', False),
+              'lxd_image_source': params.get('lxd_image_source', None),
               'sec_group': sec_group}
 
     if not run_async:
