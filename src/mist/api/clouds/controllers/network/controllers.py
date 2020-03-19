@@ -231,3 +231,71 @@ class VSphereNetworkController(BaseNetworkController):
 
     def _list_subnets__fetch_subnets(self, network):
         return []
+
+
+class LXDNetworkController(BaseNetworkController):
+    """
+    Network controller for LXD
+    """
+
+    def _create_network__prepare_args(self, kwargs):
+
+        if "description" not in kwargs:
+            kwargs["description"] = "No network description"
+
+        # do not expect that kwargs
+        # have the configuration wrapped
+        # this is the default config
+        kwargs["config"] = {"ipv4.address": "none",
+                            "ipv6.address": "none",
+                            "ipv6.nat": "false"}
+
+        if "cidr" in kwargs:
+            kwargs["config"]["ipv4.address"] = kwargs["cidr"]
+
+        if "ipv6.address" in kwargs:
+            kwargs["config"]["ipv6.address"] = kwargs["ipv6.address"]
+
+        if "ipv6.nat" in kwargs:
+            kwargs["config"]["ipv6.nat"] = kwargs["ipv6.nat"]
+
+    def _delete_network(self, network, libcloud_network):
+
+        """Performs the libcloud call that handles network deletion.
+
+        This method is meant to be called internally by `self.delete_network`.
+
+        Unless naming conventions change or specialized parsing of the libcloud
+        response is needed, subclasses SHOULD NOT need to override this method.
+
+        Subclasses MAY override this method.
+        """
+        conn = self.cloud.ctl.compute.connection
+        conn.ex_delete_network(name=libcloud_network.name)
+
+    def _list_subnets__fetch_subnets(self, network):
+        """Fetches a list of subnets.
+
+        Performs the actual libcloud call that returns a subnet listing.
+
+        This method is meant to be called internally by `self.list_subnets`.
+
+        Due to inconsistent naming conventions and cloud-specific filtering,
+        this method is not implemented in `BaseNetworkController`.
+
+        Subclasses MUST override this method.
+        """
+        return []
+
+    def _list_networks__cidr_range(self, network, net):
+        """Returns the network's IP range in CIDR notation.
+
+        This method is meant to be called internally
+        by `self.list_networks` in order to return
+        the network's CIDR, if exists.
+
+        :param network: A network mongoengine model.
+        The model may not have yet been saved in the database.
+        :param libcloud_network: A libcloud network object.
+        """
+        return net.config["ipv4.address"]

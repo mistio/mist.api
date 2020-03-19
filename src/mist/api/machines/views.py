@@ -467,9 +467,12 @@ def create_machine(request):
               'ip_addresses': ip_addresses,
               'vnfs': vnfs,
               'expiration': expiration,
-              'sec_group': sec_group,
               'folder': folder,
-              'datastore': datastore}
+              'datastore': datastore,
+              'ephemeral': params.get('ephemeral', False),
+              'lxd_image_source': params.get('lxd_image_source', None),
+              'sec_group': sec_group}
+
     if not run_async:
         ret = methods.create_machine(auth_context, *args, **kwargs)
     else:
