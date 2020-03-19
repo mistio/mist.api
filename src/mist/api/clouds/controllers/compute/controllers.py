@@ -463,6 +463,54 @@ class MaxihostComputeController(BaseComputeController):
                            + disk_type
 
 
+class GigG8ComputeController(BaseComputeController):
+
+    def _connect(self):
+        return get_driver(Provider.GIG_G8)(self.cloud.user_id,
+                                           self.cloud.apikey,
+                                           self.cloud.url)
+
+    def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        # Discover network of machine.
+        network = machine_libcloud.extra.get('network', None)
+        if network:
+            from mist.api.networks.models import Network
+            try:
+                machine.network = Network.objects.get(cloud=self.cloud,
+                                                      network_id=network.id,
+                                                      missing_since=None)
+            except Network.DoesNotExist:
+                machine.network = None
+
+        if machine.network:
+            machine.public_ips = [machine.network.public_ip]
+
+        if machine_libcloud.extra.get('ssh_port', None):
+            machine.ssh_port = machine_libcloud.extra['ssh_port']
+
+    def _list_machines__machine_actions(self, machine, machine_libcloud):
+        super(GigG8ComputeController, self)._list_machines__machine_actions(
+            machine, machine_libcloud)
+        if machine_libcloud.state is NodeState.PAUSED:
+            machine.actions.start = True
+
+    def list_sizes(self, persist=True):
+        # only custom sizes are supported
+        return []
+
+    def list_locations(self, persist=True):
+        return []
+
+    def _stop_machine(self, machine, machine_libcloud):
+        self.connection.stop_node(machine_libcloud)
+
+    def _start_machine(self, machine, machine_libcloud):
+        self.connection.start_node(machine_libcloud)
+
+    def _reboot_machine(self, machine, machine_libcloud):
+        self.connection.reboot_node(machine_libcloud)
+
+
 class LinodeComputeController(BaseComputeController):
 
     def _connect(self):

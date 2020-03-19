@@ -125,7 +125,7 @@ class BaseNetworkController(BaseController):
 
         # Invoke `self.list_networks` to update the UI and return the Network
         # object at the API. Try 3 times before failing
-        for _ in range(3):
+        for _ in range(5):
             for net in self.list_networks():
                 if net.network_id == libcloud_net.id:
                     return net
