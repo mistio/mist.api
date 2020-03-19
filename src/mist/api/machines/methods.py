@@ -362,7 +362,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     elif conn.type is Provider.GIG_G8:
         node = create_machine_g8(
             conn, machine_name, image, size_ram, size_cpu,
-            size_disk_primary, public_key, description, networks, volumes
+            size_disk_primary, public_key, description, networks,
+            volumes, cloud_init
         )
     elif conn.type is Provider.ONAPP:
         node = _create_machine_onapp(
@@ -555,7 +556,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
 
 
 def create_machine_g8(conn, machine_name, image, ram, cpu, disk,
-                      public_key, description, networks, volumes):
+                      public_key, description, networks, volumes,
+                      cloud_init):
     auth = None
     ex_expose_ssh = False
     if public_key:
@@ -584,6 +586,9 @@ def create_machine_g8(conn, machine_name, image, ram, cpu, disk,
     if volumes:
         disks = [volume.get('size') for volume in volumes]
         ex_create_attr.update({"data_disks": disks})
+
+    if cloud_init:
+        ex_create_attr.update({"user_data": cloud_init})
 
     try:
         node = conn.create_node(
