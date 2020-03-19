@@ -158,7 +158,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                    volumes=[], ip_addresses=[], expiration={},
                    sec_group='', folder=None, datastore=None, vnfs=[],
                    ephemeral=False, lxd_image_source=None,
-                   sec_group='', vnfs=[], description='',
+                   description='',
                    ):
     """Creates a new virtual machine on the specified cloud.
 
