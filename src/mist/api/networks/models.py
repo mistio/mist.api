@@ -215,8 +215,8 @@ class VSphereNetwork(Network):
 
 
 class GigG8Network(Network):
-    type = me.StringField(default='vgw',
-                          choices=('vgw', 'routeros'))
+    network_type = me.StringField(default='vgw',
+                                  choices=('vgw', 'routeros'))
     public_ip = me.StringField()
 
 
