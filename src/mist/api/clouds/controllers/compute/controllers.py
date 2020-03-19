@@ -1132,10 +1132,32 @@ class VultrComputeController(BaseComputeController):
 class VSphereComputeController(BaseComputeController):
 
     def _connect(self):
+        from libcloud.compute.drivers.vsphere import VSphereNodeDriver
+        from libcloud.compute.drivers.vsphere import VSphere_6_7_NodeDriver
+        ca_cert = None
+        if self.cloud.ca_cert_file:
+            ca_cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
+            ca_cert_temp_file.write(self.cloud.ca_cert_file.encode())
+            ca_cert_temp_file.close()
+            ca_cert = ca_cert_temp_file.name
+
         host, port = dnat(self.cloud.owner, self.cloud.host, 443)
-        return get_driver(Provider.VSPHERE)(host=host, port=port,
-                                            username=self.cloud.username,
-                                            password=self.cloud.password)
+        driver_6_5 = VSphereNodeDriver(host=host,
+                                       username=self.cloud.username,
+                                       password=self.cloud.password,
+                                       port=port,
+                                       ca_cert=ca_cert)
+        self.version = driver_6_5._get_version()
+        if '6.7'in self.version and config.ENABLE_VSPHERE_REST:
+            self.version = '6.7'
+            return VSphere_6_7_NodeDriver(self.cloud.username,
+                                          secret=self.cloud.password,
+                                          host=host,
+                                          port=port,
+                                          ca_cert=ca_cert)
+        else:
+            self.version = "6.5-"
+            return driver_6_5
 
     def check_connection(self):
         """Check connection without performing `list_machines`
@@ -1151,23 +1173,56 @@ class VSphereComputeController(BaseComputeController):
         host = node.extra.get('host', '')
         return cluster or host
 
+    def list_vm_folders(self):
+        all_folders = self.connection.ex_list_folders()
+        vm_folders = [folder for folder in all_folders if folder[
+            'type'] in {"VIRTUAL_MACHINE", "VirtualMachine"}]
+        return vm_folders
+
+    def list_datastores(self):
+        datastores_raw = self.connection.ex_list_datastores()
+        return datastores_raw
+
     def _list_locations__fetch_locations(self):
         """List locations for vSphere
 
-        If there are clusters with drs enabled, return those.
-        Otherwise return the list of available hosts.
+        Return all locations, clusters and hosts
         """
-        locations = self.connection.list_locations()
-        clusters = [l for l in locations
-                    if l.extra['type'] == 'cluster' and l.extra['drs']]
-        hosts = [l for l in locations if l.extra['type'] == 'host']
-
-        return clusters or hosts
+        return self.connection.list_locations()
 
     def _list_machines__fetch_machines(self):
         """Perform the actual libcloud call to get list of nodes"""
         return self.connection.list_nodes(
             max_properties=self.cloud.max_properties_per_request)
+
+    def _list_machines__get_size(self, node):
+        """Return key of size_map dict for a specific node
+
+        Subclasses MAY override this method.
+        """
+        return None
+
+    def _list_machines__get_custom_size(self, node):
+        # FIXME: resolve circular import issues
+        from mist.api.clouds.models import CloudSize
+        try:
+            _size = CloudSize.objects.get(external_id=node.size.id)
+        except me.DoesNotExist:
+            _size = CloudSize(cloud=self.cloud,
+                              external_id=str(node.size.id))
+        _size.ram = node.size.ram
+        _size.cpus = node.size.extra.get('cpus')
+        _size.disk = node.size.disk
+        name = ""
+        if _size.cpus:
+            name += f'{_size.cpus}v CPUs, '
+        if _size.ram:
+            name += f'{_size.ram}MB RAM, '
+        if _size.disk:
+            name += f'{_size.disk}GB disk.'
+        _size.name = name
+        _size.save()
+        return _size
 
     def _list_machines__machine_actions(self, machine, machine_libcloud):
         super(VSphereComputeController, self)._list_machines__machine_actions(
@@ -1179,6 +1234,12 @@ class VSphereComputeController(BaseComputeController):
         else:
             machine.actions.remove_snapshot = False
             machine.actions.revert_to_snapshot = False
+
+    def _stop_machine(self, machine, machine_libcloud):
+        return self.connection.stop_node(machine_libcloud)
+
+    def _start_machine(self, machine, machine_libcloud):
+        return self.connection.start_node(machine_libcloud)
 
     def _create_machine_snapshot(self, machine, machine_libcloud,
                                  snapshot_name, description='',

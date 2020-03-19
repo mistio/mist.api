@@ -1781,6 +1781,7 @@ CURRENCY = {
     'sign': '$',
     'rate': '1'
 }
+ENABLE_VSPHERE_REST = False
 # DO NOT PUT ANYTHING BELOW HERE UNLESS YOU KNOW WHAT YOU ARE DOING
 
 # Get settings from mist.core.

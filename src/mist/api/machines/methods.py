@@ -156,8 +156,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                    bare_metal=False, hourly=True,
                    softlayer_backend_vlan_id=None, machine_username='',
                    volumes=[], ip_addresses=[], expiration={},
+                   sec_group='', folder=None, datastore=None, vnfs=[],
                    ephemeral=False, lxd_image_source=None,
-                   sec_group='', vnfs=[]
                    ):
     """Creates a new virtual machine on the specified cloud.
 
@@ -191,7 +191,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                               id=cloud_id, deleted=None)
 
     conn = connect_provider(cloud)
-
     machine_name = machine_name_validator(conn.type, machine_name)
     key = None
     if key_id:
@@ -411,7 +410,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         size.extra['cpu'] = size_cpu
         size.disk = size_disk_primary
         node = _create_machine_vsphere(conn, machine_name, image,
-                                       size, location, networks)
+                                       size, location, networks, folder,
+                                       datastore)
     elif conn.type is Provider.LINODE and private_key:
         # FIXME: The orchestration UI does not provide all the necessary
         # parameters, thus we need to fetch the proper size and image objects.
@@ -1890,25 +1890,28 @@ def _create_machine_vcloud(conn, machine_name, image,
 
 
 def _create_machine_vsphere(conn, machine_name, image,
-                            size, location, network):
+                            size, location, network, folder,
+                            datastore):
     """Create a machine in vSphere.
 
     """
-
+    # get location as object from database
     try:
         from mist.api.networks.models import VSphereNetwork
-        network_name = VSphereNetwork.objects.get(id=network).name
+        network = VSphereNetwork.objects.get(id=network)
     except me.DoesNotExist:
-        network_name = None
-
+        network = None
+    if network:
+        network.id = network.network_id
     try:
         node = conn.create_node(
             name=machine_name,
             image=image,
             size=size,
             location=location,
-            ex_network=network_name,
-            cluster=location.name,
+            ex_network=network,
+            ex_folder=folder,
+            ex_datastore=datastore
         )
     except Exception as e:
         raise MachineCreationError("vSphere, got exception %s" % e, e)

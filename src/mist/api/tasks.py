@@ -776,6 +776,7 @@ def create_machine_async(
     associate_floating_ip_subnet=None, project_id=None,
     tags=None, schedule={}, bare_metal=False, hourly=True,
     softlayer_backend_vlan_id=None, machine_username='',
+    folder=None, datastore=None,
     ephemeral=False, lxd_image_source=None,
     volumes=[], ip_addresses=[], expiration={}, sec_group='', vnfs=[]
 ):
