@@ -365,6 +365,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             size_disk_primary, public_key, description, networks,
             volumes, cloud_init
         )
+        ssh_port = node.extra.get('ssh_port', 22)
     elif conn.type is Provider.ONAPP:
         node = _create_machine_onapp(
             conn, public_key,
@@ -534,7 +535,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         mist.api.tasks.post_deploy_steps.delay(
             auth_context.owner.id, cloud_id, node.id, monitoring,
             script=script, key_id=key_id, script_id=script_id,
-            script_params=script_params, job_id=job_id, job=job,
+            script_params=script_params, job_id=job_id, job=job, port=ssh_port,
             hostname=hostname, plugins=plugins, post_script_id=post_script_id,
             post_script_params=post_script_params, schedule=schedule,
         )
