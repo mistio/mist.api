@@ -557,9 +557,11 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
 def create_machine_g8(conn, machine_name, image, ram, cpu, disk,
                       public_key, description, networks, volumes):
     auth = None
+    ex_expose_ssh = False
     if public_key:
         key = public_key.replace('\n', '')
         auth = NodeAuthSSHKey(pubkey=key)
+        ex_expose_ssh = True
 
     try:
         mist_net = Network.objects.get(id=networks[0])
@@ -586,12 +588,12 @@ def create_machine_g8(conn, machine_name, image, ram, cpu, disk,
     try:
         node = conn.create_node(
             name=machine_name,
-            size=None,  # only custom sizes supported
             image=image,
             ex_network=ex_network,
-            description=description,
+            ex_description=description,
             auth=auth,
-            ex_create_attr=ex_create_attr
+            ex_create_attr=ex_create_attr,
+            ex_expose_ssh=ex_expose_ssh
         )
     except Exception as e:
         raise MachineCreationError("Gig G8, got exception %s" % e, e)

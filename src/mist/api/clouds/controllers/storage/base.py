@@ -155,6 +155,7 @@ class BaseStorageController(BaseController):
                 self._list_volumes__postparse_volume(volume, libcloud_volume)
             except Exception as exc:
                 log.exception('Error post-parsing %s: %s', volume, exc)
+
             # Update with available volume actions.
             try:
                 self._list_volumes__volume_actions(volume, libcloud_volume)

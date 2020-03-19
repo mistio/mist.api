@@ -466,15 +466,20 @@ class GigG8ComputeController(BaseComputeController):
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         # Discover network of machine.
         network = machine_libcloud.extra.get('network', None)
-        network_id = str(network.id)
         if network:
             from mist.api.networks.models import Network
             try:
                 machine.network = Network.objects.get(cloud=self.cloud,
-                                                      network_id=network_id,
+                                                      network_id=network.id,
                                                       missing_since=None)
             except Network.DoesNotExist:
                 machine.network = None
+
+        if machine.network:
+            machine.public_ips = [machine.network.public_ip]
+
+        if machine_libcloud.extra.get('ssh_port', None):
+            machine.ssh_port = machine_libcloud.extra['ssh_port']
 
     def _list_machines__machine_actions(self, machine, machine_libcloud):
         super(GigG8ComputeController, self)._list_machines__machine_actions(

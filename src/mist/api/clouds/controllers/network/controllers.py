@@ -235,5 +235,9 @@ class VSphereNetworkController(BaseNetworkController):
 
 class GigG8NetworkController(BaseNetworkController):
 
+    def _list_networks__postparse_network(self, network, libcloud_network,
+                                          r_groups=[]):
+        network.public_ip = libcloud_network.publicipaddress
+
     def _list_subnets__fetch_subnets(self, network):
         return []
