@@ -1362,6 +1362,12 @@ SUPPORTED_PROVIDERS = [
         'provider': Provider.MAXIHOST,
         'regions': []
     },
+    # GigG8
+    {
+        'title': 'GigG8',
+        'provider': Provider.GIG_G8,
+        'regions': []
+    },
     # LXD
     {
         'title': 'LXD',

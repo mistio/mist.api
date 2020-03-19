@@ -778,7 +778,8 @@ def create_machine_async(
     softlayer_backend_vlan_id=None, machine_username='',
     folder=None, datastore=None,
     ephemeral=False, lxd_image_source=None,
-    volumes=[], ip_addresses=[], expiration={}, sec_group='', vnfs=[]
+    volumes=[], ip_addresses=[], expiration={}, sec_group='', vnfs=[],
+    description=''
 ):
     from multiprocessing.dummy import Pool as ThreadPool
     from mist.api.machines.methods import create_machine
@@ -837,7 +838,9 @@ def create_machine_async(
              'ephemeral': ephemeral,
              'lxd_image_source': lxd_image_source,
              'sec_group': sec_group,
-             'vnfs': vnfs}
+             'vnfs': vnfs,
+             'description': description
+             }
         ))
 
     def create_machine_wrapper(args_kwargs):

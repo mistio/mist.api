@@ -158,6 +158,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                    volumes=[], ip_addresses=[], expiration={},
                    sec_group='', folder=None, datastore=None, vnfs=[],
                    ephemeral=False, lxd_image_source=None,
+                   description='',
                    ):
     """Creates a new virtual machine on the specified cloud.
 
@@ -215,7 +216,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     # For providers, which do not support pre-defined sizes, we expect `size`
     # to be a dict with all the necessary information regarding the machine's
     # size.
-    if cloud.ctl.provider in ('vsphere', 'onapp', 'libvirt', 'lxd',):
+    if cloud.ctl.provider in ('vsphere', 'onapp', 'libvirt', 'lxd', 'gig_g8',):
         if not isinstance(size, dict):
             raise BadRequestError('Expected size to be a dict.')
         size_id = 'custom'
@@ -370,6 +371,13 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             location, bare_metal, cloud_init,
             hourly, softlayer_backend_vlan_id
         )
+    elif conn.type is Provider.GIG_G8:
+        node = create_machine_g8(
+            conn, machine_name, image, size_ram, size_cpu,
+            size_disk_primary, public_key, description, networks,
+            volumes, cloud_init
+        )
+        ssh_port = node.extra.get('ssh_port', 22)
     elif conn.type is Provider.ONAPP:
         node = _create_machine_onapp(
             conn, public_key,
@@ -540,7 +548,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         mist.api.tasks.post_deploy_steps.delay(
             auth_context.owner.id, cloud_id, node.id, monitoring,
             script=script, key_id=key_id, script_id=script_id,
-            script_params=script_params, job_id=job_id, job=job,
+            script_params=script_params, job_id=job_id, job=job, port=ssh_port,
             hostname=hostname, plugins=plugins, post_script_id=post_script_id,
             post_script_params=post_script_params, schedule=schedule,
         )
@@ -559,6 +567,57 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         ret.update({'public_ips': [],
                     'private_ips': []})
     return ret
+
+
+def create_machine_g8(conn, machine_name, image, ram, cpu, disk,
+                      public_key, description, networks, volumes,
+                      cloud_init):
+    auth = None
+    ex_expose_ssh = False
+    if public_key:
+        key = public_key.replace('\n', '')
+        auth = NodeAuthSSHKey(pubkey=key)
+        ex_expose_ssh = True
+
+    try:
+        mist_net = Network.objects.get(id=networks[0])
+    except me.DoesNotExist:
+        raise NetworkNotFoundError()
+
+    libcloud_networks = conn.ex_list_networks()
+    ex_network = None
+    for libcloud_net in libcloud_networks:
+        if mist_net.network_id == libcloud_net.id:
+            ex_network = libcloud_net
+            break
+
+    ex_create_attr = {
+        "memory": ram,
+        "vcpus": cpu,
+        "disk_size": disk
+    }
+
+    if volumes:
+        disks = [volume.get('size') for volume in volumes]
+        ex_create_attr.update({"data_disks": disks})
+
+    if cloud_init:
+        ex_create_attr.update({"user_data": cloud_init})
+
+    try:
+        node = conn.create_node(
+            name=machine_name,
+            image=image,
+            ex_network=ex_network,
+            ex_description=description,
+            auth=auth,
+            ex_create_attr=ex_create_attr,
+            ex_expose_ssh=ex_expose_ssh
+        )
+    except Exception as e:
+        raise MachineCreationError("Gig G8, got exception %s" % e, e)
+
+    return node
 
 
 def _create_machine_rackspace(conn, public_key, machine_name,

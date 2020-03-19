@@ -253,6 +253,9 @@ def create_machine(request):
       type: array
       items:
         type: string
+      description:
+        description: Description of machine. Only for GigG8 machines
+        type: string
     """
 
     params = params_from_request(request)
@@ -323,6 +326,7 @@ def create_machine(request):
     sec_group = params.get('security_group', '')
     vnfs = params.get('vnfs', [])
     expiration = params.get('expiration', {})
+    description = params.get('description', '')
     folder = params.get('folders', None)
     datastore = params.get('datastore', None)
     job_id = params.get('job_id')
@@ -471,7 +475,8 @@ def create_machine(request):
               'datastore': datastore,
               'ephemeral': params.get('ephemeral', False),
               'lxd_image_source': params.get('lxd_image_source', None),
-              'sec_group': sec_group}
+              'sec_group': sec_group,
+              'description': description}
 
     if not run_async:
         ret = methods.create_machine(auth_context, *args, **kwargs)
