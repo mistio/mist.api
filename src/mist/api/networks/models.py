@@ -220,6 +220,10 @@ class GigG8Network(Network):
     public_ip = me.StringField()
 
 
+class LXDNetwork(Network):
+    pass
+
+
 class Subnet(me.Document):
     """The basic Subnet model.
 

@@ -249,6 +249,9 @@ def add_routes(configurator):
     configurator.add_route('api_v1_resource_groups',
                            '/api/v1/clouds/{cloud}/resource-groups')
 
+    configurator.add_route('api_v1_storage_pools',
+                           '/api/v1/clouds/{cloud}/storage-pools')
+
     configurator.add_route('api_v1_networks',
                            '/api/v1/clouds/{cloud}/networks')
     configurator.add_route('api_v1_network',
