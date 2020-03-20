@@ -472,12 +472,12 @@ class GigG8ComputeController(BaseComputeController):
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         # Discover network of machine.
-        network = machine_libcloud.extra.get('network', None)
-        if network:
+        network_id = machine_libcloud.extra.get('network_id', None)
+        if network_id:
             from mist.api.networks.models import Network
             try:
                 machine.network = Network.objects.get(cloud=self.cloud,
-                                                      network_id=network.id,
+                                                      network_id=network_id,
                                                       missing_since=None)
             except Network.DoesNotExist:
                 machine.network = None
@@ -493,6 +493,38 @@ class GigG8ComputeController(BaseComputeController):
             machine, machine_libcloud)
         if machine_libcloud.state is NodeState.PAUSED:
             machine.actions.start = True
+
+    def _list_machines__get_size(self, node):
+        """Return key of size_map dict for a specific node
+
+        Subclasses MAY override this method.
+        """
+        return None
+
+    def _list_machines__get_custom_size(self, node):
+        from mist.api.clouds.models import CloudSize
+        try:
+            _size = CloudSize.objects.get(external_id=str(node.size.id))
+        except me.DoesNotExist:
+            _size = CloudSize(cloud=self.cloud,
+                              external_id=str(node.size.id))
+        _size.ram = node.size.ram
+        _size.cpus = node.size.extra.get('cpus')
+        _size.disk = node.size.disk
+        name = ""
+        if _size.cpus:
+            name += '%s CPUs, ' % _size.cpus
+        if _size.ram:
+            name += '%sMB RAM, ' % _size.ram
+        if _size.disk:
+            name += '%sGB disk.' % _size.disk
+        _size.name = name
+        _size.save()
+
+        return _size
+
+    def _list_machines__machine_creation_date(self, machine, machine_libcloud):
+        return machine_libcloud.extra.get('created_at')
 
     def list_sizes(self, persist=True):
         # only custom sizes are supported
