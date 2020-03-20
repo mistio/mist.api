@@ -617,8 +617,7 @@ class BaseComputeController(BaseController):
 
         # Apply any cloud/provider specific post processing.
         try:
-            updated = updated or \
-                self._list_machines__postparse_machine(machine, node)
+            updated = self._list_machines__postparse_machine(machine, node) or updated
         except Exception as exc:
             log.exception("Error while post parsing machine %s:%s for %s\n%r",
                           machine.id, node.name, self.cloud, exc)

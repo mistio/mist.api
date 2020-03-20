@@ -472,12 +472,12 @@ class GigG8ComputeController(BaseComputeController):
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         # Discover network of machine.
-        network = machine_libcloud.extra.get('network', None)
-        if network:
+        network_id = machine_libcloud.extra.get('network_id', None)
+        if network_id:
             from mist.api.networks.models import Network
             try:
                 machine.network = Network.objects.get(cloud=self.cloud,
-                                                      network_id=network.id,
+                                                      network_id=network_id,
                                                       missing_since=None)
             except Network.DoesNotExist:
                 machine.network = None
@@ -493,6 +493,9 @@ class GigG8ComputeController(BaseComputeController):
             machine, machine_libcloud)
         if machine_libcloud.state is NodeState.PAUSED:
             machine.actions.start = True
+
+    def _list_machines__machine_creation_date(self, machine, machine_libcloud):
+        return machine_libcloud.extra.get('created_at')
 
     def list_sizes(self, persist=True):
         # only custom sizes are supported
