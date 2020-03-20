@@ -293,6 +293,8 @@ def create_machine(request):
     if volumes and volumes[0].get('volume_id'):
         request.matchdict['volume'] = volumes[0].get('volume_id')
     networks = params.get('networks', [])
+    if isinstance(networks, str):
+        networks = [networks]
     subnet_id = params.get('subnet_id', '')
     subnetwork = params.get('subnetwork', None)
     ip_addresses = params.get('ip_addresses', [])
