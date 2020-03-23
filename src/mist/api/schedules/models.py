@@ -389,7 +389,7 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin):
 
         last_run = '' if self.total_run_count == 0 else str(self.last_run_at)
 
-        conditions = [condition.as_dict() for condition in self.conditions]
+        selectors = [selector.as_dict() for selector in self.selectors]
 
         sdict = {
             'id': self.id,
@@ -407,7 +407,7 @@ class Schedule(OwnershipMixin, me.Document, SelectorClassMixin):
             'last_run_at': last_run,
             'total_run_count': self.total_run_count,
             'max_run_count': self.max_run_count,
-            'conditions': conditions,
+            'selectors': selectors,
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
         }
