@@ -80,7 +80,8 @@ class Cloud(OwnershipMixin, me.Document):
     """
 
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
-    owner = me.ReferenceField(Organization, required=True)
+    owner = me.ReferenceField(Organization, required=True,
+                              reverse_delete_rule=me.CASCADE)
 
     title = me.StringField(required=True)
     enabled = me.BooleanField(default=True)
@@ -92,6 +93,7 @@ class Cloud(OwnershipMixin, me.Document):
     polling_interval = me.IntField(default=0)  # in seconds
 
     dns_enabled = me.BooleanField(default=False)
+    observation_logs_enabled = me.BooleanField(default=False)
 
     default_monitoring_method = me.StringField(
         choices=config.MONITORING_METHODS)
@@ -175,7 +177,7 @@ class Cloud(OwnershipMixin, me.Document):
 
     def delete(self):
         super(Cloud, self).delete()
-        Tag.objects(resource=self).delete()
+        Tag.objects(resource_id=self.id, resource_type='cloud').delete()
         try:
             self.owner.mapper.remove(self)
         except Exception as exc:
@@ -197,12 +199,15 @@ class Cloud(OwnershipMixin, me.Document):
             'provider': self.ctl.provider,
             'enabled': self.enabled,
             'dns_enabled': self.dns_enabled,
+            'observation_logs_enabled': self.observation_logs_enabled,
             'state': 'online' if self.enabled else 'offline',
             'polling_interval': self.polling_interval,
             'tags': {
                 tag.key: tag.value
-                for tag in Tag.objects(owner=self.owner,
-                                       resource=self).only('key', 'value')
+                for tag in Tag.objects(
+                    owner=self.owner,
+                    resource_id=self.id,
+                    resource_type='cloud').only('key', 'value')
             },
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
@@ -222,7 +227,8 @@ class CloudLocation(OwnershipMixin, me.Document):
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
     cloud = me.ReferenceField('Cloud', required=True,
                               reverse_delete_rule=me.CASCADE)
-    owner = me.ReferenceField('Organization', required=True)
+    owner = me.ReferenceField('Organization', required=True,
+                              reverse_delete_rule=me.CASCADE)
     external_id = me.StringField(required=True)
     name = me.StringField()
     country = me.StringField()
@@ -323,20 +329,30 @@ class AlibabaCloud(AmazonCloud):
     _controller_cls = controllers.AlibabaMainController
 
 
-class ClearAPICloud(Cloud):
-
-    apikey = me.StringField(required=True)
-    url = me.StringField(required=True)
-
-    _controller_cls = controllers.ClearAPIMainController
-
-
 class DigitalOceanCloud(Cloud):
 
     token = me.StringField(required=True)
 
     _private_fields = ('token', )
     _controller_cls = controllers.DigitalOceanMainController
+
+
+class MaxihostCloud(Cloud):
+
+    token = me.StringField(required=True)
+
+    _private_fields = ('token', )
+    _controller_cls = controllers.MaxihostMainController
+
+
+class GigG8Cloud(Cloud):
+
+    apikey = me.StringField(required=True)
+    user_id = me.IntField(required=True)
+    url = me.StringField(required=True)
+
+    _private_fields = ('apikey', )
+    _controller_cls = controllers.GigG8MainController
 
 
 class LinodeCloud(Cloud):
@@ -364,15 +380,6 @@ class SoftLayerCloud(Cloud):
 
     _private_fields = ('apikey', )
     _controller_cls = controllers.SoftLayerMainController
-
-
-class NephoScaleCloud(Cloud):
-
-    username = me.StringField(required=True)
-    password = me.StringField(required=True)
-
-    _private_fields = ('password', )
-    _controller_cls = controllers.NephoScaleMainController
 
 
 class AzureCloud(Cloud):
@@ -435,13 +442,14 @@ class VSphereCloud(Cloud):
     host = me.StringField(required=True)
     username = me.StringField(required=True)
     password = me.StringField(required=True)
-
+    ca_cert_file = me.StringField(required=False)
     # Some vSphere clouds will timeout when calling list_nodes, unless we
     # perform the requests in batches, fetching a few properties each time.
     # The following property should be set to something like 4 when that
     # happens. It's not clear if it's due a vSphere configuration. In most
     # cases this is not necessary. The default value will fetch all requested
     # properties at once
+
     max_properties_per_request = me.IntField(default=20)
 
     _private_fields = ('password', )
@@ -465,6 +473,7 @@ class OpenStackCloud(Cloud):
     password = me.StringField(required=True)
     url = me.StringField(required=True)
     tenant = me.StringField(required=True)
+    domain = me.StringField(required=False)
     region = me.StringField(required=False)
     compute_endpoint = me.StringField(required=False)
 
@@ -492,12 +501,37 @@ class DockerCloud(Cloud):
     _controller_cls = controllers.DockerMainController
 
 
+class LXDCloud(Cloud):
+    """
+    Model  specializing Cloud for LXC.
+    """
+
+    # TODO: verify default port for LXD container
+    host = me.StringField(required=True)
+    port = me.IntField(required=True, default=8443)
+
+    # User/Password Authentication (optional)
+    username = me.StringField(required=False)
+    password = me.StringField(required=False)
+
+    # TLS Authentication (optional)
+    key_file = me.StringField(required=False)
+    cert_file = me.StringField(required=False)
+    ca_cert_file = me.StringField(required=False)
+
+    # Show running and stopped containers
+    show_all = me.BooleanField(default=False)
+
+    _private_fields = ('password', 'key_file')
+    _controller_cls = controllers.LXDMainController
+
+
 class LibvirtCloud(Cloud):
 
     host = me.StringField(required=True)
     username = me.StringField(default='root')
     port = me.IntField(required=True, default=22)
-    key = me.ReferenceField(Key, required=False)
+    key = me.ReferenceField(Key, required=False, reverse_delete_rule=me.DENY)
     images_location = me.StringField(default="/var/lib/libvirt/images")
 
     _controller_cls = controllers.LibvirtMainController
@@ -522,17 +556,6 @@ class OnAppCloud(Cloud):
 class OtherCloud(Cloud):
 
     _controller_cls = controllers.OtherMainController
-
-
-class ClearCenterCloud(Cloud):
-
-    uri = me.StringField(required=False,
-                         default='https://api.clearsdn.com')
-    apikey = me.StringField(required=True)
-    verify = me.BooleanField(default=True)
-
-    _private_fields = ('apikey', )
-    _controller_cls = controllers.ClearCenterMainController
 
 
 _populate_clouds()

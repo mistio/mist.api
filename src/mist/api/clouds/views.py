@@ -10,7 +10,7 @@ from mist.api.helpers import view_config, params_from_request
 
 from mist.api.decorators import require_cc
 
-from mist.api.exceptions import BadRequestError
+from mist.api.exceptions import BadRequestError, MistNotImplementedError
 from mist.api.exceptions import RequiredParameterMissingError, NotFoundError
 
 from mist.api.clouds.methods import filter_list_clouds, add_cloud_v_2
@@ -99,6 +99,9 @@ def add_cloud(request):
       description: Required for Docker
     docker_port:
       type: string
+    domain:
+      type: string
+      description: Optional for OpenStack
     host:
       type: string
       description: Required for OnApp, Vcloud, vSphere
@@ -127,7 +130,7 @@ def add_cloud(request):
       description: Required for Vcloud
     password:
       type: string
-      description: Required for Nephoscale, OpenStack, Vcloud, vSphere
+      description: Required for OpenStack, Vcloud, vSphere
     port:
       type: integer
       description: Required for Vcloud
@@ -149,7 +152,6 @@ def add_cloud(request):
       - vsphere
       - ec2
       - rackspace
-      - nephoscale
       - digitalocean
       - softlayer
       - gce
@@ -195,11 +197,11 @@ def add_cloud(request):
       description: Required for Digitalocean
     username:
       type: string
-      description: Required for Nephoscale, Rackspace, OnApp, \
+      description: Required for Rackspace, OnApp, \
       SoftLayer, OpenStack, Vcloud, vSphere
     """
     auth_context = auth_context_from_request(request)
-    cloud_tags = auth_context.check_perm("cloud", "add", None)
+    cloud_tags, _ = auth_context.check_perm("cloud", "add", None)
     owner = auth_context.owner
     params = params_from_request(request)
     # remove spaces from start/end of string fields that are often included
@@ -223,10 +225,6 @@ def add_cloud(request):
     monitoring = ret.get('monitoring')
 
     cloud = Cloud.objects.get(owner=owner, id=cloud_id)
-
-    # If insights enabled on org, set poller with half hour period.
-    if auth_context.org.insights_enabled:
-        cloud.ctl.set_polling_interval(1800)
 
     if cloud_tags:
         add_tags_to_resource(owner, cloud, list(cloud_tags.items()))
@@ -394,6 +392,13 @@ def toggle_cloud(request):
 
     new_state = params_from_request(request).get('new_state', None)
     dns_enabled = params_from_request(request).get('dns_enabled', None)
+    observation_logs_enabled = params_from_request(request).get(
+        'observation_logs_enabled', None)
+
+    if new_state is None and dns_enabled is None and \
+            observation_logs_enabled is None:
+        raise RequiredParameterMissingError('new_state or dns_enabled or \
+          observation_logs_enabled')
 
     if new_state == '1':
         cloud.ctl.enable()
@@ -409,8 +414,95 @@ def toggle_cloud(request):
     elif dns_enabled:
         raise BadRequestError('Invalid DNS state')
 
-    if new_state is None and dns_enabled is None:
-        raise RequiredParameterMissingError('new_state or dns_enabled')
+    if observation_logs_enabled == 1:
+        cloud.ctl.observation_logs_enable()
+    elif observation_logs_enabled == 0:
+        cloud.ctl.observation_logs_disable()
+    elif observation_logs_enabled:
+        raise BadRequestError('Invalid observation_logs_enabled state')
 
     trigger_session_update(auth_context.owner, ['clouds'])
     return OK
+
+
+@view_config(route_name='api_v1_cloud_security_groups', request_method='GET',
+             renderer='json')
+def list_security_groups(request):
+    """
+    Tags: security-groups
+    ---
+    Lists security groups on cloud
+    READ permission required on cloud.
+    ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    """
+    auth_context = auth_context_from_request(request)
+    cloud_id = request.matchdict['cloud']
+
+    # SEC
+    auth_context.check_perm("cloud", "read", cloud_id)
+    try:
+        cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
+                                  deleted=None)
+    except Cloud.DoesNotExist:
+        raise NotFoundError('Cloud does not exist')
+
+    try:
+        sec_groups = cloud.ctl.compute.connection.ex_list_security_groups()
+    except Exception as e:
+        log.error("Could not list security groups for cloud %s: %r" % (
+            cloud, e))
+        raise MistNotImplementedError
+
+    return sec_groups
+
+
+# For VSphere only VM folders
+@view_config(route_name='api_v1_cloud_folders', request_method='GET',
+             renderer='json')
+def list_folders(request):
+    """
+    Lists all the folders that contain VMs.
+    It is needed for machine creation for the 6.7 REST api of VSphere.
+    In the future it might not be necessary.
+    """
+    auth_context = auth_context_from_request(request)
+    cloud_id = request.matchdict.get('cloud')
+
+    if cloud_id:
+        try:
+            cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
+                                      deleted=None)
+        except Cloud.DoesNotExist:
+            raise NotFoundError('Cloud does not exist')
+        # SEC
+        auth_context.check_perm('cloud', 'read', cloud_id)
+        vm_folders = cloud.ctl.compute.list_vm_folders()
+        return vm_folders
+    else:
+        raise BadRequestError("Not possible at this time")
+
+
+@view_config(route_name='api_v1_cloud_datastores', request_method='GET',
+             renderer='json')
+def list_datastores(request):
+    auth_context = auth_context_from_request(request)
+    cloud_id = request.matchdict.get('cloud')
+
+    if cloud_id:
+        try:
+            cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
+                                      deleted=None)
+        except Cloud.vmDoesNotExist:
+            raise NotFoundError('Cloud does not exist')
+        # SEC
+        auth_context.check_perm('cloud', 'read', cloud_id)
+        datastores = cloud.ctl.compute.list_datastores()
+        return datastores
+    else:
+        raise BadRequestError("The cloud with the give id was not found,"
+                              " please make sure it is was typed correctly"
+                              " in the url.")

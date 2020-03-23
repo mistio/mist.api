@@ -125,7 +125,7 @@ class BaseNetworkController(BaseController):
 
         # Invoke `self.list_networks` to update the UI and return the Network
         # object at the API. Try 3 times before failing
-        for _ in range(3):
+        for _ in range(5):
             for net in self.list_networks():
                 if net.network_id == libcloud_net.id:
                     return net
@@ -240,6 +240,7 @@ class BaseNetworkController(BaseController):
         """
         task_key = 'cloud:list_networks:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
+        first_run = False if task.last_success else True
         with task.task_runner(persist=persist):
             # Get cached networks as dict
             cached_networks = {'%s-%s' % (n.id, n.network_id): n.as_dict()
@@ -248,16 +249,21 @@ class BaseNetworkController(BaseController):
             for network in networks:
                 network.ctl.list_subnets()
 
-        if amqp_owner_listening(self.cloud.owner.id):
+        # Publish patches to rabbitmq.
+        new_networks = {'%s-%s' % (n.id, n.network_id): n.as_dict()
+                        for n in networks}
+        # Exclude last seen and probe field
+        if cached_networks or new_networks:
             # Publish patches to rabbitmq.
-            new_networks = {'%s-%s' % (n.id, n.network_id): n.as_dict()
-                            for n in networks}
-            # Exclude last seen and probe field
-            if cached_networks or new_networks:
-                # Publish patches to rabbitmq.
-                patch = jsonpatch.JsonPatch.from_diff(cached_networks,
-                                                      new_networks).patch
-                if patch:
+            patch = jsonpatch.JsonPatch.from_diff(cached_networks,
+                                                  new_networks).patch
+            if patch:
+                if not first_run and self.cloud.observation_logs_enabled:
+                    from mist.api.logs.methods import log_observations
+                    log_observations(self.cloud.owner.id, self.cloud.id,
+                                     'network', patch, cached_networks,
+                                     new_networks)
+                if amqp_owner_listening(self.cloud.owner.id):
                     amqp_publish_user(self.cloud.owner.id,
                                       routing_key='patch_networks',
                                       data={'cloud_id': self.cloud.id,
@@ -293,6 +299,12 @@ class BaseNetworkController(BaseController):
         except ConnectionError as e:
             raise mist.api.exceptions.CloudUnavailableError(e)
 
+        # in case of ARM, we need to attach the network to a resource group
+        if self.cloud.ctl.provider in ['azure_arm']:
+            connection = self.cloud.ctl.compute.connection
+            r_groups = connection.ex_list_resource_groups()
+        else:
+            r_groups = []
         # List of Network mongoengine objects to be returned to the API.
         networks, new_networks = [], []
         for net in libcloud_nets:
@@ -316,7 +328,7 @@ class BaseNetworkController(BaseController):
 
             # Apply cloud-specific processing.
             try:
-                self._list_networks__postparse_network(network, net)
+                self._list_networks__postparse_network(network, net, r_groups)
             except Exception as exc:
                 log.exception('Error post-parsing %s: %s', network, exc)
 
@@ -337,7 +349,6 @@ class BaseNetworkController(BaseController):
             except mongoengine.errors.NotUniqueError as exc:
                 log.error("Network %s is not unique: %s", network.name, exc)
                 raise mist.api.exceptions.NetworkExistsError()
-
             networks.append(network)
 
         # Set missing_since for networks not returned by libcloud.
@@ -376,7 +387,8 @@ class BaseNetworkController(BaseController):
         """
         return
 
-    def _list_networks__postparse_network(self, network, libcloud_network):
+    def _list_networks__postparse_network(self, network, libcloud_network,
+                                          r_groups=[]):
         """Parses a libcloud network object on behalf of `self.list_networks`.
 
         Any subclass that needs to perform custom parsing of a network object
@@ -552,9 +564,13 @@ class BaseNetworkController(BaseController):
 
         for subnet in Subnet.objects(network=network, missing_since=None):
             subnet.ctl.delete()
-
         libcloud_network = self._get_libcloud_network(network)
-        self._delete_network(network, libcloud_network)
+        try:
+            self._delete_network(network, libcloud_network)
+        except mist.api.exceptions.MistError as exc:
+            log.error("Could not delete network %s", network)
+            raise
+
         self.list_networks()
         from mist.api.poller.models import ListNetworksPollingSchedule
         ListNetworksPollingSchedule.add(cloud=self.cloud, interval=10, ttl=120)
@@ -586,7 +602,12 @@ class BaseNetworkController(BaseController):
         assert subnet.network.cloud == self.cloud
 
         libcloud_subnet = self._get_libcloud_subnet(subnet)
-        self._delete_subnet(subnet, libcloud_subnet)
+        try:
+            self._delete_subnet(subnet, libcloud_subnet)
+        except mist.api.exceptions.MistError as exc:
+            log.error("Could not delete subnet %s", subnet)
+            raise
+
         from mist.api.poller.models import ListNetworksPollingSchedule
         ListNetworksPollingSchedule.add(cloud=self.cloud, interval=10, ttl=120)
 

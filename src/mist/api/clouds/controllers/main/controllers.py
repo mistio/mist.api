@@ -91,18 +91,26 @@ class AlibabaMainController(AmazonMainController):
     DnsController = None
 
 
-class ClearAPIMainController(BaseMainController):
-
-    provider = 'clearapi'
-    ComputeController = compute_ctls.ClearAPIComputeController
-
-
 class DigitalOceanMainController(BaseMainController):
 
     provider = 'digitalocean'
     ComputeController = compute_ctls.DigitalOceanComputeController
     DnsController = dns_ctls.DigitalOceanDNSController
     StorageController = storage_ctls.DigitalOceanStorageController
+
+
+class MaxihostMainController(BaseMainController):
+
+    provider = 'maxihost'
+    ComputeController = compute_ctls.MaxihostComputeController
+
+
+class GigG8MainController(BaseMainController):
+
+    provider = 'gig_g8'
+    ComputeController = compute_ctls.GigG8ComputeController
+    StorageController = storage_ctls.GigG8StorageController
+    NetworkController = network_ctls.GigG8NetworkController
 
 
 class LinodeMainController(BaseMainController):
@@ -139,12 +147,6 @@ class SoftLayerMainController(BaseMainController):
     provider = 'softlayer'
     ComputeController = compute_ctls.SoftLayerComputeController
     DnsController = dns_ctls.SoftLayerDNSController
-
-
-class NephoScaleMainController(BaseMainController):
-
-    provider = 'nephoscale'
-    ComputeController = compute_ctls.NephoScaleComputeController
 
 
 class AzureMainController(BaseMainController):
@@ -252,6 +254,7 @@ class OpenStackMainController(BaseMainController):
     def _update__preparse_kwargs(self, kwargs):
         rename_kwargs(kwargs, 'auth_url', 'url')
         rename_kwargs(kwargs, 'tenant_name', 'tenant')
+        rename_kwargs(kwargs, 'domain_name', 'domain')
         url = kwargs.get('url', self.cloud.url)
         if url:
             if url.endswith('/v2.0/'):
@@ -273,6 +276,23 @@ class DockerMainController(BaseMainController):
         rename_kwargs(kwargs, 'docker_host', 'host')
         rename_kwargs(kwargs, 'auth_user', 'username')
         rename_kwargs(kwargs, 'auth_password', 'password')
+        host = kwargs.get('host', self.cloud.host)
+        if host:
+            host = sanitize_host(host)
+            check_host(host)
+
+
+class LXDMainController(BaseMainController):
+    """
+    Main controller class for LXC containers
+    """
+
+    provider = 'lxd'
+    ComputeController = compute_ctls.LXDComputeController
+    StorageController = storage_ctls.LXDStorageController
+    NetworkController = network_ctls.LXDNetworkController
+
+    def _update__preparse_kwargs(self, kwargs):
         host = kwargs.get('host', self.cloud.host)
         if host:
             host = sanitize_host(host)
@@ -333,8 +353,8 @@ class LibvirtMainController(BaseMainController):
         # FIXME: Add update support, need to clean up kvm 'host' from libcloud,
         # and especially stop using cloud.host as the machine id ffs.
         if not add:
-            raise BadRequestError("Update action is not currently support for "
-                                  "Libvirt/KVM clouds.")
+            raise BadRequestError("Update action is not currently supported "
+                                  "for Libvirt/KVM clouds.")
         super(LibvirtMainController, self).update(
             fail_on_error=fail_on_error,
             fail_on_invalid_params=fail_on_invalid_params,
@@ -537,7 +557,7 @@ class OtherMainController(BaseMainController):
                                           "machine hostname is empty.")
                 to_tunnel(self.cloud.owner, host)  # May raise VPNTunnelError
                 ssh_command(
-                    self.cloud.owner, self.cloud.id, machine.machine_id, host,
+                    self.cloud.owner, self.cloud.id, machine.id, host,
                     'uptime', key_id=ssh_key.id, username=ssh_user,
                     port=ssh_port
                 )
@@ -560,9 +580,3 @@ class OtherMainController(BaseMainController):
                 old_machines, new_machines)
 
         return machine
-
-
-class ClearCenterMainController(BaseMainController):
-
-    provider = 'clearcenter'
-    ComputeController = compute_ctls.ClearCenterComputeController

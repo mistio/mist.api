@@ -1,6 +1,9 @@
 import uuid
 import logging
+import urllib
+
 from pyramid.response import Response
+from pyramid.renderers import render_to_response
 
 import mist.api.machines.methods as methods
 
@@ -15,9 +18,8 @@ from mist.api.auth.methods import auth_context_from_request
 from mist.api.helpers import view_config, params_from_request
 from mist.api.helpers import trigger_session_update
 
-
 from mist.api.exceptions import RequiredParameterMissingError
-from mist.api.exceptions import BadRequestError, NotFoundError
+from mist.api.exceptions import BadRequestError, NotFoundError, ForbiddenError
 from mist.api.exceptions import MachineCreationError, RedirectError
 from mist.api.exceptions import CloudUnauthorizedError, CloudUnavailableError
 
@@ -191,36 +193,21 @@ def create_machine(request):
     azure_port_bindings:
       type: string
       description: Required for Azure
-    create_network:
-      type: boolean
-      description: Required for Azure_arm
-    create_resource_group:
-      type: boolean
-      description: Required for Azure_arm
-    create_storage_account:
-      type: boolean
-      description: Required for Azure_arm
-    ex_storage_account:
+    storage_account:
       type: string
-      description: Required for Azure_arm if not create_storage_account
-    ex_resource_group:
+      description: Required for Azure_arm.
+    resource_group:
       type: string
-      description: Required for Azure_arm if not create_resource_group
+      description: Required for Azure_arm.
+    storage_account_type:
+      type: string
+      description: Required for Azure_arm
     machine_password:
       type: string
       description: Required for Azure_arm
     machine_username:
       type: string
       description: Required for Azure_arm
-    new_network:
-      type: string
-      description: Required for Azure_arm if create_storage_account
-    new_storage_account:
-      type: string
-      description: Required for Azure_arm if create_storage_account
-    new_resource_group:
-      type: string
-      description: Required for Azure_arm if create_resource_group
     bare_metal:
       description: Needed only by SoftLayer cloud
       type: boolean
@@ -258,6 +245,17 @@ def create_machine(request):
       items:
         type:
           object
+    security_group:
+      type: string
+      description: Machine will join this security group
+    vnfs:
+      description: Network Virtual Functions to configure in machine
+      type: array
+      items:
+        type: string
+      description:
+        description: Description of machine. Only for GigG8 machines
+        type: string
     """
 
     params = params_from_request(request)
@@ -286,18 +284,17 @@ def create_machine(request):
     location_name = params.get('location_name', None)
     ips = params.get('ips', None)
     monitoring = params.get('monitoring', False)
-    create_storage_account = params.get('create_storage_account', False)
-    new_storage_account = params.get('new_storage_account', '')
-    ex_storage_account = params.get('ex_storage_account', '')
+    storage_account = params.get('storage_account', '')
+    storage_account_type = params.get('storage_account_type', '')
     machine_password = params.get('machine_password', '')
     machine_username = params.get('machine_username', '')
-    create_resource_group = params.get('create_resource_group', False)
-    new_resource_group = params.get('new_resource_group', '')
-    ex_resource_group = params.get('ex_resource_group', '')
+    resource_group = params.get('resource_group', '')
     volumes = params.get('volumes', [])
-    create_network = params.get('create_network', False)
-    new_network = params.get('new_network', '')
+    if volumes and volumes[0].get('volume_id'):
+        request.matchdict['volume'] = volumes[0].get('volume_id')
     networks = params.get('networks', [])
+    if isinstance(networks, str):
+        networks = [networks]
     subnet_id = params.get('subnet_id', '')
     subnetwork = params.get('subnetwork', None)
     ip_addresses = params.get('ip_addresses', [])
@@ -328,9 +325,12 @@ def create_machine(request):
     # servers, while False means the server has montly pricing
     softlayer_backend_vlan_id = params.get('softlayer_backend_vlan_id', None)
     hourly = params.get('hourly', True)
-
+    sec_group = params.get('security_group', '')
+    vnfs = params.get('vnfs', [])
     expiration = params.get('expiration', {})
-
+    description = params.get('description', '')
+    folder = params.get('folders', None)
+    datastore = params.get('datastore', None)
     job_id = params.get('job_id')
     # The `job` variable points to the event that started the job. If a job_id
     # is not provided, then it means that this is the beginning of a new story
@@ -394,7 +394,8 @@ def create_machine(request):
     if location_id:
         auth_context.check_perm("location", "read", location_id)
         auth_context.check_perm("location", "create_resources", location_id)
-    tags = auth_context.check_perm("machine", "create", None) or {}
+
+    tags, constraints = auth_context.check_perm("machine", "create", None)
     if script_id:
         auth_context.check_perm("script", "run", script_id)
     if key_id:
@@ -410,17 +411,42 @@ def create_machine(request):
                 raise ValueError()
             mtags = {key: val for item in mtags for key,
                      val in list(item.items())}
+        security_tags = auth_context.get_security_tags()
+        for mt in mtags:
+            if mt in security_tags:
+                raise ForbiddenError(
+                    'You may not assign tags included in a Team access policy:'
+                    ' `%s`' % mt)
         tags.update(mtags)
     except ValueError:
         raise BadRequestError('Invalid tags format. Expecting either a '
                               'dictionary of tags or a list of single-item '
                               'dictionaries')
 
+    # check expiration constraint
+    exp_constraint = constraints.get('expiration', {})
+    if exp_constraint:
+        try:
+            from mist.rbac.methods import check_expiration
+            check_expiration(expiration, exp_constraint)
+        except ImportError:
+            pass
+
+    # check cost constraint
+    cost_constraint = constraints.get('cost', {})
+    if cost_constraint:
+        try:
+            from mist.rbac.methods import check_cost
+            check_cost(auth_context.org, cost_constraint)
+        except ImportError:
+            pass
+
     args = (cloud_id, key_id, machine_name,
             location_id, image_id, size,
             image_extra, disk, image_name, size_name,
             location_name, ips, monitoring,
-            ex_storage_account, machine_password, ex_resource_group, networks,
+            storage_account, machine_password, resource_group,
+            storage_account_type, networks,
             subnetwork, docker_env, docker_command)
     kwargs = {'script_id': script_id,
               'script_params': script_params, 'script': script, 'job': job,
@@ -442,16 +468,17 @@ def create_machine(request):
               'hourly': hourly,
               'schedule': schedule,
               'softlayer_backend_vlan_id': softlayer_backend_vlan_id,
-              'create_storage_account': create_storage_account,
-              'new_storage_account': new_storage_account,
-              'create_network': create_network,
-              'new_network': new_network,
-              'create_resource_group': create_resource_group,
-              'new_resource_group': new_resource_group,
               'machine_username': machine_username,
               'volumes': volumes,
               'ip_addresses': ip_addresses,
-              'expiration': expiration}
+              'vnfs': vnfs,
+              'expiration': expiration,
+              'folder': folder,
+              'datastore': datastore,
+              'ephemeral': params.get('ephemeral', False),
+              'lxd_image_source': params.get('lxd_image_source', None),
+              'sec_group': sec_group,
+              'description': description}
 
     if not run_async:
         ret = methods.create_machine(auth_context, *args, **kwargs)
@@ -630,7 +657,16 @@ def edit_machine(request):
     if machine.cloud.owner != auth_context.owner:
         raise NotFoundError("Machine %s doesn't exist" % machine.id)
 
-    auth_context.check_perm('machine', 'edit', machine)
+    tags, constraints = auth_context.check_perm("machine", "edit", machine.id)
+    expiration = params.get('expiration', {})
+    # check expiration constraint
+    exp_constraint = constraints.get('expiration', {})
+    if exp_constraint:
+        try:
+            from mist.rbac.methods import check_expiration
+            check_expiration(expiration, exp_constraint)
+        except ImportError:
+            pass
 
     return machine.ctl.update(auth_context, params)
 
@@ -763,7 +799,7 @@ def machine_actions(request):
         result = machine.ctl.remove()
         # Schedule a UI update
         trigger_session_update(auth_context.owner, ['clouds'])
-    elif action in ('start', 'stop', 'reboot',
+    elif action in ('start', 'stop', 'reboot', 'clone',
                     'undefine', 'suspend', 'resume'):
         result = getattr(machine.ctl, action)()
     elif action == 'rename':
@@ -771,6 +807,16 @@ def machine_actions(request):
             raise BadRequestError("You must give a name!")
         result = getattr(machine.ctl, action)(name)
     elif action == 'resize':
+        _, constraints = auth_context.check_perm("machine", "resize",
+                                                 machine.id)
+        # check cost constraint
+        cost_constraint = constraints.get('cost', {})
+        if cost_constraint:
+            try:
+                from mist.rbac.methods import check_cost
+                check_cost(auth_context.org, cost_constraint)
+            except ImportError:
+                pass
         kwargs = {}
         if memory:
             kwargs['memory'] = memory
@@ -885,6 +931,8 @@ def machine_rdp(request):
 @view_config(route_name='api_v1_cloud_machine_console',
              request_method='POST', renderer='json')
 @view_config(route_name='api_v1_machine_console',
+             request_method='GET', renderer='json')
+@view_config(route_name='api_v1_machine_console',
              request_method='POST', renderer='json')
 def machine_console(request):
     """
@@ -944,12 +992,43 @@ def machine_console(request):
 
     auth_context.check_perm("machine", "read", machine.id)
 
-    if machine.cloud.ctl.provider not in ['vsphere', 'openstack']:
+    if machine.cloud.ctl.provider not in ['vsphere', 'openstack', 'libvirt']:
         raise NotImplementedError(
-            "VNC console only supported for vSphere and OpenStack")
+            "VNC console only supported for vSphere, OpenStack or KVM")
 
-    console_uri = machine.cloud.ctl.compute.connection.ex_open_console(
-        machine.machine_id
-    )
-
-    raise RedirectError(console_uri)
+    if machine.cloud.ctl.provider == 'libvirt':
+        import xml.etree.ElementTree as ET
+        from html import unescape
+        from datetime import datetime
+        import hmac
+        import hashlib
+        xml_desc = unescape(machine.extra.get('xml_description', ''))
+        root = ET.fromstring(xml_desc)
+        vnc_element = root.find('devices').find('graphics[@type="vnc"]')
+        vnc_port = vnc_element.attrib.get('port')
+        vnc_host = vnc_element.attrib.get('listen')
+        key_id = machine.cloud.key.id
+        host = '%s@%s:%d' % (
+            machine.cloud.username, machine.cloud.host, machine.cloud.port)
+        expiry = int(datetime.now().timestamp()) + 100
+        msg = '%s,%s,%s,%s,%s' % (host, key_id, vnc_host, vnc_port, expiry)
+        mac = hmac.new(
+            config.SECRET.encode(),
+            msg=msg.encode(),
+            digestmod=hashlib.sha256).hexdigest()
+        base_ws_uri = config.CORE_URI.replace('http', 'ws')
+        ws_uri = '%s/proxy/%s/%s/%s/%s/%s/%s' % (
+            base_ws_uri, host, key_id, vnc_host, vnc_port, expiry, mac)
+        return render_to_response('../templates/novnc.pt', {'url': ws_uri})
+    if machine.cloud.ctl.provider == 'vsphere':
+        url_param = machine.cloud.ctl.compute.connection.ex_open_console(
+            machine.machine_id
+        )
+        params = urllib.parse.urlencode({'url': url_param})
+        console_url = ("/ui/assets/vsphere-console-util-js/"
+                       f"console.html?{params}")
+    else:
+        console_url = machine.cloud.ctl.compute.connection.ex_open_console(
+            machine.machine_id
+        )
+    raise RedirectError(console_url)

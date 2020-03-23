@@ -100,7 +100,8 @@ class TaggingSelector(BaseSelector):
 
     @property
     def q(self):
-        rtype = self._instance.selector_resource_cls._meta["collection"]
+        rtype = self._instance.selector_resource_cls._meta[
+            "collection"].rstrip('s')
         ids = set()
         for key, value in self.include.items():
             query = {

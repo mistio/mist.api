@@ -10,6 +10,7 @@ from mist.api.helpers import rename_kwargs
 
 from mist.api.exceptions import SubnetNotFoundError
 from mist.api.exceptions import NetworkNotFoundError
+from mist.api.exceptions import MistNotImplementedError
 
 from mist.api.clouds.controllers.network.base import BaseNetworkController
 
@@ -24,8 +25,26 @@ class AzureArmNetworkController(BaseNetworkController):
     def _list_networks__cidr_range(self, network, libcloud_network):
         return libcloud_network.extra['addressSpace']['addressPrefixes'][0]
 
-    def _list_networks__postparse_network(self, network, libcloud_network):
-        network.location = libcloud_network.location
+    def _list_networks__postparse_network(self, network, libcloud_network,
+                                          r_groups=[]):
+        from mist.api.clouds.models import CloudLocation
+        location = None
+        loc_id = libcloud_network.location
+        try:
+            location = CloudLocation.objects.get(external_id=loc_id,
+                                                 cloud=self.cloud)
+        except CloudLocation.DoesNotExist:
+            pass
+        network.location = location
+
+        subnet_id = libcloud_network.extra.get('subnets')[0].get('id')
+        r_group_name = subnet_id.split('resourceGroups/')[1].split('/')[0]
+        r_group_id = ''
+        for r_group in r_groups:
+            if r_group.name == r_group_name:
+                r_group_id = r_group.id
+                break
+        network.resource_group = r_group_id
 
     def _list_subnets__fetch_subnets(self, network):
         l_network = AzureNetwork(network.network_id,
@@ -34,6 +53,26 @@ class AzureArmNetworkController(BaseNetworkController):
 
     def _list_subnets__cidr_range(self, subnet, libcloud_subnet):
         return subnet.extra.pop('addressPrefix')
+
+    def _get_libcloud_subnet(self, subnet):
+        networks = self.cloud.ctl.compute.connection.ex_list_networks()
+        network = None
+        for net in networks:
+            if net.id == subnet.network.network_id:
+                network = net
+                break
+        subnets = self.cloud.ctl.compute.connection.ex_list_subnets(network)
+        for sub in subnets:
+            if sub.id == subnet.subnet_id:
+                return sub
+        raise SubnetNotFoundError('Subnet %s with subnet_id \
+            %s' % (subnet.name, subnet.subnet_id))
+
+    def _delete_network(self, network, libcloud_network):
+        raise MistNotImplementedError()
+
+    def _delete_subnet(self, subnet, libcloud_subnet):
+        raise MistNotImplementedError()
 
 
 class AmazonNetworkController(BaseNetworkController):
@@ -48,7 +87,8 @@ class AmazonNetworkController(BaseNetworkController):
     def _list_networks__cidr_range(self, network, libcloud_network):
         return libcloud_network.cidr_block
 
-    def _list_networks__postparse_network(self, network, libcloud_network):
+    def _list_networks__postparse_network(self, network, libcloud_network,
+                                          r_groups=[]):
         tenancy = libcloud_network.extra.pop('instance_tenancy')
         network.instance_tenancy = tenancy
 
@@ -96,7 +136,8 @@ class GoogleNetworkController(BaseNetworkController):
     def _list_networks__cidr_range(self, network, libcloud_network):
         return libcloud_network.cidr
 
-    def _list_networks__postparse_network(self, network, libcloud_network):
+    def _list_networks__postparse_network(self, network, libcloud_network,
+                                          r_groups=[]):
         network.mode = libcloud_network.mode
 
     def _list_subnets__fetch_subnets(self, network):
@@ -132,7 +173,8 @@ class OpenStackNetworkController(BaseNetworkController):
     def _create_subnet__prepare_args(self, subnet, kwargs):
         kwargs['network_id'] = subnet.network.network_id
 
-    def _list_networks__postparse_network(self, network, libcloud_network):
+    def _list_networks__postparse_network(self, network, libcloud_network,
+                                          r_groups=[]):
         for field in network._network_specific_fields:
             if hasattr(libcloud_network, field):
                 value = getattr(libcloud_network, field)
@@ -178,8 +220,92 @@ class LibvirtNetworkController(BaseNetworkController):
     def _list_subnets__fetch_subnets(self, network):
         return []
 
+    def _delete_network(self, network, libcloud_network):
+        raise MistNotImplementedError()
+
+    def _delete_subnet(self, subnet, libcloud_subnet):
+        raise MistNotImplementedError()
+
 
 class VSphereNetworkController(BaseNetworkController):
+
+    def _list_subnets__fetch_subnets(self, network):
+        return []
+
+
+class LXDNetworkController(BaseNetworkController):
+    """
+    Network controller for LXD
+    """
+
+    def _create_network__prepare_args(self, kwargs):
+
+        if "description" not in kwargs:
+            kwargs["description"] = "No network description"
+
+        # do not expect that kwargs
+        # have the configuration wrapped
+        # this is the default config
+        kwargs["config"] = {"ipv4.address": "none",
+                            "ipv6.address": "none",
+                            "ipv6.nat": "false"}
+
+        if "cidr" in kwargs:
+            kwargs["config"]["ipv4.address"] = kwargs["cidr"]
+
+        if "ipv6.address" in kwargs:
+            kwargs["config"]["ipv6.address"] = kwargs["ipv6.address"]
+
+        if "ipv6.nat" in kwargs:
+            kwargs["config"]["ipv6.nat"] = kwargs["ipv6.nat"]
+
+    def _delete_network(self, network, libcloud_network):
+
+        """Performs the libcloud call that handles network deletion.
+
+        This method is meant to be called internally by `self.delete_network`.
+
+        Unless naming conventions change or specialized parsing of the libcloud
+        response is needed, subclasses SHOULD NOT need to override this method.
+
+        Subclasses MAY override this method.
+        """
+        conn = self.cloud.ctl.compute.connection
+        conn.ex_delete_network(name=libcloud_network.name)
+
+    def _list_subnets__fetch_subnets(self, network):
+        """Fetches a list of subnets.
+
+        Performs the actual libcloud call that returns a subnet listing.
+
+        This method is meant to be called internally by `self.list_subnets`.
+
+        Due to inconsistent naming conventions and cloud-specific filtering,
+        this method is not implemented in `BaseNetworkController`.
+
+        Subclasses MUST override this method.
+        """
+        return []
+
+    def _list_networks__cidr_range(self, network, net):
+        """Returns the network's IP range in CIDR notation.
+
+        This method is meant to be called internally
+        by `self.list_networks` in order to return
+        the network's CIDR, if exists.
+
+        :param network: A network mongoengine model.
+        The model may not have yet been saved in the database.
+        :param libcloud_network: A libcloud network object.
+        """
+        return net.config["ipv4.address"]
+
+
+class GigG8NetworkController(BaseNetworkController):
+
+    def _list_networks__postparse_network(self, network, libcloud_network,
+                                          r_groups=[]):
+        network.public_ip = libcloud_network.publicipaddress
 
     def _list_subnets__fetch_subnets(self, network):
         return []

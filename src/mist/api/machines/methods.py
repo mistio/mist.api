@@ -4,6 +4,8 @@ import base64
 import mongoengine as me
 import time
 import requests
+import datetime
+import json
 
 from random import randrange
 
@@ -26,6 +28,8 @@ from mist.api.machines.models import Machine
 from mist.api.keys.models import Key
 from mist.api.networks.models import Network
 from mist.api.networks.models import Subnet
+from mist.api.users.models import Owner, Organization
+from mist.api.auth.models import AuthToken
 
 from mist.api.exceptions import PolicyUnauthorizedError
 from mist.api.exceptions import MachineNameValidationError
@@ -33,16 +37,20 @@ from mist.api.exceptions import BadRequestError, MachineCreationError
 from mist.api.exceptions import InternalServerError
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import VolumeNotFoundError
+from mist.api.exceptions import NetworkNotFoundError, MistNotImplementedError
 
 from mist.api.helpers import get_temp_file
 
 from mist.api.methods import connect_provider
 from mist.api.methods import notify_admin
 from mist.api.networks.methods import list_networks
+from mist.api.auth.methods import auth_context_from_auth_token
 
 from mist.api.monitoring.methods import disable_monitoring
 
 from mist.api.tag.methods import resolve_id_and_set_tags
+from mist.api.tag.methods import get_tags_for_resource
+from mist.api.tag.methods import remove_tags_from_resource
 
 from mist.api import config
 
@@ -133,24 +141,24 @@ def list_machines(owner, cloud_id, cached=False):
 def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                    image_id, size, image_extra=None, disk=None,
                    image_name=None, size_name=None, location_name=None,
-                   ips=None, monitoring=False, ex_storage_account='',
-                   machine_password='', ex_resource_group='', networks=[],
-                   subnetwork=None, docker_env=[],
-                   docker_command=None,
+                   ips=None, monitoring=False, storage_account='',
+                   machine_password='', resource_group='',
+                   storage_account_type='', networks=[], subnetwork=None,
+                   docker_env=[], docker_command=None,
                    ssh_port=22, script='', script_id='', script_params='',
                    job_id=None, job=None, docker_port_bindings={},
                    docker_exposed_ports={}, azure_port_bindings='',
                    hostname='', plugins=None, disk_size=None, disk_path=None,
                    post_script_id='', post_script_params='', cloud_init='',
-                   subnet_id='', create_network=False, new_network='',
-                   create_resource_group=False, new_resource_group='',
-                   create_storage_account=False, new_storage_account='',
-                   associate_floating_ip=False,
+                   subnet_id='', associate_floating_ip=False,
                    associate_floating_ip_subnet=None, project_id=None,
                    schedule={}, command=None, tags=None,
                    bare_metal=False, hourly=True,
                    softlayer_backend_vlan_id=None, machine_username='',
                    volumes=[], ip_addresses=[], expiration={},
+                   sec_group='', folder=None, datastore=None, vnfs=[],
+                   ephemeral=False, lxd_image_source=None,
+                   description='',
                    ):
     """Creates a new virtual machine on the specified cloud.
 
@@ -178,11 +186,12 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     # post_script_id: id of a script that exists - for mist.core. If script_id
     # or monitoring are supplied, this will run after both finish
     # post_script_params: extra params, for post_script_id
+
     log.info('Creating machine %s on cloud %s' % (machine_name, cloud_id))
     cloud = Cloud.objects.get(owner=auth_context.owner,
                               id=cloud_id, deleted=None)
-    conn = connect_provider(cloud)
 
+    conn = connect_provider(cloud)
     machine_name = machine_name_validator(conn.type, machine_name)
     key = None
     if key_id:
@@ -207,7 +216,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     # For providers, which do not support pre-defined sizes, we expect `size`
     # to be a dict with all the necessary information regarding the machine's
     # size.
-    if cloud.ctl.provider in ('vsphere', 'onapp', 'libvirt', ):
+    if cloud.ctl.provider in ('vsphere', 'onapp', 'libvirt', 'lxd', 'gig_g8',):
         if not isinstance(size, dict):
             raise BadRequestError('Expected size to be a dict.')
         size_id = 'custom'
@@ -314,6 +323,14 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                 docker_port_bindings=docker_port_bindings,
                 docker_exposed_ports=docker_exposed_ports
             )
+    elif conn.type is Container_Provider.LXD:
+
+        node = _create_machine_lxd(conn=conn, machine_name=machine_name,
+                                   image=image, parameters=lxd_image_source,
+                                   start=True, cluster=None,
+                                   ephemeral=ephemeral,
+                                   size_cpu=size_cpu, size_ram=size_ram,
+                                   volumes=volumes, networks=networks)
     elif conn.type in [Provider.RACKSPACE_FIRST_GEN, Provider.RACKSPACE]:
         node = _create_machine_rackspace(conn, public_key, machine_name, image,
                                          size, location, user_data=cloud_init)
@@ -330,11 +347,12 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                 break
         node = _create_machine_ec2(conn, key.name, public_key,
                                    machine_name, image, size, ec2_location,
-                                   subnet_id, cloud_init, volumes)
+                                   subnet_id, cloud_init, volumes,
+                                   sec_group=sec_group)
     elif conn.name == 'Aliyun ECS':
         node = _create_machine_aliyun(conn, key.name, public_key,
                                       machine_name, image, size, location,
-                                      subnet_id, cloud_init)
+                                      subnet_id, cloud_init, volumes)
     elif conn.type is Provider.GCE:
         libcloud_sizes = conn.list_sizes(location=location_name)
         for libcloud_size in libcloud_sizes:
@@ -353,6 +371,13 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             location, bare_metal, cloud_init,
             hourly, softlayer_backend_vlan_id
         )
+    elif conn.type is Provider.GIG_G8:
+        node = create_machine_g8(
+            conn, machine_name, image, size_ram, size_cpu,
+            size_disk_primary, public_key, description, networks,
+            volumes, cloud_init
+        )
+        ssh_port = node.extra.get('ssh_port', 22)
     elif conn.type is Provider.ONAPP:
         node = _create_machine_onapp(
             conn, public_key,
@@ -364,9 +389,9 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         )
     elif conn.type is Provider.DIGITAL_OCEAN:
         node = _create_machine_digital_ocean(
-            conn, key_id, private_key,
+            conn, cloud, key_id, private_key,
             public_key, machine_name,
-            image, size, location, cloud_init)
+            image, size, location, cloud_init, volumes)
     elif conn.type == Provider.AZURE:
         node = _create_machine_azure(
             conn, key_id, private_key,
@@ -381,11 +406,9 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         node = _create_machine_azure_arm(
             auth_context.owner, cloud_id, conn, public_key, machine_name,
             image, size, location, networks,
-            ex_storage_account, machine_password, ex_resource_group,
-            create_network, new_network,
-            create_resource_group, new_resource_group,
-            create_storage_account, new_storage_account,
-            machine_username
+            storage_account, machine_password, resource_group,
+            machine_username, volumes, storage_account_type,
+            cloud_init
         )
     elif conn.type in [Provider.VCLOUD]:
         node = _create_machine_vcloud(conn, machine_name, image,
@@ -395,7 +418,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         size.extra['cpu'] = size_cpu
         size.disk = size_disk_primary
         node = _create_machine_vsphere(conn, machine_name, image,
-                                       size, location, networks)
+                                       size, location, networks, folder,
+                                       datastore)
     elif conn.type is Provider.LINODE and private_key:
         # FIXME: The orchestration UI does not provide all the necessary
         # parameters, thus we need to fetch the proper size and image objects.
@@ -423,11 +447,15 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                                        disk_path=disk_path,
                                        networks=networks,
                                        public_key=public_key,
-                                       cloud_init=cloud_init)
+                                       cloud_init=cloud_init,
+                                       vnfs=vnfs)
     elif conn.type == Provider.PACKET:
         node = _create_machine_packet(conn, public_key, machine_name, image,
                                       size, location, cloud_init, cloud,
                                       project_id, volumes, ip_addresses)
+    elif conn.type == Provider.MAXIHOST:
+        node = _create_machine_maxihost(conn, machine_name, image,
+                                        size, location, public_key)
     else:
         raise BadRequestError("Provider unknown.")
 
@@ -451,7 +479,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     machine.assign_to(auth_context.user)
 
     # add schedule if expiration given
-
     if expiration:
         params = {
             'schedule_type': 'one_off',
@@ -460,7 +487,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             'action': expiration.get('action'),
             'conditions': [{'type': 'machines', 'ids': [machine.id]}],
             'task_enabled': True,
-            'notify': expiration.get('notify', '')
+            'notify': expiration.get('notify', ''),
+            'notify_msg': expiration.get('notify_msg', '')
         }
         name = machine.name + '-expiration-' + str(randrange(1000))
         from mist.api.schedules.models import Schedule
@@ -474,9 +502,10 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     if tags:
         resolve_id_and_set_tags(auth_context. owner, 'machine', node.id, tags,
                                 cloud_id=cloud_id)
-    fresh_machines = cloud.ctl.compute.list_cached_machines()
+    fresh_machines = cloud.ctl.compute._list_machines()
     cloud.ctl.compute.produce_and_publish_patch(cached_machines,
-                                                fresh_machines)
+                                                fresh_machines,
+                                                first_run=True)
 
     # Call post_deploy_steps for every provider FIXME: Refactor
     if conn.type == Provider.AZURE:
@@ -519,7 +548,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         mist.api.tasks.post_deploy_steps.delay(
             auth_context.owner.id, cloud_id, node.id, monitoring,
             script=script, key_id=key_id, script_id=script_id,
-            script_params=script_params, job_id=job_id, job=job,
+            script_params=script_params, job_id=job_id, job=job, port=ssh_port,
             hostname=hostname, plugins=plugins, post_script_id=post_script_id,
             post_script_params=post_script_params, schedule=schedule,
         )
@@ -538,6 +567,57 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         ret.update({'public_ips': [],
                     'private_ips': []})
     return ret
+
+
+def create_machine_g8(conn, machine_name, image, ram, cpu, disk,
+                      public_key, description, networks, volumes,
+                      cloud_init):
+    auth = None
+    ex_expose_ssh = False
+    if public_key:
+        key = public_key.replace('\n', '')
+        auth = NodeAuthSSHKey(pubkey=key)
+        ex_expose_ssh = True
+
+    try:
+        mist_net = Network.objects.get(id=networks[0])
+    except me.DoesNotExist:
+        raise NetworkNotFoundError()
+
+    libcloud_networks = conn.ex_list_networks()
+    ex_network = None
+    for libcloud_net in libcloud_networks:
+        if mist_net.network_id == libcloud_net.id:
+            ex_network = libcloud_net
+            break
+
+    ex_create_attr = {
+        "memory": ram,
+        "vcpus": cpu,
+        "disk_size": disk
+    }
+
+    if volumes:
+        disks = [volume.get('size') for volume in volumes]
+        ex_create_attr.update({"data_disks": disks})
+
+    if cloud_init:
+        ex_create_attr.update({"user_data": cloud_init})
+
+    try:
+        node = conn.create_node(
+            name=machine_name,
+            image=image,
+            ex_network=ex_network,
+            ex_description=description,
+            auth=auth,
+            ex_create_attr=ex_create_attr,
+            ex_expose_ssh=ex_expose_ssh
+        )
+    except Exception as e:
+        raise MachineCreationError("Gig G8, got exception %s" % e, e)
+
+    return node
 
 
 def _create_machine_rackspace(conn, public_key, machine_name,
@@ -661,7 +741,7 @@ def _create_machine_openstack(conn, private_key, public_key, key_name,
 
 def _create_machine_aliyun(conn, key_name, public_key,
                            machine_name, image, size, location, subnet_id,
-                           user_data, security_group_id=None):
+                           user_data, volumes=[], security_group_id=None):
     """Create a machine in Alibaba Aliyun ECS.
     """
     sec_gr_name = config.EC2_SECURITYGROUP.get('name', '')
@@ -700,6 +780,29 @@ def _create_machine_aliyun(conn, key_name, public_key,
         ex_vswitch_id = conn.ex_create_switch('172.16.0.0/24',
                                               location.id, vpc_id)
 
+    ex_data_disks = []
+    ex_volumes = []
+    for volume in volumes:
+        if volume.get('volume_id'):
+            try:
+                from mist.api.volumes.models import Volume
+                mist_vol = Volume.objects.get(id=volume.get('volume_id'))
+                libcloud_disks = conn.list_volumes()
+                for libcloud_disk in libcloud_disks:
+                    if libcloud_disk.id == mist_vol.external_id:
+                        ex_volumes.append(libcloud_disk)
+                        break
+            except me.DoesNotExist:
+                # try to find disk using libcloud's id
+                libcloud_disks = conn.list_volumes()
+                for libcloud_disk in libcloud_disks:
+                    if libcloud_disk.id == volume.get('volume_id'):
+                        ex_volumes.append(libcloud_disk)
+                        break
+                raise VolumeNotFoundError()
+        else:
+            ex_data_disks.append(volume)
+
     kwargs = {
         'auth': NodeAuthSSHKey(pubkey=public_key.replace('\n', '')),
         'name': machine_name,
@@ -716,6 +819,9 @@ def _create_machine_aliyun(conn, key_name, public_key,
         'ex_internet_max_bandwidth_out': 100
     }
 
+    if ex_data_disks:
+        kwargs.update({'ex_data_disks': ex_data_disks})
+
     if ex_vswitch_id:
         kwargs.update({'ex_vswitch_id': ex_vswitch_id})
 
@@ -724,27 +830,49 @@ def _create_machine_aliyun(conn, key_name, public_key,
     except Exception as e:
         raise MachineCreationError("Aliyun ECS, got exception %s" % e, e)
 
+    # wait for node to be running, in order to attach disks to it
+    if ex_volumes:
+        ready = False
+        while not ready:
+            lib_nodes = conn.list_nodes()
+            for lib_node in lib_nodes:
+                if lib_node.id == node.id and lib_node.state == 'running':
+                    ready = True
+
+        for volume in ex_volumes:
+            conn.attach_volume(node, volume)
+
     return node
 
 
 def _create_machine_ec2(conn, key_name, public_key,
                         machine_name, image, size, location, subnet_id,
-                        user_data, volumes):
+                        user_data, volumes, sec_group=''):
     """Create a machine in Amazon EC2.
     """
-
-    # create security group
-    name = config.EC2_SECURITYGROUP.get('name', '')
-    description = config.EC2_SECURITYGROUP.get('description', '')
-    try:
-        log.info("Attempting to create security group")
-        conn.ex_create_security_group(name=name, description=description)
-        conn.ex_authorize_security_group_permissive(name=name)
-    except Exception as exc:
-        if 'Duplicate' in str(exc):
-            log.info('Security group already exists, not doing anything.')
+    if not sec_group:
+        # create security group
+        sg_name = config.EC2_SECURITYGROUP.get('name', '')
+        description = config.EC2_SECURITYGROUP.get('description', '')
+        try:
+            log.info("Attempting to create security group")
+            conn.ex_create_security_group(
+                name=sg_name, description=description)
+            conn.ex_authorize_security_group_permissive(name=sg_name)
+        except Exception as exc:
+            if 'Duplicate' in str(exc):
+                log.info('Security group already exists, not doing anything.')
+            else:
+                raise InternalServerError(
+                    "Couldn't create security group", exc)
+    else:
+        sec_groups = conn.ex_list_security_groups()
+        for sg in sec_groups:
+            if sg['id'] == sec_group:
+                sg_name = sg['name']
+                break
         else:
-            raise InternalServerError("Couldn't create security group", exc)
+            raise BadRequestError("Security group not found: %s" % sec_group)
 
     kwargs = {
         'auth': NodeAuthSSHKey(pubkey=public_key.replace('\n', '')),
@@ -779,37 +907,84 @@ def _create_machine_ec2(conn, key_name, public_key,
 
         # if subnet is specified, then security group id
         # instead of security group name is needed
-        groups = conn.ex_list_security_groups()
-        for group in groups:
-            if group.get('name') == config.EC2_SECURITYGROUP.get('name', ''):
-                security_group_id = group.get('id')
-                break
-        kwargs.update({'ex_subnet': subnet,
-                      'ex_security_group_ids': security_group_id})
+        if not sec_group:
+            groups = conn.ex_list_security_groups()
+            for group in groups:
+                if group.get('name') == config.EC2_SECURITYGROUP.get('name',
+                                                                     ''):
+                    security_group_id = group.get('id')
+                    break
+        else:
+            security_group_id = sec_group
+        kwargs.update({
+            'ex_subnet': subnet,
+            'ex_security_group_ids': security_group_id})
 
     else:
-        kwargs.update({'ex_securitygroup': config.EC2_SECURITYGROUP['name']})
+        kwargs.update({
+            'ex_securitygroup': sg_name})
 
-    if volumes:
-        mapping = {}
-        mapping.update({'Ebs': {'VolumeSize': volumes[0].get('size')}})
-        if volumes[0].get('name'):
-            mapping.update({'DeviceName': volumes[0].get('name')})
-        if volumes[0].get('type'):
-            mapping['Ebs'].update({'VolumeType': volumes[0].get('type')})
-        if volumes[0].get('iops'):
-            mapping['Ebs'].update({'Iops': volumes[0].get('iops')})
-        if volumes[0].get('delete_on_termination'):
-            delete_on_term = volumes[0].get('delete_on_termination')
-            mapping['Ebs'].update({'DeleteOnTermination': delete_on_term})
+    mappings = []
+    ex_volumes = []
+    for volume in volumes:
+        if volume.get('volume_id'):
+            try:
+                from mist.api.volumes.models import Volume
+                mist_vol = Volume.objects.get(id=volume.get('volume_id'))
+                libcloud_disks = conn.list_volumes()
+                for libcloud_disk in libcloud_disks:
+                    if libcloud_disk.id == mist_vol.external_id:
+                        ex_vol = {'volume': libcloud_disk,
+                                  'device': volume.get('device')}
+                        ex_volumes.append(ex_vol)
+                        break
+            except me.DoesNotExist:
+                # try to find disk using libcloud's id
+                libcloud_disks = conn.list_volumes()
+                for libcloud_disk in libcloud_disks:
+                    if libcloud_disk.id == volume.get('volume_id'):
+                        ex_vol = {'volume': libcloud_disk,
+                                  'device': volume.get('device')}
+                        ex_volumes.append(ex_vol)
+                        break
+                raise VolumeNotFoundError()
 
-        kwargs.update({'ex_blockdevicemappings': [mapping]})
+        else:
+            mapping = {}
+            mapping.update({'Ebs': {'VolumeSize': int(volume.get('size'))}})
+            if volume.get('name'):
+                mapping.update({'DeviceName': volume.get('name')})
+            if volume.get('ex_volume_type'):
+                volume_type = {'VolumeType': volume.get('ex_volume_type')}
+                mapping['Ebs'].update(volume_type)
+            if volume.get('ex_iops'):
+                mapping['Ebs'].update({'Iops': volume.get('ex_iops')})
+            if volume.get('delete_on_termination'):
+                delete_on_term = volume.get('delete_on_termination')
+                mapping['Ebs'].update({'DeleteOnTermination': delete_on_term})
+
+            mappings.append(mapping)
+
+    kwargs.update({'ex_blockdevicemappings': mappings})
 
     try:
         node = conn.create_node(**kwargs)
 
     except Exception as e:
         raise MachineCreationError("EC2, got exception %s" % e, e)
+
+    # wait for node to be running, in order to attach disks to it
+    if ex_volumes:
+        ready = False
+        while not ready:
+            lib_nodes = conn.list_nodes()
+            for lib_node in lib_nodes:
+                if lib_node.id == node.id and lib_node.state == 'running':
+                    ready = True
+
+        for volume in ex_volumes:
+            conn.attach_volume(
+                node, volume.get('volume'), volume.get('device'))
 
     return node
 
@@ -914,6 +1089,31 @@ def _create_machine_onapp(conn, public_key,
     return node
 
 
+def _create_machine_maxihost(conn, machine_name, image_id, size,
+                             location, public_key):
+    key = str(public_key).replace('\n', '')
+    ssh_keys = []
+    server_key = ''
+    keys = conn.list_key_pairs()
+    for k in keys:
+        if key == k.public_key:
+            server_key = k
+            break
+    if not server_key:
+        server_key = conn.create_key_pair(name=machine_name,
+                                          public_key=public_key)
+
+    ssh_keys.append(server_key.fingerprint)
+
+    try:
+        node = conn.create_node(machine_name, size, image_id,
+                                location, ssh_keys)
+    except ValueError as exc:
+        raise MachineCreationError('Maxihost, exception %s' % exc)
+
+    return node
+
+
 def _create_machine_docker(conn, machine_name, image_id,
                            script=None, public_key=None,
                            docker_env={}, docker_command=None,
@@ -969,9 +1169,201 @@ def _create_machine_docker(conn, machine_name, image_id,
     return container
 
 
-def _create_machine_digital_ocean(conn, key_name, private_key, public_key,
-                                  machine_name, image, size,
-                                  location, user_data):
+def _create_machine_lxd(conn, machine_name, image,
+                        parameters, start=True, cluster=None,
+                        ephemeral=False,
+                        size_cpu=None, size_ram=None,
+                        profiles=None, devices=None, instance_type=None,
+                        volumes=None, networks=None):
+    """
+    Create a new LXC container on the machine described by the given
+    conn argument. Currently we only support
+    local image identified by its fingerprint
+
+    :param conn: The connection to the machine to create the container
+    :param machine_name: The name of the container
+    :param image: a libcloud.NodeImage
+    :param parameters: extra parameters for the ContainerImage
+    :param start: Whether the container should be started at creation
+    :param cluster: The cluster the container belongs to
+    :param profiles: A list of profiles e.g ["default"]
+    :param ephemeral: Whether to destroy the container on shutdown
+    :param config: Config override e.g.  {"limits.cpu": "2"},
+    :param devices: optional list of devices the container should have
+    :param instance_type: An optional instance type to
+    use as basis for limits e.g. "c2.micro"
+
+    :return: libcloud.Container
+    """
+
+    from libcloud.container.drivers.lxd import LXDAPIException
+    image = ContainerImage(id=image.id, name=image.name,
+                           extra={}, driver=conn, path=None,
+                           version=None)
+    try:
+
+        # default time out
+        timeout = conn.default_time_out
+        img_params = {
+            "source": {
+                "type": "image",
+            }
+        }
+        if parameters is None:
+            img_params["source"]["fingerprint"] = image.id
+        else:
+            # check if the image exists locally
+            image_exists, _ = conn.ex_has_image(alias=parameters)
+
+            if image_exists:
+                # then the image exists locally
+                # sp use this
+                img_params["source"]["alias"] = parameters
+            else:
+                raise MistNotImplementedError()
+
+        # by default no devices
+        devices = {}
+
+        # if we have a volume we need to create it also
+        # simply attach it. Currently assume that the
+        # volume is just given
+        if volumes is not None\
+                and len(volumes) != 0:
+            # we requested volumes as well
+            # if this is a new volume
+            # we must create it otherwise we simply
+            # append to the devices
+
+            path = volumes[0].get('path', None)
+
+            if path is None:
+                raise MachineCreationError("You need to provide"
+                                           " a path for the storage")
+
+            pool_id = volumes[0].get('pool_id', None)
+
+            if pool_id is None:
+
+                # this means we attach an
+                # existing volume
+                volume_id = volumes[0].get('volume_id', None)
+
+                if volume_id is None:
+                    raise MachineCreationError("You need to provide"
+                                               " a volume name to attach to")
+
+                from mist.api.volumes.models import Volume
+
+                volume = Volume.objects.get(id=volume_id)
+
+                volume = {volume.name: {
+                    "type": "disk",
+                    "path": path,
+                    "source": volume.name,
+                    "pool": volume.extra["pool_id"]
+                }}
+            else:
+
+                # this mean we create a new volume
+                vol_config = {}
+                definition = {"name": volumes[0]["name"], "type": "custom",
+                              "size_type": "GB"}
+
+                # keys are set according to
+                # https://linuxcontainers.org/lxd/docs/master/storage
+                if "block_filesystem" in volumes[0] and \
+                        volumes[0]["block_filesystem"] != '':
+
+                    vol_config["block.filesystem"] = \
+                        volumes[0]["block_filesystem"]
+
+                if "block_mount_options" in volumes[0] and \
+                        volumes[0]["block_mount_options"] != '':
+
+                    vol_config["block.mount_options"] = \
+                        volumes[0]['block_mount_options']
+
+                if "security_shifted" in volumes[0]:
+                    vol_config["security.shifted"] = \
+                        str(volumes[0]['security_shifted'])
+
+                vol_config['size'] = volumes[0]["size"]
+
+                definition["config"] = vol_config
+
+                try:
+                    # create the volume
+                    volume = conn.create_volume(pool_id=volumes[0]["pool_id"],
+                                                definition=definition)
+
+                    # the volume to attach
+                    volume = {volume.name: {
+                        "type": "disk",
+                        "path": path,
+                        "source": volume.name,
+                        "pool": volume.extra["pool_id"]
+                    }}
+                except Exception as e:
+                    raise MachineCreationError("LXD volume creation, "
+                                               "got exception %s" % e)
+
+            if devices is not None:
+                devices.update(volume)
+            else:
+                devices = volume
+
+        if networks is not None\
+                and len(networks) != 0:
+
+            # we also want to attache a network
+            network_id = networks
+
+            from mist.api.networks.models import LXDNetwork
+
+            network = LXDNetwork.objects.get(id=network_id)
+
+            net_type = network.extra.get("type", "nic")
+            net_nictype = network.extra.get("nictype", "bridged")
+            net_parent = network.extra.get("parent", "lxdbr0")
+
+            # add the network to the devices
+            devices[network.name] = {
+                "name": network.name,
+                "type": net_type,
+                "nictype": net_nictype,
+                "parent": net_parent,
+            }
+
+        config = {}
+
+        if size_cpu is not None:
+            config['limits.cpu'] = str(size_cpu)
+
+        if size_ram is not None:
+            config['limits.memory'] = str(size_ram) + "MB"
+
+        container = conn.deploy_container(name=machine_name, image=None,
+                                          cluster=cluster,
+                                          parameters=json.dumps(img_params),
+                                          start=start,
+                                          ex_ephemeral=ephemeral,
+                                          ex_config=config,
+                                          ex_instance_type=instance_type,
+                                          ex_devices=devices,
+                                          ex_profiles=profiles,
+                                          ex_timeout=timeout)
+        return container
+    except LXDAPIException as e:
+        raise MachineCreationError("Could not create "
+                                   "LXD Machine: %s" % e.message)
+    except Exception:
+        raise
+
+
+def _create_machine_digital_ocean(conn, cloud, key_name, private_key,
+                                  public_key, machine_name, image, size,
+                                  location, user_data, volumes):
     """Create a machine in Digital Ocean.
     """
     key = public_key.replace('\n', '')
@@ -986,11 +1378,40 @@ def _create_machine_digital_ocean(conn, key_name, private_key, public_key,
             server_key = conn.create_key_pair(machine_name, key)
     except:
         server_keys = [str(k.extra.get('id')) for k in keys]
-
     if not server_key:
         ex_ssh_key_ids = server_keys
     else:
         ex_ssh_key_ids = [str(server_key.extra.get('id'))]
+
+    _volumes = []
+    for volume in volumes:
+        if volume.get('volume_id'):  # existing volume
+            try:
+                from mist.api.volumes.models import Volume
+                mist_vol = Volume.objects.get(id=volume.get('volume_id'))
+                _volumes.append(mist_vol.external_id)
+            except me.DoesNotExist:
+                # make sure mongo is up-to-date
+                cloud.ctl.storage.list_volumes()
+                try:
+                    mist_vol = Volume.objects.get(id=volume.get('volume_id'))
+                    _volumes.append(mist_vol.external_id)
+                except me.DoesNotExist:
+                    # try to find disk using libcloud's id
+                    libcloud_disks = conn.list_volumes()
+                    for libcloud_disk in libcloud_disks:
+                        if libcloud_disk.id == volume.get('volume_id'):
+                            _volumes.append(volume.get('volume_id'))
+                            break
+                    raise VolumeNotFoundError()
+
+        else:   # new volume
+            fs_type = volume.get('filesystem_type', '')
+            new_volume = conn.create_volume(int(volume.get('size')),
+                                            volume.get('name'),
+                                            location=location,
+                                            filesystem_type=fs_type)
+            _volumes.append(new_volume.id)
 
     # check if location allows the private_networking setting
     private_networking = False
@@ -1013,7 +1434,8 @@ def _create_machine_digital_ocean(conn, key_name, private_key, public_key,
             ex_ssh_key_ids=ex_ssh_key_ids,
             location=location,
             ex_create_attr={'private_networking': private_networking},
-            ex_user_data=user_data
+            ex_user_data=user_data,
+            volumes=_volumes
         )
     except Exception as e:
         raise MachineCreationError(
@@ -1025,7 +1447,7 @@ def _create_machine_digital_ocean(conn, key_name, private_key, public_key,
 
 def _create_machine_libvirt(conn, machine_name, disk_size, ram, cpu,
                             image, disk_path, networks,
-                            public_key, cloud_init):
+                            public_key, cloud_init, vnfs=[]):
     """Create a machine in Libvirt.
     """
     # The libvirt drivers expects network names.
@@ -1059,7 +1481,8 @@ def _create_machine_libvirt(conn, machine_name, disk_size, ram, cpu,
             disk_path=disk_path,
             networks=network_names,
             public_key=public_key,
-            cloud_init=cloud_init
+            cloud_init=cloud_init,
+            vnfs=vnfs
         )
 
     except Exception as e:
@@ -1216,11 +1639,9 @@ def _create_machine_vultr(conn, public_key, machine_name, image,
 
 def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
                               image, size, location, networks,
-                              ex_storage_account, machine_password,
-                              ex_resource_group, create_network, new_network,
-                              create_resource_group, new_resource_group,
-                              create_storage_account, new_storage_account,
-                              machine_username):
+                              storage_account, machine_password,
+                              resource_group, machine_username, volumes,
+                              storage_account_type, cloud_init):
     """Create a machine Azure ARM.
 
     Here there is no checking done, all parameters are expected to be
@@ -1235,37 +1656,67 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
     else:
         k = NodeAuthSSHKey(public_key)
 
-    if create_resource_group:
+    resource_groups = conn.ex_list_resource_groups()
+    ex_resource_group = None
+    for lib_resource_group in resource_groups:
+        if lib_resource_group.id == resource_group:
+            ex_resource_group = lib_resource_group.name
+            break
+
+    if ex_resource_group is None:
         try:
-            conn.ex_create_resource_group(new_resource_group, location)
-            resource_group = new_resource_group
-            # clear resource groups cache
-            taskRG = mist.api.tasks.ListResourceGroups()
-            taskRG.clear_cache(owner.id, cloud_id)
-            taskRG.delay(owner.id, cloud_id)
+            conn.ex_create_resource_group(resource_group, location)
+            ex_resource_group = resource_group
             # add delay cause sometimes the group is not yet ready
             time.sleep(5)
         except Exception as exc:
-            raise InternalServerError("Couldn't create resource group", exc)
-    else:
-        resource_group = ex_resource_group
+            raise InternalServerError("Couldn't create resource group. \
+                %s" % exc)
 
-    if create_storage_account:
+    storage_accounts = conn.ex_list_storage_accounts()
+    ex_storage_account = None
+    for lib_storage_account in storage_accounts:
+        if lib_storage_account.id == storage_account:
+            ex_storage_account = lib_resource_group.name
+            break
+
+    if ex_storage_account is None:
         try:
-            conn.ex_create_storage_account(new_storage_account,
-                                           resource_group,
+            conn.ex_create_storage_account(storage_account,
+                                           ex_resource_group,
                                            'Storage', location)
-            storage_account = new_storage_account
-            # clear storage accounts cache
-            taskSA = mist.api.tasks.ListStorageAccounts()
-            taskSA.clear_cache(owner.id, cloud_id)
-            taskSA.delay(owner.id, cloud_id)
+            ex_storage_account = storage_account
+            # w8 for storage account state to become succedeed
+            timeout = time.time() + 30
+            st_account_ready = False
+            while time.time() < timeout and not st_account_ready:
+                st_accounts = conn.ex_list_storage_accounts()
+                for st_account in st_accounts:
+                    state = st_account.extra.get('provisioningState')
+                    if st_account.name == ex_storage_account and \
+                       state == 'Succeeded':
+                        st_account_ready = True
+                        break
         except Exception as exc:
-            raise InternalServerError("Couldn't create storage account", exc)
-    else:
-        storage_account = ex_storage_account
+            raise InternalServerError("Couldn't create storage account. \
+                %s" % exc)
+    if not isinstance(networks, list):
+        networks = [networks]
+    network = networks[0]
+    if network.get('id'):
+        try:
+            mist_net = Network.objects.get(id=network.get('id'))
+        except me.DoesNotExist:
+            raise NetworkNotFoundError()
 
-    if create_network:
+        libcloud_networks = conn.ex_list_networks()
+        ex_network = None
+        for libcloud_net in libcloud_networks:
+            if mist_net.network_id == libcloud_net.id:
+                ex_network = libcloud_net
+                break
+    elif network.get('name'):   # create network
+
         # create a security group and open ports
         securityRules = [
             {
@@ -1310,54 +1761,56 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
         ]
         try:
             sg = conn.ex_create_network_security_group(
-                new_network,
-                resource_group,
+                network.get('name'),
+                ex_resource_group,
                 location=location,
                 securityRules=securityRules
             )
             # add delay cause sometimes the group is not yet ready
             time.sleep(3)
         except Exception as exc:
-            raise InternalServerError("Couldn't create security group", exc)
+            raise InternalServerError("Couldn't create security group \
+                %s" % exc)
 
         # create the new network
         try:
-            ex_network = conn.ex_create_network(new_network,
-                                                resource_group,
+            ex_network = conn.ex_create_network(network.get('name'),
+                                                ex_resource_group,
                                                 location=location,
                                                 networkSecurityGroup=sg.id)
         except Exception as exc:
             raise InternalServerError("Couldn't create new network", exc)
-    else:
-        # select the right network object
-        ex_network = None
-        sg = ""
-        try:
-            if networks:
-                available_networks = conn.ex_list_networks()
-                mist_net = Network.objects.get(id=networks)
-                for libcloud_net in available_networks:
-                    if mist_net.network_id == libcloud_net.id:
-                        ex_network = libcloud_net
-        except:
-            pass
 
     ex_subnet = conn.ex_list_subnets(ex_network)[0]
 
     try:
         ex_ip = conn.ex_create_public_ip(machine_name,
-                                         resource_group,
+                                         ex_resource_group,
                                          location)
     except Exception as exc:
         raise InternalServerError("Couldn't create new ip", exc)
 
     try:
         ex_nic = conn.ex_create_network_interface(machine_name, ex_subnet,
-                                                  resource_group,
+                                                  ex_resource_group,
                                                   location=location,
                                                   public_ip=ex_ip)
     except Exception as exc:
         raise InternalServerError("Couldn't create network interface", exc)
+
+    data_disks = []
+    for volume in volumes:
+        if volume.get('volume_id'):  # existing volume
+            from mist.api.volumes.models import Volume
+            try:
+                mist_vol = Volume.objects.get(id=volume.get('volume_id'))
+            except me.DoesNotExist:
+                # should we throw the exception?
+                raise VolumeNotFoundError()
+            data_disks.append({'id': mist_vol.external_id})
+
+        else:  # new volume
+            data_disks.append(volume)
 
     try:
         node = conn.create_node(
@@ -1365,11 +1818,15 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
             size=size,
             image=image,
             auth=k,
-            ex_resource_group=resource_group,
-            ex_storage_account=storage_account,
+            ex_resource_group=ex_resource_group,
+            ex_storage_account=ex_storage_account,
             ex_nic=ex_nic,
             location=location,
-            ex_user_name=machine_username
+            ex_user_name=machine_username,
+            ex_use_managed_disks=True,
+            ex_data_disks=data_disks,
+            ex_storage_account_type=storage_account_type,
+            ex_customdata=cloud_init
         )
     except Exception as e:
         try:
@@ -1492,24 +1949,28 @@ def _create_machine_vcloud(conn, machine_name, image,
 
 
 def _create_machine_vsphere(conn, machine_name, image,
-                            size, location, network):
+                            size, location, network, folder,
+                            datastore):
     """Create a machine in vSphere.
 
     """
-
+    # get location as object from database
     try:
         from mist.api.networks.models import VSphereNetwork
-        network_name = VSphereNetwork.objects.get(id=network).name
+        network = VSphereNetwork.objects.get(id=network)
     except me.DoesNotExist:
-        network_name = None
-
+        network = None
+    if network:
+        network.id = network.network_id
     try:
         node = conn.create_node(
             name=machine_name,
             image=image,
             size=size,
             location=location,
-            ex_network=network_name
+            ex_network=network,
+            ex_folder=folder,
+            ex_datastore=datastore
         )
     except Exception as e:
         raise MachineCreationError("vSphere, got exception %s" % e, e)
@@ -1735,3 +2196,42 @@ def run_action_hooks(action_hooks, machine, user):
         else:
             log.error('Unknown hook type `%s`' % hook_type)
     return True
+
+
+def machine_safe_expire(owner_id, machine):
+    # untag machine
+    owner = Owner.objects.get(id=owner_id)  # FIXME: try-except
+    existing_tags = get_tags_for_resource(owner, machine)
+    if existing_tags:
+        remove_tags_from_resource(owner, machine, existing_tags)
+    # unown machine
+    machine.owned_by = None
+
+    # create new schedule that will destroy the machine
+    # in SAFE_EXPIRATION_DURATION secs
+    for team in owner.teams:
+        if team.name == 'Owners':
+            user = team.members[0]
+            org = Organization.objects.get(teams=team)
+            break
+    auth_token = AuthToken(user_id=user.id, org=org)
+    auth_context = auth_context_from_auth_token(auth_token)
+
+    _delta = datetime.timedelta(0, config.SAFE_EXPIRATION_DURATION)
+    schedule_entry = datetime.datetime.utcnow() + _delta
+    schedule_entry = schedule_entry.strftime('%Y-%m-%d %H:%M:%S')
+
+    params = {
+        'schedule_type': 'one_off',
+        'description': 'Safe expiration schedule',
+        'schedule_entry': schedule_entry,
+        'action': 'destroy',
+        'conditions': [{'type': 'machines', 'ids': [machine.id]}],
+        'task_enabled': True,
+    }
+    _name = machine.name + '-safe-expiration-' + \
+        str(randrange(1000))
+    from mist.api.schedules.models import Schedule
+    machine.expiration = Schedule.add(auth_context, _name,
+                                      **params)
+    machine.save()

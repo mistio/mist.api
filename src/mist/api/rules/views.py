@@ -539,11 +539,6 @@ def triggered(request):
             raise NotFoundError('%s %s' % (resource_type, resource_id))
         if is_resource_missing(resource):
             raise NotFoundError('%s %s' % (resource_type, resource_id))
-        if (
-            resource_type == 'machine' and not
-            resource.monitoring.hasmonitoring
-        ):
-            raise NotFoundError('%s is not being monitored' % resource)
     else:
         resource_type = resource_id = None
 
@@ -553,7 +548,6 @@ def triggered(request):
             NoDataRuleTracker.add(rule.id, resource.id)
         else:
             NoDataRuleTracker.remove(rule.id, resource.id)
-
     # Run chain of rule's actions.
     run_chained_actions(
         rule.id, incident_id, resource_id, resource_type,

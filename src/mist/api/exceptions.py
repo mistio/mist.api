@@ -108,6 +108,11 @@ class InternalServerError(MistError):
     http_code = 500
 
 
+class MistNotImplementedError(MistError):
+    msg = "Not Implemented"
+    http_code = 501
+
+
 # SERVICE UNAVAILABLE (translated as 503 in views)
 class ServiceUnavailableError(MistError):
     msg = "Service unavailable"
@@ -308,6 +313,11 @@ class VolumeDeletionError(InternalServerError):
 
 class VolumeAttachmentError(InternalServerError):
     msg = "Volume attachment failed"
+
+
+# LDAP related exceptions
+class LDAPServerUnreachableError(ServiceUnavailableError):
+    msg = "LDAP Server Unreachable"
 
 
 #  BAD GATEWAY (translated as 502 in views)

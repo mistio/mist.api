@@ -149,7 +149,8 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
             'owner_id': owner.id,
             'event_type': 'job',
             'cloud_id': cloud_id,
-            'machine_id': machine_id,
+            'machine_id': machine.id,
+            'external_id': machine_id,
             'job_id': job_id,
             'job': job,
             'host': host,
@@ -236,17 +237,19 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                 # to be able to enable monitoring
                 tmp_log('attempting to connect to shell')
                 key_id, ssh_user = shell.autoconfigure(
-                    owner, cloud_id, node.id, key_id, username, password, port
+                    owner, cloud_id, machine.id, key_id, username, password,
+                    port
                 )
                 tmp_log('connected to shell')
-                result = probe_ssh_only(owner, cloud_id, machine_id, host=None,
+                result = probe_ssh_only(owner, cloud_id, machine.id, host=None,
                                         key_id=key_id, ssh_user=ssh_user,
                                         shell=shell)
                 log_dict = {
                     'owner_id': owner.id,
                     'event_type': 'job',
                     'cloud_id': cloud_id,
-                    'machine_id': machine_id,
+                    'machine_id': machine.id,
+                    'external_id': machine_id,
                     'job_id': job_id,
                     'job': job,
                     'host': host,
@@ -752,46 +755,8 @@ class ListProjects(UserTask):
         return {'cloud_id': cloud_id, 'projects': projects}
 
 
-class ListResourceGroups(UserTask):
-    task_key = 'list_resource_groups'
-    result_expires = 60 * 60 * 24 * 7
-    result_fresh = 60 * 60
-    polling = False
-    soft_time_limit = 30
-
-    def execute(self, owner_id, cloud_id):
-        owner = Owner.objects.get(id=owner_id)
-        log.warn('Running list resource groups for user %s cloud %s',
-                 owner.id, cloud_id)
-        from mist.api import methods
-        resource_groups = methods.list_resource_groups(owner, cloud_id)
-        log.warn('Returning list resource groups for user %s cloud %s',
-                 owner.id, cloud_id)
-        return {'cloud_id': cloud_id, 'resource_groups': resource_groups}
-
-
-class ListStorageAccounts(UserTask):
-    task_key = 'list_storage_accounts'
-    result_expires = 60 * 60 * 24 * 7
-    result_fresh = 60 * 60
-    polling = False
-    soft_time_limit = 30
-
-    def execute(self, owner_id, cloud_id):
-        owner = Owner.objects.get(id=owner_id)
-        log.warn('Running list storage accounts for user %s cloud %s',
-                 owner.id, cloud_id)
-        from mist.api import methods
-        storage_accounts = methods.list_storage_accounts(owner, cloud_id)
-        log.warn('Returning list storage accounts for user %s cloud %s',
-                 owner.id, cloud_id)
-        return {'cloud_id': cloud_id, 'storage_accounts': storage_accounts}
-
-
 list_images = app.register_task(ListImages())
 list_projects = app.register_task(ListProjects())
-list_resource_groups = app.register_task(ListResourceGroups())
-list_storage_accounts = app.register_task(ListStorageAccounts())
 
 
 @app.task
@@ -799,22 +764,22 @@ def create_machine_async(
     auth_context_serialized, cloud_id, key_id, machine_name, location_id,
     image_id, size, image_extra, disk,
     image_name, size_name, location_name, ips, monitoring,
-    ex_storage_account, machine_password, ex_resource_group,
+    storage_account, machine_password, resource_group, storage_account_type,
     networks, subnetwork, docker_env, docker_command, script='',
     script_id='', script_params='',
     post_script_id='', post_script_params='',
     quantity=1, persist=False, job_id=None, job=None,
     docker_port_bindings={}, docker_exposed_ports={},
     azure_port_bindings='', hostname='', plugins=None,
-    disk_size=None, disk_path=None, create_storage_account=False,
-    new_storage_account='', create_resource_group=False,
-    new_resource_group='', create_network=False,
-    new_network='', cloud_init='', subnet_id='',
+    disk_size=None, disk_path=None, cloud_init='', subnet_id='',
     associate_floating_ip=False,
     associate_floating_ip_subnet=None, project_id=None,
     tags=None, schedule={}, bare_metal=False, hourly=True,
     softlayer_backend_vlan_id=None, machine_username='',
-    volumes=[], ip_addresses=[], expiration={}
+    folder=None, datastore=None,
+    ephemeral=False, lxd_image_source=None,
+    volumes=[], ip_addresses=[], expiration={}, sec_group='', vnfs=[],
+    description=''
 ):
     from multiprocessing.dummy import Pool as ThreadPool
     from mist.api.machines.methods import create_machine
@@ -848,10 +813,10 @@ def create_machine_async(
         specs.append((
             (auth_context, cloud_id, key_id, name, location_id, image_id,
              size, image_extra, disk, image_name, size_name,
-             location_name, ips, monitoring, ex_storage_account,
-             machine_password, ex_resource_group, networks, subnetwork,
-             docker_env, docker_command, 22, script, script_id, script_params,
-             job_id, job),
+             location_name, ips, monitoring, storage_account,
+             machine_password, resource_group, storage_account_type, networks,
+             subnetwork, docker_env, docker_command, 22, script, script_id,
+             script_params, job_id, job),
             {'hostname': hostname, 'plugins': plugins,
              'post_script_id': post_script_id,
              'post_script_params': post_script_params,
@@ -864,18 +829,18 @@ def create_machine_async(
              'tags': tags,
              'schedule': schedule,
              'softlayer_backend_vlan_id': softlayer_backend_vlan_id,
-             'create_network': create_network,
-             'new_network': new_network,
-             'create_resource_group': create_resource_group,
-             'new_resource_group': new_resource_group,
-             'create_storage_account': create_storage_account,
-             'new_storage_account': new_storage_account,
              'bare_metal': bare_metal,
              'hourly': hourly,
              'machine_username': machine_username,
              'volumes': volumes,
              'ip_addresses': ip_addresses,
-             'expiration': expiration}
+             'expiration': expiration,
+             'ephemeral': ephemeral,
+             'lxd_image_source': lxd_image_source,
+             'sec_group': sec_group,
+             'vnfs': vnfs,
+             'description': description
+             }
         ))
 
     def create_machine_wrapper(args_kwargs):
@@ -893,7 +858,7 @@ def create_machine_async(
             log_event(
                 auth_context.owner.id, 'job', 'machine_creation_finished',
                 job=job, job_id=job_id, cloud_id=cloud_id, machine_name=name,
-                error=error, machine_id=node.get('id', ''),
+                error=error, external_id=node.get('id', ''),
                 user_id=auth_context.user.id
             )
 
@@ -941,16 +906,32 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
         'event_type': 'job',
         'error': False,
     }
-
     log_event(action='schedule_started', **log_dict)
     log.info('Schedule action started: %s', log_dict)
 
     for machine_uuid in machines_uuids:
+        found = False
+        _action = action
         try:
-            run_machine_action.s(owner_id, action, name,
-                                 machine_uuid)()
-        except Exception as exc:
-            log_dict['error'] = log_dict.get('error', '') + str(exc) + '\n'
+            machine = Machine.objects.get(id=machine_uuid)
+            found = True
+        except me.DoesNotExist:
+            log_dict['error'] = "Machine with id %s does not \
+                exist." % machine_uuid
+
+        if found:
+            if _action in ['destroy'] and config.SAFE_EXPIRATION and \
+               machine.expiration == schedule and machine.state != 'stopped':
+                from mist.api.machines.methods import machine_safe_expire
+                machine_safe_expire(owner_id, machine)
+                # change action to be executed now
+                _action = 'stop'
+
+            try:
+                run_machine_action.s(owner_id, _action, name,
+                                     machine_uuid)()
+            except Exception as exc:
+                log_dict['error'] = log_dict.get('error', '') + str(exc) + '\n'
 
     log_dict.update({'last_run_at': str(schedule.last_run_at or ''),
                     'total_run_count': schedule.total_run_count or 0,
@@ -977,26 +958,27 @@ def run_machine_action(owner_id, action, name, machine_uuid):
     :param machine_id:
     :return:
     """
-    schedule_id = Schedule.objects.get(owner=owner_id,
-                                       name=name, deleted=None).id
+
+    schedule = Schedule.objects.get(owner=owner_id, name=name, deleted=None)
 
     log_dict = {
         'owner_id': owner_id,
         'event_type': 'job',
         'machine_uuid': machine_uuid,
-        'schedule_id': schedule_id,
+        'schedule_id': schedule.id,
     }
 
-    machine_id = ''
+    external_id = ''
     cloud_id = ''
     owner = Owner.objects.get(id=owner_id)
     started_at = time()
     try:
         machine = Machine.objects.get(id=machine_uuid, state__ne='terminated')
         cloud_id = machine.cloud.id
-        machine_id = machine.machine_id
+        external_id = machine.machine_id
         log_dict.update({'cloud_id': cloud_id,
-                         'machine_id': machine_id})
+                         'machine_id': machine_uuid,
+                         'external_id': external_id})
     except me.DoesNotExist:
         log_dict['error'] = "Resource with that id does not exist."
         msg = action + ' failed'
@@ -1048,7 +1030,7 @@ def run_machine_action(owner_id, action, name, machine_uuid):
             elif action == 'destroy':
                 log_event(action='Destroy', **log_dict)
                 try:
-                    destroy_machine(owner, cloud_id, machine_id)
+                    destroy_machine(owner, cloud_id, external_id)
                 except Exception as exc:
                     log_dict['error'] = '%s Machine in %s state' % (
                         exc, machine.state)
@@ -1065,16 +1047,23 @@ def run_machine_action(owner_id, action, name, machine_uuid):
                         user = machine.owned_by
                     else:
                         user = machine.created_by
-                    machine_uri = config.CORE_URI + '/machines/%s' % machine.id
                     subject = config.MACHINE_EXPIRE_NOTIFY_EMAIL_SUBJECT
+                    if schedule.schedule_type.type == 'reminder' and \
+                       schedule.schedule_type.message:
+                        custom_msg = '\n%s\n' % schedule.schedule_type.message
+                    else:
+                        custom_msg = ''
+                    machine_uri = config.CORE_URI + \
+                        '/machines/%s' % machine.id
                     main_body = config.MACHINE_EXPIRE_NOTIFY_EMAIL_BODY
+                    sch_entry = machine.expiration.schedule_type.entry
                     body = main_body % ((user.first_name + " " +
                                         user.last_name).strip(),
                                         machine.name,
-                                        machine.expiration.schedule_type.entry,
+                                        sch_entry,
                                         machine_uri + '/expiration',
-                                        config.CORE_URI)
-                    log.info('about to send email...')
+                                        custom_msg, config.CORE_URI)
+                    log.info('About to send email...')
                     if not helper_send_email(subject, body, user.email):
                         raise ServiceUnavailableError("Could not send "
                                                       "notification email "
@@ -1091,7 +1080,7 @@ def run_machine_action(owner_id, action, name, machine_uuid):
         notify_user(
             owner, title,
             cloud_id=cloud_id,
-            machine_id=machine_id,
+            machine_id=external_id,
             duration=log_dict['finished_at'] - log_dict['started_at'],
             error=log_dict.get('error'),
         )
@@ -1171,8 +1160,7 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
         'job': job,
         'script_id': script_id,
         # 'cloud_id': cloud_id,
-        # 'machine_id': machine.id,
-        'machine_uuid': machine_uuid,
+        'machine_id': machine_uuid,
         'params': params,
         'env': env,
         'su': su,
@@ -1190,20 +1178,19 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
     started_at = time()
     machine_name = ''
     cloud_id = ''
-    machine_id = ''
 
     try:
         machine = Machine.objects.get(id=machine_uuid, state__ne='terminated')
         cloud_id = machine.cloud.id
-        machine_id = machine.machine_id
-        ret.update({'cloud_id': cloud_id, 'machine_id': machine_id})
+        external_id = machine.machine_id
+        ret.update({'cloud_id': cloud_id, 'external_id': external_id})
         # cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
         script = Script.objects.get(owner=owner, id=script_id, deleted=None)
 
         if not host:
             # FIXME machine.cloud.ctl.compute.list_machines()
             for machine in list_machines(owner, cloud_id):
-                if machine['machine_id'] == machine_id:
+                if machine['machine_id'] == external_id:
                     ips = [ip for ip in machine['public_ips'] if ':' not in ip]
                     # get private IPs if no public IP is available
                     if not ips:
@@ -1218,7 +1205,7 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
             raise MistError("No host provided and none could be discovered.")
         shell = mist.api.shell.Shell(host)
         ret['key_id'], ret['ssh_user'] = shell.autoconfigure(
-            owner, cloud_id, machine_id, username, password, port
+            owner, cloud_id, machine['id'], username, password, port
         )
         # FIXME wrap here script.run_script
         path, params, wparams = script.ctl.run_script(shell,
@@ -1292,7 +1279,7 @@ def run_script(owner, script_id, machine_uuid, params='', host='',
         notify_user(
             owner, title,
             cloud_id=cloud_id,
-            machine_id=machine_id,
+            machine_id=external_id,
             machine_name=machine_name,
             output=ret['stdout'],
             duration=ret['finished_at'] - ret['started_at'],
@@ -1374,6 +1361,18 @@ def set_missing_since(cloud_id):
         Model.objects(cloud=cloud_id, missing_since=None).update(
             missing_since=datetime.datetime.utcnow()
         )
+
+
+@app.task
+def delete_periodic_tasks(cloud_id):
+    from mist.api.concurrency.models import PeriodicTaskInfo
+    for section in ['machines', 'volumes', 'networks', 'zones']:
+        try:
+            key = 'cloud:list_%s:%s' % (section, cloud_id)
+            PeriodicTaskInfo.objects.get(key=key).delete()
+            log.info('Deleted periodic task: %s' % key)
+        except PeriodicTaskInfo.DoesNotExist:
+            pass
 
 
 @app.task
