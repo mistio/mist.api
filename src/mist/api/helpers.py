@@ -653,6 +653,7 @@ def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3,
     sender: the email address of the sender. default value taken from config
 
     """
+
     if not sender:
         sender = config.EMAIL_FROM
     if isinstance(recipients, string_types):
@@ -1204,7 +1205,7 @@ def get_file(url, filename, update=True):
                 raise
             log.error(err)
         else:
-            data = resp.text
+            data = resp.text.replace('<!--! do not remove -->', '')
             if resp.status_code != 200:
                 err = "Bad response fetching file '%s' from '%s': %r" % (
                     filename, url, data

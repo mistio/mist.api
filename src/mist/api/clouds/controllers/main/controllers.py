@@ -91,12 +91,6 @@ class AlibabaMainController(AmazonMainController):
     DnsController = None
 
 
-class ClearAPIMainController(BaseMainController):
-
-    provider = 'clearapi'
-    ComputeController = compute_ctls.ClearAPIComputeController
-
-
 class DigitalOceanMainController(BaseMainController):
 
     provider = 'digitalocean'
@@ -109,6 +103,14 @@ class MaxihostMainController(BaseMainController):
 
     provider = 'maxihost'
     ComputeController = compute_ctls.MaxihostComputeController
+
+
+class GigG8MainController(BaseMainController):
+
+    provider = 'gig_g8'
+    ComputeController = compute_ctls.GigG8ComputeController
+    StorageController = storage_ctls.GigG8StorageController
+    NetworkController = network_ctls.GigG8NetworkController
 
 
 class LinodeMainController(BaseMainController):
@@ -274,6 +276,23 @@ class DockerMainController(BaseMainController):
         rename_kwargs(kwargs, 'docker_host', 'host')
         rename_kwargs(kwargs, 'auth_user', 'username')
         rename_kwargs(kwargs, 'auth_password', 'password')
+        host = kwargs.get('host', self.cloud.host)
+        if host:
+            host = sanitize_host(host)
+            check_host(host)
+
+
+class LXDMainController(BaseMainController):
+    """
+    Main controller class for LXC containers
+    """
+
+    provider = 'lxd'
+    ComputeController = compute_ctls.LXDComputeController
+    StorageController = storage_ctls.LXDStorageController
+    NetworkController = network_ctls.LXDNetworkController
+
+    def _update__preparse_kwargs(self, kwargs):
         host = kwargs.get('host', self.cloud.host)
         if host:
             host = sanitize_host(host)
@@ -561,9 +580,3 @@ class OtherMainController(BaseMainController):
                 old_machines, new_machines)
 
         return machine
-
-
-class ClearCenterMainController(BaseMainController):
-
-    provider = 'clearcenter'
-    ComputeController = compute_ctls.ClearCenterComputeController

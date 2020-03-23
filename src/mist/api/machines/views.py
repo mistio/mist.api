@@ -1,5 +1,6 @@
 import uuid
 import logging
+import urllib
 
 from pyramid.response import Response
 from pyramid.renderers import render_to_response
@@ -252,6 +253,9 @@ def create_machine(request):
       type: array
       items:
         type: string
+      description:
+        description: Description of machine. Only for GigG8 machines
+        type: string
     """
 
     params = params_from_request(request)
@@ -289,6 +293,8 @@ def create_machine(request):
     if volumes and volumes[0].get('volume_id'):
         request.matchdict['volume'] = volumes[0].get('volume_id')
     networks = params.get('networks', [])
+    if isinstance(networks, str):
+        networks = [networks]
     subnet_id = params.get('subnet_id', '')
     subnetwork = params.get('subnetwork', None)
     ip_addresses = params.get('ip_addresses', [])
@@ -322,7 +328,9 @@ def create_machine(request):
     sec_group = params.get('security_group', '')
     vnfs = params.get('vnfs', [])
     expiration = params.get('expiration', {})
-
+    description = params.get('description', '')
+    folder = params.get('folders', None)
+    datastore = params.get('datastore', None)
     job_id = params.get('job_id')
     # The `job` variable points to the event that started the job. If a job_id
     # is not provided, then it means that this is the beginning of a new story
@@ -465,7 +473,12 @@ def create_machine(request):
               'ip_addresses': ip_addresses,
               'vnfs': vnfs,
               'expiration': expiration,
-              'sec_group': sec_group}
+              'folder': folder,
+              'datastore': datastore,
+              'ephemeral': params.get('ephemeral', False),
+              'lxd_image_source': params.get('lxd_image_source', None),
+              'sec_group': sec_group,
+              'description': description}
 
     if not run_async:
         ret = methods.create_machine(auth_context, *args, **kwargs)
@@ -1007,9 +1020,15 @@ def machine_console(request):
         ws_uri = '%s/proxy/%s/%s/%s/%s/%s/%s' % (
             base_ws_uri, host, key_id, vnc_host, vnc_port, expiry, mac)
         return render_to_response('../templates/novnc.pt', {'url': ws_uri})
-
-    console_uri = machine.cloud.ctl.compute.connection.ex_open_console(
-        machine.machine_id
-    )
-
-    raise RedirectError(console_uri)
+    if machine.cloud.ctl.provider == 'vsphere':
+        url_param = machine.cloud.ctl.compute.connection.ex_open_console(
+            machine.machine_id
+        )
+        params = urllib.parse.urlencode({'url': url_param})
+        console_url = ("/ui/assets/vsphere-console-util-js/"
+                       f"console.html?{params}")
+    else:
+        console_url = machine.cloud.ctl.compute.connection.ex_open_console(
+            machine.machine_id
+        )
+    raise RedirectError(console_url)
