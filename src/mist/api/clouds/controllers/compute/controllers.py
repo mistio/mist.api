@@ -1991,6 +1991,28 @@ class LibvirtComputeController(BaseComputeController):
                 updated = True
         return updated
 
+    def _list_machines__get_size(self, node):
+        return None
+
+    def _list_machines__get_custom_size(self, node):
+        from mist.api.clouds.models import CloudSize
+        try:
+            _size = CloudSize.objects.get(external_id=node.size.id)
+        except me.DoesNotExist:
+            _size = CloudSize(cloud=self.cloud,
+                              external_id=node.size.id)
+        _size.ram = node.size.ram
+        _size.cpus = node.size.extra.get('cpus')
+        name = ""
+        if _size.cpus:
+            name += '%s CPUs, ' % _size.cpus
+        if _size.ram:
+            name += '%sKB RAM' % _size.ram
+        _size.name = name
+        _size.save()
+
+        return _size
+
     def _list_images__fetch_images(self, search=None):
         return self.connection.list_images(location=self.cloud.images_location)
 
