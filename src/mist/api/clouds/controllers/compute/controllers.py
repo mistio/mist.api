@@ -1967,13 +1967,13 @@ class LibvirtComputeController(BaseComputeController):
                     address.attrib.get('function').replace('0x', ''),
                 )
                 vnfs.append(vnf_addr)
-            if machine.extra['vnfs'] != vnfs:
+            if machine.extra.get('vnfs', []) != vnfs:
                 machine.extra['vnfs'] = vnfs
                 updated = True
 
         # Number of CPUs allocated to guest.
         if 'processors' in machine.extra and \
-                machine.extra['cpus'] != machine.extra['processors']:
+                machine.extra.get('cpus', []) != machine.extra['processors']:
             machine.extra['cpus'] = machine.extra['processors']
             updated = True
 
