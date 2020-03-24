@@ -69,7 +69,7 @@ class BaseController(object):
             raise BadRequestError("You must provide script_id "
                                   "or machine's action")
 
-        if not kwargs.get('selectors'):
+        if not kwargs.get('conditions'):
             raise BadRequestError("You must provide a list of selectors, "
                                   "at least machine ids or tags")
 
