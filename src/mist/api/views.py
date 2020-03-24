@@ -1258,7 +1258,7 @@ def list_storage_pools(request):
     """
     Tags: clouds
     ---
-    List resource groups. ARM specific. For other providers this
+    List storage pools. LXD specific. For other providers this
     returns an empty list
     READ permission required on cloud.
     ---
