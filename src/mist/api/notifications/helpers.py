@@ -118,10 +118,17 @@ def _alert_pretty_machine_details(owner, rule_id, value, triggered, timestamp,
         metrics = config.INFLUXDB_BUILTIN_METRICS
     if machine.monitoring.method.endswith('tsfdb'):
 
-        data = requests.get(
-            "%s/v1/resources/%s"
-            % (config.TSFDB_URI, machine_id)
-        )
+        try:
+            data = requests.get(
+                "%s/v1/resources/%s"
+                % (config.TSFDB_URI, machine_id),
+                timeout=5
+            )
+        except Exception as exc:
+            log.error(
+                'Got %r on _alert_pretty_machine_details for resource %s'
+                % (exc, machine_id))
+            raise ServiceUnavailableError()
 
         if not data.ok:
             log.error('Got %d on _alert_pretty_machine_details: %s',

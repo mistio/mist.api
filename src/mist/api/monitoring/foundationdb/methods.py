@@ -35,10 +35,17 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
             stop,
             step,
         )"""
-        raw_machine_data = requests.get(
-            "%s/v1/datapoints?query=%s"
-            % (config.TSFDB_URI, urllib.parse.quote(query))
-        )
+        try:
+            raw_machine_data = requests.get(
+                "%s/v1/datapoints?query=%s"
+                % (config.TSFDB_URI, urllib.parse.quote(query)),
+                timeout=5
+            )
+        except Exception as exc:
+            log.error(
+                'Got %r on get_stats for resource %s'
+                % (exc, machine_id))
+            raise ServiceUnavailableError()
 
         if not raw_machine_data.ok:
             log.error('Got %d on get_stats: %s',
@@ -95,9 +102,16 @@ def _get_load_machine(machine, start, stop, step):
         stop,
         step,
     )
-    raw_machine_data = requests.get(
-        "%s/v1/datapoints?query=%s" % (config.TSFDB_URI, query)
-    )
+    try:
+        raw_machine_data = requests.get(
+            "%s/v1/datapoints?query=%s" % (config.TSFDB_URI, query),
+            timeout=5
+        )
+    except Exception as exc:
+        log.error(
+            'Got %r on _get_load_machine for resource %s'
+            % (exc, machine))
+        return {}
 
     if not raw_machine_data.ok:
         log.error('Got %d on _get_load_machine: %s',
@@ -139,7 +153,15 @@ def get_load(machines, start, stop, step):
 def find_metrics(machine):
     if not machine.monitoring.hasmonitoring:
         raise ForbiddenError("Machine doesn't have monitoring enabled.")
-    data = requests.get("%s/v1/resources/%s" % (config.TSFDB_URI, machine.id))
+    try:
+        data = requests.get("%s/v1/resources/%s" %
+                            (config.TSFDB_URI, machine.id),
+                            timeout=5)
+    except Exception as exc:
+        log.error(
+            'Got %r on find_metrics for resource %s'
+            % (exc, machine.id))
+        raise ServiceUnavailableError()
 
     if not data.ok:
         log.error('Got %d on find_metrics: %s',
