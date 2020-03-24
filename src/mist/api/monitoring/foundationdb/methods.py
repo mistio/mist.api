@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import requests
 import time
@@ -84,37 +85,53 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
     return data
 
 
-def get_load(machines, start, stop, step):
-    data = {}
-    for machine in machines:
-        metric = "%s.system.load1" % machine
-        query = ('roundY(fetch("%s", start="%s", stop="%s", step="%s")' +
-                 ', base=5)') % \
-            (
-            metric,
-            start,
-            stop,
-            step,
-        )
-        raw_machine_data = requests.get(
-            "%s/v1/datapoints?query=%s" % (config.TSFDB_URI, query)
-        )
+def _get_load_machine(machine, start, stop, step):
+    metric = "%s.system.load1" % machine
+    query = ('roundY(fetch("%s", start="%s", stop="%s", step="%s")' +
+             ', base=5)') % \
+        (
+        metric,
+        start,
+        stop,
+        step,
+    )
+    raw_machine_data = requests.get(
+        "%s/v1/datapoints?query=%s" % (config.TSFDB_URI, query)
+    )
 
-        if not raw_machine_data.ok:
-            log.error('Got %d on get_load: %s',
-                      raw_machine_data.status_code, raw_machine_data.content)
-            raise ServiceUnavailableError()
+    if not raw_machine_data.ok:
+        log.error('Got %d on _get_load_machine: %s',
+                  raw_machine_data.status_code, raw_machine_data.content)
+        return {}
 
-        raw_machine_data = raw_machine_data.json()
+    raw_machine_data = raw_machine_data.json()
 
-        data.update(
-            {
-                machine: {
-                    "name": machine,
-                    "datapoints": raw_machine_data["series"].get(metric, []),
-                }
+    return(
+        {
+            machine: {
+                "name": machine,
+                "datapoints": raw_machine_data["series"].get(metric, []),
             }
-        )
+        }
+    )
+
+
+async def _get_load(machines, start, stop, step):
+    loop = asyncio.get_event_loop()
+    loads = [
+        loop.run_in_executor(None, _get_load_machine, *
+                             (machine, start, stop, step))
+        for machine in machines
+    ]
+    return await asyncio.gather(*loads)
+
+
+def get_load(machines, start, stop, step):
+    loop = asyncio.get_event_loop()
+    loads = loop.run_until_complete(_get_load(machines, start, stop, step))
+    data = {}
+    for load in loads:
+        data.update(load)
 
     return data
 
