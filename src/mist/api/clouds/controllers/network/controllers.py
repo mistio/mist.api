@@ -260,44 +260,13 @@ class LXDNetworkController(BaseNetworkController):
             kwargs["config"]["ipv6.nat"] = kwargs["ipv6.nat"]
 
     def _delete_network(self, network, libcloud_network):
-
-        """Performs the libcloud call that handles network deletion.
-
-        This method is meant to be called internally by `self.delete_network`.
-
-        Unless naming conventions change or specialized parsing of the libcloud
-        response is needed, subclasses SHOULD NOT need to override this method.
-
-        Subclasses MAY override this method.
-        """
         conn = self.cloud.ctl.compute.connection
         conn.ex_delete_network(name=libcloud_network.name)
 
     def _list_subnets__fetch_subnets(self, network):
-        """Fetches a list of subnets.
-
-        Performs the actual libcloud call that returns a subnet listing.
-
-        This method is meant to be called internally by `self.list_subnets`.
-
-        Due to inconsistent naming conventions and cloud-specific filtering,
-        this method is not implemented in `BaseNetworkController`.
-
-        Subclasses MUST override this method.
-        """
         return []
 
     def _list_networks__cidr_range(self, network, net):
-        """Returns the network's IP range in CIDR notation.
-
-        This method is meant to be called internally
-        by `self.list_networks` in order to return
-        the network's CIDR, if exists.
-
-        :param network: A network mongoengine model.
-        The model may not have yet been saved in the database.
-        :param libcloud_network: A libcloud network object.
-        """
         return net.config["ipv4.address"]
 
 
