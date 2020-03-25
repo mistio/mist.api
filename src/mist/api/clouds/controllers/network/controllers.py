@@ -318,8 +318,27 @@ class GigG8NetworkController(BaseNetworkController):
             pf = connection.ex_create_portforward(g8_network, libcloud_node,
                                                   kwargs.get('public_port'),
                                                   kwargs.get('private_port'),
-                                                  kwargs.get('protocol', 'tcp'))
+                                                  kwargs.get('protocol',
+                                                             'tcp'))
         except BaseHTTPError as exc:
             raise PortForwardCreationError(exc.message)
 
         return pf
+
+    def _delete_portforward(self, network, **kwargs):
+        connection = network.cloud.ctl.compute.connection
+        g8_network = None
+        for _network in connection.ex_list_networks():
+            if network.network_id == _network.id:
+                g8_network = _network
+                break
+
+        ex_portforward = None
+        for pf in connection.ex_list_portforwards(g8_network):
+            if pf.publicport == kwargs.get('public_port') and \
+               pf.protocol == kwargs.get('protocol'):
+                ex_portforward = pf
+                break
+
+        if ex_portforward:
+            connection.ex_delete_portforward(ex_portforward)
