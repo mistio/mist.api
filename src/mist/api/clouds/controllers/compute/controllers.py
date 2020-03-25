@@ -1297,7 +1297,7 @@ class VSphereComputeController(BaseComputeController):
         _size.disk = node.size.disk
         name = ""
         if _size.cpus:
-            name += f'{_size.cpus}v CPUs, '
+            name += f'{_size.cpus}vCPUs, '
         if _size.ram:
             name += f'{_size.ram}MB RAM, '
         if _size.disk:
