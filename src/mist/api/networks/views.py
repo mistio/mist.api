@@ -464,14 +464,14 @@ def list_portforwards(request):
     ret = []
 
     for pf in portforwards:
-      portforward = {
-                     'privateport': pf.privateport,
-                     'publicport': pf.publicport,
-                     'protocol': pf.protocol,
-                     'node_id': pf.node_id,
-                     'public_ip': pf.network.publicipaddress
-      }
-      ret.append(portforward)
+        portforward = {
+            'privateport': pf.privateport,
+            'publicport': pf.publicport,
+            'protocol': pf.protocol,
+            'node_id': pf.node_id,
+            'public_ip': pf.network.publicipaddress
+        }
+        ret.append(portforward)
 
     return ret
 
@@ -533,9 +533,58 @@ def create_portforward(request):
         raise MistNotImplementedError
 
     return {
-      'privateport': port_forward.privateport,
-      'publicport': port_forward.publicport,
-      'protocol': port_forward.protocol,
-      'node_id': port_forward.node_id,
-      'public_ip': port_forward.network.publicipaddress
+        'privateport': port_forward.privateport,
+        'publicport': port_forward.publicport,
+        'protocol': port_forward.protocol,
+        'node_id': port_forward.node_id,
+        'public_ip': port_forward.network.publicipaddress
     }
+
+
+@view_config(route_name='api_v1_portforwards', request_method='DELETE',
+             renderer='json')
+def delete_portforward(request):
+    """
+    Tags: networks
+    ---
+    Delete the portforward of a GigG8 network
+    READ permission required on network
+    EDIT permission required on network
+    ---
+    network:
+      in: path
+      required: true
+      type: string
+    public_port:
+      required: true
+      type: string
+    protocol:
+      required: true
+      type: string
+    """
+    network_id = request.matchdict['network']
+    auth_context = auth_context_from_request(request)
+
+    params = params_from_request(request)
+
+    if not params.get('public_port'):
+        raise RequiredParameterMissingError('public_port')
+
+    if not params.get('protocol'):
+        raise RequiredParameterMissingError('protocol')
+
+    # SEC
+    auth_context.check_perm('network', 'read', network_id)
+    auth_context.check_perm('network', 'edit', network_id)
+
+    try:
+        network = Network.objects.get(owner=auth_context.owner, id=network_id)
+    except Network.DoesNotExist:
+        raise NetworkNotFoundError()
+
+    try:
+        network.cloud.ctl.network.delete_portforward(network, **params)
+    except NotImplementedError:
+        raise MistNotImplementedError
+
+    return OK
