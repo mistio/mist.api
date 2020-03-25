@@ -429,3 +429,113 @@ def list_vnfs(request):
         return cloud.ctl.compute.connection.ex_list_vnfs()
     except NotImplementedError:
         raise MistNotImplementedError
+
+
+@view_config(route_name='api_v1_portforwards', request_method='GET',
+             renderer='json')
+def list_portforwards(request):
+    """
+    Tags: networks
+    ---
+    List the portforwards of a GigG8 network
+    READ permission required on network
+    ---
+    network:
+      in: path
+      required: true
+      type: string
+    """
+    network_id = request.matchdict['network']
+    auth_context = auth_context_from_request(request)
+
+    # SEC
+    auth_context.check_perm('network', 'read', network_id)
+
+    try:
+        network = Network.objects.get(owner=auth_context.owner, id=network_id)
+    except Network.DoesNotExist:
+        raise NetworkNotFoundError()
+
+    try:
+        portforwards = network.cloud.ctl.network.list_portforwards(network)
+    except NotImplementedError:
+        raise MistNotImplementedError
+
+    ret = []
+
+    for pf in portforwards:
+      portforward = {
+                     'privateport': pf.privateport,
+                     'publicport': pf.publicport,
+                     'protocol': pf.protocol,
+                     'node_id': pf.node_id,
+                     'public_ip': pf.network.publicipaddress
+      }
+      ret.append(portforward)
+
+    return ret
+
+
+@view_config(route_name='api_v1_portforwards', request_method='POST',
+             renderer='json')
+def create_portforward(request):
+    """
+    Tags: networks
+    ---
+    Create a portforward in a GigG8 network
+    READ permission required on network
+    EDIT permission required on network
+    ---
+    network:
+      in: path
+      required: true
+      type: string
+    machine_id:
+      required: true
+      type: string
+    public_port:
+      required: true
+      type: integer
+    private_port:
+      required: true
+      type: integer
+    protocol:
+      required: false
+      type: string
+    """
+    network_id = request.matchdict['network']
+    auth_context = auth_context_from_request(request)
+
+    params = params_from_request(request)
+
+    # SEC
+    auth_context.check_perm('network', 'read', network_id)
+    auth_context.check_perm('network', 'edit', network_id)
+
+    if not params.get('machine_id'):
+        raise RequiredParameterMissingError('machine_id')
+
+    if not params.get('public_port'):
+        raise RequiredParameterMissingError('public_port')
+
+    if not params.get('private_port'):
+        raise RequiredParameterMissingError('private_port')
+
+    try:
+        network = Network.objects.get(owner=auth_context.owner, id=network_id)
+    except Network.DoesNotExist:
+        raise NetworkNotFoundError()
+
+    try:
+        port_forward = network.cloud.ctl.network.create_portforward(network,
+                                                                    **params)
+    except NotImplementedError:
+        raise MistNotImplementedError
+
+    return {
+      'privateport': port_forward.privateport,
+      'publicport': port_forward.publicport,
+      'protocol': port_forward.protocol,
+      'node_id': port_forward.node_id,
+      'public_ip': port_forward.network.publicipaddress
+    }

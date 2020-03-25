@@ -633,6 +633,32 @@ class BaseNetworkController(BaseController):
         """
         libcloud_subnet.destroy()
 
+    def list_portforwards(self, network):
+        """Available only for GigG8 networks.
+
+        Subclasses SHOULD NOT override or extend this method.
+        """
+        return self._list_portforwards(network)
+
+    def _list_portforwards(self, network):
+        """Available only for GigG8 networks.
+        Subclasses MAY override or extend this method.
+        """
+        raise NotImplementedError()
+
+    def create_portforward(self, network, **kwargs):
+        """Available only for GigG8 networks.
+
+        Subclasses SHOULD NOT override or extend this method.
+        """
+        return self._create_portforward(network, **kwargs)
+
+    def _create_portforward(self, network, **kwargs):
+        """Available only for GigG8 networks.
+        Subclasses MAY override or extend this method.
+        """
+        raise NotImplementedError()
+
     def _get_libcloud_network(self, network):
         """Returns an instance of a libcloud network.
 
