@@ -8,6 +8,7 @@ are in `mist.api.clouds.controllers.network.controllers`.
 
 """
 
+import asyncio
 import json
 import copy
 import logging
@@ -241,13 +242,22 @@ class BaseNetworkController(BaseController):
         task_key = 'cloud:list_networks:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
         first_run = False if task.last_success else True
+
+        async def _list_subnets_async(networks):
+            loop = asyncio.get_event_loop()
+            subnets = [
+                loop.run_in_executor(None, network.ctl.list_subnets)
+                for network in networks
+            ]
+            return await asyncio.gather(*subnets)
+
         with task.task_runner(persist=persist):
             # Get cached networks as dict
             cached_networks = {'%s-%s' % (n.id, n.network_id): n.as_dict()
                                for n in self.list_cached_networks()}
             networks = self._list_networks()
-            for network in networks:
-                network.ctl.list_subnets()
+            loop = asyncio.get_event_loop()
+            loop.run_until_complete(_list_subnets_async(networks))
 
         # Publish patches to rabbitmq.
         new_networks = {'%s-%s' % (n.id, n.network_id): n.as_dict()
