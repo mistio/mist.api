@@ -267,6 +267,10 @@ def add_routes(configurator):
         'api_v1_subnet',
         '/api/v1/clouds/{cloud}/networks/{network}/subnets/{subnet}'
     )
+    configurator.add_route('api_v1_portforwards',
+                           '/api/v1/networks/{network}/portforwards')
+    configurator.add_route('api_v1_portforward',
+                           '/api/v1/networks/{network}/portforwards/{portforward}')
     configurator.add_route('api_v1_cloud_vnfs',
                            '/api/v1/clouds/{cloud}/vnfs')
 
