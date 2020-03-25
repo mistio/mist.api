@@ -862,7 +862,7 @@ class AzureArmComputeController(BaseComputeController):
 
     def _list_sizes__get_name(self, size):
         return size.name + ' ' + str(size.extra['numberOfCores']) \
-                         + ' cpus/' + str(size.ram / 1024) + 'G RAM/ ' \
+                         + ' cpus/' + str(size.ram / 1024) + 'GB RAM/ ' \
                          + str(size.disk) + 'GB SSD'
 
 
@@ -913,6 +913,7 @@ class GoogleComputeController(BaseComputeController):
         # Wrap in try/except to prevent from future GCE API changes.
         # Identify server OS.
         os_type = 'linux'
+        extra_os_type = None
 
         try:
             license = extra.get('license')
@@ -928,7 +929,7 @@ class GoogleComputeController(BaseComputeController):
                     'windows-cloud' in extra['disks'][0]['licenses'][0]:
                 os_type = 'windows'
                 extra_os_type = 'win'
-            if machine.extra['os_type'] != extra_os_type:
+            if extra_os_type and machine.extra.get('os_type') != extra_os_type:
                 machine.extra['os_type'] = extra_os_type
                 updated = True
             if machine.os_type != os_type:
@@ -941,10 +942,11 @@ class GoogleComputeController(BaseComputeController):
         # Get disk metadata.
         try:
             if extra.get('boot_disk'):
-                if machine.extra['boot_disk_size'] != extra['boot_disk'].size:
+                if machine.extra.get('boot_disk_size') != extra[
+                        'boot_disk'].size:
                     machine.extra['boot_disk_size'] = extra['boot_disk'].size
                     updated = True
-                if machine.extra['boot_disk_type'] != extra[
+                if machine.extra.get('boot_disk_type') != extra[
                         'boot_disk'].extra.get('type'):
                     machine.extra['boot_disk_type'] = extra[
                         'boot_disk'].extra.get('type')
@@ -970,7 +972,7 @@ class GoogleComputeController(BaseComputeController):
         try:
             if extra.get('machineType'):
                 machine_type = extra['machineType'].split('/')[-1]
-                if machine.extra['machine_type'] != machine_type:
+                if machine.extra.get('machine_type') != machine_type:
                     machine.extra['machine_type'] = machine_type
                     updated = True
         except:
@@ -981,7 +983,7 @@ class GoogleComputeController(BaseComputeController):
         network_interface = machine_libcloud.extra.get('networkInterfaces')[0]
         network = network_interface.get('network')
         network_name = network.split('/')[-1]
-        if machine.extra['network'] != network_name:
+        if machine.extra.get('network') != network_name:
             machine.extra['network'] = network_name
             updated = True
 
@@ -1002,7 +1004,7 @@ class GoogleComputeController(BaseComputeController):
         if subnet:
             subnet_name = subnet.split('/')[-1]
             subnet_region = subnet.split('/')[-3]
-            if machine.extra['subnet'] != (subnet_name, subnet_region):
+            if machine.extra.get('subnet') != (subnet_name, subnet_region):
                 machine.extra['subnet'] = (subnet_name, subnet_region)
                 updated = True
             # Discover subnet of machine.
@@ -1927,10 +1929,11 @@ class LibvirtComputeController(BaseComputeController):
                 setattr(machine.actions, action, False)
         else:
             machine.actions.clone = True
-            machine.actions.undefine = True
+            machine.actions.undefine = False
             if machine_libcloud.state is NodeState.TERMINATED:
                 # In libvirt a terminated machine can be started.
                 machine.actions.start = True
+                machine.actions.undefine = True
             if machine_libcloud.state is NodeState.RUNNING:
                 machine.actions.suspend = True
             if machine_libcloud.state is NodeState.SUSPENDED:
@@ -1995,6 +1998,8 @@ class LibvirtComputeController(BaseComputeController):
         return None
 
     def _list_machines__get_custom_size(self, node):
+        if not node.size:
+            return
         from mist.api.clouds.models import CloudSize
         try:
             _size = CloudSize.objects.get(external_id=node.size.id)
@@ -2007,7 +2012,7 @@ class LibvirtComputeController(BaseComputeController):
         if _size.cpus:
             name += '%s CPUs, ' % _size.cpus
         if _size.ram:
-            name += '%sKB RAM' % _size.ram
+            name += '%dMB RAM' % (_size.ram / 1000)
         _size.name = name
         _size.save()
 
