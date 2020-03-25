@@ -67,17 +67,31 @@ def _update_machine_from_node_in_process_pool(params):
     sizes_map = params['sizes_map']
     nodedict = json.loads(params['node'])
 
+    driver = get_driver(nodedict['provider'])
+    size = None
+    if nodedict['size']:
+        size = NodeSize(
+            id=nodedict['size']['id'],
+            name=nodedict['size']['name'],
+            ram=nodedict['size']['ram'],
+            disk=nodedict['size']['disk'],
+            bandwidth=nodedict['size']['bandwidth'],
+            price=nodedict['size']['price'],
+            extra=nodedict['size']['extra'],
+            driver=driver
+        )
+
     node = Node(
         id=nodedict['id'],
         name=nodedict['name'],
         image=nodedict['image'],
-        size=nodedict['size'],
+        size=size,
         state=nodedict['state'],
         public_ips=nodedict['public_ips'],
         private_ips=nodedict['private_ips'],
         extra=nodedict['extra'],
         created_at=nodedict['created_at'],
-        driver=get_driver(nodedict['provider'])
+        driver=driver
     )
 
     mongo_connect()
@@ -357,12 +371,23 @@ class BaseComputeController(BaseController):
 
             class NodeEncoder(JSONEncoder):
                 def default(self, o):
+                    size = o.size
+                    if isinstance(size, NodeSize):
+                        size = {
+                            'id': size.id,
+                            'name': size.name,
+                            'ram': size.ram,
+                            'disk': size.disk,
+                            'bandwidth': size.bandwidth,
+                            'price': size.price,
+                            'extra': size.extra
+                        }
                     return {
                         'id': o.id,
                         'name': o.name,
                         'state': o.state,
                         'image': o.image,
-                        'size': o.size,
+                        'size': size,
                         'public_ips': o.public_ips,
                         'private_ips': o.private_ips,
                         'extra': o.extra,
