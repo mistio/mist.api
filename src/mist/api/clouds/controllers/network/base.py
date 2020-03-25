@@ -659,6 +659,20 @@ class BaseNetworkController(BaseController):
         """
         raise NotImplementedError()
 
+    def delete_portforward(self, network, **kwargs):
+        """Available only for GigG8 networks.
+
+        Subclasses SHOULD NOT override or extend this method.
+        """
+        return self._delete_portforward(network, **kwargs)
+
+    def _delete_portforward(self, network, **kwargs):
+        """Available only for GigG8 networks.
+
+        Subclasses MAY override or extend this method.
+        """
+        return NotImplementedError()
+
     def _get_libcloud_network(self, network):
         """Returns an instance of a libcloud network.
 
