@@ -171,6 +171,40 @@ def create_volume(request):
     return volume.as_dict()
 
 
+@view_config(route_name='api_v1_storage_classes', request_method='GET',
+             renderer='json')
+def list_storage_classes(request):
+    """
+    Tags: volumes
+    ---
+    List the volumes of a cloud.
+
+    READ permission required on cloud.
+    READ permission required on location.
+    ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    """
+    auth_context = auth_context_from_request(request)
+    cloud_id = request.matchdict.get('cloud')
+
+    if cloud_id:
+        try:
+            cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
+                                      deleted=None)
+        except Cloud.DoesNotExist:
+            raise CloudNotFoundError()
+        # SEC
+        auth_context.check_perm('cloud', 'read', cloud_id)
+        storage_classes = cloud.ctl.storage.list_storage_classes()
+    else:
+        raise BadRequestError()
+
+    return storage_classes
+
+
 @view_config(route_name='api_v1_volume',
              request_method='DELETE', renderer='json')
 @view_config(route_name='api_v1_cloud_volume', request_method='DELETE')

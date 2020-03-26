@@ -19,7 +19,32 @@ from mist.api.exceptions import RequiredParameterMissingError
 
 from mist.api import config
 
-
+__all__ = [
+    "Cloud",
+    "CloudLocation",
+    "CloudSize",
+    "AmazonCloud",
+    "AlibabaCloud",
+    "DigitalOceanCloud",
+    "MaxihostCloud",
+    "LinodeCloud",
+    "RackSpaceCloud",
+    "SoftLayerCloud",
+    "AzureCloud",
+    "AzureArmCloud",
+    "GoogleCloud",
+    "HostVirtualCloud",
+    "PacketCloud",
+    "VultrCloud",
+    "VSphereCloud",
+    "VCloud",
+    "OpenStackCloud",
+    "DockerCloud",
+    "LibvirtCloud",
+    "OnAppCloud",
+    "OtherCloud",
+    "KubeVirtCloud"
+]
 # This is a map from provider name to provider class, eg:
 # 'linode': LinodeCloud
 # It is autofilled by _populate_clouds which is run on the end of this file.
@@ -556,6 +581,32 @@ class OnAppCloud(Cloud):
 class OtherCloud(Cloud):
 
     _controller_cls = controllers.OtherMainController
+
+
+class KubeVirtCloud(Cloud):
+    host = me.StringField(required=True)
+    port = me.IntField(required=True, default=6443)
+
+    # USER / PASS authentication optional
+    username = me.StringField(required=False)
+    password = me.StringField(required=False)
+
+    # Bearer Token authentication optional
+    token_bearer_auth = me.BooleanField(required=False)
+    key_file = me.StringField(required=False)
+
+    # TLS Authentication
+    # key_file again
+    cert_file = me.StringField(required=False)
+
+    # certificate authority
+    ca_cert_file = me.StringField(required=False)
+
+    # certificate verification
+    verify = me.BooleanField(required=False)
+
+    _private_fields = ('password', 'key_file', 'cert_file', 'ca_cert_file')
+    _controller_cls = controllers.KubeVirtMainController
 
 
 _populate_clouds()

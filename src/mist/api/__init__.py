@@ -289,7 +289,8 @@ def add_routes(configurator):
         'api_v1_volume',
         '/api/v1/volumes/{volume}'
     )
-
+    configurator.add_route('api_v1_storage_classes',
+                           '/api/v1/clouds/{cloud}/storage-classes')
     configurator.add_route('api_v1_keys', '/api/v1/keys')
     configurator.add_route('api_v1_key_action', '/api/v1/keys/{key}')
     configurator.add_route('api_v1_key_public', '/api/v1/keys/{key}/public')
