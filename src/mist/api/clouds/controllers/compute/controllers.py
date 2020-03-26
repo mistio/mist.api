@@ -2299,3 +2299,125 @@ class OtherComputeController(BaseComputeController):
 
     def list_locations(self, persist=True):
         return []
+
+
+class KubeVirtComputeController(BaseComputeController):
+
+    def _connect(self):
+        host, port = dnat(self.cloud.owner,
+                          self.cloud.host, self.cloud.port)
+        try:
+            socket.setdefaulttimeout(15)
+            so = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            so.connect((sanitize_host(host), int(port)))
+            so.close()
+        except:
+            raise Exception("Make sure host is accessible "
+                            "and kubernetes port is specified")
+
+        verify = self.cloud.verify
+        ca_cert = None
+        if self.cloud.ca_cert_file:
+                ca_cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
+                ca_cert_temp_file.write(self.cloud.ca_cert_file.encode())
+                ca_cert_temp_file.close()
+                ca_cert = ca_cert_temp_file.name
+
+        # tls authentication
+        if self.cloud.key_file and self.cloud.cert_file:
+            key_temp_file = tempfile.NamedTemporaryFile(delete=False)
+            key_temp_file.write(self.cloud.key_file.encode())
+            key_temp_file.close()
+            key_file = key_temp_file.name
+            cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
+            cert_temp_file.write(self.cloud.cert_file.encode())
+            cert_temp_file.close()
+            cert_file = cert_temp_file.name
+
+            return get_driver(Provider.KUBEVIRT)(secure=True,
+                                                 host=host,
+                                                 port=port,
+                                                 key_file=key_file,
+                                                 cert_file=cert_file,
+                                                 ca_cert=ca_cert,
+                                                 verify=verify)
+        # token bearer authentication
+        elif self.cloud.token_bearer_auth:
+            if not key_file:
+                raise ValueError("Missing the token, please provide it.")
+
+            return get_driver(Provider.KUBEVIRT)(secure=True,
+                                                 host=host,
+                                                 port=port,
+                                                 key_file=key_file,
+                                                 ca_cert=ca_cert,
+                                                 token_bearer_auth=True,
+                                                 verify=verify
+                                                 )
+        # username/password auth
+        elif self.cloud.username and self.cloud.password:
+            key = self.cloud.username
+            secret = self.cloud.password
+
+            return get_driver(Provider.KUBEVIRT)(key=key,
+                                                 secret=secret,
+                                                 secure=True,
+                                                 host=host,
+                                                 port=port,
+                                                 verify=verify)
+        else:
+            msg = '''Necessary parameters for authentication are missing.
+            Either a key_file/cert_file pair or a username/pass pair
+            or a bearer token.'''
+            raise ValueError(msg)
+
+    def _list_machines__machine_actions(self, machine, machine_libcloud):
+        super(KubeVirtComputeController,
+              self)._list_machines__machine_actions(
+            machine, machine_libcloud)
+        machine.actions.start = True
+        machine.actions.stop = True
+        machine.actions.reboot = True
+        machine.actions.destroy = True
+
+    def _reboot_machine(self, machine, machine_libcloud):
+        return self.connection.reboot_node(machine_libcloud)
+
+    def _start_machine(self, machine, machine_libcloud):
+        return self.connection.start_node(machine_libcloud)
+
+    def _stop_machine(self, machine, machine_libcloud):
+        return self.connection.stop_node(machine_libcloud)
+
+    def _destroy_machine(self, machine, machine_libcloud):
+        res = self.connection.destroy_node(machine_libcloud)
+        if res:
+            if machine.extra.get('pvcs'):
+                # FIXME: resolve circular import issues
+                from mist.api.models import Volume
+                volumes = Volume.objects.filter(cloud=self.cloud)
+                for volume in volumes:
+                    if machine.id in volume.attached_to:
+                        volume.attached_to.remove(machine.id)
+
+    def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        if not machine_libcloud.extra['pvcs']:
+            return
+        pvcs = machine_libcloud.extra['pvcs']
+        # FIXME: resolve circular import issues
+        from mist.api.models import Volume
+        volumes = Volume.objects.filter(cloud=self.cloud, missing_since=None)
+        for volume in volumes:
+            if 'pvc' in volume.extra:
+                if volume.extra['pvc']['name'] in pvcs:
+                    if machine not in volume.attached_to:
+                        volume.attached_to.append(machine)
+                        volume.save()
+
+    def _list_sizes__get_cpu(self, size):
+        cpu = int(size.extra.get('cpus') or 1)
+        if cpu > 1000:
+            cpu = cpu / 1000
+        elif cpu > 99:
+            cpu = 1
+        return cpu

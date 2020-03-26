@@ -580,3 +580,15 @@ class OtherMainController(BaseMainController):
                 old_machines, new_machines)
 
         return machine
+
+
+class KubeVirtMainController(BaseMainController):
+    provider = 'kubevirt'
+    ComputeController = compute_ctls.KubeVirtComputeController
+    StorageController = storage_ctls.KubernetesStorageController
+
+    def _update__preparse_kwargs(self, kwargs):
+        host = kwargs.get('host', self.cloud.host)
+        if host:
+            host = sanitize_host(host)
+            check_host(host)
