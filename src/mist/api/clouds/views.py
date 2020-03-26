@@ -161,7 +161,6 @@ def add_cloud(request):
       - onapp
       - hostvirtual
       - vultr
-      - clearcenter
       - aliyun_ecs
       required: true
       type: string

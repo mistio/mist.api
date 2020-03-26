@@ -76,9 +76,19 @@ class ShellHubWorker(mist.api.hub.main.HubWorker):
                                                   provider='docker')
                 key_id, ssh_user = self.shell.autoconfigure(
                     self.owner, data['cloud_id'], data['machine_id'],
-                    job_id=data['job_id'],
+                )
+            elif self.provider == "kubevirt":
+                self.shell = mist.api.shell.Shell(data['host'],
+                                                  provider='kubevirt')
+                key_id, ssh_user = self.shell.autoconfigure(
+                    self.owner, data['cloud_id'], data['machine_id']
                 )
             else:
+                self.shell = mist.api.shell.Shell(data['host'])
+                key_id, ssh_user = self.shell.autoconfigure(
+                    self.owner, data['cloud_id'], data['machine_id']
+                )
+        except Exception as exc:
                 log.warning("%s: Couldn't connect with SSH, error %r.",
                             self.lbl, exc)
                 if isinstance(exc,
@@ -98,11 +108,12 @@ class ShellHubWorker(mist.api.hub.main.HubWorker):
 
     def on_data(self, body, msg):
         """Received data that must be forwarded to shell's stdin"""
+        if self.provider == 'kubevirt':
+            self.shell.send(body)
 
         # TODO: Factory should be moved from here
-        if self.shell.get_type() == "ParamikoShell" or \
+        elif self.shell.get_type() == "ParamikoShell" or \
                 self.shell.get_type() == "DockerShell":
-
             self.channel.send(body.encode('utf-8', 'ignore'))
         elif self.shell.get_type() == "LXDShell":
             self.channel.send(bytearray(body, encoding='utf-8'), opcode=2)
@@ -115,8 +126,10 @@ class ShellHubWorker(mist.api.hub.main.HubWorker):
                 log.info("%s: Resizing shell to (%s, %s).",
                          self.lbl, columns, rows)
                 try:
+                    if self.provider == 'kubevirt':
+                        self.shell._shell.resize(columns, rows)
 
-                    if self.shell.get_type() == "LXDShell":
+                    elif self.shell.get_type() == "LXDShell":
 
                         # also pass the channel to emulate how things
                         # were done in the past
