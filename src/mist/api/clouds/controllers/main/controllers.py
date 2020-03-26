@@ -113,10 +113,11 @@ class GigG8MainController(BaseMainController):
     NetworkController = network_ctls.GigG8NetworkController
 
     def _add__preparse_kwargs(self, kwargs):
-        base_url = kwargs.pop('url')
-        if base_url.endswith('/'):
-            base_url = base_url[:-1]
-        kwargs['url'] = base_url + '/restmachine/cloudapi/'
+        if not kwargs['url'].endswith('/restmachine/cloudapi'):
+            base_url = kwargs.pop('url')
+            if base_url.endswith('/'):
+                base_url = base_url[:-1]
+            kwargs['url'] = base_url + '/restmachine/cloudapi/'
 
 
 class LinodeMainController(BaseMainController):
