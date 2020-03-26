@@ -176,6 +176,10 @@ class NetworkCreationError(InternalServerError):
     msg = "Network creation failed"
 
 
+class PortForwardCreationError(InternalServerError):
+    msg = "Port forward creation failed"
+
+
 class ZoneNotFoundError(NotFoundError):
     msg = "No zone found for the provided id"
 
