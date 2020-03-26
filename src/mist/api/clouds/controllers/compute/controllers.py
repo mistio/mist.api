@@ -351,7 +351,7 @@ class DigitalOceanComputeController(BaseComputeController):
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         updated = False
         cpus = machine.extra.get('size', {}).get('vcpus', 0)
-        if machine.extra['cpus'] != cpus:
+        if machine.extra.get('cpus') != cpus:
             machine.extra['cpus'] = cpus
             updated = True
         return updated
