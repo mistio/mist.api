@@ -19,6 +19,9 @@ from libcloud.container.types import Provider as Container_Provider
 from libcloud.container.base import ContainerImage
 from libcloud.compute.base import NodeAuthSSHKey
 from libcloud.compute.base import NodeAuthPassword
+
+from libcloud.common.types import MalformedResponseError
+
 from tempfile import NamedTemporaryFile
 
 import mist.api.tasks
@@ -584,7 +587,12 @@ def create_machine_g8(conn, machine_name, image, ram, cpu, disk,
     except me.DoesNotExist:
         raise NetworkNotFoundError()
 
-    libcloud_networks = conn.ex_list_networks()
+    try:
+        libcloud_networks = conn.ex_list_networks()
+    except MalformedResponseError as exc:
+        if 'AccessDenied' in exc.body:
+            raise MachineCreationError("G8 got exception 'Access Denied'. \
+                Make sure your JWT token has not expired.")
     ex_network = None
     for libcloud_net in libcloud_networks:
         if mist_net.network_id == libcloud_net.id:
