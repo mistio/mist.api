@@ -11,6 +11,11 @@ from mist.api.exceptions import SSLError
 
 log = logging.getLogger(__name__)
 
+__all__ = [
+    "ConnectionProxy",
+    "BaseController",
+]
+
 
 class ConnectionProxy(object):
     """Wraps a connection with a destructor to disconnect upon gc"""

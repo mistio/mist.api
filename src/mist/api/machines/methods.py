@@ -40,7 +40,9 @@ from mist.api.exceptions import BadRequestError, MachineCreationError
 from mist.api.exceptions import InternalServerError
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import VolumeNotFoundError
-from mist.api.exceptions import NetworkNotFoundError, MistNotImplementedError
+from mist.api.exceptions import NetworkNotFoundError
+from mist.api.exceptions import RequiredParameterMissingError
+from mist.api.exceptions import MistNotImplementedError
 
 from mist.api.helpers import get_temp_file
 
@@ -128,6 +130,14 @@ def machine_name_validator(provider, name):
                 "machine name may only contain ASCII letters "
                 "or numbers, dashes and periods. Name should not "
                 "end with a dash")
+    elif provider == Provider.KUBEVIRT:
+        if not re.search(r'^(?:[a-z](?:[\.\-a-z0-9]{0,61}[a-z0-9])?)$', name):
+            raise MachineNameValidationError(
+                "name must be 1-63 characters long, with the first "
+                "character being a lowercase letter, and all following "
+                "characters must be a dash, period, lowercase letter, "
+                "or digit, except the last character, which cannot be "
+                "a dash nor period.")
     return name
 
 
@@ -219,7 +229,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     # For providers, which do not support pre-defined sizes, we expect `size`
     # to be a dict with all the necessary information regarding the machine's
     # size.
-    if cloud.ctl.provider in ('vsphere', 'onapp', 'libvirt', 'lxd', 'gig_g8',):
+    if cloud.ctl.provider in ('vsphere', 'onapp', 'libvirt', 'lxd', 'gig_g8',
+                              'kubevirt'):
         if not isinstance(size, dict):
             raise BadRequestError('Expected size to be a dict.')
         size_id = 'custom'
@@ -459,6 +470,14 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     elif conn.type == Provider.MAXIHOST:
         node = _create_machine_maxihost(conn, machine_name, image,
                                         size, location, public_key)
+    elif conn.type == Provider.KUBEVIRT:
+        network = networks if networks else None
+        image = image.id.strip()
+        node = _create_machine_kubevirt(conn, machine_name, image=image,
+                                        location=location,
+                                        disks=volumes,
+                                        memory=size_ram, cpu=size_cpu,
+                                        network=network)
     else:
         raise BadRequestError("Provider unknown.")
 
@@ -2070,6 +2089,56 @@ def _create_machine_linode(conn, key_name, private_key, public_key,
             )
         except Exception as e:
             raise MachineCreationError("Linode, got exception %s" % e, e)
+    return node
+
+
+def _create_machine_kubevirt(conn, machine_name, location, image, disks=None,
+                             memory=None, cpu=None,
+                             network=['pod', 'masquerade', 'net1']):
+    """
+    disks is either an existing volume that can be or not bound.
+    If it is not it must be bound first.
+    """
+    if disks:
+        # check first for unbound
+        # FIXME circular imports
+        from mist.api.volumes.models import Volume
+        for disk in disks:
+            if disk.get('volume_id') and len(disk) == 1:
+                volume = Volume.objects.get(id=disk['volume_id'])
+                if not volume.extra.get('is_bound'):
+                    libcloud_vol = conn._bind_volume(volume,
+                                                     namespace=location.name)
+                    if not libcloud_vol.extra['is_bound']:
+                        msg = ("The volume could not be bound. "
+                               "Try picking another volume.")
+                        raise MachineCreationError(msg)
+                disk['disk_type'] = "persistentVolumeClaim"
+                disk['claim_name'] = libcloud_vol.extra['pvc']['name']
+            else:
+                # creating a new volume
+                for param in {'name', 'size', 'storage_class_name'}:
+                    if not disk.get(param):
+                        raise RequiredParameterMissingError(param)
+
+                disk['disk_type'] = "persistentVolumeClaim"
+                disk['claim_name'] = disk['name']
+                del disk['name']
+
+    if network:
+        if len(network) != 3:
+            raise TypeError("Network must have 3 elements,"
+                            "[network_type, interface, name]")
+        network[2] = machine_name_validator(provider='kubevirt',
+                                            name=network[2])
+    try:
+        node = conn.create_node(name=machine_name, image=image,
+                                location=location,
+                                ex_disks=disks, ex_memory=memory,
+                                ex_cpu=cpu, ex_network=network)
+    except Exception as e:
+            msg = "KubeVirt, got exception {}".format(e), e
+            raise MachineCreationError(msg)
     return node
 
 

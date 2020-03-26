@@ -1506,6 +1506,7 @@ SUPPORTED_PROVIDERS = [
         'provider': Container_Provider.DOCKER,
         'regions': []
     },
+
     # vCloud
     {
         'title': 'VMware vCloud',
@@ -1546,6 +1547,12 @@ SUPPORTED_PROVIDERS = [
     {
         'title': 'Maxihost',
         'provider': Provider.MAXIHOST,
+        'regions': []
+    },
+    # KubeVirt
+    {
+        'title': 'Kubevirt',
+        'provider': Provider.KUBEVIRT,
         'regions': []
     },
     # GigG8
