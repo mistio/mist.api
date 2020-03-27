@@ -1899,26 +1899,49 @@ class LXDComputeController(BaseComputeController):
 class LibvirtComputeController(BaseComputeController):
 
     def _connect(self):
+        return None
+
+    def _get_host_driver(self, machine):
         """Three supported ways to connect: local system, qemu+tcp, qemu+ssh"""
 
         import libcloud.compute.drivers.libvirt_driver
         libvirt_driver = libcloud.compute.drivers.libvirt_driver
         libvirt_driver.ALLOW_LIBVIRT_LOCALHOST = config.ALLOW_LIBVIRT_LOCALHOST
 
-        if self.cloud.key:
-            host, port = dnat(self.cloud.owner,
-                              self.cloud.host, self.cloud.port)
-            return get_driver(Provider.LIBVIRT)(host,
-                                                hypervisor=self.cloud.host,
-                                                user=self.cloud.username,
-                                                ssh_key=self.cloud.key.private,
-                                                ssh_port=int(port))
+        if not machine.extra.get('tags', {}).get('type') == 'hypervisor':
+            machine = machine.parent
+
+        from mist.api.machines.models import KeyMachineAssociation
+        key_assoc = KeyMachineAssociation.objects(machine=machine)
+        if key_assoc:
+            # FIXME
+            key_assoc = key_assoc[0]
+            host, port = dnat(machine.cloud.owner,
+                              machine.hostname, machine.ssh_port)
+            driver = get_driver(Provider.LIBVIRT)(host,
+                                                  hypervisor=machine.hostname,
+                                                  user=key_assoc.ssh_user,
+                                                  ssh_key=key_assoc.key.private,
+                                                  ssh_port=int(port))
+        # FIXME: get the user below?
         else:
-            host, port = dnat(self.cloud.owner, self.cloud.host, 5000)
-            return get_driver(Provider.LIBVIRT)(host,
-                                                hypervisor=self.cloud.host,
-                                                user=self.cloud.username,
-                                                tcp_port=int(port))
+            host, port = dnat(machine.cloud.owner, machine.hostname, 5000)
+            driver = get_driver(Provider.LIBVIRT)(host,
+                                                  hypervisor=machine.hostname,
+                                                  user=key_assoc.ssh_user,
+                                                  tcp_port=int(port))
+
+        return driver
+
+    def _list_machines__fetch_machines(self):
+        nodes = []
+        from mist.api.machines.models import Machine
+        for machine in Machine.objects.filter(cloud=self.cloud):
+            if machine.extra.get('tags', {}).get('type') == 'hypervisor':
+                driver = self._get_host_driver(machine)
+                nodes += driver.list_nodes()
+
+        return nodes
 
     def _list_machines__machine_actions(self, machine, machine_libcloud):
         super(LibvirtComputeController, self)._list_machines__machine_actions(
@@ -1994,6 +2017,12 @@ class LibvirtComputeController(BaseComputeController):
                 updated = True
         return updated
 
+    def _list_machines__get_machine_extra(self, machine, machine_libcloud):
+        extra = copy.copy(machine_libcloud.extra)
+        # make sure images_location is not overriden
+        extra.update({'images_location': machine.extra.get('images_location')})
+        return extra
+
     def _list_machines__get_size(self, node):
         return None
 
@@ -2018,8 +2047,40 @@ class LibvirtComputeController(BaseComputeController):
 
         return _size
 
+    def list_sizes(self, persist=True):
+        return []
+
+    def list_locations(self, persist=True):
+        return []
+
     def _list_images__fetch_images(self, search=None):
-        return self.connection.list_images(location=self.cloud.images_location)
+        images = []
+        from mist.api.machines.models import Machine
+        for machine in Machine.objects.filter(cloud=self.cloud):
+            if machine.extra.get('tags', {}).get('type') == 'hypervisor':
+                driver = self._get_host_driver(machine)
+                images += driver.list_images(location=machine.extra.get('images_location', {}))
+
+        return images
+
+    def _get_machine_libcloud(self, machine, no_fail=False):
+        # TODO: Is it really needed to perform list_nodes?
+        assert self.cloud == machine.cloud
+        host = machine if machine.extra.get('tags', {}).get('type') == 'hypervisor' else machine.parent
+
+        driver = self._get_host_driver(host)
+
+        for node in driver.list_nodes():
+            if node.id == machine.machine_id:
+                return node
+
+        if no_fail:
+            return Node(machine.machine_id, name=machine.machine_id,
+                        state=0, public_ips=[], private_ips=[],
+                        driver=self.connection)
+        raise MachineNotFoundError(
+            "Machine with machine_id '%s'." % machine.machine_id
+        )
 
     def _reboot_machine(self, machine, machine_libcloud):
         hypervisor = machine_libcloud.extra.get('tags', {}).get('type', None)
@@ -2045,16 +2106,31 @@ class LibvirtComputeController(BaseComputeController):
         else:
             machine_libcloud.reboot()
 
+    def _start_machine(self, machine, machine_libcloud):
+        driver = self._get_host_driver(machine)
+        return driver.ex_start_node(machine_libcloud)
+
+    def _stop_machine(self, machine, machine_libcloud):
+        driver = self._get_host_driver(machine)
+        return driver.ex_stop_node(machine_libcloud)
+
     def _resume_machine(self, machine, machine_libcloud):
-        self.connection.ex_resume_node(machine_libcloud)
+        driver = self._get_host_driver(machine)
+        return driver.ex_resume_node(machine_libcloud)
+
+    def _destroy_machine(self, machine, machine_libcloud):
+        driver = self._get_host_driver(machine)
+        return driver.destroy_node(machine_libcloud)
 
     def _suspend_machine(self, machine, machine_libcloud):
-        self.connection.ex_suspend_node(machine_libcloud)
+        driver = self._get_host_driver(machine)
+        return driver.ex_suspend_node(machine_libcloud)
 
     def _undefine_machine(self, machine, machine_libcloud):
         if machine.extra.get('active'):
             raise BadRequestError('Cannot undefine an active domain')
-        self.connection.ex_undefine_node(machine_libcloud)
+        driver = self._get_host_driver(machine)
+        return driver.ex_undefine_node(machine_libcloud)
 
     def _clone_machine(self, machine, machine_libcloud, name, resume):
         self.connection.ex_clone_node(machine_libcloud, name, resume)

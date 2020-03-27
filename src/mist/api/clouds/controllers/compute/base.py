@@ -1462,7 +1462,8 @@ class BaseComputeController(BaseController):
 
     def remove_machine(self, machine):
         raise BadRequestError("Machines on public clouds can't be removed."
-                              "This is only supported in Bare Metal clouds.")
+                              "This is only supported in Bare Metal and "
+                              " KVM/Libvirt clouds.")
 
     def resize_machine(self, machine, size_id, kwargs):
         """Resize machine

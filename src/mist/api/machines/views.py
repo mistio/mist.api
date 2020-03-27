@@ -131,14 +131,14 @@ def create_machine(request):
       required: true
       example: "my-digital-ocean-machine"
     image:
-      description: Provider's image id to be used on creation
+      description: Provider's image id
       required: true
       type: string
       example: "17384153"
     size:
       type: string
-      description: Provider's size id to be used on creation
-      example: "512mb"
+      description: Mist internal size id
+      example: "9417745961a84bffbf6419e5of68faa5"
     location:
       type: string
       description: Mist internal location id
@@ -248,6 +248,9 @@ def create_machine(request):
     security_group:
       type: string
       description: Machine will join this security group
+    host:
+      type: string
+      description: Mist internal machine id. Required for KVM
     vnfs:
       description: Network Virtual Functions to configure in machine
       type: array
@@ -326,6 +329,7 @@ def create_machine(request):
     softlayer_backend_vlan_id = params.get('softlayer_backend_vlan_id', None)
     hourly = params.get('hourly', True)
     sec_group = params.get('security_group', '')
+    host = params.get('host', '')
     vnfs = params.get('vnfs', [])
     expiration = params.get('expiration', {})
     description = params.get('description', '')
@@ -478,7 +482,8 @@ def create_machine(request):
               'ephemeral': params.get('ephemeral', False),
               'lxd_image_source': params.get('lxd_image_source', None),
               'sec_group': sec_group,
-              'description': description}
+              'description': description,
+              'host': host}
 
     if not run_async:
         ret = methods.create_machine(auth_context, *args, **kwargs)
@@ -497,7 +502,10 @@ def add_machine(request):
     """
     Tags: machines
     ---
-    Add a machine to an OtherServer Cloud. This works for bare_metal clouds.
+    Add a machine to an OtherServer/Libvirt Cloud.
+    READ permission required on cloud.
+    EDIT permission required on cloud.
+    READ permission required on key.
     ---
     cloud:
       in: path
@@ -520,6 +528,8 @@ def add_machine(request):
       type: string
     monitoring:
       type: boolean
+    images_location:
+      type: string
     """
     cloud_id = request.matchdict.get('cloud')
     params = params_from_request(request)
@@ -544,6 +554,7 @@ def add_machine(request):
 
     auth_context = auth_context_from_request(request)
     auth_context.check_perm("cloud", "read", cloud_id)
+    auth_context.check_perm("cloud", "edit", cloud_id)
 
     if machine_key:
         auth_context.check_perm("key", "read", machine_key)

@@ -55,9 +55,10 @@ from mist.api import config
 
 if config.HAS_VPN:
     from mist.vpn.methods import to_tunnel
+    from mist.vpn.methods import destination_nat as dnat
 else:
     from mist.api.dummy.methods import to_tunnel
-
+    from mist.api.dummy.methods import dnat
 
 log = logging.getLogger(__name__)
 
@@ -319,34 +320,117 @@ class LibvirtMainController(BaseMainController):
                                                 id=kwargs['key'],
                                                 deleted=None)
             except Key.DoesNotExist:
+                # FIXME
                 raise NotFoundError("Key does not exist.")
 
     def add(self, fail_on_error=True, fail_on_invalid_params=True, **kwargs):
-        """This is a hack to associate a key with the VM hosting this cloud"""
-        super(LibvirtMainController, self).add(
-            fail_on_error=fail_on_error,
-            fail_on_invalid_params=fail_on_invalid_params,
-            add=True, **kwargs
-        )
-        # FIXME: Don't use self.cloud.host as machine_id, this prevents us from
-        # changing the cloud's host.
-        # FIXME: Add type field to differentiate between actual vm's and the
-        # host.
-        from mist.api.machines.models import Machine
-
-        host_machine_id = self.cloud.host.replace('.', '-')
+        if not kwargs.get('hosts'):
+            raise RequiredParameterMissingError('hosts')
         try:
-            machine = Machine.objects.get(
+            # FIXME
+            self.cloud.save()
+        except me.ValidationError as exc:
+            raise BadRequestError({'msg': str(exc),
+                                   'errors': exc.to_dict()})
+        except me.NotUniqueError:
+            raise CloudExistsError("Cloud with name %s already exists"
+                                   % self.cloud.title)
+        errors = []
+
+        for _host in kwargs['hosts']:
+            self._add__preparse_kwargs(_host)
+            errors = {}
+            for key in list(_host.keys()):
+                if key not in ('host', 'username', 'port', 'key',
+                            'images_location'):
+                    error = "Invalid parameter %s=%r." % (key, kwargs[key])
+                    if fail_on_invalid_params:
+                        errors[key] = error
+                    else:
+                        log.warning(error)
+                        kwargs.pop(key)
+            if 'host' not in _host:
+                errors['host'] = "Required parameter missing: host"
+                log.error(errors['host'])
+
+            if errors:
+                log.error("Invalid parameters %s." % list(errors.keys()))
+                # FIXME: Do not raise!
+                raise BadRequestError({
+                    'msg': "Invalid parameters %s." % list(errors.keys()),
+                    'errors': errors,
+                })
+
+            try:
+                ssh_port = int(_host.get('ssh_port', 22))
+            except (ValueError, TypeError):
+                ssh_port = 22
+
+            images_location = _host.get('images_location', '/var/lib/libvirt/images')
+            extra = {'images_location': images_location}
+            extra.update({'tags': {'type': 'hypervisor'}})
+            # Create and save machine entry to database.
+            # FIXME: Save username as well?
+            from mist.api.machines.models import Machine
+            machine = Machine(
                 cloud=self.cloud,
-                machine_id=host_machine_id)
-        except me.DoesNotExist:
-            machine = Machine(cloud=self.cloud,
-                              name=self.cloud.name,
-                              machine_id=host_machine_id).save()
-        if self.cloud.key:
-            machine.ctl.associate_key(self.cloud.key,
-                                      username=self.cloud.username,
-                                      port=self.cloud.port)
+                machine_id = _host.get('host').replace('.', '-'),
+                name=_host.get('host'),
+                ssh_port=ssh_port,
+                last_seen=datetime.datetime.utcnow(),
+                hostname=_host.get('host'),
+                extra=extra
+            )
+
+            # FIXME: try-except, in case of 409
+            machine.save(write_concern={'w': 1, 'fsync': True})
+
+            # associate key if given and attempt to connect
+            if _host.get('key'):
+                try:
+                     machine.ctl.associate_key(_host.get('key'),
+                                               username=_host.get('username'),
+                                               port=ssh_port)
+                except MachineUnauthorizedError as exc:
+                    log.error("Could not connect to host %s." % _host.get('host'))
+                    machine.delete()
+                    if fail_on_error:
+                        self.cloud.delete()
+                        raise CloudUnauthorizedError(exc)
+                except ServiceUnavailableError as exc:
+                    log.error("Could not connect to host %s." % _host.get('host'))
+                    machine.delete()
+                    if fail_on_error:
+                        self.cloud.delete()
+                        raise MistError("Couldn't connect to host '%s'." % _host.get('host'))
+
+            else:
+                from libcloud.compute.providers import get_driver
+                from libcloud.compute.types import Provider
+                host, port = dnat(machine.cloud.owner, machine.hostname, 5000)
+                try:
+                    driver = get_driver(Provider.LIBVIRT)(host,
+                                                          hypervisor=machine.hostname,
+                                                          user=_host.get('username'),
+                                                          tcp_port=ssh_port)
+                except Exception as exc:
+                    log.error("Could not connect to host %s." % host)
+                    machine.delete()
+                    if fail_on_error:
+                        self.cloud.delete()
+                        raise MistError(str(exc))
+
+            if amqp_owner_listening(self.cloud.owner.id):
+                old_machines = [m.as_dict() for m in
+                        self.cloud.ctl.compute.list_cached_machines()]
+                new_machines = self.cloud.ctl.compute.list_machines()
+                self.cloud.ctl.compute.produce_and_publish_patch(
+                    old_machines, new_machines)
+
+        # FIXME: Delete cloud, if fail
+
+        self.cloud.save()
+        self.cloud.errors = errors  # just an attribute, not a field
 
     def update(self, fail_on_error=True, fail_on_invalid_params=True,
                add=False, **kwargs):
@@ -405,7 +489,7 @@ class OtherMainController(BaseMainController):
 
         if kwargs:
             errors = []
-            if 'machines' in kwargs:  # new api: list of multitple machines
+            if 'machines' in kwargs:  # new api: list of multiple machines
                 for machine_kwargs in kwargs['machines']:
                     machine_name = machine_kwargs.pop('machine_name', '')
                     try:
