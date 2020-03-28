@@ -116,30 +116,37 @@ class TaggingSelector(BaseSelector):
         return me.Q(id__in=ids)
 
     def validate(self, clean=True):
-        if self.tags:
-            regex = re.compile(r'^[a-z0-9_-]+$')
-            for key, value in self.tags.items():
-                if not key:
-                    raise me.ValidationError('You cannot add a tag '
-                                             'without a key')
-                elif not regex.match(key) or (value and
-                                              not regex.match(value)):
-                    raise me.ValidationError('Tags must be in key=value '
-                                             'format and only contain the '
-                                             'characters a-z, 0-9, _, -')
+        for field in ['include', 'exclude']:
+            if getattr(self, field):
+                regex = re.compile(r'^[a-z0-9_-]+$')
+                for key, value in getattr(self, field).items():
+                    if not key:
+                        raise me.ValidationError('You cannot add a tag '
+                                                 'without a key')
+                    elif not regex.match(key) or (value and
+                                                not regex.match(value)):
+                        raise me.ValidationError('Tags must be in key=value '
+                                                 'format and only contain the '
+                                                 'characters a-z, 0-9, _, -')
         super(TaggingSelector, self).validate(clean=True)
 
     def clean(self):
-        if not self.tags:
-            self.tags = {}
-        elif not isinstance(self.tags, dict):
-            raise me.ValidationError('Tags must be a dictionary')
+        for field in ['include', 'exclude']:
+            if not getattr(self, field):
+                setattr(self, field, {})
+            elif not isinstance(getattr(self, field), dict):
+                raise me.ValidationError('%s must be a dictionary' % field)
 
     def __str__(self):
-        return 'Tags: %s' % self.tags
+        ret = ''
+        if self.include:
+            ret += 'Include tags: %s\t' % self.include
+        if self.exclude:
+            ret += 'Exclude tags: %s' % self.exclude
+        return ret
 
     def as_dict(self):
-        return {'type': self.ctype, 'tags': self.tags}
+        return {'type': self.ctype, 'tags': self.include}
 
 
 class GenericResourceSelector(BaseSelector):
