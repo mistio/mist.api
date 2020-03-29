@@ -1,7 +1,9 @@
 import uuid
 import logging
+import urllib
 
 from pyramid.response import Response
+from pyramid.renderers import render_to_response
 
 import mist.api.machines.methods as methods
 
@@ -246,6 +248,14 @@ def create_machine(request):
     security_group:
       type: string
       description: Machine will join this security group
+    vnfs:
+      description: Network Virtual Functions to configure in machine
+      type: array
+      items:
+        type: string
+      description:
+        description: Description of machine. Only for GigG8 machines
+        type: string
     """
 
     params = params_from_request(request)
@@ -283,6 +293,8 @@ def create_machine(request):
     if volumes and volumes[0].get('volume_id'):
         request.matchdict['volume'] = volumes[0].get('volume_id')
     networks = params.get('networks', [])
+    if isinstance(networks, str):
+        networks = [networks]
     subnet_id = params.get('subnet_id', '')
     subnetwork = params.get('subnetwork', None)
     ip_addresses = params.get('ip_addresses', [])
@@ -314,8 +326,11 @@ def create_machine(request):
     softlayer_backend_vlan_id = params.get('softlayer_backend_vlan_id', None)
     hourly = params.get('hourly', True)
     sec_group = params.get('security_group', '')
+    vnfs = params.get('vnfs', [])
     expiration = params.get('expiration', {})
-
+    description = params.get('description', '')
+    folder = params.get('folders', None)
+    datastore = params.get('datastore', None)
     job_id = params.get('job_id')
     # The `job` variable points to the event that started the job. If a job_id
     # is not provided, then it means that this is the beginning of a new story
@@ -337,7 +352,7 @@ def create_machine(request):
         raise NotFoundError('Cloud does not exist')
 
     # FIXME For backwards compatibility.
-    if cloud.ctl.provider in ('vsphere', 'onapp', 'libvirt', ):
+    if cloud.ctl.provider in ('vsphere', 'onapp', 'libvirt', 'kubevirt'):
         if not size or not isinstance(size, dict):
             size = {}
         for param in (
@@ -456,8 +471,14 @@ def create_machine(request):
               'machine_username': machine_username,
               'volumes': volumes,
               'ip_addresses': ip_addresses,
+              'vnfs': vnfs,
               'expiration': expiration,
-              'sec_group': sec_group}
+              'folder': folder,
+              'datastore': datastore,
+              'ephemeral': params.get('ephemeral', False),
+              'lxd_image_source': params.get('lxd_image_source', None),
+              'sec_group': sec_group,
+              'description': description}
 
     if not run_async:
         ret = methods.create_machine(auth_context, *args, **kwargs)
@@ -778,7 +799,7 @@ def machine_actions(request):
         result = machine.ctl.remove()
         # Schedule a UI update
         trigger_session_update(auth_context.owner, ['clouds'])
-    elif action in ('start', 'stop', 'reboot',
+    elif action in ('start', 'stop', 'reboot', 'clone',
                     'undefine', 'suspend', 'resume'):
         result = getattr(machine.ctl, action)()
     elif action == 'rename':
@@ -910,6 +931,8 @@ def machine_rdp(request):
 @view_config(route_name='api_v1_cloud_machine_console',
              request_method='POST', renderer='json')
 @view_config(route_name='api_v1_machine_console',
+             request_method='GET', renderer='json')
+@view_config(route_name='api_v1_machine_console',
              request_method='POST', renderer='json')
 def machine_console(request):
     """
@@ -969,12 +992,43 @@ def machine_console(request):
 
     auth_context.check_perm("machine", "read", machine.id)
 
-    if machine.cloud.ctl.provider not in ['vsphere', 'openstack']:
+    if machine.cloud.ctl.provider not in ['vsphere', 'openstack', 'libvirt']:
         raise NotImplementedError(
-            "VNC console only supported for vSphere and OpenStack")
+            "VNC console only supported for vSphere, OpenStack or KVM")
 
-    console_uri = machine.cloud.ctl.compute.connection.ex_open_console(
-        machine.machine_id
-    )
-
-    raise RedirectError(console_uri)
+    if machine.cloud.ctl.provider == 'libvirt':
+        import xml.etree.ElementTree as ET
+        from html import unescape
+        from datetime import datetime
+        import hmac
+        import hashlib
+        xml_desc = unescape(machine.extra.get('xml_description', ''))
+        root = ET.fromstring(xml_desc)
+        vnc_element = root.find('devices').find('graphics[@type="vnc"]')
+        vnc_port = vnc_element.attrib.get('port')
+        vnc_host = vnc_element.attrib.get('listen')
+        key_id = machine.cloud.key.id
+        host = '%s@%s:%d' % (
+            machine.cloud.username, machine.cloud.host, machine.cloud.port)
+        expiry = int(datetime.now().timestamp()) + 100
+        msg = '%s,%s,%s,%s,%s' % (host, key_id, vnc_host, vnc_port, expiry)
+        mac = hmac.new(
+            config.SECRET.encode(),
+            msg=msg.encode(),
+            digestmod=hashlib.sha256).hexdigest()
+        base_ws_uri = config.CORE_URI.replace('http', 'ws')
+        ws_uri = '%s/proxy/%s/%s/%s/%s/%s/%s' % (
+            base_ws_uri, host, key_id, vnc_host, vnc_port, expiry, mac)
+        return render_to_response('../templates/novnc.pt', {'url': ws_uri})
+    if machine.cloud.ctl.provider == 'vsphere':
+        url_param = machine.cloud.ctl.compute.connection.ex_open_console(
+            machine.machine_id
+        )
+        params = urllib.parse.urlencode({'url': url_param})
+        console_url = ("/ui/assets/vsphere-console-util-js/"
+                       f"console.html?{params}")
+    else:
+        console_url = machine.cloud.ctl.compute.connection.ex_open_console(
+            machine.machine_id
+        )
+    raise RedirectError(console_url)

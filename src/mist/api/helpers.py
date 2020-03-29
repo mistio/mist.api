@@ -548,15 +548,31 @@ def check_host(host, allow_localhost=config.ALLOW_CONNECT_LOCALHOST):
 
 
 def transform_key_machine_associations(associations):
-    return [
-        [association.machine.cloud.id,
-         association.machine.machine_id,
-         association.last_used,
-         association.ssh_user,
-         association.sudo,
-         association.port]
-        for association in associations
-    ]
+    try:
+        transformed = [
+            [association.machine.cloud.id,
+             association.machine.machine_id,
+             association.last_used,
+             association.ssh_user,
+             association.sudo,
+             association.port]
+            for association in associations
+        ]
+    except DoesNotExist:
+        # If there are broken references get rid of them
+        transformed = []
+        for association in associations:
+            try:
+                transformed.append([
+                    association.machine.cloud.id,
+                    association.machine.machine_id,
+                    association.last_used,
+                    association.ssh_user,
+                    association.sudo,
+                    association.port])
+            except DoesNotExist:
+                association.delete()
+    return transformed
 
 
 def get_datetime(timestamp):
@@ -637,6 +653,7 @@ def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3,
     sender: the email address of the sender. default value taken from config
 
     """
+
     if not sender:
         sender = config.EMAIL_FROM
     if isinstance(recipients, string_types):
@@ -990,6 +1007,7 @@ def logging_view_decorator(func):
                       'azure': 'certificate',
                       'linode': 'api_key',
                       'docker': 'auth_password',
+                      'maxihost': 'token',
                       'openstack': 'password'}.get(provider)
             if censor and censor in params:
                 params[censor] = '***CENSORED***'
@@ -1187,7 +1205,7 @@ def get_file(url, filename, update=True):
                 raise
             log.error(err)
         else:
-            data = resp.text
+            data = resp.text.replace('<!--! do not remove -->', '')
             if resp.status_code != 200:
                 err = "Bad response fetching file '%s' from '%s': %r" % (
                     filename, url, data

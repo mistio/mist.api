@@ -214,6 +214,16 @@ class VSphereNetwork(Network):
     pass
 
 
+class GigG8Network(Network):
+    network_type = me.StringField(default='vgw',
+                                  choices=('vgw', 'routeros'))
+    public_ip = me.StringField()
+
+
+class LXDNetwork(Network):
+    pass
+
+
 class Subnet(me.Document):
     """The basic Subnet model.
 

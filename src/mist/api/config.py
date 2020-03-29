@@ -39,7 +39,7 @@ log.warn("MIST_API_DIR is %s" % MIST_API_DIR)
 ###############################################################################
 ###############################################################################
 
-PORTAL_NAME = "Mist.io"
+PORTAL_NAME = "Mist"
 CORE_URI = "http://localhost"
 LICENSE_KEY = ""
 AMQP_URI = "rabbitmq:5672"
@@ -1320,6 +1320,7 @@ SUPPORTED_PROVIDERS = [
         'provider': Container_Provider.DOCKER,
         'regions': []
     },
+
     # vCloud
     {
         'title': 'VMware vCloud',
@@ -1360,6 +1361,24 @@ SUPPORTED_PROVIDERS = [
     {
         'title': 'Maxihost',
         'provider': Provider.MAXIHOST,
+        'regions': []
+    },
+    # KubeVirt
+    {
+        'title': 'Kubevirt',
+        'provider': Provider.KUBEVIRT,
+        'regions': []
+    },
+    # GigG8
+    {
+        'title': 'GigG8',
+        'provider': Provider.GIG_G8,
+        'regions': []
+    },
+    # LXD
+    {
+        'title': 'LXD',
+        'provider': 'lxd',
         'regions': []
     },
 ]
@@ -1759,6 +1778,7 @@ ALLOW_SIGNUP_GITHUB = False
 ALLOW_SIGNIN_EMAIL = True
 ALLOW_SIGNIN_GOOGLE = False
 ALLOW_SIGNIN_GITHUB = False
+LDAP_SETTINGS = {}
 STRIPE_PUBLIC_APIKEY = False
 ENABLE_AB = False
 ENABLE_R12N = False
@@ -1766,6 +1786,7 @@ ENABLE_MONITORING = True
 ENABLE_SHELL_CAPTURE = False
 MACHINE_PATCHES = True
 ACCELERATE_MACHINE_POLLING = True
+PROCESS_POOL_WORKERS = 0
 PLUGINS = []
 PRE_ACTION_HOOKS = {}
 POST_ACTION_HOOKS = {}
@@ -1773,6 +1794,7 @@ CURRENCY = {
     'sign': '$',
     'rate': '1'
 }
+ENABLE_VSPHERE_REST = False
 # DO NOT PUT ANYTHING BELOW HERE UNLESS YOU KNOW WHAT YOU ARE DOING
 
 # Get settings from mist.core.
@@ -1902,6 +1924,7 @@ HAS_CLOUDIFY_INSIGHTS = HAS_INSIGHTS and HAS_ORCHESTRATION \
 HAS_VPN = 'vpn' in PLUGINS
 HAS_EXPERIMENTS = 'experiments' in PLUGINS
 HAS_MANAGE = 'manage' in PLUGINS
+HAS_AUTH = 'auth' in PLUGINS
 
 # enable backup feature if aws creds have been set
 ENABLE_BACKUPS = bool(BACKUP['key']) and bool(BACKUP['secret'])
@@ -1967,6 +1990,17 @@ if NO_VERIFY_HOSTS:
 WHITELIST_CIDR = [
 ]
 
+if LDAP_SETTINGS and LDAP_SETTINGS.get('SERVER'):
+    if LDAP_SETTINGS.get('AD'):
+        ALLOW_SIGNIN_AD = True
+        ALLOW_SIGNIN_LDAP = False
+    else:
+        ALLOW_SIGNIN_AD = False
+        ALLOW_SIGNIN_LDAP = True
+else:
+    ALLOW_SIGNIN_AD = False
+    ALLOW_SIGNIN_LDAP = False
+
 HOMEPAGE_INPUTS = {
     'portal_name': PORTAL_NAME,
     'theme': THEME,
@@ -1986,6 +2020,8 @@ HOMEPAGE_INPUTS = {
         'signin_email': ALLOW_SIGNIN_EMAIL,
         'signin_google': ALLOW_SIGNIN_GOOGLE,
         'signin_github': ALLOW_SIGNIN_GITHUB,
+        'signin_ldap': ALLOW_SIGNIN_LDAP,
+        'signin_ad': ALLOW_SIGNIN_AD,
         'signin_home': REDIRECT_HOME_TO_SIGNIN,
         'landing_footer': SHOW_FOOTER,
         'docs': DOCS_URI,

@@ -91,12 +91,6 @@ class AlibabaMainController(AmazonMainController):
     DnsController = None
 
 
-class ClearAPIMainController(BaseMainController):
-
-    provider = 'clearapi'
-    ComputeController = compute_ctls.ClearAPIComputeController
-
-
 class DigitalOceanMainController(BaseMainController):
 
     provider = 'digitalocean'
@@ -109,6 +103,14 @@ class MaxihostMainController(BaseMainController):
 
     provider = 'maxihost'
     ComputeController = compute_ctls.MaxihostComputeController
+
+
+class GigG8MainController(BaseMainController):
+
+    provider = 'gig_g8'
+    ComputeController = compute_ctls.GigG8ComputeController
+    StorageController = storage_ctls.GigG8StorageController
+    NetworkController = network_ctls.GigG8NetworkController
 
 
 class LinodeMainController(BaseMainController):
@@ -280,6 +282,23 @@ class DockerMainController(BaseMainController):
             check_host(host)
 
 
+class LXDMainController(BaseMainController):
+    """
+    Main controller class for LXC containers
+    """
+
+    provider = 'lxd'
+    ComputeController = compute_ctls.LXDComputeController
+    StorageController = storage_ctls.LXDStorageController
+    NetworkController = network_ctls.LXDNetworkController
+
+    def _update__preparse_kwargs(self, kwargs):
+        host = kwargs.get('host', self.cloud.host)
+        if host:
+            host = sanitize_host(host)
+            check_host(host)
+
+
 class LibvirtMainController(BaseMainController):
 
     provider = 'libvirt'
@@ -334,8 +353,8 @@ class LibvirtMainController(BaseMainController):
         # FIXME: Add update support, need to clean up kvm 'host' from libcloud,
         # and especially stop using cloud.host as the machine id ffs.
         if not add:
-            raise BadRequestError("Update action is not currently support for "
-                                  "Libvirt/KVM clouds.")
+            raise BadRequestError("Update action is not currently supported "
+                                  "for Libvirt/KVM clouds.")
         super(LibvirtMainController, self).update(
             fail_on_error=fail_on_error,
             fail_on_invalid_params=fail_on_invalid_params,
@@ -563,7 +582,13 @@ class OtherMainController(BaseMainController):
         return machine
 
 
-class ClearCenterMainController(BaseMainController):
+class KubeVirtMainController(BaseMainController):
+    provider = 'kubevirt'
+    ComputeController = compute_ctls.KubeVirtComputeController
+    StorageController = storage_ctls.KubernetesStorageController
 
-    provider = 'clearcenter'
-    ComputeController = compute_ctls.ClearCenterComputeController
+    def _update__preparse_kwargs(self, kwargs):
+        host = kwargs.get('host', self.cloud.host)
+        if host:
+            host = sanitize_host(host)
+            check_host(host)

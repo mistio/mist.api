@@ -176,6 +176,10 @@ class NetworkCreationError(InternalServerError):
     msg = "Network creation failed"
 
 
+class PortForwardCreationError(InternalServerError):
+    msg = "Port forward creation failed"
+
+
 class ZoneNotFoundError(NotFoundError):
     msg = "No zone found for the provided id"
 
@@ -313,6 +317,11 @@ class VolumeDeletionError(InternalServerError):
 
 class VolumeAttachmentError(InternalServerError):
     msg = "Volume attachment failed"
+
+
+# LDAP related exceptions
+class LDAPServerUnreachableError(ServiceUnavailableError):
+    msg = "LDAP Server Unreachable"
 
 
 #  BAD GATEWAY (translated as 502 in views)

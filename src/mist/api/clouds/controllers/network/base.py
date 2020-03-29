@@ -8,6 +8,7 @@ are in `mist.api.clouds.controllers.network.controllers`.
 
 """
 
+import asyncio
 import json
 import copy
 import logging
@@ -125,7 +126,7 @@ class BaseNetworkController(BaseController):
 
         # Invoke `self.list_networks` to update the UI and return the Network
         # object at the API. Try 3 times before failing
-        for _ in range(3):
+        for _ in range(5):
             for net in self.list_networks():
                 if net.network_id == libcloud_net.id:
                     return net
@@ -241,13 +242,22 @@ class BaseNetworkController(BaseController):
         task_key = 'cloud:list_networks:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
         first_run = False if task.last_success else True
+
+        async def _list_subnets_async(networks):
+            loop = asyncio.get_event_loop()
+            subnets = [
+                loop.run_in_executor(None, network.ctl.list_subnets)
+                for network in networks
+            ]
+            return await asyncio.gather(*subnets)
+
         with task.task_runner(persist=persist):
             # Get cached networks as dict
             cached_networks = {'%s-%s' % (n.id, n.network_id): n.as_dict()
                                for n in self.list_cached_networks()}
             networks = self._list_networks()
-            for network in networks:
-                network.ctl.list_subnets()
+            loop = asyncio.get_event_loop()
+            loop.run_until_complete(_list_subnets_async(networks))
 
         # Publish patches to rabbitmq.
         new_networks = {'%s-%s' % (n.id, n.network_id): n.as_dict()
@@ -622,6 +632,46 @@ class BaseNetworkController(BaseController):
         Subclasses MAY override this method.
         """
         libcloud_subnet.destroy()
+
+    def list_portforwards(self, network):
+        """Available only for GigG8 networks.
+
+        Subclasses SHOULD NOT override or extend this method.
+        """
+        return self._list_portforwards(network)
+
+    def _list_portforwards(self, network):
+        """Available only for GigG8 networks.
+        Subclasses MAY override or extend this method.
+        """
+        raise NotImplementedError()
+
+    def create_portforward(self, network, **kwargs):
+        """Available only for GigG8 networks.
+
+        Subclasses SHOULD NOT override or extend this method.
+        """
+        return self._create_portforward(network, **kwargs)
+
+    def _create_portforward(self, network, **kwargs):
+        """Available only for GigG8 networks.
+        Subclasses MAY override or extend this method.
+        """
+        raise NotImplementedError()
+
+    def delete_portforward(self, network, **kwargs):
+        """Available only for GigG8 networks.
+
+        Subclasses SHOULD NOT override or extend this method.
+        """
+        return self._delete_portforward(network, **kwargs)
+
+    def _delete_portforward(self, network, **kwargs):
+        """Available only for GigG8 networks.
+
+        Subclasses MAY override or extend this method.
+        """
+        return NotImplementedError()
 
     def _get_libcloud_network(self, network):
         """Returns an instance of a libcloud network.

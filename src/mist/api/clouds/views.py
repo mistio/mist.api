@@ -161,7 +161,6 @@ def add_cloud(request):
       - onapp
       - hostvirtual
       - vultr
-      - clearcenter
       - aliyun_ecs
       required: true
       type: string
@@ -458,3 +457,51 @@ def list_security_groups(request):
         raise MistNotImplementedError
 
     return sec_groups
+
+
+# For VSphere only VM folders
+@view_config(route_name='api_v1_cloud_folders', request_method='GET',
+             renderer='json')
+def list_folders(request):
+    """
+    Lists all the folders that contain VMs.
+    It is needed for machine creation for the 6.7 REST api of VSphere.
+    In the future it might not be necessary.
+    """
+    auth_context = auth_context_from_request(request)
+    cloud_id = request.matchdict.get('cloud')
+
+    if cloud_id:
+        try:
+            cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
+                                      deleted=None)
+        except Cloud.DoesNotExist:
+            raise NotFoundError('Cloud does not exist')
+        # SEC
+        auth_context.check_perm('cloud', 'read', cloud_id)
+        vm_folders = cloud.ctl.compute.list_vm_folders()
+        return vm_folders
+    else:
+        raise BadRequestError("Not possible at this time")
+
+
+@view_config(route_name='api_v1_cloud_datastores', request_method='GET',
+             renderer='json')
+def list_datastores(request):
+    auth_context = auth_context_from_request(request)
+    cloud_id = request.matchdict.get('cloud')
+
+    if cloud_id:
+        try:
+            cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
+                                      deleted=None)
+        except Cloud.vmDoesNotExist:
+            raise NotFoundError('Cloud does not exist')
+        # SEC
+        auth_context.check_perm('cloud', 'read', cloud_id)
+        datastores = cloud.ctl.compute.list_datastores()
+        return datastores
+    else:
+        raise BadRequestError("The cloud with the give id was not found,"
+                              " please make sure it is was typed correctly"
+                              " in the url.")

@@ -181,6 +181,11 @@ def add_routes(configurator):
     configurator.add_route('api_v1_providers', '/api/v1/providers')
     configurator.add_route('api_v1_clouds', '/api/v1/clouds')
     configurator.add_route('api_v1_cloud_action', '/api/v1/clouds/{cloud}')
+    # VSphere routes
+    configurator.add_route('api_v1_cloud_folders',
+                           '/api/v1/clouds/{cloud}/folders')
+    configurator.add_route('api_v1_cloud_datastores',
+                           '/api/v1/clouds/{cloud}/datastores')
 
     configurator.add_route('api_v1_machines',
                            '/api/v1/machines')
@@ -249,6 +254,9 @@ def add_routes(configurator):
     configurator.add_route('api_v1_resource_groups',
                            '/api/v1/clouds/{cloud}/resource-groups')
 
+    configurator.add_route('api_v1_storage_pools',
+                           '/api/v1/clouds/{cloud}/storage-pools')
+
     configurator.add_route('api_v1_networks',
                            '/api/v1/clouds/{cloud}/networks')
     configurator.add_route('api_v1_network',
@@ -259,6 +267,10 @@ def add_routes(configurator):
         'api_v1_subnet',
         '/api/v1/clouds/{cloud}/networks/{network}/subnets/{subnet}'
     )
+    configurator.add_route('api_v1_portforwards',
+                           '/api/v1/networks/{network}/portforwards')
+    configurator.add_route('api_v1_cloud_vnfs',
+                           '/api/v1/clouds/{cloud}/vnfs')
 
     # Volumes
     configurator.add_route(
@@ -277,7 +289,8 @@ def add_routes(configurator):
         'api_v1_volume',
         '/api/v1/volumes/{volume}'
     )
-
+    configurator.add_route('api_v1_storage_classes',
+                           '/api/v1/clouds/{cloud}/storage-classes')
     configurator.add_route('api_v1_keys', '/api/v1/keys')
     configurator.add_route('api_v1_key_action', '/api/v1/keys/{key}')
     configurator.add_route('api_v1_key_public', '/api/v1/keys/{key}/public')

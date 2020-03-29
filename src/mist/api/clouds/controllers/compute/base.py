@@ -55,7 +55,57 @@ if config.HAS_VPN:
 else:
     from mist.api.dummy.methods import dnat
 
+
+def _update_machine_from_node_in_process_pool(params):
+    from libcloud.compute.providers import get_driver
+    from mist.api import mongo_connect
+    from mist.api.clouds.models import Cloud
+
+    cloud_id = params['cloud_id']
+    now = params['now']
+    locations_map = params['locations_map']
+    sizes_map = params['sizes_map']
+    nodedict = json.loads(params['node'])
+
+    driver = get_driver(nodedict['provider'])
+    size = None
+    if nodedict['size']:
+        size = NodeSize(
+            id=nodedict['size']['id'],
+            name=nodedict['size']['name'],
+            ram=nodedict['size']['ram'],
+            disk=nodedict['size']['disk'],
+            bandwidth=nodedict['size']['bandwidth'],
+            price=nodedict['size']['price'],
+            extra=nodedict['size']['extra'],
+            driver=driver
+        )
+
+    node = Node(
+        id=nodedict['id'],
+        name=nodedict['name'],
+        image=nodedict['image'],
+        size=size,
+        state=nodedict['state'],
+        public_ips=nodedict['public_ips'],
+        private_ips=nodedict['private_ips'],
+        extra=nodedict['extra'],
+        created_at=nodedict['created_at'],
+        driver=driver
+    )
+
+    mongo_connect()
+    cloud = Cloud.objects.get(id=cloud_id)
+
+    return cloud.ctl.compute._update_machine_from_node(
+        node, locations_map, sizes_map, now)
+
+
 log = logging.getLogger(__name__)
+
+__all__ = [
+    "BaseComputeController",
+]
 
 
 def _decide_machine_cost(machine, tags=None, cost=(0, 0)):
@@ -98,8 +148,7 @@ def _decide_machine_cost(machine, tags=None, cost=(0, 0)):
     except Exception:
         log.exception("Error while deciding cost for machine %s", machine)
 
-    machine.cost.hourly = cph
-    machine.cost.monthly = cpm
+    return cph, cpm
 
 
 class BaseComputeController(BaseController):
@@ -323,166 +372,66 @@ class BaseComputeController(BaseController):
         # Process each machine in returned list.
         # Store previously unseen machines separately.
         new_machines = []
-        for node in nodes:
-            # Fetch machine mongoengine model from db, or initialize one.
-            try:
-                machine = Machine.objects.get(cloud=self.cloud,
-                                              machine_id=node.id)
-            except Machine.DoesNotExist:
-                try:
-                    machine = Machine(
-                        cloud=self.cloud, machine_id=node.id).save()
-                    new_machines.append(machine)
-                except me.ValidationError as exc:
-                    log.warn("Validation error when saving new machine: %r" %
-                             exc)
+        if config.PROCESS_POOL_WORKERS:
+            from concurrent.futures import ProcessPoolExecutor
+            cloud_id = self.cloud.id
+            from json import JSONEncoder
+
+            class NodeEncoder(JSONEncoder):
+                def default(self, o):
+                    size = o.size
+                    if isinstance(size, NodeSize):
+                        size = {
+                            'id': size.id,
+                            'name': size.name,
+                            'ram': size.ram,
+                            'disk': size.disk,
+                            'bandwidth': size.bandwidth,
+                            'price': size.price,
+                            'extra': size.extra
+                        }
+                    return {
+                        'id': o.id,
+                        'name': o.name,
+                        'state': o.state,
+                        'image': o.image,
+                        'size': size,
+                        'public_ips': o.public_ips,
+                        'private_ips': o.private_ips,
+                        'extra': o.extra,
+                        'created_at': o.created_at,
+                        'provider': o.driver.type
+                    }
+
+            choices = map(
+                lambda x: {
+                    'node': json.dumps(x, cls=NodeEncoder),
+                    'cloud_id': cloud_id,
+                    'locations_map': locations_map,
+                    'sizes_map': sizes_map,
+                    'now': now,
+                },
+                nodes)
+
+            with ProcessPoolExecutor(
+                    max_workers=config.PROCESS_POOL_WORKERS) as executor:
+                res = executor.map(_update_machine_from_node_in_process_pool,
+                                   choices)
+            for machine, is_new in list(res):
+                if not machine:
                     continue
-
-            # Update machine_model's last_seen fields.
-            machine.last_seen = now
-            machine.missing_since = None
-
-            # Discover location of machine.
-            try:
-                location_id = self._list_machines__get_location(node)
-            except Exception as exc:
-                log.error("Error getting location of %s: %r", machine, exc)
-            else:
-                machine.location = locations_map.get(location_id)
-
-            # Discover image of machine
-            image_id = ''
-            if isinstance(node.image, NodeImage):
-                image_id = node.image.id
-            elif isinstance(node.extra.get('image'), dict):
-                image_id = str(node.extra.get('image').get('id'))
-
-            if not image_id:
-                image_id = str(node.image or node.extra.get('imageId') or
-                               node.extra.get('image_id') or
-                               node.extra.get('image'))
-            if not image_id:
-                image_id = node.extra.get('operating_system')
-                if isinstance(image_id, dict):
-                    image_id = image_id.get('name')
-
-            machine.image = images_map.get(image_id)
-
-            # set machine's os_type from image's os_type, but if
-            # info of os_type can be obtained from libcloud node, then
-            # machine.os_type will be overwritten in `postparse_machine`
-            if machine.image:
-                machine.os_type = machine.image.os_type
-
-            # Attempt to map machine's size to a CloudSize object. If not
-            # successful, try to discover custom size.
-            try:
-                size = self._list_machines__get_size(node)
-                if size:
-                    machine.size = sizes_map.get(size)
-                else:
-                    machine.size = self._list_machines__get_custom_size(node)
-            except Exception as exc:
-                log.error("Error getting size of %s: %r", machine, exc)
-
-            machine.name = node.name
-            machine.state = config.STATES[node.state]
-            machine.private_ips = list(set(node.private_ips))
-            machine.public_ips = list(set(node.public_ips))
-
-            # Set machine extra dict.
-            # Make sure we don't meet any surprises when we try to json encode
-            # later on in the HTTP response.
-            extra = self._list_machines__get_machine_extra(machine, node)
-
-            for key, val in list(extra.items()):
-                try:
-                    json.dumps(val)
-                except TypeError:
-                    extra[key] = str(val)
-            machine.extra = extra
-
-            # save extra.tags as dict
-            if machine.extra.get('tags') and isinstance(
-                    machine.extra.get('tags'), list):
-                machine.extra['tags'] = dict.fromkeys(machine.extra['tags'],
-                                                      '')
-            # perform tag validation to prevent ValidationError
-            # on machine.save()
-            if machine.extra.get('tags') and isinstance(
-                    machine.extra.get('tags'), dict):
-                validated_tags = {}
-                for tag in machine.extra['tags']:
-                    if not (('.' in tag) or ('$' in tag)):
-                        validated_tags[tag] = machine.extra['tags'][tag]
-                machine.extra['tags'] = validated_tags
-
-            # Set machine hostname
-            if machine.extra.get('dns_name'):
-                machine.hostname = machine.extra['dns_name']
-            else:
-                ips = machine.public_ips + machine.private_ips
-                if not ips:
-                    ips = []
-                for ip in ips:
-                    if ip and ':' not in ip:
-                        machine.hostname = ip
-                        break
-
-            # Get machine creation date.
-            try:
-                created = self._list_machines__machine_creation_date(machine,
-                                                                     node)
-                if created:
-                    machine.created = get_datetime(created)
-            except Exception as exc:
-                log.exception("Error finding creation date for %s in %s.",
-                              self.cloud, machine)
-            # TODO: Consider if we should fall back to using current date.
-            # if not machine_model.created:
-            #     machine_model.created = datetime.datetime.utcnow()
-
-            # Update with available machine actions.
-            try:
-                self._list_machines__machine_actions(machine, node)
-            except Exception as exc:
-                log.exception("Error while finding machine actions "
-                              "for machine %s:%s for %s",
-                              machine.id, node.name, self.cloud)
-
-            # Apply any cloud/provider specific post processing.
-            try:
-                self._list_machines__postparse_machine(machine, node)
-            except Exception as exc:
-                log.exception("Error while post parsing machine %s:%s for %s",
-                              machine.id, node.name, self.cloud)
-
-            # Apply any cloud/provider cost reporting.
-            try:
-                _decide_machine_cost(
-                    machine,
-                    cost=self._list_machines__cost_machine(machine, node),
-                )
-            except Exception as exc:
-                log.exception("Error while calculating cost "
-                              "for machine %s:%s for %s",
-                              machine.id, node.name, self.cloud)
-            if node.state.lower() == 'terminated':
-                machine.cost.hourly = 0
-                machine.cost.monthly = 0
-
-            # Save all changes to machine model on the database.
-            try:
-                machine.save()
-            except me.ValidationError as exc:
-                log.error("Error adding %s: %s", machine.name, exc.to_dict())
-                raise BadRequestError({"msg": str(exc),
-                                       "errors": exc.to_dict()})
-            except me.NotUniqueError as exc:
-                log.error("Machine %s not unique error: %s", machine.name, exc)
-                raise ConflictError("Machine with this name already exists")
-
-            machines.append(machine)
+                if is_new:
+                    new_machines.append(machine)
+                machines.append(machine)
+        else:
+            for node in nodes:
+                machine, is_new = self._update_machine_from_node(
+                    node, locations_map, sizes_map, images_map, now)
+                if not machine:
+                    continue
+                if is_new:
+                    new_machines.append(machine)
+                machines.append(machine)
 
         # Append generic-type machines, which aren't handled by libcloud.
         for machine in self._list_machines__fetch_generic_machines():
@@ -501,16 +450,22 @@ class BaseComputeController(BaseController):
                         break
 
             # Parse cost from tags
-            _decide_machine_cost(machine)
+            cph, cpm = _decide_machine_cost(machine)
+            machine.cost.hourly = cph
+            machine.cost.monthly = cpm
 
             # Save machine
             machine.save()
             machines.append(machine)
 
-        # Set last_seen on machine models we didn't see for the first time now.
+        # Set missing_since on machine models we didn't see for the first time.
         Machine.objects(cloud=self.cloud,
                         id__nin=[m.id for m in machines],
                         missing_since=None).update(missing_since=now)
+        # Set last_seen on machine models we just saw
+        Machine.objects(cloud=self.cloud,
+                        id__in=[m.id for m in machines],
+                        missing_since=None).update(last_seen=now)
 
         # Update RBAC Mappings given the list of nodes seen for the first time.
         self.cloud.owner.mapper.update(new_machines, asynchronous=False)
@@ -533,6 +488,221 @@ class BaseComputeController(BaseController):
         except Exception as exc:
             log.warning("Error while closing connection: %r", exc)
         return machines
+
+    def _update_machine_from_node(self, node, locations_map, sizes_map,
+                                  images_map, now):
+        is_new = False
+        updated = False
+        # Fetch machine mongoengine model from db, or initialize one.
+        from mist.api.machines.models import Machine
+        try:
+            machine = Machine.objects.get(cloud=self.cloud,
+                                          machine_id=node.id)
+        except Machine.DoesNotExist:
+            try:
+                machine = Machine(
+                    cloud=self.cloud, machine_id=node.id).save()
+                is_new = True
+            except me.ValidationError as exc:
+                log.warn("Validation error when saving new machine: %r" %
+                         exc)
+                return None, is_new
+
+        # Discover location of machine.
+        try:
+            location_id = self._list_machines__get_location(node)
+        except Exception as exc:
+            log.error("Error getting location of %s: %r", machine, exc)
+        else:
+            if machine.location != locations_map.get(location_id):
+                machine.location = locations_map.get(location_id)
+                updated = True
+
+        # Discover image of machine
+        image_id = ''
+
+        if isinstance(node.image, NodeImage) and node.image.id != 'None':
+            image_id = node.image.id
+        elif isinstance(node.extra.get('image'), dict):
+            image_id = str(node.extra.get('image').get('id'))
+
+        if not image_id:
+            image_id = str(node.image or node.extra.get('imageId') or
+                           node.extra.get('image_id') or
+                           node.extra.get('image'))
+        if not image_id:
+            image_id = node.extra.get('operating_system')
+            if isinstance(image_id, dict):
+                image_id = image_id.get('name')
+
+        if machine.image != images_map.get(image_id):
+            machine.image = images_map.get(image_id)
+            updated = True
+
+        # set machine's os_type from image's os_type, but if
+        # info of os_type can be obtained from libcloud node, then
+        # machine.os_type will be overwritten in `postparse_machine`
+        if machine.image:
+            machine.os_type = machine.image.os_type
+
+        if image_id and machine.image_id != image_id:
+            machine.image_id = image_id
+            updated = True
+
+        # Attempt to map machine's size to a CloudSize object. If not
+        # successful, try to discover custom size.
+        try:
+            size = self._list_machines__get_size(node)
+            if size:
+                size = sizes_map.get(size)
+            else:
+                size = self._list_machines__get_custom_size(node)
+            if machine.size != size:
+                machine.size = size
+                updated = True
+        except Exception as exc:
+            log.error("Error getting size of %s: %r", machine, exc)
+
+        if machine.name != node.name:
+            machine.name = node.name
+            updated = True
+
+        if machine.state != config.STATES[node.state]:
+            machine.state = config.STATES[node.state]
+            updated = True
+
+        new_private_ips = list(set(node.private_ips))
+        new_public_ips = list(set(node.public_ips))
+        new_private_ips.sort()
+        new_public_ips.sort()
+
+        old_private_ips = machine.private_ips
+        old_public_ips = machine.public_ips
+        new_private_ips.sort()
+        new_public_ips.sort()
+
+        if json.dumps(old_private_ips) != json.dumps(new_private_ips):
+            machine.private_ips = new_private_ips
+            updated = True
+        if json.dumps(old_public_ips) != json.dumps(new_public_ips):
+            machine.public_ips = new_public_ips
+            updated = True
+
+        # Set machine extra dict.
+        # Make sure we don't meet any surprises when we try to json encode
+        # later on in the HTTP response.
+        extra = self._list_machines__get_machine_extra(machine, node)
+
+        for key, val in list(extra.items()):
+            try:
+                json.dumps(val)
+            except TypeError:
+                extra[key] = str(val)
+
+        # save extra.tags as dict
+        if extra.get('tags') and isinstance(
+                extra.get('tags'), list):
+            extra['tags'] = dict.fromkeys(extra['tags'], '')
+        # perform tag validation to prevent ValidationError
+        # on machine.save()
+        if extra.get('tags') and isinstance(
+                extra.get('tags'), dict):
+            validated_tags = {}
+            for tag in extra['tags']:
+                if not (('.' in tag) or ('$' in tag)):
+                    validated_tags[tag] = extra['tags'][tag]
+            extra['tags'] = validated_tags
+
+        # Set machine hostname
+        if extra.get('dns_name') and machine.hostname != extra['dns_name']:
+            machine.hostname = extra['dns_name']
+            updated = True
+        else:
+            ips = machine.public_ips + machine.private_ips
+            if not ips:
+                ips = []
+            for ip in ips:
+                if ip and ':' not in ip and machine.hostname != ip:
+                    machine.hostname = ip
+                    updated = True
+                    break
+
+        if json.dumps(machine.extra) != json.dumps(extra):
+            machine.extra = extra
+            updated = True
+
+        # Get machine creation date.
+        try:
+            created = self._list_machines__machine_creation_date(machine,
+                                                                 node)
+            if created:
+                created = get_datetime(created)
+                if machine.created != created:
+                    machine.created = created
+                    updated = True
+        except Exception as exc:
+            log.exception("Error finding creation date for %s in %s.\n%r",
+                          self.cloud, machine, exc)
+        # TODO: Consider if we should fall back to using current date.
+        # if not machine_model.created and is_new:
+        #     machine_model.created = datetime.datetime.utcnow()
+
+        # Update with available machine actions.
+        try:
+            from copy import deepcopy
+            actions_backup = deepcopy(machine.actions)
+            self._list_machines__machine_actions(machine, node)
+            if actions_backup != machine.actions:
+                updated = True
+        except Exception as exc:
+            log.exception("Error while finding machine actions "
+                          "for machine %s:%s for %s \n %r",
+                          machine.id, node.name, self.cloud, exc)
+
+        # Apply any cloud/provider specific post processing.
+        try:
+            updated = self._list_machines__postparse_machine(machine, node) \
+                or updated
+        except Exception as exc:
+            log.exception("Error while post parsing machine %s:%s for %s\n%r",
+                          machine.id, node.name, self.cloud, exc)
+
+        # Apply any cloud/provider cost reporting.
+        try:
+            cph, cpm = _decide_machine_cost(
+                machine,
+                cost=self._list_machines__cost_machine(machine, node),
+            )
+            if machine.cost.hourly != cph or machine.cost.monthly != cpm:
+                machine.cost.hourly = cph
+                machine.cost.monthly = cpm
+                updated = True
+        except Exception as exc:
+            log.exception("Error while calculating cost "
+                          "for machine %s:%s for %s \n%r",
+                          machine.id, node.name, self.cloud, exc)
+        if node.state.lower() == 'terminated':
+            if machine.cost.hourly or machine.cost.monthly:
+                machine.cost.hourly = 0
+                machine.cost.monthly = 0
+                updated = True
+
+        # Save all changes to machine model on the database.
+        if is_new or updated:
+            try:
+                machine.save()
+            except me.ValidationError as exc:
+                log.error("Error adding %s: %s", machine.name, exc.to_dict())
+                raise BadRequestError({"msg": str(exc),
+                                       "errors": exc.to_dict()})
+            except me.NotUniqueError as exc:
+                log.error("Machine %s not unique error: %s", machine.name, exc)
+                raise ConflictError("Machine with this name already exists")
+        else:
+            log.warn("Not saving machine %s (%s) %s" % (
+                machine.name, machine.id, is_new))
+
+        return machine, is_new
 
     def _list_machines__update_generic_machine_state(self, machine):
         """Helper method to update the machine state
@@ -638,13 +808,14 @@ class BaseComputeController(BaseController):
         machine_libcloud: An instance of a libcloud compute node,
             as returned by libcloud's list_nodes.
 
-        This method is expected to edit its arguments in place and not return
-        anything.
+        This method is expected to edit its arguments in place and return
+        True if any updates have been made.
 
         Subclasses MAY override this method.
 
         """
-        return
+        updated = False
+        return updated
 
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         """Perform cost calculations for a machine
