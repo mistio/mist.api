@@ -342,7 +342,7 @@ class LibvirtMainController(BaseMainController):
             errors = {}
             for key in list(_host.keys()):
                 if key not in ('host', 'username', 'port', 'key',
-                            'images_location'):
+                               'images_location'):
                     error = "Invalid parameter %s=%r." % (key, kwargs[key])
                     if fail_on_invalid_params:
                         errors[key] = error
@@ -366,7 +366,8 @@ class LibvirtMainController(BaseMainController):
             except (ValueError, TypeError):
                 ssh_port = 22
 
-            images_location = _host.get('images_location', '/var/lib/libvirt/images')
+            images_location = _host.get('images_location',
+                                        '/var/lib/libvirt/images')
             extra = {'images_location': images_location}
             extra.update({'tags': {'type': 'hypervisor'}})
             # Create and save machine entry to database.
@@ -374,7 +375,7 @@ class LibvirtMainController(BaseMainController):
             from mist.api.machines.models import Machine
             machine = Machine(
                 cloud=self.cloud,
-                machine_id = _host.get('host').replace('.', '-'),
+                machine_id=_host.get('host').replace('.', '-'),
                 name=_host.get('host'),
                 ssh_port=ssh_port,
                 last_seen=datetime.datetime.utcnow(),
@@ -382,37 +383,40 @@ class LibvirtMainController(BaseMainController):
                 extra=extra
             )
 
-            # FIXME: try-except, in case of 409
+            # FIXME: try-except, in case of 409 (same machine_id)
             machine.save(write_concern={'w': 1, 'fsync': True})
 
             # associate key if given and attempt to connect
             if _host.get('key'):
                 try:
-                     machine.ctl.associate_key(_host.get('key'),
-                                               username=_host.get('username'),
-                                               port=ssh_port)
+                    machine.ctl.associate_key(_host.get('key'),
+                                              username=_host.get('username'),
+                                              port=ssh_port)
                 except MachineUnauthorizedError as exc:
-                    log.error("Could not connect to host %s." % _host.get('host'))
+                    log.error("Could not connect to host %s."
+                              % _host.get('host'))
                     machine.delete()
                     if fail_on_error:
                         self.cloud.delete()
                         raise CloudUnauthorizedError(exc)
                 except ServiceUnavailableError as exc:
-                    log.error("Could not connect to host %s." % _host.get('host'))
+                    log.error("Could not connect to host %s."
+                              % _host.get('host'))
                     machine.delete()
                     if fail_on_error:
                         self.cloud.delete()
-                        raise MistError("Couldn't connect to host '%s'." % _host.get('host'))
+                        raise MistError("Couldn't connect to host '%s'."
+                                        % _host.get('host'))
 
             else:
                 from libcloud.compute.providers import get_driver
                 from libcloud.compute.types import Provider
                 host, port = dnat(machine.cloud.owner, machine.hostname, 5000)
                 try:
-                    driver = get_driver(Provider.LIBVIRT)(host,
-                                                          hypervisor=machine.hostname,
-                                                          user=_host.get('username'),
-                                                          tcp_port=ssh_port)
+                    get_driver(Provider.LIBVIRT)(host,
+                                                 hypervisor=machine.hostname,
+                                                 user=_host.get('username'),
+                                                 tcp_port=ssh_port)
                 except Exception as exc:
                     log.error("Could not connect to host %s." % host)
                     machine.delete()
@@ -422,7 +426,7 @@ class LibvirtMainController(BaseMainController):
 
             if amqp_owner_listening(self.cloud.owner.id):
                 old_machines = [m.as_dict() for m in
-                        self.cloud.ctl.compute.list_cached_machines()]
+                                self.cloud.ctl.compute.list_cached_machines()]
                 new_machines = self.cloud.ctl.compute.list_machines()
                 self.cloud.ctl.compute.produce_and_publish_patch(
                     old_machines, new_machines)

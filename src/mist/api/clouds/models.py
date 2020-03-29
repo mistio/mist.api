@@ -6,7 +6,6 @@ import logging
 import mongoengine as me
 
 from mist.api.tag.models import Tag
-from mist.api.keys.models import Key
 from mist.api.users.models import Organization
 from mist.api.ownership.mixins import OwnershipMixin
 from mist.api.mongoengine_extras import MistDictField

@@ -2133,7 +2133,8 @@ class LibvirtComputeController(BaseComputeController):
         return driver.ex_undefine_node(machine_libcloud)
 
     def _clone_machine(self, machine, machine_libcloud, name, resume):
-        self.connection.ex_clone_node(machine_libcloud, name, resume)
+        driver = self._get_host_driver(machine)
+        return driver.ex_clone_node(machine_libcloud)
 
     def _list_sizes__get_cpu(self, size):
         return size.extra.get('cpu')
