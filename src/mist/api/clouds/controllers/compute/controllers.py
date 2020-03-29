@@ -30,6 +30,8 @@ import tempfile
 import iso8601
 import pytz
 
+import mongoengine as me
+
 from time import sleep
 from html import unescape
 
@@ -103,16 +105,9 @@ class AmazonComputeController(BaseComputeController):
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         updated = False
-        # Find os_type.
-        try:
-            os_type = CloudImage.objects.get(
-                cloud_provider=machine_libcloud.driver.type,
-                image_id=machine_libcloud.extra.get('image_id'),
-            ).os_type
-        except:
-            # This is windows for windows servers and None for Linux.
-            os_type = machine_libcloud.extra.get('platform')
-        os_type = os_type or 'linux'
+        # This is windows for windows servers and None for Linux.
+        os_type = machine_libcloud.extra.get('platform', 'linux')
+
         if machine.os_type != os_type:
             machine.os_type = os_type
             updated = True
@@ -650,12 +645,7 @@ class RackSpaceComputeController(BaseComputeController):
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         updated = False
         # Find os_type.
-        try:
-            os_type = CloudImage.objects.get(
-                cloud_provider=machine_libcloud.driver.type,
-                image_id=machine_libcloud.extra.get('imageId'),
-            ).os_type
-        except:
+        if not machine.os_type:
             os_type = 'linux'
         if machine.os_type != os_type:
             machine.os_type = os_type
@@ -837,10 +827,7 @@ class AzureArmComputeController(BaseComputeController):
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         updated = False
-        if machine_libcloud.extra.get('os_type', ''):
-            machine.os_type = machine_libcloud.extra.get('os_type')
-        if not machine.os_type:
-            machine.os_type = 'linux'
+        os_type = machine_libcloud.extra.get('os_type', 'linux')
         if os_type != machine.os_type:
             machine.os_type = os_type
             updated = True
