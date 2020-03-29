@@ -545,10 +545,6 @@ class BaseComputeController(BaseController):
         if machine.image:
             machine.os_type = machine.image.os_type
 
-        if image_id and machine.image_id != image_id:
-            machine.image_id = image_id
-            updated = True
-
         # Attempt to map machine's size to a CloudSize object. If not
         # successful, try to discover custom size.
         try:
