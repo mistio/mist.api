@@ -146,7 +146,7 @@ class TaggingSelector(BaseSelector):
         return ret
 
     def as_dict(self):
-        return {'type': self.ctype, 'tags': self.include}
+        return {'type': self.ctype, 'include': self.include}
 
 
 class GenericResourceSelector(BaseSelector):

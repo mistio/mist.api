@@ -31,7 +31,7 @@ else:
 log = logging.getLogger(__name__)
 
 
-CONDITIONS = {
+SELECTORS = {
     'tags': TaggingSelector,
     'machines': GenericResourceSelector,  # FIXME For backwards compatibility.
     'resources': GenericResourceSelector,
@@ -293,10 +293,10 @@ class ResourceRuleController(BaseController):
         if 'selectors' in kwargs:
             self.rule.selectors = []
         for selector in kwargs.pop('selectors', []):
-            if selector.get('type') not in CONDITIONS:
+            if selector.get('type') not in SELECTORS:
                 raise BadRequestError('Selector not in %s' %
-                                      list(CONDITIONS.keys()))
-            sel_cls = CONDITIONS[selector.pop('type')]()
+                                      list(SELECTORS.keys()))
+            sel_cls = SELECTORS[selector.pop('type')]()
             sel_cls.update(**selector)
             self.rule.selectors.append(sel_cls)
         super(ResourceRuleController, self).update(fail_on_error, **kwargs)
