@@ -268,6 +268,8 @@ class Machine(OwnershipMixin, me.Document):
                                  reverse_delete_rule=me.DENY)
     size = me.ReferenceField('CloudSize', required=False,
                              reverse_delete_rule=me.DENY)
+    image = me.ReferenceField('CloudImage', required=False,
+                              reverse_delete_rule=me.DENY)
     network = me.ReferenceField('Network', required=False,
                                 reverse_delete_rule=me.NULLIFY)
     subnet = me.ReferenceField('Subnet', required=False,
@@ -288,7 +290,6 @@ class Machine(OwnershipMixin, me.Document):
     actions = me.EmbeddedDocumentField(Actions, default=lambda: Actions())
     extra = MistDictField()
     cost = me.EmbeddedDocumentField(Cost, default=lambda: Cost())
-    image_id = me.StringField()
     # libcloud.compute.types.NodeState
     state = me.StringField(default='unknown',
                            choices=tuple(config.STATES.values()))
@@ -417,7 +418,6 @@ class Machine(OwnershipMixin, me.Document):
                         for action in self.actions},
             'extra': dict(self.extra),
             'cost': self.cost.as_dict(),
-            'image_id': self.image_id,
             'state': self.state,
             'tags': tags,
             'monitoring':
@@ -429,6 +429,7 @@ class Machine(OwnershipMixin, me.Document):
             'cloud': self.cloud.id,
             'location': self.location.id if self.location else '',
             'size': self.size.name if self.size else '',
+            'image': self.image.id if self.image else '',
             'cloud_title': self.cloud.title,
             'last_seen': str(self.last_seen.replace(tzinfo=None)
                              if self.last_seen else ''),

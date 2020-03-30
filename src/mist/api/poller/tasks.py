@@ -65,6 +65,15 @@ def list_sizes(schedule_id):
 
 
 @app.task(time_limit=60, soft_time_limit=55)
+def list_images(schedule_id):
+    """Perform list images. Cloud controller stores results in mongodb."""
+
+    from mist.api.poller.models import ListImagesPollingSchedule
+    sched = ListImagesPollingSchedule.objects.get(id=schedule_id)
+    sched.cloud.ctl.compute.list_images(persist=False)
+
+
+@app.task(time_limit=60, soft_time_limit=55)
 def list_networks(schedule_id):
     """Perform list networks and subnets (inside list_networks).
     Cloud controller stores results in mongodb."""

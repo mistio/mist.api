@@ -25,9 +25,6 @@ from mist.api.helpers import amqp_publish_user
 
 from mist.api.helpers import dirty_cow, parse_os_release
 
-import mist.api.tasks
-import mist.api.inventory
-
 from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 
@@ -98,34 +95,6 @@ def filter_list_locations(auth_context, cloud_id, locations=None, perm='read',
             if locations[i]['id'] not in allowed_resources['locations']:
                 locations.pop(i)
     return locations
-
-
-def list_images(owner, cloud_id, term=None):
-    """List images from each cloud"""
-    return Cloud.objects.get(owner=owner, id=cloud_id,
-                             deleted=None).ctl.compute.list_images(term)
-
-
-def star_image(owner, cloud_id, image_id):
-    """Toggle image star (star/unstar)"""
-    cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
-
-    star = cloud.ctl.compute.image_is_starred(image_id)
-    if star:
-        if image_id in cloud.starred:
-            cloud.starred.remove(image_id)
-        if image_id not in cloud.unstarred:
-            cloud.unstarred.append(image_id)
-    else:
-        if image_id not in cloud.starred:
-            cloud.starred.append(image_id)
-        if image_id in cloud.unstarred:
-            cloud.unstarred.remove(image_id)
-    cloud.save()
-    task = mist.api.tasks.list_images
-    task.clear_cache(owner.id, cloud_id)
-    task.delay(owner.id, cloud_id)
-    return not star
 
 
 def list_projects(owner, cloud_id):

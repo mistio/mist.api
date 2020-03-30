@@ -374,9 +374,10 @@ class BaseMainController(object):
 
         # FIXME Imported here due to circular dependency issues.
         from mist.api.poller.models import ListMachinesPollingSchedule
-        from mist.api.poller.models import ListNetworksPollingSchedule
         from mist.api.poller.models import ListLocationsPollingSchedule
         from mist.api.poller.models import ListSizesPollingSchedule
+        from mist.api.poller.models import ListImagesPollingSchedule
+        from mist.api.poller.models import ListNetworksPollingSchedule
         from mist.api.poller.models import ListZonesPollingSchedule
         from mist.api.poller.models import ListVolumesPollingSchedule
 
@@ -403,6 +404,10 @@ class BaseMainController(object):
         schedule.save()
 
         schedule = ListSizesPollingSchedule.add(cloud=self.cloud)
+        schedule.set_default_interval(60 * 60 * 24)
+        schedule.save()
+
+        schedule = ListImagesPollingSchedule.add(cloud=self.cloud)
         schedule.set_default_interval(60 * 60 * 24)
         schedule.save()
 

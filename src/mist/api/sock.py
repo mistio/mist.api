@@ -391,6 +391,21 @@ class MainConnection(MistConnection):
             callback=lambda tunnels: self.send('list_tunnels', tunnels),
         )
 
+    def list_images(self):
+        clouds = filter_list_clouds(self.auth_context, as_dict=False)
+        for cloud in clouds:
+            if not cloud.enabled:
+                continue
+            if cloud.ctl.ComputeController:
+                self.internal_request(
+                    'api/v1/clouds/%s/images' % cloud.id,
+                    params={'cached': True},
+                    callback=lambda images, cloud_id=cloud.id: self.send(
+                        'list_images',
+                        {'cloud_id': cloud_id, 'images': images}
+                    ),
+                )
+
     def list_clouds(self):
         self.update_poller()
         clouds = filter_list_clouds(self.auth_context, as_dict=False)
@@ -423,6 +438,14 @@ class MainConnection(MistConnection):
                         {'cloud_id': cloud_id, 'sizes': sizes}
                     ),
                 )
+                self.internal_request(
+                    'api/v1/clouds/%s/images' % cloud.id,
+                    params={'cached': True},
+                    callback=lambda images, cloud_id=cloud.id: self.send(
+                        'list_images',
+                        {'cloud_id': cloud_id, 'images': images}
+                    ),
+                )
             if cloud.ctl.NetworkController:
                 self.internal_request(
                     'api/v1/clouds/%s/networks' % cloud.id,
@@ -452,7 +475,7 @@ class MainConnection(MistConnection):
                 )
 
         # Old Periodic Tasks (must be replaced by poller tasks and api calls.
-        for key in ('list_images', 'list_projects'):
+        for key in ['list_projects']:
             task = getattr(tasks, key)
             for cloud in clouds:
                 # Avoid submitting new celery tasks, when it's certain that
@@ -525,6 +548,7 @@ class MainConnection(MistConnection):
         except:
             result = body
         log.info("Got %s", routing_key)
+        # TODO: list_locations, list_sizes and list_images can be removed...?
         if routing_key in set(['notify', 'probe', 'list_sizes', 'list_images',
                                'list_locations', 'list_projects', 'ping']):
             self.send(routing_key, result)
@@ -534,6 +558,8 @@ class MainConnection(MistConnection):
             sections = result
             if 'clouds' in sections:
                 self.list_clouds()
+            if 'images' in sections:
+                self.list_images()
             if 'keys' in sections:
                 self.list_keys()
             if 'scripts' in sections:
@@ -587,8 +613,9 @@ class MainConnection(MistConnection):
                                                      line['path'])
             if patch:
                 self.batch.extend(patch)
-
-        elif routing_key in ['patch_locations', 'patch_sizes']:
+        # TODO: transfer patch_locations to above `elif`,
+        # locations need filtering
+        elif routing_key in ['patch_locations', 'patch_sizes', 'patch_images']:
             cloud_id = result['cloud_id']
             patch = result['patch']
             for line in patch:
@@ -597,6 +624,8 @@ class MainConnection(MistConnection):
                     line['path'] = '/clouds/%s/locations/%s' % (cloud_id, _id)
                 elif routing_key == 'patch_sizes':
                     line['path'] = '/clouds/%s/sizes/%s' % (cloud_id, _id)
+                elif routing_key == 'patch_images':
+                    line['path'] = '/clouds/%s/images/%s' % (cloud_id, _id)
             if patch:
                 self.batch.extend(patch)
 
