@@ -44,7 +44,6 @@ pyyaml
 pyramid
 pyramid_chameleon
 pytest
-python-memcached
 python3-openid
 pyvmomi
 requests

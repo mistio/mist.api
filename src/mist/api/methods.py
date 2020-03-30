@@ -8,7 +8,6 @@ from mongoengine import DoesNotExist
 
 from time import time
 
-from libcloud.compute.types import Provider
 from libcloud.common.types import InvalidCredsError
 from libcloud.utils.networking import is_private_subnet
 from libcloud.dns.types import Provider as DnsProvider
@@ -103,24 +102,18 @@ def list_projects(owner, cloud_id):
     this returns an empty list
     """
     cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
-    conn = connect_provider(cloud)
 
-    ret = {}
-    if conn.type in [Provider.PACKET]:
+    if cloud.ctl.provider in ['packet']:
+        conn = connect_provider(cloud)
         projects = conn.ex_list_projects()
+        ret = [{'id': project.id,
+                'name': project.name,
+                'extra': project.extra
+                }
+               for project in projects]
     else:
-        projects = []
+        ret = []
 
-    ret = [{'id': project.id,
-            'name': project.name,
-            'extra': project.extra
-            }
-           for project in projects]
-    return ret
-
-    if conn.type == 'libvirt':
-        # close connection with libvirt
-        conn.disconnect()
     return ret
 
 
