@@ -123,11 +123,16 @@ class AmazonComputeController(BaseComputeController):
 
         try:
             # return list of ids for network interfaces as str
-            network_interfaces = machine.extra['network_interfaces']
-            network_interfaces = [network_interface.id for network_interface
-                                  in network_interfaces]
-            network_interfaces = ','.join(network_interfaces)
-        except:
+            network_interfaces = machine_libcloud.extra['network_interfaces']
+            network_interfaces = [{
+                'id': network_interface.id,
+                'state': network_interface.state,
+                'extra': network_interface.extra
+            } for network_interface in network_interfaces]
+        except Exception as exc:
+            log.warning("Cannot parse net ifaces for machine %s/%s/%s: %r" % (
+                machine.name, machine.id, machine.owner.name, exc
+            ))
             network_interfaces = []
 
         if network_interfaces != machine.extra['network_interfaces']:
@@ -136,7 +141,7 @@ class AmazonComputeController(BaseComputeController):
 
         network_id = machine_libcloud.extra.get('vpc_id')
 
-        if machine.extra['network'] != network_id:
+        if machine.extra.get('network') != network_id:
             machine.extra['network'] = network_id
             updated = True
 
@@ -154,7 +159,7 @@ class AmazonComputeController(BaseComputeController):
             updated = True
 
         subnet_id = machine.extra.get('subnet_id')
-        if machine.extra['subnet'] != subnet_id:
+        if machine.extra.get('subnet') != subnet_id:
             machine.extra['subnet'] = subnet_id
             updated = True
 

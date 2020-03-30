@@ -16,6 +16,8 @@ import calendar
 import requests
 import re
 
+from bson import json_util
+
 import jsonpatch
 
 import mongoengine as me
@@ -611,8 +613,8 @@ class BaseComputeController(BaseController):
                     machine.hostname = ip
                     updated = True
                     break
-
-        if json.dumps(machine.extra) != json.dumps(extra):
+        if json.dumps(machine.extra, default=json_util.default) != json.dumps(
+                extra, default=json_util.default):
             machine.extra = extra
             updated = True
 
