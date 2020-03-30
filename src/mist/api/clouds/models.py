@@ -327,6 +327,7 @@ class CloudSize(me.Document):
     def as_dict(self):
         return {
             'id': self.id,
+            'cloud': self.cloud.id,
             'external_id': self.external_id,
             'name': self.name,
             'cpus': self.cpus,

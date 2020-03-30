@@ -1,7 +1,6 @@
 import os
 import re
 import uuid
-import json
 import logging
 import datetime
 import mongoengine as me
@@ -13,11 +12,6 @@ import paramiko
 from libcloud.compute.types import NodeState
 from libcloud.container.base import Container
 
-from base64 import b64encode
-
-from memcache import Client as MemcacheClient
-
-from celery import Task
 from celery.exceptions import SoftTimeLimitExceeded
 
 from paramiko.ssh_exception import SSHException
@@ -26,12 +20,13 @@ from mist.api.exceptions import MistError
 from mist.api.exceptions import ServiceUnavailableError
 from mist.api.shell import Shell
 
-from mist.api.users.models import User, Owner, Organization
+from mist.api.users.models import Owner, Organization
 from mist.api.clouds.models import Cloud, DockerCloud, CloudLocation, CloudSize
 from mist.api.networks.models import Network
 from mist.api.dns.models import Zone
 from mist.api.volumes.models import Volume
 from mist.api.machines.models import Machine
+from mist.api.images.models import CloudImage
 from mist.api.scripts.models import Script
 from mist.api.schedules.models import Schedule
 from mist.api.dns.models import RECORDS
@@ -46,11 +41,11 @@ from mist.api.poller.models import ListVolumesPollingSchedule
 from mist.api.poller.models import FindCoresMachinePollingSchedule
 from mist.api.poller.models import PingProbeMachinePollingSchedule
 from mist.api.poller.models import SSHProbeMachinePollingSchedule
+from mist.api.poller.models import ListLocationsPollingSchedule
+from mist.api.poller.models import ListSizesPollingSchedule
+from mist.api.poller.models import ListImagesPollingSchedule
 
 from mist.api.helpers import send_email as helper_send_email
-from mist.api.helpers import amqp_publish_user
-from mist.api.helpers import amqp_owner_listening
-from mist.api.helpers import amqp_log
 from mist.api.helpers import trigger_session_update
 
 from mist.api.auth.methods import AuthContext
@@ -577,186 +572,6 @@ def rackspace_first_gen_post_create_steps(
     except Exception as exc:
         if str(exc).startswith('Retry'):
             raise
-
-
-class UserTask(Task):
-    task_key = ''
-    result_expires = 0
-    result_fresh = 0
-    polling = False
-    _ut_cache = None
-
-    @property
-    def memcache(self):
-        if self._ut_cache is None:
-            self._ut_cache = MemcacheClient(config.MEMCACHED_HOST)
-        return self._ut_cache
-
-    def smart_delay(self, *args, **kwargs):
-        """Return cached result if it exists, send job to celery if needed"""
-        # check cache
-        id_str = json.dumps([self.task_key, args, kwargs])
-        cache_key = b64encode(id_str.encode()).decode()
-        cached = self.memcache.get(cache_key)
-        if cached:
-            age = time() - cached['timestamp']
-            if age > self.result_fresh:
-                amqp_log("%s: scheduling task" % id_str)
-                if kwargs.pop('blocking', None):
-                    return self.execute(*args, **kwargs)
-                else:
-                    self.delay(*args, **kwargs)
-            if age < self.result_expires:
-                amqp_log("%s: smart delay cache hit" % id_str)
-                return cached['payload']
-        else:
-            if kwargs.pop('blocking', None):
-                return self.execute(*args, **kwargs)
-            else:
-                self.delay(*args, **kwargs)
-
-    def clear_cache(self, *args, **kwargs):
-        id_str = json.dumps([self.task_key, args, kwargs])
-        cache_key = b64encode(id_str.encode()).decode()
-        log.info("Clearing cache for '%s'", id_str)
-        return self.memcache.delete(cache_key)
-
-    def run(self, *args, **kwargs):
-        owner_id = args[0]
-        if '@' in owner_id:
-            owner_id = User.objects.get(email=owner_id).id
-            args[0] = owner_id
-        log.error('Running %s for %s', self.__class__.__name__, owner_id)
-        # seq_id is an id for the sequence of periodic tasks, to avoid
-        # running multiple concurrent sequences of the same task with the
-        # same arguments. it is empty on first run, constant afterwards
-        seq_id = kwargs.pop('seq_id', '')
-        id_str = json.dumps([self.task_key, args, kwargs])
-        cache_key = b64encode(id_str.encode()).decode()
-        cached_err = self.memcache.get(cache_key + 'error')
-        if cached_err:
-            # task has been failing recently
-            if seq_id != cached_err['seq_id']:
-                if seq_id:
-                    # other sequence of tasks has taken over
-                    return
-                else:
-                    # taking over from other sequence
-                    cached_err = None
-                    # cached err will be deleted or overwritten in a while
-                    # self.memcache.delete(cache_key + 'error')
-        if not amqp_owner_listening(owner_id):
-            # noone is waiting for result, stop trying, but flush cached erros
-            self.memcache.delete(cache_key + 'error')
-            return
-        # check cache to stop iteration if other sequence has started
-        cached = self.memcache.get(cache_key)
-        if cached:
-            if seq_id and seq_id != cached['seq_id']:
-                amqp_log("%s: found new cached seq_id [%s], "
-                         "stopping iteration of [%s]" % (id_str,
-                                                         cached['seq_id'],
-                                                         seq_id))
-                return
-            elif not seq_id and \
-                    time() - cached['timestamp'] < self.result_fresh:
-                amqp_log("%s: fresh task submitted with fresh cached result "
-                         ", dropping" % id_str)
-                return
-        if not seq_id:
-            # this task is called externally, not a rerun, create a seq_id
-            amqp_log("%s: fresh task submitted [%s]" % (id_str, seq_id))
-            seq_id = uuid.uuid4().hex
-        # actually run the task
-        try:
-            data = self.execute(*args, **kwargs)
-        except Exception as exc:
-            # error handling
-            if isinstance(exc, SoftTimeLimitExceeded):
-                log.error("SoftTimeLimitExceeded: %s", id_str)
-            now = time()
-            if not cached_err:
-                cached_err = {'seq_id': seq_id, 'timestamps': []}
-            cached_err['timestamps'].append(now)
-            x0 = cached_err['timestamps'][0]
-            rel_points = [x - x0 for x in cached_err['timestamps']]
-            rerun = self.error_rerun_handler(exc, rel_points, *args, **kwargs)
-            if rerun is not None:
-                self.memcache.set(cache_key + 'error', cached_err)
-                kwargs['seq_id'] = seq_id
-                self.apply_async(args, kwargs, countdown=rerun)
-            else:
-                self.memcache.delete(cache_key + 'error')
-            amqp_log("%s: error %r, rerun %s" % (id_str, exc, rerun))
-            return
-        else:
-            self.memcache.delete(cache_key + 'error')
-        cached = {'timestamp': time(), 'payload': data, 'seq_id': seq_id}
-        ok = amqp_publish_user(owner_id, routing_key=self.task_key, data=data)
-        if not ok:
-            # echange closed, no one gives a shit, stop repeating, why try?
-            amqp_log("%s: exchange closed" % id_str)
-            return
-        kwargs['seq_id'] = seq_id
-        self.memcache.set(cache_key, cached)
-        if self.polling:
-            amqp_log("%s: will rerun in %d secs [%s]" % (id_str,
-                                                         self.result_fresh,
-                                                         seq_id))
-            self.apply_async(args, kwargs, countdown=self.result_fresh)
-
-    def execute(self, *args, **kwargs):
-        raise NotImplementedError()
-
-    def error_rerun_handler(self, exc, errors, *args, **kwargs):
-        """Accepts a list of relative time points of consecutive errors,
-        returns number of seconds to retry in or None to stop retrying."""
-        if len(errors) == 1:
-            return 30  # Retry in 30sec after the first error
-        if len(errors) == 2:
-            return 120  # Retry in 120sec after the second error
-        if len(errors) == 3:
-            return 60 * 10  # Retry in 10mins after the third error
-
-
-class ListImages(UserTask):
-    task_key = 'list_images'
-    result_expires = 60 * 60 * 24 * 7
-    result_fresh = 60 * 60
-    polling = False
-    soft_time_limit = 60 * 2
-
-    def execute(self, owner_id, cloud_id):
-        from mist.api import methods
-        owner = Owner.objects.get(id=owner_id)
-        log.warn('Running list images for user %s cloud %s',
-                 owner.id, cloud_id)
-        images = methods.list_images(owner, cloud_id)
-        log.warn('Returning list images for user %s cloud %s',
-                 owner.id, cloud_id)
-        return {'cloud_id': cloud_id, 'images': images}
-
-
-class ListProjects(UserTask):
-    task_key = 'list_projects'
-    result_expires = 60 * 60 * 24 * 7
-    result_fresh = 60 * 60
-    polling = False
-    soft_time_limit = 30
-
-    def execute(self, owner_id, cloud_id):
-        owner = Owner.objects.get(id=owner_id)
-        log.warn('Running list projects for user %s cloud %s',
-                 owner.id, cloud_id)
-        from mist.api import methods
-        projects = methods.list_projects(owner, cloud_id)
-        log.warn('Returning list projects for user %s cloud %s',
-                 owner.id, cloud_id)
-        return {'cloud_id': cloud_id, 'projects': projects}
-
-
-list_images = app.register_task(ListImages())
-list_projects = app.register_task(ListProjects())
 
 
 @app.task
@@ -1305,6 +1120,12 @@ def update_poller(org_id):
     for cloud in Cloud.objects(owner=org, deleted=None, enabled=True):
         log.info("Updating poller for cloud %s", cloud)
         ListMachinesPollingSchedule.add(cloud=cloud, interval=10, ttl=120)
+        ListLocationsPollingSchedule.add(cloud=cloud, interval=60 * 60 * 24,
+                                         ttl=120)
+        ListSizesPollingSchedule.add(cloud=cloud, interval=60 * 60 * 24,
+                                     ttl=120)
+        ListImagesPollingSchedule.add(cloud=cloud, interval=60 * 60 * 24,
+                                      ttl=120)
         if hasattr(cloud.ctl, 'network'):
             ListNetworksPollingSchedule.add(cloud=cloud, interval=60, ttl=120)
         if hasattr(cloud.ctl, 'dns') and cloud.dns_enabled:
@@ -1357,7 +1178,8 @@ def gc_schedulers():
 
 @app.task
 def set_missing_since(cloud_id):
-    for Model in (Machine, CloudLocation, CloudSize, Network, Volume, Zone):
+    for Model in (Machine, CloudLocation, CloudSize, CloudImage,
+                  Network, Volume, Zone):
         Model.objects(cloud=cloud_id, missing_since=None).update(
             missing_since=datetime.datetime.utcnow()
         )
