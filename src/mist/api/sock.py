@@ -30,7 +30,6 @@ from mist.api.machines.models import Machine
 
 from mist.api.auth.methods import auth_context_from_session_id
 
-from mist.api.helpers import maybe_submit_cloud_task
 from mist.api.helpers import filter_resource_ids
 
 from mist.api.exceptions import UnauthorizedError, MistError
@@ -473,19 +472,6 @@ class MainConnection(MistConnection):
                         {'cloud_id': cloud_id, 'volumes': volumes}
                     ),
                 )
-
-        # Old Periodic Tasks (must be replaced by poller tasks and api calls.
-        for key in ['list_projects']:
-            task = getattr(tasks, key)
-            for cloud in clouds:
-                # Avoid submitting new celery tasks, when it's certain that
-                # they will exit immediately without performing any actions.
-                if not maybe_submit_cloud_task(cloud, key):
-                    continue
-                cached = task.smart_delay(self.owner.id, cloud.id)
-                if cached is not None:
-                    log.info("Emitting %s from cache", key)
-                    self.send(key, cached)
 
     def update_notifications(self):
         notifications = [ntf.as_dict() for ntf in InAppNotification.objects(
