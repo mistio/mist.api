@@ -111,7 +111,7 @@ class TaggingSelector(BaseSelector):
             }
             if value:
                 query['value'] = value
-            ids &= set(tag.resource.id for tag in Tag.objects(**query))
+            ids &= set(tag.resource_id for tag in Tag.objects(**query))
         # TODO: exclude items
         return me.Q(id__in=ids)
 
