@@ -705,6 +705,7 @@ def machine_actions(request):
       - stop
       - reboot
       - destroy
+      - remove
       - resize
       - rename
       - create_snapshot

@@ -386,7 +386,6 @@ class LibvirtMainController(BaseMainController):
             try:
                 machine.save(write_concern={'w': 1, 'fsync': True})
             except me.NotUniqueError:
-                import ipdb; ipdb.set_trace()
                 # FIXME: append in errors
                 continue
 

@@ -1936,7 +1936,8 @@ class LibvirtComputeController(BaseComputeController):
     def _list_machines__fetch_machines(self):
         nodes = []
         from mist.api.machines.models import Machine
-        for machine in Machine.objects.filter(cloud=self.cloud):
+        for machine in Machine.objects.filter(cloud=self.cloud,
+                                              missing_since=None):
             if machine.extra.get('tags', {}).get('type') == 'hypervisor':
                 driver = self._get_host_driver(machine)
                 nodes += driver.list_nodes()
@@ -2056,7 +2057,8 @@ class LibvirtComputeController(BaseComputeController):
     def _list_images__fetch_images(self, search=None):
         images = []
         from mist.api.machines.models import Machine
-        for machine in Machine.objects.filter(cloud=self.cloud):
+        for machine in Machine.objects.filter(cloud=self.cloud,
+                                              missing_since=None):
             if machine.extra.get('tags', {}).get('type') == 'hypervisor':
                 driver = self._get_host_driver(machine)
                 images += driver.list_images(location=machine.extra.get(
@@ -2107,6 +2109,12 @@ class LibvirtComputeController(BaseComputeController):
                 raise InternalServerError(exc=exc)
         else:
             machine_libcloud.reboot()
+
+    def remove_machine(self, machine):
+        from mist.api.machines.models import KeyMachineAssociation
+        KeyMachineAssociation.objects(machine=machine).delete()
+        machine.missing_since = datetime.datetime.now()
+        machine.save()
 
     def _start_machine(self, machine, machine_libcloud):
         driver = self._get_host_driver(machine)
