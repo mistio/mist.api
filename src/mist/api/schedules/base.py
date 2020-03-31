@@ -237,7 +237,7 @@ class BaseController(object):
                         'description': 'Machine expiration reminder',
                         'task_enabled': True,
                         'schedule_entry': notify_at,
-                        'conditions': kwargs.get('conditions'),
+                        'selectors': kwargs.get('selectors'),
                         'notify_msg': notify_msg
                     }
                     name = self.schedule.name + '-reminder'
@@ -249,7 +249,7 @@ class BaseController(object):
 
         # set schedule attributes
         try:
-            kwargs.pop('conditions')
+            kwargs.pop('selectors')
         except KeyError:
             pass
         for key, value in kwargs.items():
