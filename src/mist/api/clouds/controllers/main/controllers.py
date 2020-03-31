@@ -383,8 +383,12 @@ class LibvirtMainController(BaseMainController):
                 extra=extra
             )
 
-            # FIXME: try-except, in case of 409 (same machine_id)
-            machine.save(write_concern={'w': 1, 'fsync': True})
+            try:
+                machine.save(write_concern={'w': 1, 'fsync': True})
+            except me.NotUniqueError:
+                import ipdb; ipdb.set_trace()
+                # FIXME: append in errors
+                continue
 
             # associate key if given and attempt to connect
             if _host.get('key'):
