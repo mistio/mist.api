@@ -1743,7 +1743,7 @@ class DockerComputeController(BaseComputeController):
         if no_fail:
             container = Container(id=machine.machine_id,
                                   name=machine.machine_id,
-                                  image=machine.image_id,
+                                  image=machine.image.id,
                                   state=0,
                                   ip_addresses=[],
                                   driver=self.connection,
@@ -1972,6 +1972,7 @@ class LibvirtComputeController(BaseComputeController):
                 machine.actions.resume = True
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        from mist.api.images.models import CloudImage
         updated = False
         xml_desc = machine_libcloud.extra.get('xml_description')
         if xml_desc:
@@ -1986,8 +1987,14 @@ class LibvirtComputeController(BaseComputeController):
             for disk in disks:
                 if disk.attrib.get('device', '') == 'cdrom':
                     image = disk.find('source').attrib.get('file', '')
-                    if machine.image_id != image:
-                        machine.image_id = image
+                    if (machine.image and machine.image.external_id != image) \
+                            or (not machine.image and image):
+                        try:
+                            image = CloudImage.objects.get(
+                                cloud=machine.cloud, external_id=image)
+                        except CloudImage.DoesNotExist:
+                            image = CloudImage()
+                        machine.image = image
                         updated = True
 
             vnfs = []
@@ -2034,7 +2041,8 @@ class LibvirtComputeController(BaseComputeController):
             return
         from mist.api.clouds.models import CloudSize
         try:
-            _size = CloudSize.objects.get(external_id=node.size.id)
+            _size = CloudSize.objects.get(
+                cloud=self.cloud, external_id=node.size.id)
         except me.DoesNotExist:
             _size = CloudSize(cloud=self.cloud,
                               external_id=node.size.id)
