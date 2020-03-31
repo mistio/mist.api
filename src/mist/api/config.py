@@ -43,7 +43,6 @@ PORTAL_NAME = "Mist"
 CORE_URI = "http://localhost"
 LICENSE_KEY = ""
 AMQP_URI = "rabbitmq:5672"
-MEMCACHED_HOST = ["memcached:11211"]
 BROKER_URL = "amqp://guest:guest@rabbitmq/"
 SSL_VERIFY = True
 THEME = ""
@@ -1879,7 +1878,7 @@ FROM_ENV_BOOLS = [
     'ALLOW_LIBVIRT_LOCALHOST', 'JS_BUILD', 'VERSION_CHECK', 'USAGE_SURVEY',
 ] + PLUGIN_ENV_BOOLS
 FROM_ENV_ARRAYS = [
-    'MEMCACHED_HOST', 'PLUGINS'
+    'PLUGINS'
 ] + PLUGIN_ENV_ARRAYS
 log.info("Reading settings from environmental variables.")
 for key in FROM_ENV_STRINGS:

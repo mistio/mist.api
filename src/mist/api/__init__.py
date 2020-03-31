@@ -339,6 +339,10 @@ def add_routes(configurator):
     configurator.add_route('api_v1_cloud_security_groups',
                            '/api/v1/clouds/{cloud}/security-groups')
 
+    # Projects
+    configurator.add_route('api_v1_cloud_projects',
+                           '/api/v1/clouds/{cloud}/projects')
+
     # Scripts
     configurator.add_route('api_v1_scripts', '/api/v1/scripts')
     configurator.add_route('api_v1_script', '/api/v1/scripts/{script_id}')

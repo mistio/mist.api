@@ -253,8 +253,33 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     size = NodeSize(size_id, name=size_name, ram='', disk=disk,
                     bandwidth='', price='', driver=conn)
 
-    image = NodeImage(image_id, name=image_name, extra=image_extra,
-                      driver=conn)
+    # transform image id to libcloud's NodeImage object
+    try:
+        from mist.api.images.models import CloudImage
+        cloud_image = CloudImage.objects.get(id=image_id)
+        image = NodeImage(cloud_image.external_id,
+                          name=cloud_image.name,
+                          extra=cloud_image.extra,
+                          driver=conn)
+        # star image used for machine
+        if not cloud_image.starred:
+            cloud_image.starred = True
+            cloud_image.save()
+    except me.DoesNotExist:
+        # make sure mongo is up-to-date
+        cloud.ctl.compute.list_images()
+        try:
+            cloud_image = CloudImage.objects.get(id=image_id)
+            image = NodeImage(cloud_image.external_id,
+                              name=cloud_image.name,
+                              extra=cloud_image.extra,
+                              driver=conn)
+            if not cloud_image.starred:
+                cloud_image.starred = True
+                cloud_image.save()
+        except me.DoesNotExist:
+            image = NodeImage(image_id, name=image_name,
+                              extra={}, driver=conn)
 
     # transform location id to libcloud's NodeLocation object
     try:
@@ -269,7 +294,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         # make sure mongo is up-to-date
         cloud.ctl.compute.list_locations()
         try:
-            from mist.api.clouds.models import CloudLocation
             cloud_location = CloudLocation.objects.get(id=location_id)
             location = NodeLocation(cloud_location.external_id,
                                     name=cloud_location.name,
@@ -315,7 +339,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     if conn.type is Container_Provider.DOCKER:
         if public_key:
             node = _create_machine_docker(
-                conn, machine_name, image_id, '',
+                conn, machine_name, image.id, '',
                 public_key=public_key,
                 docker_env=docker_env,
                 docker_command=docker_command,
@@ -331,7 +355,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                 pass
         else:
             node = _create_machine_docker(
-                conn, machine_name, image_id, script,
+                conn, machine_name, image.id, script,
                 docker_env=docker_env,
                 docker_command=docker_command,
                 docker_port_bindings=docker_port_bindings,
@@ -416,7 +440,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             azure_port_bindings=azure_port_bindings
         )
     elif conn.type == Provider.AZURE_ARM:
-        image = conn.get_image(image_id, location)
+        image = conn.get_image(image.id, location)
         node = _create_machine_azure_arm(
             auth_context.owner, cloud_id, conn, public_key, machine_name,
             image, size, location, networks,
@@ -435,14 +459,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                                        size, location, networks, folder,
                                        datastore)
     elif conn.type is Provider.LINODE and private_key:
-        # FIXME: The orchestration UI does not provide all the necessary
-        # parameters, thus we need to fetch the proper size and image objects.
-        # This should be properly fixed when migrated to the controllers.
-        if not image_extra:  # Missing: {'64bit': 1, 'pvops': 1}
-            for image in conn.list_images():
-                if int(image.id) == int(image_id):
-                    image = image
-                    break
         node = _create_machine_linode(conn, key_id, private_key, public_key,
                                       machine_name, image, size,
                                       location)
@@ -457,7 +473,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         node = _create_machine_libvirt(conn, machine_name,
                                        disk_size=disk_size,
                                        ram=size_ram, cpu=size_cpu,
-                                       image=image_id,
+                                       image=image.id,
                                        disk_path=disk_path,
                                        networks=networks,
                                        public_key=public_key,
@@ -468,7 +484,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                                       size, location, cloud_init, cloud,
                                       project_id, volumes, ip_addresses)
     elif conn.type == Provider.MAXIHOST:
-        node = _create_machine_maxihost(conn, machine_name, image,
+        node = _create_machine_maxihost(conn, machine_name, image.id,
                                         size, location, public_key)
     elif conn.type == Provider.KUBEVIRT:
         network = networks if networks else None

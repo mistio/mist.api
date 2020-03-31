@@ -16,6 +16,8 @@ import calendar
 import requests
 import re
 
+from bson import json_util
+
 import jsonpatch
 
 import mongoengine as me
@@ -315,6 +317,7 @@ class BaseComputeController(BaseController):
             `self._list_machines__postparse_machine`
             `self._list_machines__cost_machine`
             `self._list_machines__fetch_generic_machines`
+            `self._list_machines__machine_creation_date`
 
         Subclasses that require special handling should override these, by
         default, dummy methods.
@@ -340,29 +343,32 @@ class BaseComputeController(BaseController):
         machines = []
         now = datetime.datetime.utcnow()
 
-        # FIXME Imported here due to circular dependency issues. Perhaps one
-        # way to solve this would be to move CloudLocation under its own dir.
-        from mist.api.clouds.models import CloudLocation
-
         # This is a map of locations' external IDs and names to CloudLocation
         # mongoengine objects. It is used to lookup cached locations based on
         # a node's metadata in order to associate VM instances to their region.
+        from mist.api.clouds.models import CloudLocation
         locations_map = {}
         for location in CloudLocation.objects(cloud=self.cloud):
             locations_map[location.external_id] = location
             locations_map[location.name] = location
 
-        # FIXME Imported here due to circular dependency issues. Perhaps one
-        # way to solve this would be to move CloudSize under its own dir.
-        from mist.api.clouds.models import CloudSize
-
         # This is a map of sizes' external IDs and names to CloudSize
         # mongoengine objects. It is used to lookup cached sizes based on
         # a node's metadata in order to associate VM instances to their size.
+        from mist.api.clouds.models import CloudSize
         sizes_map = {}
         for size in CloudSize.objects(cloud=self.cloud):
             sizes_map[size.external_id] = size
             sizes_map[size.name] = size
+
+        # This is a map of images' external IDs and names to CloudImage
+        # mongoengine objects. It is used to lookup cached images based on
+        # a node's metadata in order to associate VM instances to their image.
+        from mist.api.images.models import CloudImage
+        images_map = {}
+        for image in CloudImage.objects(cloud=self.cloud):
+            images_map[image.external_id] = image
+            images_map[image.name] = image
 
         from mist.api.machines.models import Machine
         # Process each machine in returned list.
@@ -422,7 +428,7 @@ class BaseComputeController(BaseController):
         else:
             for node in nodes:
                 machine, is_new = self._update_machine_from_node(
-                    node, locations_map, sizes_map, now)
+                    node, locations_map, sizes_map, images_map, now)
                 if not machine:
                     continue
                 if is_new:
@@ -485,7 +491,8 @@ class BaseComputeController(BaseController):
             log.warning("Error while closing connection: %r", exc)
         return machines
 
-    def _update_machine_from_node(self, node, locations_map, sizes_map, now):
+    def _update_machine_from_node(self, node, locations_map, sizes_map,
+                                  images_map, now):
         is_new = False
         updated = False
         # Fetch machine mongoengine model from db, or initialize one.
@@ -513,26 +520,32 @@ class BaseComputeController(BaseController):
                 machine.location = locations_map.get(location_id)
                 updated = True
 
-        # Get misc libcloud metadata.
+        # Discover image of machine
         image_id = ''
+
         if isinstance(node.image, NodeImage) and node.image.id != 'None':
             image_id = node.image.id
         elif isinstance(node.extra.get('image'), dict):
             image_id = str(node.extra.get('image').get('id'))
 
         if not image_id:
-            image_id = node.image or node.extra.get('imageId') \
-                or node.extra.get('image_id') or node.extra.get('image')
+            image_id = str(node.image or node.extra.get('imageId') or
+                           node.extra.get('image_id') or
+                           node.extra.get('image'))
         if not image_id:
-            if isinstance(node.extra.get('operating_system', {}), dict):
-                image_id = node.extra.get('operating_system', {}).get(
-                    'name', '')
-            else:
-                image_id = node.extra.get('operating_system') or ''
+            image_id = node.extra.get('operating_system')
+            if isinstance(image_id, dict):
+                image_id = image_id.get('name')
 
-        if image_id and machine.image_id != image_id:
-            machine.image_id = image_id
+        if machine.image != images_map.get(image_id):
+            machine.image = images_map.get(image_id)
             updated = True
+
+        # set machine's os_type from image's os_type, but if
+        # info of os_type can be obtained from libcloud node, then
+        # machine.os_type will be overwritten in `postparse_machine`
+        if machine.image:
+            machine.os_type = machine.image.os_type
 
         # Attempt to map machine's size to a CloudSize object. If not
         # successful, try to discover custom size.
@@ -611,8 +624,8 @@ class BaseComputeController(BaseController):
                     machine.hostname = ip
                     updated = True
                     break
-
-        if json.dumps(machine.extra) != json.dumps(extra):
+        if json.dumps(machine.extra, default=json_util.default) != json.dumps(
+                extra, default=json_util.default):
             machine.extra = extra
             updated = True
 
@@ -864,7 +877,7 @@ class BaseComputeController(BaseController):
         return False
 
     @LibcloudExceptionHandler(CloudUnavailableError)
-    def list_images(self, search=None):
+    def list_images(self, persist=True, search=None):
         """Return list of images for cloud
 
         This returns the results obtained from libcloud, after some processing,
@@ -882,45 +895,42 @@ class BaseComputeController(BaseController):
         default, dummy methods.
 
         """
+        task_key = 'cloud:list_images:%s' % self.cloud.id
+        task = PeriodicTaskInfo.get_or_add(task_key)
+        with task.task_runner(persist=persist):
+            cached_images = {'%s' % im.id: im.as_dict()
+                             for im in self.list_cached_images()}
+            images = self._list_images(search=search)
 
-        # Fetch images list, usually from libcloud connection.
-        images = self._list_images__fetch_images(search=search)
-        if not isinstance(images, list):
-            images = list(images)
+        if amqp_owner_listening(self.cloud.owner.id):
+            images_dict = [img.as_dict() for img in images]
+            if cached_images and images_dict:
+                # Publish patches to rabbitmq.
+                new_images = {'%s' % im['id']: im for im in images_dict}
+                patch = jsonpatch.JsonPatch.from_diff(cached_images,
+                                                      new_images).patch
+                if search:
+                    # do not remove images that were not returned from
+                    # libcloud, since there was a search
+                    patch = [i for i in patch
+                             if not (i.get('op') in ['remove'])]
 
-        # Filter out duplicate images, if any.
-        seen_ids = set()
-        for i in reversed(range(len(images))):
-            image = images[i]
-            if image.id in seen_ids:
-                images.pop(i)
+                if patch:
+                    amqp_publish_user(self.cloud.owner.id,
+                                      routing_key='patch_images',
+                                      data={'cloud_id': self.cloud.id,
+                                            'patch': patch})
             else:
-                seen_ids.add(image.id)
-
-        # Filter images based on search term.
-        if search:
-            search = str(search).lower()
-            images = [img for img in images
-                      if search in img.id.lower() or
-                      search in img.name.lower()]
-
-        # Filter out invalid images.
-        images = [img for img in images
-                  if img.name and img.id[:3] not in ('aki', 'ari')]
-
-        # Turn images to dict to return and star them.
-        images = [{'id': img.id,
-                   'name': img.name,
-                   'extra': img.extra,
-                   'star': self.image_is_starred(img.id)}
-                  for img in images]
-
-        # Sort images: Starred first, then alphabetically.
-        images.sort(key=lambda image: (not image['star'], image['name']))
-
+                # TODO: is this really needed? same for sizes and locations
+                # TODO: remove this block, once image patches
+                # are implemented in the UI
+                amqp_publish_user(self.cloud.owner.id,
+                                  routing_key='list_images',
+                                  data={'cloud_id': self.cloud.id,
+                                        'images': images_dict})
         return images
 
-    def _list_images__fetch_images(self, search=None):
+    def _list_images(self, search=None):
         """Fetch image listing in a libcloud compatible format
 
         This is to be called exclusively by `self.list_images`.
@@ -931,13 +941,81 @@ class BaseComputeController(BaseController):
         Subclasses MAY override this method.
 
         """
+        from mist.api.images.models import CloudImage
+        # Fetch images, usually from libcloud connection.
+        libcloud_images = self._list_images__fetch_images(search=search)
+
+        log.info("List images returned %d results for %s.",
+                 len(libcloud_images), self.cloud)
+
+        images = []
+
+        for img in libcloud_images:
+            try:
+                _image = CloudImage.objects.get(cloud=self.cloud,
+                                                external_id=img.id)
+            except CloudImage.DoesNotExist:
+                _image = CloudImage(cloud=self.cloud,
+                                    external_id=img.id)
+            _image.name = img.name
+            _image.extra = copy.deepcopy(img.extra)
+            _image.missing_since = None
+            _image.os_type = self._list_images__get_os_type(img)
+            if search:
+                _image.stored_after_search = True
+            try:
+                _image.save()
+            except me.ValidationError as exc:
+                log.error("Error adding %s: %s", _image.name, exc.to_dict())
+                raise BadRequestError({"msg": exc.message,
+                                       "errors": exc.to_dict()})
+            images.append(_image)
+
+        # update missing_since for images not returned by libcloud
+        if not search:
+            CloudImage.objects(cloud=self.cloud,
+                               missing_since=None,
+                               stored_after_search=False,
+                               external_id__nin=[i.external_id
+                                                 for i in images]).update(
+                                                     missing_since=datetime.
+                                                     datetime.utcnow())
+        if not search:
+            # return images stored in database, because there are also
+            # images stored after search, or imported from external repo
+            all_images = CloudImage.objects(cloud=self.cloud,
+                                            missing_since=None)
+            images = [img for img in all_images]
+
+        # Sort images: Starred first, then alphabetically.
+        images.sort(key=lambda image: (not image.starred, image.name))
+
+        return images
+
+    def _list_images__fetch_images(self, search=None):
+        """Fetch image listing in a libcloud compatible format
+
+        This is to be called exclusively by `self._list_images`.
+
+        Most subclasses that use a simple libcloud connection, shouldn't
+        need to override or extend this method.
+
+        Subclasses MAY override this method.
+        """
         return self.connection.list_images()
 
-    def image_is_starred(self, image_id):
-        starred = image_id in self.cloud.starred
-        unstarred = image_id in self.cloud.unstarred
-        default = self.image_is_default(image_id)
-        return starred or (default and not unstarred)
+    def list_cached_images(self):
+        """Return list of images from database for a specific cloud"""
+        from mist.api.images.models import CloudImage
+        return CloudImage.objects(cloud=self.cloud, missing_since=None)
+
+    def _list_images__get_os_type(self, image):
+        if 'windows' in image.name.lower():
+            return 'windows'
+        elif 'vyatta' in image.name.lower():
+            return 'vyatta'
+        else:
+            return 'linux'
 
     def image_is_default(self, image_id):
         return True
@@ -981,7 +1059,7 @@ class BaseComputeController(BaseController):
                                             'patch': patch})
 
             else:
-                # TODO: remove this block, once location patches
+                # TODO: remove this block, once size patches
                 # are implemented in the UI
                 amqp_publish_user(self.cloud.owner.id,
                                   routing_key='list_sizes',
@@ -1214,8 +1292,6 @@ class BaseComputeController(BaseController):
 
     def list_cached_locations(self):
         """Return list of locations from database for a specific cloud"""
-        # FIXME Imported here due to circular dependency issues. Perhaps one
-        # way to solve this would be to move CloudLocation under its own dir.
         from mist.api.clouds.models import CloudLocation
         return CloudLocation.objects(cloud=self.cloud, missing_since=None)
 
