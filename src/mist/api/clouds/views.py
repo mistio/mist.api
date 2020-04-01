@@ -220,6 +220,19 @@ def add_cloud(request):
         raise RequiredParameterMissingError('provider')
 
     monitoring = None
+    # if params.get('machine_key', ''):
+    #   params.pop('machine_key')
+    # params.pop('machine_hostname')
+    # params.pop('machine_user')
+    # params.pop('ssh_port')
+    # params.pop('images_location')
+
+    # add cloud (multiple hosts) (list_machines, images, sizes, locations, verify 2shells)
+
+    # params.update({"hosts": [{'machine_hostname': '34.220.189.254', 'machine_key': 'a05a0e4ca2fe4e7891ad30329ad87be3', 'machine_user': 'ubuntu', 'ssh_port': '22', 'images_location': '/var/lib/libvirt/images'},
+    #                          {'machine_hostname': '34.220.189.254', 'machine_key': 'a05a0e4ca2fe4e7891ad30329ad87be3', 'machine_user': 'ubuntu', 'ssh_port': '22', 'images_location': '/var/lib/libvirt/images'},
+    #                          {'machine_hostname': '18.237.177.109', 'machine_key': 'a05a0e4ca2fe4e7891ad30329ad87be3', 'machine_user': 'ubuntu', 'ssh_port': '22', 'images_location': '/var/lib/libvirt/images'}]})
+    import ipdb; ipdb.set_trace()
     ret = add_cloud_v_2(owner, title, provider, params)
 
     cloud_id = ret['cloud_id']

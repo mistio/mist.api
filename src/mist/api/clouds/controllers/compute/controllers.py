@@ -2141,7 +2141,7 @@ class LibvirtComputeController(BaseComputeController):
             from mist.api.clouds.models import CloudLocation
             try:
                 host = CloudLocation.objects.get(cloud=self.cloud,
-                                                    name=host_name)
+                                                 name=host_name)
                 locations.append(host.id)
             except me.DoesNotExist:
                 pass
