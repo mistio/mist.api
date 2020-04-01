@@ -1931,7 +1931,18 @@ class LXDComputeController(BaseComputeController):
 class LibvirtComputeController(BaseComputeController):
 
     def _connect(self):
-        return None
+        """
+        This is only used n create_machine, where a driver instance
+        is required (and not used as is when provisioning in Libvirt).
+        Thus, we can safely return the driver of the first host found.
+        """
+        from mist.api.machines.models import Machine
+        machine = Machine.objects.filter(cloud=self.cloud)[0]
+
+        if not machine.extra.get('tags', {}).get('type') == 'hypervisor':
+            machine = machine.parent
+
+        return self._get_host_driver(machine)
 
     def _get_host_driver(self, machine):
         """Three supported ways to connect: local system, qemu+tcp, qemu+ssh"""
@@ -2017,7 +2028,9 @@ class LibvirtComputeController(BaseComputeController):
                             image = CloudImage.objects.get(
                                 cloud=machine.cloud, external_id=image)
                         except CloudImage.DoesNotExist:
-                            image = CloudImage()
+                            image = CloudImage(cloud=machine.cloud,
+                                               external_id=image)
+                            image.save()
                         machine.image = image
                         updated = True
 
@@ -2091,8 +2104,22 @@ class LibvirtComputeController(BaseComputeController):
     def list_sizes(self, persist=True):
         return []
 
-    def list_locations(self, persist=True):
-        return []
+    def _list_locations__fetch_locations(self, persist=True):
+        """
+        We refer to hosts (KVM hypervisors) as 'location' for
+        consistency purpose.
+        """
+        from mist.api.machines.models import Machine
+        all_machines = Machine.objects.filter(cloud=self.cloud,
+                                              missing_since=None)
+        hypervisors = [machine for machine in all_machines
+                       if machine.extra.get('tags', {}).
+                       get('type') == 'hypervisor']
+        locations = [NodeLocation(id=hypervisor.machine_id, name=hypervisor.name,
+                                  country='', driver=None) for hypervisor
+                     in hypervisors]
+
+        return locations
 
     def _list_images__fetch_images(self, search=None):
         images = []

@@ -594,7 +594,7 @@ def create_machine_async(
     folder=None, datastore=None,
     ephemeral=False, lxd_image_source=None,
     volumes=[], ip_addresses=[], expiration={}, sec_group='', vnfs=[],
-    description='', host=''
+    description=''
 ):
     from multiprocessing.dummy import Pool as ThreadPool
     from mist.api.machines.methods import create_machine

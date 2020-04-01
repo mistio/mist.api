@@ -248,9 +248,6 @@ def create_machine(request):
     security_group:
       type: string
       description: Machine will join this security group
-    host:
-      type: string
-      description: Mist internal machine id. Required for KVM
     vnfs:
       description: Network Virtual Functions to configure in machine
       type: array
@@ -329,7 +326,6 @@ def create_machine(request):
     softlayer_backend_vlan_id = params.get('softlayer_backend_vlan_id', None)
     hourly = params.get('hourly', True)
     sec_group = params.get('security_group', '')
-    host = params.get('host', '')
     vnfs = params.get('vnfs', [])
     expiration = params.get('expiration', {})
     description = params.get('description', '')
@@ -482,8 +478,7 @@ def create_machine(request):
               'ephemeral': params.get('ephemeral', False),
               'lxd_image_source': params.get('lxd_image_source', None),
               'sec_group': sec_group,
-              'description': description,
-              'host': host}
+              'description': description}
 
     if not run_async:
         ret = methods.create_machine(auth_context, *args, **kwargs)
