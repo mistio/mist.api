@@ -2117,7 +2117,8 @@ class LibvirtComputeController(BaseComputeController):
                        get('type') == 'hypervisor']
         locations = [NodeLocation(id=hypervisor.machine_id,
                                   name=hypervisor.name,
-                                  country='', driver=None) for hypervisor
+                                  country='', driver=None,
+                                  extra=hypervisor.extra) for hypervisor
                      in hypervisors]
 
         return locations
