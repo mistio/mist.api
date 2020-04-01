@@ -961,6 +961,13 @@ class BaseComputeController(BaseController):
             _image.extra = copy.deepcopy(img.extra)
             _image.missing_since = None
             _image.os_type = self._list_images__get_os_type(img)
+
+            try:
+                self._list_images__postparse_image(_image, img)
+            except Exception as exc:
+                log.exception("Error while post parsing image %s:%s for %s\n%r",
+                              _image.id, img.name, self.cloud, exc)
+
             if search:
                 _image.stored_after_search = True
             try:
@@ -1003,6 +1010,17 @@ class BaseComputeController(BaseController):
         Subclasses MAY override this method.
         """
         return self.connection.list_images()
+
+    def _list_images__postparse_image(self, image, image_libcloud):
+        """Post parse an image before returning it in list_images
+
+        Any subclass that wishes to specially handle its cloud's tags and
+        metadata, can implement this internal method.
+
+        Subclasses MAY override this method.
+
+        """
+        return
 
     def list_cached_images(self):
         """Return list of images from database for a specific cloud"""

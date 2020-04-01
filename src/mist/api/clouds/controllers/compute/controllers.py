@@ -2134,6 +2134,20 @@ class LibvirtComputeController(BaseComputeController):
 
         return images
 
+    def _list_images__postparse_image(self, image, image_libcloud):
+        locations = []
+        if image_libcloud.extra.get('host', ''):
+            host_name = image_libcloud.extra.get('host')
+            from mist.api.clouds.models import CloudLocation
+            try:
+                host = CloudLocation.objects.get(cloud=self.cloud,
+                                                    name=host_name)
+                locations.append(host.id)
+            except me.DoesNotExist:
+                pass
+
+        image.extra.update({'locations': locations})
+
     def _get_machine_libcloud(self, machine, no_fail=False):
         # TODO: Is it really needed to perform list_nodes?
         assert self.cloud == machine.cloud
