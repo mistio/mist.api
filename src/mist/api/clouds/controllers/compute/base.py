@@ -965,8 +965,8 @@ class BaseComputeController(BaseController):
             try:
                 self._list_images__postparse_image(_image, img)
             except Exception as exc:
-                log.exception("Error while post parsing image %s:%s for %s\n%r",
-                              _image.id, img.name, self.cloud, exc)
+                log.exception("Error while post parsing image %s:%s for \
+                              %s\n%r", _image.id, img.name, self.cloud, exc)
 
             if search:
                 _image.stored_after_search = True
