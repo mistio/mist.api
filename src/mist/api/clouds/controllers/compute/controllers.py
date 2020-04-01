@@ -2115,7 +2115,8 @@ class LibvirtComputeController(BaseComputeController):
         hypervisors = [machine for machine in all_machines
                        if machine.extra.get('tags', {}).
                        get('type') == 'hypervisor']
-        locations = [NodeLocation(id=hypervisor.machine_id, name=hypervisor.name,
+        locations = [NodeLocation(id=hypervisor.machine_id,
+                                  name=hypervisor.name,
                                   country='', driver=None) for hypervisor
                      in hypervisors]
 

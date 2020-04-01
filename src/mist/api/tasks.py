@@ -655,7 +655,6 @@ def create_machine_async(
              'sec_group': sec_group,
              'vnfs': vnfs,
              'description': description,
-             'host': host
              }
         ))
 
