@@ -137,7 +137,7 @@ class MachineController(object):
                     'schedule_type': 'one_off',
                     'schedule_entry': exp_date,
                     'action': exp_action,
-                    'conditions': [
+                    'selectors': [
                         {'type': 'machines', 'ids': [self.machine.id]}
                     ],
                     'notify': exp_reminder
