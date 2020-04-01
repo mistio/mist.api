@@ -1993,7 +1993,9 @@ class LibvirtComputeController(BaseComputeController):
                             image = CloudImage.objects.get(
                                 cloud=machine.cloud, external_id=image)
                         except CloudImage.DoesNotExist:
-                            image = CloudImage()
+                            image = CloudImage(
+                                cloud=machine.cloud, external_id=image)
+                            image.save()
                         machine.image = image
                         updated = True
 
