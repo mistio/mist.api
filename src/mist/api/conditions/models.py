@@ -156,7 +156,8 @@ class GenericResourceCondition(BaseCondition):
 
     @property
     def ctype(self):
-        return self._instance.resource_model_name.rstrip('s') + 's'
+        return self._instance and \
+            self._instance.resource_model_name.rstrip('s') + 's'
 
     def as_dict(self):
         return {'type': self.ctype, 'ids': self.ids}

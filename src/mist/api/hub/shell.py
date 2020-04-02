@@ -89,18 +89,16 @@ class ShellHubWorker(mist.api.hub.main.HubWorker):
                     self.owner, data['cloud_id'], data['machine_id']
                 )
         except Exception as exc:
-                log.warning("%s: Couldn't connect with SSH, error %r.",
-                            self.lbl, exc)
-                if isinstance(exc,
-                              mist.api.exceptions.MachineUnauthorizedError):
-
-                    err = 'Permission denied (publickey).'
-                else:
-                    err = str(exc)
-                self.emit_shell_data(err)
-                self.params['error'] = err
-                self.stop()
-                return
+            log.warning("%s: Couldn't connect with SSH, error %r.",
+                        self.lbl, exc)
+            if isinstance(exc, mist.api.exceptions.MachineUnauthorizedError):
+                err = 'Permission denied (publickey).'
+            else:
+                err = str(exc)
+            self.emit_shell_data(err)
+            self.params['error'] = err
+            self.stop()
+            return
 
         self.channel = self.shell.invoke_shell('xterm',
                                                data['columns'], data['rows'])

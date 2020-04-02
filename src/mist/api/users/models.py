@@ -337,7 +337,7 @@ class User(Owner):
                 name = (self.first_name or '') + ' ' + (self.last_name or '')
                 return name.strip() or self.email
         except AttributeError:
-                return self.email
+            return self.email
 
     def get_ownership_mapper(self, org):
         """Return the `OwnershipMapper` in the specified Org context."""
