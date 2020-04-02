@@ -1,6 +1,8 @@
 from mist.api.helpers import view_config
 from mist.api.exceptions import NotFoundError
 
+from mist.api.helpers import params_from_request
+
 from mist.api.clouds.models import Cloud
 
 from mist.api.images import methods
@@ -59,6 +61,7 @@ def list_images(request):
       type: string
     """
     cloud_id = request.matchdict['cloud']
+    params = params_from_request(request)
     try:
         term = request.json_body.get('search_term', '')
     except:
@@ -66,10 +69,17 @@ def list_images(request):
     auth_context = auth_context_from_request(request)
     auth_context.check_perm("cloud", "read", cloud_id)
     try:
-        Cloud.objects.get(owner=auth_context.owner, id=cloud_id)
+        cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id)
     except Cloud.DoesNotExist:
         raise NotFoundError('Cloud does not exist')
-    return methods.list_images(auth_context.owner, cloud_id, term)
+
+    cached = bool(params.get('cached', False))
+    if cached:
+        images = [image.as_dict() for image in cloud.ctl.compute.list_cached_images()]
+    else:
+        images = methods.list_images(auth_context.owner, cloud_id, term)
+
+    return images
 
 
 @view_config(route_name='api_v1_image', request_method='POST', renderer='json')
