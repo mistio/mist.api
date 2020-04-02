@@ -2153,8 +2153,8 @@ def _create_machine_kubevirt(conn, machine_name, location, image, disks=None,
                                 ex_disks=disks, ex_memory=memory,
                                 ex_cpu=cpu, ex_network=network)
     except Exception as e:
-            msg = "KubeVirt, got exception {}".format(e), e
-            raise MachineCreationError(msg)
+        msg = "KubeVirt, got exception {}".format(e), e
+        raise MachineCreationError(msg)
     return node
 
 
