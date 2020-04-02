@@ -22,6 +22,7 @@ from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import BadRequestError, NotFoundError, ForbiddenError
 from mist.api.exceptions import MachineCreationError, RedirectError
 from mist.api.exceptions import CloudUnauthorizedError, CloudUnavailableError
+from mist.api.exceptions import MistNotImplementedError
 
 from mist.api.monitoring.methods import enable_monitoring
 from mist.api.monitoring.methods import disable_monitoring
@@ -526,7 +527,20 @@ def add_machine(request):
     images_location:
       type: string
     """
+    # FIXME: Also test 'add host' in Other Server clouds
     cloud_id = request.matchdict.get('cloud')
+
+    auth_context = auth_context_from_request(request)
+
+    try:
+        cloud = Cloud.objects.get(owner=auth_context.owner,
+                                  id=cloud_id, deleted=None)
+    except Cloud.DoesNotExist:
+        raise NotFoundError('Cloud does not exist')
+
+    if cloud.ctl.provider not in ['libvirt', 'bare_metal']:
+      raise MistNotImplementedError()
+
     params = params_from_request(request)
     machine_ip = params.get('machine_ip')
     if not machine_ip:
@@ -536,9 +550,10 @@ def add_machine(request):
     machine_name = params.get('machine_name', '')
     machine_key = params.get('machine_key', '')
     machine_user = params.get('machine_user', '')
-    machine_port = params.get('machine_port', '')
+    machine_port = params.get('machine_port', 22)
     remote_desktop_port = params.get('remote_desktop_port', '')
-    monitoring = params.get('monitoring', '')
+    images_location = params.get('images_location', '')
+    monitoring = params.get('monitoring', False)
 
     job_id = params.get('job_id')
     if not job_id:
@@ -547,32 +562,25 @@ def add_machine(request):
     else:
         job = None
 
-    auth_context = auth_context_from_request(request)
     auth_context.check_perm("cloud", "read", cloud_id)
     auth_context.check_perm("cloud", "edit", cloud_id)
 
     if machine_key:
         auth_context.check_perm("key", "read", machine_key)
 
-    try:
-        Cloud.objects.get(owner=auth_context.owner,
-                          id=cloud_id, deleted=None)
-    except Cloud.DoesNotExist:
-        raise NotFoundError('Cloud does not exist')
-
-    log.info('Adding bare metal machine %s on cloud %s'
+    log.info('Adding host machine %s on cloud %s'
              % (machine_name, cloud_id))
-    cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
-                              deleted=None)
 
     try:
-        machine = cloud.ctl.add_machine(machine_name, host=machine_ip,
+        machine = cloud.ctl.add_machine(host=machine_ip,
                                         ssh_user=machine_user,
                                         ssh_port=machine_port,
                                         ssh_key=machine_key,
+                                        name=machine_name,
                                         os_type=operating_system,
                                         rdp_port=remote_desktop_port,
-                                        fail_on_error=True)
+                                        images_location=images_location
+                                        )
     except Exception as e:
         raise MachineCreationError("OtherServer, got exception %r" % e,
                                    exc=e)

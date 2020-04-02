@@ -459,6 +459,99 @@ class LibvirtMainController(BaseMainController):
             **kwargs
         )
 
+    def add_machine(self, host, ssh_user='root', ssh_port=22, ssh_key=None,
+                    **kwargs):
+        try:
+            ssh_port = int(ssh_port)
+        except (ValueError, TypeError):
+            ssh_port = 22
+
+        if ssh_key:
+            # FIXME: try-except
+            ssh_key = Key.objects.get(owner=self.cloud.owner, id=ssh_key,
+                                      deleted=None)
+
+        images_location = kwargs.get('images_location',
+                                     '/var/lib/libvirt/images')
+        extra = {'images_location': images_location}
+        extra.update({'tags': {'type': 'hypervisor'}})
+
+        from mist.api.machines.models import Machine
+        # Create and save machine entry to database.
+        machine = Machine(
+            cloud=self.cloud,
+            name=host,
+            hostname=host,
+            machine_id=host.replace('.', '-'),
+            ssh_port=ssh_port,
+            extra=extra,
+            last_seen=datetime.datetime.utcnow(),
+            missing_since=None
+        )
+
+        try:
+            machine.save(write_concern={'w': 1, 'fsync': True})
+        except me.NotUniqueError:
+            # FIXME
+            pass
+
+        # associate key if given and attempt to connect
+        if ssh_key:
+            try:
+                machine.ctl.associate_key(ssh_key,
+                                          username=ssh_user,
+                                          port=ssh_port)
+            except MachineUnauthorizedError as exc:
+                log.error("Could not connect to host %s."
+                            % host)
+                machine.delete()
+                raise CloudUnauthorizedError(exc)
+            except ServiceUnavailableError as exc:
+                log.error("Could not connect to host %s."
+                            % host)
+                machine.delete()
+                raise MistError("Couldn't connect to host '%s'."
+                                    % host)
+
+        else:
+            from libcloud.compute.providers import get_driver
+            from libcloud.compute.types import Provider
+            host, port = dnat(machine.cloud.owner, machine.hostname, 5000)
+            try:
+                get_driver(Provider.LIBVIRT)(host,
+                                            hypervisor=machine.hostname,
+                                            user=ssh_port,
+                                            tcp_port=ssh_port)
+            except Exception as exc:
+                log.error("Could not connect to host %s." % host)
+                machine.delete()
+                raise MistError(str(exc))
+
+        if amqp_owner_listening(self.cloud.owner.id):
+            old_machines = [m.as_dict() for m in
+                            self.cloud.ctl.compute.list_cached_machines()]
+            # # TODO: only list_nodes for new host
+            #driver = self.cloud.ctl.compute_get_host_driver(machine)
+
+            # driver = machine.cloud.ctl.compute._get_host_driver(machine)
+            # nodes = driver.list_nodes()
+            # #machine.missing_since = None
+            # new_machines = []
+            # for node in nodes:
+            #     try:
+            #         machine = Machine.objects.get(cloud=self.cloud,
+            #                                       machine_id=node.id)
+            #     except Machine.DoesNotExist:
+            #         machine = Machine(cloud=self.cloud, machine_id=node.id,
+            #                           name=node.name, state=config.STATES[node.state],
+            #                           missing_since=None).save()
+            #     new_machines.append(machine)
+            new_machines = self.cloud.ctl.compute.list_machines()
+            self.cloud.ctl.compute.produce_and_publish_patch(
+                old_machines, new_machines)
+
+        return machine
+
 
 class OtherMainController(BaseMainController):
 
@@ -595,7 +688,8 @@ class OtherMainController(BaseMainController):
 
         return machine
 
-    def add_machine(self, name, host='',
+    # TODO: Make it **kwargs ffs and test! (name below)
+    def add_machine(self, name='', host='',
                     ssh_user='root', ssh_port=22, ssh_key=None,
                     os_type='unix', rdp_port=3389, fail_on_error=True):
         """Add machine to this dummy Cloud
