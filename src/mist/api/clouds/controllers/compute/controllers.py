@@ -52,8 +52,6 @@ from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import NotFoundError
 from mist.api.helpers import sanitize_host
 
-from mist.api.misc.cloud import CloudImage
-
 from mist.api.clouds.controllers.main.base import BaseComputeController
 
 from mist.api import config
@@ -107,27 +105,25 @@ class AmazonComputeController(BaseComputeController):
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         updated = False
-        # Find os_type.
-        try:
-            os_type = CloudImage.objects.get(
-                cloud_provider=machine_libcloud.driver.type,
-                image_id=machine_libcloud.extra.get('image_id'),
-            ).os_type
-        except:
-            # This is windows for windows servers and None for Linux.
-            os_type = machine_libcloud.extra.get('platform')
-        os_type = os_type or 'linux'
+        # This is windows for windows servers and None for Linux.
+        os_type = machine_libcloud.extra.get('platform', 'linux')
+
         if machine.os_type != os_type:
             machine.os_type = os_type
             updated = True
 
         try:
             # return list of ids for network interfaces as str
-            network_interfaces = machine.extra['network_interfaces']
-            network_interfaces = [network_interface.id for network_interface
-                                  in network_interfaces]
-            network_interfaces = ','.join(network_interfaces)
-        except:
+            network_interfaces = machine_libcloud.extra['network_interfaces']
+            network_interfaces = [{
+                'id': network_interface.id,
+                'state': network_interface.state,
+                'extra': network_interface.extra
+            } for network_interface in network_interfaces]
+        except Exception as exc:
+            log.warning("Cannot parse net ifaces for machine %s/%s/%s: %r" % (
+                machine.name, machine.id, machine.owner.name, exc
+            ))
             network_interfaces = []
 
         if network_interfaces != machine.extra['network_interfaces']:
@@ -136,7 +132,7 @@ class AmazonComputeController(BaseComputeController):
 
         network_id = machine_libcloud.extra.get('vpc_id')
 
-        if machine.extra['network'] != network_id:
+        if machine.extra.get('network') != network_id:
             machine.extra['network'] = network_id
             updated = True
 
@@ -154,7 +150,7 @@ class AmazonComputeController(BaseComputeController):
             updated = True
 
         subnet_id = machine.extra.get('subnet_id')
-        if machine.extra['subnet'] != subnet_id:
+        if machine.extra.get('subnet') != subnet_id:
             machine.extra['subnet'] = subnet_id
             updated = True
 
@@ -204,9 +200,10 @@ class AmazonComputeController(BaseComputeController):
         return node.extra.get('instance_type')
 
     def _list_images__fetch_images(self, search=None):
-        default_images = config.EC2_IMAGES[self.cloud.region]
-        image_ids = list(default_images.keys()) + self.cloud.starred
         if not search:
+            from mist.api.images.models import CloudImage
+            default_images = config.EC2_IMAGES[self.cloud.region]
+            image_ids = list(default_images.keys())
             try:
                 # this might break if image_ids contains starred images
                 # that are not valid anymore for AWS
@@ -215,33 +212,34 @@ class AmazonComputeController(BaseComputeController):
                 bad_ids = re.findall(r'ami-\w*', str(e), re.DOTALL)
                 for bad_id in bad_ids:
                     try:
-                        self.cloud.starred.remove(bad_id)
-                    except ValueError:
-                        log.error('Starred Image %s not found in cloud %r' % (
+                        _image = CloudImage.objects.get(cloud=self.cloud,
+                                                        external_id=bad_id)
+                        _image.delete()
+                    except CloudImage.DoesNotExist:
+                        log.error('Image %s not found in cloud %r' % (
                             bad_id, self.cloud
                         ))
-                self.cloud.save()
-                images = self.connection.list_images(
-                    None, list(default_images.keys()) + self.cloud.starred)
+                keys = list(default_images.keys())
+                images = self.connection.list_images(None, keys)
             for image in images:
                 if image.id in default_images:
                     image.name = default_images[image.id]
             images += self.connection.list_images(ex_owner='self')
         else:
-            image_models = CloudImage.objects(
-                me.Q(cloud_provider=self.connection.type,
-                     image_id__icontains=search) |
-                me.Q(cloud_provider=self.connection.type,
-                     name__icontains=search)
-            )[:200]
-            images = [NodeImage(id=image.image_id, name=image.name,
-                                driver=self.connection, extra={})
-                      for image in image_models]
-            if not images:
-                # Actual search on EC2.
-                images = self.connection.list_images(
-                    ex_filters={'name': '*%s*' % search}
-                )
+            # search on EC2.
+            libcloud_images = self.connection.list_images(
+                ex_filters={'name': '*%s*' % search}
+            )
+
+            search = search.lower()
+            images = [img for img in libcloud_images
+                      if search in img.id.lower() or
+                      search in img.name.lower()]
+
+        # filter out invalid images
+        images = [img for img in images
+                  if img.name and img.id[:3] not in ('aki', 'ari')]
+
         return images
 
     def image_is_default(self, image_id):
@@ -267,6 +265,24 @@ class AmazonComputeController(BaseComputeController):
 
     def _list_sizes__get_name(self, size):
         return '%s - %s' % (size.id, size.name)
+
+    def _list_images__get_os_type(self, image):
+        # os_type is needed for the pricing per VM
+        if image.name:
+            if any(x in image.name.lower() for x in ['sles',
+                                                     'suse linux enterprise']):
+                return 'sles'
+            if any(x in image.name.lower() for x in ['rhel', 'red hat']):
+                return 'rhel'
+            if 'windows' in image.name.lower():
+                if 'sql' in image.name.lower():
+                    if 'web' in image.name.lower():
+                        return 'mswinSQLWeb'
+                    return 'mswinSQL'
+                return 'mswin'
+            if 'vyatta' in image.name.lower():
+                return 'vyatta'
+            return 'linux'
 
 
 class AlibabaComputeController(AmazonComputeController):
@@ -310,6 +326,14 @@ class AlibabaComputeController(AmazonComputeController):
 
     def image_is_default(self, image_id):
         return True
+
+    def _list_images__get_os_type(self, image):
+        if image.extra.get('os_type', ''):
+            return image.extra.get('os_type').lower()
+        if 'windows' in image.name.lower():
+            return 'windows'
+        else:
+            return 'linux'
 
     def _list_locations__fetch_locations(self):
         """List ECS regions as locations, embed info about zones
@@ -461,6 +485,14 @@ class MaxihostComputeController(BaseComputeController):
                            + memory + ' RAM/ ' \
                            + str(disk_count) + ' * ' + disk_size + ' ' \
                            + disk_type
+
+    def _list_images__get_os_type(self, image):
+        if image.extra.get('operating_system', ''):
+            return image.extra.get('operating_system').lower()
+        if 'windows' in image.name.lower():
+            return 'windows'
+        else:
+            return 'linux'
 
 
 class GigG8ComputeController(BaseComputeController):
@@ -618,12 +650,7 @@ class RackSpaceComputeController(BaseComputeController):
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         updated = False
         # Find os_type.
-        try:
-            os_type = CloudImage.objects.get(
-                cloud_provider=machine_libcloud.driver.type,
-                image_id=machine_libcloud.extra.get('imageId'),
-            ).os_type
-        except:
+        if not machine.os_type:
             os_type = 'linux'
         if machine.os_type != os_type:
             machine.os_type = os_type
@@ -635,6 +662,14 @@ class RackSpaceComputeController(BaseComputeController):
 
     def _list_sizes__get_cpu(self, size):
         return size.vcpus
+
+    def _list_images__get_os_type(self, image):
+        if image.extra.get('metadata', '').get('os_type', ''):
+            return image.extra.get('metadata').get('os_type').lower()
+        if 'windows' in image.name.lower():
+            return 'windows'
+        else:
+            return 'linux'
 
 
 class SoftLayerComputeController(BaseComputeController):
@@ -1365,7 +1400,8 @@ class VCloudComputeController(BaseComputeController):
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         updated = False
-        if machine.os_type != machine.extra.get('os_type'):
+        if machine.extra.get('os_type', '') and \
+           machine.os_type != machine.extra.get('os_type'):
             machine.os_type = machine.extra.get('os_type')
             updated = True
         return updated
@@ -1654,22 +1690,18 @@ class DockerComputeController(BaseComputeController):
         return [self.dockerhost]
 
     def _list_images__fetch_images(self, search=None):
-        # Fetch mist's recommended images
-        images = [ContainerImage(id=image, name=name, path=None,
-                                 version=None, driver=self.connection,
-                                 extra={})
-                  for image, name in list(config.DOCKER_IMAGES.items())]
-        # Add starred images
-        images += [ContainerImage(id=image, name=image, path=None,
-                                  version=None, driver=self.connection,
-                                  extra={})
-                   for image in self.cloud.starred
-                   if image not in config.DOCKER_IMAGES]
-        # Fetch images from libcloud (supports search).
-        if search:
-            images += self.connection.ex_search_images(term=search)[:100]
-        else:
+        if not search:
+            # Fetch mist's recommended images
+            images = [ContainerImage(id=image, name=name, path=None,
+                                     version=None, driver=self.connection,
+                                     extra={})
+                      for image, name in list(config.DOCKER_IMAGES.items())]
             images += self.connection.list_images()
+
+        else:
+            # search on dockerhub
+            images = self.connection.ex_search_images(term=search)[:100]
+
         return images
 
     def image_is_default(self, image_id):
@@ -1711,7 +1743,7 @@ class DockerComputeController(BaseComputeController):
         if no_fail:
             container = Container(id=machine.machine_id,
                                   name=machine.machine_id,
-                                  image=machine.image_id,
+                                  image=machine.image.id,
                                   state=0,
                                   ip_addresses=[],
                                   driver=self.connection,
@@ -1940,6 +1972,7 @@ class LibvirtComputeController(BaseComputeController):
                 machine.actions.resume = True
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        from mist.api.images.models import CloudImage
         updated = False
         xml_desc = machine_libcloud.extra.get('xml_description')
         if xml_desc:
@@ -1954,8 +1987,16 @@ class LibvirtComputeController(BaseComputeController):
             for disk in disks:
                 if disk.attrib.get('device', '') == 'cdrom':
                     image = disk.find('source').attrib.get('file', '')
-                    if machine.image_id != image:
-                        machine.image_id = image
+                    if (machine.image and machine.image.external_id != image) \
+                            or (not machine.image and image):
+                        try:
+                            image = CloudImage.objects.get(
+                                cloud=machine.cloud, external_id=image)
+                        except CloudImage.DoesNotExist:
+                            image = CloudImage(
+                                cloud=machine.cloud, external_id=image)
+                            image.save()
+                        machine.image = image
                         updated = True
 
             vnfs = []
@@ -2002,7 +2043,8 @@ class LibvirtComputeController(BaseComputeController):
             return
         from mist.api.clouds.models import CloudSize
         try:
-            _size = CloudSize.objects.get(external_id=node.size.id)
+            _size = CloudSize.objects.get(
+                cloud=self.cloud, external_id=node.size.id)
         except me.DoesNotExist:
             _size = CloudSize(cloud=self.cloud,
                               external_id=node.size.id)
@@ -2318,10 +2360,10 @@ class KubeVirtComputeController(BaseComputeController):
         verify = self.cloud.verify
         ca_cert = None
         if self.cloud.ca_cert_file:
-                ca_cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
-                ca_cert_temp_file.write(self.cloud.ca_cert_file.encode())
-                ca_cert_temp_file.close()
-                ca_cert = ca_cert_temp_file.name
+            ca_cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
+            ca_cert_temp_file.write(self.cloud.ca_cert_file.encode())
+            ca_cert_temp_file.close()
+            ca_cert = ca_cert_temp_file.name
 
         # tls authentication
         if self.cloud.key_file and self.cloud.cert_file:
