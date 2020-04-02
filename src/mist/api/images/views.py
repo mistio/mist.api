@@ -75,7 +75,8 @@ def list_images(request):
 
     cached = bool(params.get('cached', False))
     if cached:
-        images = [image.as_dict() for image in cloud.ctl.compute.list_cached_images()]
+        images = [image.as_dict() for image in
+                  cloud.ctl.compute.list_cached_images()]
     else:
         images = methods.list_images(auth_context.owner, cloud_id, term)
 
