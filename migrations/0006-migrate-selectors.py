@@ -3,7 +3,7 @@
 # Rename conditions to selectors
 
 
-def migrate_selectors(dry = True):
+def migrate_selectors(dry=True):
     from pymongo import MongoClient
     from mist.api.config import MONGO_URI, MONGO_DB
     db = MongoClient(MONGO_URI)[MONGO_DB]
@@ -18,17 +18,22 @@ def migrate_selectors(dry = True):
                 selectors = document.pop('conditions')
                 for selector in selectors:
                     # Rename selector class
-                    selector['_cls'] = selector['_cls'].replace('Condition', 'Selector')
-                    if 'tags' in selector:  # Rename property `tags` to `include`
+                    selector['_cls'] = selector['_cls'].replace(
+                        'Condition', 'Selector')
+                    # Rename property `tags` to `include`
+                    if 'tags' in selector:
                         selector['include'] = selector.pop('tags')
                 document['selectors'] = selectors
                 if not dry:
                     print("Migrating %s" % collection[:-1])
-                    result = getattr(db, collection).replace_one({'_id': document['_id']}, document)
+                    result = getattr(db, collection).replace_one(
+                        {'_id': document['_id']}, document)
                     assert result.modified_count == 1
             migrated[collection] += 1
 
-    print("Migrated %d schedules & %d rules" % (migrated['schedules'], migrated['rules']))
+    print("Migrated %d schedules & %d rules" % (
+        migrated['schedules'], migrated['rules']))
+
     if dry:
         print("Dry run, no changes written")
 

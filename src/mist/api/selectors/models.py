@@ -111,7 +111,7 @@ class TaggingSelector(BaseSelector):
             }
             if value:
                 query['value'] = value
-            ids &= set(tag.resource_id for tag in Tag.objects(**query))
+            ids |= set(tag.resource_id for tag in Tag.objects(**query))
         # TODO: exclude items
         return me.Q(id__in=ids)
 
@@ -124,7 +124,7 @@ class TaggingSelector(BaseSelector):
                         raise me.ValidationError('You cannot add a tag '
                                                  'without a key')
                     elif not regex.match(key) or (value and
-                                                not regex.match(value)):
+                                                  not regex.match(value)):
                         raise me.ValidationError('Tags must be in key=value '
                                                  'format and only contain the '
                                                  'characters a-z, 0-9, _, -')
