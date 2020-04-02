@@ -310,8 +310,8 @@ def _ping_host(host, pkts=10):
                              '1', '-q', host], stdout=subprocess.PIPE)
     ping_parser = pingparsing.PingParsing()
     output = ping.stdout.read()
-    ping_parser.parse(output.decode().replace('pipe 8\n', ''))
-    return ping_parser.as_dict()
+    result = ping_parser.parse(output.decode().replace('pipe 8\n', ''))
+    return result.as_dict()
 
 
 def ping(owner, host, pkts=10):
