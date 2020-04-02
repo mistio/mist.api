@@ -701,7 +701,7 @@ class KubernetesWebSocket(object):
                 self.ws.connect(self.uri, header=self.header)
             else:
                 self.ws.connect(self.uri)
-        except websocket.WebSocketException:
+        except websocket.WebSocketException as exc:
             raise MachineUnauthorizedError()
 
     def send(self, cmd):
