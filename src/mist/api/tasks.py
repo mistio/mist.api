@@ -653,6 +653,8 @@ def create_machine_async(
              'ephemeral': ephemeral,
              'lxd_image_source': lxd_image_source,
              'sec_group': sec_group,
+             'folder': folder,
+             'datastore': datastore,
              'vnfs': vnfs,
              'description': description
              }
