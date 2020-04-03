@@ -170,7 +170,7 @@ def create_machine(request):
       type: string
     image_extra:
       type: string
-      description: Required for GCE and Linode
+      description: Required for GCE and Linode and VSphere 6.7
     schedule:
       type: object
     script:
