@@ -51,6 +51,7 @@ from mist.api.exceptions import MachineNotFoundError
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import NotFoundError
 from mist.api.helpers import sanitize_host
+from mist.api.helpers import amqp_owner_listening
 
 from mist.api.clouds.controllers.main.base import BaseComputeController
 
@@ -1980,13 +1981,22 @@ class LibvirtComputeController(BaseComputeController):
     def _list_machines__fetch_machines(self):
         nodes = []
         from mist.api.machines.models import Machine
-        for machine in Machine.objects.filter(cloud=self.cloud,
-                                              missing_since=None):
+        for machine in Machine.objects.filter(cloud=self.cloud, missing_since=None):
             if machine.extra.get('tags', {}).get('type') == 'hypervisor':
                 driver = self._get_host_driver(machine)
                 nodes += driver.list_nodes()
 
         return nodes
+
+    def _list_machines__fetch_generic_machines(self):
+        machines = []
+        from mist.api.machines.models import Machine
+        all_machines = Machine.objects(cloud=self.cloud, missing_since=None)
+        for machine in all_machines:
+            if machine.extra.get('tags', {}).get('type') == 'hypervisor':
+                machines.append(machine)
+
+        return machines
 
     def _list_machines__machine_actions(self, machine, machine_libcloud):
         super(LibvirtComputeController, self)._list_machines__machine_actions(
@@ -2199,6 +2209,13 @@ class LibvirtComputeController(BaseComputeController):
         KeyMachineAssociation.objects(machine=machine).delete()
         machine.missing_since = datetime.datetime.now()
         machine.save()
+
+        if amqp_owner_listening(self.cloud.owner.id):
+            old_machines = [m.as_dict() for m in
+                            self.cloud.ctl.compute.list_cached_machines()]
+            new_machines = self.cloud.ctl.compute.list_machines()
+            self.cloud.ctl.compute.produce_and_publish_patch(
+                old_machines, new_machines)
 
     def _start_machine(self, machine, machine_libcloud):
         driver = self._get_host_driver(machine)

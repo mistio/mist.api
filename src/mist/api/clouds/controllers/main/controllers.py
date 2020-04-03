@@ -390,6 +390,16 @@ class LibvirtMainController(BaseMainController):
                 extra=extra
             )
 
+            # Sanitize inputs.
+            host = sanitize_host(_host.get('host'))
+            check_host(_host.get('host'))
+            machine.hostname = host
+
+            if is_private_subnet(socket.gethostbyname(_host.get('host'))):
+                machine.private_ips = [_host.get('host')]
+            else:
+                machine.public_ips = [_host.get('host')]
+
             try:
                 machine.save(write_concern={'w': 1, 'fsync': True})
             except me.NotUniqueError:
@@ -489,6 +499,16 @@ class LibvirtMainController(BaseMainController):
             missing_since=None
         )
 
+        # Sanitize inputs.
+        host = sanitize_host(host)
+        check_host(host)
+        machine.hostname = host
+
+        if is_private_subnet(socket.gethostbyname(host)):
+            machine.private_ips = [host]
+        else:
+            machine.public_ips = [host]
+
         try:
             machine.save(write_concern={'w': 1, 'fsync': True})
         except me.NotUniqueError:
@@ -528,24 +548,15 @@ class LibvirtMainController(BaseMainController):
                 raise MistError(str(exc))
 
         if amqp_owner_listening(self.cloud.owner.id):
+            # FIX ME@!
+            old_machines = []
+            for cached_machine in self.cloud.ctl.compute.list_cached_machines():
+                if cached_machine.id != machine.id:
+                    old_machines.append(cached_machine)
             old_machines = [m.as_dict() for m in
-                            self.cloud.ctl.compute.list_cached_machines()]
-            # # TODO: only list_nodes for new host
-            #driver = self.cloud.ctl.compute_get_host_driver(machine)
-
-            # driver = machine.cloud.ctl.compute._get_host_driver(machine)
-            # nodes = driver.list_nodes()
-            # #machine.missing_since = None
-            # new_machines = []
-            # for node in nodes:
-            #     try:
-            #         machine = Machine.objects.get(cloud=self.cloud,
-            #                                       machine_id=node.id)
-            #     except Machine.DoesNotExist:
-            #         machine = Machine(cloud=self.cloud, machine_id=node.id,
-            #                           name=node.name, state=config.STATES[node.state],
-            #                           missing_since=None).save()
-            #     new_machines.append(machine)
+                            old_machines]
+            # TODO: only list_nodes for new host
+            # driver = self.cloud.ctl.compute_get_host_driver(machine)
             new_machines = self.cloud.ctl.compute.list_machines()
             self.cloud.ctl.compute.produce_and_publish_patch(
                 old_machines, new_machines)
