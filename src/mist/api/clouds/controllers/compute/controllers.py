@@ -1981,7 +1981,8 @@ class LibvirtComputeController(BaseComputeController):
     def _list_machines__fetch_machines(self):
         nodes = []
         from mist.api.machines.models import Machine
-        for machine in Machine.objects.filter(cloud=self.cloud, missing_since=None):
+        for machine in Machine.objects.filter(cloud=self.cloud,
+                                              missing_since=None):
             if machine.extra.get('tags', {}).get('type') == 'hypervisor':
                 driver = self._get_host_driver(machine)
                 nodes += driver.list_nodes()

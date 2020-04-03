@@ -30,6 +30,8 @@ import mongoengine as me
 
 from libcloud.utils.networking import is_private_subnet
 
+from libcloud.compute.base import NodeState
+
 from mist.api.exceptions import MistError
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import BadRequestError
@@ -387,6 +389,7 @@ class LibvirtMainController(BaseMainController):
                 ssh_port=ssh_port,
                 last_seen=datetime.datetime.utcnow(),
                 hostname=_host.get('host'),
+                state=NodeState.RUNNING,
                 extra=extra
             )
 
@@ -488,16 +491,25 @@ class LibvirtMainController(BaseMainController):
 
         from mist.api.machines.models import Machine
         # Create and save machine entry to database.
-        machine = Machine(
-            cloud=self.cloud,
-            name=host,
-            hostname=host,
-            machine_id=host.replace('.', '-'),
-            ssh_port=ssh_port,
-            extra=extra,
-            last_seen=datetime.datetime.utcnow(),
-            missing_since=None
-        )
+        # first check if the host has already been added to the cloud
+        try:
+            machine = Machine.objects.get(cloud=self.cloud, machine_id=host.replace('.', '-'))
+            machine.name = host
+            machine.ssh_port = ssh_port
+            machine.extra = extra
+            machine.last_seen = datetime.datetime.utcnow()
+            machine.missing_since = None
+        except me.DoesNotExist:
+            machine = Machine(
+                cloud=self.cloud,
+                name=host,
+                hostname=host,
+                machine_id=host.replace('.', '-'),
+                ssh_port=ssh_port,
+                extra=extra,
+                state=NodeState.RUNNING,
+                last_seen=datetime.datetime.utcnow(),
+            )
 
         # Sanitize inputs.
         host = sanitize_host(host)
@@ -509,11 +521,7 @@ class LibvirtMainController(BaseMainController):
         else:
             machine.public_ips = [host]
 
-        try:
-            machine.save(write_concern={'w': 1, 'fsync': True})
-        except me.NotUniqueError:
-            # FIXME
-            pass
+        machine.save(write_concern={'w': 1, 'fsync': True})
 
         # associate key if given and attempt to connect
         if ssh_key:
@@ -523,15 +531,15 @@ class LibvirtMainController(BaseMainController):
                                           port=ssh_port)
             except MachineUnauthorizedError as exc:
                 log.error("Could not connect to host %s."
-                            % host)
+                          % host)
                 machine.delete()
                 raise CloudUnauthorizedError(exc)
             except ServiceUnavailableError as exc:
                 log.error("Could not connect to host %s."
-                            % host)
+                          % host)
                 machine.delete()
                 raise MistError("Couldn't connect to host '%s'."
-                                    % host)
+                                % host)
 
         else:
             from libcloud.compute.providers import get_driver
@@ -539,9 +547,9 @@ class LibvirtMainController(BaseMainController):
             host, port = dnat(machine.cloud.owner, machine.hostname, 5000)
             try:
                 get_driver(Provider.LIBVIRT)(host,
-                                            hypervisor=machine.hostname,
-                                            user=ssh_port,
-                                            tcp_port=ssh_port)
+                                             hypervisor=machine.hostname,
+                                             user=ssh_port,
+                                             tcp_port=ssh_port)
             except Exception as exc:
                 log.error("Could not connect to host %s." % host)
                 machine.delete()
