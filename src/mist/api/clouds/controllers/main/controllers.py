@@ -493,7 +493,8 @@ class LibvirtMainController(BaseMainController):
         # Create and save machine entry to database.
         # first check if the host has already been added to the cloud
         try:
-            machine = Machine.objects.get(cloud=self.cloud, machine_id=host.replace('.', '-'))
+            machine = Machine.objects.get(cloud=self.cloud,
+                                          machine_id=host.replace('.', '-'))
             machine.name = host
             machine.ssh_port = ssh_port
             machine.extra = extra

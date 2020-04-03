@@ -2069,7 +2069,7 @@ class LibvirtComputeController(BaseComputeController):
             updated = True
 
         # set machine's parent
-        hypervisor = machine.extra.get('hypervisor_name', '')
+        hypervisor = machine.extra.get('hypervisor', '')
         if hypervisor:
             try:
                 from mist.api.machines.models import Machine
