@@ -427,7 +427,7 @@ def list_vnfs(request):
 
     try:
         return cloud.ctl.compute.connection.ex_list_vnfs()
-    except NotImplementedError:
+    except AttributeError:
         raise MistNotImplementedError
 
 
