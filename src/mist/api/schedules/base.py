@@ -292,14 +292,14 @@ class BaseController(object):
 
         if kwargs.get('selectors'):
             self.schedule.selectors = []
-        for selector in kwargs.pop('selectors', []):
+        for selector in kwargs.get('selectors', []):
             if selector.get('type') not in sel_cls:
                 raise BadRequestError()
             if selector['type'] == 'field':
                 if selector['field'] not in ('created', 'state',
                                              'cost__monthly'):
                     raise BadRequestError()
-            sel = sel_cls[selector.pop('type')]()
+            sel = sel_cls[selector.get('type')]()
             sel.update(**selector)
             self.schedule.selectors.append(sel)
 
