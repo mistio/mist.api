@@ -2383,15 +2383,14 @@ class KubeVirtComputeController(BaseComputeController):
                                                  cert_file=cert_file,
                                                  ca_cert=ca_cert,
                                                  verify=verify)
-        # token bearer authentication
-        elif self.cloud.token_bearer_auth:
-            if not key_file:
-                raise ValueError("Missing the token, please provide it.")
 
-            return get_driver(Provider.KUBEVIRT)(secure=True,
+        elif self.cloud.token:
+            token = self.cloud.token
+
+            return get_driver(Provider.KUBEVIRT)(key=token,
+                                                 secure=True,
                                                  host=host,
                                                  port=port,
-                                                 key_file=key_file,
                                                  ca_cert=ca_cert,
                                                  token_bearer_auth=True,
                                                  verify=verify
