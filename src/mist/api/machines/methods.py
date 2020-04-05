@@ -171,7 +171,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                    volumes=[], ip_addresses=[], expiration={},
                    sec_group='', folder=None, datastore=None, vnfs=[],
                    ephemeral=False, lxd_image_source=None,
-                   description='', port_forwardings=[]
+                   description='', port_forwards=[]
                    ):
     """Creates a new virtual machine on the specified cloud.
 
@@ -413,7 +413,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         node = create_machine_g8(
             conn, machine_name, image, size_ram, size_cpu,
             size_disk_primary, public_key, description, networks,
-            volumes, cloud_init, port_forwardings
+            volumes, cloud_init, port_forwards
         )
         ssh_port = node.extra.get('ssh_port', 22)
     elif conn.type is Provider.ONAPP:
@@ -609,8 +609,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
 
 def create_machine_g8(conn, machine_name, image, ram, cpu, disk,
                       public_key, description, networks, volumes,
-                      cloud_init, port_forwardings):
-    for pf in port_forwardings:
+                      cloud_init, port_forwards):
+    for pf in port_forwards:
         if not isinstance(pf, dict):
             raise BadRequestError('Expected each portforward to be a dict.')
         if not pf.get('private_port') or not pf.get('public_port') or \
@@ -667,7 +667,7 @@ def create_machine_g8(conn, machine_name, image, ram, cpu, disk,
     except Exception as e:
         raise MachineCreationError("Gig G8, got exception %s" % e, e)
 
-    for pf in port_forwardings:
+    for pf in port_forwards:
         conn.ex_create_portforward(ex_network, node, pf.get('public_port'),
                                    pf.get('private_port'), pf.get('protocol'))
 

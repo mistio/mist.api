@@ -256,7 +256,7 @@ def create_machine(request):
       description:
         description: Description of machine. Only for KVM machines
         type: string
-    port_forwardings:
+    port_forwards:
       description: Applies only in GigG8 clouds
       type: array
       items:
@@ -332,7 +332,7 @@ def create_machine(request):
     hourly = params.get('hourly', True)
     sec_group = params.get('security_group', '')
     vnfs = params.get('vnfs', [])
-    port_forwardings = params.get('port_forwardings', [])
+    port_forwards = params.get('port_forwards', [])
     expiration = params.get('expiration', {})
     description = params.get('description', '')
     folder = params.get('folders', None)
@@ -485,7 +485,7 @@ def create_machine(request):
               'lxd_image_source': params.get('lxd_image_source', None),
               'sec_group': sec_group,
               'description': description,
-              'port_forwardings': port_forwardings}
+              'port_forwards': port_forwards}
 
     if not run_async:
         ret = methods.create_machine(auth_context, *args, **kwargs)
