@@ -215,7 +215,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     if conn.type not in [Provider.LIBVIRT,
                          Container_Provider.DOCKER,
                          Provider.ONAPP,
-                         Provider.AZURE_ARM]:
+                         Provider.AZURE_ARM,
+                         Provider.GIG_G8]:
         if not key_id:
             key = Key.objects.get(owner=auth_context.owner,
                                   default=True, deleted=None)
