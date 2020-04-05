@@ -216,9 +216,14 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                          Container_Provider.DOCKER,
                          Provider.ONAPP,
                          Provider.AZURE_ARM]:
+        # try to use the default key
+        # if there isn't such (meaning there are no keys) then continue
         if not key_id:
-            key = Key.objects.get(owner=auth_context.owner,
-                                  default=True, deleted=None)
+            try:
+                key = Key.objects.get(owner=auth_context.owner,
+                                      default=True, deleted=None)
+            except me.DoesNotExist:
+                pass
             key_id = key.name
     if key:
         private_key = key.private
