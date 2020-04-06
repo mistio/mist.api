@@ -702,7 +702,8 @@ class KubernetesWebSocket(object):
             else:
                 self.ws.connect(self.uri)
         except websocket.WebSocketException as exc:
-            raise MachineUnauthorizedError()
+            msg = "Make sure you are authorized to access this machine"
+            raise MachineUnauthorizedError(msg)
 
     def send(self, cmd):
         command = bytearray(b'\x00')  # stdin is 0 for k8s
@@ -775,22 +776,24 @@ class KubernetesShell(KubernetesWebSocket):
         SSL is always enabled in K8s. Because it uses its own CA
         it migth be required to skip the CA validation.
         """
-        if cloud is None:
-            cloud = machine.cloud
         self.host = cloud.host
+        if "https://" in self.host or "http://" in self.host:
+            self.host = self.host.lstrip("http://")
+            self.host = self.host.lstrip("https://")
+
         self.port = cloud.port
         self.protocol = 'wss'
         ssl_key, ssl_cert, ssl_ca_cert = self.ssl_credentials(cloud)
         if ssl_ca_cert:
             self.sslopt = {
-                'ca_certs': ssl_ca_cert,
+                'ca_certs': ssl_ca_cert.name,
             }
         else:
             self.sslopt = {'cert_reqs': ssl.CERT_NONE}
 
         if ssl_key is not None and ssl_cert is not None:
-            self.sslopt['keyfile'] = ssl_key
-            self.sslopt['certfile'] = ssl_cert
+            self.sslopt['keyfile'] = ssl_key.name
+            self.sslopt['certfile'] = ssl_cert.name
 
             self.ws = websocket.WebSocket(sslopt=self.sslopt)
 
@@ -799,11 +802,15 @@ class KubernetesShell(KubernetesWebSocket):
             pwd = cloud.password.encode('utf-8')
             auth = usr + b':' + pwd
             auth = base64.b64encode(auth).decode('ascii')
-            header = 'Authorization: Basic {}'.format(auth)
+            header = ['Authorization: Basic {}'.format(auth)]
+            self.header = header
             self.ws = websocket.WebSocket(sslopt=self.sslopt, header=header)
 
-        else:
-            raise TypeError("Not Implemented yet, token bearer!")
+        elif cloud.token:
+            token = cloud.token
+            self.header = ['Authorization: Bearer ' + token]
+            self.ws = websocket.WebSocket(sslopt=self.sslopt,
+                                          header=self.header)
 
         uri = ("wss://{host}:{port}/api/v1/namespaces/{namespace}/pods/{pod}/"
                "exec?command=%2Fbin%2Fbash&container=compute&stdin="
@@ -821,20 +828,26 @@ class KubernetesShell(KubernetesWebSocket):
 
     @staticmethod
     def ssl_credentials(cloud=None):
-        if cloud:
-            _key, _cert = cloud.key_file, cloud.cert_file
+        if cloud and cloud.ca_cert_file:
             _ca_cert = cloud.ca_cert_file
+            tempca_cert = tempfile.NamedTemporaryFile(delete=False)
+            with open(tempca_cert.name, 'w') as f:
+                f.write(_ca_cert)
+        else:
+            tempca_cert = None
+        if cloud and cloud.key_file and cloud.cert_file:
+            _key, _cert = cloud.key_file, cloud.cert_file
             tempkey = tempfile.NamedTemporaryFile(delete=False)
             with open(tempkey.name, 'w') as f:
                 f.write(_key)
             tempcert = tempfile.NamedTemporaryFile(delete=False)
             with open(tempcert.name, 'w') as f:
                 f.write(_cert)
-            tempca_cert = tempfile.NamedTemporaryFile(delete=False)
-            with open(tempca_cert.name, 'w') as f:
-                f.write(_ca_cert)
+        else:
+            tempkey = None
+            tempcert = None
 
-            return tempkey.name, tempcert.name, tempca_cert.name
+        return tempkey, tempcert, tempca_cert
 
 
 class Shell(object):
