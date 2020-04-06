@@ -592,11 +592,10 @@ class KubeVirtCloud(Cloud):
     password = me.StringField(required=False)
 
     # Bearer Token authentication optional
-    token_bearer_auth = me.BooleanField(required=False)
-    key_file = me.StringField(required=False)
+    token = me.StringField(required=False)
 
     # TLS Authentication
-    # key_file again
+    key_file = me.StringField(required=False)
     cert_file = me.StringField(required=False)
 
     # certificate authority
