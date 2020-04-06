@@ -2454,6 +2454,7 @@ class KubeVirtComputeController(BaseComputeController):
                     if machine not in volume.attached_to:
                         volume.attached_to.append(machine)
                         volume.save()
+
     def _list_machines__get_location(self, node):
         return node.extra.get('namespace', "")
 
