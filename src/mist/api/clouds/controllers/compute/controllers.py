@@ -2455,6 +2455,12 @@ class KubeVirtComputeController(BaseComputeController):
                         volume.attached_to.append(machine)
                         volume.save()
 
+    def _list_machines__get_location(self, node):
+        return node.extra.get('namespace', "")
+
+    def _list_machines__get_size(self, node):
+        return node.size.id
+
     def _list_sizes__get_cpu(self, size):
         cpu = int(size.extra.get('cpus') or 1)
         if cpu > 1000:
