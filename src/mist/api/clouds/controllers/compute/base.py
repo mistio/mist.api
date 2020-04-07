@@ -697,7 +697,7 @@ class BaseComputeController(BaseController):
                 log.error("Machine %s not unique error: %s", machine.name, exc)
                 raise ConflictError("Machine with this name already exists")
         else:
-            log.warn("Not saving machine %s (%s) %s" % (
+            log.debug("Not saving machine %s (%s) %s" % (
                 machine.name, machine.id, is_new))
 
         return machine, is_new

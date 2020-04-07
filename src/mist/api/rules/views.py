@@ -214,7 +214,7 @@ def add_rule(request):
               type: array
               required: false
               description: a list of UUIDs in case type is "machines"
-            tags:
+            include:
               type: array
               required: false
               description: a list of tags in case type is "tags"

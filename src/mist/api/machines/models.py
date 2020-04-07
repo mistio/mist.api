@@ -409,7 +409,7 @@ class Machine(OwnershipMixin, me.Document):
                 expiration = {
                     'id': self.expiration.id,
                     'action': self.expiration.task_type.action,
-                    'date': self.expiration.schedule_type.entry,
+                    'date': self.expiration.schedule_type.entry.isoformat(),
                     'notify': self.expiration.reminder and int((
                         self.expiration.schedule_type.entry -
                         self.expiration.reminder.schedule_type.entry
