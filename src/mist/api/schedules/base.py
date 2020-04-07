@@ -128,15 +128,28 @@ class BaseController(object):
         # transform string to datetime
         if kwargs.get('expires'):
             try:
-                kwargs['expires'] = datetime.datetime.strptime(
-                    kwargs['expires'], '%Y-%m-%d %H:%M:%S')
+                if isinstance(kwargs['expires'], int):
+                    if kwargs['expires'] > 5000000000:  # Timestamp in millis
+                        kwargs['expires'] = kwargs['expires'] / 1000
+                    kwargs['expires'] = datetime.datetime.fromtimestamp(
+                        kwargs['expires'])
+                else:
+                    kwargs['expires'] = datetime.datetime.strptime(
+                        kwargs['expires'], '%Y-%m-%d %H:%M:%S')
             except ValueError:
                 raise BadRequestError('Expiration date value was not valid')
 
         if kwargs.get('start_after'):
             try:
-                kwargs['start_after'] = datetime.datetime.strptime(
-                    kwargs['start_after'], '%Y-%m-%d %H:%M:%S')
+                if isinstance(kwargs['start_after'], int):
+                    if kwargs['start_after'] > 5000000000:  # Timestamp in ms
+                        kwargs['start_after'] = kwargs['start_after'] / 1000
+                    kwargs['start_after'] = datetime.datetime.fromtimestamp(
+                        kwargs['start_after']
+                    )
+                else:
+                    kwargs['start_after'] = datetime.datetime.strptime(
+                        kwargs['start_after'], '%Y-%m-%d %H:%M:%S')
             except ValueError:
                 raise BadRequestError('Start-after date value was not valid')
 
@@ -200,8 +213,14 @@ class BaseController(object):
 
             if future_date:
                 try:
-                    future_date = datetime.datetime.strptime(
-                        future_date, '%Y-%m-%d %H:%M:%S')
+                    if isinstance(future_date, int):
+                        if future_date > 5000000000:  # Timestamp is in millis
+                            future_date = future_date / 1000
+                        future_date = datetime.datetime.fromtimestamp(
+                            future_date)
+                    else:
+                        future_date = datetime.datetime.strptime(
+                            future_date, '%Y-%m-%d %H:%M:%S')
                 except ValueError:
                     raise BadRequestError('Date value was not valid')
 
