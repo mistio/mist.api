@@ -1933,7 +1933,7 @@ class LibvirtComputeController(BaseComputeController):
 
     def _connect(self):
         """
-        This is only used n create_machine, where a driver instance
+        This is only used in create_machine, where a driver instance
         is required (and not used as is when provisioning in Libvirt).
         Thus, we can safely return the driver of the first host found.
         """
@@ -2097,7 +2097,13 @@ class LibvirtComputeController(BaseComputeController):
                 parent = Machine.objects.get(cloud=machine.cloud,
                                              name=hypervisor)
             except Machine.DoesNotExist:
-                parent = None
+                # backwards compatibility
+                hypervisor = hypervisor.replace('.', '-')
+                try:
+                    parent = Machine.objects.get(cloud=machine.cloud,
+                                                 machine_id=hypervisor)
+                except me.DoesNotExist:
+                    parent = None
             if machine.parent != parent:
                 machine.parent = parent
                 updated = True
@@ -2178,8 +2184,13 @@ class LibvirtComputeController(BaseComputeController):
                                                  name=host_name)
                 locations.append(host.id)
             except me.DoesNotExist:
-                pass
-
+                host_name = host_name.replace('.', '-')
+                try:
+                    host = CloudLocation.objects.get(cloud=self.cloud,
+                                                    external_id=host_name)
+                    locations.append(host.id)
+                except me.DoesNotExist:
+                    pass
         image.extra.update({'locations': locations})
 
     def _get_machine_libcloud(self, machine, no_fail=False):
