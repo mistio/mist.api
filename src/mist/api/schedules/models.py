@@ -9,7 +9,7 @@ from mist.api.users.models import Organization
 from celerybeatmongo.schedulers import MongoScheduler
 from mist.api.exceptions import ScheduleNameExistsError
 from mist.api.exceptions import RequiredParameterMissingError
-from mist.api.conditions.models import ConditionalClassMixin
+from mist.api.selectors.models import SelectorClassMixin
 from mist.api.ownership.mixins import OwnershipMixin
 
 
@@ -187,7 +187,7 @@ class ScriptTask(BaseTaskType):
         }
 
 
-class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
+class Schedule(OwnershipMixin, me.Document, SelectorClassMixin):
     """Abstract base class for every schedule attr mongoengine model.
     This model is based on celery periodic task and creates defines the fields
     common to all schedules of all types. For each different schedule type, a
@@ -389,7 +389,7 @@ class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
 
         last_run = '' if self.total_run_count == 0 else str(self.last_run_at)
 
-        conditions = [condition.as_dict() for condition in self.conditions]
+        selectors = [selector.as_dict() for selector in self.selectors]
 
         sdict = {
             'id': self.id,
@@ -407,7 +407,7 @@ class Schedule(OwnershipMixin, me.Document, ConditionalClassMixin):
             'last_run_at': last_run,
             'total_run_count': self.total_run_count,
             'max_run_count': self.max_run_count,
-            'conditions': conditions,
+            'selectors': selectors,
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
         }
