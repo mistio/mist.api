@@ -136,7 +136,7 @@ class BaseController(object):
                 else:
                     kwargs['expires'] = datetime.datetime.strptime(
                         kwargs['expires'], '%Y-%m-%d %H:%M:%S')
-            except ValueError, TypeError:
+            except (ValueError, TypeError):
                 raise BadRequestError('Expiration date value was not valid')
 
         if kwargs.get('start_after'):
@@ -150,7 +150,7 @@ class BaseController(object):
                 else:
                     kwargs['start_after'] = datetime.datetime.strptime(
                         kwargs['start_after'], '%Y-%m-%d %H:%M:%S')
-            except ValueError, TypeError:
+            except (ValueError, TypeError):
                 raise BadRequestError('Start-after date value was not valid')
 
         now = datetime.datetime.now()
@@ -221,7 +221,7 @@ class BaseController(object):
                     else:
                         future_date = datetime.datetime.strptime(
                             future_date, '%Y-%m-%d %H:%M:%S')
-                except ValueError, TypeError:
+                except (ValueError, TypeError):
                     raise BadRequestError('Date value was not valid')
 
                 if future_date < now:
