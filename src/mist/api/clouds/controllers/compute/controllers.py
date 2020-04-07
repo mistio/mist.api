@@ -2187,7 +2187,7 @@ class LibvirtComputeController(BaseComputeController):
                 host_name = host_name.replace('.', '-')
                 try:
                     host = CloudLocation.objects.get(cloud=self.cloud,
-                                                    external_id=host_name)
+                                                     external_id=host_name)
                     locations.append(host.id)
                 except me.DoesNotExist:
                     pass

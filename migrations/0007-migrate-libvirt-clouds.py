@@ -23,7 +23,8 @@ def migrate_libvirt_clouds():
             machines = Machine.objects(cloud=cloud, missing_since=None)
             for machine in machines:
                 if machine.extra.get('tags', {}).get('type') == 'hypervisor':
-                    machine.extra.update({'images_location': cloud.images_location})
+                    machine.extra.update({'images_location':
+                                          cloud.images_location})
                     machine.save()
                     break
 
@@ -33,7 +34,7 @@ def migrate_libvirt_clouds():
                             'username': '',
                             'port': '',
                             'key': '',
-                            'images_location': '',}}
+                            'images_location': ''}}
             )
         except Exception:
             traceback.print_exc()
@@ -59,7 +60,7 @@ def trigger_list_machines():
         print('Updating cloud ' + cloud['id'])
         try:
             cloud.ctl.compute.list_machines()
-        except Exception as exc:
+        except Exception:
             traceback.print_exc()
             failed += 1
             continue
