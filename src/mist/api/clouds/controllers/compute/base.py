@@ -697,7 +697,7 @@ class BaseComputeController(BaseController):
                 log.error("Machine %s not unique error: %s", machine.name, exc)
                 raise ConflictError("Machine with this name already exists")
         else:
-            log.warn("Not saving machine %s (%s) %s" % (
+            log.debug("Not saving machine %s (%s) %s" % (
                 machine.name, machine.id, is_new))
 
         return machine, is_new
@@ -1192,8 +1192,14 @@ class BaseComputeController(BaseController):
         if amqp_owner_listening(self.cloud.owner.id):
             locations_dict = [l.as_dict() for l in locations]
             if cached_locations and locations_dict:
-                # Publish patches to rabbitmq.
                 new_locations = {'%s' % l['id']: l for l in locations_dict}
+                # Pop extra to prevent weird patches
+                for loc in cached_locations:
+                    cached_locations[loc].pop('extra')
+                for loc in new_locations:
+                    new_locations[loc].pop('extra')
+                # Publish patches to rabbitmq.
+
                 patch = jsonpatch.JsonPatch.from_diff(cached_locations,
                                                       new_locations).patch
                 if patch:

@@ -218,8 +218,11 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                          Provider.AZURE_ARM,
                          Provider.GIG_G8]:
         if not key_id:
-            key = Key.objects.get(owner=auth_context.owner,
-                                  default=True, deleted=None)
+            try:
+                key = Key.objects.get(owner=auth_context.owner,
+                                      default=True, deleted=None)
+            except me.DoesNotExist:
+                pass
             key_id = key.name
     if key:
         private_key = key.private
@@ -524,7 +527,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             'description': 'Scheduled to run when machine expires',
             'schedule_entry': expiration.get('date'),
             'action': expiration.get('action'),
-            'conditions': [{'type': 'machines', 'ids': [machine.id]}],
+            'selectors': [{'type': 'machines', 'ids': [machine.id]}],
             'task_enabled': True,
             'notify': expiration.get('notify', ''),
             'notify_msg': expiration.get('notify_msg', '')
@@ -2340,7 +2343,7 @@ def machine_safe_expire(owner_id, machine):
         'description': 'Safe expiration schedule',
         'schedule_entry': schedule_entry,
         'action': 'destroy',
-        'conditions': [{'type': 'machines', 'ids': [machine.id]}],
+        'selectors': [{'type': 'machines', 'ids': [machine.id]}],
         'task_enabled': True,
     }
     _name = machine.name + '-safe-expiration-' + \
