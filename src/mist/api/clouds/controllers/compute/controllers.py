@@ -578,6 +578,20 @@ class GigG8ComputeController(BaseComputeController):
         self.connection.reboot_node(machine_libcloud)
 
     def expose_machine(self, machine, port_forwards):
+        pf_error_msg = 'Each portforward must be specified in the\
+                following format: {"<public_port>:private_port":("protocol")}'
+        for pf in port_forwards.keys():
+            ports = pf.split(':')
+            if len(ports) != 2:
+                raise BadRequestError(pf_error_msg)
+            for port in ports:
+                try:
+                    port = int(port)
+                except (ValueError, TypeError):
+                    raise BadRequestError(pf_error_msg)
+            if port_forwards.get(pf) not in ['udp', 'tcp']:
+                raise BadRequestError('Allowed protocols are "udp" and "tcp"')
+
         machine_libcloud = self._get_machine_libcloud(machine)
         networks = self.cloud.ctl.compute.connection.ex_list_networks()
         network = None
@@ -608,7 +622,6 @@ class GigG8ComputeController(BaseComputeController):
                 except BaseHTTPError as exc:
                     raise PortForwardCreationError(exc.message)
 
-        # remove remaining existing_pfs
         for pf in existing_pfs:
             self.connection.ex_delete_portforward(pf)
 

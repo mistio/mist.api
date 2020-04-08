@@ -679,7 +679,7 @@ def create_machine_g8(conn, machine_name, image, ram, cpu, disk,
         public_port, private_port = pf.split(':')
         protocol = port_forwards.get(pf)
         conn.ex_create_portforward(ex_network, node, public_port,
-                                   private_port, protocol   )
+                                   private_port, protocol)
 
     return node
 

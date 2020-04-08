@@ -815,12 +815,13 @@ def machine_actions(request):
                     'undefine', 'suspend', 'resume'):
         result = getattr(machine.ctl, action)()
     elif action == 'expose':
-      network = machine.network
-      if not network:
-        raise MistError('Do not know the network of the machine to expose a port from')
-      auth_context.check_perm('network', 'read', network)
-      auth_context.check_perm('network', 'edit', network)
-      result = getattr(machine.ctl, action)(port_forwards)
+        network = machine.network
+        if not network:
+          raise MistError('Do not know the network of the machine to expose \
+            a port from')
+        auth_context.check_perm('network', 'read', network)
+        auth_context.check_perm('network', 'edit', network)
+        result = getattr(machine.ctl, action)(port_forwards)
     elif action == 'rename':
         if not name:
             raise BadRequestError("You must give a name!")
