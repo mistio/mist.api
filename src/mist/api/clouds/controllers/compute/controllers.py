@@ -50,6 +50,9 @@ from mist.api.exceptions import InternalServerError
 from mist.api.exceptions import MachineNotFoundError
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import NotFoundError
+from libcloud.common.exceptions import BaseHTTPError
+from mist.api.exceptions import PortForwardCreationError
+
 from mist.api.helpers import sanitize_host
 
 from mist.api.clouds.controllers.main.base import BaseComputeController
@@ -574,6 +577,38 @@ class GigG8ComputeController(BaseComputeController):
     def _reboot_machine(self, machine, machine_libcloud):
         self.connection.reboot_node(machine_libcloud)
 
+    def expose_machine(self, machine, port_forwards):
+        machine_libcloud = self._get_machine_libcloud(machine)
+        networks = self.cloud.ctl.compute.connection.ex_list_networks()
+        network = None
+        for net in networks:
+            if net.id == machine.network.network_id:
+                network = net
+                break
+        existing_pfs = self.connection.ex_list_portforwards(network)
+
+        for pf in port_forwards:
+            exists = False
+            for existing_pf in existing_pfs:
+                if existing_pf.publicport == pf.get('public_port') and \
+                existing_pf.protocol == pf.get('protocol'):
+                    existing_pfs.remove(existing_pf)
+                    exists = True
+                    break
+
+            if not exists:
+                try:
+                    self.connection.ex_create_portforward(network,
+                                                          machine_libcloud,
+                                                          pf.get('public_port'),
+                                                          pf.get('private_port'),
+                                                          pf.get('protocol'))
+                except BaseHTTPError as exc:
+                    raise PortForwardCreationError(exc.message)
+
+        # remove remaining existing_pfs
+        for pf in existing_pfs:
+            self.connection.ex_delete_portforward(pf)
 
 class LinodeComputeController(BaseComputeController):
 
