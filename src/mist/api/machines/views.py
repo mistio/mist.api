@@ -817,8 +817,8 @@ def machine_actions(request):
     elif action == 'expose':
         network = machine.network
         if not network:
-          raise MistError('Do not know the network of the machine to expose \
-            a port from')
+            raise MistError('Do not know the network of the machine to expose \
+              a port from')
         auth_context.check_perm('network', 'read', network)
         auth_context.check_perm('network', 'edit', network)
         result = getattr(machine.ctl, action)(port_forwards)
