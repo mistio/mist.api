@@ -259,9 +259,8 @@ def create_machine(request):
         type: string
     port_forwards:
       description: Applies only in GigG8 clouds
-      type: array
-      items:
-        type: object
+      type: object
+      example: {"2200:22": ("tcp")}
     """
 
     params = params_from_request(request)
@@ -333,7 +332,7 @@ def create_machine(request):
     hourly = params.get('hourly', True)
     sec_group = params.get('security_group', '')
     vnfs = params.get('vnfs', [])
-    port_forwards = params.get('port_forwards', [])
+    port_forwards = params.get('port_forwards', {})
     expiration = params.get('expiration', {})
     description = params.get('description', '')
     folder = params.get('folders', None)
@@ -713,6 +712,9 @@ def machine_actions(request):
     name:
       description: The new name of the renamed machine
       type: string
+    port_forwards:
+      description: Applies only in GigG8 clouds
+      type: object
     size:
       description: The size id of the plan to resize
       type: string
@@ -814,10 +816,8 @@ def machine_actions(request):
         result = getattr(machine.ctl, action)()
     elif action == 'expose':
       network = machine.network
-      # FIX?
       if not network:
         raise MistError('Do not know the network of the machine to expose a port from')
-
       auth_context.check_perm('network', 'read', network)
       auth_context.check_perm('network', 'edit', network)
       result = getattr(machine.ctl, action)(port_forwards)

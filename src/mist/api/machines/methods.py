@@ -171,7 +171,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                    volumes=[], ip_addresses=[], expiration={},
                    sec_group='', folder=None, datastore=None, vnfs=[],
                    ephemeral=False, lxd_image_source=None,
-                   description='', port_forwards=[]
+                   description='', port_forwards={}
                    ):
     """Creates a new virtual machine on the specified cloud.
 
@@ -611,13 +611,20 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
 def create_machine_g8(conn, machine_name, image, ram, cpu, disk,
                       public_key, description, networks, volumes,
                       cloud_init, port_forwards):
-    for pf in port_forwards:
-        if not isinstance(pf, dict):
-            raise BadRequestError('Expected each portforward to be a dict.')
-        if not pf.get('private_port') or not pf.get('public_port') or \
-           not pf.get('protocol'):
-            raise BadRequestError('Each portforward must include: private_port\
-                , public_port and protocol')
+    pf_error_msg = 'Each portforward must be specified in the\
+                following format: {"<public_port>:private_port":("protocol")}'
+    for pf in port_forwards.keys():
+        ports = pf.split(':')
+        if len(ports) != 2:
+            raise BadRequestError(pf_error_msg)
+        for port in ports:
+            try:
+                port = int(port)
+            except (ValueError, TypeError):
+                raise BadRequestError(pf_error_msg)
+        if port_forwards.get(pf) not in ['udp', 'tcp']:
+            raise BadRequestError('Allowed protocols are "udp" and "tcp"')
+
     auth = None
     ex_expose_ssh = False
     if public_key:
@@ -669,8 +676,10 @@ def create_machine_g8(conn, machine_name, image, ram, cpu, disk,
         raise MachineCreationError("Gig G8, got exception %s" % e, e)
 
     for pf in port_forwards:
-        conn.ex_create_portforward(ex_network, node, pf.get('public_port'),
-                                   pf.get('private_port'), pf.get('protocol'))
+        public_port, private_port = pf.split(':')
+        protocol = port_forwards.get(pf)
+        conn.ex_create_portforward(ex_network, node, public_port,
+                                   private_port, protocol   )
 
     return node
 
