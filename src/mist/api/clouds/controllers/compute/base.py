@@ -1644,7 +1644,10 @@ class BaseComputeController(BaseController):
             raise ForbiddenError("Machine doesn't support rename.")
         log.debug("Renaming machine %s", machine)
 
-        machine_libcloud = self._get_machine_libcloud(machine)
+        try:
+            machine_libcloud = self._get_machine_libcloud(machine)
+        except MachineNotFoundError:
+            machine_libcloud = None
         try:
             self._rename_machine(machine, machine_libcloud, name)
         except MistError as exc:

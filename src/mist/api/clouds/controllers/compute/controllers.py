@@ -2002,7 +2002,7 @@ class LibvirtComputeController(BaseComputeController):
     def _list_machines__update_generic_machine_state(self, machine):
         # Defaults
         machine.unreachable_since = None
-        machine.state = config.STATES[NodeState.UNKNOWN]
+        machine.state = config.STATES[NodeState.RUNNING]
 
         # If any of the probes has succeeded, then state is running
         if (
@@ -2014,30 +2014,36 @@ class LibvirtComputeController(BaseComputeController):
         # If ssh probe failed, then unreachable since then
         if machine.ssh_probe and machine.ssh_probe.unreachable_since:
             machine.unreachable_since = machine.ssh_probe.unreachable_since
+            machine.state = config.STATES[NodeState.UNKNOWN]
         # Else if ssh probe has never succeeded and ping probe failed,
         # then unreachable since then
         elif (not machine.ssh_probe and
               machine.ping_probe and machine.ping_probe.unreachable_since):
             machine.unreachable_since = machine.ping_probe.unreachable_since
+            machine.state = config.STATES[NodeState.UNKNOWN]
 
     def _list_machines__machine_actions(self, machine, machine_libcloud):
         super(LibvirtComputeController, self)._list_machines__machine_actions(
             machine, machine_libcloud)
-        if machine.extra.get('tags', {}).get('type') == 'hypervisor':
-            # Allow only reboot and tag actions for hypervisor.
-            for action in ('start', 'stop', 'destroy', 'rename'):
-                setattr(machine.actions, action, False)
-        else:
-            machine.actions.clone = True
-            machine.actions.undefine = False
-            if machine_libcloud.state is NodeState.TERMINATED:
-                # In libvirt a terminated machine can be started.
-                machine.actions.start = True
-                machine.actions.undefine = True
-            if machine_libcloud.state is NodeState.RUNNING:
-                machine.actions.suspend = True
-            if machine_libcloud.state is NodeState.SUSPENDED:
-                machine.actions.resume = True
+        machine.actions.clone = True
+        machine.actions.undefine = False
+        if machine_libcloud.state is NodeState.TERMINATED:
+            # In libvirt a terminated machine can be started.
+            machine.actions.start = True
+            machine.actions.undefine = True
+            machine.actions.rename = True
+        if machine_libcloud.state is NodeState.RUNNING:
+            machine.actions.suspend = True
+        if machine_libcloud.state is NodeState.SUSPENDED:
+            machine.actions.resume = True
+
+    def _list_machines__generic_machine_actions(self, machine):
+        super(LibvirtComputeController,
+              self)._list_machines__generic_machine_actions(machine)
+        machine.actions.rename = True
+        machine.actions.start = False
+        machine.actions.stop = False
+        machine.actions.destroy = False
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         from mist.api.images.models import CloudImage
@@ -2236,6 +2242,15 @@ class LibvirtComputeController(BaseComputeController):
                 raise InternalServerError(exc=exc)
         else:
             machine_libcloud.reboot()
+
+    def _rename_machine(self, machine, machine_libcloud, name):
+        if machine.extra.get('tags', {}).get('type') == 'hypervisor':
+            machine.name = name
+            machine.save()
+            from mist.api.helpers import trigger_session_update
+            trigger_session_update(machine.owner.id, ['clouds'])
+        else:
+            self.connection.ex_rename_node(machine_libcloud, name)
 
     def remove_machine(self, machine):
         from mist.api.machines.models import KeyMachineAssociation
@@ -2469,7 +2484,6 @@ class OtherComputeController(BaseComputeController):
 
         # Defaults
         machine.unreachable_since = None
-        machine.state = config.STATES[NodeState.UNKNOWN]
 
         # If any of the probes has succeeded, then state is running
         if (
@@ -2477,15 +2491,18 @@ class OtherComputeController(BaseComputeController):
             machine.ping_probe and not machine.ping_probe.unreachable_since
         ):
             machine.state = config.STATES[NodeState.RUNNING]
-
         # If ssh probe failed, then unreachable since then
-        if machine.ssh_probe and machine.ssh_probe.unreachable_since:
+        elif machine.ssh_probe and machine.ssh_probe.unreachable_since:
             machine.unreachable_since = machine.ssh_probe.unreachable_since
+            machine.state = config.STATES[NodeState.UNKNOWN]
         # Else if ssh probe has never succeeded and ping probe failed,
         # then unreachable since then
         elif (not machine.ssh_probe and
               machine.ping_probe and machine.ping_probe.unreachable_since):
             machine.unreachable_since = machine.ping_probe.unreachable_since
+            machine.state = config.STATES[NodeState.UNKNOWN]
+        else:  # Asume running if no indication otherwise
+            machine.state = config.STATES[NodeState.RUNNING]
 
     def _list_machines__generic_machine_actions(self, machine):
         """Update an action for a bare metal machine

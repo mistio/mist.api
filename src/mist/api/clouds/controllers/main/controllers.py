@@ -317,6 +317,7 @@ class LibvirtMainController(BaseMainController):
 
     def _add__preparse_kwargs(self, kwargs):
         rename_kwargs(kwargs, 'machine_hostname', 'host')
+        rename_kwargs(kwargs, 'machine_name', 'alias')
         rename_kwargs(kwargs, 'machine_user', 'username')
         rename_kwargs(kwargs, 'machine_key', 'key')
         rename_kwargs(kwargs, 'ssh_port', 'port')
@@ -350,7 +351,7 @@ class LibvirtMainController(BaseMainController):
             self._add__preparse_kwargs(_host)
             errors = {}
             for key in list(_host.keys()):
-                if key not in ('host', 'username', 'port', 'key',
+                if key not in ('host', 'alias', 'username', 'port', 'key',
                                'images_location'):
                     error = "Invalid parameter %s=%r." % (key, kwargs[key])
                     if fail_on_invalid_params:
@@ -385,7 +386,7 @@ class LibvirtMainController(BaseMainController):
             machine = Machine(
                 cloud=self.cloud,
                 machine_id=_host.get('host').replace('.', '-'),
-                name=_host.get('host'),
+                name=_host.get('alias') or _host.get('host'),
                 ssh_port=ssh_port,
                 last_seen=datetime.datetime.utcnow(),
                 hostname=_host.get('host'),
@@ -559,7 +560,8 @@ class LibvirtMainController(BaseMainController):
         if amqp_owner_listening(self.cloud.owner.id):
             # FIX ME@!
             old_machines = []
-            for cached_machine in self.cloud.ctl.compute.list_cached_machines():
+            for cached_machine in \
+                    self.cloud.ctl.compute.list_cached_machines():
                 if cached_machine.id != machine.id:
                     old_machines.append(cached_machine)
             old_machines = [m.as_dict() for m in
