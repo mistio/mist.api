@@ -159,7 +159,7 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                 auth_context = AuthContext.deserialize(
                     schedule.pop('auth_context'))
                 tmp_log('Add scheduler entry %s', name)
-                schedule['conditions'] = [{
+                schedule['selectors'] = [{
                     'type': 'machines',
                     'ids': [machine.id]
                 }]

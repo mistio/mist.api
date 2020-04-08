@@ -531,7 +531,6 @@ class LXDCloud(Cloud):
     Model  specializing Cloud for LXC.
     """
 
-    # TODO: verify default port for LXD container
     host = me.StringField(required=True)
     port = me.IntField(required=True, default=8443)
 
