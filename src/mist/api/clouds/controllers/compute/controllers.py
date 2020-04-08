@@ -588,10 +588,12 @@ class GigG8ComputeController(BaseComputeController):
         existing_pfs = self.connection.ex_list_portforwards(network)
 
         for pf in port_forwards:
+            public_port, private_port = pf.split(':')
+            protocol = port_forwards.get(pf)
             exists = False
             for existing_pf in existing_pfs:
-                if existing_pf.publicport == pf.get('public_port') and \
-                existing_pf.protocol == pf.get('protocol'):
+                if existing_pf.publicport == public_port and \
+                   existing_pf.protocol == protocol:
                     existing_pfs.remove(existing_pf)
                     exists = True
                     break
@@ -600,15 +602,16 @@ class GigG8ComputeController(BaseComputeController):
                 try:
                     self.connection.ex_create_portforward(network,
                                                           machine_libcloud,
-                                                          pf.get('public_port'),
-                                                          pf.get('private_port'),
-                                                          pf.get('protocol'))
+                                                          public_port,
+                                                          private_port,
+                                                          protocol)
                 except BaseHTTPError as exc:
                     raise PortForwardCreationError(exc.message)
 
         # remove remaining existing_pfs
         for pf in existing_pfs:
             self.connection.ex_delete_portforward(pf)
+
 
 class LinodeComputeController(BaseComputeController):
 

@@ -22,6 +22,7 @@ from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import BadRequestError, NotFoundError, ForbiddenError
 from mist.api.exceptions import MachineCreationError, RedirectError
 from mist.api.exceptions import CloudUnauthorizedError, CloudUnavailableError
+from mist.api.exceptions import MistError
 
 from mist.api.monitoring.methods import enable_monitoring
 from mist.api.monitoring.methods import disable_monitoring
@@ -706,6 +707,7 @@ def machine_actions(request):
       - create_snapshot
       - remove_snapshot
       - revert_to_snapshot
+      - expose
       required: true
       type: string
     name:
@@ -738,6 +740,7 @@ def machine_actions(request):
     snapshot_description = params.get('snapshot_description')
     snapshot_dump_memory = params.get('snapshot_dump_memory')
     snapshot_quiesce = params.get('snapshot_quiesce')
+    port_forwards = params.get('port_forwards', {})
     auth_context = auth_context_from_request(request)
 
     if cloud_id:
@@ -778,7 +781,7 @@ def machine_actions(request):
     actions = ('start', 'stop', 'reboot', 'destroy', 'resize',
                'rename', 'undefine', 'suspend', 'resume', 'remove',
                'list_snapshots', 'create_snapshot', 'remove_snapshot',
-               'revert_to_snapshot', 'clone')
+               'revert_to_snapshot', 'clone', 'expose')
 
     if action not in actions:
         raise BadRequestError("Action '%s' should be "
@@ -809,6 +812,15 @@ def machine_actions(request):
     elif action in ('start', 'stop', 'reboot', 'clone',
                     'undefine', 'suspend', 'resume'):
         result = getattr(machine.ctl, action)()
+    elif action == 'expose':
+      network = machine.network
+      # FIX?
+      if not network:
+        raise MistError('Do not know the network of the machine to expose a port from')
+
+      auth_context.check_perm('network', 'read', network)
+      auth_context.check_perm('network', 'edit', network)
+      result = getattr(machine.ctl, action)(port_forwards)
     elif action == 'rename':
         if not name:
             raise BadRequestError("You must give a name!")
