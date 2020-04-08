@@ -1022,9 +1022,14 @@ def machine_console(request):
         vnc_element = root.find('devices').find('graphics[@type="vnc"]')
         vnc_port = vnc_element.attrib.get('port')
         vnc_host = vnc_element.attrib.get('listen')
-        key_id = machine.cloud.key.id
-        host = '%s@%s:%d' % (
-            machine.cloud.username, machine.cloud.host, machine.cloud.port)
+        from mongoengine import Q
+        key_associations = KeyMachineAssociation.objects(
+            Q(machine=machine.parent) & (Q(ssh_user='root') | Q(sudo=True)))
+        if not key_associations:
+            raise ForbiddenError()
+        key_id = key_associations[0].key.id
+        host = '%s@%s:%d' % (key_associations[0].ssh_user,
+            machine.parent.hostname, key_associations[0].port)
         expiry = int(datetime.now().timestamp()) + 100
         msg = '%s,%s,%s,%s,%s' % (host, key_id, vnc_host, vnc_port, expiry)
         mac = hmac.new(
