@@ -1945,7 +1945,6 @@ class LibvirtComputeController(BaseComputeController):
 
         return self._get_host_driver(machine)
 
-    # TODO: Rename
     def _get_host_driver(self, machine):
         """Three supported ways to connect: local system, qemu+tcp, qemu+ssh"""
 

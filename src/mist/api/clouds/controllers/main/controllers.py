@@ -330,7 +330,6 @@ class LibvirtMainController(BaseMainController):
                                                 id=kwargs['key'],
                                                 deleted=None)
             except Key.DoesNotExist:
-                # FIXME
                 raise NotFoundError("Key does not exist.")
 
     def add(self, fail_on_error=True, fail_on_invalid_params=True, **kwargs):
@@ -481,9 +480,11 @@ class LibvirtMainController(BaseMainController):
             ssh_port = 22
 
         if ssh_key:
-            # FIXME: try-except
-            ssh_key = Key.objects.get(owner=self.cloud.owner, id=ssh_key,
-                                      deleted=None)
+            try:
+                ssh_key = Key.objects.get(owner=self.cloud.owner, id=ssh_key,
+                                          deleted=None)
+            except Key.DoesNotExist:
+                raise NotFoundError("Key does not exist.")
 
         images_location = kwargs.get('images_location',
                                      '/var/lib/libvirt/images')
