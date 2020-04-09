@@ -1029,7 +1029,8 @@ def machine_console(request):
             raise ForbiddenError()
         key_id = key_associations[0].key.id
         host = '%s@%s:%d' % (key_associations[0].ssh_user,
-            machine.parent.hostname, key_associations[0].port)
+                             machine.parent.hostname,
+                             key_associations[0].port)
         expiry = int(datetime.now().timestamp()) + 100
         msg = '%s,%s,%s,%s,%s' % (host, key_id, vnc_host, vnc_port, expiry)
         mac = hmac.new(
