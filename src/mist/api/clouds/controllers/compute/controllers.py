@@ -45,6 +45,7 @@ from libcloud.compute.types import Provider, NodeState
 from libcloud.container.types import Provider as Container_Provider
 from libcloud.container.types import ContainerState
 from libcloud.container.base import ContainerImage, Container
+from libcloud.common.exceptions import BaseHTTPError
 from mist.api.exceptions import MistError
 from mist.api.exceptions import InternalServerError
 from mist.api.exceptions import MachineNotFoundError
@@ -221,16 +222,34 @@ class AmazonComputeController(BaseComputeController):
                             bad_id, self.cloud
                         ))
                 keys = list(default_images.keys())
-                images = self.connection.list_images(None, keys)
+                try:
+                    images = self.connection.list_images(None, keys)
+                except BaseHTTPError as e:
+                    if 'UnauthorizedOperation' in str(e.message):
+                        images = []
+                    else:
+                        raise()
             for image in images:
                 if image.id in default_images:
                     image.name = default_images[image.id]
-            images += self.connection.list_images(ex_owner='self')
+            try:
+                images += self.connection.list_images(ex_owner='self')
+            except BaseHTTPError as e:
+                if 'UnauthorizedOperation' in str(e.message):
+                    pass
+                else:
+                    raise()
         else:
             # search on EC2.
-            libcloud_images = self.connection.list_images(
-                ex_filters={'name': '*%s*' % search}
-            )
+            try:
+                libcloud_images = self.connection.list_images(
+                    ex_filters={'name': '*%s*' % search}
+                )
+            except BaseHTTPError as e:
+                if 'UnauthorizedOperation' in str(e.message):
+                    libcloud_images = []
+                else:
+                    raise()
 
             search = search.lower()
             images = [img for img in libcloud_images
