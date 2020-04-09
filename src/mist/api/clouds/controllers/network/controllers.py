@@ -228,7 +228,6 @@ class LibvirtNetworkController(BaseNetworkController):
 
     def _list_networks__postparse_network(self, network, libcloud_network,
                                           r_groups=[]):
-        from mist.api.clouds.models import CloudLocation
         location = None
         host_name = libcloud_network.extra.get('host')
         from mist.api.clouds.models import CloudLocation

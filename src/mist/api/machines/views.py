@@ -527,7 +527,6 @@ def add_machine(request):
     images_location:
       type: string
     """
-    # FIXME: Also test 'add host' in Other Server clouds
     cloud_id = request.matchdict.get('cloud')
 
     auth_context = auth_context_from_request(request)

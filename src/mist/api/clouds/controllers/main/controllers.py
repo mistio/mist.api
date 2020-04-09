@@ -713,7 +713,8 @@ class OtherMainController(BaseMainController):
     # TODO: Make it **kwargs ffs and test! (name below)
     def add_machine(self, name='', host='',
                     ssh_user='root', ssh_port=22, ssh_key=None,
-                    os_type='unix', rdp_port=3389, fail_on_error=True):
+                    os_type='unix', rdp_port=3389, images_location='',
+                    fail_on_error=True):
         """Add machine to this dummy Cloud
 
         This is a special method that exists only on this Cloud subclass.
