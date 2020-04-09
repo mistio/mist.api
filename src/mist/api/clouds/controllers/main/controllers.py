@@ -710,7 +710,6 @@ class OtherMainController(BaseMainController):
 
         return machine
 
-    # TODO: Make it **kwargs ffs and test! (name below)
     def add_machine(self, name='', host='',
                     ssh_user='root', ssh_port=22, ssh_key=None,
                     os_type='unix', rdp_port=3389, images_location='',
@@ -742,7 +741,7 @@ class OtherMainController(BaseMainController):
         # Create and save machine entry to database.
         machine = Machine(
             cloud=self.cloud,
-            name=name,
+            name=name or host,
             machine_id=uuid.uuid4().hex,
             os_type=os_type,
             ssh_port=ssh_port,
