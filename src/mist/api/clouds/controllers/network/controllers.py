@@ -253,6 +253,36 @@ class LibvirtNetworkController(BaseNetworkController):
     def _delete_subnet(self, subnet, libcloud_subnet):
         raise MistNotImplementedError()
 
+    def _list_vnfs(self, host=None):
+        from mist.api.machines.models import Machine
+        from mist.api.clouds.models import CloudLocation
+        if not host:
+            hosts = Machine.objects(
+                cloud=self.cloud, parent=None, missing_since=None)
+        else:
+            hosts = [host]
+        vnfs = []
+        for host in hosts:  # TODO: asyncio
+            driver = self.cloud.ctl.compute._get_host_driver(host)
+            host_vnfs = driver.ex_list_vnfs()
+            try:
+                location = CloudLocation.objects.get(cloud=self.cloud,
+                                                     name=host.name)
+            except CloudLocation.DoesNotExist:
+                host_name = host.name.replace('.', '-')
+                try:
+                    location = CloudLocation.objects.get(cloud=self.cloud,
+                                                        external_id=host_name)
+                except CloudLocation.DoesNotExist:
+                    location = None
+            except Exception as e:
+                log.error(e)
+                location = None
+            for vnf in host_vnfs:
+                vnf['location'] = location.id
+            vnfs += host_vnfs
+        return vnfs
+
 
 class VSphereNetworkController(BaseNetworkController):
 
