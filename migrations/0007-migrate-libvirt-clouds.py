@@ -23,8 +23,11 @@ def migrate_libvirt_clouds():
             machines = Machine.objects(cloud=cloud, missing_since=None)
             for machine in machines:
                 if machine.extra.get('tags', {}).get('type') == 'hypervisor':
-                    machine.extra.update({'images_location':
-                                          cloud.images_location})
+                    updated_extra = {
+                        'images_location': cloud.images_location,
+                        'username': cloud.username
+                    }
+                    machine.extra.update(updated_extra)
                     machine.save()
                     break
 

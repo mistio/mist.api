@@ -1967,12 +1967,12 @@ class LibvirtComputeController(BaseComputeController):
                                                   user=km_assoc.ssh_user,
                                                   ssh_key=km_assoc.key.private,
                                                   ssh_port=int(port))
-        # FIXME: get the user below?
         else:
+            username = machine.extra.get('username')
             host, port = dnat(machine.cloud.owner, machine.hostname, 5000)
             driver = get_driver(Provider.LIBVIRT)(host,
                                                   hypervisor=machine.hostname,
-                                                  user=key_assoc.ssh_user,
+                                                  user=username,
                                                   tcp_port=int(port))
 
         return driver
@@ -2199,7 +2199,6 @@ class LibvirtComputeController(BaseComputeController):
         image.extra.update({'locations': locations})
 
     def _get_machine_libcloud(self, machine, no_fail=False):
-        # TODO: Is it really needed to perform list_nodes?
         assert self.cloud == machine.cloud
         machine_type = machine.extra.get('tags', {}).get('type')
         host = machine if machine_type == 'hypervisor' else machine.parent

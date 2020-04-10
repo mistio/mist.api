@@ -336,7 +336,6 @@ class LibvirtMainController(BaseMainController):
         if not kwargs.get('hosts'):
             raise RequiredParameterMissingError('hosts')
         try:
-            # FIXME
             self.cloud.save()
         except me.ValidationError as exc:
             raise BadRequestError({'msg': str(exc),
@@ -377,10 +376,12 @@ class LibvirtMainController(BaseMainController):
 
             images_location = _host.get('images_location',
                                         '/var/lib/libvirt/images')
-            extra = {'images_location': images_location}
-            extra.update({'tags': {'type': 'hypervisor'}})
+            extra = {
+                'images_location': images_location,
+                'tags': {'type': 'hypervisor'},
+                'username': _host.get('username')
+            }
             # Create and save machine entry to database.
-            # FIXME: Save username as well?
             from mist.api.machines.models import Machine
             machine = Machine(
                 cloud=self.cloud,
@@ -488,8 +489,11 @@ class LibvirtMainController(BaseMainController):
 
         images_location = kwargs.get('images_location',
                                      '/var/lib/libvirt/images')
-        extra = {'images_location': images_location}
-        extra.update({'tags': {'type': 'hypervisor'}})
+        extra = {
+                'images_location': images_location,
+                'tags': {'type': 'hypervisor'},
+                'username': ssh_user
+            }
 
         from mist.api.machines.models import Machine
         # Create and save machine entry to database.
@@ -497,7 +501,7 @@ class LibvirtMainController(BaseMainController):
         try:
             machine = Machine.objects.get(cloud=self.cloud,
                                           machine_id=host.replace('.', '-'))
-            machine.name = host
+            machine.name = kwargs.get('name') or host
             machine.ssh_port = ssh_port
             machine.extra = extra
             machine.last_seen = datetime.datetime.utcnow()
@@ -505,7 +509,7 @@ class LibvirtMainController(BaseMainController):
         except me.DoesNotExist:
             machine = Machine(
                 cloud=self.cloud,
-                name=host,
+                name=kwargs.get('name') or host,
                 hostname=host,
                 machine_id=host.replace('.', '-'),
                 ssh_port=ssh_port,
