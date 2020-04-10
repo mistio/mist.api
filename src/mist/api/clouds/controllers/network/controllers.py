@@ -272,7 +272,7 @@ class LibvirtNetworkController(BaseNetworkController):
                 host_name = host.name.replace('.', '-')
                 try:
                     location = CloudLocation.objects.get(cloud=self.cloud,
-                                                        external_id=host_name)
+                                                         external_id=host_name)
                 except CloudLocation.DoesNotExist:
                     location = None
             except Exception as e:

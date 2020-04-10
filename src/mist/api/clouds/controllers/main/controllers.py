@@ -490,10 +490,10 @@ class LibvirtMainController(BaseMainController):
         images_location = kwargs.get('images_location',
                                      '/var/lib/libvirt/images')
         extra = {
-                'images_location': images_location,
-                'tags': {'type': 'hypervisor'},
-                'username': ssh_user
-            }
+            'images_location': images_location,
+            'tags': {'type': 'hypervisor'},
+            'username': ssh_user
+        }
 
         from mist.api.machines.models import Machine
         # Create and save machine entry to database.
@@ -563,10 +563,10 @@ class LibvirtMainController(BaseMainController):
                 raise MistError(str(exc))
 
         if amqp_owner_listening(self.cloud.owner.id):
-            # FIX ME@!
             old_machines = []
             for cached_machine in \
                     self.cloud.ctl.compute.list_cached_machines():
+                # make sure that host just added becomes visible
                 if cached_machine.id != machine.id:
                     old_machines.append(cached_machine)
             old_machines = [m.as_dict() for m in
