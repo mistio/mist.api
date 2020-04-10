@@ -1568,7 +1568,7 @@ class DockerComputeController(BaseComputeController):
         if machine_libcloud.state in (ContainerState.RUNNING,):
             machine.actions.rename = True
         elif machine_libcloud.state in (ContainerState.REBOOTING,
-                                      ContainerState.PENDING):
+                                        ContainerState.PENDING):
             machine.actions.start = False
             machine.actions.stop = False
             machine.actions.reboot = False
