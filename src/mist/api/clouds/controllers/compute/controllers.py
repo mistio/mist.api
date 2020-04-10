@@ -1984,7 +1984,6 @@ class LibvirtComputeController(BaseComputeController):
         from mist.api.machines.models import KeyMachineAssociation
         key_assoc = KeyMachineAssociation.objects(machine=machine)
         if key_assoc:
-            # FIXME
             km_assoc = key_assoc[0]
             host, port = dnat(machine.cloud.owner,
                               machine.hostname, machine.ssh_port)
