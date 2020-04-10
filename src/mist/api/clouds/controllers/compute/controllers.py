@@ -1565,7 +1565,9 @@ class DockerComputeController(BaseComputeController):
         # todo this is not necessary
         super(DockerComputeController, self)._list_machines__machine_actions(
             machine, machine_libcloud)
-        if machine_libcloud.state in (ContainerState.REBOOTING,
+        if machine_libcloud.state in (ContainerState.RUNNING,):
+            machine.actions.rename = True
+        elif machine_libcloud.state in (ContainerState.REBOOTING,
                                       ContainerState.PENDING):
             machine.actions.start = False
             machine.actions.stop = False
@@ -1576,6 +1578,7 @@ class DockerComputeController(BaseComputeController):
             machine.actions.start = True
             machine.actions.stop = False
             machine.actions.reboot = False
+            machine.actions.rename = True
         elif machine_libcloud.state in (ContainerState.TERMINATED, ):
             machine.actions.start = False
             machine.actions.stop = False
@@ -1800,6 +1803,10 @@ class DockerComputeController(BaseComputeController):
 
     def _list_sizes__fetch_sizes(self):
         return []
+
+    def _rename_machine(self, machine, machine_libcloud, name):
+        """Private method to rename a given machine"""
+        self.connection.ex_rename_container(machine_libcloud, name)
 
 
 class LXDComputeController(BaseComputeController):
