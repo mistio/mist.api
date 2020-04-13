@@ -610,6 +610,9 @@ class OtherMainController(BaseMainController):
         self.cloud.enabled = False
         self.cloud.save()
 
+    # FIXME: make sure that errors are properly shown to the user
+    # FIXME: make sure that cloud is not added in the db if no
+    # host is successfully added ffs
     def add(self, fail_on_error=True, fail_on_invalid_params=True, **kwargs):
         """Add new Cloud to the database
 
