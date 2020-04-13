@@ -332,7 +332,8 @@ class LibvirtMainController(BaseMainController):
             except Key.DoesNotExist:
                 raise NotFoundError("Key does not exist.")
 
-    def add(self, fail_on_error=True, fail_on_invalid_params=True, **kwargs):
+    # TODO: fail_on_error True or False by default?
+    def add(self, fail_on_error=True, fail_on_invalid_params=False, **kwargs):
         from mist.api.machines.models import Machine
         if not kwargs.get('hosts'):
             raise RequiredParameterMissingError('hosts')
@@ -344,7 +345,7 @@ class LibvirtMainController(BaseMainController):
         except me.NotUniqueError:
             raise CloudExistsError("Cloud with name %s already exists"
                                    % self.cloud.title)
-        errors = []
+        total_errors = {}
 
         for _host in kwargs['hosts']:
             self._add__preparse_kwargs(_host)
@@ -354,22 +355,23 @@ class LibvirtMainController(BaseMainController):
                                'images_location'):
                     error = "Invalid parameter %s=%r." % (key, kwargs[key])
                     if fail_on_invalid_params:
-                        errors[key] = error
+                        self.cloud.delete()
+                        raise BadRequestError(error)
                     else:
                         log.warning(error)
                         kwargs.pop(key)
-            if 'host' not in _host or not _host.get('host'):
-                errors['host'] = "Required parameter missing: host"
-                log.error(errors['host'])
 
-            if errors:
-                log.error("Invalid parameters %s." % list(errors.keys()))
-                # FIXME: Do not raise!
-                # raise BadRequestError({
-                #     'msg': "Invalid parameters %s." % list(errors.keys()),
-                #     'errors': errors,
-                # })
-            else:
+            if 'host' not in _host or not _host.get('host'):
+                error = "Required parameter missing: host"
+                errors['host'] = error
+                if fail_on_error:
+                    self.cloud.delete()
+                    raise RequiredParameterMissingError('host')
+                else:
+                    log.warning(error)
+                    total_errors.update({'host': error})
+
+            if not errors.get('host'):
                 try:
                     ssh_port = int(_host.get('ssh_port', 22))
                 except (ValueError, TypeError):
@@ -393,7 +395,6 @@ class LibvirtMainController(BaseMainController):
                     state=NodeState.RUNNING,
                     extra=extra
                 )
-
                 # Sanitize inputs.
                 host = sanitize_host(_host.get('host'))
                 check_host(_host.get('host'))
@@ -407,25 +408,31 @@ class LibvirtMainController(BaseMainController):
                 try:
                     machine.save(write_concern={'w': 1, 'fsync': True})
                 except me.NotUniqueError:
-                    # FIXME: append in errors
-                    continue
+                    error = 'Duplicate machine entry. Maybe the same \
+                            host has been added twice?'
+                    if fail_on_error:
+                        self.cloud.delete()
+                        raise MistError(error)
+                    else:
+                        total_errors.update({_host.get('host'): error})
+                        continue
 
                 # associate key if given and attempt to connect
                 if _host.get('key'):
                     try:
                         machine.ctl.associate_key(_host.get('key'),
-                                                username=_host.get('username'),
-                                                port=ssh_port)
+                                                  username=_host.get('username'),
+                                                  port=ssh_port)
                     except MachineUnauthorizedError as exc:
                         log.error("Could not connect to host %s."
-                                % _host.get('host'))
+                                  % _host.get('host'))
                         machine.delete()
                         if fail_on_error:
                             self.cloud.delete()
                             raise CloudUnauthorizedError(exc)
                     except ServiceUnavailableError as exc:
                         log.error("Could not connect to host %s."
-                                % _host.get('host'))
+                                  % _host.get('host'))
                         machine.delete()
                         if fail_on_error:
                             self.cloud.delete()
@@ -435,12 +442,13 @@ class LibvirtMainController(BaseMainController):
                 else:
                     from libcloud.compute.providers import get_driver
                     from libcloud.compute.types import Provider
-                    host, port = dnat(machine.cloud.owner, machine.hostname, 5000)
+                    host, port = dnat(machine.cloud.owner, machine.hostname,
+                                      5000)
                     try:
                         get_driver(Provider.LIBVIRT)(host,
-                                                    hypervisor=machine.hostname,
-                                                    user=_host.get('username'),
-                                                    tcp_port=ssh_port)
+                                                     hypervisor=machine.hostname,
+                                                     user=_host.get('username'),
+                                                     tcp_port=ssh_port)
                     except Exception as exc:
                         log.error("Could not connect to host %s." % host)
                         machine.delete()
@@ -452,15 +460,18 @@ class LibvirtMainController(BaseMainController):
         # if not, delete the cloud and raise
         if Machine.objects(cloud=self.cloud):
             if amqp_owner_listening(self.cloud.owner.id):
+                # FIXME: Here also populate host????
                 old_machines = [m.as_dict() for m in
                                 self.cloud.ctl.compute.list_cached_machines()]
                 new_machines = self.cloud.ctl.compute.list_machines()
                 self.cloud.ctl.compute.produce_and_publish_patch(
                     old_machines, new_machines)
 
+            self.cloud.errors = total_errors
+
         else:
             self.cloud.delete()
-            raise MistError(errors)
+            raise BadRequestError(total_errors)
 
     def update(self, fail_on_error=True, fail_on_invalid_params=True,
                add=False, **kwargs):

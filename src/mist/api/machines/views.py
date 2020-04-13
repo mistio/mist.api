@@ -581,7 +581,7 @@ def add_machine(request):
                                         images_location=images_location
                                         )
     except Exception as e:
-        raise MachineCreationError("OtherServer, got exception %r" % e,
+        raise MachineCreationError("Adding host got exception %r" % e,
                                    exc=e)
 
     # Enable monitoring
