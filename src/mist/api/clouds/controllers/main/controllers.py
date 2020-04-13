@@ -361,17 +361,18 @@ class LibvirtMainController(BaseMainController):
                         log.warning(error)
                         kwargs.pop(key)
 
-            if 'host' not in _host or not _host.get('host'):
-                error = "Required parameter missing: host"
-                errors['host'] = error
-                if fail_on_error:
-                    self.cloud.delete()
-                    raise RequiredParameterMissingError('host')
-                else:
-                    log.warning(error)
-                    total_errors.update({'host': error})
+            for key in ('host', 'key'):
+                if key not in _host or not _host.get(key):
+                    error = "Required parameter missing: %s" % key
+                    errors[key] = error
+                    if fail_on_error:
+                        self.cloud.delete()
+                        raise RequiredParameterMissingError(key)
+                    else:
+                        log.warning(error)
+                        total_errors.update({key: error})
 
-            if not errors.get('host'):
+            if not errors:
                 try:
                     ssh_port = int(_host.get('ssh_port', 22))
                 except (ValueError, TypeError):
@@ -417,44 +418,26 @@ class LibvirtMainController(BaseMainController):
                         total_errors.update({_host.get('host'): error})
                         continue
 
-                # associate key if given and attempt to connect
-                if _host.get('key'):
-                    try:
-                        machine.ctl.associate_key(_host.get('key'),
-                                                  username=_host.get('username'),
-                                                  port=ssh_port)
-                    except MachineUnauthorizedError as exc:
-                        log.error("Could not connect to host %s."
-                                  % _host.get('host'))
-                        machine.delete()
-                        if fail_on_error:
-                            self.cloud.delete()
-                            raise CloudUnauthorizedError(exc)
-                    except ServiceUnavailableError as exc:
-                        log.error("Could not connect to host %s."
-                                  % _host.get('host'))
-                        machine.delete()
-                        if fail_on_error:
-                            self.cloud.delete()
-                            raise MistError("Couldn't connect to host '%s'."
-                                            % _host.get('host'))
-
-                else:
-                    from libcloud.compute.providers import get_driver
-                    from libcloud.compute.types import Provider
-                    host, port = dnat(machine.cloud.owner, machine.hostname,
-                                      5000)
-                    try:
-                        get_driver(Provider.LIBVIRT)(host,
-                                                     hypervisor=machine.hostname,
-                                                     user=_host.get('username'),
-                                                     tcp_port=ssh_port)
-                    except Exception as exc:
-                        log.error("Could not connect to host %s." % host)
-                        machine.delete()
-                        if fail_on_error:
-                            self.cloud.delete()
-                            raise MistError(str(exc))
+                # associate key and attempt to connect
+                try:
+                    machine.ctl.associate_key(_host.get('key'),
+                                              username=_host.get('username'),
+                                              port=ssh_port)
+                except MachineUnauthorizedError as exc:
+                    log.error("Could not connect to host %s."
+                              % _host.get('host'))
+                    machine.delete()
+                    if fail_on_error:
+                        self.cloud.delete()
+                        raise CloudUnauthorizedError(exc)
+                except ServiceUnavailableError as exc:
+                    log.error("Could not connect to host %s."
+                              % _host.get('host'))
+                    machine.delete()
+                    if fail_on_error:
+                        self.cloud.delete()
+                        raise MistError("Couldn't connect to host '%s'."
+                                        % _host.get('host'))
 
         # check if host was added successfully
         # if not, delete the cloud and raise
