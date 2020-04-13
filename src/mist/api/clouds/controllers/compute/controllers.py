@@ -422,6 +422,9 @@ class DigitalOceanComputeController(BaseComputeController):
     def _stop_machine(self, machine, machine_libcloud):
         self.connection.ex_shutdown_node(machine_libcloud)
 
+    def _start_machine(self, machine, machine_libcloud):
+        self.connection.ex_power_on_node(machine_libcloud)
+
     def _list_machines__get_location(self, node):
         return node.extra.get('region')
 
