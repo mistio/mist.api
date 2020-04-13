@@ -260,7 +260,7 @@ def create_machine(request):
     port_forwards:
       description: Applies only in GigG8 clouds
       type: object
-      example: {"2200:22": ("tcp")}
+      example: {"2200:22": ["tcp"]}
     """
 
     params = params_from_request(request)

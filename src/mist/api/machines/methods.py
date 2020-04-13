@@ -625,7 +625,7 @@ def create_machine_g8(conn, machine_name, image, ram, cpu, disk,
                 port = int(port)
             except (ValueError, TypeError):
                 raise BadRequestError(pf_error_msg)
-        if port_forwards.get(pf) not in ['udp', 'tcp']:
+        if port_forwards.get(pf)[0] not in ['udp', 'tcp']:
             raise BadRequestError('Allowed protocols are "udp" and "tcp"')
 
     auth = None
@@ -680,7 +680,7 @@ def create_machine_g8(conn, machine_name, image, ram, cpu, disk,
 
     for pf in port_forwards:
         public_port, private_port = pf.split(':')
-        protocol = port_forwards.get(pf)
+        protocol = port_forwards.get(pf)[0]
         conn.ex_create_portforward(ex_network, node, public_port,
                                    private_port, protocol)
 

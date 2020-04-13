@@ -589,7 +589,7 @@ class GigG8ComputeController(BaseComputeController):
                     port = int(port)
                 except (ValueError, TypeError):
                     raise BadRequestError(pf_error_msg)
-            if port_forwards.get(pf) not in ['udp', 'tcp']:
+            if port_forwards.get(pf)[0] not in ['udp', 'tcp']:
                 raise BadRequestError('Allowed protocols are "udp" and "tcp"')
 
         machine_libcloud = self._get_machine_libcloud(machine)
@@ -603,7 +603,7 @@ class GigG8ComputeController(BaseComputeController):
 
         for pf in port_forwards:
             public_port, private_port = pf.split(':')
-            protocol = port_forwards.get(pf)
+            protocol = port_forwards.get(pf)[0]
             exists = False
             for existing_pf in existing_pfs:
                 if existing_pf.publicport == public_port and \
