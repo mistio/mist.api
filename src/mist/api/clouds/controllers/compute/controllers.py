@@ -2071,6 +2071,7 @@ class LibvirtComputeController(BaseComputeController):
         machine.actions.start = False
         machine.actions.stop = False
         machine.actions.destroy = False
+        machine.actions.reboot = False
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         from mist.api.images.models import CloudImage

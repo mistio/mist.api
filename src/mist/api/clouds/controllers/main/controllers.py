@@ -441,7 +441,6 @@ class LibvirtMainController(BaseMainController):
         # if not, delete the cloud and raise
         if Machine.objects(cloud=self.cloud):
             if amqp_owner_listening(self.cloud.owner.id):
-                # FIXME: Here also populate host????
                 old_machines = [m.as_dict() for m in
                                 self.cloud.ctl.compute.list_cached_machines()]
                 new_machines = self.cloud.ctl.compute.list_machines()
