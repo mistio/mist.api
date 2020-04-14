@@ -1994,10 +1994,11 @@ class LibvirtComputeController(BaseComputeController):
             raise ForbiddenError()
 
         host, port = dnat(machine.cloud.owner,
-                            machine.hostname, machine.ssh_port)
-        driver = get_driver(Provider.LIBVIRT)(host,
-            hypervisor=machine.hostname, user=key_associations[0].ssh_user,
-            ssh_key=key_associations[0].key.private, ssh_port=int(port))
+                          machine.hostname, machine.ssh_port)
+        driver = get_driver(Provider.LIBVIRT)(
+            host, hypervisor=machine.hostname, ssh_port=int(port),
+            user=key_associations[0].ssh_user,
+            ssh_key=key_associations[0].key.private)
 
         return driver
 
