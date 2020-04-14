@@ -51,6 +51,7 @@ from mist.api.exceptions import InternalServerError
 from mist.api.exceptions import MachineNotFoundError
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import NotFoundError
+from mist.api.exceptions import ForbiddenError
 from mist.api.helpers import sanitize_host
 from mist.api.helpers import amqp_owner_listening
 
@@ -1983,23 +1984,20 @@ class LibvirtComputeController(BaseComputeController):
             machine = machine.parent
 
         from mist.api.machines.models import KeyMachineAssociation
-        key_assoc = KeyMachineAssociation.objects(machine=machine)
-        if key_assoc:
-            km_assoc = key_assoc[0]
-            host, port = dnat(machine.cloud.owner,
-                              machine.hostname, machine.ssh_port)
-            driver = get_driver(Provider.LIBVIRT)(host,
-                                                  hypervisor=machine.hostname,
-                                                  user=km_assoc.ssh_user,
-                                                  ssh_key=km_assoc.key.private,
-                                                  ssh_port=int(port))
-        else:
-            username = machine.extra.get('username')
-            host, port = dnat(machine.cloud.owner, machine.hostname, 5000)
-            driver = get_driver(Provider.LIBVIRT)(host,
-                                                  hypervisor=machine.hostname,
-                                                  user=username,
-                                                  tcp_port=int(port))
+        from mongoengine import Q
+        # Get key associations, prefer root or sudoer ones
+        # TODO: put this in a helper function
+        key_associations = KeyMachineAssociation.objects(
+            Q(machine=machine) & (Q(ssh_user='root') | Q(sudo=True))) \
+            or KeyMachineAssociation.objects(machine=machine)
+        if not key_associations:
+            raise ForbiddenError()
+
+        host, port = dnat(machine.cloud.owner,
+                            machine.hostname, machine.ssh_port)
+        driver = get_driver(Provider.LIBVIRT)(host,
+            hypervisor=machine.hostname, user=key_associations[0].ssh_user,
+            ssh_key=key_associations[0].key.private, ssh_port=int(port))
 
         return driver
 
