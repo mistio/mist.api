@@ -507,7 +507,7 @@ def add_machine(request):
       in: path
       required: true
       type: string
-    machine_ip:
+    machine_hostname:
       type: string
       required: true
     operating_system:
@@ -541,9 +541,9 @@ def add_machine(request):
         raise MistNotImplementedError()
 
     params = params_from_request(request)
-    machine_ip = params.get('machine_ip')
-    if not machine_ip:
-        raise RequiredParameterMissingError("machine_ip")
+    machine_hostname = params.get('machine_hostname')
+    if not machine_hostname:
+        raise RequiredParameterMissingError("machine_hostname")
 
     operating_system = params.get('operating_system', '')
     machine_name = params.get('machine_name', '')
@@ -571,7 +571,7 @@ def add_machine(request):
              % (machine_name, cloud_id))
 
     try:
-        machine = cloud.ctl.add_machine(host=machine_ip,
+        machine = cloud.ctl.add_machine(host=machine_hostname,
                                         ssh_user=machine_user,
                                         ssh_port=machine_port,
                                         ssh_key=machine_key,

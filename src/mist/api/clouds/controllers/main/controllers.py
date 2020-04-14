@@ -649,7 +649,7 @@ class OtherMainController(BaseMainController):
         """
 
         # Sanitize params.
-        rename_kwargs(kwargs, 'machine_ip', 'host')
+        rename_kwargs(kwargs, 'machine_hostname', 'host')
         rename_kwargs(kwargs, 'machine_user', 'ssh_user')
         rename_kwargs(kwargs, 'machine_key', 'ssh_key')
         rename_kwargs(kwargs, 'machine_port', 'ssh_port')
