@@ -6,7 +6,6 @@ import logging
 import mongoengine as me
 
 from mist.api.tag.models import Tag
-from mist.api.keys.models import Key
 from mist.api.users.models import Organization
 from mist.api.ownership.mixins import OwnershipMixin
 from mist.api.mongoengine_extras import MistDictField
@@ -553,18 +552,7 @@ class LXDCloud(Cloud):
 
 class LibvirtCloud(Cloud):
 
-    host = me.StringField(required=True)
-    username = me.StringField(default='root')
-    port = me.IntField(required=True, default=22)
-    key = me.ReferenceField(Key, required=False, reverse_delete_rule=me.DENY)
-    images_location = me.StringField(default="/var/lib/libvirt/images")
-
     _controller_cls = controllers.LibvirtMainController
-
-    def as_dict(self):
-        cdict = super(LibvirtCloud, self).as_dict()
-        cdict['key'] = self.key.id
-        return cdict
 
 
 class OnAppCloud(Cloud):

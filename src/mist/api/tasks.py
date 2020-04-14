@@ -656,7 +656,7 @@ def create_machine_async(
              'folder': folder,
              'datastore': datastore,
              'vnfs': vnfs,
-             'description': description
+             'description': description,
              }
         ))
 
