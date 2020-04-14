@@ -2173,7 +2173,7 @@ class LibvirtComputeController(BaseComputeController):
         return _size
 
     def _list_machines__get_location(self, node):
-        return node.extra.get('hypervisor').replace('.','-')
+        return node.extra.get('hypervisor').replace('.', '-')
 
     def list_sizes(self, persist=True):
         return []
