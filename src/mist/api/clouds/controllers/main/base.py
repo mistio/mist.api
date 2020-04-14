@@ -440,4 +440,4 @@ class BaseMainController(object):
         This is only supported on Other Server clouds.
         """
         raise BadRequestError("Adding machines is only supported in Bare"
-                              "Metal clouds.")
+                              "Metal and KVM/Libvirt clouds.")

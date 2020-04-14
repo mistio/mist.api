@@ -23,6 +23,7 @@ from mist.api.exceptions import BadRequestError, NotFoundError, ForbiddenError
 from mist.api.exceptions import MachineCreationError, RedirectError
 from mist.api.exceptions import CloudUnauthorizedError, CloudUnavailableError
 from mist.api.exceptions import MistError
+from mist.api.exceptions import MistNotImplementedError
 
 from mist.api.monitoring.methods import enable_monitoring
 from mist.api.monitoring.methods import disable_monitoring
@@ -132,14 +133,14 @@ def create_machine(request):
       required: true
       example: "my-digital-ocean-machine"
     image:
-      description: Provider's image id to be used on creation
+      description: Provider's image id
       required: true
       type: string
       example: "17384153"
     size:
       type: string
-      description: Provider's size id to be used on creation
-      example: "512mb"
+      description: Mist internal size id
+      example: "9417745961a84bffbf6419e5of68faa5"
     location:
       type: string
       description: Mist internal location id
@@ -504,13 +505,16 @@ def add_machine(request):
     """
     Tags: machines
     ---
-    Add a machine to an OtherServer Cloud. This works for bare_metal clouds.
+    Add a machine to an OtherServer/Libvirt Cloud.
+    READ permission required on cloud.
+    EDIT permission required on cloud.
+    READ permission required on key.
     ---
     cloud:
       in: path
       required: true
       type: string
-    machine_ip:
+    machine_hostname:
       type: string
       required: true
     operating_system:
@@ -527,20 +531,35 @@ def add_machine(request):
       type: string
     monitoring:
       type: boolean
+    images_location:
+      type: string
     """
     cloud_id = request.matchdict.get('cloud')
+
+    auth_context = auth_context_from_request(request)
+
+    try:
+        cloud = Cloud.objects.get(owner=auth_context.owner,
+                                  id=cloud_id, deleted=None)
+    except Cloud.DoesNotExist:
+        raise NotFoundError('Cloud does not exist')
+
+    if cloud.ctl.provider not in ['libvirt', 'bare_metal']:
+        raise MistNotImplementedError()
+
     params = params_from_request(request)
-    machine_ip = params.get('machine_ip')
-    if not machine_ip:
-        raise RequiredParameterMissingError("machine_ip")
+    machine_hostname = params.get('machine_hostname')
+    if not machine_hostname:
+        raise RequiredParameterMissingError("machine_hostname")
 
     operating_system = params.get('operating_system', '')
     machine_name = params.get('machine_name', '')
     machine_key = params.get('machine_key', '')
     machine_user = params.get('machine_user', '')
-    machine_port = params.get('machine_port', '')
+    machine_port = params.get('machine_port', 22)
     remote_desktop_port = params.get('remote_desktop_port', '')
-    monitoring = params.get('monitoring', '')
+    images_location = params.get('images_location', '')
+    monitoring = params.get('monitoring', False)
 
     job_id = params.get('job_id')
     if not job_id:
@@ -549,33 +568,27 @@ def add_machine(request):
     else:
         job = None
 
-    auth_context = auth_context_from_request(request)
     auth_context.check_perm("cloud", "read", cloud_id)
+    auth_context.check_perm("cloud", "edit", cloud_id)
 
     if machine_key:
         auth_context.check_perm("key", "read", machine_key)
 
-    try:
-        Cloud.objects.get(owner=auth_context.owner,
-                          id=cloud_id, deleted=None)
-    except Cloud.DoesNotExist:
-        raise NotFoundError('Cloud does not exist')
-
-    log.info('Adding bare metal machine %s on cloud %s'
+    log.info('Adding host machine %s on cloud %s'
              % (machine_name, cloud_id))
-    cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
-                              deleted=None)
 
     try:
-        machine = cloud.ctl.add_machine(machine_name, host=machine_ip,
+        machine = cloud.ctl.add_machine(host=machine_hostname,
                                         ssh_user=machine_user,
                                         ssh_port=machine_port,
                                         ssh_key=machine_key,
+                                        name=machine_name,
                                         os_type=operating_system,
                                         rdp_port=remote_desktop_port,
-                                        fail_on_error=True)
+                                        images_location=images_location
+                                        )
     except Exception as e:
-        raise MachineCreationError("OtherServer, got exception %r" % e,
+        raise MachineCreationError("Adding host got exception %r" % e,
                                    exc=e)
 
     # Enable monitoring
@@ -701,6 +714,7 @@ def machine_actions(request):
       - stop
       - reboot
       - destroy
+      - remove
       - resize
       - rename
       - create_snapshot
@@ -1027,9 +1041,17 @@ def machine_console(request):
         vnc_element = root.find('devices').find('graphics[@type="vnc"]')
         vnc_port = vnc_element.attrib.get('port')
         vnc_host = vnc_element.attrib.get('listen')
-        key_id = machine.cloud.key.id
-        host = '%s@%s:%d' % (
-            machine.cloud.username, machine.cloud.host, machine.cloud.port)
+        from mongoengine import Q
+        # Get key associations, prefer root or sudoer ones
+        key_associations = KeyMachineAssociation.objects(
+            Q(machine=machine.parent) & (Q(ssh_user='root') | Q(sudo=True))) \
+            or KeyMachineAssociation.objects(machine=machine.parent)
+        if not key_associations:
+            raise ForbiddenError()
+        key_id = key_associations[0].key.id
+        host = '%s@%s:%d' % (key_associations[0].ssh_user,
+                             machine.parent.hostname,
+                             key_associations[0].port)
         expiry = int(datetime.now().timestamp()) + 100
         msg = '%s,%s,%s,%s,%s' % (host, key_id, vnc_host, vnc_port, expiry)
         mac = hmac.new(

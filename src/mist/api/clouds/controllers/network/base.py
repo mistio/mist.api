@@ -703,3 +703,17 @@ class BaseNetworkController(BaseController):
                 return sub
         raise mist.api.exceptions.SubnetNotFoundError(
             'Subnet %s with subnet_id %s' % (subnet.name, subnet.subnet_id))
+
+    def list_vnfs(self, host=None):
+        """Available only for Libvirt/KVM clouds
+
+        Subclasses MAY override or extend this method.
+        """
+        return self._list_vnfs(host=host)
+
+    def _list_vnfs(self, host=None):
+        """Available only for Libvirt/KVM clouds
+
+        Subclasses MAY override or extend this method.
+        """
+        return NotImplementedError()

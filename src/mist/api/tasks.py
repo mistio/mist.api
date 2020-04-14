@@ -657,7 +657,7 @@ def create_machine_async(
              'datastore': datastore,
              'vnfs': vnfs,
              'description': description,
-             'port_forwards': port_forwards
+             'port_forwards': port_forwards,
              }
         ))
 
