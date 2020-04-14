@@ -2172,6 +2172,9 @@ class LibvirtComputeController(BaseComputeController):
 
         return _size
 
+    def _list_machines__get_location(self, node):
+        return node.extra.get('hypervisor').replace('.','-')
+
     def list_sizes(self, persist=True):
         return []
 
@@ -2181,16 +2184,17 @@ class LibvirtComputeController(BaseComputeController):
         consistency purpose.
         """
         from mist.api.machines.models import Machine
-        all_machines = Machine.objects.filter(cloud=self.cloud,
-                                              missing_since=None)
+        # FIXME: query parent for better performance
+        all_machines = Machine.objects(cloud=self.cloud,
+                                       missing_since=None)
         hypervisors = [machine for machine in all_machines
                        if machine.extra.get('tags', {}).
                        get('type') == 'hypervisor']
         locations = [NodeLocation(id=hypervisor.machine_id,
                                   name=hypervisor.name,
                                   country='', driver=None,
-                                  extra=hypervisor.extra) for hypervisor
-                     in hypervisors]
+                                  extra=copy.deepcopy(hypervisor.extra))
+                     for hypervisor in hypervisors]
 
         return locations
 

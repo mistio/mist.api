@@ -1274,10 +1274,11 @@ class BaseComputeController(BaseController):
                                                       external_id=loc.id)
             except CloudLocation.DoesNotExist:
                 _location = CloudLocation(cloud=self.cloud,
+                                          owner=self.cloud.owner,
                                           external_id=loc.id)
             _location.country = loc.country
             _location.name = loc.name
-            _location.extra = loc.extra
+            _location.extra = copy.deepcopy(loc.extra)
             _location.missing_since = None
 
             try:
