@@ -57,10 +57,8 @@ from mist.api import config
 
 if config.HAS_VPN:
     from mist.vpn.methods import to_tunnel
-    from mist.vpn.methods import destination_nat as dnat
 else:
     from mist.api.dummy.methods import to_tunnel
-    from mist.api.dummy.methods import dnat
 
 log = logging.getLogger(__name__)
 
@@ -476,12 +474,14 @@ class LibvirtMainController(BaseMainController):
         except (ValueError, TypeError):
             ssh_port = 22
 
-        if ssh_key:
-            try:
-                ssh_key = Key.objects.get(owner=self.cloud.owner, id=ssh_key,
-                                          deleted=None)
-            except Key.DoesNotExist:
-                raise NotFoundError("Key does not exist.")
+        if not ssh_key:
+            raise RequiredParameterMissingError('machine_key')
+
+        try:
+            ssh_key = Key.objects.get(owner=self.cloud.owner, id=ssh_key,
+                                      deleted=None)
+        except Key.DoesNotExist:
+            raise NotFoundError("Key does not exist.")
 
         images_location = kwargs.get('images_location',
                                      '/var/lib/libvirt/images')
@@ -526,37 +526,22 @@ class LibvirtMainController(BaseMainController):
 
         machine.save(write_concern={'w': 1, 'fsync': True})
 
-        # associate key if given and attempt to connect
-        if ssh_key:
-            try:
-                machine.ctl.associate_key(ssh_key,
-                                          username=ssh_user,
-                                          port=ssh_port)
-            except MachineUnauthorizedError as exc:
-                log.error("Could not connect to host %s."
-                          % host)
-                machine.delete()
-                raise CloudUnauthorizedError(exc)
-            except ServiceUnavailableError as exc:
-                log.error("Could not connect to host %s."
-                          % host)
-                machine.delete()
-                raise MistError("Couldn't connect to host '%s'."
-                                % host)
-
-        else:
-            from libcloud.compute.providers import get_driver
-            from libcloud.compute.types import Provider
-            host, port = dnat(machine.cloud.owner, machine.hostname, 5000)
-            try:
-                get_driver(Provider.LIBVIRT)(host,
-                                             hypervisor=machine.hostname,
-                                             user=ssh_port,
-                                             tcp_port=ssh_port)
-            except Exception as exc:
-                log.error("Could not connect to host %s." % host)
-                machine.delete()
-                raise MistError(str(exc))
+        # associate key and attempt to connect
+        try:
+            machine.ctl.associate_key(ssh_key,
+                                      username=ssh_user,
+                                      port=ssh_port)
+        except MachineUnauthorizedError as exc:
+            log.error("Could not connect to host %s."
+                      % host)
+            machine.delete()
+            raise CloudUnauthorizedError(exc)
+        except ServiceUnavailableError as exc:
+            log.error("Could not connect to host %s."
+                      % host)
+            machine.delete()
+            raise MistError("Couldn't connect to host '%s'."
+                            % host)
 
         if amqp_owner_listening(self.cloud.owner.id):
             old_machines = []
