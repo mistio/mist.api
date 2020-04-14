@@ -1022,8 +1022,10 @@ def machine_console(request):
         vnc_port = vnc_element.attrib.get('port')
         vnc_host = vnc_element.attrib.get('listen')
         from mongoengine import Q
+        # Get key associations, prefer root or sudoer ones
         key_associations = KeyMachineAssociation.objects(
-            Q(machine=machine.parent) & (Q(ssh_user='root') | Q(sudo=True)))
+            Q(machine=machine.parent) & (Q(ssh_user='root') | Q(sudo=True))) \
+            or KeyMachineAssociation.objects(machine=machine.parent)
         if not key_associations:
             raise ForbiddenError()
         key_id = key_associations[0].key.id
