@@ -551,8 +551,6 @@ class LibvirtMainController(BaseMainController):
                     old_machines.append(cached_machine)
             old_machines = [m.as_dict() for m in
                             old_machines]
-            # TODO: only list_nodes for new host
-            # driver = self.cloud.ctl.compute_get_host_driver(machine)
             new_machines = self.cloud.ctl.compute.list_machines()
             self.cloud.ctl.compute.produce_and_publish_patch(
                 old_machines, new_machines)

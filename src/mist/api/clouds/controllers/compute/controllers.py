@@ -1975,8 +1975,6 @@ class LibvirtComputeController(BaseComputeController):
         return self._get_host_driver(machine)
 
     def _get_host_driver(self, machine):
-        """Three supported ways to connect: local system, qemu+tcp, qemu+ssh"""
-
         import libcloud.compute.drivers.libvirt_driver
         libvirt_driver = libcloud.compute.drivers.libvirt_driver
         libvirt_driver.ALLOW_LIBVIRT_LOCALHOST = config.ALLOW_LIBVIRT_LOCALHOST
