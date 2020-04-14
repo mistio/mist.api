@@ -15,17 +15,21 @@ def migrate_libvirt_clouds():
 
     clouds = LibvirtCloud.objects()
 
-    failed = migrated = 0
+    failed = migrated = skipped = 0
 
     for cloud in clouds:
         try:
-            print('Updating cloud ' + cloud['id'])
             machines = Machine.objects(cloud=cloud, missing_since=None)
+            images_location = db_clouds.find_one(
+                {'_id': cloud['id']}).get('images_location')
+            if not images_location:
+                skipped += 1
+                continue
+            print('Updating cloud ' + cloud['id'])
             for machine in machines:
                 if machine.extra.get('tags', {}).get('type') == 'hypervisor':
                     updated_extra = {
-                        'images_location': cloud.images_location,
-                        'username': cloud.username
+                        'images_location': images_location,
                     }
                     machine.extra.update(updated_extra)
                     machine.save()
@@ -47,7 +51,9 @@ def migrate_libvirt_clouds():
             print('OK')
             migrated += 1
 
-    print('Clouds migrated: ' + str(migrated))
+    print('Clouds migrated: %d' % migrated)
+    if skipped:
+        print('Skipped: %d' % skipped)
 
     c.close()
 
