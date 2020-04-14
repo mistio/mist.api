@@ -8,7 +8,6 @@ from mist.api.machines.models import Machine
 
 
 def migrate_libvirt_clouds():
-    # unset image_id field from Machine
     c = MongoClient(MONGO_URI)
     db = c.get_database('mist2')
     db_clouds = db['clouds']
@@ -43,6 +42,7 @@ def migrate_libvirt_clouds():
                             'key': '',
                             'images_location': ''}}
             )
+            cloud.ctl.compute.list_machines()
         except Exception:
             traceback.print_exc()
             failed += 1
@@ -58,25 +58,5 @@ def migrate_libvirt_clouds():
     c.close()
 
 
-def trigger_list_machines():
-    clouds = LibvirtCloud.objects()
-
-    failed = 0
-
-    print('Listing  machines...')
-    print
-    for cloud in clouds:
-        print('Updating cloud ' + cloud['id'])
-        try:
-            cloud.ctl.compute.list_machines()
-        except Exception:
-            traceback.print_exc()
-            failed += 1
-            continue
-
-    print('****** Failed to update: ' + str(failed))
-
-
 if __name__ == '__main__':
     migrate_libvirt_clouds()
-    # trigger_list_machines()
