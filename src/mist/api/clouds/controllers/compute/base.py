@@ -697,7 +697,7 @@ class BaseComputeController(BaseController):
                 log.error("Machine %s not unique error: %s", machine.name, exc)
                 raise ConflictError("Machine with this name already exists")
         else:
-            log.warn("Not saving machine %s (%s) %s" % (
+            log.debug("Not saving machine %s (%s) %s" % (
                 machine.name, machine.id, is_new))
 
         return machine, is_new
@@ -961,6 +961,13 @@ class BaseComputeController(BaseController):
             _image.extra = copy.deepcopy(img.extra)
             _image.missing_since = None
             _image.os_type = self._list_images__get_os_type(img)
+
+            try:
+                self._list_images__postparse_image(_image, img)
+            except Exception as exc:
+                log.exception("Error while post parsing image %s:%s for \
+                              %s\n%r", _image.id, img.name, self.cloud, exc)
+
             if search:
                 _image.stored_after_search = True
             try:
@@ -1003,6 +1010,17 @@ class BaseComputeController(BaseController):
         Subclasses MAY override this method.
         """
         return self.connection.list_images()
+
+    def _list_images__postparse_image(self, image, image_libcloud):
+        """Post parse an image before returning it in list_images
+
+        Any subclass that wishes to specially handle its cloud's tags and
+        metadata, can implement this internal method.
+
+        Subclasses MAY override this method.
+
+        """
+        return
 
     def list_cached_images(self):
         """Return list of images from database for a specific cloud"""
@@ -1192,8 +1210,14 @@ class BaseComputeController(BaseController):
         if amqp_owner_listening(self.cloud.owner.id):
             locations_dict = [l.as_dict() for l in locations]
             if cached_locations and locations_dict:
-                # Publish patches to rabbitmq.
                 new_locations = {'%s' % l['id']: l for l in locations_dict}
+                # Pop extra to prevent weird patches
+                for loc in cached_locations:
+                    cached_locations[loc].pop('extra')
+                for loc in new_locations:
+                    new_locations[loc].pop('extra')
+                # Publish patches to rabbitmq.
+
                 patch = jsonpatch.JsonPatch.from_diff(cached_locations,
                                                       new_locations).patch
                 if patch:
@@ -1250,10 +1274,11 @@ class BaseComputeController(BaseController):
                                                       external_id=loc.id)
             except CloudLocation.DoesNotExist:
                 _location = CloudLocation(cloud=self.cloud,
+                                          owner=self.cloud.owner,
                                           external_id=loc.id)
             _location.country = loc.country
             _location.name = loc.name
-            _location.extra = loc.extra
+            _location.extra = copy.deepcopy(loc.extra)
             _location.missing_since = None
 
             try:
@@ -1538,7 +1563,8 @@ class BaseComputeController(BaseController):
 
     def remove_machine(self, machine):
         raise BadRequestError("Machines on public clouds can't be removed."
-                              "This is only supported in Bare Metal clouds.")
+                              "This is only supported in Bare Metal and "
+                              " KVM/Libvirt clouds.")
 
     def resize_machine(self, machine, size_id, kwargs):
         """Resize machine
@@ -1619,7 +1645,10 @@ class BaseComputeController(BaseController):
             raise ForbiddenError("Machine doesn't support rename.")
         log.debug("Renaming machine %s", machine)
 
-        machine_libcloud = self._get_machine_libcloud(machine)
+        try:
+            machine_libcloud = self._get_machine_libcloud(machine)
+        except MachineNotFoundError:
+            machine_libcloud = None
         try:
             self._rename_machine(machine, machine_libcloud, name)
         except MistError as exc:

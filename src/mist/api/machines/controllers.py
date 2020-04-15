@@ -5,6 +5,7 @@ import jsonpatch
 from random import randrange
 
 from mist.api.helpers import amqp_publish_user
+from mist.api.exceptions import MachineUnavailableError
 
 from mist.api.concurrency.models import PeriodicTaskInfo
 
@@ -109,7 +110,7 @@ class MachineController(object):
             return self.machine.public_ips[0]
         if self.machine.private_ips:
             return self.machine.private_ips[0]
-        raise RuntimeError("Couldn't find machine host.")
+        raise MachineUnavailableError("Couldn't find machine host.")
 
     def update(self, auth_context, params={}):
         if params.get('expiration'):
@@ -137,7 +138,7 @@ class MachineController(object):
                     'schedule_type': 'one_off',
                     'schedule_entry': exp_date,
                     'action': exp_action,
-                    'conditions': [
+                    'selectors': [
                         {'type': 'machines', 'ids': [self.machine.id]}
                     ],
                     'notify': exp_reminder

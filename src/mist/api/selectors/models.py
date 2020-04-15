@@ -9,13 +9,13 @@ from mist.api.helpers import rtype_to_classpath
 from mist.api.tag.models import Tag
 
 
-class BaseCondition(me.EmbeddedDocument):
-    """Abstract base class used as a common interface for condition types.
+class BaseSelector(me.EmbeddedDocument):
+    """Abstract base class used as a common interface for selector types.
 
     There are five different types for now:
 
-        FieldCondition, TaggingCondition, GenericResourceCondition,
-        MachinesCondition (deprecated), and MachinesAgeCondition
+        FieldSelector, TaggingSelector, GenericResourceSelector,
+        MachinesSelector (deprecated), and MachinesAgeSelector
 
     """
 
@@ -37,19 +37,19 @@ class BaseCondition(me.EmbeddedDocument):
         return {'type': self.ctype}
 
 
-class ConditionalClassMixin(object):
-    """Generic condition mixin class used as a handler for different
+class SelectorClassMixin(object):
+    """Generic selector mixin class used as a handler for different
     query sets for a specific collection. It constructs a query from
     a list of query sets which chains together with logical & operator."""
 
-    conditions = me.EmbeddedDocumentListField(BaseCondition)
+    selectors = me.EmbeddedDocumentListField(BaseSelector)
 
     resource_model_name = me.StringField(
         required=True, default='machine',
         choices=list(rtype_to_classpath.keys()))
 
     @property
-    def condition_resource_cls(self):
+    def selector_resource_cls(self):
         return get_resource_model(self.resource_model_name)
 
     def owner_query(self):
@@ -57,20 +57,20 @@ class ConditionalClassMixin(object):
 
     def get_resources(self):
         query = self.owner_query()
-        for condition in self.conditions:
-            query &= condition.q
-        if 'deleted' in self.condition_resource_cls._fields:
+        for selector in self.selectors:
+            query &= selector.q
+        if 'deleted' in self.selector_resource_cls._fields:
             query &= me.Q(deleted=None)
-        if 'missing_since' in self.condition_resource_cls._fields:
+        if 'missing_since' in self.selector_resource_cls._fields:
             query &= me.Q(missing_since=None)
-        return self.condition_resource_cls.objects(query)
+        return self.selector_resource_cls.objects(query)
 
     def get_ids(self):
         return [resource.id for resource in self.get_resources()]
 
 
-class FieldCondition(BaseCondition):
-    """Generic condition for any field which is supported by specific
+class FieldSelector(BaseSelector):
+    """Generic selector for any field which is supported by specific
     collection."""
 
     ctype = 'field'
@@ -91,18 +91,19 @@ class FieldCondition(BaseCondition):
                 'value': self.value, 'operator': self.operator}
 
 
-class TaggingCondition(BaseCondition):
+class TaggingSelector(BaseSelector):
 
     ctype = 'tags'
 
-    tags = me.DictField(required=True, default=lambda: {})
+    include = me.DictField(default=lambda: {})
+    exclude = me.DictField(default=lambda: {})
 
     @property
     def q(self):
-        rtype = self._instance.condition_resource_cls._meta[
+        rtype = self._instance.selector_resource_cls._meta[
             "collection"].rstrip('s')
         ids = set()
-        for key, value in self.tags.items():
+        for key, value in self.include.items():
             query = {
                 'owner': self._instance.owner,
                 'resource_type': rtype,
@@ -111,40 +112,48 @@ class TaggingCondition(BaseCondition):
             if value:
                 query['value'] = value
             ids |= set(tag.resource_id for tag in Tag.objects(**query))
+        # TODO: exclude items
         return me.Q(id__in=ids)
 
     def validate(self, clean=True):
-        if self.tags:
-            regex = re.compile(r'^[a-z0-9_-]+$')
-            for key, value in self.tags.items():
-                if not key:
-                    raise me.ValidationError('You cannot add a tag '
-                                             'without a key')
-                elif not regex.match(key) or (value and
-                                              not regex.match(value)):
-                    raise me.ValidationError('Tags must be in key=value '
-                                             'format and only contain the '
-                                             'characters a-z, 0-9, _, -')
-        super(TaggingCondition, self).validate(clean=True)
+        for field in ['include', 'exclude']:
+            if getattr(self, field):
+                regex = re.compile(r'^[a-z0-9_-]+$')
+                for key, value in getattr(self, field).items():
+                    if not key:
+                        raise me.ValidationError('You cannot add a tag '
+                                                 'without a key')
+                    elif not regex.match(key) or (value and
+                                                  not regex.match(value)):
+                        raise me.ValidationError('Tags must be in key=value '
+                                                 'format and only contain the '
+                                                 'characters a-z, 0-9, _, -')
+        super(TaggingSelector, self).validate(clean=True)
 
     def clean(self):
-        if not self.tags:
-            self.tags = {}
-        elif not isinstance(self.tags, dict):
-            raise me.ValidationError('Tags must be a dictionary')
+        for field in ['include', 'exclude']:
+            if not getattr(self, field):
+                setattr(self, field, {})
+            elif not isinstance(getattr(self, field), dict):
+                raise me.ValidationError('%s must be a dictionary' % field)
 
     def __str__(self):
-        return 'Tags: %s' % self.tags
+        ret = ''
+        if self.include:
+            ret += 'Include tags: %s\t' % self.include
+        if self.exclude:
+            ret += 'Exclude tags: %s' % self.exclude
+        return ret
 
     def as_dict(self):
-        return {'type': self.ctype, 'tags': self.tags}
+        return {'type': self.ctype, 'include': self.include}
 
 
-class GenericResourceCondition(BaseCondition):
-    """Condition used to query any resource which is a me.Document subclass.
+class GenericResourceSelector(BaseSelector):
+    """Selector used to query any resource which is a me.Document subclass.
 
-    The condition's type `ctype` is not hard-coded but rather computed based
-    on the `resource_model_name` field of the `ConditionalClassMixin`.
+    The selector's type `ctype` is not hard-coded but rather computed based
+    on the `resource_model_name` field of the `SelectorClassMixin`.
 
     """
 
@@ -163,16 +172,16 @@ class GenericResourceCondition(BaseCondition):
         return {'type': self.ctype, 'ids': self.ids}
 
 
-class MachinesCondition(GenericResourceCondition):
-    """Predecessor of the newest GenericResourceCondition.
+class MachinesSelector(GenericResourceSelector):
+    """Predecessor of the newest GenericResourceSelector.
 
-    This condition was used to declare a list of machines ids.
+    This selector was used to declare a list of machines ids.
 
-    This condition is now **DEPRECATED** in favor of GenericResourceCondition.
+    This selector is now **DEPRECATED** in favor of GenericResourceSelector.
     It is still kept for backwards compatibility, since the Schedule and Rule
     models have been using it up until now and mongoDB stores a reference to
-    this class in the form of: `{"_cls": "MachinesCondition"}`. New/updated
-    documents will use the new `GenericResourceCondition`. When this class is
+    this class in the form of: `{"_cls": "MachinesSelector"}`. New/updated
+    documents will use the new `GenericResourceSelector`. When this class is
     no longer required by mongoDB/mongoengine, it can just be deleted (no db
     schema migration is required).
 
@@ -181,8 +190,8 @@ class MachinesCondition(GenericResourceCondition):
     ctype = 'machines'
 
 
-class MachinesAgeCondition(BaseCondition):
-    """Condition which computes machine's age and queries
+class MachinesAgeSelector(BaseSelector):
+    """Selector which computes machine's age and queries
     for machines which are older than this age. """
 
     ctype = 'age'

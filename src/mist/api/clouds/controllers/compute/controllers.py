@@ -45,12 +45,15 @@ from libcloud.compute.types import Provider, NodeState
 from libcloud.container.types import Provider as Container_Provider
 from libcloud.container.types import ContainerState
 from libcloud.container.base import ContainerImage, Container
+from libcloud.common.exceptions import BaseHTTPError
 from mist.api.exceptions import MistError
 from mist.api.exceptions import InternalServerError
 from mist.api.exceptions import MachineNotFoundError
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import NotFoundError
+from mist.api.exceptions import ForbiddenError
 from mist.api.helpers import sanitize_host
+from mist.api.helpers import amqp_owner_listening
 
 from mist.api.clouds.controllers.main.base import BaseComputeController
 
@@ -220,16 +223,34 @@ class AmazonComputeController(BaseComputeController):
                             bad_id, self.cloud
                         ))
                 keys = list(default_images.keys())
-                images = self.connection.list_images(None, keys)
+                try:
+                    images = self.connection.list_images(None, keys)
+                except BaseHTTPError as e:
+                    if 'UnauthorizedOperation' in str(e.message):
+                        images = []
+                    else:
+                        raise()
             for image in images:
                 if image.id in default_images:
                     image.name = default_images[image.id]
-            images += self.connection.list_images(ex_owner='self')
+            try:
+                images += self.connection.list_images(ex_owner='self')
+            except BaseHTTPError as e:
+                if 'UnauthorizedOperation' in str(e.message):
+                    pass
+                else:
+                    raise()
         else:
             # search on EC2.
-            libcloud_images = self.connection.list_images(
-                ex_filters={'name': '*%s*' % search}
-            )
+            try:
+                libcloud_images = self.connection.list_images(
+                    ex_filters={'name': '*%s*' % search}
+                )
+            except BaseHTTPError as e:
+                if 'UnauthorizedOperation' in str(e.message):
+                    libcloud_images = []
+                else:
+                    raise()
 
             search = search.lower()
             images = [img for img in libcloud_images
@@ -401,6 +422,9 @@ class DigitalOceanComputeController(BaseComputeController):
 
     def _stop_machine(self, machine, machine_libcloud):
         self.connection.ex_shutdown_node(machine_libcloud)
+
+    def _start_machine(self, machine, machine_libcloud):
+        self.connection.ex_power_on_node(machine_libcloud)
 
     def _list_machines__get_location(self, node):
         return node.extra.get('region')
@@ -1545,8 +1569,10 @@ class DockerComputeController(BaseComputeController):
         # todo this is not necessary
         super(DockerComputeController, self)._list_machines__machine_actions(
             machine, machine_libcloud)
-        if machine_libcloud.state in (ContainerState.REBOOTING,
-                                      ContainerState.PENDING):
+        if machine_libcloud.state in (ContainerState.RUNNING,):
+            machine.actions.rename = True
+        elif machine_libcloud.state in (ContainerState.REBOOTING,
+                                        ContainerState.PENDING):
             machine.actions.start = False
             machine.actions.stop = False
             machine.actions.reboot = False
@@ -1556,6 +1582,7 @@ class DockerComputeController(BaseComputeController):
             machine.actions.start = True
             machine.actions.stop = False
             machine.actions.reboot = False
+            machine.actions.rename = True
         elif machine_libcloud.state in (ContainerState.TERMINATED, ):
             machine.actions.start = False
             machine.actions.stop = False
@@ -1781,6 +1808,10 @@ class DockerComputeController(BaseComputeController):
     def _list_sizes__fetch_sizes(self):
         return []
 
+    def _rename_machine(self, machine, machine_libcloud, name):
+        """Private method to rename a given machine"""
+        self.connection.ex_rename_container(machine_libcloud, name)
+
 
 class LXDComputeController(BaseComputeController):
     """
@@ -1931,45 +1962,113 @@ class LXDComputeController(BaseComputeController):
 class LibvirtComputeController(BaseComputeController):
 
     def _connect(self):
-        """Three supported ways to connect: local system, qemu+tcp, qemu+ssh"""
+        """
+        This is only used in create_machine, where a driver instance
+        is required (and not used as is when provisioning in Libvirt).
+        Thus, we can safely return the driver of the first host found.
+        """
+        from mist.api.machines.models import Machine
+        machine = Machine.objects.filter(cloud=self.cloud)[0]
 
+        if not machine.extra.get('tags', {}).get('type') == 'hypervisor':
+            machine = machine.parent
+
+        return self._get_host_driver(machine)
+
+    def _get_host_driver(self, machine):
         import libcloud.compute.drivers.libvirt_driver
         libvirt_driver = libcloud.compute.drivers.libvirt_driver
         libvirt_driver.ALLOW_LIBVIRT_LOCALHOST = config.ALLOW_LIBVIRT_LOCALHOST
 
-        if self.cloud.key:
-            host, port = dnat(self.cloud.owner,
-                              self.cloud.host, self.cloud.port)
-            return get_driver(Provider.LIBVIRT)(host,
-                                                hypervisor=self.cloud.host,
-                                                user=self.cloud.username,
-                                                ssh_key=self.cloud.key.private,
-                                                ssh_port=int(port))
-        else:
-            host, port = dnat(self.cloud.owner, self.cloud.host, 5000)
-            return get_driver(Provider.LIBVIRT)(host,
-                                                hypervisor=self.cloud.host,
-                                                user=self.cloud.username,
-                                                tcp_port=int(port))
+        if not machine.extra.get('tags', {}).get('type') == 'hypervisor':
+            machine = machine.parent
+
+        from mist.api.machines.models import KeyMachineAssociation
+        from mongoengine import Q
+        # Get key associations, prefer root or sudoer ones
+        # TODO: put this in a helper function
+        key_associations = KeyMachineAssociation.objects(
+            Q(machine=machine) & (Q(ssh_user='root') | Q(sudo=True))) \
+            or KeyMachineAssociation.objects(machine=machine)
+        if not key_associations:
+            raise ForbiddenError()
+
+        host, port = dnat(machine.cloud.owner,
+                          machine.hostname, machine.ssh_port)
+        driver = get_driver(Provider.LIBVIRT)(
+            host, hypervisor=machine.hostname, ssh_port=int(port),
+            user=key_associations[0].ssh_user,
+            ssh_key=key_associations[0].key.private)
+
+        return driver
+
+    def _list_machines__fetch_machines(self):
+        nodes = []
+        from mist.api.machines.models import Machine
+        for machine in Machine.objects.filter(cloud=self.cloud,
+                                              missing_since=None):
+            if machine.extra.get('tags', {}).get('type') == 'hypervisor':
+                driver = self._get_host_driver(machine)
+                nodes += driver.list_nodes()
+
+        return nodes
+
+    def _list_machines__fetch_generic_machines(self):
+        machines = []
+        from mist.api.machines.models import Machine
+        all_machines = Machine.objects(cloud=self.cloud, missing_since=None)
+        for machine in all_machines:
+            if machine.extra.get('tags', {}).get('type') == 'hypervisor':
+                machines.append(machine)
+
+        return machines
+
+    def _list_machines__update_generic_machine_state(self, machine):
+        # Defaults
+        machine.unreachable_since = None
+        machine.state = config.STATES[NodeState.RUNNING]
+
+        # If any of the probes has succeeded, then state is running
+        if (
+            machine.ssh_probe and not machine.ssh_probe.unreachable_since or
+            machine.ping_probe and not machine.ping_probe.unreachable_since
+        ):
+            machine.state = config.STATES[NodeState.RUNNING]
+
+        # If ssh probe failed, then unreachable since then
+        if machine.ssh_probe and machine.ssh_probe.unreachable_since:
+            machine.unreachable_since = machine.ssh_probe.unreachable_since
+            machine.state = config.STATES[NodeState.UNKNOWN]
+        # Else if ssh probe has never succeeded and ping probe failed,
+        # then unreachable since then
+        elif (not machine.ssh_probe and
+              machine.ping_probe and machine.ping_probe.unreachable_since):
+            machine.unreachable_since = machine.ping_probe.unreachable_since
+            machine.state = config.STATES[NodeState.UNKNOWN]
 
     def _list_machines__machine_actions(self, machine, machine_libcloud):
         super(LibvirtComputeController, self)._list_machines__machine_actions(
             machine, machine_libcloud)
-        if machine.extra.get('tags', {}).get('type') == 'hypervisor':
-            # Allow only reboot and tag actions for hypervisor.
-            for action in ('start', 'stop', 'destroy', 'rename'):
-                setattr(machine.actions, action, False)
-        else:
-            machine.actions.clone = True
-            machine.actions.undefine = False
-            if machine_libcloud.state is NodeState.TERMINATED:
-                # In libvirt a terminated machine can be started.
-                machine.actions.start = True
-                machine.actions.undefine = True
-            if machine_libcloud.state is NodeState.RUNNING:
-                machine.actions.suspend = True
-            if machine_libcloud.state is NodeState.SUSPENDED:
-                machine.actions.resume = True
+        machine.actions.clone = True
+        machine.actions.undefine = False
+        if machine_libcloud.state is NodeState.TERMINATED:
+            # In libvirt a terminated machine can be started.
+            machine.actions.start = True
+            machine.actions.undefine = True
+            machine.actions.rename = True
+        if machine_libcloud.state is NodeState.RUNNING:
+            machine.actions.suspend = True
+        if machine_libcloud.state is NodeState.SUSPENDED:
+            machine.actions.resume = True
+
+    def _list_machines__generic_machine_actions(self, machine):
+        super(LibvirtComputeController,
+              self)._list_machines__generic_machine_actions(machine)
+        machine.actions.rename = True
+        machine.actions.start = False
+        machine.actions.stop = False
+        machine.actions.destroy = False
+        machine.actions.reboot = False
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         from mist.api.images.models import CloudImage
@@ -1993,8 +2092,8 @@ class LibvirtComputeController(BaseComputeController):
                             image = CloudImage.objects.get(
                                 cloud=machine.cloud, external_id=image)
                         except CloudImage.DoesNotExist:
-                            image = CloudImage(
-                                cloud=machine.cloud, external_id=image)
+                            image = CloudImage(cloud=machine.cloud,
+                                               external_id=image)
                             image.save()
                         machine.image = image
                         updated = True
@@ -2022,18 +2121,30 @@ class LibvirtComputeController(BaseComputeController):
             updated = True
 
         # set machine's parent
-        hypervisor = machine.extra.get('hypervisor_name', '')
+        hypervisor = machine.extra.get('hypervisor', '')
         if hypervisor:
             try:
                 from mist.api.machines.models import Machine
                 parent = Machine.objects.get(cloud=machine.cloud,
                                              name=hypervisor)
             except Machine.DoesNotExist:
-                parent = None
+                # backwards compatibility
+                hypervisor = hypervisor.replace('.', '-')
+                try:
+                    parent = Machine.objects.get(cloud=machine.cloud,
+                                                 machine_id=hypervisor)
+                except me.DoesNotExist:
+                    parent = None
             if machine.parent != parent:
                 machine.parent = parent
                 updated = True
         return updated
+
+    def _list_machines__get_machine_extra(self, machine, machine_libcloud):
+        extra = copy.copy(machine_libcloud.extra)
+        # make sure images_location is not overriden
+        extra.update({'images_location': machine.extra.get('images_location')})
+        return extra
 
     def _list_machines__get_size(self, node):
         return None
@@ -2060,8 +2171,81 @@ class LibvirtComputeController(BaseComputeController):
 
         return _size
 
+    def _list_machines__get_location(self, node):
+        return node.extra.get('hypervisor').replace('.', '-')
+
+    def list_sizes(self, persist=True):
+        return []
+
+    def _list_locations__fetch_locations(self, persist=True):
+        """
+        We refer to hosts (KVM hypervisors) as 'location' for
+        consistency purpose.
+        """
+        from mist.api.machines.models import Machine
+        # FIXME: query parent for better performance
+        all_machines = Machine.objects(cloud=self.cloud,
+                                       missing_since=None)
+        hypervisors = [machine for machine in all_machines
+                       if machine.extra.get('tags', {}).
+                       get('type') == 'hypervisor']
+        locations = [NodeLocation(id=hypervisor.machine_id,
+                                  name=hypervisor.name,
+                                  country='', driver=None,
+                                  extra=copy.deepcopy(hypervisor.extra))
+                     for hypervisor in hypervisors]
+
+        return locations
+
     def _list_images__fetch_images(self, search=None):
-        return self.connection.list_images(location=self.cloud.images_location)
+        images = []
+        from mist.api.machines.models import Machine
+        for machine in Machine.objects.filter(cloud=self.cloud,
+                                              missing_since=None):
+            if machine.extra.get('tags', {}).get('type') == 'hypervisor':
+                driver = self._get_host_driver(machine)
+                images += driver.list_images(location=machine.extra.get(
+                    'images_location', {}))
+
+        return images
+
+    def _list_images__postparse_image(self, image, image_libcloud):
+        locations = []
+        if image_libcloud.extra.get('host', ''):
+            host_name = image_libcloud.extra.get('host')
+            from mist.api.clouds.models import CloudLocation
+            try:
+                host = CloudLocation.objects.get(cloud=self.cloud,
+                                                 name=host_name)
+                locations.append(host.id)
+            except me.DoesNotExist:
+                host_name = host_name.replace('.', '-')
+                try:
+                    host = CloudLocation.objects.get(cloud=self.cloud,
+                                                     external_id=host_name)
+                    locations.append(host.id)
+                except me.DoesNotExist:
+                    pass
+        image.extra.update({'locations': locations})
+
+    def _get_machine_libcloud(self, machine, no_fail=False):
+        assert self.cloud == machine.cloud
+        machine_type = machine.extra.get('tags', {}).get('type')
+        host = machine if machine_type == 'hypervisor' else machine.parent
+
+        driver = self._get_host_driver(host)
+
+        for node in driver.list_nodes():
+            if node.id == machine.machine_id:
+                return node
+
+        if no_fail:
+            return Node(machine.machine_id, name=machine.machine_id,
+                        state=0, public_ips=[], private_ips=[],
+                        driver=self.connection)
+        raise MachineNotFoundError(
+            "Machine with machine_id '%s'." % machine.machine_id
+        )
 
     def _reboot_machine(self, machine, machine_libcloud):
         hypervisor = machine_libcloud.extra.get('tags', {}).get('type', None)
@@ -2087,19 +2271,57 @@ class LibvirtComputeController(BaseComputeController):
         else:
             machine_libcloud.reboot()
 
+    def _rename_machine(self, machine, machine_libcloud, name):
+        if machine.extra.get('tags', {}).get('type') == 'hypervisor':
+            machine.name = name
+            machine.save()
+            from mist.api.helpers import trigger_session_update
+            trigger_session_update(machine.owner.id, ['clouds'])
+        else:
+            self.connection.ex_rename_node(machine_libcloud, name)
+
+    def remove_machine(self, machine):
+        from mist.api.machines.models import KeyMachineAssociation
+        KeyMachineAssociation.objects(machine=machine).delete()
+        machine.missing_since = datetime.datetime.now()
+        machine.save()
+
+        if amqp_owner_listening(self.cloud.owner.id):
+            old_machines = [m.as_dict() for m in
+                            self.cloud.ctl.compute.list_cached_machines()]
+            new_machines = self.cloud.ctl.compute.list_machines()
+            self.cloud.ctl.compute.produce_and_publish_patch(
+                old_machines, new_machines)
+
+    def _start_machine(self, machine, machine_libcloud):
+        driver = self._get_host_driver(machine)
+        return driver.ex_start_node(machine_libcloud)
+
+    def _stop_machine(self, machine, machine_libcloud):
+        driver = self._get_host_driver(machine)
+        return driver.ex_stop_node(machine_libcloud)
+
     def _resume_machine(self, machine, machine_libcloud):
-        self.connection.ex_resume_node(machine_libcloud)
+        driver = self._get_host_driver(machine)
+        return driver.ex_resume_node(machine_libcloud)
+
+    def _destroy_machine(self, machine, machine_libcloud):
+        driver = self._get_host_driver(machine)
+        return driver.destroy_node(machine_libcloud)
 
     def _suspend_machine(self, machine, machine_libcloud):
-        self.connection.ex_suspend_node(machine_libcloud)
+        driver = self._get_host_driver(machine)
+        return driver.ex_suspend_node(machine_libcloud)
 
     def _undefine_machine(self, machine, machine_libcloud):
         if machine.extra.get('active'):
             raise BadRequestError('Cannot undefine an active domain')
-        self.connection.ex_undefine_node(machine_libcloud)
+        driver = self._get_host_driver(machine)
+        return driver.ex_undefine_node(machine_libcloud)
 
     def _clone_machine(self, machine, machine_libcloud, name, resume):
-        self.connection.ex_clone_node(machine_libcloud, name, resume)
+        driver = self._get_host_driver(machine)
+        return driver.ex_clone_node(machine_libcloud)
 
     def _list_sizes__get_cpu(self, size):
         return size.extra.get('cpu')
@@ -2290,7 +2512,6 @@ class OtherComputeController(BaseComputeController):
 
         # Defaults
         machine.unreachable_since = None
-        machine.state = config.STATES[NodeState.UNKNOWN]
 
         # If any of the probes has succeeded, then state is running
         if (
@@ -2298,15 +2519,18 @@ class OtherComputeController(BaseComputeController):
             machine.ping_probe and not machine.ping_probe.unreachable_since
         ):
             machine.state = config.STATES[NodeState.RUNNING]
-
         # If ssh probe failed, then unreachable since then
-        if machine.ssh_probe and machine.ssh_probe.unreachable_since:
+        elif machine.ssh_probe and machine.ssh_probe.unreachable_since:
             machine.unreachable_since = machine.ssh_probe.unreachable_since
+            machine.state = config.STATES[NodeState.UNKNOWN]
         # Else if ssh probe has never succeeded and ping probe failed,
         # then unreachable since then
         elif (not machine.ssh_probe and
               machine.ping_probe and machine.ping_probe.unreachable_since):
             machine.unreachable_since = machine.ping_probe.unreachable_since
+            machine.state = config.STATES[NodeState.UNKNOWN]
+        else:  # Asume running if no indication otherwise
+            machine.state = config.STATES[NodeState.RUNNING]
 
     def _list_machines__generic_machine_actions(self, machine):
         """Update an action for a bare metal machine
@@ -2383,15 +2607,14 @@ class KubeVirtComputeController(BaseComputeController):
                                                  cert_file=cert_file,
                                                  ca_cert=ca_cert,
                                                  verify=verify)
-        # token bearer authentication
-        elif self.cloud.token_bearer_auth:
-            if not key_file:
-                raise ValueError("Missing the token, please provide it.")
 
-            return get_driver(Provider.KUBEVIRT)(secure=True,
+        elif self.cloud.token:
+            token = self.cloud.token
+
+            return get_driver(Provider.KUBEVIRT)(key=token,
+                                                 secure=True,
                                                  host=host,
                                                  port=port,
-                                                 key_file=key_file,
                                                  ca_cert=ca_cert,
                                                  token_bearer_auth=True,
                                                  verify=verify
@@ -2455,6 +2678,12 @@ class KubeVirtComputeController(BaseComputeController):
                     if machine not in volume.attached_to:
                         volume.attached_to.append(machine)
                         volume.save()
+
+    def _list_machines__get_location(self, node):
+        return node.extra.get('namespace', "")
+
+    def _list_machines__get_size(self, node):
+        return node.size.id
 
     def _list_sizes__get_cpu(self, size):
         cpu = int(size.extra.get('cpus') or 1)

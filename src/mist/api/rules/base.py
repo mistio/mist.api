@@ -18,9 +18,9 @@ from mist.api.rules.models import QueryCondition
 from mist.api.rules.models import ACTIONS
 from mist.api.rules.models import NoDataAction
 
-from mist.api.conditions.models import FieldCondition
-from mist.api.conditions.models import TaggingCondition
-from mist.api.conditions.models import GenericResourceCondition
+from mist.api.selectors.models import FieldSelector
+from mist.api.selectors.models import TaggingSelector
+from mist.api.selectors.models import GenericResourceSelector
 
 if config.HAS_RBAC:
     from mist.rbac.methods import AuthContext
@@ -31,10 +31,10 @@ else:
 log = logging.getLogger(__name__)
 
 
-CONDITIONS = {
-    'tags': TaggingCondition,
-    'machines': GenericResourceCondition,  # FIXME For backwards compatibility.
-    'resources': GenericResourceCondition,
+SELECTORS = {
+    'tags': TaggingSelector,
+    'machines': GenericResourceSelector,  # FIXME For backwards compatibility.
+    'resources': GenericResourceSelector,
 }
 
 TIMEPERIOD = {
@@ -291,52 +291,52 @@ class ResourceRuleController(BaseController):
 
     def update(self, fail_on_error=True, **kwargs):
         if 'selectors' in kwargs:
-            self.rule.conditions = []
-        for condition in kwargs.pop('selectors', []):
-            if condition.get('type') not in CONDITIONS:
+            self.rule.selectors = []
+        for selector in kwargs.pop('selectors', []):
+            if selector.get('type') not in SELECTORS:
                 raise BadRequestError('Selector not in %s' %
-                                      list(CONDITIONS.keys()))
-            cond_cls = CONDITIONS[condition.pop('type')]()
-            cond_cls.update(**condition)
-            self.rule.conditions.append(cond_cls)
+                                      list(SELECTORS.keys()))
+            sel_cls = SELECTORS[selector.pop('type')]()
+            sel_cls.update(**selector)
+            self.rule.selectors.append(sel_cls)
         super(ResourceRuleController, self).update(fail_on_error, **kwargs)
 
     def maybe_remove(self, resource):
         # The rule does not refer to resources of the given type.
-        if not isinstance(resource, self.rule.condition_resource_cls):
+        if not isinstance(resource, self.rule.selector_resource_cls):
             return
 
-        # Attempt to remove `resource` from any of the rule's conditions,
+        # Attempt to remove `resource` from any of the rule's selectors,
         # if `resource` is explicitly specified by its UUID.
-        for condition in self.rule.conditions:
-            if isinstance(condition, GenericResourceCondition):
-                for i, rid in enumerate(condition.ids):
+        for selector in self.rule.selectors:
+            if isinstance(selector, GenericResourceSelector):
+                for i, rid in enumerate(selector.ids):
                     if rid == resource.id:
                         log.info('Removing %s from %s', resource, self.rule)
-                        condition.ids.pop(i)
+                        selector.ids.pop(i)
                         break
 
         self.rule.save()
 
     def includes_only(self, resource):
         # The rule does not refer to resources of the given type.
-        if not isinstance(resource, self.rule.condition_resource_cls):
+        if not isinstance(resource, self.rule.selector_resource_cls):
             return False
 
-        # The rule contains multiple conditions.
-        if len(self.rule.conditions) is not 1:
+        # The rule contains multiple selectors.
+        if len(self.rule.selectors) is not 1:
             return False
 
         # The rule does not refer to resources by their UUID.
-        if not isinstance(self.rule.conditions[0], GenericResourceCondition):
+        if not isinstance(self.rule.selectors[0], GenericResourceSelector):
             return False
 
         # The rule refers to multiple resources.
-        if len(self.rule.conditions[0].ids) is not 1:
+        if len(self.rule.selectors[0].ids) is not 1:
             return False
 
         # The rule's single resource does not match `resource`.
-        if self.rule.conditions[0].ids[0] != resource.id:
+        if self.rule.selectors[0].ids[0] != resource.id:
             return False
 
         # The rule refers to just `resource` by its UUID.
@@ -345,14 +345,14 @@ class ResourceRuleController(BaseController):
     def check_auth_context(self):
         if self.auth_context.is_owner():
             return
-        if not self.rule.conditions:
+        if not self.rule.selectors:
             raise UnauthorizedError('Only Owners may edit global rules')
-        for condition in self.rule.conditions:
-            if not isinstance(condition, GenericResourceCondition):
+        for selector in self.rule.selectors:
+            if not isinstance(selector, GenericResourceSelector):
                 raise UnauthorizedError('Only Owners may edit rules on tags')
-            for mid in condition.ids:
+            for mid in selector.ids:
                 try:
-                    Model = self.rule.condition_resource_cls
+                    Model = self.rule.selector_resource_cls
                     m = Model.objects.get(id=mid, owner=self.rule.owner_id)
                 except Model.DoesNotExist:
                     raise NotFoundError('%s %s' % (Model, mid))
@@ -414,15 +414,15 @@ class NoDataRuleController(ResourceRuleController):
         # The rule's single action.
         self.rule.actions = [NoDataAction()]
 
-        # The rule's resource conditions. This pair of conditions makes
+        # The rule's resource selectors. This pair of selectors makes
         # the NoDataRule to be evaluated only for machines with enabled
         # monitoring, for which we have received monitoring data.
-        self.rule.conditions = [
-            FieldCondition(
+        self.rule.selectors = [
+            FieldSelector(
                 field='monitoring__hasmonitoring',
                 operator='eq', value=True
             ),
-            FieldCondition(
+            FieldSelector(
                 field='monitoring__installation_status__activated_at',
                 operator='gt', value=0
             )

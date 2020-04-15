@@ -405,6 +405,26 @@ class Machine(OwnershipMixin, me.Document):
         tags = {tag.key: tag.value for tag in mist.api.tag.models.Tag.objects(
             resource_id=self.id, resource_type='machine'
         ).only('key', 'value')}
+        try:
+            if self.expiration:
+                expiration = {
+                    'id': self.expiration.id,
+                    'action': self.expiration.task_type.action,
+                    'date': self.expiration.schedule_type.entry.isoformat(),
+                    'notify': self.expiration.reminder and int((
+                        self.expiration.schedule_type.entry -
+                        self.expiration.reminder.schedule_type.entry
+                    ).total_seconds()) or 0,
+                }
+            else:
+                expiration = None
+        except Exception as exc:
+            log.error("Error getting expiration for machine %s: %r" % (
+                self.id, exc))
+            self.expiration = None
+            self.save()
+            expiration = None
+
         return {
             'id': self.id,
             'hostname': self.hostname,
@@ -456,15 +476,7 @@ class Machine(OwnershipMixin, me.Document):
             'subnet': self.subnet.id if self.subnet else '',
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
-            'expiration': {
-                'id': self.expiration.id,
-                'action': self.expiration.task_type.action,
-                'date': self.expiration.schedule_type.entry,
-                'notify': self.expiration.reminder and int((
-                    self.expiration.schedule_type.entry -
-                    self.expiration.reminder.schedule_type.entry
-                ).total_seconds()) or 0,
-            } if self.expiration else None,
+            'expiration': expiration,
             'provider': self.cloud.ctl.provider
         }
 

@@ -220,10 +220,10 @@ def add_cloud(request):
         raise RequiredParameterMissingError('provider')
 
     monitoring = None
-    ret = add_cloud_v_2(owner, title, provider, params)
-
-    cloud_id = ret['cloud_id']
-    monitoring = ret.get('monitoring')
+    result = add_cloud_v_2(owner, title, provider, params)
+    cloud_id = result['cloud_id']
+    monitoring = result.get('monitoring')
+    errors = result.get('errors')
 
     cloud = Cloud.objects.get(owner=owner, id=cloud_id)
 
@@ -247,6 +247,8 @@ def add_cloud(request):
     c_count = Cloud.objects(owner=owner, deleted=None).count()
     ret = cloud.as_dict()
     ret['index'] = c_count - 1
+    if errors:
+        ret['errors'] = errors
     if monitoring:
         ret['monitoring'] = monitoring
 

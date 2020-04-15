@@ -159,7 +159,7 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                 auth_context = AuthContext.deserialize(
                     schedule.pop('auth_context'))
                 tmp_log('Add scheduler entry %s', name)
-                schedule['conditions'] = [{
+                schedule['selectors'] = [{
                     'type': 'machines',
                     'ids': [machine.id]
                 }]
@@ -653,8 +653,10 @@ def create_machine_async(
              'ephemeral': ephemeral,
              'lxd_image_source': lxd_image_source,
              'sec_group': sec_group,
+             'folder': folder,
+             'datastore': datastore,
              'vnfs': vnfs,
-             'description': description
+             'description': description,
              }
         ))
 
