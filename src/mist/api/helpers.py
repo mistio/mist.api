@@ -705,8 +705,9 @@ def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3,
             return True
         except smtplib.SMTPException as exc:
             if attempt == attempts - 1:
-                log.error("Could not send email after %d retries! Error: %r",
-                          attempts, exc)
+                log.error(
+                    "Could not send email to %s after %d retries! Error: %r",
+                    recipients, attempts, exc)
                 return False
             else:
                 log.warn("Could not send email! Error: %r", exc)
