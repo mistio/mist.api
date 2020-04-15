@@ -230,8 +230,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     else:
         public_key = None
 
-    if cloud.ctl.provider in ('vsphere', 'onapp', 'libvirt', 'lxd', 'gig_g8',
-                              'kubevirt') and isinstance(size, dict):
+    if cloud.ctl.provider in config.PROVIDERS_WITH_CUSTOM_SIZES and \
+       isinstance(size, dict):
         size_id = 'custom'
         size_ram = size.get('ram', 256)
         size_cpu = size.get('cpu', 1)
@@ -305,8 +305,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     try:
         from mist.api.clouds.models import CloudSize
         cloud_size = CloudSize.objects.get(id=size_id)
-        if cloud.ctl.provider in ('vsphere', 'libvirt', 'lxd', 'gig_g8',
-                                  'kubevirt'):
+        if cloud.ctl.provider in config.PROVIDERS_WITH_CUSTOM_SIZES:
             size_cpu = cloud_size.cpus
             size_ram = cloud_size.ram
             size_disk_primary = cloud_size.disk
@@ -323,8 +322,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         cloud.ctl.compute.list_sizes()
         try:
             cloud_size = CloudSize.objects.get(id=size_id)
-            if cloud.ctl.provider in ('vsphere', 'libvirt', 'lxd', 'gig_g8',
-                                      'kubevirt'):
+            if cloud.ctl.provider in config.PROVIDERS_WITH_CUSTOM_SIZES:
                 size_cpu = cloud_size.cpus
                 size_ram = cloud_size.ram
                 size_disk_primary = cloud_size.disk
