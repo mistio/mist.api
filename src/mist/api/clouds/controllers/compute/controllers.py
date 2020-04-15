@@ -911,8 +911,9 @@ class AzureArmComputeController(BaseComputeController):
             updated = True
 
         net_id = machine_libcloud.extra.get('networkProfile')[0].get('id')
-        network_id = net_id.split('/')[-1] + '-vnet'
-        if machine.extra['network'] != network_id:
+        net_id = net_id.replace('networkInterfaces', 'virtualNetworks')
+        network_id = net_id + '-vnet'
+        if machine.extra.get('network') != network_id:
             machine.extra['network'] = network_id
             updated = True
 
