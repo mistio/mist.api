@@ -1,0 +1,132 @@
+
+#!/bin/env python
+
+import mongoengine as me
+
+from mist.api.users.models import Avatar, MemberInvitation, Organization, Metric
+from mist.api.clouds.models import Cloud, CloudLocation, CloudSize
+from mist.api.machines.models import Machine, KeyMachineAssociation
+from mist.api.dns.models import Zone, Record
+from mist.api.networks.models import Network, Subnet
+from mist.api.volumes.models import Volume
+from mist.api.scripts.models import Script
+from mist.api.misc.shell import ShellCapture
+from mist.api.tag.models import Tag
+from mist.api.schedules.models import Schedule
+from mist.api.keys.models import Key
+from mist.api.poller.models import OwnerPollingSchedule, CloudPollingSchedule
+
+
+batch_size = 1000
+dry = True
+REFS = {
+    Avatar: {
+        'fields': ['owner']
+    },
+    Organization: {
+        'fields': ['parent'], #, 'members']
+    },
+    MemberInvitation: {
+        'fields': ['user', 'org']
+    },
+    KeyMachineAssociation: {
+        'fields': ['key', 'machine']
+    },
+    Cloud: {
+        'fields': ['owner', 'owned_by', 'created_by']
+    },
+    CloudLocation: {
+        'fields': ['cloud', 'owner']
+    },
+    CloudSize: {
+        'fields': ['cloud']
+    },
+    # LibvirtCloud: {
+    #     'fields': ['key']
+    # },
+    Machine: {
+        'fields': ['cloud', 'owner', 'location', 'size', 'subnet', 'parent', 'network', 'expiration', 'owned_by', 'created_by']
+    },
+    Zone: {
+        'fields': ['cloud', 'owner', 'owned_by', 'created_by']
+    },
+    Record: {
+        'fields': ['zone', 'owner', 'owned_by', 'created_by']
+    },
+    Network: {
+        'fields': ['owner', 'cloud', 'owned_by', 'created_by']
+    },
+    Subnet: {
+        'fields': ['owner', 'network']
+    },
+    Schedule: {
+        'fields': ['owner', 'reminder', 'owned_by', 'created_by']
+    },
+    Volume: {
+        'fields': ['cloud', 'location', 'owner', 'attached_to', 'owned_by', 'created_by']
+    },
+    Key: {
+        'fields': ['owner', 'owned_by', 'created_by']
+    },
+    Script: {
+        'fields': ['owner', 'owned_by', 'created_by']
+    },
+    Tag: {
+        'fields': ['owner']
+    },
+    ShellCapture: {
+        'fields': ['owner']
+    },
+    Metric: {
+        'fields': ['owner']
+    },
+    OwnerPollingSchedule: {
+        'fields': ['owner']
+    },
+    CloudPollingSchedule: {
+        'fields': ['cloud']
+    },
+}
+
+try:
+    from mist.orchestration.models import Template, Stack
+    REFS[Template] = {
+        'fields': ['owner']
+    }
+    REFS[Stack] = {
+        'fields': ['owner', 'machines', 'template']
+    }
+except ImportError:
+    pass
+
+try:
+    from mist.api.auth.models import AuthToken
+    REFS[AuthToken] = {
+        'fields': ['org']
+    }
+except ImportError:
+    pass
+
+
+for collection in REFS:
+    print('Checking %d %s objects' % (collection.objects.count(),
+                                      str(collection)))
+    i = 0
+    broken = 0
+    while batch_size * i < collection.objects.count():
+        for doc in collection.objects[batch_size*i:batch_size*(i+1)]:
+            i+=1
+            for field in REFS[collection]['fields']:
+                try:
+                    pass
+                    # print(getattr(doc, field))
+                except me.DoesNotExist:
+                    print("Broken ref on collection %s, field %s, id %s" % (
+                           collection, field, doc.id))
+                    broken += 1
+                    if not dry:
+                        doc.delete()
+
+
+    print ("%d documents with broken refs in collection %s" % (
+        broken, collection))
