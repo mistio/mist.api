@@ -215,10 +215,34 @@ class OpenStackNetworkController(BaseNetworkController):
 class LibvirtNetworkController(BaseNetworkController):
 
     def _list_networks__fetch_networks(self):
-        networks = super(LibvirtNetworkController,
-                         self)._list_networks__fetch_networks()
-        networks.extend(self.cloud.ctl.compute.connection.ex_list_interfaces())
+        from mist.api.machines.models import Machine
+        networks = []
+        for machine in Machine.objects.filter(cloud=self.cloud,
+                                              missing_since=None):
+            if machine.extra.get('tags', {}).get('type') == 'hypervisor':
+                driver = self.cloud.ctl.compute._get_host_driver(machine)
+                networks += driver.ex_list_networks()
+                networks += driver.ex_list_interfaces()
+
         return networks
+
+    def _list_networks__postparse_network(self, network, libcloud_network,
+                                          r_groups=[]):
+        location = None
+        host_name = libcloud_network.extra.get('host')
+        from mist.api.clouds.models import CloudLocation
+        try:
+            location = CloudLocation.objects.get(cloud=self.cloud,
+                                                 name=host_name)
+        except CloudLocation.DoesNotExist:
+            host_name = host_name.replace('.', '-')
+            try:
+                location = CloudLocation.objects.get(cloud=self.cloud,
+                                                     external_id=host_name)
+            except CloudLocation.DoesNotExist:
+                pass
+
+        network.location = location
 
     def _list_subnets__fetch_subnets(self, network):
         return []
@@ -228,6 +252,36 @@ class LibvirtNetworkController(BaseNetworkController):
 
     def _delete_subnet(self, subnet, libcloud_subnet):
         raise MistNotImplementedError()
+
+    def _list_vnfs(self, host=None):
+        from mist.api.machines.models import Machine
+        from mist.api.clouds.models import CloudLocation
+        if not host:
+            hosts = Machine.objects(
+                cloud=self.cloud, parent=None, missing_since=None)
+        else:
+            hosts = [host]
+        vnfs = []
+        for host in hosts:  # TODO: asyncio
+            driver = self.cloud.ctl.compute._get_host_driver(host)
+            host_vnfs = driver.ex_list_vnfs()
+            try:
+                location = CloudLocation.objects.get(cloud=self.cloud,
+                                                     name=host.name)
+            except CloudLocation.DoesNotExist:
+                host_name = host.name.replace('.', '-')
+                try:
+                    location = CloudLocation.objects.get(cloud=self.cloud,
+                                                         external_id=host_name)
+                except CloudLocation.DoesNotExist:
+                    location = None
+            except Exception as e:
+                log.error(e)
+                location = None
+            for vnf in host_vnfs:
+                vnf['location'] = location.id
+            vnfs += host_vnfs
+        return vnfs
 
 
 class VSphereNetworkController(BaseNetworkController):

@@ -171,7 +171,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                    volumes=[], ip_addresses=[], expiration={},
                    sec_group='', folder=None, datastore=None, vnfs=[],
                    ephemeral=False, lxd_image_source=None,
-                   description='',
+                   description=''
                    ):
     """Creates a new virtual machine on the specified cloud.
 
@@ -199,7 +199,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     # post_script_id: id of a script that exists - for mist.core. If script_id
     # or monitoring are supplied, this will run after both finish
     # post_script_params: extra params, for post_script_id
-
     log.info('Creating machine %s on cloud %s' % (machine_name, cloud_id))
     cloud = Cloud.objects.get(owner=auth_context.owner,
                               id=cloud_id, deleted=None)
@@ -480,10 +479,11 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         node = _create_machine_vultr(conn, public_key, machine_name, image,
                                      size, location, cloud_init)
     elif conn.type is Provider.LIBVIRT:
-        node = _create_machine_libvirt(conn, machine_name,
+        node = _create_machine_libvirt(cloud, machine_name,
                                        disk_size=disk_size,
                                        ram=size_ram, cpu=size_cpu,
                                        image=image.id,
+                                       location=location,
                                        disk_path=disk_path,
                                        networks=networks,
                                        public_key=public_key,
@@ -1498,11 +1498,19 @@ def _create_machine_digital_ocean(conn, cloud, key_name, private_key,
     return node
 
 
-def _create_machine_libvirt(conn, machine_name, disk_size, ram, cpu,
-                            image, disk_path, networks,
+def _create_machine_libvirt(cloud, machine_name, disk_size, ram, cpu,
+                            image, location, disk_path, networks,
                             public_key, cloud_init, vnfs=[]):
     """Create a machine in Libvirt.
+    Based on location, a connection is instantiated
     """
+    try:
+        host = Machine.objects.get(cloud=cloud, machine_id=location.id)
+    except me.DoesNotExist:
+        raise MachineCreationError("The host specified does not exist")
+
+    driver = cloud.ctl.compute._get_host_driver(host)
+
     # The libvirt drivers expects network names.
     from mist.api.networks.models import LibvirtNetwork
     if not isinstance(networks, list):
@@ -1525,7 +1533,7 @@ def _create_machine_libvirt(conn, machine_name, disk_size, ram, cpu,
                 network_names.append(network_name)
 
     try:
-        node = conn.create_node(
+        node = driver.create_node(
             name=machine_name,
             disk_size=disk_size,
             ram=ram,
