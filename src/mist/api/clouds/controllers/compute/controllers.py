@@ -129,7 +129,7 @@ class AmazonComputeController(BaseComputeController):
             ))
             network_interfaces = []
 
-        if network_interfaces != machine.extra['network_interfaces']:
+        if network_interfaces != machine.extra.get('network_interfaces'):
             machine.extra['network_interfaces'] = network_interfaces
             updated = True
 
@@ -1021,7 +1021,7 @@ class GoogleComputeController(BaseComputeController):
         # Get zone name.
         try:
             if extra.get('zone'):
-                if machine.extra['zone'] != extra['zone'].name:
+                if machine.extra.get('zone') != extra['zone'].name:
                     machine.extra['zone'] = extra['zone'].name
                     updated = True
         except:
@@ -1246,7 +1246,7 @@ class VultrComputeController(BaseComputeController):
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         updated = False
-        if machine.extra['cpus'] != machine.extra.get('vcpu_count', 0):
+        if machine.extra.get('cpus') != machine.extra.get('vcpu_count', 0):
             machine.extra['cpus'] = machine.extra.get('vcpu_count', 0)
             updated = True
         return updated
@@ -2077,7 +2077,7 @@ class LibvirtComputeController(BaseComputeController):
         xml_desc = machine_libcloud.extra.get('xml_description')
         if xml_desc:
             escaped_xml_desc = escape(xml_desc)
-            if machine.extra['xml_description'] != escaped_xml_desc:
+            if machine.extra.get('xml_description') != escaped_xml_desc:
                 machine.extra['xml_description'] = escaped_xml_desc
                 updated = True
             import xml.etree.ElementTree as ET
@@ -2365,7 +2365,7 @@ class OnAppComputeController(BaseComputeController):
 
         image_id = machine.extra.get('template_label') \
             or machine.extra.get('operating_system_distro')
-        if image_id != machine.extra['image_id']:
+        if image_id != machine.extra.get('image_id'):
             machine.extra['image_id'] = image_id
             updated = True
 
@@ -2375,7 +2375,7 @@ class OnAppComputeController(BaseComputeController):
 
         size = "%scpu, %sM ram" % \
             (machine.extra.get('cpus'), machine.extra.get('memory'))
-        if size != machine.extra['size']:
+        if size != machine.extra.get('size'):
             machine.extra['size'] = size
             updated = True
 
