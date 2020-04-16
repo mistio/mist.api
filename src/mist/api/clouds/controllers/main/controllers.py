@@ -351,13 +351,13 @@ class LibvirtMainController(BaseMainController):
             for key in list(_host.keys()):
                 if key not in ('host', 'alias', 'username', 'port', 'key',
                                'images_location'):
-                    error = "Invalid parameter %s=%r." % (key, kwargs[key])
+                    error = "Invalid parameter %s=%r." % (key, _host[key])
                     if fail_on_invalid_params:
                         self.cloud.delete()
                         raise BadRequestError(error)
                     else:
                         log.warning(error)
-                        kwargs.pop(key)
+                        _host.pop(key)
 
             for key in ('host', 'key'):
                 if key not in _host or not _host.get(key):
