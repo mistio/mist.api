@@ -230,13 +230,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     else:
         public_key = None
 
-    # For providers, which do not support pre-defined sizes, we expect `size`
-    # to be a dict with all the necessary information regarding the machine's
-    # size.
-    if cloud.ctl.provider in ('vsphere', 'onapp', 'libvirt', 'lxd', 'gig_g8',
-                              'kubevirt'):
-        if not isinstance(size, dict):
-            raise BadRequestError('Expected size to be a dict.')
+    if cloud.ctl.provider in config.PROVIDERS_WITH_CUSTOM_SIZES and \
+       isinstance(size, dict):
         size_id = 'custom'
         size_ram = size.get('ram', 256)
         size_cpu = size.get('cpu', 1)
@@ -254,8 +249,6 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         if not isinstance(size, (string_types, int)):
             raise BadRequestError('Expected size to be an id.')
         size_id = size
-    size = NodeSize(size_id, name=size_name, ram='', disk=disk,
-                    bandwidth='', price='', driver=conn)
 
     # transform image id to libcloud's NodeImage object
     try:
@@ -312,18 +305,11 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     try:
         from mist.api.clouds.models import CloudSize
         cloud_size = CloudSize.objects.get(id=size_id)
-        size = NodeSize(cloud_size.external_id,
-                        name=cloud_size.name,
-                        ram=cloud_size.ram,
-                        disk=cloud_size.disk,
-                        bandwidth=cloud_size.bandwidth,
-                        price=cloud_size.extra.get('price'),
-                        driver=conn)
-    except me.DoesNotExist:
-        # make sure mongo is up-to-date
-        cloud.ctl.compute.list_sizes()
-        try:
-            cloud_size = CloudSize.objects.get(id=size_id)
+        if cloud.ctl.provider in config.PROVIDERS_WITH_CUSTOM_SIZES:
+            size_cpu = cloud_size.cpus
+            size_ram = cloud_size.ram
+            size_disk_primary = cloud_size.disk
+        else:
             size = NodeSize(cloud_size.external_id,
                             name=cloud_size.name,
                             ram=cloud_size.ram,
@@ -331,6 +317,23 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                             bandwidth=cloud_size.bandwidth,
                             price=cloud_size.extra.get('price'),
                             driver=conn)
+    except me.DoesNotExist:
+        # make sure mongo is up-to-date
+        cloud.ctl.compute.list_sizes()
+        try:
+            cloud_size = CloudSize.objects.get(id=size_id)
+            if cloud.ctl.provider in config.PROVIDERS_WITH_CUSTOM_SIZES:
+                size_cpu = cloud_size.cpus
+                size_ram = cloud_size.ram
+                size_disk_primary = cloud_size.disk
+            else:
+                size = NodeSize(cloud_size.external_id,
+                                name=cloud_size.name,
+                                ram=cloud_size.ram,
+                                disk=cloud_size.disk,
+                                bandwidth=cloud_size.bandwidth,
+                                price=cloud_size.extra.get('price'),
+                                driver=conn)
         except me.DoesNotExist:
             # instantiate a dummy libcloud NodeSize
             size = NodeSize(size_id, name=size_name,
