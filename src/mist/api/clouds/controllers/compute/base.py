@@ -772,6 +772,7 @@ class BaseComputeController(BaseController):
         machine.actions.destroy = True
         machine.actions.rename = False  # Most providers do not support this
         machine.actions.tag = True   # Always True now that we store tags in db
+        machine.actions.expose = False
 
         # Actions resume, suspend and undefine are states related to KVM.
         machine.actions.resume = False

@@ -550,6 +550,7 @@ class GigG8ComputeController(BaseComputeController):
             machine, machine_libcloud)
         if machine_libcloud.state is NodeState.PAUSED:
             machine.actions.start = True
+        machine.actions.expose = True
 
     def _list_machines__get_size(self, node):
         """Return key of size_map dict for a specific node
