@@ -684,7 +684,7 @@ def create_machine_g8(conn, machine_name, image, ram, cpu, disk,
                     %s" % ex_network.publicipaddress)
 
         if len(items) == 4 and (items[0] not in ('localhost', '172.17.0.1',
-          '0.0.0.0') or items[2] != ex_network.publicipaddress):
+           '0.0.0.0') or items[2] != ex_network.publicipaddress):
             raise BadRequestError("You can only expose a port from localhost to the \
                 network's public ip address, which is \
                     %s" % ex_network.publicipaddress)
