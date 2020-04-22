@@ -358,18 +358,6 @@ def create_machine(request):
     except Cloud.DoesNotExist:
         raise NotFoundError('Cloud does not exist')
 
-    # FIXME For backwards compatibility.
-    if cloud.ctl.provider in ('vsphere', 'onapp', 'libvirt', 'kubevirt'):
-        if not size or not isinstance(size, dict):
-            size = {}
-        for param in (
-            'size_ram', 'size_cpu', 'size_disk_primary', 'size_disk_swap',
-            'boot', 'build', 'cpu_priority', 'cpu_sockets', 'cpu_threads',
-            'port_speed', 'hypervisor_group_id',
-        ):
-            if param in params and params[param]:
-                size[param.replace('size_', '')] = params[param]
-
     # compose schedule as a dict from relative parameters
     if not params.get('schedule_type'):
         schedule = {}
