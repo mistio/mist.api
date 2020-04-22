@@ -161,12 +161,12 @@ def validate_portforwards(port_forwards):
             validate_ports(ports)
 
         elif len(ports) == 3:    # eg 80:example.com:80
-            check_host(ports[1])
+            check_host(ports[1], allow_inaddr_any=True)
             validate_ports([ports[0], ports[2]])
 
         elif len(ports) == 4:    # eg 172.17.0.1:example.com:80
-            check_host(ports[0])
-            check_host(ports[2])
+            check_host(ports[0], allow_inaddr_any=True)
+            check_host(ports[2], allow_inaddr_any=True)
             validate_ports([ports[1], ports[3]])
 
         else:
@@ -683,8 +683,8 @@ def create_machine_g8(conn, machine_name, image, ram, cpu, disk,
                 network's public ip address, which is \
                     %s" % ex_network.publicipaddress)
 
-        if len(items) == 4 and (items[0] not in ('localhost', '172.17.0.1') or
-           items[2] != ex_network.publicipaddress):
+        if len(items) == 4 and (items[0] not in ('localhost', '172.17.0.1',
+          '0.0.0.0') or items[2] != ex_network.publicipaddress):
             raise BadRequestError("You can only expose a port from localhost to the \
                 network's public ip address, which is \
                     %s" % ex_network.publicipaddress)

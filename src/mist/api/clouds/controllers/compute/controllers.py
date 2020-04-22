@@ -617,8 +617,8 @@ class GigG8ComputeController(BaseComputeController):
                     network's public ip address, which is \
                         %s" % network.publicipaddress)
 
-            if len(items) == 4 and (items[0] not in ('localhost', '172.17.0.1') or
-            items[2] != network.publicipaddress):
+            if len(items) == 4 and (items[0] not in ('localhost', '172.17.0.1',
+               '0.0.0.0') or items[2] != network.publicipaddress):
                 raise BadRequestError("You can only expose a port from localhost to the \
                     network's public ip address, which is \
                         %s" % network.publicipaddress)
