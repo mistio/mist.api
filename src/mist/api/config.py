@@ -1233,6 +1233,9 @@ LINODE_DATACENTERS = {
     10: 'Frankfurt, DE'
 }
 
+PROVIDERS_WITH_CUSTOM_SIZES = ['vsphere', 'onapp', 'libvirt', 'lxd', 'gig_g8',
+                               'kubevirt']
+
 SUPPORTED_PROVIDERS = [
     # BareMetal
     {

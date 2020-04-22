@@ -425,6 +425,15 @@ class Machine(OwnershipMixin, me.Document):
             self.save()
             expiration = None
 
+        try:
+            from bson import json_util
+            extra = json.loads(json.dumps(self.extra,
+                                          default=json_util.default))
+        except Exception as exc:
+            log.error('Failed to serialize extra metadata for %s: %s\n%s' % (
+                self, self.extra, exc))
+            extra = {}
+
         return {
             'id': self.id,
             'hostname': self.hostname,
@@ -437,7 +446,7 @@ class Machine(OwnershipMixin, me.Document):
             'machine_id': self.machine_id,
             'actions': {action: self.actions[action]
                         for action in self.actions},
-            'extra': dict(self.extra),
+            'extra': extra,
             'cost': self.cost.as_dict(),
             'state': self.state,
             'tags': tags,
