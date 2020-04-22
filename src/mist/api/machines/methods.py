@@ -680,12 +680,14 @@ def create_machine_g8(conn, machine_name, image, ram, cpu, disk,
         items = pf.split(':')
         if len(items) == 3 and items[1] != ex_network.publicipaddress:
             raise BadRequestError("You can only expose a port to the \
-                network's public ip address, which is %s" % ex_network.publicipaddress)
+                network's public ip address, which is \
+                    %s" % ex_network.publicipaddress)
 
-        if len(items) == 4 and (items[0] not in ('localhost', '172.17.0.1') or \
+        if len(items) == 4 and (items[0] not in ('localhost', '172.17.0.1') or
            items[2] != ex_network.publicipaddress):
             raise BadRequestError("You can only expose a port from localhost to the \
-                network's public ip address, which is %s" % ex_network.publicipaddress)
+                network's public ip address, which is \
+                    %s" % ex_network.publicipaddress)
 
         if port_forwards.get(pf)[0] not in ['udp', 'tcp']:
             raise BadRequestError('Allowed protocols are "udp" and "tcp"')
