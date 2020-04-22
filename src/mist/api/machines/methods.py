@@ -738,7 +738,7 @@ def create_machine_g8(conn, machine_name, image, ram, cpu, disk,
             conn.ex_create_portforward(ex_network, node, public_port,
                                        private_port, protocol)
         except BaseHTTPError as exc:
-            raise BadRequestError(exc)
+            raise BadRequestError(exc.message)
 
     return node
 

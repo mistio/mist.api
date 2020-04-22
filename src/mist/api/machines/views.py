@@ -817,6 +817,7 @@ def machine_actions(request):
                     'undefine', 'suspend', 'resume'):
         result = getattr(machine.ctl, action)()
     elif action == 'expose':
+        methods.validate_portforwards(port_forwards)
         network = machine.network
         if not network:
             raise MistError('Do not know the network of the machine to expose \

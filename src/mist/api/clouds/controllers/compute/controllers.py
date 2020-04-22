@@ -601,20 +601,6 @@ class GigG8ComputeController(BaseComputeController):
         self.connection.reboot_node(machine_libcloud)
 
     def expose_machine(self, machine, port_forwards):
-        pf_error_msg = 'Each portforward must be specified in the\
-                following format: {"<public_port>:private_port":("protocol")}'
-        for pf in port_forwards.keys():
-            ports = pf.split(':')
-            if len(ports) != 2:
-                raise BadRequestError(pf_error_msg)
-            for port in ports:
-                try:
-                    port = int(port)
-                except (ValueError, TypeError):
-                    raise BadRequestError(pf_error_msg)
-            if port_forwards.get(pf)[0] not in ['udp', 'tcp']:
-                raise BadRequestError('Allowed protocols are "udp" and "tcp"')
-
         machine_libcloud = self._get_machine_libcloud(machine)
         networks = self.cloud.ctl.compute.connection.ex_list_networks()
         network = None
@@ -622,14 +608,45 @@ class GigG8ComputeController(BaseComputeController):
             if net.id == machine.network.network_id:
                 network = net
                 break
+
+        # validate input
+        for pf in port_forwards:
+            items = pf.split(':')
+            if len(items) == 3 and items[1] != network.publicipaddress:
+                raise BadRequestError("You can only expose a port to the \
+                    network's public ip address, which is \
+                        %s" % network.publicipaddress)
+
+            if len(items) == 4 and (items[0] not in ('localhost', '172.17.0.1') or
+            items[2] != network.publicipaddress):
+                raise BadRequestError("You can only expose a port from localhost to the \
+                    network's public ip address, which is \
+                        %s" % network.publicipaddress)
+
+            if port_forwards.get(pf)[0] not in ['udp', 'tcp']:
+                raise BadRequestError('Allowed protocols are "udp" and "tcp"')
+
         existing_pfs = self.connection.ex_list_portforwards(network)
 
-        for pf in port_forwards:
-            public_port, private_port = pf.split(':')
+        for pf in port_forwards.keys():
+            ports = pf.split(':')
+            if len(ports) == 1:
+                public_port = private_port = ports[0]
+            elif len(ports) == 2:
+                private_port, public_port = pf.split(':')
+            elif len(ports) == 3:
+                items = pf.split(':')
+                private_port = items[0]
+                public_port = items[2]
+            elif len(ports) == 4:
+                items = pf.split(':')
+                private_port = items[1]
+                public_port = items[3]
             protocol = port_forwards.get(pf)[0]
             exists = False
+
             for existing_pf in existing_pfs:
-                if existing_pf.publicport == public_port and \
+                if existing_pf.publicport == int(public_port) and \
                    existing_pf.protocol == protocol:
                     existing_pfs.remove(existing_pf)
                     exists = True
