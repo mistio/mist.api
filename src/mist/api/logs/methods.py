@@ -142,6 +142,12 @@ def log_observations(owner_id, cloud_id, resource_type, patch,
                          resource_type + '_id': resource_id,
                          'name': name,
                          'external_id': external_id})
+        if action == 'create_network':
+            log_dict.update({
+                'patch': _patch,
+                'cached_resources': cached_resources,
+                'new_resources': new_resources
+            })
         log_event(action=action, event_type='observation',
                   owner_id=owner_id, **log_dict)
     return
