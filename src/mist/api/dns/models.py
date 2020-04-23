@@ -42,7 +42,7 @@ class Zone(OwnershipMixin, me.Document):
 
     zone_id = me.StringField(required=True)
     domain = me.StringField(required=True)
-    type = me.StringField(required=True)
+    type = me.StringField(required=True)  # TODO: Rename
     ttl = me.IntField(required=True, default=0)
     extra = MistDictField()
     cloud = me.ReferenceField(Cloud, required=True,

@@ -131,8 +131,6 @@ class BaseDNSController(BaseController):
         Requesting all the DNS zones
         under a specific cloud.
         """
-
-        # TODO: Adding here for circular dependency issue. Need to fix this.
         from mist.api.dns.models import Zone
 
         # Fetch zones from libcloud connection.
@@ -141,25 +139,16 @@ class BaseDNSController(BaseController):
         zones = []
         new_zones = []
         for pr_zone in pr_zones:
-            # FIXME: We are using the zone_id and owner instead of the
-            # cloud_id to search for existing zones because providers
-            # allow access to the same zone from multiple clouds so
-            # we can end up adding the same zone many times under
-            # different clouds.
             try:
-                zones_q = Zone.objects(owner=self.cloud.owner,
-                                       zone_id=pr_zone.id, deleted=None)
-                for zone in zones_q:
-                    if zone.cloud.ctl.provider == self.cloud.ctl.provider:
-                        break
-                else:
-                    raise Zone.DoesNotExist
+                zone = Zone.objects.get(cloud=self.cloud,
+                                        zone_id=pr_zone.id)
             except Zone.DoesNotExist:
                 log.info("Zone: %s/domain: %s not in the database, creating.",
                          pr_zone.id, pr_zone.domain)
                 zone = Zone(cloud=self.cloud, owner=self.cloud.owner,
                             zone_id=pr_zone.id)
                 new_zones.append(zone)
+            zone.deleted = None
             zone.domain = pr_zone.domain
             zone.type = pr_zone.type
             zone.ttl = pr_zone.ttl
