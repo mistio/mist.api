@@ -637,6 +637,7 @@ def create_machine_async(
              'post_script_params': post_script_params,
              'azure_port_bindings': azure_port_bindings,
              'associate_floating_ip': associate_floating_ip,
+             'subnet_id': subnet_id,
              'cloud_init': cloud_init,
              'disk_size': disk_size,
              'disk_path': disk_path,
