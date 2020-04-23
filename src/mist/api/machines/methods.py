@@ -173,6 +173,24 @@ def validate_portforwards(port_forwards):
             raise BadRequestError(pf_error_msg)
 
 
+def validate_portforwards_g8(port_forwards, network):
+    for pf in port_forwards:
+        items = pf.split(':')
+        if len(items) == 3 and items[1] != network.publicipaddress:
+            raise BadRequestError("You can only expose a port to the \
+                network's public ip address, which is \
+                    %s" % network.publicipaddress)
+
+        if len(items) == 4 and (items[0] not in ('localhost', '172.17.0.1',
+           '0.0.0.0') or items[2] != network.publicipaddress):
+            raise BadRequestError("You can only expose a port from localhost to the \
+                network's public ip address, which is \
+                    %s" % network.publicipaddress)
+
+        if port_forwards.get(pf)[0] not in ['udp', 'tcp']:
+            raise BadRequestError('Allowed protocols are "udp" and "tcp"')
+
+
 def list_machines(owner, cloud_id, cached=False):
     """List all machines in this cloud via API call to the provider."""
     cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
@@ -676,21 +694,7 @@ def create_machine_g8(conn, machine_name, image, ram, cpu, disk,
             break
 
     # g8-specific validation
-    for pf in port_forwards:
-        items = pf.split(':')
-        if len(items) == 3 and items[1] != ex_network.publicipaddress:
-            raise BadRequestError("You can only expose a port to the \
-                network's public ip address, which is \
-                    %s" % ex_network.publicipaddress)
-
-        if len(items) == 4 and (items[0] not in ('localhost', '172.17.0.1',
-           '0.0.0.0') or items[2] != ex_network.publicipaddress):
-            raise BadRequestError("You can only expose a port from localhost to the \
-                network's public ip address, which is \
-                    %s" % ex_network.publicipaddress)
-
-        if port_forwards.get(pf)[0] not in ['udp', 'tcp']:
-            raise BadRequestError('Allowed protocols are "udp" and "tcp"')
+    validate_portforwards_g8(port_forwards, ex_network)
 
     ex_create_attr = {
         "memory": ram,

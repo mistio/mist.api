@@ -610,21 +610,8 @@ class GigG8ComputeController(BaseComputeController):
                 break
 
         # validate input
-        for pf in port_forwards:
-            items = pf.split(':')
-            if len(items) == 3 and items[1] != network.publicipaddress:
-                raise BadRequestError("You can only expose a port to the \
-                    network's public ip address, which is \
-                        %s" % network.publicipaddress)
-
-            if len(items) == 4 and (items[0] not in ('localhost', '172.17.0.1',
-               '0.0.0.0') or items[2] != network.publicipaddress):
-                raise BadRequestError("You can only expose a port from localhost to the \
-                    network's public ip address, which is \
-                        %s" % network.publicipaddress)
-
-            if port_forwards.get(pf)[0] not in ['udp', 'tcp']:
-                raise BadRequestError('Allowed protocols are "udp" and "tcp"')
+        from mist.api.machines.methods import validate_portforwards_g8
+        validate_portforwards_g8(port_forwards, network)
 
         existing_pfs = self.connection.ex_list_portforwards(network)
 
