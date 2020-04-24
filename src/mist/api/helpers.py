@@ -491,7 +491,8 @@ def extract_prefix(url, prefixes=['http://', 'https://']):
         return ''
 
 
-def check_host(host, allow_localhost=config.ALLOW_CONNECT_LOCALHOST):
+def check_host(host, allow_localhost=config.ALLOW_CONNECT_LOCALHOST,
+               allow_inaddr_any=False):
     """Check if a given host is a valid DNS name or IPv4 address"""
 
     try:
@@ -511,7 +512,6 @@ def check_host(host, allow_localhost=config.ALLOW_CONNECT_LOCALHOST):
         raise MistError(msg + " is not a valid IPv4 address.")
 
     forbidden_subnets = {
-        '0.0.0.0/8': "used for broadcast messages to the current network",
         '100.64.0.0/10': ("used for communications between a service provider "
                           "and its subscribers when using a "
                           "Carrier-grade NAT"),
@@ -534,6 +534,10 @@ def check_host(host, allow_localhost=config.ALLOW_CONNECT_LOCALHOST):
         '255.255.255.255/32': ("reserved for the 'limited broadcast' "
                                "destination address"),
     }
+
+    if not allow_inaddr_any:
+        forbidden_subnets['0.0.0.0/8'] = ("used for broadcast messages "
+                                          "to the current network")
 
     if not allow_localhost:
         forbidden_subnets['127.0.0.0/8'] = ("used for loopback addresses "
