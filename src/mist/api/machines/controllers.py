@@ -58,8 +58,8 @@ class MachineController(object):
 
     def expose(self, port_forwards):
         """Exposes a machine's port to a public one"""
-        return self.machine.cloud.ctl.compute.expose_machine(self.machine,
-                                                             port_forwards)
+        return self.machine.cloud.ctl.compute.expose_port(self.machine,
+                                                          port_forwards)
 
     # TODO we want this also ?
     # def tag(self):

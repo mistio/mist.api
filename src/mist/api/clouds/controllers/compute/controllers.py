@@ -600,7 +600,7 @@ class GigG8ComputeController(BaseComputeController):
     def _reboot_machine(self, machine, machine_libcloud):
         self.connection.reboot_node(machine_libcloud)
 
-    def expose_machine(self, machine, port_forwards):
+    def expose_port(self, machine, port_forwards):
         machine_libcloud = self._get_machine_libcloud(machine)
         networks = self.cloud.ctl.compute.connection.ex_list_networks()
         network = None
