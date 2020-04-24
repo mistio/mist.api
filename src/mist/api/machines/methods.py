@@ -21,6 +21,7 @@ from libcloud.compute.base import NodeAuthSSHKey
 from libcloud.compute.base import NodeAuthPassword
 
 from libcloud.common.types import MalformedResponseError
+from libcloud.common.exceptions import BaseHTTPError
 
 from tempfile import NamedTemporaryFile
 
@@ -45,6 +46,7 @@ from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import MistNotImplementedError
 
 from mist.api.helpers import get_temp_file
+from mist.api.helpers import check_host
 
 from mist.api.methods import connect_provider
 from mist.api.methods import notify_admin
@@ -141,6 +143,54 @@ def machine_name_validator(provider, name):
     return name
 
 
+def validate_portforwards(port_forwards):
+    def validate_ports(ports):
+        for port in ports:
+            try:
+                port = int(port)
+            except (ValueError, TypeError):
+                raise BadRequestError("Port should be an integer")
+
+    pf_error_msg = 'Wrong portforward format. Acceptable formats: "80", \
+                    "80:80", "80:example.com:80", \
+                    "172.17.0.1:80:example.com:80"'
+
+    for pf in port_forwards.keys():
+        ports = pf.split(':')
+        if len(ports) == 1 or len(ports) == 2:    # eg. 80 or 80:80
+            validate_ports(ports)
+
+        elif len(ports) == 3:    # eg 80:example.com:80
+            check_host(ports[1], allow_inaddr_any=True)
+            validate_ports([ports[0], ports[2]])
+
+        elif len(ports) == 4:    # eg 172.17.0.1:example.com:80
+            check_host(ports[0], allow_inaddr_any=True)
+            check_host(ports[2], allow_inaddr_any=True)
+            validate_ports([ports[1], ports[3]])
+
+        else:
+            raise BadRequestError(pf_error_msg)
+
+
+def validate_portforwards_g8(port_forwards, network):
+    for pf in port_forwards:
+        items = pf.split(':')
+        if len(items) == 3 and items[1] != network.publicipaddress:
+            raise BadRequestError("You can only expose a port to the \
+                network's public ip address, which is \
+                    %s" % network.publicipaddress)
+
+        if len(items) == 4 and (items[0] not in ('localhost', '172.17.0.1',
+           '0.0.0.0') or items[2] != network.publicipaddress):
+            raise BadRequestError("You can only expose a port from localhost to the \
+                network's public ip address, which is \
+                    %s" % network.publicipaddress)
+
+        if port_forwards.get(pf)[0] not in ['udp', 'tcp']:
+            raise BadRequestError('Allowed protocols are "udp" and "tcp"')
+
+
 def list_machines(owner, cloud_id, cached=False):
     """List all machines in this cloud via API call to the provider."""
     cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
@@ -171,7 +221,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                    volumes=[], ip_addresses=[], expiration={},
                    sec_group='', folder=None, datastore=None, vnfs=[],
                    ephemeral=False, lxd_image_source=None,
-                   description=''
+                   description='', port_forwards={},
                    ):
     """Creates a new virtual machine on the specified cloud.
 
@@ -214,9 +264,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     if conn.type not in [Provider.LIBVIRT,
                          Container_Provider.DOCKER,
                          Provider.ONAPP,
-                         Provider.AZURE_ARM]:
-        # try to use the default key
-        # if there isn't such (meaning there are no keys) then continue
+                         Provider.AZURE_ARM,
+                         Provider.GIG_G8]:
         if not key_id:
             try:
                 key = Key.objects.get(owner=auth_context.owner,
@@ -339,6 +388,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             size = NodeSize(size_id, name=size_name,
                             ram=0, disk=0, bandwidth=0,
                             price=0, driver=conn)
+    if port_forwards:
+        validate_portforwards(port_forwards)
 
     cached_machines = [m.as_dict()
                        for m in cloud.ctl.compute.list_cached_machines()]
@@ -420,7 +471,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         node = create_machine_g8(
             conn, machine_name, image, size_ram, size_cpu,
             size_disk_primary, public_key, description, networks,
-            volumes, cloud_init
+            volumes, cloud_init, port_forwards
         )
         ssh_port = node.extra.get('ssh_port', 22)
     elif conn.type is Provider.ONAPP:
@@ -617,7 +668,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
 
 def create_machine_g8(conn, machine_name, image, ram, cpu, disk,
                       public_key, description, networks, volumes,
-                      cloud_init):
+                      cloud_init, port_forwards):
     auth = None
     ex_expose_ssh = False
     if public_key:
@@ -641,6 +692,9 @@ def create_machine_g8(conn, machine_name, image, ram, cpu, disk,
         if mist_net.network_id == libcloud_net.id:
             ex_network = libcloud_net
             break
+
+    # g8-specific validation
+    validate_portforwards_g8(port_forwards, ex_network)
 
     ex_create_attr = {
         "memory": ram,
@@ -667,6 +721,28 @@ def create_machine_g8(conn, machine_name, image, ram, cpu, disk,
         )
     except Exception as e:
         raise MachineCreationError("Gig G8, got exception %s" % e, e)
+
+    for pf in port_forwards.keys():
+        ports = pf.split(':')
+        if len(ports) == 1:
+            public_port = private_port = ports[0]
+        elif len(ports) == 2:
+            private_port, public_port = pf.split(':')
+        elif len(ports) == 3:
+            items = pf.split(':')
+            private_port = items[0]
+            public_port = items[2]
+        elif len(ports) == 4:
+            items = pf.split(':')
+            private_port = items[1]
+            public_port = items[3]
+        protocol = port_forwards.get(pf)[0]
+
+        try:
+            conn.ex_create_portforward(ex_network, node, public_port,
+                                       private_port, protocol)
+        except BaseHTTPError as exc:
+            raise BadRequestError(exc.message)
 
     return node
 
