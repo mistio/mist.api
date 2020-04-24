@@ -772,6 +772,7 @@ class BaseComputeController(BaseController):
         machine.actions.destroy = True
         machine.actions.rename = False  # Most providers do not support this
         machine.actions.tag = True   # Always True now that we store tags in db
+        machine.actions.expose = False
 
         # Actions resume, suspend and undefine are states related to KVM.
         machine.actions.resume = False
@@ -1621,6 +1622,12 @@ class BaseComputeController(BaseController):
         is called by the public method `resize_machine`.
         """
         self.connection.ex_resize_node(machine_libcloud, node_size)
+
+    def expose_port(self, port_forwards):
+        """Expose a machine's private port to a public one.
+        Currently only availble for GigG8
+        """
+        raise MistNotImplementedError()
 
     def rename_machine(self, machine, name):
         """Rename machine

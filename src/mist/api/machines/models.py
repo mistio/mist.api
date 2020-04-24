@@ -75,6 +75,7 @@ class Actions(me.EmbeddedDocument):
     remove = me.BooleanField(default=False)
     tag = me.BooleanField(default=False)
     resume = me.BooleanField(default=False)
+    expose = me.BooleanField(default=False)
     suspend = me.BooleanField(default=False)
     undefine = me.BooleanField(default=False)
     clone = me.BooleanField(default=False)
