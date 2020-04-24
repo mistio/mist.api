@@ -120,6 +120,13 @@ class GigG8MainController(BaseMainController):
         if not base_url.endswith('/restmachine/cloudapi'):
             kwargs['url'] = base_url + '/restmachine/cloudapi/'
 
+    def _update__preparse_kwargs(self, kwargs):
+        base_url = kwargs.pop('url')
+        if base_url.endswith('/'):
+            base_url = base_url[:-1]
+        kwargs['url'] = base_url + '/restmachine/cloudapi' if \
+            not base_url.endswith('/restmachine/cloudapi') else base_url
+
 
 class LinodeMainController(BaseMainController):
 
