@@ -22,8 +22,8 @@ from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import BadRequestError, NotFoundError, ForbiddenError
 from mist.api.exceptions import MachineCreationError, RedirectError
 from mist.api.exceptions import CloudUnauthorizedError, CloudUnavailableError
+from mist.api.exceptions import MistNotImplementedError, MethodNotAllowedError
 from mist.api.exceptions import MistError
-from mist.api.exceptions import MistNotImplementedError
 
 from mist.api.monitoring.methods import enable_monitoring
 from mist.api.monitoring.methods import disable_monitoring
@@ -1016,7 +1016,7 @@ def machine_console(request):
     auth_context.check_perm("machine", "read", machine.id)
 
     if machine.cloud.ctl.provider not in ['vsphere', 'openstack', 'libvirt']:
-        raise NotImplementedError(
+        raise MistNotImplementedError(
             "VNC console only supported for vSphere, OpenStack or KVM")
 
     if machine.cloud.ctl.provider == 'libvirt':
@@ -1028,6 +1028,9 @@ def machine_console(request):
         xml_desc = unescape(machine.extra.get('xml_description', ''))
         root = ET.fromstring(xml_desc)
         vnc_element = root.find('devices').find('graphics[@type="vnc"]')
+        if not vnc_element:
+            raise MethodNotAllowedError(
+                "VNC console not supported by this KVM domain")
         vnc_port = vnc_element.attrib.get('port')
         vnc_host = vnc_element.attrib.get('listen')
         from mongoengine import Q
