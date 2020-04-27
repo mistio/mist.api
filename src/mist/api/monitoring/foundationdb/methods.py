@@ -39,7 +39,7 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
             raw_machine_data = requests.get(
                 "%s/v1/datapoints?query=%s"
                 % (config.TSFDB_URI, urllib.parse.quote(query)),
-                timeout=5
+                timeout=20
             )
         except Exception as exc:
             log.error(
