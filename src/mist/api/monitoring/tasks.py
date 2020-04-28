@@ -35,6 +35,7 @@ def install_telegraf(machine_id, job=None, job_id=None, plugins=None):
     }
     log_event(action='telegraf_deployment_started', **_log)
 
+    err = None
     try:
         shell = mist.api.shell.Shell(machine.ctl.get_host())
         key, user = shell.autoconfigure(machine.owner, machine.cloud.id,
