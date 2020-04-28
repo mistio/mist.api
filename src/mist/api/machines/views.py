@@ -1058,9 +1058,11 @@ def machine_console(request):
         url_param = machine.cloud.ctl.compute.connection.ex_open_console(
             machine.machine_id
         )
-        params = urllib.parse.urlencode({'url': url_param})
+        param = urllib.parse.urlencode({'url': url_param})
+        proxy_url = f"ws://{config.CORE_URI}:8764?{param}"
+        param = urllib.parse.urlencode({'url': proxy_url})
         console_url = ("/ui/assets/vsphere-console-util-js/"
-                       f"console.html?{params}")
+                       f"console.html?{param}")
     else:
         console_url = machine.cloud.ctl.compute.connection.ex_open_console(
             machine.machine_id
