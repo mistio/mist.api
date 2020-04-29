@@ -2166,6 +2166,7 @@ def _create_machine_gce(conn, key_name, private_key, public_key, machine_name,
             ex_boot_disk=ex_disk,
             disk_size=disk_size
         )
+        node.extra['username'] = 'user'
     except Exception as e:
         raise MachineCreationError(
             "Google Compute Engine, got exception %s" % e, e)
