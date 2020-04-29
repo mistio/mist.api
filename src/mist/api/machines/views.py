@@ -1058,7 +1058,11 @@ def machine_console(request):
         url_param = machine.cloud.ctl.compute.connection.ex_open_console(
             machine.machine_id
         )
-        main_uri = config.CORE_URI.lstrip("http://").lstrip("https://")
+        main_uri = config.CORE_URI
+        prefixes = {"http://", "https://"}
+        for prefix in prefixes:
+          if config.CORE_URI.startswith(prefix):
+            main_uri = config.CORE_URI.split(prefix)[1]
         param = urllib.parse.urlencode({'url': url_param})
         proxy_url = f"ws://{main_uri}:8764?{param}"
         param = urllib.parse.urlencode({'url': proxy_url})
