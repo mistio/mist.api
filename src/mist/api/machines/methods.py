@@ -182,7 +182,8 @@ def validate_portforwards_g8(port_forwards, network):
                     %s" % network.publicipaddress)
 
         if len(items) == 4 and (items[0] not in ('localhost', '172.17.0.1',
-           '0.0.0.0') or items[2] != network.publicipaddress):
+                                                 '0.0.0.0') or
+                                items[2] != network.publicipaddress):
             raise BadRequestError("You can only expose a port from localhost to the \
                 network's public ip address, which is \
                     %s" % network.publicipaddress)
@@ -638,6 +639,14 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             script_id=script_id, script_params=script_params,
             job_id=job_id, job=job, hostname=hostname, plugins=plugins,
             post_script_id=post_script_id,
+            post_script_params=post_script_params, schedule=schedule,
+        )
+    elif conn.type == Provider.GCE:
+        mist.api.tasks.post_deploy_steps.delay(
+            auth_context.owner.id, cloud_id, node.id, monitoring,
+            script=script, key_id=key_id, username='user', script_id=script_id,
+            script_params=script_params, job_id=job_id, job=job, port=ssh_port,
+            hostname=hostname, plugins=plugins, post_script_id=post_script_id,
             post_script_params=post_script_params, schedule=schedule,
         )
 
