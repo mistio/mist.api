@@ -619,11 +619,12 @@ class BaseComputeController(BaseController):
             ips = machine.public_ips + machine.private_ips
             if not ips:
                 ips = []
-            for ip in ips:
-                if ip and ':' not in ip and machine.hostname != ip:
-                    machine.hostname = ip
-                    updated = True
-                    break
+            if not machine.hostname:
+                for ip in ips:
+                    if ip and ':' not in ip:
+                        machine.hostname = ip
+                        updated = True
+                        break
         if json.dumps(machine.extra, default=json_util.default) != json.dumps(
                 extra, default=json_util.default):
             machine.extra = extra
