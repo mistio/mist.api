@@ -324,7 +324,7 @@ class LXDNetworkController(BaseNetworkController):
         return []
 
     def _list_networks__cidr_range(self, network, net):
-        return net.config["ipv4.address"]
+        return net.config.get("ipv4.address")
 
 
 class GigG8NetworkController(BaseNetworkController):

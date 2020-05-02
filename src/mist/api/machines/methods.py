@@ -1443,25 +1443,21 @@ def _create_machine_lxd(conn, machine_name, image,
 
         if networks is not None\
                 and len(networks) != 0:
-
-            # we also want to attache a network
-            network_id = networks
-
+            # we also want to join some networks
             from mist.api.networks.models import LXDNetwork
+            for network_id in networks:
+                network = LXDNetwork.objects.get(id=network_id)
+                net_type = network.extra.get("type", "nic")
+                net_nictype = network.extra.get("nictype", "bridged")
+                net_parent = network.extra.get("parent", "lxdbr0")
 
-            network = LXDNetwork.objects.get(id=network_id)
-
-            net_type = network.extra.get("type", "nic")
-            net_nictype = network.extra.get("nictype", "bridged")
-            net_parent = network.extra.get("parent", "lxdbr0")
-
-            # add the network to the devices
-            devices[network.name] = {
-                "name": network.name,
-                "type": net_type,
-                "nictype": net_nictype,
-                "parent": net_parent,
-            }
+                # add the network to the devices
+                devices[network.name] = {
+                    "name": network.name,
+                    "type": net_type,
+                    "nictype": net_nictype,
+                    "parent": net_parent,
+                }
 
         config = {}
 
