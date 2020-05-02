@@ -620,7 +620,8 @@ class BaseComputeController(BaseController):
             if not ips:
                 ips = []
             if not machine.hostname or (machine.public_ips and machine.hostname
-                                        not in machine.public_ips):
+                                        not in machine.public_ips +
+                                        [extra.get('dns_name')]):
                 for ip in ips:
                     if ip and ':' not in ip:
                         machine.hostname = ip
