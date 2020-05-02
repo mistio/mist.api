@@ -182,7 +182,8 @@ def validate_portforwards_g8(port_forwards, network):
                     %s" % network.publicipaddress)
 
         if len(items) == 4 and (items[0] not in ('localhost', '172.17.0.1',
-           '0.0.0.0') or items[2] != network.publicipaddress):
+                                                 '0.0.0.0') or
+                                items[2] != network.publicipaddress):
             raise BadRequestError("You can only expose a port from localhost to the \
                 network's public ip address, which is \
                     %s" % network.publicipaddress)
@@ -2115,7 +2116,7 @@ def _create_machine_vsphere(conn, machine_name, image,
 
 def _create_machine_gce(conn, key_name, private_key, public_key, machine_name,
                         image, size, location, network, subnetwork, volumes,
-                        cloud_init):
+                        cloud_init, username='user'):
     """Create a machine in GCE.
 
     Here there is no checking done, all parameters are expected to be
@@ -2125,7 +2126,7 @@ def _create_machine_gce(conn, key_name, private_key, public_key, machine_name,
     key = public_key.replace('\n', '')
 
     metadata = {  # 'startup-script': script,
-        'sshKeys': 'user:%s' % key}
+        'sshKeys': '%s:%s' % (username, key)}
     # metadata for ssh user, ssh key and script to deploy
     if cloud_init:
         metadata['startup-script'] = cloud_init
@@ -2166,6 +2167,7 @@ def _create_machine_gce(conn, key_name, private_key, public_key, machine_name,
             ex_boot_disk=ex_disk,
             disk_size=disk_size
         )
+        node.extra['username'] = username
     except Exception as e:
         raise MachineCreationError(
             "Google Compute Engine, got exception %s" % e, e)
