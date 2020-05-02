@@ -1917,11 +1917,11 @@ class LXDComputeController(BaseComputeController):
         # add public/private ips for mist
         for container in containers:
             public_ips, private_ips = [], []
-            host = sanitize_host(self.cloud.host)
-            if is_private_subnet(host):
-                private_ips.append(host)
-            else:
-                public_ips.append(host)
+            for ip in container.extra.get('ips'):
+                if is_private_subnet(ip):
+                    private_ips.append(ip)
+                else:
+                    public_ips.append(ip)
 
             container.public_ips = public_ips
             container.private_ips = private_ips
