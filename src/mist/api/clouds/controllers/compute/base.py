@@ -612,16 +612,16 @@ class BaseComputeController(BaseController):
             extra['tags'] = validated_tags
 
         # Set machine hostname
-        if extra.get('dns_name') and machine.hostname != extra['dns_name']:
-            machine.hostname = extra['dns_name']
-            updated = True
+        if extra.get('dns_name'):
+            if machine.hostname != extra['dns_name']:
+                machine.hostname = extra['dns_name']
+                updated = True
         else:
             ips = machine.public_ips + machine.private_ips
             if not ips:
                 ips = []
             if not machine.hostname or (machine.public_ips and machine.hostname
-                                        not in machine.public_ips +
-                                        [extra.get('dns_name')]):
+                                        not in machine.public_ips):
                 for ip in ips:
                     if ip and ':' not in ip:
                         machine.hostname = ip
