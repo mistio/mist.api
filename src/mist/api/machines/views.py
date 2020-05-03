@@ -1051,16 +1051,18 @@ def machine_console(request):
             msg=msg.encode(),
             digestmod=hashlib.sha256).hexdigest()
         base_ws_uri = config.CORE_URI.replace('http', 'ws')
-        ws_uri = '%s/proxy/%s/%s/%s/%s/%s/%s' % (
+        proxy_uri = '%s/proxy/%s/%s/%s/%s/%s/%s' % (
             base_ws_uri, host, key_id, vnc_host, vnc_port, expiry, mac)
-        return render_to_response('../templates/novnc.pt', {'url': ws_uri})
+        return render_to_response('../templates/novnc.pt', {'url': proxy_uri})
     if machine.cloud.ctl.provider == 'vsphere':
-        url_param = machine.cloud.ctl.compute.connection.ex_open_console(
+        console_uri = machine.cloud.ctl.compute.connection.ex_open_console(
             machine.machine_id
         )
-        params = urllib.parse.urlencode({'url': url_param})
-        console_url = ("/ui/assets/vsphere-console-util-js/"
-                       f"console.html?{params}")
+        protocol, host = config.CORE_URI.split('://')
+        protocol = protocol.replace('http', 'ws')
+        params = urllib.parse.urlencode({'url': console_uri})
+        proxy_uri = f"{protocol}://{host}/wsproxy/?{params}"
+        return render_to_response('../templates/novnc.pt', {'url': proxy_uri})
     else:
         console_url = machine.cloud.ctl.compute.connection.ex_open_console(
             machine.machine_id
