@@ -612,18 +612,21 @@ class BaseComputeController(BaseController):
             extra['tags'] = validated_tags
 
         # Set machine hostname
-        if extra.get('dns_name') and machine.hostname != extra['dns_name']:
-            machine.hostname = extra['dns_name']
-            updated = True
+        if extra.get('dns_name'):
+            if machine.hostname != extra['dns_name']:
+                machine.hostname = extra['dns_name']
+                updated = True
         else:
             ips = machine.public_ips + machine.private_ips
             if not ips:
                 ips = []
-            for ip in ips:
-                if ip and ':' not in ip and machine.hostname != ip:
-                    machine.hostname = ip
-                    updated = True
-                    break
+            if not machine.hostname or (machine.public_ips and machine.hostname
+                                        not in machine.public_ips):
+                for ip in ips:
+                    if ip and ':' not in ip:
+                        machine.hostname = ip
+                        updated = True
+                        break
         if json.dumps(machine.extra, default=json_util.default) != json.dumps(
                 extra, default=json_util.default):
             machine.extra = extra
@@ -772,6 +775,7 @@ class BaseComputeController(BaseController):
         machine.actions.destroy = True
         machine.actions.rename = False  # Most providers do not support this
         machine.actions.tag = True   # Always True now that we store tags in db
+        machine.actions.expose = False
 
         # Actions resume, suspend and undefine are states related to KVM.
         machine.actions.resume = False
@@ -1621,6 +1625,12 @@ class BaseComputeController(BaseController):
         is called by the public method `resize_machine`.
         """
         self.connection.ex_resize_node(machine_libcloud, node_size)
+
+    def expose_port(self, port_forwards):
+        """Expose a machine's private port to a public one.
+        Currently only availble for GigG8
+        """
+        raise MistNotImplementedError()
 
     def rename_machine(self, machine, name):
         """Rename machine

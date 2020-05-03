@@ -262,10 +262,8 @@ class ParamikoShell(object):
                               if association.ssh_user]))
         log.info('Got users:{}'.format(users))
         if not users:
-            for name in ['root', 'ubuntu', 'ec2-user', 'user', 'azureuser',
-                         'core', 'centos', 'cloud-user', 'fedora']:
-                if name not in users:
-                    users.append(name)
+            users = ['root', 'ubuntu', 'ec2-user', 'user', 'azureuser',
+                     'core', 'centos', 'cloud-user', 'fedora']
         if port != 22:
             ports = [port]
         else:
@@ -436,6 +434,7 @@ class DockerShell(WebSocketWrapper):
     """
     DockerShell achieved through the Docker host's API by opening a WebSocket
     """
+
     def __init__(self, host):
         self.host = host
         super(DockerShell, self).__init__()
@@ -686,6 +685,7 @@ class KubernetesWebSocket(object):
     """
     Base WebSocket class inherited by DockerShell
     """
+
     def __init__(self):
         self.ws = websocket.WebSocket()
         self.protocol = "wss"
@@ -734,6 +734,7 @@ class KubernetesShell(KubernetesWebSocket):
     Kubernetes shell into a pod.
     Can be used by KubeVirt to get a shell to a vm.
     """
+
     def __init__(self):
         self.host = ""
         self.port = "6443"
@@ -853,6 +854,7 @@ class KubernetesShell(KubernetesWebSocket):
 class Shell(object):
     """Proxy Shell Class to distinguish between Docker or Paramiko Shell
     """
+
     def __init__(self, host, provider=None, username=None, key=None,
                  password=None, cert_file=None, port=22,
                  enforce_paramiko=False):

@@ -51,6 +51,7 @@ from mist.api.exceptions import InternalServerError
 from mist.api.exceptions import MachineNotFoundError
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import NotFoundError
+from mist.api.exceptions import PortForwardCreationError
 from mist.api.exceptions import ForbiddenError
 from mist.api.helpers import sanitize_host
 from mist.api.helpers import amqp_owner_listening
@@ -549,6 +550,7 @@ class GigG8ComputeController(BaseComputeController):
             machine, machine_libcloud)
         if machine_libcloud.state is NodeState.PAUSED:
             machine.actions.start = True
+        machine.actions.expose = True
 
     def _list_machines__get_size(self, node):
         """Return key of size_map dict for a specific node
@@ -597,6 +599,58 @@ class GigG8ComputeController(BaseComputeController):
 
     def _reboot_machine(self, machine, machine_libcloud):
         self.connection.reboot_node(machine_libcloud)
+
+    def expose_port(self, machine, port_forwards):
+        machine_libcloud = self._get_machine_libcloud(machine)
+        networks = self.cloud.ctl.compute.connection.ex_list_networks()
+        network = None
+        for net in networks:
+            if net.id == machine.network.network_id:
+                network = net
+                break
+
+        # validate input
+        from mist.api.machines.methods import validate_portforwards_g8
+        validate_portforwards_g8(port_forwards, network)
+
+        existing_pfs = self.connection.ex_list_portforwards(network)
+
+        for pf in port_forwards.keys():
+            ports = pf.split(':')
+            if len(ports) == 1:
+                public_port = private_port = ports[0]
+            elif len(ports) == 2:
+                private_port, public_port = pf.split(':')
+            elif len(ports) == 3:
+                items = pf.split(':')
+                private_port = items[0]
+                public_port = items[2]
+            elif len(ports) == 4:
+                items = pf.split(':')
+                private_port = items[1]
+                public_port = items[3]
+            protocol = port_forwards.get(pf)[0]
+            exists = False
+
+            for existing_pf in existing_pfs:
+                if existing_pf.publicport == int(public_port) and \
+                   existing_pf.protocol == protocol:
+                    existing_pfs.remove(existing_pf)
+                    exists = True
+                    break
+
+            if not exists:
+                try:
+                    self.connection.ex_create_portforward(network,
+                                                          machine_libcloud,
+                                                          public_port,
+                                                          private_port,
+                                                          protocol)
+                except BaseHTTPError as exc:
+                    raise PortForwardCreationError(exc.message)
+
+        for pf in existing_pfs:
+            self.connection.ex_delete_portforward(pf)
 
 
 class LinodeComputeController(BaseComputeController):
@@ -1863,11 +1917,11 @@ class LXDComputeController(BaseComputeController):
         # add public/private ips for mist
         for container in containers:
             public_ips, private_ips = [], []
-            host = sanitize_host(self.cloud.host)
-            if is_private_subnet(host):
-                private_ips.append(host)
-            else:
-                public_ips.append(host)
+            for ip in container.extra.get('ips'):
+                if is_private_subnet(ip):
+                    private_ips.append(ip)
+                else:
+                    public_ips.append(ip)
 
             container.public_ips = public_ips
             container.private_ips = private_ips
@@ -1879,6 +1933,13 @@ class LXDComputeController(BaseComputeController):
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
         """Unix timestap of when the machine was created"""
         return machine_libcloud.extra.get('created')  # unix timestamp
+
+    def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        updated = False
+        if machine.machine_type != 'container':
+            machine.machine_type = 'container'
+            updated = True
+        return updated
 
     def _get_machine_libcloud(self, machine, no_fail=False):
         """Return an instance of a libcloud node
@@ -2558,7 +2619,7 @@ class OtherComputeController(BaseComputeController):
         machine.missing_since = datetime.datetime.now()
         machine.save()
 
-    def list_images(self, search=None):
+    def list_images(self, persist=True, search=None):
         return []
 
     def list_sizes(self, persist=True):
@@ -2667,18 +2728,23 @@ class KubeVirtComputeController(BaseComputeController):
                         volume.attached_to.remove(machine.id)
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        if not machine_libcloud.extra['pvcs']:
-            return
-        pvcs = machine_libcloud.extra['pvcs']
-        # FIXME: resolve circular import issues
-        from mist.api.models import Volume
-        volumes = Volume.objects.filter(cloud=self.cloud, missing_since=None)
-        for volume in volumes:
-            if 'pvc' in volume.extra:
-                if volume.extra['pvc']['name'] in pvcs:
-                    if machine not in volume.attached_to:
-                        volume.attached_to.append(machine)
-                        volume.save()
+        updated = False
+        if machine.machine_type != 'container':
+            machine.machine_type = 'container'
+            updated = True
+
+        if machine_libcloud.extra['pvcs']:
+            pvcs = machine_libcloud.extra['pvcs']
+            from mist.api.models import Volume
+            volumes = Volume.objects.filter(cloud=self.cloud, missing_since=None)
+            for volume in volumes:
+                if 'pvc' in volume.extra:
+                    if volume.extra['pvc']['name'] in pvcs:
+                        if machine not in volume.attached_to:
+                            volume.attached_to.append(machine)
+                            volume.save()
+                            updated = True
+        return updated
 
     def _list_machines__get_location(self, node):
         return node.extra.get('namespace', "")

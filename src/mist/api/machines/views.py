@@ -22,7 +22,8 @@ from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import BadRequestError, NotFoundError, ForbiddenError
 from mist.api.exceptions import MachineCreationError, RedirectError
 from mist.api.exceptions import CloudUnauthorizedError, CloudUnavailableError
-from mist.api.exceptions import MistNotImplementedError
+from mist.api.exceptions import MistNotImplementedError, MethodNotAllowedError
+from mist.api.exceptions import MistError
 
 from mist.api.monitoring.methods import enable_monitoring
 from mist.api.monitoring.methods import disable_monitoring
@@ -255,8 +256,12 @@ def create_machine(request):
       items:
         type: string
       description:
-        description: Description of machine. Only for GigG8 machines
+        description: Description of machine. Only for KVM machines
         type: string
+    port_forwards:
+      description: Applies only in GigG8 clouds
+      type: object
+      example: {"2200:22": ["tcp"]}
     """
 
     params = params_from_request(request)
@@ -295,7 +300,7 @@ def create_machine(request):
         request.matchdict['volume'] = volumes[0].get('volume_id')
     networks = params.get('networks', [])
     if isinstance(networks, str):
-        networks = [networks]
+        networks = networks and [networks] or []
     subnet_id = params.get('subnet_id', '')
     subnetwork = params.get('subnetwork', None)
     ip_addresses = params.get('ip_addresses', [])
@@ -328,6 +333,7 @@ def create_machine(request):
     hourly = params.get('hourly', True)
     sec_group = params.get('security_group', '')
     vnfs = params.get('vnfs', [])
+    port_forwards = params.get('port_forwards', {})
     expiration = params.get('expiration', {})
     description = params.get('description', '')
     folder = params.get('folders', None)
@@ -467,7 +473,8 @@ def create_machine(request):
               'ephemeral': params.get('ephemeral', False),
               'lxd_image_source': params.get('lxd_image_source', None),
               'sec_group': sec_group,
-              'description': description}
+              'description': description,
+              'port_forwards': port_forwards}
 
     if not run_async:
         ret = methods.create_machine(auth_context, *args, **kwargs)
@@ -701,11 +708,15 @@ def machine_actions(request):
       - create_snapshot
       - remove_snapshot
       - revert_to_snapshot
+      - expose
       required: true
       type: string
     name:
       description: The new name of the renamed machine
       type: string
+    port_forwards:
+      description: Applies only in GigG8 clouds
+      type: object
     size:
       description: The size id of the plan to resize
       type: string
@@ -733,6 +744,7 @@ def machine_actions(request):
     snapshot_description = params.get('snapshot_description')
     snapshot_dump_memory = params.get('snapshot_dump_memory')
     snapshot_quiesce = params.get('snapshot_quiesce')
+    port_forwards = params.get('port_forwards', {})
     auth_context = auth_context_from_request(request)
 
     if cloud_id:
@@ -773,7 +785,7 @@ def machine_actions(request):
     actions = ('start', 'stop', 'reboot', 'destroy', 'resize',
                'rename', 'undefine', 'suspend', 'resume', 'remove',
                'list_snapshots', 'create_snapshot', 'remove_snapshot',
-               'revert_to_snapshot', 'clone')
+               'revert_to_snapshot', 'clone', 'expose')
 
     if action not in actions:
         raise BadRequestError("Action '%s' should be "
@@ -804,6 +816,15 @@ def machine_actions(request):
     elif action in ('start', 'stop', 'reboot', 'clone',
                     'undefine', 'suspend', 'resume'):
         result = getattr(machine.ctl, action)()
+    elif action == 'expose':
+        methods.validate_portforwards(port_forwards)
+        network = machine.network
+        if not network:
+            raise MistError('Do not know the network of the machine to expose \
+              a port from')
+        auth_context.check_perm('network', 'read', network)
+        auth_context.check_perm('network', 'edit', network)
+        result = getattr(machine.ctl, action)(port_forwards)
     elif action == 'rename':
         if not name:
             raise BadRequestError("You must give a name!")
@@ -995,7 +1016,7 @@ def machine_console(request):
     auth_context.check_perm("machine", "read", machine.id)
 
     if machine.cloud.ctl.provider not in ['vsphere', 'openstack', 'libvirt']:
-        raise NotImplementedError(
+        raise MistNotImplementedError(
             "VNC console only supported for vSphere, OpenStack or KVM")
 
     if machine.cloud.ctl.provider == 'libvirt':
@@ -1007,6 +1028,9 @@ def machine_console(request):
         xml_desc = unescape(machine.extra.get('xml_description', ''))
         root = ET.fromstring(xml_desc)
         vnc_element = root.find('devices').find('graphics[@type="vnc"]')
+        if not vnc_element:
+            raise MethodNotAllowedError(
+                "VNC console not supported by this KVM domain")
         vnc_port = vnc_element.attrib.get('port')
         vnc_host = vnc_element.attrib.get('listen')
         from mongoengine import Q
