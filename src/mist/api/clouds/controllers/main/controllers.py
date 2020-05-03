@@ -357,74 +357,73 @@ class LibvirtMainController(BaseMainController):
                     total_errors.update({key: error})
 
         if not errors:
-                try:
-                    ssh_port = int(_host.get('ssh_port', 22))
-                except (ValueError, TypeError):
-                    ssh_port = 22
+            try:
+                ssh_port = int(_host.get('ssh_port', 22))
+            except (ValueError, TypeError):
+                ssh_port = 22
 
-                images_location = _host.get('images_location',
-                                            '/var/lib/libvirt/images')
-                extra = {
-                    'images_location': images_location,
-                    'tags': {'type': 'hypervisor'},
-                    'username': _host.get('username')
-                }
-                # Create and save machine entry to database.
-                from mist.api.machines.models import Machine
-                machine = Machine(
-                    cloud=self.cloud,
-                    machine_id=_host.get('host').replace('.', '-'),
-                    name=_host.get('alias') or _host.get('host'),
-                    ssh_port=ssh_port,
-                    last_seen=datetime.datetime.utcnow(),
-                    hostname=_host.get('host'),
-                    state=NodeState.RUNNING,
-                    extra=extra
-                )
-                # Sanitize inputs.
-                host = sanitize_host(_host.get('host'))
-                check_host(_host.get('host'))
-                machine.hostname = host
+            images_location = _host.get('images_location',
+                                        '/var/lib/libvirt/images')
+            extra = {
+                'images_location': images_location,
+                'tags': {'type': 'hypervisor'},
+                'username': _host.get('username')
+            }
+            # Create and save machine entry to database.
+            from mist.api.machines.models import Machine
+            machine = Machine(
+                cloud=self.cloud,
+                machine_id=_host.get('host').replace('.', '-'),
+                name=_host.get('alias') or _host.get('host'),
+                ssh_port=ssh_port,
+                last_seen=datetime.datetime.utcnow(),
+                hostname=_host.get('host'),
+                state=NodeState.RUNNING,
+                extra=extra
+            )
+            # Sanitize inputs.
+            host = sanitize_host(_host.get('host'))
+            check_host(_host.get('host'))
+            machine.hostname = host
 
-                if is_private_subnet(socket.gethostbyname(_host.get('host'))):
-                    machine.private_ips = [_host.get('host')]
+            if is_private_subnet(socket.gethostbyname(_host.get('host'))):
+                machine.private_ips = [_host.get('host')]
+            else:
+                machine.public_ips = [_host.get('host')]
+
+            try:
+                machine.save(write_concern={'w': 1, 'fsync': True})
+            except me.NotUniqueError:
+                error = 'Duplicate machine entry. Maybe the same \
+                        host has been added twice?'
+                if fail_on_error:
+                    self.cloud.delete()
+                    raise MistError(error)
                 else:
-                    machine.public_ips = [_host.get('host')]
+                    total_errors.update({_host.get('host'): error})
 
-                try:
-                    machine.save(write_concern={'w': 1, 'fsync': True})
-                except me.NotUniqueError:
-                    error = 'Duplicate machine entry. Maybe the same \
-                            host has been added twice?'
-                    if fail_on_error:
-                        self.cloud.delete()
-                        raise MistError(error)
-                    else:
-                        total_errors.update({_host.get('host'): error})
+            # associate key and attempt to connect
+            try:
+                machine.ctl.associate_key(_host.get('key'),
+                                          username=_host.get('username'),
+                                          port=ssh_port)
+            except MachineUnauthorizedError as exc:
+                log.error("Could not connect to host %s." % _host.get('host'))
+                machine.delete()
+                if fail_on_error:
+                    self.cloud.delete()
+                    raise CloudUnauthorizedError(exc)
+            except ServiceUnavailableError as exc:
+                log.error("Could not connect to host %s." % _host.get('host'))
+                machine.delete()
+                if fail_on_error:
+                    self.cloud.delete()
+                    raise MistError("Couldn't connect to host '%s'."
+                                    % _host.get('host'))
 
-                # associate key and attempt to connect
-                try:
-                    machine.ctl.associate_key(_host.get('key'),
-                                              username=_host.get('username'),
-                                              port=ssh_port)
-                except MachineUnauthorizedError as exc:
-                    log.error("Could not connect to host %s."
-                              % _host.get('host'))
-                    machine.delete()
-                    if fail_on_error:
-                        self.cloud.delete()
-                        raise CloudUnauthorizedError(exc)
-                except ServiceUnavailableError as exc:
-                    log.error("Could not connect to host %s."
-                              % _host.get('host'))
-                    machine.delete()
-                    if fail_on_error:
-                        self.cloud.delete()
-                        raise MistError("Couldn't connect to host '%s'."
-                                        % _host.get('host'))
-
-    async def try_adding_hosts(self, hosts, fail_on_error, fail_on_invalid_params):
-        await asyncio.gather(*(self.add_host(host, fail_on_error, fail_on_invalid_params) for host in hosts))
+    async def add_hosts(self, hosts, fail_on_error, fail_on_invalid_params):
+        await asyncio.gather(*(self.add_host(host, fail_on_error,
+                               fail_on_invalid_params) for host in hosts))
 
     # TODO: fail_on_error True or False by default?
     def add(self, fail_on_error=True, fail_on_invalid_params=False, **kwargs):
@@ -441,7 +440,8 @@ class LibvirtMainController(BaseMainController):
                                    % self.cloud.title)
         total_errors = {}
 
-        asyncio.run(self.try_adding_hosts(kwargs['hosts'], fail_on_error, fail_on_invalid_params))
+        asyncio.run(self.add_hosts(kwargs['hosts'], fail_on_error,
+                    fail_on_invalid_params))
 
         # check if host was added successfully
         # if not, delete the cloud and raise
