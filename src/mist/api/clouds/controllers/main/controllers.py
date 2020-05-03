@@ -399,6 +399,7 @@ class LibvirtMainController(BaseMainController):
                     last_seen=datetime.datetime.utcnow(),
                     hostname=_host.get('host'),
                     state=NodeState.RUNNING,
+                    machine_type='hypervisor'
                     extra=extra
                 )
                 # Sanitize inputs.

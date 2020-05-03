@@ -1934,6 +1934,13 @@ class LXDComputeController(BaseComputeController):
         """Unix timestap of when the machine was created"""
         return machine_libcloud.extra.get('created')  # unix timestamp
 
+    def _list_machines__postparse_machine(self, machine, machine_libcloud):
+        updated = False
+        if machine.machine_type != 'container':
+            machine.machine_type = 'container'
+            updated = True
+        return updated
+
     def _get_machine_libcloud(self, machine, no_fail=False):
         """Return an instance of a libcloud node
 
@@ -2721,18 +2728,23 @@ class KubeVirtComputeController(BaseComputeController):
                         volume.attached_to.remove(machine.id)
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        if not machine_libcloud.extra['pvcs']:
-            return
-        pvcs = machine_libcloud.extra['pvcs']
-        # FIXME: resolve circular import issues
-        from mist.api.models import Volume
-        volumes = Volume.objects.filter(cloud=self.cloud, missing_since=None)
-        for volume in volumes:
-            if 'pvc' in volume.extra:
-                if volume.extra['pvc']['name'] in pvcs:
-                    if machine not in volume.attached_to:
-                        volume.attached_to.append(machine)
-                        volume.save()
+        updated = False
+        if machine.machine_type != 'container':
+            machine.machine_type = 'container'
+            updated = True
+
+        if machine_libcloud.extra['pvcs']:
+            pvcs = machine_libcloud.extra['pvcs']
+            from mist.api.models import Volume
+            volumes = Volume.objects.filter(cloud=self.cloud, missing_since=None)
+            for volume in volumes:
+                if 'pvc' in volume.extra:
+                    if volume.extra['pvc']['name'] in pvcs:
+                        if machine not in volume.attached_to:
+                            volume.attached_to.append(machine)
+                            volume.save()
+                            updated = True
+        return updated
 
     def _list_machines__get_location(self, node):
         return node.extra.get('namespace', "")
