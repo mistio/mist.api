@@ -12,6 +12,7 @@
 amqp<3.0
 # ansible v2 has a incompatible api
 # see https://serversforhackers.com/running-ansible-2-programmatically
+asyncio
 celery>=4.0,<5.0
 dnspython
 elasticsearch

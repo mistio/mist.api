@@ -25,6 +25,7 @@ import uuid
 import json
 import socket
 import logging
+import asyncio
 
 import mongoengine as me
 
@@ -330,47 +331,32 @@ class LibvirtMainController(BaseMainController):
             except Key.DoesNotExist:
                 raise NotFoundError("Key does not exist.")
 
-    # TODO: fail_on_error True or False by default?
-    def add(self, fail_on_error=True, fail_on_invalid_params=False, **kwargs):
-        from mist.api.machines.models import Machine
-        if not kwargs.get('hosts'):
-            raise RequiredParameterMissingError('hosts')
-        try:
-            self.cloud.save()
-        except me.ValidationError as exc:
-            raise BadRequestError({'msg': str(exc),
-                                   'errors': exc.to_dict()})
-        except me.NotUniqueError:
-            raise CloudExistsError("Cloud with name %s already exists"
-                                   % self.cloud.title)
-        total_errors = {}
+    async def add_host(self, _host, fail_on_error, fail_on_invalid_params):
+        self._add__preparse_kwargs(_host)
+        errors = {}
+        for key in list(_host.keys()):
+            if key not in ('host', 'alias', 'username', 'port', 'key',
+                           'images_location'):
+                error = "Invalid parameter %s=%r." % (key, _host[key])
+                if fail_on_invalid_params:
+                    self.cloud.delete()
+                    raise BadRequestError(error)
+                else:
+                    log.warning(error)
+                    _host.pop(key)
 
-        for _host in kwargs['hosts']:
-            self._add__preparse_kwargs(_host)
-            errors = {}
-            for key in list(_host.keys()):
-                if key not in ('host', 'alias', 'username', 'port', 'key',
-                               'images_location'):
-                    error = "Invalid parameter %s=%r." % (key, _host[key])
-                    if fail_on_invalid_params:
-                        self.cloud.delete()
-                        raise BadRequestError(error)
-                    else:
-                        log.warning(error)
-                        _host.pop(key)
+        for key in ('host', 'key'):
+            if key not in _host or not _host.get(key):
+                error = "Required parameter missing: %s" % key
+                errors[key] = error
+                if fail_on_error:
+                    self.cloud.delete()
+                    raise RequiredParameterMissingError(key)
+                else:
+                    log.warning(error)
+                    total_errors.update({key: error})
 
-            for key in ('host', 'key'):
-                if key not in _host or not _host.get(key):
-                    error = "Required parameter missing: %s" % key
-                    errors[key] = error
-                    if fail_on_error:
-                        self.cloud.delete()
-                        raise RequiredParameterMissingError(key)
-                    else:
-                        log.warning(error)
-                        total_errors.update({key: error})
-
-            if not errors:
+        if not errors:
                 try:
                     ssh_port = int(_host.get('ssh_port', 22))
                 except (ValueError, TypeError):
@@ -384,6 +370,7 @@ class LibvirtMainController(BaseMainController):
                     'username': _host.get('username')
                 }
                 # Create and save machine entry to database.
+                from mist.api.machines.models import Machine
                 machine = Machine(
                     cloud=self.cloud,
                     machine_id=_host.get('host').replace('.', '-'),
@@ -414,7 +401,6 @@ class LibvirtMainController(BaseMainController):
                         raise MistError(error)
                     else:
                         total_errors.update({_host.get('host'): error})
-                        continue
 
                 # associate key and attempt to connect
                 try:
@@ -436,6 +422,26 @@ class LibvirtMainController(BaseMainController):
                         self.cloud.delete()
                         raise MistError("Couldn't connect to host '%s'."
                                         % _host.get('host'))
+
+    async def try_adding_hosts(self, hosts, fail_on_error, fail_on_invalid_params):
+        await asyncio.gather(*(self.add_host(host, fail_on_error, fail_on_invalid_params) for host in hosts))
+
+    # TODO: fail_on_error True or False by default?
+    def add(self, fail_on_error=True, fail_on_invalid_params=False, **kwargs):
+        from mist.api.machines.models import Machine
+        if not kwargs.get('hosts'):
+            raise RequiredParameterMissingError('hosts')
+        try:
+            self.cloud.save()
+        except me.ValidationError as exc:
+            raise BadRequestError({'msg': str(exc),
+                                   'errors': exc.to_dict()})
+        except me.NotUniqueError:
+            raise CloudExistsError("Cloud with name %s already exists"
+                                   % self.cloud.title)
+        total_errors = {}
+
+        asyncio.run(self.try_adding_hosts(kwargs['hosts'], fail_on_error, fail_on_invalid_params))
 
         # check if host was added successfully
         # if not, delete the cloud and raise
