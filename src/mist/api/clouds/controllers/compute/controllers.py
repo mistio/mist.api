@@ -2736,7 +2736,8 @@ class KubeVirtComputeController(BaseComputeController):
         if machine_libcloud.extra['pvcs']:
             pvcs = machine_libcloud.extra['pvcs']
             from mist.api.models import Volume
-            volumes = Volume.objects.filter(cloud=self.cloud, missing_since=None)
+            volumes = Volume.objects.filter(
+                cloud=self.cloud, missing_since=None)
             for volume in volumes:
                 if 'pvc' in volume.extra:
                     if volume.extra['pvc']['name'] in pvcs:
