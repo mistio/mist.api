@@ -331,7 +331,8 @@ class LibvirtMainController(BaseMainController):
             except Key.DoesNotExist:
                 raise NotFoundError("Key does not exist.")
 
-    async def add_host(self, _host, fail_on_error, fail_on_invalid_params):
+    async def add_host(self, _host, fail_on_error, fail_on_invalid_params,
+                       total_errors):
         self._add__preparse_kwargs(_host)
         errors = {}
         for key in list(_host.keys()):
@@ -421,9 +422,11 @@ class LibvirtMainController(BaseMainController):
                     raise MistError("Couldn't connect to host '%s'."
                                     % _host.get('host'))
 
-    async def add_hosts(self, hosts, fail_on_error, fail_on_invalid_params):
+    async def add_hosts(self, hosts, fail_on_error, fail_on_invalid_params,
+                        total_errors):
         await asyncio.gather(*(self.add_host(host, fail_on_error,
-                               fail_on_invalid_params) for host in hosts))
+                               fail_on_invalid_params, total_errors)
+                               for host in hosts))
 
     # TODO: fail_on_error True or False by default?
     def add(self, fail_on_error=True, fail_on_invalid_params=False, **kwargs):
@@ -441,7 +444,7 @@ class LibvirtMainController(BaseMainController):
         total_errors = {}
 
         asyncio.run(self.add_hosts(kwargs['hosts'], fail_on_error,
-                    fail_on_invalid_params))
+                    fail_on_invalid_params, total_errors))
 
         # check if host was added successfully
         # if not, delete the cloud and raise
