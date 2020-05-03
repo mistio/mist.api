@@ -2619,7 +2619,7 @@ class OtherComputeController(BaseComputeController):
         machine.missing_since = datetime.datetime.now()
         machine.save()
 
-    def list_images(self, search=None):
+    def list_images(self, persist=True, search=None):
         return []
 
     def list_sizes(self, persist=True):
