@@ -61,7 +61,8 @@ def log_observations(owner_id, cloud_id, resource_type, patch,
         if _patch.get('op') == 'add':
 
             if isinstance(_patch.get('value'), dict) and \
-               _patch.get('value').get('id', ''):
+               _patch.get('value').get('id', '') and \
+               len(_patch.get('path').split('/')) <= 2:
                 action = 'create_' + resource_type
                 name = _patch.get('value').get('name')
                 resource_id = _patch.get('value').get('id')
