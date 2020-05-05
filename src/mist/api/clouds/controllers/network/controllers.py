@@ -144,7 +144,7 @@ class GoogleNetworkController(BaseNetworkController):
         network.mode = libcloud_network.mode
 
     def _list_subnets__fetch_subnets(self, network):
-        filter_expression = 'network eq %s' % network.extra['selfLink']
+        filter_expression = 'network eq %s' % network.extra.get('selfLink')
         return self.cloud.ctl.compute.connection.ex_list_subnetworks(
             filter_expression=filter_expression)
 
