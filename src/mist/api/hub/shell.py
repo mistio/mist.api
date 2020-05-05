@@ -76,6 +76,7 @@ class ShellHubWorker(mist.api.hub.main.HubWorker):
                                                   provider='docker')
                 key_id, ssh_user = self.shell.autoconfigure(
                     self.owner, data['cloud_id'], data['machine_id'],
+                    job_id=data['job_id'],
                 )
             elif self.provider == "kubevirt":
                 self.shell = mist.api.shell.Shell(data['host'],

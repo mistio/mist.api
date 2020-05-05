@@ -447,7 +447,8 @@ class DockerShell(WebSocketWrapper):
         config_method = '%s_shell' % shell_type
 
         getattr(self, config_method)(owner,
-                                     cloud_id=cloud_id, machine_id=machine_id)
+                                     cloud_id=cloud_id, machine_id=machine_id,
+                                     job_id=kwargs.get('job_id', ''))
         self.connect()
         # This is for compatibility purposes with the ParamikoShell
         return None, None
