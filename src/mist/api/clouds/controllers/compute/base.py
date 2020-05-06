@@ -67,6 +67,7 @@ def _update_machine_from_node_in_process_pool(params):
     now = params['now']
     locations_map = params['locations_map']
     sizes_map = params['sizes_map']
+    images_map = params['images_map']
     nodedict = json.loads(params['node'])
 
     driver = get_driver(nodedict['provider'])
@@ -100,7 +101,7 @@ def _update_machine_from_node_in_process_pool(params):
     cloud = Cloud.objects.get(id=cloud_id)
 
     return cloud.ctl.compute._update_machine_from_node(
-        node, locations_map, sizes_map, now)
+        node, locations_map, sizes_map, images_map, now)
 
 
 log = logging.getLogger(__name__)
@@ -381,6 +382,8 @@ class BaseComputeController(BaseController):
 
             class NodeEncoder(JSONEncoder):
                 def default(self, o):
+                    if isinstance(o, datetime.datetime):
+                        return o.isoformat()
                     size = o.size
                     if isinstance(size, NodeSize):
                         size = {
@@ -411,6 +414,7 @@ class BaseComputeController(BaseController):
                     'cloud_id': cloud_id,
                     'locations_map': locations_map,
                     'sizes_map': sizes_map,
+                    'images_map': images_map,
                     'now': now,
                 },
                 nodes)
