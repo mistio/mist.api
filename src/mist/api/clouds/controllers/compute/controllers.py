@@ -1372,8 +1372,8 @@ class VSphereComputeController(BaseComputeController):
     def list_vm_folders(self):
         all_folders = self.connection.ex_list_folders()
         vm_folders = [folder for folder in all_folders if
-                      "VIRTUAL_MACHINE" in folder[
-                          'type'] or "VirtualMachine" in folder['type']]
+                      "VirtualMachine" in folder[
+                          'type'] or "VIRTUAL_MACHINE" in folder['type']]
         return vm_folders
 
     def list_datastores(self):
