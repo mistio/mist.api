@@ -2274,15 +2274,29 @@ class LibvirtComputeController(BaseComputeController):
 
         return locations
 
+    def list_images_single_host(self, host):
+        driver = self._get_host_driver(host)
+        return driver.list_images(location=host.extra.get(
+                'images_location', {}))
+
+    async def list_images_all_hosts(self, hosts, loop):
+        images = [
+            loop.run_in_executor(None, self.list_images_single_host, host)
+            for host in hosts
+        ]
+        return await asyncio.gather(*images)
+
     def _list_images__fetch_images(self, search=None):
         images = []
         from mist.api.machines.models import Machine
-        for machine in Machine.objects.filter(cloud=self.cloud,
-                                              missing_since=None):
-            if machine.extra.get('tags', {}).get('type') == 'hypervisor':
-                driver = self._get_host_driver(machine)
-                images += driver.list_images(location=machine.extra.get(
-                    'images_location', {}))
+        hosts = Machine.objects(cloud=self.cloud, parent=None,
+                                missing_since=None)
+        loop = asyncio.get_event_loop()
+        all_images = loop.run_until_complete(self.list_images_all_hosts(hosts,
+                                                                        loop))
+        for host_images in all_images:
+            for image in host_images:
+                images.append(image)
 
         return images
 

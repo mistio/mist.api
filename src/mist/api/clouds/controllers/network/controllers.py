@@ -5,6 +5,7 @@ This file should only contain subclasses of `BaseNetworkController`.
 """
 
 import logging
+import asyncio
 
 from mist.api.helpers import rename_kwargs
 
@@ -214,15 +215,31 @@ class OpenStackNetworkController(BaseNetworkController):
 
 class LibvirtNetworkController(BaseNetworkController):
 
-    def _list_networks__fetch_networks(self):
-        from mist.api.machines.models import Machine
+    def list_networks_single_host(self, host):
         networks = []
-        for machine in Machine.objects.filter(cloud=self.cloud,
-                                              missing_since=None):
-            if machine.extra.get('tags', {}).get('type') == 'hypervisor':
-                driver = self.cloud.ctl.compute._get_host_driver(machine)
-                networks += driver.ex_list_networks()
-                networks += driver.ex_list_interfaces()
+        driver = self.cloud.ctl.compute._get_host_driver(host)
+        networks += driver.ex_list_networks()
+        networks += driver.ex_list_interfaces()
+        return networks
+
+    async def list_networks_all_hosts(self, hosts, loop):
+        nets = [
+            loop.run_in_executor(None, self.list_networks_single_host, host)
+            for host in hosts
+        ]
+        return await asyncio.gather(*nets)
+
+    def _list_networks__fetch_networks(self):
+        networks = []
+        from mist.api.machines.models import Machine
+        hosts = Machine.objects(cloud=self.cloud, parent=None,
+                                missing_since=None)
+        loop = asyncio.get_event_loop()
+        all_nets = loop.run_until_complete(self.list_networks_all_hosts(hosts,
+                                                                        loop))
+        for host_nets in all_nets:
+            for net in host_nets:
+                networks.append(net)
 
         return networks
 
