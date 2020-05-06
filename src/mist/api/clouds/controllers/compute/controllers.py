@@ -1152,73 +1152,50 @@ class GoogleComputeController(BaseComputeController):
         if machine_libcloud.state == NodeState.STOPPED:
             return 0, 0
         # https://cloud.google.com/compute/pricing
-        size = machine_libcloud.extra.get('machineType').split('/')[-1]
+        initial_size = machine.size.name #n1-standard-1 (1 vCPU, 3.75 GB RAM)
+        machine_cpu = 0
+        machine_ram = 0
+        raw_size = initial_size.split(" ")
+        if 'vCPU,' in raw_size:
+            string_cpu = raw_size[raw_size.index('vCPU,') - 1]
+            machine_cpu = float(string_cpu.lstrip("("))
+        if 'GB' in raw_size:
+            string_ram = raw_size[raw_size.index('GB') - 1]
+            machine_ram = float(string_ram)
+        size_type = raw_size[0][:2]
+        if "custom" in raw_size[0]:
+            size_type += "_custom"
+        usage_type = "on_demand"
+        if "preemptible" in initial_size.lower():
+            usage_type = "preemptible"
+        if "1yr" in initial_size.lower():
+            usage_type = '1yr_commitment'
+        if "3yr" in initial_size.lower():
+            usage_type = '3yr_commitment'
         location = machine_libcloud.extra.get('zone').name
-        # could be europe-west1-d, we want europe_west1
+        # could be europe-west1-d, we want europe-west1
         location = '-'.join(location.split('-')[:2])
-
-        driver_name = 'google_' + location
-        price = get_size_price(driver_type='compute', driver_name=driver_name,
-                               size_id=size)
-
-        if not price:
-            if size.startswith('custom'):
-                cpu_price = 'custom-vm-core'
-                ram_price = 'custom-vm-ram'
-                if 'preemptible' in size:
-                    cpu_price = 'custom-vm-core-preemptible'
-                    ram_price = 'custom-vm-ram-preemptible'
-
-                cpu_price = get_size_price(driver_type='compute',
-                                           driver_name=driver_name,
-                                           size_id=cpu_price)
-                ram_price = get_size_price(driver_type='compute',
-                                           driver_name=driver_name,
-                                           size_id=ram_price)
-                # Example custom-4-16384
-                try:
-                    cpu = int(size.split('-')[1])
-                    ram = int(size.split('-')[2]) / 1024
-                    price = cpu * cpu_price + ram * ram_price
-                except:
-                    log.exception("Couldn't parse custom size %s for cloud %s",
-                                  size, self.cloud)
-                    return 0, 0
-            else:
-                return 0, 0
         os_type = machine_libcloud.extra.get('os_type')
-        os_cost_per_hour = 0
-        if os_type == 'sles':
-            if size in ('f1-micro', 'g1-small'):
-                os_cost_per_hour = 0.02
-            else:
-                os_cost_per_hour = 0.11
-        if os_type == 'win':
-            if size in ('f1-micro', 'g1-small'):
-                os_cost_per_hour = 0.02
-            else:
-                cores = size.split('-')[-1]
-                os_cost_per_hour = cores * 0.04
-        if os_type == 'rhel':
-            if size in ('n1-highmem-2', 'n1-highcpu-2', 'n1-highmem-4',
-                        'n1-highcpu-4', 'f1-micro', 'g1-small',
-                        'n1-standard-1', 'n1-standard-2', 'n1-standard-4'):
-                os_cost_per_hour = 0.06
-            else:
-                os_cost_per_hour = 0.13
+        disk_type = machine.extra.get('boot_disk_type')
+        disk_size = float(machine.size.disk)
 
-        try:
-            if 'preemptible' in size:
-                # No monthly discount.
-                return price + os_cost_per_hour, 0
+        gce_instace_price = get_size_price(driver_type='compute',
+                                           driver_name='gce_instances',
+                                           size_id=size_type)
+        if gce_instance_price:
+            cpu_price = gce_instance_price['cpu'][usage_type][
+                location].get('price', 0)
+            if machine_cpu > 0 and machine_ram / machine_cpu > 6.5:
+                size_type += "_extended"
+                ram_instance = get_size_price(driver_type='compute',
+                                              driver_name='gce_instances',
+                                              size_id=size_type)
+                ram_price = ram_instance['ram'][usage_type][location].get('price')
             else:
-                # Monthly discount of 30% if the VM runs all the billing month.
-                # Monthly discount on instance size only (not on OS image).
-                return 0.7 * price + os_cost_per_hour, 0
-            # TODO: better calculate the discounts, taking under consideration
-            # when the VM has been initiated.
-        except:
-            pass
+                ram_price = gce_instance_price['ram'][usage_type][
+                    location].get('price', 0)
+        
+       
 
     def _list_machines__get_location(self, node):
         return node.extra.get('zone').id
