@@ -2277,7 +2277,7 @@ class LibvirtComputeController(BaseComputeController):
     def list_images_single_host(self, host):
         driver = self._get_host_driver(host)
         return driver.list_images(location=host.extra.get(
-                'images_location', {}))
+            'images_location', {}))
 
     async def list_images_all_hosts(self, hosts, loop):
         images = [
