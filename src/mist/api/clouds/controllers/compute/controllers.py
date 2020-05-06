@@ -29,6 +29,7 @@ import netaddr
 import tempfile
 import iso8601
 import pytz
+import asyncio
 
 import mongoengine as me
 
@@ -2064,14 +2065,28 @@ class LibvirtComputeController(BaseComputeController):
 
         return driver
 
+    def list_machines_single_host(self, host):
+        driver = self._get_host_driver(host)
+        return driver.list_nodes()
+
+    async def list_machines_all_hosts(self, hosts, loop):
+        vms = [
+            loop.run_in_executor(None, self.list_machines_single_host, host)
+            for host in hosts
+        ]
+        return await asyncio.gather(*vms)
+
     def _list_machines__fetch_machines(self):
         nodes = []
         from mist.api.machines.models import Machine
-        for machine in Machine.objects.filter(cloud=self.cloud,
-                                              missing_since=None):
-            if machine.extra.get('tags', {}).get('type') == 'hypervisor':
-                driver = self._get_host_driver(machine)
-                nodes += driver.list_nodes()
+        hosts = Machine.objects(cloud=self.cloud, parent=None,
+                                missing_since=None)
+        loop = asyncio.get_event_loop()
+        all_nodes = loop.run_until_complete(self.list_machines_all_hosts(hosts,
+                                                                         loop))
+        for host_nodes in all_nodes:
+            for node in host_nodes:
+                nodes.append(node)
 
         return nodes
 
