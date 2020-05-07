@@ -45,6 +45,7 @@ from mist.api.helpers import get_datetime
 from mist.api.helpers import amqp_publish
 from mist.api.helpers import amqp_publish_user
 from mist.api.helpers import amqp_owner_listening
+from mist.api.helpers import _node_to_json
 
 from mist.api.concurrency.models import PeriodicTaskInfo
 from mist.api.concurrency.models import PeriodicTaskThresholdExceeded
@@ -378,39 +379,10 @@ class BaseComputeController(BaseController):
         if config.PROCESS_POOL_WORKERS:
             from concurrent.futures import ProcessPoolExecutor
             cloud_id = self.cloud.id
-            from json import JSONEncoder
-
-            class NodeEncoder(JSONEncoder):
-                def default(self, o):
-                    if isinstance(o, datetime.datetime):
-                        return o.isoformat()
-                    size = o.size
-                    if isinstance(size, NodeSize):
-                        size = {
-                            'id': size.id,
-                            'name': size.name,
-                            'ram': size.ram,
-                            'disk': size.disk,
-                            'bandwidth': size.bandwidth,
-                            'price': size.price,
-                            'extra': size.extra
-                        }
-                    return {
-                        'id': o.id,
-                        'name': o.name,
-                        'state': o.state,
-                        'image': o.image,
-                        'size': size,
-                        'public_ips': o.public_ips,
-                        'private_ips': o.private_ips,
-                        'extra': o.extra,
-                        'created_at': o.created_at,
-                        'provider': o.driver.type
-                    }
 
             choices = map(
                 lambda x: {
-                    'node': json.dumps(x, cls=NodeEncoder),
+                    'node': x,
                     'cloud_id': cloud_id,
                     'locations_map': locations_map,
                     'sizes_map': sizes_map,
@@ -503,11 +475,11 @@ class BaseComputeController(BaseController):
         from mist.api.machines.models import Machine
         try:
             machine = Machine.objects.get(cloud=self.cloud,
-                                          machine_id=node.id)
+                                          machine_id=node['id'])
         except Machine.DoesNotExist:
             try:
                 machine = Machine(
-                    cloud=self.cloud, machine_id=node.id).save()
+                    cloud=self.cloud, machine_id=node['id']).save()
                 is_new = True
             except me.ValidationError as exc:
                 log.warn("Validation error when saving new machine: %r" %
@@ -527,17 +499,19 @@ class BaseComputeController(BaseController):
         # Discover image of machine
         image_id = ''
 
-        if isinstance(node.image, NodeImage) and node.image.id != 'None':
-            image_id = node.image.id
-        elif isinstance(node.extra.get('image'), dict):
-            image_id = str(node.extra.get('image').get('id'))
+        if isinstance(node.get('image'), dict) and node['image'].get('id'):
+            image_id = node['image']['id']
+        elif node.get('image'):
+            image_id = node.get('image')
+        elif isinstance(node['extra'].get('image'), dict):
+            image_id = str(node['extra'].get('image').get('id'))
 
         if not image_id:
-            image_id = str(node.image or node.extra.get('imageId') or
-                           node.extra.get('image_id') or
-                           node.extra.get('image'))
+            image_id = str(node.get('image') or node['extra'].get('imageId') or
+                           node['extra'].get('image_id') or
+                           node['extra'].get('image'))
         if not image_id:
-            image_id = node.extra.get('operating_system')
+            image_id = node['extra'].get('operating_system')
             if isinstance(image_id, dict):
                 image_id = image_id.get('name')
 
@@ -565,16 +539,16 @@ class BaseComputeController(BaseController):
         except Exception as exc:
             log.error("Error getting size of %s: %r", machine, exc)
 
-        if machine.name != node.name:
-            machine.name = node.name
+        if machine.name != node['name']:
+            machine.name = node['name']
             updated = True
 
-        if machine.state != config.STATES[node.state]:
-            machine.state = config.STATES[node.state]
+        if machine.state != config.STATES[node['state']]:
+            machine.state = config.STATES[node['state']]
             updated = True
 
-        new_private_ips = list(set(node.private_ips))
-        new_public_ips = list(set(node.public_ips))
+        new_private_ips = list(set(node['private_ips']))
+        new_public_ips = list(set(node['public_ips']))
         new_private_ips.sort()
         new_public_ips.sort()
 
@@ -662,7 +636,7 @@ class BaseComputeController(BaseController):
         except Exception as exc:
             log.exception("Error while finding machine actions "
                           "for machine %s:%s for %s \n %r",
-                          machine.id, node.name, self.cloud, exc)
+                          machine.id, node['name'], self.cloud, exc)
 
         # Apply any cloud/provider specific post processing.
         try:
@@ -670,7 +644,7 @@ class BaseComputeController(BaseController):
                 or updated
         except Exception as exc:
             log.exception("Error while post parsing machine %s:%s for %s\n%r",
-                          machine.id, node.name, self.cloud, exc)
+                          machine.id, node['name'], self.cloud, exc)
 
         # Apply any cloud/provider cost reporting.
         try:
@@ -685,8 +659,8 @@ class BaseComputeController(BaseController):
         except Exception as exc:
             log.exception("Error while calculating cost "
                           "for machine %s:%s for %s \n%r",
-                          machine.id, node.name, self.cloud, exc)
-        if node.state.lower() == 'terminated':
+                          machine.id, node['name'], self.cloud, exc)
+        if node['state'].lower() == 'terminated':
             if machine.cost.hourly or machine.cost.monthly:
                 machine.cost.hourly = 0
                 machine.cost.monthly = 0
@@ -735,7 +709,7 @@ class BaseComputeController(BaseController):
 
         Subclasses MAY override this method.
         """
-        return node.size
+        return node.get('size')
 
     def _list_machines__get_custom_size(self, node):
         """Return size metadata for node"""
@@ -743,7 +717,7 @@ class BaseComputeController(BaseController):
 
     def _list_machines__fetch_machines(self):
         """Perform the actual libcloud call to get list of nodes"""
-        return self.connection.list_nodes()
+        return [_node_to_json(node) for node in self.connection.list_nodes()]
 
     def _list_machines__get_machine_extra(self, machine, machine_libcloud):
         """Return extra dict for libcloud node
@@ -751,10 +725,10 @@ class BaseComputeController(BaseController):
         Subclasses can override/extend this method if they wish to filter or
         inject extra metadata.
         """
-        return copy.copy(machine_libcloud.extra)
+        return copy.copy(machine_libcloud['extra'])
 
     def _list_machines__machine_creation_date(self, machine, machine_libcloud):
-        return machine_libcloud.created_at
+        return machine_libcloud.get('created_at')
 
     def _list_machines__machine_actions(self, machine, machine_libcloud):
         """Add metadata on the machine dict on the allowed actions
@@ -787,16 +761,16 @@ class BaseComputeController(BaseController):
         machine.actions.undefine = False
 
         # Default actions for other states.
-        if machine_libcloud.state in (NodeState.REBOOTING, NodeState.PENDING):
+        if machine_libcloud['state'] in (NodeState.REBOOTING, NodeState.PENDING):
             machine.actions.start = False
             machine.actions.stop = False
             machine.actions.reboot = False
-        elif machine_libcloud.state in (NodeState.STOPPED, NodeState.UNKNOWN):
+        elif machine_libcloud['state'] in (NodeState.STOPPED, NodeState.UNKNOWN):
             # We assume unknown state means stopped.
             machine.actions.start = True
             machine.actions.stop = False
             machine.actions.reboot = False
-        elif machine_libcloud.state in (NodeState.TERMINATED, ):
+        elif machine_libcloud['state'] in (NodeState.TERMINATED, ):
             machine.actions.start = False
             machine.actions.stop = False
             machine.actions.reboot = False
