@@ -1151,13 +1151,16 @@ class GoogleComputeController(BaseComputeController):
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         if machine_libcloud.state == NodeState.STOPPED:
             return 0, 0
-        # https://cloud.google.com/compute/pricing
-        initial_size = machine.size.name #n1-standard-1 (1 vCPU, 3.75 GB RAM)
+        # eg n1-standard-1 (1 vCPU, 3.75 GB RAM)
+        initial_size = machine.size.name
         machine_cpu = 0
         machine_ram = 0
         raw_size = initial_size.split(" ")
         if 'vCPU,' in raw_size:
             string_cpu = raw_size[raw_size.index('vCPU,') - 1]
+            machine_cpu = float(string_cpu.lstrip("("))
+        elif 'vCPU' in raw_size:
+            string_cpu = raw_size[raw_size.index('vCPU') - 1]
             machine_cpu = float(string_cpu.lstrip("("))
         if 'GB' in raw_size:
             string_ram = raw_size[raw_size.index('GB') - 1]
@@ -1175,27 +1178,119 @@ class GoogleComputeController(BaseComputeController):
         location = machine_libcloud.extra.get('zone').name
         # could be europe-west1-d, we want europe-west1
         location = '-'.join(location.split('-')[:2])
-        os_type = machine_libcloud.extra.get('os_type')
+        os_type = machine.os_type
         disk_type = machine.extra.get('boot_disk_type')
-        disk_size = float(machine.size.disk)
+        disk_usage_type = "on_demand"
+        disk_size = 0
+        for disk in machine.extra['disks']:
+            disk_size += float(disk['diskSizeGb'])
+        if 'regional' in disk_type:
+            if 'standard' in disk_type:
+                disk_type = 'Regional Standard'
+            elif 'ssd' in disk_type:
+                disk_type = 'Regional SSD'
+        elif 'local' in disk_type:
+            if 'preemptible' in disk_type:
+                disk_usage_type = 'preemptible'
+            elif '1yr' in disk_type:
+                disk_usage_type = '1yr_commitment'
+            elif '3yr' in disk_type:
+                disk_usage_type = '3yr_commitment'
+            disk_type = 'Local SSD'
+        elif 'standard' in disk_type:
+            disk_type = 'Standard'
+        elif 'ssd' in disk_type:
+            disk_type = 'SSD'
 
-        gce_instace_price = get_size_price(driver_type='compute',
-                                           driver_name='gce_instances',
-                                           size_id=size_type)
-        if gce_instance_price:
-            cpu_price = gce_instance_price['cpu'][usage_type][
+        disk_prices = get_size_price(driver_type='compute',
+                                     driver_name='gce_disks',
+                                     size_id=disk_type)
+        gce_instance = get_size_price(driver_type='compute',
+                                      driver_name='gce_instances',
+                                      size_id=size_type)
+        cpu_price = 0
+        ram_price = 0
+        os_price = 0
+        disk_price = 0
+        if disk_prices:
+            disk_price = disk_prices[disk_usage_type][location].get('price', 0)
+        if gce_instance:
+            cpu_price = gce_instance['cpu'][usage_type][
                 location].get('price', 0)
-            if machine_cpu > 0 and machine_ram / machine_cpu > 6.5:
+            if size_type not in {'f1', 'g1'}:
+                ram_price = gce_instance['ram'][usage_type][
+                    location].get('price', 0)
+            if (size_type == "n1" and machine_cpu > 0 and
+               machine_ram / machine_cpu > 6.5):
                 size_type += "_extended"
                 ram_instance = get_size_price(driver_type='compute',
                                               driver_name='gce_instances',
                                               size_id=size_type)
-                ram_price = ram_instance['ram'][usage_type][location].get('price')
+                ram_price = ram_instance['ram'][
+                    usage_type][location].get('price')
+            if (size_type == "n2" and machine_cpu > 0 and
+               machine_ram / machine_cpu > 8):
+                size_type += "_extended"
+                ram_instance = get_size_price(driver_type='compute',
+                                              driver_name='gce_instances',
+                                              size_id=size_type)
+                ram_price = ram_instance['ram'][
+                    usage_type][location].get('price')
+            if (size_type == "n2d" and machine_cpu > 0 and
+               machine_ram / machine_cpu > 8):
+                size_type += "_extended"
+                ram_instance = get_size_price(driver_type='compute',
+                                              driver_name='gce_instances',
+                                              size_id=size_type)
+                ram_price = ram_instance['ram'][
+                    usage_type][location].get('price')
+
+        if os_type in {'win', 'windows'}:
+            os_prices = get_size_price(driver_type='compute',
+                                       driver_name='gce_images',
+                                       size_id="Windows Server")
+            if size_type in {'f1', 'g1'}:
+                os_price = os_prices[size_type].get('price', 0)
             else:
-                ram_price = gce_instance_price['ram'][usage_type][
-                    location].get('price', 0)
-        
-       
+                os_price = os_prices['any'].get('price', 0) * machine_cpu
+        if os_type in {'rhel'}:
+            os_prices = get_size_price(driver_type='compute',
+                                       driver_name='gce_images',
+                                       size_id="RHEL")
+            if machine_cpu <= 4:
+                os_price = os_prices['4vcpu or less'].get('price', 0)
+            else:
+                os_price = os_prices['6vcpu or more'].get('price', 0)
+        if os_type in {'sles'}:
+            os_prices = get_size_price(driver_type='compute',
+                                       driver_name='gce_images',
+                                       size_id="SLES")
+            if size_type in {'f1', 'g1'}:
+                os_price = os_prices[size_type].get('price', 0)
+            else:
+                os_price = os_prices['any'].get('price', 0)
+        if "sles for sap" in os_type:
+            os_prices = get_size_price(driver_type='compute',
+                                       driver_name='gce_images',
+                                       size_id="SLES for SAP")
+            if machine_cpu >= 6:
+                os_price = os_prices['6vcpu or more'].get('price', 0)
+            elif 2 < machine_cpu <= 4:
+                os_price = os_prices['3-4vcpu'].get('price', 0)
+            elif machine_cpu <= 2:
+                os_price = os_prices['1-2vcpu'].get('price', 0)
+        if "rhel" in os_type and "update services" in os_type:
+            os_prices = get_size_price(driver_type='compute',
+                                       driver_name='gce_images',
+                                       size_id="RHEL with Update Services")
+            if machine_cpu <= 4:
+                os_price = os_prices['4vcpu or less'].get('price', 0)
+            else:
+                os_price = os_prices['6vcpu or more'].get('price', 0)
+
+        total_price = (machine_cpu * cpu_price + machine_ram *
+                       ram_price + os_price + disk_price * disk_size)
+        return total_price, 0
 
     def _list_machines__get_location(self, node):
         return node.extra.get('zone').id
