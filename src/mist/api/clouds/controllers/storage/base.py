@@ -333,7 +333,7 @@ class BaseStorageController(BaseController):
         assert volume.cloud == self.cloud
         assert machine.cloud == self.cloud
         libcloud_volume = self.get_libcloud_volume(volume)
-        libcloud_node = self.cloud.ctl.compute._get_machine_libcloud(machine)
+        libcloud_node = self.cloud.ctl.compute._get_libcloud_node(machine)
         self._attach_volume(libcloud_volume, libcloud_node, **kwargs)
 
     def _attach_volume(self, libcloud_volume, libcloud_node, **kwargs):
@@ -353,7 +353,7 @@ class BaseStorageController(BaseController):
         assert volume.cloud == self.cloud
         assert machine.cloud == self.cloud
         libcloud_volume = self.get_libcloud_volume(volume)
-        libcloud_node = self.cloud.ctl.compute._get_machine_libcloud(machine)
+        libcloud_node = self.cloud.ctl.compute._get_libcloud_node(machine)
         self._detach_volume(libcloud_volume, libcloud_node)
 
     def _detach_volume(self, libcloud_volume, libcloud_node):
