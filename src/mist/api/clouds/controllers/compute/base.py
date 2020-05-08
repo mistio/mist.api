@@ -110,6 +110,75 @@ __all__ = [
     "BaseComputeController",
 ]
 
+def get_sku_custom_cost(policy, sku, machine):
+    unit_dict = {}
+    if sku.lower() == 'cpu':
+        existing_sku = machine.cores
+        for key in policy.keys():
+            unit_dict[re.sub('[^0-9]','', key)] = policy[key]
+
+    elif sku.lower() == 'ram':
+        existing_sku = machine.size.ram
+        for key in policy.keys():
+            # convert everything to mb
+            weight = 1024 if key.lower().endswith('gb') else 1
+            unit_dict[str(int(re.sub('[^0-9]','', key)) * weight)] = policy[key]
+
+    # for now assuming we only have one set in the
+    # policy dict for every sku, and thus we return
+    # the first value found in the dict
+    for key in unit_dict.keys():
+        weight = existing_sku / int(key)
+        cph, cpm = unit_dict[key]
+        return (weight * cph, weight * cpm)
+
+
+def _get_machine_custom_cost(machine):
+    """
+    This method looks for custom pricing set in config.py
+    First, looks for cloud_id, and then for provider specific
+    rules. Inside the nested dict, first it looks for a size_id
+    and then for custom cost per cpu, ram etc
+    """
+    cloud_id = machine.cloud.id
+    provider = machine.cloud.ctl.provider
+    cloud_policy = config.PRICING_POLICY.get(cloud_id, {})
+    provider_policy = config.PRICING_POLICY.get(provider, {})
+    if cloud_policy:
+        # construct proper sku
+        skus = [machine.size.id + '_' + machine.state.upper(),
+                machine.size.id]
+        for sku in skus:
+            if cloud_policy.get(sku, {}):
+                return cloud_policy.get(sku, {})
+        total_cph, total_cpm = (0.0, 0.0)
+        # lookup for cpu, ram and disk pricing_policy
+        for sku in ['CPU', 'RAM', 'DISK']:
+            if cloud_policy.get(sku):
+                # fix below, gives (0.0, 0.0, 0.0, 5.0)
+                sku_cph, sku_cpm = get_sku_custom_cost(cloud_policy.get(sku), sku, machine)
+                total_cph, total_cpm = (total_cph + sku_cph, total_cpm + sku_cpm)
+
+        if (total_cph, total_cpm) != (0.0, 0.0):
+            return total_cph, total_cpm
+    if provider_policy:
+        # TODO: Remove diplication!
+        # construct proper sku
+        skus = [machine.size.id + '_' + machine.state.upper(),
+                machine.size.id]
+        for sku in skus:
+            if provider_policy.get(sku, {}):
+                return provider_policy.get(sku, {})
+        total_cph, total_cpm = (0.0, 0.0)
+        # lookup for cpu, ram and disk pricing_policy
+        for sku in ['CPU', 'RAM', 'DISK']:
+            if provider_policy.get(sku):
+                # fix below, gives (0.0, 0.0, 0.0, 5.0)
+                sku_cph, sku_cpm = get_sku_custom_cost(provider_policy.get(sku), sku, machine)
+                total_cph, total_cpm = (total_cph + sku_cph, total_cpm + sku_cpm)
+
+        if (total_cph, total_cpm) != (0.0, 0.0):
+            return total_cph, total_cpm
 
 def _decide_machine_cost(machine, tags=None, cost=(0, 0)):
     """Decide what the monthly and hourly machine cost is
@@ -121,7 +190,7 @@ def _decide_machine_cost(machine, tags=None, cost=(0, 0)):
                 returned by cloud provider.
 
     Any cost-specific tags take precedence.
-    """
+    """ 
 
     def parse_num(num):
         try:
@@ -129,10 +198,8 @@ def _decide_machine_cost(machine, tags=None, cost=(0, 0)):
         except (ValueError, TypeError):
             log.warning("Can't parse %r as float.", num)
             return 0
-
     now = datetime.datetime.utcnow()
     month_days = calendar.monthrange(now.year, now.month)[1]
-
     # Get machine tags from db
     tags = tags or {tag.key: tag.value for tag in Tag.objects(
         resource_id=machine.id, resource_type='machine'
@@ -141,6 +208,16 @@ def _decide_machine_cost(machine, tags=None, cost=(0, 0)):
     try:
         cph = parse_num(tags.get('cost_per_hour'))
         cpm = parse_num(tags.get('cost_per_month'))
+        # TODO: maybe needs to change ordering
+        # tags will be removed?
+        custom_cost = _get_machine_custom_cost(machine) or {}
+        if isinstance(custom_cost, tuple):
+            return custom_cost
+        elif custom_cost.get('value', ()):
+            return custom_cost.get('value')
+        else:
+            percentage = custom_cost.get('percentage', 1)
+
         if not (cph or cpm) or cph > 100 or cpm > 100 * 24 * 31:
             log.debug("Invalid cost tags for machine %s", machine)
             cph, cpm = list(map(parse_num, cost))
@@ -151,7 +228,7 @@ def _decide_machine_cost(machine, tags=None, cost=(0, 0)):
     except Exception:
         log.exception("Error while deciding cost for machine %s", machine)
 
-    return cph, cpm
+    return (percentage * cph, percentage * cpm)
 
 
 class BaseComputeController(BaseController):
