@@ -1153,6 +1153,7 @@ class GoogleComputeController(BaseComputeController):
             return 0, 0
         # eg n1-standard-1 (1 vCPU, 3.75 GB RAM)
         initial_size = machine.size.name
+        default_location = "us-central1"
         machine_cpu = 0
         machine_ram = 0
         raw_size = initial_size.split(" ")
@@ -1213,38 +1214,52 @@ class GoogleComputeController(BaseComputeController):
         os_price = 0
         disk_price = 0
         if disk_prices:
-            disk_price = disk_prices[disk_usage_type][location].get('price', 0)
-        if gce_instance:
-            cpu_price = gce_instance['cpu'][usage_type][
-                location].get('price', 0)
-            if size_type not in {'f1', 'g1'}:
-                ram_price = gce_instance['ram'][usage_type][
+            try:
+                disk_price = disk_prices[disk_usage_type][
                     location].get('price', 0)
+            except KeyError:
+                disk_price = disk_prices[disk_usage_type][
+                    default_location].get('price', 0)
+        if gce_instance:
+            try:
+                cpu_price = gce_instance['cpu'][usage_type][
+                    location].get('price', 0)
+            except KeyError:
+                cpu_price = gce_instance['cpu'][usage_type][
+                    default_location].get('price', 0)
+            if size_type not in {'f1', 'g1'}:
+                try:
+                    ram_price = gce_instance['ram'][usage_type][
+                        location].get('price', 0)
+                except KeyError:
+                    ram_price = gce_instance['ram'][usage_type][
+                        default_location].get('price', 0)
+            ram_instance = None
             if (size_type == "n1" and machine_cpu > 0 and
                machine_ram / machine_cpu > 6.5):
                 size_type += "_extended"
                 ram_instance = get_size_price(driver_type='compute',
                                               driver_name='gce_instances',
                                               size_id=size_type)
-                ram_price = ram_instance['ram'][
-                    usage_type][location].get('price')
             if (size_type == "n2" and machine_cpu > 0 and
                machine_ram / machine_cpu > 8):
                 size_type += "_extended"
                 ram_instance = get_size_price(driver_type='compute',
                                               driver_name='gce_instances',
                                               size_id=size_type)
-                ram_price = ram_instance['ram'][
-                    usage_type][location].get('price')
             if (size_type == "n2d" and machine_cpu > 0 and
                machine_ram / machine_cpu > 8):
                 size_type += "_extended"
                 ram_instance = get_size_price(driver_type='compute',
                                               driver_name='gce_instances',
                                               size_id=size_type)
-                ram_price = ram_instance['ram'][
-                    usage_type][location].get('price')
-
+            if ram_instance:
+                try:
+                    ram_price = ram_instance['ram'][
+                        usage_type][location].get('price', 0)
+                except KeyError:
+                    ram_price = ram_instance['ram'][
+                        usage_type][default_location].get('price', 0)
         if os_type in {'win', 'windows'}:
             os_prices = get_size_price(driver_type='compute',
                                        driver_name='gce_images',
