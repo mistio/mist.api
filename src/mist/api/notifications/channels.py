@@ -88,9 +88,7 @@ class EmailNotificationChannel(BaseNotificationChannel):
 
             if config.SENDGRID_EMAIL_NOTIFICATIONS_KEY:
                 # Initialize SendGrid client.
-                sg = SendGridAPIClient(
-                    apikey=config.SENDGRID_EMAIL_NOTIFICATIONS_KEY
-                )
+                sg = SendGridAPIClient(config.SENDGRID_EMAIL_NOTIFICATIONS_KEY)
                 mail = Mail()
                 mail.from_email = Email(self.ntf.sender_email,
                                         self.ntf.sender_title)
