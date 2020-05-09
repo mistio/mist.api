@@ -769,13 +769,14 @@ class SoftLayerComputeController(BaseComputeController):
             updated = True
 
         # Get number of vCPUs for bare metal and cloud servers, respectively.
-        if 'cpu' in machine.extra and \
-                machine.extra['cpus'] != machine.extra['cpu']:
-            machine.extra['cpus'] = machine.extra['cpu']
+        if 'cpu' in machine_libcloud.extra and \
+                machine_libcloud.extra.get('cpu') != machine.extra.get(
+                    'cpus'):
+            machine.extra['cpus'] = machine_libcloud.extra.get['cpu']
             updated = True
-        if 'maxCpu' in machine.extra and \
-                machine.extra['cpus'] != machine.extra['maxCpu']:
-            machine.extra['cpus'] = machine.extra['maxCpu']
+        elif 'maxCpu' in machine_libcloud.extra and \
+                machine.extra['cpus'] != machine_libcloud.extra['maxCpu']:
+            machine.extra['cpus'] = machine_libcloud.extra['maxCpu']
             updated = True
         return updated
 
