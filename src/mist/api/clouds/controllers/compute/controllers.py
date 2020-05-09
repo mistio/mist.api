@@ -727,9 +727,8 @@ class RackSpaceComputeController(BaseComputeController):
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         updated = False
-        # Find os_type.
-        if not machine.os_type:
-            os_type = 'linux'
+        # Find os_type. TODO: Look for hints in extra
+        os_type = machine.os_type or 'linux'
         if machine.os_type != os_type:
             machine.os_type = os_type
             updated = True
