@@ -714,7 +714,7 @@ class RackSpaceComputeController(BaseComputeController):
                                    driver_name=driver_name,
                                    size_id=size)
         except KeyError:
-            log.error('Pricing for %s:%s was not found.') % (driver_name, size)
+            log.error('Pricing for %s:%s was not found.' % (driver_name, size))
 
         if price:
             plan_price = price.get(machine.os_type) or price.get('linux')
@@ -728,9 +728,8 @@ class RackSpaceComputeController(BaseComputeController):
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         updated = False
-        # Find os_type.
-        if not machine.os_type:
-            os_type = 'linux'
+        # Find os_type. TODO: Look in extra
+        os_type = machine.os_type or 'linux'
         if machine.os_type != os_type:
             machine.os_type = os_type
             updated = True
@@ -2447,10 +2446,10 @@ class OnAppComputeController(BaseComputeController):
 
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         if machine_libcloud['state'] == NodeState.STOPPED:
-            return machine_libcloud['extra'].get('price_per_hour_powered_off',
-                                              0), 0
+            cost_per_hour = machine_libcloud['extra'].get('price_per_hour_powered_off', 0)
         else:
-            return machine_libcloud['extra'].get('price_per_hour', 0), 0
+            cost_per_hour = machine_libcloud['extra'].get('price_per_hour', 0)
+        return cost_per_hour, 0
 
     def _list_machines__get_custom_size(self, node):
         # FIXME: resolve circular import issues
