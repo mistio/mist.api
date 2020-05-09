@@ -713,7 +713,7 @@ class RackSpaceComputeController(BaseComputeController):
                                    driver_name=driver_name,
                                    size_id=size)
         except KeyError:
-            log.error('Pricing for %s:%s was not found.') % (driver_name, size)
+            log.error('Pricing for %s:%s was not found.' % (driver_name, size))
 
         if price:
             plan_price = price.get(machine.os_type) or price.get('linux')
