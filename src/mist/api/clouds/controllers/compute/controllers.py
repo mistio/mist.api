@@ -2446,7 +2446,8 @@ class OnAppComputeController(BaseComputeController):
 
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         if machine_libcloud['state'] == NodeState.STOPPED:
-            cost_per_hour = machine_libcloud['extra'].get('price_per_hour_powered_off', 0)
+            cost_per_hour = machine_libcloud['extra'].get(
+                'price_per_hour_powered_off', 0)
         else:
             cost_per_hour = machine_libcloud['extra'].get('price_per_hour', 0)
         return cost_per_hour, 0
