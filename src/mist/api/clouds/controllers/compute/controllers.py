@@ -714,7 +714,7 @@ class RackSpaceComputeController(BaseComputeController):
                                    driver_name=driver_name,
                                    size_id=size)
         except KeyError:
-            log.error('Pricing for %s:%s was not found.') % (driver_name, size)
+            log.error('Pricing for %s:%s was not found.' % (driver_name, size))
 
         if price:
             plan_price = price.get(machine.os_type) or price.get('linux')
@@ -728,9 +728,8 @@ class RackSpaceComputeController(BaseComputeController):
 
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         updated = False
-        # Find os_type.
-        if not machine.os_type:
-            os_type = 'linux'
+        # Find os_type. TODO: Look for hints in extra
+        os_type = machine.os_type or 'linux'
         if machine.os_type != os_type:
             machine.os_type = os_type
             updated = True
@@ -770,13 +769,14 @@ class SoftLayerComputeController(BaseComputeController):
             updated = True
 
         # Get number of vCPUs for bare metal and cloud servers, respectively.
-        if 'cpu' in machine.extra and \
-                machine.extra['cpus'] != machine.extra['cpu']:
-            machine.extra['cpus'] = machine.extra['cpu']
+        if 'cpu' in machine_libcloud.extra and \
+                machine_libcloud.extra.get('cpu') != machine.extra.get(
+                    'cpus'):
+            machine.extra['cpus'] = machine_libcloud.extra.get['cpu']
             updated = True
-        if 'maxCpu' in machine.extra and \
-                machine.extra['cpus'] != machine.extra['maxCpu']:
-            machine.extra['cpus'] = machine.extra['maxCpu']
+        elif 'maxCpu' in machine_libcloud.extra and \
+                machine.extra['cpus'] != machine_libcloud.extra['maxCpu']:
+            machine.extra['cpus'] = machine_libcloud.extra['maxCpu']
             updated = True
         return updated
 
@@ -1372,8 +1372,9 @@ class VSphereComputeController(BaseComputeController):
 
     def list_vm_folders(self):
         all_folders = self.connection.ex_list_folders()
-        vm_folders = [folder for folder in all_folders if folder[
-            'type'] in {"VIRTUAL_MACHINE", "VirtualMachine"}]
+        vm_folders = [folder for folder in all_folders if
+                      "VirtualMachine" in folder[
+                          'type'] or "VIRTUAL_MACHINE" in folder['type']]
         return vm_folders
 
     def list_datastores(self):

@@ -544,7 +544,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                                       size, location, cloud_init, cloud,
                                       project_id, volumes, ip_addresses)
     elif conn.type == Provider.MAXIHOST:
-        node = _create_machine_maxihost(conn, machine_name, image.id,
+        node = _create_machine_maxihost(conn, machine_name, image,
                                         size, location, public_key)
     elif conn.type == Provider.KUBEVIRT:
         network = networks if networks else None
@@ -1217,7 +1217,7 @@ def _create_machine_onapp(conn, public_key,
     return node
 
 
-def _create_machine_maxihost(conn, machine_name, image_id, size,
+def _create_machine_maxihost(conn, machine_name, image, size,
                              location, public_key):
     key = str(public_key).replace('\n', '')
     ssh_keys = []
@@ -1234,7 +1234,7 @@ def _create_machine_maxihost(conn, machine_name, image_id, size,
     ssh_keys.append(server_key.fingerprint)
 
     try:
-        node = conn.create_node(machine_name, size, image_id,
+        node = conn.create_node(machine_name, size, image,
                                 location, ssh_keys)
     except ValueError as exc:
         raise MachineCreationError('Maxihost, exception %s' % exc)
