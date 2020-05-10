@@ -1939,15 +1939,20 @@ HAS_PRICING = 'pricing' in PLUGINS
 #     }
 # }
 
+
 PRICING_POLICY = {
     # Digital Ocean (50% discount on everything)
-    "5b99ad1b30bf4d27b41340424c45ab37": {"percentage": 0.5},
+    "9755c86d1b7e4081954fc38fa4f2ac3e": {
+        "_all_": {"percentage": 0.5}
+    },
     # Digital Ocean (3$ for 5$ machines -- specific size)
     "b8484c6dc1a44ff889cd0426959c71aa": {
         "48158916a4d6428284b007fea7e4f174": (0.02, 3.0)
     },
     # EC2 (0.75 discount on everything)
-    "ec2": {"percentage": 0.75},
+    "ec2": {
+        "_all_": {"percentage": 0.75}
+    },
     # vsphere (price based on cpus and ram)
     "vsphere": {
         "CPU": {"1CORE_STOPPED": (0.0, 1.0), "1CORE": (0.0, 3.0)},
