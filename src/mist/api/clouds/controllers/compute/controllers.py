@@ -29,6 +29,7 @@ import netaddr
 import tempfile
 import iso8601
 import pytz
+import asyncio
 
 import mongoengine as me
 
@@ -2065,16 +2066,25 @@ class LibvirtComputeController(BaseComputeController):
 
         return driver
 
-    def _list_machines__fetch_machines(self):
-        nodes = []
-        from mist.api.machines.models import Machine
-        for machine in Machine.objects.filter(cloud=self.cloud,
-                                              missing_since=None):
-            if machine.extra.get('tags', {}).get('type') == 'hypervisor':
-                driver = self._get_host_driver(machine)
-                nodes += driver.list_nodes()
+    def list_machines_single_host(self, host):
+        driver = self._get_host_driver(host)
+        return driver.list_nodes()
 
-        return nodes
+    async def list_machines_all_hosts(self, hosts, loop):
+        vms = [
+            loop.run_in_executor(None, self.list_machines_single_host, host)
+            for host in hosts
+        ]
+        return await asyncio.gather(*vms)
+
+    def _list_machines__fetch_machines(self):
+        from mist.api.machines.models import Machine
+        hosts = Machine.objects(cloud=self.cloud, parent=None,
+                                missing_since=None)
+        loop = asyncio.get_event_loop()
+        all_nodes = loop.run_until_complete(self.list_machines_all_hosts(hosts,
+                                                                         loop))
+        return [node for host_nodes in all_nodes for node in host_nodes]
 
     def _list_machines__fetch_generic_machines(self):
         machines = []
@@ -2260,17 +2270,26 @@ class LibvirtComputeController(BaseComputeController):
 
         return locations
 
-    def _list_images__fetch_images(self, search=None):
-        images = []
-        from mist.api.machines.models import Machine
-        for machine in Machine.objects.filter(cloud=self.cloud,
-                                              missing_since=None):
-            if machine.extra.get('tags', {}).get('type') == 'hypervisor':
-                driver = self._get_host_driver(machine)
-                images += driver.list_images(location=machine.extra.get(
-                    'images_location', {}))
+    def list_images_single_host(self, host):
+        driver = self._get_host_driver(host)
+        return driver.list_images(location=host.extra.get(
+            'images_location', {}))
 
-        return images
+    async def list_images_all_hosts(self, hosts, loop):
+        images = [
+            loop.run_in_executor(None, self.list_images_single_host, host)
+            for host in hosts
+        ]
+        return await asyncio.gather(*images)
+
+    def _list_images__fetch_images(self, search=None):
+        from mist.api.machines.models import Machine
+        hosts = Machine.objects(cloud=self.cloud, parent=None,
+                                missing_since=None)
+        loop = asyncio.get_event_loop()
+        all_images = loop.run_until_complete(self.list_images_all_hosts(hosts,
+                                                                        loop))
+        return [image for host_images in all_images for image in host_images]
 
     def _list_images__postparse_image(self, image, image_libcloud):
         locations = []
