@@ -230,18 +230,13 @@ class LibvirtNetworkController(BaseNetworkController):
         return await asyncio.gather(*nets)
 
     def _list_networks__fetch_networks(self):
-        networks = []
         from mist.api.machines.models import Machine
         hosts = Machine.objects(cloud=self.cloud, parent=None,
                                 missing_since=None)
         loop = asyncio.get_event_loop()
         all_nets = loop.run_until_complete(self.list_networks_all_hosts(hosts,
                                                                         loop))
-        for host_nets in all_nets:
-            for net in host_nets:
-                networks.append(net)
-
-        return networks
+        return [net for host_nets in all_nets for net in host_nets]
 
     def _list_networks__postparse_network(self, network, libcloud_network,
                                           r_groups=[]):

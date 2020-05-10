@@ -2078,18 +2078,13 @@ class LibvirtComputeController(BaseComputeController):
         return await asyncio.gather(*vms)
 
     def _list_machines__fetch_machines(self):
-        nodes = []
         from mist.api.machines.models import Machine
         hosts = Machine.objects(cloud=self.cloud, parent=None,
                                 missing_since=None)
         loop = asyncio.get_event_loop()
         all_nodes = loop.run_until_complete(self.list_machines_all_hosts(hosts,
                                                                          loop))
-        for host_nodes in all_nodes:
-            for node in host_nodes:
-                nodes.append(node)
-
-        return nodes
+        return [node for host_nodes in all_nodes for node in host_nodes]
 
     def _list_machines__fetch_generic_machines(self):
         machines = []
@@ -2288,18 +2283,13 @@ class LibvirtComputeController(BaseComputeController):
         return await asyncio.gather(*images)
 
     def _list_images__fetch_images(self, search=None):
-        images = []
         from mist.api.machines.models import Machine
         hosts = Machine.objects(cloud=self.cloud, parent=None,
                                 missing_since=None)
         loop = asyncio.get_event_loop()
         all_images = loop.run_until_complete(self.list_images_all_hosts(hosts,
                                                                         loop))
-        for host_images in all_images:
-            for image in host_images:
-                images.append(image)
-
-        return images
+        return [image for host_images in all_images for image in host_images]
 
     def _list_images__postparse_image(self, image, image_libcloud):
         locations = []
