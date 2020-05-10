@@ -1929,7 +1929,31 @@ HAS_MANAGE = 'manage' in PLUGINS
 HAS_AUTH = 'auth' in PLUGINS
 HAS_PRICING = 'pricing' in PLUGINS
 
-PRICING_POLICY = {}
+# #PRICING_POLICY = {}
+# PRICING_POLICY = {
+#     '70e25a3f9b374b2daffc5a9cb6528a31': {
+#         # 'CPU': {'1CORE_STOPPED': (0.0, 1.0), '1CORE': (0.0, 3.0)},
+#         # 'RAM': {'1gb_STOPPED': {'value': (0.0, 12)}},
+#         '642a154b255742f29a4acb603beeafc7': (4, 10)
+#         #'_all_': {'percentage': 7.0}
+#     }
+# }
+
+PRICING_POLICY = {
+    # Digital Ocean (50% discount on everything)
+    "5b99ad1b30bf4d27b41340424c45ab37": {"percentage": 0.5},
+    # Digital Ocean (3$ for 5$ machines -- specific size)
+    "b8484c6dc1a44ff889cd0426959c71aa": {
+        "48158916a4d6428284b007fea7e4f174": (0.02, 3.0)
+    },
+    # EC2 (0.75 discount on everything)
+    "ec2": {"percentage": 0.75},
+    # vsphere (price based on cpus and ram)
+    "vsphere": {
+        "CPU": {"1CORE_STOPPED": (0.0, 1.0), "1CORE": (0.0, 3.0)},
+        "RAM": {"1gb": {"value": (0.0, 12)}},
+    }
+}
 
 # enable backup feature if aws creds have been set
 ENABLE_BACKUPS = bool(BACKUP['key']) and bool(BACKUP['secret'])
