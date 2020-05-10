@@ -24,7 +24,7 @@ import mongoengine as me
 
 from libcloud.common.types import InvalidCredsError
 from libcloud.compute.types import NodeState
-from libcloud.compute.base import NodeLocation, Node, NodeSize, NodeImage
+from libcloud.compute.base import NodeLocation, Node, NodeSize
 from libcloud.common.exceptions import BaseHTTPError
 from mist.api.clouds.utils import LibcloudExceptionHandler
 
@@ -761,11 +761,13 @@ class BaseComputeController(BaseController):
         machine.actions.undefine = False
 
         # Default actions for other states.
-        if machine_libcloud['state'] in (NodeState.REBOOTING, NodeState.PENDING):
+        if machine_libcloud['state'] in (NodeState.REBOOTING,
+                                         NodeState.PENDING):
             machine.actions.start = False
             machine.actions.stop = False
             machine.actions.reboot = False
-        elif machine_libcloud['state'] in (NodeState.STOPPED, NodeState.UNKNOWN):
+        elif machine_libcloud['state'] in (NodeState.STOPPED,
+                                           NodeState.UNKNOWN):
             # We assume unknown state means stopped.
             machine.actions.start = True
             machine.actions.stop = False

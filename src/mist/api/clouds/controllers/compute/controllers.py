@@ -119,7 +119,8 @@ class AmazonComputeController(BaseComputeController):
 
         try:
             # return list of ids for network interfaces as str
-            network_interfaces = machine_libcloud['extra']['network_interfaces']
+            network_interfaces = machine_libcloud['extra'].get(
+                'network_interfaces', [])
             network_interfaces = [{
                 'id': network_interface.id,
                 'state': network_interface.state,
@@ -471,7 +472,8 @@ class MaxihostComputeController(BaseComputeController):
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         updated = False
         if machine_libcloud['extra'].get('ips', []):
-            name = machine_libcloud['extra'].get('ips')[0].get('device_hostname')
+            name = machine_libcloud['extra'].get('ips')[0].get(
+                'device_hostname')
             if machine.hostname != name:
                 machine.hostname = name
                 updated = True
@@ -762,7 +764,8 @@ class SoftLayerComputeController(BaseComputeController):
     def _list_machines__postparse_machine(self, machine, machine_libcloud):
         updated = False
         os_type = 'linux'
-        if 'windows' in str(machine_libcloud['extra'].get('image', '')).lower():
+        if 'windows' in str(
+                machine_libcloud['extra'].get('image', '')).lower():
             os_type = 'windows'
         if os_type != machine.os_type:
             machine.os_type = os_type
@@ -788,7 +791,8 @@ class SoftLayerComputeController(BaseComputeController):
         extra_fee = 0
         if not machine_libcloud['extra'].get('hourlyRecurringFee'):
             cpu_fee = float(machine_libcloud['extra'].get('recurringFee'))
-            for item in machine_libcloud['extra'].get('billingItemChildren', ()):
+            for item in machine_libcloud['extra'].get('billingItemChildren',
+                                                      ()):
                 # don't calculate billing that is cancelled
                 if not item.get('cancellationDate'):
                     extra_fee += float(item.get('recurringFee'))
@@ -796,8 +800,10 @@ class SoftLayerComputeController(BaseComputeController):
         else:
             # machine_libcloud['extra'].get('recurringFee')
             # here will show what it has cost for the current month, up to now.
-            cpu_fee = float(machine_libcloud['extra'].get('hourlyRecurringFee'))
-            for item in machine_libcloud['extra'].get('billingItemChildren', ()):
+            cpu_fee = float(
+                machine_libcloud['extra'].get('hourlyRecurringFee'))
+            for item in machine_libcloud['extra'].get('billingItemChildren',
+                                                      ()):
                 # don't calculate billing that is cancelled
                 if not item.get('cancellationDate'):
                     extra_fee += float(item.get('hourlyRecurringFee'))
@@ -833,7 +839,8 @@ class AzureComputeController(BaseComputeController):
         return updated
 
     def _list_machines__cost_machine(self, machine, machine_libcloud):
-        if machine_libcloud['state'] not in [NodeState.RUNNING, NodeState.PAUSED]:
+        if machine_libcloud['state'] not in [NodeState.RUNNING,
+                                             NodeState.PAUSED]:
             return 0, 0
         return machine_libcloud['extra'].get('cost_per_hour', 0), 0
 
@@ -938,7 +945,8 @@ class AzureArmComputeController(BaseComputeController):
         return updated
 
     def _list_machines__cost_machine(self, machine, machine_libcloud):
-        if machine_libcloud['state'] not in [NodeState.RUNNING, NodeState.PAUSED]:
+        if machine_libcloud['state'] not in [NodeState.RUNNING,
+                                             NodeState.PAUSED]:
             return 0, 0
         return machine_libcloud['extra'].get('cost_per_hour', 0), 0
 
@@ -1094,7 +1102,8 @@ class GoogleComputeController(BaseComputeController):
                           "for machine %s:%s for %s",
                           machine.id, machine.name, self.cloud)
 
-        network_interface = machine_libcloud['extra'].get('networkInterfaces')[0]
+        network_interface = machine_libcloud['extra'].get(
+            'networkInterfaces')[0]
         network = network_interface.get('network')
         network_name = network.split('/')[-1]
         if machine.extra.get('network') != network_name:
@@ -1628,12 +1637,12 @@ class DockerComputeController(BaseComputeController):
         if machine_libcloud['state'] in (ContainerState.RUNNING,):
             machine.actions.rename = True
         elif machine_libcloud['state'] in (ContainerState.REBOOTING,
-                                        ContainerState.PENDING):
+                                           ContainerState.PENDING):
             machine.actions.start = False
             machine.actions.stop = False
             machine.actions.reboot = False
         elif machine_libcloud['state'] in (ContainerState.STOPPED,
-                                        ContainerState.UNKNOWN):
+                                           ContainerState.UNKNOWN):
             # We assume unknown state means stopped.
             machine.actions.start = True
             machine.actions.stop = False
