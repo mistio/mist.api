@@ -199,11 +199,11 @@ class AmazonComputeController(BaseComputeController):
                     return plan_price.replace('/hour', '').replace('$', ''), 0
         return 0, 0
 
-    def _list_machines__get_location(self, node):
-        return node.extra.get('availability')
+    def _list_machines__get_location(self, machine):
+        return node['extra'].get('availability')
 
     def _list_machines__get_size(self, node):
-        return node.extra.get('instance_type')
+        return node['extra'].get('instance_type')
 
     def _list_images__fetch_images(self, search=None):
         if not search:
@@ -328,7 +328,7 @@ class AlibabaComputeController(AmazonComputeController):
             raise BadRequestError('Failed to resize node: %s' % exc)
 
     def _list_machines__get_location(self, node):
-        return node.extra.get('zone_id')
+        return node['extra'].get('zone_id')
 
     def _list_machines__cost_machine(self, machine, machine_libcloud):
         size = machine_libcloud['extra'].get('instance_type', {})
@@ -430,10 +430,10 @@ class DigitalOceanComputeController(BaseComputeController):
         self.connection.ex_power_on_node(machine_libcloud)
 
     def _list_machines__get_location(self, node):
-        return node.extra.get('region')
+        return node['extra'].get('region')
 
     def _list_machines__get_size(self, node):
-        return node.extra.get('size_slug')
+        return node['extra'].get('size_slug')
 
     def _list_sizes__get_name(self, size):
         cpus = str(size.extra.get('vcpus', ''))
@@ -480,7 +480,7 @@ class MaxihostComputeController(BaseComputeController):
         return updated
 
     def _list_machines__get_location(self, node):
-        return node.extra.get('location').get('facility_code')
+        return node['extra'].get('location').get('facility_code')
 
     def _start_machine(self, machine, machine_libcloud):
         machine_libcloud.id = machine_libcloud.extra.get('id', '')
@@ -565,13 +565,13 @@ class GigG8ComputeController(BaseComputeController):
     def _list_machines__get_custom_size(self, node):
         from mist.api.clouds.models import CloudSize
         try:
-            _size = CloudSize.objects.get(external_id=str(node.size.id))
+            _size = CloudSize.objects.get(external_id=str(node['size'].get('id')))
         except me.DoesNotExist:
             _size = CloudSize(cloud=self.cloud,
-                              external_id=str(node.size.id))
-        _size.ram = node.size.ram
-        _size.cpus = node.size.extra.get('cpus')
-        _size.disk = node.size.disk
+                              external_id=str(node['size'].get('id')))
+        _size.ram = node['size'].get('ram')
+        _size.cpus = node['size'].get('extra', {}).get('cpus')
+        _size.disk = node['size'].get('disk')
         name = ""
         if _size.cpus:
             name += '%s CPUs, ' % _size.cpus
@@ -681,10 +681,10 @@ class LinodeComputeController(BaseComputeController):
         return 0, price or 0
 
     def _list_machines__get_size(self, node):
-        return node.extra.get('PLANID')
+        return node['extra'].get('PLANID')
 
     def _list_machines__get_location(self, node):
-        return str(node.extra.get('DATACENTERID'))
+        return str(node['extra'].get('DATACENTERID'))
 
 
 class RackSpaceComputeController(BaseComputeController):
@@ -738,7 +738,7 @@ class RackSpaceComputeController(BaseComputeController):
         return updated
 
     def _list_machines__get_size(self, node):
-        return node.extra.get('flavorId')
+        return node['extra'].get('flavorId')
 
     def _list_sizes__get_cpu(self, size):
         return size.vcpus
@@ -812,7 +812,7 @@ class SoftLayerComputeController(BaseComputeController):
             return cpu_fee + extra_fee, 0
 
     def _list_machines__get_location(self, node):
-        return node.extra.get('datacenter')
+        return node['extra'].get('datacenter')
 
     def _reboot_machine(self, machine, machine_libcloud):
         self.connection.reboot_node(machine_libcloud)
@@ -958,10 +958,10 @@ class AzureArmComputeController(BaseComputeController):
             machine.actions.start = True
 
     def _list_machines__get_location(self, node):
-        return node.extra.get('location')
+        return node['extra'].get('location')
 
     def _list_machines__get_size(self, node):
-        return node.extra.get('size')
+        return node['extra'].get('size')
 
     def _list_images__fetch_images(self, search=None):
         # Fetch mist's recommended images
@@ -1016,7 +1016,7 @@ class GoogleComputeController(BaseComputeController):
         return machine_libcloud['extra'].get('creationTimestamp')
 
     def _list_machines__get_custom_size(self, node):
-        size = self.connection.get_size_metadata_from_node(node.extra.
+        size = self.connection.get_size_metadata_from_node(node['extra'].
                                                            get('machineType'))
         # create object only if the size of the node is custom
         if size.get('name', '').startswith('custom'):
@@ -1231,7 +1231,7 @@ class GoogleComputeController(BaseComputeController):
             pass
 
     def _list_machines__get_location(self, node):
-        return node.extra.get('zone').id
+        return node['extra'].get('zone').id
 
     def _list_sizes__get_name(self, size):
         return "%s (%s)" % (size.name, size.extra.get('description'))
@@ -1297,10 +1297,10 @@ class PacketComputeController(BaseComputeController):
             return price, 0
 
     def _list_machines__get_location(self, node):
-        return node.extra.get('facility', {}).get('id', '')
+        return node['extra'].get('facility', {}).get('id', '')
 
     def _list_machines__get_size(self, node):
-        return node.extra.get('plan')
+        return node['extra'].get('plan')
 
 
 class VultrComputeController(BaseComputeController):
@@ -1322,10 +1322,10 @@ class VultrComputeController(BaseComputeController):
         return 0, machine_libcloud['extra'].get('cost_per_month', 0)
 
     def _list_machines__get_size(self, node):
-        return node.extra.get('VPSPLANID')
+        return node['extra'].get('VPSPLANID')
 
     def _list_machines__get_location(self, node):
-        return node.extra.get('DCID')
+        return node['extra'].get('DCID')
 
     def _list_sizes__get_cpu(self, size):
         return size.extra.get('vcpu_count')
@@ -1375,8 +1375,8 @@ class VSphereComputeController(BaseComputeController):
         self.connect()
 
     def _list_machines__get_location(self, node):
-        cluster = node.extra.get('cluster', '')
-        host = node.extra.get('host', '')
+        cluster = node['extra'].get('cluster', '')
+        host = node['extra'].get('host', '')
         return cluster or host
 
     def list_vm_folders(self):
@@ -1413,13 +1413,13 @@ class VSphereComputeController(BaseComputeController):
         # FIXME: resolve circular import issues
         from mist.api.clouds.models import CloudSize
         try:
-            _size = CloudSize.objects.get(external_id=node.size.id)
+            _size = CloudSize.objects.get(external_id=node['size'].get('id'))
         except me.DoesNotExist:
             _size = CloudSize(cloud=self.cloud,
-                              external_id=str(node.size.id))
-        _size.ram = node.size.ram
-        _size.cpus = node.size.extra.get('cpus')
-        _size.disk = node.size.disk
+                              external_id=str(node['size'].get('id')))
+        _size.ram = node['size'].get('ram')
+        _size.cpus = node['size'].get('extra', {}).get('cpus')
+        _size.disk = node['size'].get('disk')
         name = ""
         if _size.cpus:
             name += f'{_size.cpus}vCPUs, '
@@ -1556,7 +1556,7 @@ class OpenStackComputeController(BaseComputeController):
         return size.vcpus
 
     def _list_machines__get_size(self, node):
-        return node.extra.get('flavorId')
+        return node['extra'].get('flavorId')
 
 
 class DockerComputeController(BaseComputeController):
@@ -2224,17 +2224,17 @@ class LibvirtComputeController(BaseComputeController):
         return None
 
     def _list_machines__get_custom_size(self, node):
-        if not node.size:
+        if not node.get('size'):
             return
         from mist.api.clouds.models import CloudSize
         try:
             _size = CloudSize.objects.get(
-                cloud=self.cloud, external_id=node.size.id)
+                cloud=self.cloud, external_id=node['size'].get('id'))
         except me.DoesNotExist:
             _size = CloudSize(cloud=self.cloud,
-                              external_id=node.size.id)
-        _size.ram = node.size.ram
-        _size.cpus = node.size.extra.get('cpus')
+                              external_id=node['size'].get('id'))
+        _size.ram = node['size'].get('ram')
+        _size.cpus = node['size'].get('extra', {}).get('cpus')
         name = ""
         if _size.cpus:
             name += '%s CPUs, ' % _size.cpus
@@ -2246,7 +2246,7 @@ class LibvirtComputeController(BaseComputeController):
         return _size
 
     def _list_machines__get_location(self, node):
-        return node.extra.get('hypervisor').replace('.', '-')
+        return node['extra'].get('hypervisor').replace('.', '-')
 
     def list_sizes(self, persist=True):
         return []
@@ -2466,9 +2466,9 @@ class OnAppComputeController(BaseComputeController):
         # FIXME: resolve circular import issues
         from mist.api.clouds.models import CloudSize
         _size = CloudSize(cloud=self.cloud,
-                          external_id=str(node.extra.get('id')))
-        _size.ram = node.extra.get('memory')
-        _size.cpus = node.extra.get('cpus')
+                          external_id=str(node['extra'].get('id')))
+        _size.ram = node['extra'].get('memory')
+        _size.cpus = node['extra'].get('cpus')
         _size.save()
         return _size
 
@@ -2761,10 +2761,10 @@ class KubeVirtComputeController(BaseComputeController):
         return updated
 
     def _list_machines__get_location(self, node):
-        return node.extra.get('namespace', "")
+        return node['extra'].get('namespace', "")
 
     def _list_machines__get_size(self, node):
-        return node.size.id
+        return node['size'].get('id')
 
     def _list_sizes__get_cpu(self, size):
         cpu = int(size.extra.get('cpus') or 1)

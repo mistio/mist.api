@@ -59,9 +59,16 @@ else:
     from mist.api.dummy.methods import dnat
 
 
+log = logging.getLogger(__name__)
+
+__all__ = [
+    "BaseComputeController",
+]
+
+
+
+
 def _update_machine_from_node_in_process_pool(params):
-    from libcloud.compute.providers import get_driver
-    from mist.api import mongo_connect
     from mist.api.clouds.models import Cloud
 
     cloud_id = params['cloud_id']
@@ -69,47 +76,11 @@ def _update_machine_from_node_in_process_pool(params):
     locations_map = params['locations_map']
     sizes_map = params['sizes_map']
     images_map = params['images_map']
-    nodedict = json.loads(params['node'])
-
-    driver = get_driver(nodedict['provider'])
-    size = None
-    if nodedict['size']:
-        size = NodeSize(
-            id=nodedict['size']['id'],
-            name=nodedict['size']['name'],
-            ram=nodedict['size']['ram'],
-            disk=nodedict['size']['disk'],
-            bandwidth=nodedict['size']['bandwidth'],
-            price=nodedict['size']['price'],
-            extra=nodedict['size']['extra'],
-            driver=driver
-        )
-
-    node = Node(
-        id=nodedict['id'],
-        name=nodedict['name'],
-        image=nodedict['image'],
-        size=size,
-        state=nodedict['state'],
-        public_ips=nodedict['public_ips'],
-        private_ips=nodedict['private_ips'],
-        extra=nodedict['extra'],
-        created_at=nodedict['created_at'],
-        driver=driver
-    )
-
-    mongo_connect()
+    nodedict = params['node']
     cloud = Cloud.objects.get(id=cloud_id)
 
     return cloud.ctl.compute._update_machine_from_node(
-        node, locations_map, sizes_map, images_map, now)
-
-
-log = logging.getLogger(__name__)
-
-__all__ = [
-    "BaseComputeController",
-]
+        nodedict, locations_map, sizes_map, images_map, now)
 
 
 def _decide_machine_cost(machine, tags=None, cost=(0, 0)):
@@ -381,8 +352,8 @@ class BaseComputeController(BaseController):
             cloud_id = self.cloud.id
 
             choices = map(
-                lambda x: {
-                    'node': x,
+                lambda node: {
+                    'node': node,
                     'cloud_id': cloud_id,
                     'locations_map': locations_map,
                     'sizes_map': sizes_map,
