@@ -1929,8 +1929,6 @@ HAS_MANAGE = 'manage' in PLUGINS
 HAS_AUTH = 'auth' in PLUGINS
 HAS_PRICING = 'pricing' in PLUGINS
 
-PRICING_POLICY = {}
-
 # enable backup feature if aws creds have been set
 ENABLE_BACKUPS = bool(BACKUP['key']) and bool(BACKUP['secret'])
 

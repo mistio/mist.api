@@ -17,4 +17,4 @@ def cross_populate_session_data(event, kwargs):
 
 
 def get_cost_from_price_catalog(machine):
-    return
+    return None, None, 1
