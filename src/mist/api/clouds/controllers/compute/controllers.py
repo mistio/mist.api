@@ -1152,30 +1152,19 @@ class GoogleComputeController(BaseComputeController):
         if machine_libcloud.state == NodeState.STOPPED:
             return 0, 0
         # eg n1-standard-1 (1 vCPU, 3.75 GB RAM)
-        initial_size = machine.size.name
-        default_location = "us-central1"
-        machine_cpu = 0
-        machine_ram = 0
-        raw_size = initial_size.split(" ")
-        if 'vCPU,' in raw_size:
-            string_cpu = raw_size[raw_size.index('vCPU,') - 1]
-            machine_cpu = float(string_cpu.lstrip("("))
-        elif 'vCPU' in raw_size:
-            string_cpu = raw_size[raw_size.index('vCPU') - 1]
-            machine_cpu = float(string_cpu.lstrip("("))
-        if 'GB' in raw_size:
-            string_ram = raw_size[raw_size.index('GB') - 1]
-            machine_ram = float(string_ram)
-        size_type = raw_size[0][:2]
-        if "custom" in raw_size[0]:
+        machine_cpu = float(machine.size.cpus)
+        machine_ram = float(machine.size.ram) / 1024
+        size_type = machine.size.name.split(" ")[0][:2]
+        if "custom" in machine.size.name:
             size_type += "_custom"
         usage_type = "on_demand"
-        if "preemptible" in initial_size.lower():
+        if "preemptible" in machine.size.name.lower():
             usage_type = "preemptible"
-        if "1yr" in initial_size.lower():
+        if "1yr" in machine.size.name.lower():
             usage_type = '1yr_commitment'
-        if "3yr" in initial_size.lower():
+        if "3yr" in machine.size.name.lower():
             usage_type = '3yr_commitment'
+        default_location = "us-central1"
         location = machine_libcloud.extra.get('zone').name
         # could be europe-west1-d, we want europe-west1
         location = '-'.join(location.split('-')[:2])
