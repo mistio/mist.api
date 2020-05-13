@@ -146,9 +146,10 @@ def _decide_machine_cost(machine, tags=None, cost=(0, 0)):
     try:
         cph = parse_num(tags.get('cost_per_hour'))
         cpm = parse_num(tags.get('cost_per_month'))
-        ccph, ccpm, percentage = get_cost_from_price_catalog(machine)
-        if ccph or ccpm:
-            return (ccph, ccpm)
+        catalog_cph, catalog_cpm, percentage = get_cost_from_price_catalog(
+            machine)
+        if catalog_cph or catalog_cpm:
+            return (catalog_cph, catalog_cpm)
         if not (cph or cpm) or cph > 100 or cpm > 100 * 24 * 31:
             log.debug("Invalid cost tags for machine %s", machine)
             cph, cpm = list(map(parse_num, cost))
