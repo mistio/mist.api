@@ -105,10 +105,7 @@ def main(global_config, **settings):
 
     for plugin in config.PLUGINS:
         log.info("Loading plugin mist.%s", plugin)
-        try:
-            configurator.include('mist.%s.add_routes' % plugin)
-        except ModuleNotFoundError:
-            pass
+        configurator.include('mist.%s.add_routes' % plugin)
         ignore_modules = ['mist.%s.sock' % plugin, 'mist.%s.handler' % plugin]
         configurator.scan('mist.%s' % plugin, ignore=ignore_modules)
 
