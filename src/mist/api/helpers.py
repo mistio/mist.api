@@ -357,7 +357,7 @@ def amqp_subscribe_user(owner, queue, callback):
     amqp_subscribe(_amqp_owner_exchange(owner), callback, queue)
 
 
-def amqp_owner_listening(owner):
+def amqp_owner_listening(owner, retries=3):
     exchange = kombu.Exchange(_amqp_owner_exchange(owner), type='fanout')
     with kombu.pools.connections[kombu.Connection(config.BROKER_URL)].acquire(
             block=True, timeout=10) as connection:
@@ -365,6 +365,14 @@ def amqp_owner_listening(owner):
             exchange(connection).declare(passive=True)
         except AmqpNotFound:
             return False
+        except TimeoutError:
+            if retries:
+                return amqp_owner_listening(owner,
+                                            retries - 1)
+            else:
+                log.error(
+                    'Timed out multiple times when connecting to RabbitMQ')
+                return False
         else:
             return True
 

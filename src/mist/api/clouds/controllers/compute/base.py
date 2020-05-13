@@ -58,6 +58,11 @@ if config.HAS_VPN:
 else:
     from mist.api.dummy.methods import dnat
 
+if config.HAS_PRICING:
+    from mist.pricing.methods import get_cost_from_price_catalog
+else:
+    from mist.api.dummy.methods import get_cost_from_price_catalog
+
 
 log = logging.getLogger(__name__)
 
@@ -111,6 +116,10 @@ def _decide_machine_cost(machine, tags=None, cost=(0, 0)):
     try:
         cph = parse_num(tags.get('cost_per_hour'))
         cpm = parse_num(tags.get('cost_per_month'))
+        catalog_cph, catalog_cpm, percentage = get_cost_from_price_catalog(
+            machine)
+        if catalog_cph or catalog_cpm:
+            return (catalog_cph, catalog_cpm)
         if not (cph or cpm) or cph > 100 or cpm > 100 * 24 * 31:
             log.debug("Invalid cost tags for machine %s", machine)
             cph, cpm = list(map(parse_num, cost))
@@ -121,7 +130,7 @@ def _decide_machine_cost(machine, tags=None, cost=(0, 0)):
     except Exception:
         log.exception("Error while deciding cost for machine %s", machine)
 
-    return cph, cpm
+    return (percentage * cph, percentage * cpm)
 
 
 class BaseComputeController(BaseController):
