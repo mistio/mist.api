@@ -1426,4 +1426,7 @@ def _node_to_dict(node):
         ret['size'] = _node_to_dict(ret['size'])
     if ret.get('image'):
         ret['image'] = _node_to_dict(ret['image'])
+    if ret.get('state'):
+        ret['state'] = str(ret['state'])
+    ret['extra'] = json.loads(json.dumps(ret['extra']))
     return ret
