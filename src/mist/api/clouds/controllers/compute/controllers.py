@@ -1068,13 +1068,14 @@ class GoogleComputeController(BaseComputeController):
         try:
             if extra.get('boot_disk'):
                 if machine.extra.get('boot_disk_size') != extra[
-                        'boot_disk'].size:
-                    machine.extra['boot_disk_size'] = extra['boot_disk'].size
+                        'boot_disk'].get('size'):
+                    machine.extra['boot_disk_size'] = extra['boot_disk'].get(
+                        'size')
                     updated = True
                 if machine.extra.get('boot_disk_type') != extra[
-                        'boot_disk'].extra.get('type'):
+                        'boot_disk'].get('extra', {}).get('type'):
                     machine.extra['boot_disk_type'] = extra[
-                        'boot_disk'].extra.get('type')
+                        'boot_disk'].get('extra', {}).get('type')
                     updated = True
                 if machine.extra.get('boot_disk'):
                     machine.extra.pop('boot_disk')
@@ -1086,8 +1087,9 @@ class GoogleComputeController(BaseComputeController):
         # Get zone name.
         try:
             if extra.get('zone'):
-                if machine.extra.get('zone') != extra['zone'].name:
-                    machine.extra['zone'] = extra['zone'].name
+                if machine.extra.get('zone') != extra.get('zone',
+                                                          {}).get('name'):
+                    machine.extra['zone'] = extra.get('zone', {}).get('name')
                     updated = True
         except:
             log.exception("Couldn't parse zone for machine %s:%s for %s",
@@ -1177,11 +1179,14 @@ class GoogleComputeController(BaseComputeController):
         if "3yr" in machine.size.name.lower():
             usage_type = '3yr_commitment'
         default_location = "us-central1"
-        location = node['dict']['extra'].get('zone').name
+        location = node_dict['extra'].get('zone', {}).get('name')
         # could be europe-west1-d, we want europe-west1
         location = '-'.join(location.split('-')[:2])
         os_type = machine.os_type
-        disk_type = machine.extra.get('boot_disk_type')
+        disk_type = machine.extra.get('boot_disk_type') or \
+            node_dict['extra'].get('boot_disk',
+                                   {}).get('extra',
+                                           {}).get('type')
         disk_usage_type = "on_demand"
         disk_size = 0
         for disk in machine.extra['disks']:
@@ -1308,8 +1313,8 @@ class GoogleComputeController(BaseComputeController):
                        ram_price + os_price + disk_price * disk_size)
         return total_price, 0
 
-    def _list_machines__get_location(self, node):
-        return node['extra'].get('zone').id
+    def _list_machines__get_location(self, node_dict):
+        return node_dict['extra'].get('zone', {}).get('id')
 
     def _list_sizes__get_name(self, size):
         return "%s (%s)" % (size.name, size.extra.get('description'))
@@ -1374,11 +1379,11 @@ class PacketComputeController(BaseComputeController):
         if machine.extra.get('billing_cycle') == 'hourly':
             return price, 0
 
-    def _list_machines__get_location(self, node):
-        return node['extra'].get('facility', {}).get('id', '')
+    def _list_machines__get_location(self, node_dict):
+        return node_dict['extra'].get('facility', {}).get('id', '')
 
-    def _list_machines__get_size(self, node):
-        return node['extra'].get('plan')
+    def _list_machines__get_size(self, node_dict):
+        return node_dict['extra'].get('plan')
 
 
 class VultrComputeController(BaseComputeController):
@@ -1399,11 +1404,11 @@ class VultrComputeController(BaseComputeController):
     def _list_machines__cost_machine(self, machine, node_dict):
         return 0, node_dict['extra'].get('cost_per_month', 0)
 
-    def _list_machines__get_size(self, node):
-        return node['extra'].get('VPSPLANID')
+    def _list_machines__get_size(self, node_dict):
+        return node_dict['extra'].get('VPSPLANID')
 
-    def _list_machines__get_location(self, node):
-        return node['extra'].get('DCID')
+    def _list_machines__get_location(self, node_dict):
+        return node_dict['extra'].get('DCID')
 
     def _list_sizes__get_cpu(self, size):
         return size.extra.get('vcpu_count')
@@ -1452,9 +1457,9 @@ class VSphereComputeController(BaseComputeController):
         """
         self.connect()
 
-    def _list_machines__get_location(self, node):
-        cluster = node['extra'].get('cluster', '')
-        host = node['extra'].get('host', '')
+    def _list_machines__get_location(self, node_dict):
+        cluster = node_dict['extra'].get('cluster', '')
+        host = node_dict['extra'].get('host', '')
         return cluster or host
 
     def list_vm_folders(self):
@@ -1480,31 +1485,32 @@ class VSphereComputeController(BaseComputeController):
         return [_node_to_dict(node) for node in self.connection.list_nodes(
             max_properties=self.cloud.max_properties_per_request)]
 
-    def _list_machines__get_size(self, node):
+    def _list_machines__get_size(self, node_dict):
         """Return key of size_map dict for a specific node
 
         Subclasses MAY override this method.
         """
         return None
 
-    def _list_machines__get_custom_size(self, node):
+    def _list_machines__get_custom_size(self, node_dict):
         # FIXME: resolve circular import issues
         from mist.api.clouds.models import CloudSize
         updated = False
         try:
-            _size = CloudSize.objects.get(external_id=node['size'].get('id'))
+            _size = CloudSize.objects.get(
+                external_id=node_dict['size'].get('id'))
         except me.DoesNotExist:
             _size = CloudSize(cloud=self.cloud,
-                              external_id=str(node['size'].get('id')))
+                              external_id=str(node_dict['size'].get('id')))
             updated = True
-        if _size.ram != node['size'].get('ram'):
-            _size.ram = node['size'].get('ram')
+        if _size.ram != node_dict['size'].get('ram'):
+            _size.ram = node_dict['size'].get('ram')
             updated = True
-        if _size.cpus != node['size'].get('extra', {}).get('cpus'):
-            _size.cpus = node['size'].get('extra', {}).get('cpus')
+        if _size.cpus != node_dict['size'].get('extra', {}).get('cpus'):
+            _size.cpus = node_dict['size'].get('extra', {}).get('cpus')
             updated = True
-        if _size.disk != node['size'].get('disk'):
-            _size.disk = node['size'].get('disk')
+        if _size.disk != node_dict['size'].get('disk'):
+            _size.disk = node_dict['size'].get('disk')
             updated = True
         name = ""
         if _size.cpus:

@@ -1436,5 +1436,7 @@ def _node_to_dict(node):
         ret['image'] = _node_to_dict(ret['image'])
     if ret.get('state'):
         ret['state'] = str(ret['state'])
-    ret['extra'] = json.loads(json.dumps(ret['extra']))
+    if 'extra' in ret:
+        ret['extra'] = json.loads(json.dumps(
+            ret['extra'], default=_node_to_dict))
     return ret

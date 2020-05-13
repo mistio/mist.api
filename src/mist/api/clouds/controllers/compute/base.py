@@ -79,11 +79,11 @@ def _update_machine_from_node_in_process_pool(params):
     locations_map = params['locations_map']
     sizes_map = params['sizes_map']
     images_map = params['images_map']
-    nodedict = params['node']
+    node_dict = params['node']
     cloud = Cloud.objects.get(id=cloud_id)
 
     return cloud.ctl.compute._update_machine_from_node(
-        nodedict, locations_map, sizes_map, images_map, now)
+        node_dict, locations_map, sizes_map, images_map, now)
 
 
 def _decide_machine_cost(machine, tags=None, cost=(0, 0)):
