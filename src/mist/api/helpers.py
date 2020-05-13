@@ -1422,3 +1422,21 @@ def convert_to_timedelta(time_val):
                 num = int(time_val[:-2])
                 return timedelta(days=30 * num)
     return None
+
+
+def _node_to_dict(node):
+    if isinstance(node, str):
+        return node
+    ret = node.__dict__
+    if ret.get('driver'):
+        ret.pop('driver')
+    if ret.get('size'):
+        ret['size'] = _node_to_dict(ret['size'])
+    if ret.get('image'):
+        ret['image'] = _node_to_dict(ret['image'])
+    if ret.get('state'):
+        ret['state'] = str(ret['state'])
+    if 'extra' in ret:
+        ret['extra'] = json.loads(json.dumps(
+            ret['extra'], default=_node_to_dict))
+    return ret
