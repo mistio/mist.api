@@ -200,7 +200,7 @@ class AmazonComputeController(BaseComputeController):
                     return plan_price.replace('/hour', '').replace('$', ''), 0
         return 0, 0
 
-    def _list_machines__get_location(self, machine):
+    def _list_machines__get_location(self, node):
         return node['extra'].get('availability')
 
     def _list_machines__get_size(self, node):
@@ -1413,14 +1413,22 @@ class VSphereComputeController(BaseComputeController):
     def _list_machines__get_custom_size(self, node):
         # FIXME: resolve circular import issues
         from mist.api.clouds.models import CloudSize
+        updated = False
         try:
             _size = CloudSize.objects.get(external_id=node['size'].get('id'))
         except me.DoesNotExist:
             _size = CloudSize(cloud=self.cloud,
                               external_id=str(node['size'].get('id')))
-        _size.ram = node['size'].get('ram')
-        _size.cpus = node['size'].get('extra', {}).get('cpus')
-        _size.disk = node['size'].get('disk')
+            updated = True
+        if _size.ram != node['size'].get('ram'):
+            _size.ram = node['size'].get('ram')
+            updated = True
+        if _size.cpus != node['size'].get('extra', {}).get('cpus'):
+            _size.cpus = node['size'].get('extra', {}).get('cpus')
+            updated = True
+        if _size.disk != node['size'].get('disk'):
+            _size.disk = node['size'].get('disk')
+            updated = True
         name = ""
         if _size.cpus:
             name += f'{_size.cpus}vCPUs, '
@@ -1428,8 +1436,11 @@ class VSphereComputeController(BaseComputeController):
             name += f'{_size.ram}MB RAM, '
         if _size.disk:
             name += f'{_size.disk}GB disk.'
-        _size.name = name
-        _size.save()
+        if _size.name != name:
+            _size.name = name
+            updated = True
+        if updated:
+            _size.save()
         return _size
 
     def _list_machines__machine_actions(self, machine, node_dict):
@@ -2238,21 +2249,30 @@ class LibvirtComputeController(BaseComputeController):
         if not node.get('size'):
             return
         from mist.api.clouds.models import CloudSize
+        updated = False
         try:
             _size = CloudSize.objects.get(
                 cloud=self.cloud, external_id=node['size'].get('id'))
         except me.DoesNotExist:
             _size = CloudSize(cloud=self.cloud,
                               external_id=node['size'].get('id'))
-        _size.ram = node['size'].get('ram')
-        _size.cpus = node['size'].get('extra', {}).get('cpus')
+            updated = True
+        if _size.ram != node['size'].get('ram'):
+            _size.ram = node['size'].get('ram')
+            updated = True
+        if _size.cpus != node['size'].get('extra', {}).get('cpus'):
+            _size.cpus = node['size'].get('extra', {}).get('cpus')
+            updated = True
         name = ""
         if _size.cpus:
             name += '%s CPUs, ' % _size.cpus
         if _size.ram:
             name += '%dMB RAM' % (_size.ram / 1000)
-        _size.name = name
-        _size.save()
+        if size.name != name:
+            _size.name = name
+            updated = True
+        if updated:
+            _size.save()
 
         return _size
 
