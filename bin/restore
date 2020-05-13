@@ -11,9 +11,9 @@ def main():
     )
     argparser.add_argument('backup', help="Backup to restore.")
     args = argparser.parse_args()
-
-    cmd = 's3cmd --access_key=%s --secret_key=%s get %s' % (
-        config.BACKUP['key'], config.BACKUP['secret'],
+    s3_host = config.BACKUP.get('host', 's3.amazonaws.com')
+    cmd = 's3cmd --host=%s --access_key=%s --secret_key=%s get %s' % (
+        s3_host, config.BACKUP['key'], config.BACKUP['secret'],
         args.backup)
     os.system(cmd)
     dump_path = args.backup.split('/')[-1]

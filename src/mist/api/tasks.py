@@ -1210,41 +1210,44 @@ def create_backup():
     # Strip protocol prefix from influx backup uri
     influx_backup_host = config.INFLUX.get('backup', '').replace(
         'http://', '').replace('https://', '')
+    s3_host = config.BACKUP.get('host', 's3.amazonaws.com')
+    dt = datetime.datetime.now().strftime('%Y%m%d%H%M')
+    portal_host = config.CORE_URI.split('//')[1]
     if all(value == '' for value in config.BACKUP.get('gpg', {}).values()):
-        os.system("mongodump --host %s --gzip --archive | s3cmd --access_key=%s \
-        --secret_key=%s put - s3://%s/mongo/%s-%s" % (mongo_backup_host,
-                  config.BACKUP['key'], config.BACKUP['secret'],
-                  config.BACKUP['bucket'], config.CORE_URI.split('//')[1],
-                  datetime.datetime.now().strftime('%Y%m%d%H%M')))
+        os.system("mongodump --host %s --gzip --archive | s3cmd --host=%s \
+        --access_key=%s --secret_key=%s put - s3://%s/mongo/%s-%s" % (
+            mongo_backup_host, s3_host, config.BACKUP['key'],
+            config.BACKUP['secret'], config.BACKUP['bucket'],
+            portal_host, dt))
         if influx_backup_host:
             os.system("influxd backup -portable -host %s ./influx-snapshot &&\
-            tar cv influx-snapshot | s3cmd --access_key=%s --secret_key=%s \
+            tar cv influx-snapshot |\
+            s3cmd --host=%s --access_key=%s --secret_key=%s \
             put - s3://%s/influx/%s-%s && rm -rf influx-snapshot" % (
-                influx_backup_host, config.BACKUP['key'],
+                influx_backup_host, s3_host, config.BACKUP['key'],
                 config.BACKUP['secret'], config.BACKUP['bucket'],
-                config.CORE_URI.split('//')[1],
-                datetime.datetime.now().strftime('%Y%m%d%H%M')))
+                portal_host, dt))
     elif config.BACKUP['gpg'].get('public'):  # encrypt with gpg if configured
         f = open('pub.key', 'w+')
         f.write(config.BACKUP['gpg']['public'])
         f.close()
-        os.system("gpg --import pub.key && mongodump \
-        --host %s --gzip --archive | gpg --yes --trust-model always \
-        --encrypt --recipient %s | s3cmd --access_key=%s --secret_key=%s put \
+        os.system("gpg --import pub.key && \
+        mongodump --host %s --gzip --archive |\
+        gpg --yes --trust-model always --encrypt --recipient %s |\
+        s3cmd --host=%s --access_key=%s --secret_key=%s put \
         - s3://%s/mongo/%s-%s.gpg" % (
             mongo_backup_host, config.BACKUP['gpg']['recipient'],
-            config.BACKUP['key'], config.BACKUP['secret'],
-            config.BACKUP['bucket'], config.CORE_URI.split('//')[1],
-            datetime.datetime.now().strftime('%Y%m%d%H%M')))
+            s3_host, config.BACKUP['key'], config.BACKUP['secret'],
+            config.BACKUP['bucket'], portal_host,
+            dt))
         if influx_backup_host:
             os.system("influxd backup -portable -host %s ./influx-snapshot \
             && tar cv influx-snapshot | gpg --yes --trust-model always \
-            --encrypt --recipient %s | s3cmd --access_key=%s --secret_key=%s \
-            put - s3://%s/influx/%s-%s.gpg" % (
+            --encrypt --recipient %s | s3cmd --host=%s --access_key=%s \
+            --secret_key=%s put - s3://%s/influx/%s-%s.gpg" % (
                 influx_backup_host, config.BACKUP['gpg']['recipient'],
-                config.BACKUP['key'], config.BACKUP['secret'],
-                config.BACKUP['bucket'], config.CORE_URI.split('//')[1],
-                datetime.datetime.now().strftime('%Y%m%d%H%M')))
+                s3_host, config.BACKUP['key'], config.BACKUP['secret'],
+                config.BACKUP['bucket'], portal_host, dt))
 
 
 @app.task
