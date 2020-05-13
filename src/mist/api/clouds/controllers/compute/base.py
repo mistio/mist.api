@@ -66,8 +66,6 @@ __all__ = [
 ]
 
 
-
-
 def _update_machine_from_node_in_process_pool(params):
     from mist.api.clouds.models import Cloud
 
@@ -733,12 +731,12 @@ class BaseComputeController(BaseController):
 
         # Default actions for other states.
         if node_dict['state'] in (NodeState.REBOOTING,
-                                         NodeState.PENDING):
+                                  NodeState.PENDING):
             machine.actions.start = False
             machine.actions.stop = False
             machine.actions.reboot = False
         elif node_dict['state'] in (NodeState.STOPPED,
-                                           NodeState.UNKNOWN):
+                                    NodeState.UNKNOWN):
             # We assume unknown state means stopped.
             machine.actions.start = True
             machine.actions.stop = False

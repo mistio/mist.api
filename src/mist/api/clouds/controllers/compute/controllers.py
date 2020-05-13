@@ -566,7 +566,8 @@ class GigG8ComputeController(BaseComputeController):
     def _list_machines__get_custom_size(self, node):
         from mist.api.clouds.models import CloudSize
         try:
-            _size = CloudSize.objects.get(external_id=str(node['size'].get('id')))
+            _size = CloudSize.objects.get(
+                external_id=str(node['size'].get('id')))
         except me.DoesNotExist:
             _size = CloudSize(cloud=self.cloud,
                               external_id=str(node['size'].get('id')))
@@ -780,7 +781,7 @@ class SoftLayerComputeController(BaseComputeController):
             updated = True
         elif 'maxCpu' in node_dict.extra and \
                 machine.extra['cpus'] != node_dict['extra']['maxCpu']:
-            machine.extra['cpus'] = node['extra']['maxCpu']
+            machine.extra['cpus'] = node_dict['extra']['maxCpu']
             updated = True
         return updated
 
@@ -794,7 +795,7 @@ class SoftLayerComputeController(BaseComputeController):
         if not node_dict['extra'].get('hourlyRecurringFee'):
             cpu_fee = float(node_dict['extra'].get('recurringFee'))
             for item in node_dict['extra'].get('billingItemChildren',
-                                                      ()):
+                                               ()):
                 # don't calculate billing that is cancelled
                 if not item.get('cancellationDate'):
                     extra_fee += float(item.get('recurringFee'))
@@ -805,7 +806,7 @@ class SoftLayerComputeController(BaseComputeController):
             cpu_fee = float(
                 node_dict['extra'].get('hourlyRecurringFee'))
             for item in node_dict['extra'].get('billingItemChildren',
-                                                      ()):
+                                               ()):
                 # don't calculate billing that is cancelled
                 if not item.get('cancellationDate'):
                     extra_fee += float(item.get('hourlyRecurringFee'))
@@ -842,7 +843,7 @@ class AzureComputeController(BaseComputeController):
 
     def _list_machines__cost_machine(self, machine, node_dict):
         if node_dict['state'] not in [NodeState.RUNNING,
-                                             NodeState.PAUSED]:
+                                      NodeState.PAUSED]:
             return 0, 0
         return node_dict['extra'].get('cost_per_hour', 0), 0
 
@@ -948,7 +949,7 @@ class AzureArmComputeController(BaseComputeController):
 
     def _list_machines__cost_machine(self, machine, node_dict):
         if node_dict['state'] not in [NodeState.RUNNING,
-                                             NodeState.PAUSED]:
+                                      NodeState.PAUSED]:
             return 0, 0
         return node_dict['extra'].get('cost_per_hour', 0), 0
 
@@ -1650,12 +1651,12 @@ class DockerComputeController(BaseComputeController):
         if node_dict['state'] in (ContainerState.RUNNING,):
             machine.actions.rename = True
         elif node_dict['state'] in (ContainerState.REBOOTING,
-                                           ContainerState.PENDING):
+                                    ContainerState.PENDING):
             machine.actions.start = False
             machine.actions.stop = False
             machine.actions.reboot = False
         elif node_dict['state'] in (ContainerState.STOPPED,
-                                           ContainerState.UNKNOWN):
+                                    ContainerState.UNKNOWN):
             # We assume unknown state means stopped.
             machine.actions.start = True
             machine.actions.stop = False
@@ -2100,6 +2101,7 @@ class LibvirtComputeController(BaseComputeController):
 
     def _list_machines__fetch_machines(self):
         from mist.api.machines.models import Machine
+        nodes = []
         for machine in Machine.objects.filter(cloud=self.cloud,
                                               missing_since=None):
             if machine.extra.get('tags', {}).get('type') == 'hypervisor':
@@ -2268,7 +2270,7 @@ class LibvirtComputeController(BaseComputeController):
             name += '%s CPUs, ' % _size.cpus
         if _size.ram:
             name += '%dMB RAM' % (_size.ram / 1000)
-        if size.name != name:
+        if _size.name != name:
             _size.name = name
             updated = True
         if updated:
