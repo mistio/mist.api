@@ -291,8 +291,6 @@ class BaseMainController(object):
             log.error("Cloud %s not unique error: %s", self.cloud, exc)
             raise CloudExistsError()
 
-        self.add_polling_schedules()
-
     def _update__preparse_kwargs(self, kwargs):
         """Preparse keyword arguments to `self.update`
 
