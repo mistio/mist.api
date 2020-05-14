@@ -1091,7 +1091,8 @@ class BaseComputeController(BaseController):
             _size.extra = self._list_sizes__get_extra(size)
             if size.ram:
                 try:
-                    _size.ram = int(re.sub("\D", "", str(size.ram)))
+                    _size.ram = int(float(re.sub("[^\d.]+", "",
+                                    str(size.ram))))
                 except Exception as exc:
                     log.error(repr(exc))
 
