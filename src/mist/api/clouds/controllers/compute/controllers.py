@@ -346,6 +346,9 @@ class AlibabaComputeController(AmazonComputeController):
         else:
             return (0, price.get('prepaid', 0))
 
+    def _list_machines__machine_creation_date(self, machine, node_dict):
+        return node_dict['extra'].get('creation_time')
+
     def _list_images__fetch_images(self, search=None):
         return self.connection.list_images()
 
