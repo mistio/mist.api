@@ -295,11 +295,11 @@ class BaseMainController(object):
         from mist.api.poller.tasks import list_images
         from mist.api.poller.models import ListImagesPollingSchedule
         try:
-            schedule_id = str(ListImagesPollingSchedule.objects.get(cloud=self.cloud).id)
+            schedule_id = str(ListImagesPollingSchedule.objects.get(
+                cloud=self.cloud).id)
             list_images.apply_async((schedule_id,))
         except ListImagesPollingSchedule.DoesNotExist:
             pass
-
 
     def _update__preparse_kwargs(self, kwargs):
         """Preparse keyword arguments to `self.update`
