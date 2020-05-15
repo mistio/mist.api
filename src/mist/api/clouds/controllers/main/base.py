@@ -291,6 +291,13 @@ class BaseMainController(object):
             log.error("Cloud %s not unique error: %s", self.cloud, exc)
             raise CloudExistsError()
 
+        # Execute list_images immediately, addresses flaky edit creds test
+        from mist.api.poller.tasks import list_images
+        from mist.api.poller.models import ListImagesPollingSchedule
+        schedule_id = str(ListImagesPollingSchedule.objects.get(cloud=self.cloud).id)
+        list_images.apply_async((schedule_id,))
+
+
     def _update__preparse_kwargs(self, kwargs):
         """Preparse keyword arguments to `self.update`
 
