@@ -32,7 +32,7 @@ def debug(schedule_id):
         fobj.write(msg)
 
 
-@app.task(time_limit=180, soft_time_limit=155)
+@app.task(time_limit=280, soft_time_limit=255)
 def list_machines(schedule_id):
     """Perform list machines. Cloud controller stores results in mongodb."""
 
@@ -46,7 +46,7 @@ def list_machines(schedule_id):
         pass
 
 
-@app.task(time_limit=60, soft_time_limit=55)
+@app.task(time_limit=160, soft_time_limit=155)
 def list_locations(schedule_id):
     """Perform list locations. Cloud controller stores results in mongodb."""
 
