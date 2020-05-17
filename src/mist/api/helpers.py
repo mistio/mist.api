@@ -1424,19 +1424,23 @@ def convert_to_timedelta(time_val):
     return None
 
 
-def _node_to_dict(node):
+def node_to_dict(node):
     if isinstance(node, str):
         return node
+    elif isinstance(node, datetime.datetime):
+        return node.isoformat()
+    elif not getattr(node, "__dict__"):
+        return str(node)
     ret = node.__dict__
     if ret.get('driver'):
         ret.pop('driver')
     if ret.get('size'):
-        ret['size'] = _node_to_dict(ret['size'])
+        ret['size'] = node_to_dict(ret['size'])
     if ret.get('image'):
-        ret['image'] = _node_to_dict(ret['image'])
+        ret['image'] = node_to_dict(ret['image'])
     if ret.get('state'):
         ret['state'] = str(ret['state'])
     if 'extra' in ret:
         ret['extra'] = json.loads(json.dumps(
-            ret['extra'], default=_node_to_dict))
+            ret['extra'], default=node_to_dict))
     return ret
