@@ -2355,7 +2355,7 @@ class LibvirtComputeController(BaseComputeController):
         if _size.cpus:
             name += '%s CPUs, ' % _size.cpus
         if _size.ram:
-            name += '%dMB RAM' % (_size.ram / 1000)
+            name += '%dMB RAM' % _size.ram
         if _size.name != name:
             _size.name = name
             updated = True
