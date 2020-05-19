@@ -716,6 +716,7 @@ class RackSpaceComputeController(BaseComputeController):
         size = node_dict['extra'].get('flavorId')
         location = self.connection.region[:3]
         driver_name = 'rackspacenova' + location
+        price = None
         try:
             price = get_size_price(driver_type='compute',
                                    driver_name=driver_name,
@@ -1166,7 +1167,7 @@ class GoogleComputeController(BaseComputeController):
         return images
 
     def _list_machines__cost_machine(self, machine, node_dict):
-        if node_dict['state'] == NodeState.STOPPED:
+        if node_dict['state'] == NodeState.STOPPED or not machine.size:
             return 0, 0
         # eg n1-standard-1 (1 vCPU, 3.75 GB RAM)
         machine_cpu = float(machine.size.cpus)
