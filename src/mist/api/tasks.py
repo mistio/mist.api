@@ -749,7 +749,8 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
                 run_machine_action.s(owner_id, _action, name,
                                      machine_uuid)()
             except Exception as exc:
-                log_dict['error'] = log_dict.get('error', '') + str(exc) + '\n'
+                log_dict['error'] = '%s %r\n' % (log_dict.get('error', ''),
+                                                 exc)
 
     log_dict.update({'last_run_at': str(schedule.last_run_at or ''),
                     'total_run_count': schedule.total_run_count or 0,

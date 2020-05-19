@@ -56,7 +56,7 @@ from mist.api.exceptions import PortForwardCreationError
 from mist.api.exceptions import ForbiddenError
 from mist.api.helpers import sanitize_host
 from mist.api.helpers import amqp_owner_listening
-from mist.api.helpers import _node_to_dict
+from mist.api.helpers import node_to_dict
 
 from mist.api.clouds.controllers.main.base import BaseComputeController
 
@@ -1485,7 +1485,7 @@ class VSphereComputeController(BaseComputeController):
 
     def _list_machines__fetch_machines(self):
         """Perform the actual libcloud call to get list of nodes"""
-        return [_node_to_dict(node) for node in self.connection.list_nodes(
+        return [node_to_dict(node) for node in self.connection.list_nodes(
             max_properties=self.cloud.max_properties_per_request)]
 
     def _list_machines__get_size(self, node_dict):
@@ -1724,7 +1724,7 @@ class DockerComputeController(BaseComputeController):
             container.private_ips = private_ips
             container.size = None
             container.image = container.image.name
-        return [_node_to_dict(node) for node in containers]
+        return [node_to_dict(node) for node in containers]
 
     def _list_machines__machine_creation_date(self, machine, node_dict):
         return node_dict['extra'].get('created')  # unix timestamp
@@ -2037,7 +2037,7 @@ class LXDComputeController(BaseComputeController):
             container.size = None
             container.image = container.image.name
 
-        return [_node_to_dict(node) for node in containers]
+        return [node_to_dict(node) for node in containers]
 
     def _list_machines__machine_creation_date(self, machine, node_dict):
         """Unix timestap of when the machine was created"""
@@ -2191,7 +2191,7 @@ class LibvirtComputeController(BaseComputeController):
                                               missing_since=None):
             if machine.extra.get('tags', {}).get('type') == 'hypervisor':
                 driver = self._get_host_driver(machine)
-                nodes += [_node_to_dict(node)
+                nodes += [node_to_dict(node)
                           for node in driver.list_nodes()]
 
         return nodes

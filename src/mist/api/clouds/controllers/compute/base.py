@@ -45,7 +45,7 @@ from mist.api.helpers import get_datetime
 from mist.api.helpers import amqp_publish
 from mist.api.helpers import amqp_publish_user
 from mist.api.helpers import amqp_owner_listening
-from mist.api.helpers import _node_to_dict
+from mist.api.helpers import node_to_dict
 
 from mist.api.concurrency.models import PeriodicTaskInfo
 from mist.api.concurrency.models import PeriodicTaskThresholdExceeded
@@ -695,7 +695,7 @@ class BaseComputeController(BaseController):
 
     def _list_machines__fetch_machines(self):
         """Perform the actual libcloud call to get list of nodes"""
-        return [_node_to_dict(node) for node in self.connection.list_nodes()]
+        return [node_to_dict(node) for node in self.connection.list_nodes()]
 
     def _list_machines__get_machine_extra(self, machine, node_dict):
         """Return extra dict for libcloud node
