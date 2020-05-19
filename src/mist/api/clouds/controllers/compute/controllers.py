@@ -2782,7 +2782,6 @@ class KubeVirtComputeController(BaseComputeController):
         except:
             raise Exception("Make sure host is accessible "
                             "and kubernetes port is specified")
-
         verify = self.cloud.verify
         ca_cert = None
         if self.cloud.ca_cert_file:
@@ -2900,3 +2899,63 @@ class KubeVirtComputeController(BaseComputeController):
         elif cpu > 99:
             cpu = 1
         return cpu
+
+    def expose_port(self, machine, port_forwards, service_type='NodePort'):
+        machine_libcloud = self._get_machine_libcloud(machine)
+        if not port_forwards:
+            #  delete service for the machine
+            self.connection.ex_create_service(machine_libcloud, ports=[],
+                                              service_type=service_type)
+            return
+        ports_to_expose = []
+        cluster_ip=None
+        for port_pair in port_forwards.keys():
+            ports = port_pair.split(":")
+            if len(ports) == 1:
+                ports_to_expose.append(
+                    {
+                        'port': ports[0],
+                        'target_port': ports[0],
+                        'protocol': port_forwards[port_pair][0]
+                    }
+                )
+            elif len(ports) == 2:
+                ports_to_expose.append(
+                    {
+                        'port': ports[0],
+                        'target_port': ports[1],
+                        'protocol': port_forwards[port_pair][0]
+                    }
+                )
+            elif len(ports) == 3:
+                if "." in ports[0]:
+                    cluster_ip = ports[0]
+                    ports_to_expose.append(
+                        {
+                            'port': ports[1],
+                            'target_port': ports[2],
+                            'protocol': port_forwards[port_pair][0]
+                        }
+                    )
+                elif "." in ports[1]:
+                    ports_to_expose.append(
+                        {
+                            'port': ports[0],
+                            'target_port': ports[2],
+                            'protocol': port_forwards[port_pair][0]
+                        }
+                    )
+            elif len(ports) == 4:
+                cluster_ip = ports[0]
+                ports_to_expose.append(
+                    {
+                        'port': ports[1],
+                        'target_port': ports[3],
+                        'protocol': port_forwards[port_pair][0]
+                    }
+                )
+
+        self.connection.ex_create_service(machine_libcloud, ports_to_expose,
+                                          service_type=service_type,
+                                          override_existing_ports=True,
+                                          cluster_ip=cluster_ip)

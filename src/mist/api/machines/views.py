@@ -474,8 +474,8 @@ def create_machine(request):
               'lxd_image_source': params.get('lxd_image_source', None),
               'sec_group': sec_group,
               'description': description,
-              'port_forwards': port_forwards}
-
+              'port_forwards': port_forwards.get('ports', [])}
+    run_async=False
     if not run_async:
         ret = methods.create_machine(auth_context, *args, **kwargs)
     else:
