@@ -189,6 +189,9 @@ class BaseStorageController(BaseController):
             cloud=self.cloud, id__nin=[v.id for v in volumes],
             missing_since=None
         ).update(missing_since=datetime.datetime.utcnow())
+        Volume.objects(
+            cloud=self.cloud, id__in=[v.id for v in volumes]
+        ).update(missing_since=None)
 
         # Update RBAC Mappings given the list of new volumes.
         self.cloud.owner.mapper.update(new_volumes, asynchronous=False)

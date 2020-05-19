@@ -366,6 +366,9 @@ class BaseNetworkController(BaseController):
             cloud=self.cloud, id__nin=[n.id for n in networks],
             missing_since=None
         ).update(missing_since=datetime.datetime.utcnow())
+        Network.objects(
+            cloud=self.cloud, id__in=[n.id for n in networks],
+        ).update(missing_since=None)
 
         # Update RBAC Mappings given the list of new networks.
         self.cloud.owner.mapper.update(new_networks, asynchronous=False)
