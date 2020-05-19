@@ -418,10 +418,10 @@ class BaseComputeController(BaseController):
         Machine.objects(cloud=self.cloud,
                         id__nin=[m.id for m in machines],
                         missing_since=None).update(missing_since=now)
-        # Set last_seen on machine models we just saw
+        # Set last_seen, unset missing_since on machine models we just saw
         Machine.objects(cloud=self.cloud,
-                        id__in=[m.id for m in machines],
-                        missing_since=None).update(last_seen=now)
+                        id__in=[m.id for m in machines]).update(
+                            last_seen=now, missing_since=None)
 
         # Update RBAC Mappings given the list of nodes seen for the first time.
         self.cloud.owner.mapper.update(new_machines, asynchronous=False)
@@ -1085,6 +1085,7 @@ class BaseComputeController(BaseController):
                 _size = CloudSize(cloud=self.cloud, external_id=size.id)
 
             _size.name = self._list_sizes__get_name(size)
+            # FIXME: Parse unit prefix w/ si-prefix, cast to int e.g 1k to 1000
             _size.disk = size.disk
             _size.bandwidth = size.bandwidth
             _size.missing_since = None
