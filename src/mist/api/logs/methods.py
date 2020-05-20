@@ -95,6 +95,14 @@ def log_observations(owner_id, cloud_id, resource_type, patch,
             elif len(_patch.get('path').split('/')) < 3:  # '/id-external_id'
                 if resource_type == 'machine':
                     action = 'destroy_machine'
+                    from mist.api.clouds.models import Cloud
+                    # log resources in case of maxihost for debugging purpose
+                    if Cloud.objects.get(id=cloud_id).ctl.compute.provider \
+                       in ['maxihost']:
+                        log_dict.update({
+                            'cached_resources': cached_resources,
+                            'new_resources': new_resources
+                        })
                 else:
                     action = 'delete_' + resource_type
                 key = _patch.get('path')[1:]  # strip '/'
