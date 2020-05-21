@@ -156,7 +156,7 @@ class MistConnection(SockJSConnection):
             '%s/%s' % (config.INTERNAL_API_URL, path),
             headers=headers,
             callback=response_callback,
-            connect_timeout = 600, request_timeout = 600,
+            connect_timeout=600, request_timeout=600,
         )
 
     def __repr__(self):
