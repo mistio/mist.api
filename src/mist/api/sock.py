@@ -151,10 +151,12 @@ class MistConnection(SockJSConnection):
         headers = {'Authorization': 'internal %s %s' % (
             Portal.get_singleton().internal_api_key, self.cookie_session_id)}
 
-        tornado.httpclient.AsyncHTTPClient().fetch(
+        tornado.httpclient.AsyncHTTPClient(
+            force_instance=True, max_clients=100).fetch(
             '%s/%s' % (config.INTERNAL_API_URL, path),
             headers=headers,
             callback=response_callback,
+            connect_timeout = 600, request_timeout = 600,
         )
 
     def __repr__(self):
