@@ -112,7 +112,7 @@ def _decide_machine_cost(machine, tags=None, cost=(0, 0)):
     tags = tags or {tag.key: tag.value for tag in Tag.objects(
         resource_id=machine.id, resource_type='machine'
     )}
-
+    percentage = 1
     try:
         cph = parse_num(tags.get('cost_per_hour'))
         cpm = parse_num(tags.get('cost_per_month'))
