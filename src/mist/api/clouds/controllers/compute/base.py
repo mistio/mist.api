@@ -638,11 +638,6 @@ class BaseComputeController(BaseController):
             log.exception("Error while calculating cost "
                           "for machine %s:%s for %s \n%r",
                           machine.id, node['name'], self.cloud, exc)
-        if node['state'].lower() == 'terminated':
-            if machine.cost.hourly or machine.cost.monthly:
-                machine.cost.hourly = 0
-                machine.cost.monthly = 0
-                updated = True
 
         # Save all changes to machine model on the database.
         if is_new or updated:

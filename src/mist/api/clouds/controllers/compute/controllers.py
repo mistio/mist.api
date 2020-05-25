@@ -2350,11 +2350,15 @@ class LibvirtComputeController(BaseComputeController):
         if _size.cpus != node['size'].get('extra', {}).get('cpus'):
             _size.cpus = node['size'].get('extra', {}).get('cpus')
             updated = True
+        if _size.disk != int(node['size'].get('disk')):
+            _size.disk = int(node['size'].get('disk'))
         name = ""
         if _size.cpus:
             name += '%s CPUs, ' % _size.cpus
         if _size.ram:
             name += '%dMB RAM' % _size.ram
+        if _size.disk:
+            name += f', {_size.disk}GB disk.'
         if _size.name != name:
             _size.name = name
             updated = True
@@ -2376,16 +2380,14 @@ class LibvirtComputeController(BaseComputeController):
         """
         from mist.api.machines.models import Machine
         # FIXME: query parent for better performance
-        all_machines = Machine.objects(cloud=self.cloud,
-                                       missing_since=None)
-        hypervisors = [machine for machine in all_machines
-                       if machine.extra.get('tags', {}).
-                       get('type') == 'hypervisor']
-        locations = [NodeLocation(id=hypervisor.machine_id,
-                                  name=hypervisor.name,
+        hosts = Machine.objects(cloud=self.cloud,
+                                       missing_since=None,
+                                       parent=None)
+        locations = [NodeLocation(id=host.machine_id,
+                                  name=host.name,
                                   country='', driver=None,
-                                  extra=copy.deepcopy(hypervisor.extra))
-                     for hypervisor in hypervisors]
+                                  extra=copy.deepcopy(host.extra))
+                     for host in hosts]
 
         return locations
 
