@@ -2381,8 +2381,8 @@ class LibvirtComputeController(BaseComputeController):
         from mist.api.machines.models import Machine
         # FIXME: query parent for better performance
         hosts = Machine.objects(cloud=self.cloud,
-                                       missing_since=None,
-                                       parent=None)
+                                missing_since=None,
+                                parent=None)
         locations = [NodeLocation(id=host.machine_id,
                                   name=host.name,
                                   country='', driver=None,
