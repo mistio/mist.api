@@ -72,7 +72,7 @@ class BaseController(object):
         self.provider = main_ctl.provider
         self._conn = None
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         """Return libcloud-like connection to cloud
 
         This is called solely by `connect` which adds error handling.
@@ -82,7 +82,7 @@ class BaseController(object):
         """
         raise NotImplementedError()
 
-    def connect(self):
+    def connect(self, **kwargs):
         """Return libcloud-like connection to cloud
 
         This is a wrapper, an error handler, around cloud specific `_connect`
@@ -94,7 +94,7 @@ class BaseController(object):
 
         """
         try:
-            return self._connect()
+            return self._connect(**kwargs)
         except (CloudUnavailableError, CloudUnauthorizedError) as exc:
             log.error("Error adding cloud %s: %r", self.cloud, exc)
             raise
