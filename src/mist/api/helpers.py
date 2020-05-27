@@ -741,7 +741,7 @@ rtype_to_classpath = {
     'subnet': 'mist.api.networks.models.Subnet',
     'volume': 'mist.api.volumes.models.Volume',
     'location': 'mist.api.clouds.models.CloudLocation',
-    'image': 'mist.api.clouds.models.CloudImage',
+    'image': 'mist.api.images.models.CloudImage',
 }
 
 if config.HAS_VPN:
