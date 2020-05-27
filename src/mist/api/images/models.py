@@ -4,6 +4,8 @@ import mongoengine as me
 
 from mist.api.mongoengine_extras import MistDictField
 
+from mist.api.tag.models import Tag
+
 
 class CloudImage(me.Document):
     """A base Cloud Image Model."""
@@ -29,6 +31,13 @@ class CloudImage(me.Document):
         ]
     }
 
+    @property
+    def tags(self):
+        """Return the tags of this image."""
+        return {tag.key: tag.value
+                for tag in Tag.objects(resource_id=self.id,
+                                       resource_type='image')}
+
     def __str__(self):
         name = "%s, %s (%s)" % (self.name, self.cloud.id, self.external_id)
         return name
@@ -42,6 +51,7 @@ class CloudImage(me.Document):
             'starred': self.starred,
             'extra': self.extra,
             'os_type': self.os_type,
+            'tags': self.tags,
             'missing_since': str(self.missing_since.replace(tzinfo=None)
                                  if self.missing_since else '')
         }
