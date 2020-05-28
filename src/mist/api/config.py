@@ -2,9 +2,6 @@
    Here we define constants needed by mist.api
    Also, the configuration from settings.py is exposed through this module.
 """
-from libcloud.compute.types import NodeState
-from libcloud.container.types import Provider as Container_Provider
-from libcloud.compute.types import Provider
 import os
 import ssl
 import json
@@ -13,7 +10,9 @@ import datetime
 import urllib
 import urllib.parse
 import libcloud.security
-
+from libcloud.compute.types import NodeState
+from libcloud.container.types import Provider as Container_Provider
+from libcloud.compute.types import Provider
 # Python 2 and 3 support
 from future.standard_library import install_aliases
 install_aliases()
@@ -947,7 +946,7 @@ MONITORING_METHODS = (
     'telegraf-influxdb',
     'telegraf-tsfdb'
 )
-DEFAULT_MONITORING_METHOD = 'telegraf-tsfdb'
+DEFAULT_MONITORING_METHOD = 'telegraf-influxdb'
 
 GRAPHITE_URI = "http://graphite"
 
