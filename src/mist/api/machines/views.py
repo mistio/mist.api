@@ -118,6 +118,8 @@ def create_machine(request):
     CREATE_RESOURCES permission required on cloud.
     READ permission required on location.
     CREATE_RESOURCES permission required on location.
+    READ permission required on image.
+    CREATE_RESOURCES permission required on image.
     CREATE permission required on machine.
     RUN permission required on script.
     READ permission required on key.
