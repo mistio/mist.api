@@ -84,7 +84,7 @@ def is_private_subnet(host):
 
 class AmazonComputeController(BaseComputeController):
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         return get_driver(Provider.EC2)(self.cloud.apikey,
                                         self.cloud.apisecret,
                                         region=self.cloud.region)
@@ -312,7 +312,7 @@ class AmazonComputeController(BaseComputeController):
 
 class AlibabaComputeController(AmazonComputeController):
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         return get_driver(Provider.ALIYUN_ECS)(self.cloud.apikey,
                                                self.cloud.apisecret,
                                                region=self.cloud.region)
@@ -397,7 +397,7 @@ class AlibabaComputeController(AmazonComputeController):
 
 class DigitalOceanComputeController(BaseComputeController):
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         return get_driver(Provider.DIGITAL_OCEAN)(self.cloud.token)
 
     def _list_machines__postparse_machine(self, machine, node_dict):
@@ -464,7 +464,7 @@ class DigitalOceanComputeController(BaseComputeController):
 
 class MaxihostComputeController(BaseComputeController):
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         return get_driver(Provider.MAXIHOST)(self.cloud.token)
 
     def _list_machines__machine_actions(self, machine, node_dict):
@@ -529,7 +529,7 @@ class MaxihostComputeController(BaseComputeController):
 
 class GigG8ComputeController(BaseComputeController):
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         return get_driver(Provider.GIG_G8)(self.cloud.user_id,
                                            self.cloud.apikey,
                                            self.cloud.url)
@@ -663,7 +663,7 @@ class GigG8ComputeController(BaseComputeController):
 
 class LinodeComputeController(BaseComputeController):
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         return get_driver(Provider.LINODE)(self.cloud.apikey)
 
     def _list_machines__machine_creation_date(self, machine, node_dict):
@@ -694,7 +694,7 @@ class LinodeComputeController(BaseComputeController):
 
 class RackSpaceComputeController(BaseComputeController):
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         if self.cloud.region in ('us', 'uk'):
             driver = get_driver(Provider.RACKSPACE_FIRST_GEN)
         else:
@@ -760,7 +760,7 @@ class RackSpaceComputeController(BaseComputeController):
 
 class SoftLayerComputeController(BaseComputeController):
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         return get_driver(Provider.SOFTLAYER)(self.cloud.username,
                                               self.cloud.apikey)
 
@@ -830,7 +830,7 @@ class SoftLayerComputeController(BaseComputeController):
 
 class AzureComputeController(BaseComputeController):
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         tmp_cert_file = tempfile.NamedTemporaryFile(delete=False)
         tmp_cert_file.write(self.cloud.certificate.encode())
         tmp_cert_file.close()
@@ -916,7 +916,7 @@ class AzureComputeController(BaseComputeController):
 
 class AzureArmComputeController(BaseComputeController):
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         return get_driver(Provider.AZURE_ARM)(self.cloud.tenant_id,
                                               self.cloud.subscription_id,
                                               self.cloud.key,
@@ -997,7 +997,7 @@ class AzureArmComputeController(BaseComputeController):
 
 class GoogleComputeController(BaseComputeController):
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         return get_driver(Provider.GCE)(self.cloud.email,
                                         self.cloud.private_key,
                                         project=self.cloud.project_id)
@@ -1352,13 +1352,13 @@ class GoogleComputeController(BaseComputeController):
 
 class HostVirtualComputeController(BaseComputeController):
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         return get_driver(Provider.HOSTVIRTUAL)(self.cloud.apikey)
 
 
 class PacketComputeController(BaseComputeController):
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         return get_driver(Provider.PACKET)(self.cloud.apikey,
                                            project=self.cloud.project_id)
 
@@ -1392,7 +1392,7 @@ class PacketComputeController(BaseComputeController):
 
 class VultrComputeController(BaseComputeController):
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         return get_driver(Provider.VULTR)(self.cloud.apikey)
 
     def _list_machines__postparse_machine(self, machine, node_dict):
@@ -1424,7 +1424,7 @@ class VultrComputeController(BaseComputeController):
 
 class VSphereComputeController(BaseComputeController):
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         from libcloud.compute.drivers.vsphere import VSphereNodeDriver
         from libcloud.compute.drivers.vsphere import VSphere_6_7_NodeDriver
         ca_cert = None
@@ -1573,7 +1573,7 @@ class VSphereComputeController(BaseComputeController):
 
 class VCloudComputeController(BaseComputeController):
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         host = dnat(self.cloud.owner, self.cloud.host)
         return get_driver(self.provider)(self.cloud.username,
                                          self.cloud.password, host=host,
@@ -1598,7 +1598,7 @@ class VCloudComputeController(BaseComputeController):
 
 class OpenStackComputeController(BaseComputeController):
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         url = dnat(self.cloud.owner, self.cloud.url)
         return get_driver(Provider.OPENSTACK)(
             self.cloud.username,
@@ -1664,7 +1664,7 @@ class DockerComputeController(BaseComputeController):
         super(DockerComputeController, self).__init__(*args, **kwargs)
         self._dockerhost = None
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         host, port = dnat(self.cloud.owner, self.cloud.host, self.cloud.port)
 
         try:
@@ -2069,7 +2069,7 @@ class LXDComputeController(BaseComputeController):
             "Machine with machine_id '%s'." % machine.machine_id
         )
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         host, port = dnat(self.cloud.owner, self.cloud.host, self.cloud.port)
 
         try:
@@ -2133,19 +2133,18 @@ class LXDComputeController(BaseComputeController):
 
 class LibvirtComputeController(BaseComputeController):
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         """
-        This is only used in create_machine, where a driver instance
-        is required (and not used as is when provisioning in Libvirt).
-        Thus, we can safely return the driver of the first host found.
+        Look for the host that corresponds to the provided location
         """
+        from mist.api.clouds.models import CloudLocation
         from mist.api.machines.models import Machine
-        machine = Machine.objects.filter(cloud=self.cloud)[0]
+        location = CloudLocation.objects.get(
+            id=kwargs.get('location_id'), cloud=self.cloud)
+        host = Machine.objects.get(
+            cloud=self.cloud, parent=None, machine_id=location.external_id)
 
-        if not machine.extra.get('tags', {}).get('type') == 'hypervisor':
-            machine = machine.parent
-
-        return self._get_host_driver(machine)
+        return self._get_host_driver(host)
 
     def _get_host_driver(self, machine):
         import libcloud.compute.drivers.libvirt_driver
@@ -2351,11 +2350,15 @@ class LibvirtComputeController(BaseComputeController):
         if _size.cpus != node['size'].get('extra', {}).get('cpus'):
             _size.cpus = node['size'].get('extra', {}).get('cpus')
             updated = True
+        if _size.disk != int(node['size'].get('disk')):
+            _size.disk = int(node['size'].get('disk'))
         name = ""
         if _size.cpus:
             name += '%s CPUs, ' % _size.cpus
         if _size.ram:
             name += '%dMB RAM' % _size.ram
+        if _size.disk:
+            name += f', {_size.disk}GB disk.'
         if _size.name != name:
             _size.name = name
             updated = True
@@ -2377,16 +2380,14 @@ class LibvirtComputeController(BaseComputeController):
         """
         from mist.api.machines.models import Machine
         # FIXME: query parent for better performance
-        all_machines = Machine.objects(cloud=self.cloud,
-                                       missing_since=None)
-        hypervisors = [machine for machine in all_machines
-                       if machine.extra.get('tags', {}).
-                       get('type') == 'hypervisor']
-        locations = [NodeLocation(id=hypervisor.machine_id,
-                                  name=hypervisor.name,
+        hosts = Machine.objects(cloud=self.cloud,
+                                missing_since=None,
+                                parent=None)
+        locations = [NodeLocation(id=host.machine_id,
+                                  name=host.name,
                                   country='', driver=None,
-                                  extra=copy.deepcopy(hypervisor.extra))
-                     for hypervisor in hypervisors]
+                                  extra=copy.deepcopy(host.extra))
+                     for host in hosts]
 
         return locations
 
@@ -2531,7 +2532,7 @@ class LibvirtComputeController(BaseComputeController):
 
 class OnAppComputeController(BaseComputeController):
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         return get_driver(Provider.ONAPP)(key=self.cloud.username,
                                           secret=self.cloud.apikey,
                                           host=self.cloud.host,
@@ -2701,7 +2702,7 @@ class OnAppComputeController(BaseComputeController):
 
 class OtherComputeController(BaseComputeController):
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         return None
 
     def _list_machines__fetch_machines(self):
@@ -2772,7 +2773,7 @@ class OtherComputeController(BaseComputeController):
 
 class KubeVirtComputeController(BaseComputeController):
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         host, port = dnat(self.cloud.owner,
                           self.cloud.host, self.cloud.port)
         try:

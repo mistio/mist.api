@@ -367,8 +367,7 @@ class Machine(OwnershipMixin, me.Document):
             self.key_associations = []
 
         # Populate owner field based on self.cloud.owner
-        if not self.owner:
-            self.owner = self.cloud.owner
+        self.owner = self.cloud.owner
 
         self.clean_os_type()
 

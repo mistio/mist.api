@@ -71,7 +71,7 @@ def list_volumes(request):
             if cloud.get('enabled'):
                 try:
                     vols = filter_list_volumes(auth_context, cloud.get('id'))
-                    volumes.append(vols)
+                    volumes += vols
                 except (CloudUnavailableError, CloudUnauthorizedError):
                     pass
 
