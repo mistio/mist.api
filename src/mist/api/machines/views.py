@@ -386,9 +386,14 @@ def create_machine(request):
 
     auth_context.check_perm("cloud", "read", cloud_id)
     auth_context.check_perm("cloud", "create_resources", cloud_id)
+
     if location_id:
         auth_context.check_perm("location", "read", location_id)
         auth_context.check_perm("location", "create_resources", location_id)
+
+    if image_id:
+        auth_context.check_perm("image", "read", image_id)
+        auth_context.check_perm("image", "create_resources", image_id)
 
     tags, constraints = auth_context.check_perm("machine", "create", None)
     if script_id:
