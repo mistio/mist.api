@@ -153,7 +153,7 @@ def validate_portforwards(port_forwards):
             except AssertionError:
                 raise BadRequestError("Ports should be an "
                                       "interger between 1 and 65535")
-    for pf in port_forwards:
+    for pf in port_forwards['ports']:
         if len(pf['port'].split(":")) == 2:
             host = pf['port'].split(":")[0]
             check_host(host)
@@ -174,28 +174,30 @@ def validate_portforwards(port_forwards):
                 raise BadRequestError("Protocol should be either TCP or UPD.")
 
 def validate_portforwards_g8(port_forwards, network):
-    for pf in port_forwards:
-        items = pf.split(':')
-        if len(items) == 3 and items[1] != network.publicipaddress:
-            raise BadRequestError("You can only expose a port to the \
-                network's public ip address, which is \
-                    %s" % network.publicipaddress)
-
-        if len(items) == 4 and (items[0] not in ('localhost', '172.17.0.1',
-                                                 '0.0.0.0') or
-                                items[2] != network.publicipaddress):
-            raise BadRequestError("You can only expose a port from localhost to the \
-                network's public ip address, which is \
-                    %s" % network.publicipaddress)
-
-        if port_forwards.get(pf)[0] not in ['udp', 'tcp']:
-            raise BadRequestError('Allowed protocols are "udp" and "tcp"')
+    for pf in port_forwards.get('ports'):
+        if len(pf['port'].split(':') == 2):
+            if pf['port'].split(':')[0] != network.publicipaddres:
+                raise BadRequestError("You can only expose a port to the \
+                    network's public ip address, which is \
+                        %s" % network.publicipaddress)
+        if len(pf['target_port'].split(':') == 2):
+            if pf['target_port'].split(':')[0] not in {'localhost',
+                                                       '172.17.0.1',
+                                                        '0.0.0.0'}:
+                raise BadRequestError("The address in target_port "
+                                      "must be the localhost!")
+        if pf['protocol'] not in {'udp', 'tcp'}:
+            raise BadRequestError('Allowed protocols are "udp" or "tcp"')
 
 def validate_portforwards_kubevirt(port_forwards):
-    result = {"NodePort": {'ports':[]}, 'ClusterIP': {'ports':[]},
-        'LoadBalancer': {'ports':[]}}
-    for pf in port_forwards:
-        service_type = pf.get('service_type', 'NodePort')
+    service_type = port_forwards.get('service_type')
+    if service_type not in {"ClusterIP", "NodePort", "LoadBalancer"}:
+        raise BadRequestError('Valid service types are '
+                              'ClusterIP or NodePort or LoadBalancer.')
+    result = {'ports': [], 'service_type': port_forwards.get('service_type') ,
+              'cluster_ip': None,
+              'load_balancer_ip': None}
+    for pf in port_forwards['ports']:
         cluster_ip = None
         load_balancer_ip = None
         if len(pf['port'].split(":")) == 2:
@@ -208,7 +210,7 @@ def validate_portforwards_kubevirt(port_forwards):
         target_port = pf.get('target_port', "").split(":")[-1]
         if not target_port:
             target_port = port
-        result[service_type]['ports'].append({
+        result['ports'].append({
             'port': port,
             'target_port': target_port,
             'protocol': pf['protocol']
@@ -749,21 +751,12 @@ def create_machine_g8(conn, machine_name, image, ram, cpu, disk,
     except Exception as e:
         raise MachineCreationError("Gig G8, got exception %s" % e, e)
 
-    for pf in port_forwards.keys():
-        ports = pf.split(':')
-        if len(ports) == 1:
-            public_port = private_port = ports[0]
-        elif len(ports) == 2:
-            private_port, public_port = pf.split(':')
-        elif len(ports) == 3:
-            items = pf.split(':')
-            private_port = items[0]
-            public_port = items[2]
-        elif len(ports) == 4:
-            items = pf.split(':')
-            private_port = items[1]
-            public_port = items[3]
-        protocol = port_forwards.get(pf)[0]
+    for pf in port_forwards['ports']:
+        public_port = pf['port'].split(":")[-1]
+        private_port = pf['target_port'].split(":")[-1]
+        if not private_port:
+            private_port = public_port
+        protocol = pf.get('protocol', 'tcp')
 
         try:
             conn.ex_create_portforward(ex_network, node, public_port,

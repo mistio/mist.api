@@ -474,8 +474,7 @@ def create_machine(request):
               'lxd_image_source': params.get('lxd_image_source', None),
               'sec_group': sec_group,
               'description': description,
-              'port_forwards': port_forwards.get('ports', [])}
-    run_async=False
+              'port_forwards': port_forwards}
     if not run_async:
         ret = methods.create_machine(auth_context, *args, **kwargs)
     else:
@@ -744,9 +743,9 @@ def machine_actions(request):
     snapshot_description = params.get('snapshot_description')
     snapshot_dump_memory = params.get('snapshot_dump_memory')
     snapshot_quiesce = params.get('snapshot_quiesce')
-    port_forwards = params.get('port_forwards', {})
+    port_forwards = {'ports': params.get('ports', {}),
+                     'service_type': params.get('service_type', None)}
     auth_context = auth_context_from_request(request)
-
     if cloud_id:
         machine_id = request.matchdict['machine']
         auth_context.check_perm("cloud", "read", cloud_id)
@@ -818,13 +817,8 @@ def machine_actions(request):
         result = getattr(machine.ctl, action)()
     elif action == 'expose':
         methods.validate_portforwards(port_forwards)
-        network = machine.network
-        if not network:
-            raise MistError('Do not know the network of the machine to expose \
-              a port from')
-        auth_context.check_perm('network', 'read', network)
-        auth_context.check_perm('network', 'edit', network)
-        result = getattr(machine.ctl, action)(port_forwards)
+        result = getattr(machine.ctl, action)(port_forwards,
+                                              auth_context=auth_context)
     elif action == 'rename':
         if not name:
             raise BadRequestError("You must give a name!")

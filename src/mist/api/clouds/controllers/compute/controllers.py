@@ -608,7 +608,12 @@ class GigG8ComputeController(BaseComputeController):
     def _reboot_machine(self, machine, node):
         self.connection.reboot_node(node)
 
-    def expose_port(self, machine, port_forwards):
+    def expose_port(self, machine, port_forwards, auth_context):
+        if not machine.network:
+            raise MistError('Do not know the network of the machine to expose \
+              a port from')
+        auth_context.check_perm('network', 'read', machine.network)
+        auth_context.check_perm('network', 'edit', machine.network)
         node = self._get_libcloud_node(machine)
         networks = self.cloud.ctl.compute.connection.ex_list_networks()
         network = None
@@ -2845,6 +2850,7 @@ class KubeVirtComputeController(BaseComputeController):
         machine.actions.stop = True
         machine.actions.reboot = True
         machine.actions.destroy = True
+        machine.actions.expose = True
 
     def _reboot_machine(self, machine, node):
         return self.connection.reboot_node(node)
@@ -2900,62 +2906,39 @@ class KubeVirtComputeController(BaseComputeController):
             cpu = 1
         return cpu
 
-    def expose_port(self, machine, port_forwards, service_type='NodePort'):
-        machine_libcloud = self._get_machine_libcloud(machine)
+    def expose_port(self, machine, port_forwards, auth_context):
+        machine_libcloud = self._get_libcloud_node(machine)
         if not port_forwards:
             #  delete service for the machine
             self.connection.ex_create_service(machine_libcloud, ports=[],
                                               service_type=service_type)
             return
         ports_to_expose = []
+        service_type = port_forwards.get('service_type', "NodePort")
         cluster_ip=None
-        for port_pair in port_forwards.keys():
-            ports = port_pair.split(":")
-            if len(ports) == 1:
-                ports_to_expose.append(
-                    {
-                        'port': ports[0],
-                        'target_port': ports[0],
-                        'protocol': port_forwards[port_pair][0]
-                    }
-                )
-            elif len(ports) == 2:
-                ports_to_expose.append(
-                    {
-                        'port': ports[0],
-                        'target_port': ports[1],
-                        'protocol': port_forwards[port_pair][0]
-                    }
-                )
-            elif len(ports) == 3:
-                if "." in ports[0]:
-                    cluster_ip = ports[0]
-                    ports_to_expose.append(
-                        {
-                            'port': ports[1],
-                            'target_port': ports[2],
-                            'protocol': port_forwards[port_pair][0]
-                        }
-                    )
-                elif "." in ports[1]:
-                    ports_to_expose.append(
-                        {
-                            'port': ports[0],
-                            'target_port': ports[2],
-                            'protocol': port_forwards[port_pair][0]
-                        }
-                    )
-            elif len(ports) == 4:
-                cluster_ip = ports[0]
-                ports_to_expose.append(
-                    {
-                        'port': ports[1],
-                        'target_port': ports[3],
-                        'protocol': port_forwards[port_pair][0]
-                    }
-                )
+        load_balancer_ip = None
+        for port_pair in port_forwards['ports']:
+            port = port_pair['port'].split(":")[-1]
+            target_port = port_pair['target_port'].split(":")[-1]
+            if not target_port:
+                target_port = port
+            protocol = port_pair.get('protocol', 'TCP')
+            ports_to_expose.append(
+                {
+                    'port': port,
+                    'target': target_port,
+                    'protocol': protocol
+                }
+            )
+            if len(port_pair['port'].split(":")) == 2:
+                host = port_pair['port'].split(":")[0]
+                if service_type == "LoadBalancer":
+                    load_balancer_ip = host
+                else:
+                    clusterIP = host
 
         self.connection.ex_create_service(machine_libcloud, ports_to_expose,
                                           service_type=service_type,
                                           override_existing_ports=True,
-                                          cluster_ip=cluster_ip)
+                                          cluster_ip=cluster_ip,
+                                          load_balancer_ip=load_balancer_ip)
