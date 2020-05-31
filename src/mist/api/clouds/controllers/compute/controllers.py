@@ -1570,6 +1570,12 @@ class VSphereComputeController(BaseComputeController):
     def _list_machine_snapshots(self, machine, node):
         return self.connection.ex_list_snapshots(node)
 
+    def _list_images__fetch_images(self, search=None):
+        image_folders = []
+        if config.VSPHERE_IMAGE_FOLDERS:
+            image_folders = config.VSPHERE_IMAGE_FOLDERS
+        return self.connection.list_images(folder_ids=image_folders)
+
 
 class VCloudComputeController(BaseComputeController):
 
