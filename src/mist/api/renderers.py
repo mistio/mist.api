@@ -7,7 +7,7 @@ import csv
 from future.utils import string_types
 
 try:
-    from io import StringIO  # python 2
+    from StringIO import StringIO  # python 2
 except ImportError:
     from io import StringIO  # python 3
 
