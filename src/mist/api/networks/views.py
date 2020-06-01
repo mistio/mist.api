@@ -49,16 +49,15 @@ def list_networks(request):
     params = params_from_request(request)
 
     if cloud_id:
-      cached = bool(params.get('cached', False))
-
-      try:
-          Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
-                            deleted=None)
-      except Cloud.DoesNotExist:
-          raise CloudNotFoundError()
-      # SEC
-      auth_context.check_perm('cloud', 'read', cloud_id)
-      networks = filter_list_networks(auth_context, cloud_id, cached=cached)
+        cached = bool(params.get('cached', False))
+        try:
+            Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
+                              deleted=None)
+        except Cloud.DoesNotExist:
+            raise CloudNotFoundError()
+        # SEC
+        auth_context.check_perm('cloud', 'read', cloud_id)
+        networks = filter_list_networks(auth_context, cloud_id, cached=cached)
 
     else:
         cached = bool(params.get('cached', True))   # return cached by default
@@ -68,7 +67,8 @@ def list_networks(request):
         for cloud in clouds:
             if cloud.get('enabled'):
                 try:
-                    networks += filter_list_networks(auth_context, cloud.get('id'),
+                    networks += filter_list_networks(auth_context,
+                                                     cloud.get('id'),
                                                      cached=cached)
                 except (CloudUnavailableError, CloudUnauthorizedError):
                     pass
