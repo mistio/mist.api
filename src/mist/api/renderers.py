@@ -6,10 +6,7 @@ import csv
 
 from future.utils import string_types
 
-try:
-    from io import StringIO  # python 2
-except ImportError:
-    from io import StringIO  # python 3
+from io import StringIO
 
 from pyramid.events import subscriber
 from pyramid.events import NewRequest
