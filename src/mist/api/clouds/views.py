@@ -535,7 +535,7 @@ def list_datastores(request):
         try:
             cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
                                       deleted=None)
-        except Cloud.vmDoesNotExist:
+        except Cloud.DoesNotExist:
             raise NotFoundError('Cloud does not exist')
         # SEC
         auth_context.check_perm('cloud', 'read', cloud_id)
