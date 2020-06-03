@@ -173,28 +173,31 @@ def validate_portforwards(port_forwards):
             if pf['protocol'] not in {"TCP", "UDP"}:
                 raise BadRequestError("Protocol should be either TCP or UPD.")
 
+
 def validate_portforwards_g8(port_forwards, network):
     for pf in port_forwards.get('ports'):
-        if len(pf['port'].split(':') == 2):
+        if len(pf['port'].split(':')) == 2:
             if pf['port'].split(':')[0] != network.publicipaddres:
                 raise BadRequestError("You can only expose a port to the \
                     network's public ip address, which is \
                         %s" % network.publicipaddress)
-        if len(pf['target_port'].split(':') == 2):
+        if len(pf['target_port'].split(':')) == 2:
             if pf['target_port'].split(':')[0] not in {'localhost',
                                                        '172.17.0.1',
-                                                        '0.0.0.0'}:
+                                                       '0.0.0.0'}:
                 raise BadRequestError("The address in target_port "
                                       "must be the localhost!")
-        if pf['protocol'] not in {'udp', 'tcp'}:
-            raise BadRequestError('Allowed protocols are "udp" or "tcp"')
+        if pf['protocol'].lower() not in {'udp', 'tcp'}:
+            raise BadRequestError('Allowed protocols are "UDP" or "TCP"')
+
 
 def validate_portforwards_kubevirt(port_forwards):
     service_type = port_forwards.get('service_type')
     if service_type not in {"ClusterIP", "NodePort", "LoadBalancer"}:
         raise BadRequestError('Valid service types are '
                               'ClusterIP or NodePort or LoadBalancer.')
-    result = {'ports': [], 'service_type': port_forwards.get('service_type') ,
+    result = {'ports': [],
+              'service_type': port_forwards.get('service_type'),
               'cluster_ip': None,
               'load_balancer_ip': None}
     for pf in port_forwards['ports']:
@@ -215,9 +218,10 @@ def validate_portforwards_kubevirt(port_forwards):
             'target_port': target_port,
             'protocol': pf['protocol']
         })
-        result[service_type]['cluster_ip'] = cluster_ip
-        result[service_type]['load_balancer_ip'] = load_balancer_ip
+        result['cluster_ip'] = cluster_ip
+        result['load_balancer_ip'] = load_balancer_ip
     return result
+
 
 def list_machines(owner, cloud_id, cached=False):
     """List all machines in this cloud via API call to the provider."""
@@ -581,7 +585,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                                         disks=volumes,
                                         memory=size_ram, cpu=size_cpu,
                                         network=network,
-                                        port_forwards= ports_forwards)
+                                        port_forwards=port_forwards)
     else:
         raise BadRequestError("Provider unknown.")
 
@@ -756,7 +760,7 @@ def create_machine_g8(conn, machine_name, image, ram, cpu, disk,
         private_port = pf['target_port'].split(":")[-1]
         if not private_port:
             private_port = public_port
-        protocol = pf.get('protocol', 'tcp')
+        protocol = pf.get('protocol', 'tcp').lower()
 
         try:
             conn.ex_create_portforward(ex_network, node, public_port,
@@ -2267,13 +2271,11 @@ def _create_machine_kubevirt(conn, machine_name, location, image, disks=None,
         msg = "KubeVirt, got exception {}".format(e), e
         raise MachineCreationError(msg)
     if port_forwards:
-        services_data = validate_portforwards_kubevirt(port_forwards)
-        for service_type, data in services_data.items():
-            conn.ex_create_service(node, ports=data['ports'],
-                                   service_type=service_type,
-                                   cluster_ip=data['cluster_ip'],
-                                   load_balancer_ip=data['load_balancer_ip'],
-                                   override_existing_ports=True)
+        data = validate_portforwards_kubevirt(port_forwards)
+        conn.ex_create_service(node, ports=data['ports'],
+                               service_type=data['service_type'],
+                               cluster_ip=data['cluster_ip'],
+                               load_balancer_ip=data['load_balancer_ip'])
     return node
 
 

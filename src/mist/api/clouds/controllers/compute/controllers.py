@@ -551,6 +551,7 @@ class GigG8ComputeController(BaseComputeController):
 
         if node_dict['extra'].get('ssh_port', None):
             machine.ssh_port = node_dict['extra']['ssh_port']
+        return True
 
     def _list_machines__machine_actions(self, machine, node_dict):
         super(GigG8ComputeController, self)._list_machines__machine_actions(
@@ -627,22 +628,14 @@ class GigG8ComputeController(BaseComputeController):
         validate_portforwards_g8(port_forwards, network)
 
         existing_pfs = self.connection.ex_list_portforwards(network)
-
-        for pf in port_forwards.keys():
-            ports = pf.split(':')
-            if len(ports) == 1:
-                public_port = private_port = ports[0]
-            elif len(ports) == 2:
-                private_port, public_port = pf.split(':')
-            elif len(ports) == 3:
-                items = pf.split(':')
-                private_port = items[0]
-                public_port = items[2]
-            elif len(ports) == 4:
-                items = pf.split(':')
-                private_port = items[1]
-                public_port = items[3]
-            protocol = port_forwards.get(pf)[0]
+        for pf in port_forwards.get('ports'):
+            public_port = pf.get('port')
+            if len(public_port.split(":")) == 2:
+                public_port = public_port.split(":")[1]
+            private_port = pf.get('port')
+            if len(private_port.split(":")) == 2:
+                private_port = private_port.split(":")[1]
+            protocol = pf.get('protocol').lower()
             exists = False
 
             for existing_pf in existing_pfs:
@@ -2908,37 +2901,17 @@ class KubeVirtComputeController(BaseComputeController):
 
     def expose_port(self, machine, port_forwards, auth_context):
         machine_libcloud = self._get_libcloud_node(machine)
-        if not port_forwards:
-            #  delete service for the machine
-            self.connection.ex_create_service(machine_libcloud, ports=[],
-                                              service_type=service_type)
-            return
-        ports_to_expose = []
-        service_type = port_forwards.get('service_type', "NodePort")
-        cluster_ip=None
-        load_balancer_ip = None
-        for port_pair in port_forwards['ports']:
-            port = port_pair['port'].split(":")[-1]
-            target_port = port_pair['target_port'].split(":")[-1]
-            if not target_port:
-                target_port = port
-            protocol = port_pair.get('protocol', 'TCP')
-            ports_to_expose.append(
-                {
-                    'port': port,
-                    'target': target_port,
-                    'protocol': protocol
-                }
-            )
-            if len(port_pair['port'].split(":")) == 2:
-                host = port_pair['port'].split(":")[0]
-                if service_type == "LoadBalancer":
-                    load_balancer_ip = host
-                else:
-                    clusterIP = host
 
-        self.connection.ex_create_service(machine_libcloud, ports_to_expose,
-                                          service_type=service_type,
+        # validate input
+        from mist.api.machines.methods import validate_portforwards_kubevirt
+        data = validate_portforwards_kubevirt(port_forwards)
+
+        self.connection.ex_create_service(machine_libcloud, data.get(
+                                          'ports', []),
+                                          service_type=data.get(
+                                              'service_type'),
                                           override_existing_ports=True,
-                                          cluster_ip=cluster_ip,
-                                          load_balancer_ip=load_balancer_ip)
+                                          cluster_ip=data.get(
+                                              'cluster_ip', None),
+                                          load_balancer_ip=data.get(
+                                              'load_balancer_ip', None))
