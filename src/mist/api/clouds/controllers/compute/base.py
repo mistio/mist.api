@@ -112,7 +112,7 @@ def _decide_machine_cost(machine, tags=None, cost=(0, 0)):
     tags = tags or {tag.key: tag.value for tag in Tag.objects(
         resource_id=machine.id, resource_type='machine'
     )}
-
+    percentage = 1
     try:
         cph = parse_num(tags.get('cost_per_hour'))
         cpm = parse_num(tags.get('cost_per_month'))
@@ -418,10 +418,10 @@ class BaseComputeController(BaseController):
         Machine.objects(cloud=self.cloud,
                         id__nin=[m.id for m in machines],
                         missing_since=None).update(missing_since=now)
-        # Set last_seen on machine models we just saw
+        # Set last_seen, unset missing_since on machine models we just saw
         Machine.objects(cloud=self.cloud,
-                        id__in=[m.id for m in machines],
-                        missing_since=None).update(last_seen=now)
+                        id__in=[m.id for m in machines]).update(
+                            last_seen=now, missing_since=None)
 
         # Update RBAC Mappings given the list of nodes seen for the first time.
         self.cloud.owner.mapper.update(new_machines, asynchronous=False)
@@ -638,11 +638,6 @@ class BaseComputeController(BaseController):
             log.exception("Error while calculating cost "
                           "for machine %s:%s for %s \n%r",
                           machine.id, node['name'], self.cloud, exc)
-        if node['state'].lower() == 'terminated':
-            if machine.cost.hourly or machine.cost.monthly:
-                machine.cost.hourly = 0
-                machine.cost.monthly = 0
-                updated = True
 
         # Save all changes to machine model on the database.
         if is_new or updated:
@@ -1085,6 +1080,7 @@ class BaseComputeController(BaseController):
                 _size = CloudSize(cloud=self.cloud, external_id=size.id)
 
             _size.name = self._list_sizes__get_name(size)
+            # FIXME: Parse unit prefix w/ si-prefix, cast to int e.g 1k to 1000
             _size.disk = size.disk
             _size.bandwidth = size.bandwidth
             _size.missing_since = None

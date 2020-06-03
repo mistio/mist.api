@@ -285,19 +285,19 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     cloud = Cloud.objects.get(owner=auth_context.owner,
                               id=cloud_id, deleted=None)
 
-    conn = connect_provider(cloud)
-    machine_name = machine_name_validator(conn.type, machine_name)
+    conn = connect_provider(cloud, location_id=location_id)
+    machine_name = machine_name_validator(cloud.ctl.provider, machine_name)
     key = None
     if key_id:
         key = Key.objects.get(owner=auth_context.owner,
                               id=key_id, deleted=None)
 
     # if key_id not provided, search for default key
-    if conn.type not in [Provider.LIBVIRT,
-                         Container_Provider.DOCKER,
-                         Provider.ONAPP,
-                         Provider.AZURE_ARM,
-                         Provider.GIG_G8]:
+    if cloud.ctl.provider not in [Provider.LIBVIRT,
+                                  Container_Provider.DOCKER,
+                                  Provider.ONAPP,
+                                  Provider.AZURE_ARM,
+                                  Provider.GIG_G8]:
         if not key_id:
             try:
                 key = Key.objects.get(owner=auth_context.owner,
@@ -426,7 +426,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     cached_machines = [m.as_dict()
                        for m in cloud.ctl.compute.list_cached_machines()]
 
-    if conn.type is Container_Provider.DOCKER:
+    if cloud.ctl.provider is Container_Provider.DOCKER:
         if public_key:
             node = _create_machine_docker(
                 conn, machine_name, image.id, '',
@@ -451,7 +451,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                 docker_port_bindings=docker_port_bindings,
                 docker_exposed_ports=docker_exposed_ports
             )
-    elif conn.type is Container_Provider.LXD:
+    elif cloud.ctl.provider is Container_Provider.LXD:
 
         node = _create_machine_lxd(conn=conn, machine_name=machine_name,
                                    image=image, parameters=lxd_image_source,
@@ -459,15 +459,16 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                                    ephemeral=ephemeral,
                                    size_cpu=size_cpu, size_ram=size_ram,
                                    volumes=volumes, networks=networks)
-    elif conn.type in [Provider.RACKSPACE_FIRST_GEN, Provider.RACKSPACE]:
+    elif cloud.ctl.provider in [Provider.RACKSPACE_FIRST_GEN,
+                                Provider.RACKSPACE]:
         node = _create_machine_rackspace(conn, public_key, machine_name, image,
                                          size, location, user_data=cloud_init)
-    elif conn.type in [Provider.OPENSTACK]:
+    elif cloud.ctl.provider in [Provider.OPENSTACK]:
         node = _create_machine_openstack(conn, private_key, public_key,
                                          key.name, machine_name, image, size,
                                          location, networks, volumes,
                                          cloud_init)
-    elif conn.type is Provider.EC2:
+    elif cloud.ctl.provider is Provider.EC2:
         locations = conn.list_locations()
         for loc in locations:
             if loc.id == location.id:
@@ -481,7 +482,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         node = _create_machine_aliyun(conn, key.name, public_key,
                                       machine_name, image, size, location,
                                       subnet_id, cloud_init, volumes)
-    elif conn.type is Provider.GCE:
+    elif cloud.ctl.provider is Provider.GCE:
         libcloud_sizes = conn.list_sizes(location=location_name)
         for libcloud_size in libcloud_sizes:
             if libcloud_size.id == size.id:
@@ -492,21 +493,21 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         node = _create_machine_gce(conn, key_id, private_key, public_key,
                                    machine_name, image, size, location,
                                    networks, subnetwork, volumes, cloud_init)
-    elif conn.type is Provider.SOFTLAYER:
+    elif cloud.ctl.provider is Provider.SOFTLAYER:
         node = _create_machine_softlayer(
             conn, key_id, private_key, public_key,
             machine_name, image, size,
             location, bare_metal, cloud_init,
             hourly, softlayer_backend_vlan_id
         )
-    elif conn.type is Provider.GIG_G8:
+    elif cloud.ctl.provider is Provider.GIG_G8:
         node = create_machine_g8(
             conn, machine_name, image, size_ram, size_cpu,
             size_disk_primary, public_key, description, networks,
             volumes, cloud_init, port_forwards
         )
         ssh_port = node.extra.get('ssh_port', 22)
-    elif conn.type is Provider.ONAPP:
+    elif cloud.ctl.provider is Provider.ONAPP:
         node = _create_machine_onapp(
             conn, public_key,
             machine_name, image, size_ram,
@@ -515,12 +516,12 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             cpu_threads, port_speed,
             location, networks, hypervisor_group_id
         )
-    elif conn.type is Provider.DIGITAL_OCEAN:
+    elif cloud.ctl.provider is Provider.DIGITAL_OCEAN:
         node = _create_machine_digital_ocean(
             conn, cloud, key_id, private_key,
             public_key, machine_name,
             image, size, location, cloud_init, volumes)
-    elif conn.type == Provider.AZURE:
+    elif cloud.ctl.provider == Provider.AZURE:
         node = _create_machine_azure(
             conn, key_id, private_key,
             public_key, machine_name,
@@ -529,7 +530,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             cloud_service_name=None,
             azure_port_bindings=azure_port_bindings
         )
-    elif conn.type == Provider.AZURE_ARM:
+    elif cloud.ctl.provider == Provider.AZURE_ARM:
         image = conn.get_image(image.id, location)
         node = _create_machine_azure_arm(
             auth_context.owner, cloud_id, conn, public_key, machine_name,
@@ -538,28 +539,28 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             machine_username, volumes, storage_account_type,
             cloud_init
         )
-    elif conn.type in [Provider.VCLOUD]:
+    elif cloud.ctl.provider in [Provider.VCLOUD]:
         node = _create_machine_vcloud(conn, machine_name, image,
                                       size, public_key, networks)
-    elif conn.type is Provider.VSPHERE:
+    elif cloud.ctl.provider is Provider.VSPHERE:
         size.ram = size_ram
         size.extra['cpu'] = size_cpu
         size.disk = size_disk_primary
         node = _create_machine_vsphere(conn, machine_name, image,
                                        size, location, networks, folder,
                                        datastore)
-    elif conn.type is Provider.LINODE and private_key:
+    elif cloud.ctl.provider is Provider.LINODE and private_key:
         node = _create_machine_linode(conn, key_id, private_key, public_key,
                                       machine_name, image, size,
                                       location)
-    elif conn.type == Provider.HOSTVIRTUAL:
+    elif cloud.ctl.provider == Provider.HOSTVIRTUAL:
         node = _create_machine_hostvirtual(conn, public_key,
                                            machine_name, image,
                                            size, location)
-    elif conn.type == Provider.VULTR:
+    elif cloud.ctl.provider == Provider.VULTR:
         node = _create_machine_vultr(conn, public_key, machine_name, image,
                                      size, location, cloud_init)
-    elif conn.type is Provider.LIBVIRT:
+    elif cloud.ctl.provider is Provider.LIBVIRT:
         node = _create_machine_libvirt(cloud, machine_name,
                                        disk_size=disk_size,
                                        ram=size_ram, cpu=size_cpu,
@@ -570,14 +571,14 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                                        public_key=public_key,
                                        cloud_init=cloud_init,
                                        vnfs=vnfs)
-    elif conn.type == Provider.PACKET:
+    elif cloud.ctl.provider == Provider.PACKET:
         node = _create_machine_packet(conn, public_key, machine_name, image,
                                       size, location, cloud_init, cloud,
                                       project_id, volumes, ip_addresses)
-    elif conn.type == Provider.MAXIHOST:
+    elif cloud.ctl.provider == Provider.MAXIHOST:
         node = _create_machine_maxihost(conn, machine_name, image,
                                         size, location, public_key)
-    elif conn.type == Provider.KUBEVIRT:
+    elif cloud.ctl.provider == Provider.KUBEVIRT:
         network = networks if networks else None
         image = image.id.strip()
         node = _create_machine_kubevirt(conn, machine_name, image=image,
@@ -638,7 +639,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                                                 first_run=True)
 
     # Call post_deploy_steps for every provider FIXME: Refactor
-    if conn.type == Provider.AZURE:
+    if cloud.ctl.provider == Provider.AZURE:
         # for Azure, connect with the generated password, deploy the ssh key
         # when this is ok, it calls post_deploy for script/monitoring
         mist.api.tasks.azure_post_create_steps.delay(
@@ -649,7 +650,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
             hostname=hostname, plugins=plugins, post_script_id=post_script_id,
             post_script_params=post_script_params, schedule=schedule, job=job,
         )
-    elif conn.type == Provider.OPENSTACK:
+    elif cloud.ctl.provider == Provider.OPENSTACK:
         if associate_floating_ip:
             networks = list_networks(auth_context.owner, cloud_id)
             mist.api.tasks.openstack_post_create_steps.delay(
@@ -661,7 +662,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                 post_script_params=post_script_params,
                 networks=networks, schedule=schedule,
             )
-    elif conn.type == Provider.RACKSPACE_FIRST_GEN:
+    elif cloud.ctl.provider == Provider.RACKSPACE_FIRST_GEN:
         # for Rackspace First Gen, cannot specify ssh keys. When node is
         # created we have the generated password, so deploy the ssh key
         # when this is ok and call post_deploy for script/monitoring
@@ -1599,7 +1600,8 @@ def _create_machine_libvirt(cloud, machine_name, disk_size, ram, cpu,
     Based on location, a connection is instantiated
     """
     try:
-        host = Machine.objects.get(cloud=cloud, machine_id=location.id)
+        host = Machine.objects.get(
+            cloud=cloud, machine_id=location.external_id)
     except me.DoesNotExist:
         raise MachineCreationError("The host specified does not exist")
 

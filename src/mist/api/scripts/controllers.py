@@ -80,7 +80,7 @@ $(command -v sudo) /opt/mistio/telegraf/usr/bin/telegraf -test -config %s
         shell = mist.api.shell.Shell(machine.ctl.get_host())
         key_id, ssh_user = shell.autoconfigure(self.script.owner,
                                                machine.cloud.id,
-                                               machine.machine_id)
+                                               machine.id)
         sftp = shell.ssh.open_sftp()
 
         # Create the test directory and the directory to store custom scripts,

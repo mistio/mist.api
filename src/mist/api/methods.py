@@ -39,13 +39,13 @@ logging.basicConfig(level=config.PY_LOG_LEVEL,
 log = logging.getLogger(__name__)
 
 
-def connect_provider(cloud):
+def connect_provider(cloud, **kwargs):
     """Establishes cloud connection using the credentials specified.
 
     Cloud is expected to be a cloud mongoengine model instance.
 
     """
-    return cloud.ctl.compute.connect()
+    return cloud.ctl.compute.connect(**kwargs)
 
 
 def ssh_command(owner, cloud_id, machine_id, host, command,
