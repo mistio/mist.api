@@ -206,8 +206,7 @@ class OpenStackNetworkController(BaseNetworkController):
             setattr(subnet, field, value)
 
     def _delete_network(self, network, libcloud_network):
-        network_id = libcloud_network.id
-        self.cloud.ctl.compute.connection.ex_delete_network(network_id)
+        self.cloud.ctl.compute.connection.ex_delete_network(libcloud_network)
 
     def _delete_subnet(self, subnet, libcloud_subnet):
         self.cloud.ctl.compute.connection.ex_delete_subnet(libcloud_subnet.id)
