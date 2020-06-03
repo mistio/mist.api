@@ -243,7 +243,8 @@ def add_routes(configurator):
 
     configurator.add_route('api_v1_ping', '/api/v1/ping')
 
-    configurator.add_route('api_v1_images', '/api/v1/clouds/{cloud}/images')
+    configurator.add_route('api_v1_images', '/api/v1/images')
+    configurator.add_route('api_v1_cloud_images', '/api/v1/clouds/{cloud}/images')
     configurator.add_route('api_v1_image',
                            '/api/v1/clouds/{cloud}/images/{image}')
     configurator.add_route('api_v1_sizes', '/api/v1/clouds/{cloud}/sizes')
