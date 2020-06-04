@@ -494,7 +494,7 @@ def list_projects(request):
     except Exception as e:
         log.error("Could not list projects for cloud %s: %r" % (
             cloud, e))
-        raise MistNotImplementedError
+        raise MistNotImplementedError()
 
     return projects
 
@@ -504,44 +504,61 @@ def list_projects(request):
              renderer='json')
 def list_folders(request):
     """
+    Tags: folders
+    ---
     Lists all the folders that contain VMs.
     It is needed for machine creation for the 6.7 REST api of VSphere.
     In the future it might not be necessary.
+    READ permission required on cloud.
+    ---
+    cloud:
+      in: path
+      required: true
+      type: string
     """
     auth_context = auth_context_from_request(request)
     cloud_id = request.matchdict.get('cloud')
 
-    if cloud_id:
-        try:
-            cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
-                                      deleted=None)
-        except Cloud.DoesNotExist:
-            raise NotFoundError('Cloud does not exist')
-        # SEC
-        auth_context.check_perm('cloud', 'read', cloud_id)
-        vm_folders = cloud.ctl.compute.list_vm_folders()
-        return vm_folders
-    else:
-        raise BadRequestError("Not possible at this time")
+    try:
+        cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
+                                  deleted=None)
+    except Cloud.DoesNotExist:
+        raise NotFoundError('Cloud does not exist')
+    # SEC
+    auth_context.check_perm('cloud', 'read', cloud_id)
+    vm_folders = cloud.ctl.compute.list_vm_folders()
+    return vm_folders
 
 
 @view_config(route_name='api_v1_cloud_datastores', request_method='GET',
              renderer='json')
 def list_datastores(request):
+    """
+    Tags: datastores
+    ---
+    Lists datastores on cloud.
+    Only supported for Vsphere.
+    READ permission required on cloud.
+    ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    """
     auth_context = auth_context_from_request(request)
     cloud_id = request.matchdict.get('cloud')
 
-    if cloud_id:
-        try:
-            cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
-                                      deleted=None)
-        except Cloud.DoesNotExist:
-            raise NotFoundError('Cloud does not exist')
-        # SEC
-        auth_context.check_perm('cloud', 'read', cloud_id)
+    try:
+        cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
+                                  deleted=None)
+    except Cloud.DoesNotExist:
+        raise NotFoundError('Cloud does not exist')
+    # SEC
+    auth_context.check_perm('cloud', 'read', cloud_id)
+    try:
         datastores = cloud.ctl.compute.list_datastores()
         return datastores
-    else:
-        raise BadRequestError("The cloud with the give id was not found,"
-                              " please make sure it is was typed correctly"
-                              " in the url.")
+    except Exception as e:
+        log.error("Could not list projects for cloud %s: %r" % (
+                  cloud, e))
+        raise MistNotImplementedError()
