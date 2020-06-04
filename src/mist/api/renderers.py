@@ -96,7 +96,8 @@ class CSVRenderer(object):
                 params = params_from_request(request)
                 columns = params.get('columns', '')
                 columns = columns and columns.split(',') or []
-                response.text = json2csv(value, columns)
+                # ',' is necessary, otherwise output is wrong
+                response.text = ',' + json2csv(value, columns)
             else:
                 response.content_type = 'application/json'
                 response.json_body = value
