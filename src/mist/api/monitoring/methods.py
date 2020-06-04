@@ -184,7 +184,7 @@ def get_load(owner, start="", stop="", step="", uuids=None):
         )
 
     if fdb_uuids:
-        fdb_data = fdb_get_load(fdb_uuids, start, stop, step)
+        fdb_data = fdb_get_load(owner, fdb_uuids, start, stop, step)
 
     if graphite_data or influx_data or fdb_data:
         return dict(

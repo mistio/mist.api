@@ -15,11 +15,6 @@ log = logging.getLogger(__name__)
 def get_stats(machine, start="", stop="", step="", metrics=None):
     data = {}
 
-    if isinstance(machine, str):
-        machine_id = machine
-    else:
-        machine_id = machine.id
-
     # If no metrics are specified, then we get all of them
     if not metrics:
         metrics = [('fetch(\"{id}.*\"' +
@@ -28,7 +23,7 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
 
     for metric in metrics:
         # processed_metric = "%s.%s" % (machine.id, metric)
-        query = metric.format(id=machine_id, start=start, stop=stop, step=step)
+        query = metric.format(id=machine.id, start=start, stop=stop, step=step)
         """query = 'fetch("%s", start="%s", stop="%s", step="%s")' % (
             processed_metric,
             start,
@@ -39,12 +34,12 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
             raw_machine_data = requests.get(
                 "%s/v1/datapoints?query=%s"
                 % (config.TSFDB_URI, urllib.parse.quote(query)),
-                timeout=20
+                headers={'x-org-id': machine.owner.id}, timeout=20
             )
         except Exception as exc:
             log.error(
                 'Got %r on get_stats for resource %s'
-                % (exc, machine_id))
+                % (exc, machine.id))
             raise ServiceUnavailableError()
 
         if not raw_machine_data.ok:
@@ -92,7 +87,7 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
     return data
 
 
-def _get_load_machine(machine, start, stop, step):
+def _get_load_machine(org, machine, start, stop, step):
     metric = "%s.system.load1" % machine
     query = ('roundY(fetch("%s", start="%s", stop="%s", step="%s")' +
              ', base=5)') % \
@@ -105,7 +100,7 @@ def _get_load_machine(machine, start, stop, step):
     try:
         raw_machine_data = requests.get(
             "%s/v1/datapoints?query=%s" % (config.TSFDB_URI, query),
-            timeout=5
+            headers={'x-org-id': org.id}, timeout=5
         )
     except Exception as exc:
         log.error(
@@ -130,19 +125,20 @@ def _get_load_machine(machine, start, stop, step):
     )
 
 
-async def _get_load(machines, start, stop, step):
+async def _get_load(org, machines, start, stop, step):
     loop = asyncio.get_event_loop()
     loads = [
         loop.run_in_executor(None, _get_load_machine, *
-                             (machine, start, stop, step))
+                             (org, machine, start, stop, step))
         for machine in machines
     ]
     return await asyncio.gather(*loads)
 
 
-def get_load(machines, start, stop, step):
+def get_load(org, machines, start, stop, step):
     loop = asyncio.get_event_loop()
-    loads = loop.run_until_complete(_get_load(machines, start, stop, step))
+    loads = loop.run_until_complete(
+        _get_load(org, machines, start, stop, step))
     data = {}
     for load in loads:
         data.update(load)
@@ -156,7 +152,7 @@ def find_metrics(machine):
     try:
         data = requests.get("%s/v1/resources/%s" %
                             (config.TSFDB_URI, machine.id),
-                            timeout=5)
+                            headers={'x-org-id': machine.owner.id}, timeout=5)
     except Exception as exc:
         log.error(
             'Got %r on find_metrics for resource %s'
