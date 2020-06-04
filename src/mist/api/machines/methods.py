@@ -728,7 +728,8 @@ def create_machine_g8(conn, machine_name, image, ram, cpu, disk,
             break
 
     # g8-specific validation
-    validate_portforwards_g8(port_forwards, ex_network)
+    if port_forwards:
+        validate_portforwards_g8(port_forwards, ex_network)
 
     ex_create_attr = {
         "memory": ram,
@@ -756,18 +757,19 @@ def create_machine_g8(conn, machine_name, image, ram, cpu, disk,
     except Exception as e:
         raise MachineCreationError("Gig G8, got exception %s" % e, e)
 
-    for pf in port_forwards['ports']:
-        public_port = pf['port'].split(":")[-1]
-        private_port = pf['target_port'].split(":")[-1]
-        if not private_port:
-            private_port = public_port
-        protocol = pf.get('protocol', 'tcp').lower()
+    if port_forwards:
+        for pf in port_forwards['ports']:
+            public_port = pf['port'].split(":")[-1]
+            private_port = pf['target_port'].split(":")[-1]
+            if not private_port:
+                private_port = public_port
+            protocol = pf.get('protocol', 'tcp').lower()
 
-        try:
-            conn.ex_create_portforward(ex_network, node, public_port,
-                                       private_port, protocol)
-        except BaseHTTPError as exc:
-            raise BadRequestError(exc.message)
+            try:
+                conn.ex_create_portforward(ex_network, node, public_port,
+                                           private_port, protocol)
+            except BaseHTTPError as exc:
+                raise BadRequestError(exc.message)
 
     return node
 
