@@ -865,8 +865,7 @@ def machine_actions(request):
 
     methods.run_post_action_hooks(machine, action, auth_context.user, result)
 
-    # TODO: We shouldn't return list_machines, just OK. Save the API!
-    return methods.filter_list_machines(auth_context, cloud_id)
+    return OK
 
 
 @view_config(route_name='api_v1_cloud_machine_rdp',
