@@ -3,6 +3,7 @@ import logging
 import requests
 import time
 import urllib.parse
+import json
 
 from mist.api.exceptions import ForbiddenError
 from mist.api.exceptions import ServiceUnavailableError
@@ -52,7 +53,7 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
         for raw_metric in raw_metrics:
             # We use as key the metric name without the machine id
             # e.g "id.system.load1 => system.load1"
-            returned_metric = raw_metric.split(".", 1)[1]
+            _, returned_metric = raw_metric.split(".", 1)
             data.update(
                 {
                     returned_metric: {
@@ -87,10 +88,10 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
     return data
 
 
-def _get_load_machine(org, machine, start, stop, step):
-    metric = "%s.system.load1" % machine
-    query = ('roundY(fetch("%s", start="%s", stop="%s", step="%s")' +
-             ', base=5)') % \
+def get_load(org, machines, start, stop, step):
+    metric = "*.system.load1"
+    query = ('topk(roundY(fetch("%s", start="%s", stop="%s", step="%s")' +
+             ', base=5))') % \
         (
         metric,
         start,
@@ -100,49 +101,33 @@ def _get_load_machine(org, machine, start, stop, step):
     try:
         raw_machine_data = requests.get(
             "%s/v1/datapoints?query=%s" % (config.TSFDB_URI, query),
-            headers={'x-org-id': org.id}, timeout=5
+            headers={'x-org-id': org.id,
+                     'x-allowed-resources': json.dumps(machines)},
+            timeout=5
         )
     except Exception as exc:
         log.error(
-            'Got %r on _get_load_machine for resource %s'
-            % (exc, machine))
+            'Got %r on get_load' % exc)
         return {}
 
     if not raw_machine_data.ok:
-        log.error('Got %d on _get_load_machine: %s',
+        log.error('Got %d on get_load: %s',
                   raw_machine_data.status_code, raw_machine_data.content)
         return {}
 
     raw_machine_data = raw_machine_data.json()
 
-    return(
-        {
-            machine: {
-                "name": machine,
-                "datapoints": raw_machine_data["series"].get(metric, []),
-            }
-        }
-    )
-
-
-async def _get_load(org, machines, start, stop, step):
-    loop = asyncio.get_event_loop()
-    loads = [
-        loop.run_in_executor(None, _get_load_machine, *
-                             (org, machine, start, stop, step))
-        for machine in machines
-    ]
-    return await asyncio.gather(*loads)
-
-
-def get_load(org, machines, start, stop, step):
-    loop = asyncio.get_event_loop()
-    loads = loop.run_until_complete(
-        _get_load(org, machines, start, stop, step))
     data = {}
-    for load in loads:
-        data.update(load)
-
+    for metric in raw_machine_data["series"]:
+        machine, _ = metric.split(".", 1)
+        data.update(
+            {
+                machine: {
+                    "name": machine,
+                    "datapoints": raw_machine_data["series"].get(metric, []),
+                }
+            }
+        )
     return data
 
 
