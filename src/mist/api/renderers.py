@@ -63,6 +63,7 @@ def json2csv(value, columns=None):
     flat_value = [flattenjson(x, "__") for x in value]
     if not columns:
         columns = [x for row in flat_value for x in list(row.keys())]
+    columns = ['cost__monthly' if col == 'cost' else col for col in columns]
     columns = list(set(columns))
     fout = StringIO()
     writer = csv.writer(fout, delimiter=',', quotechar='"',
