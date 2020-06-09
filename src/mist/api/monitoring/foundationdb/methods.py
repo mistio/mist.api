@@ -22,14 +22,7 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
                     ', step=\"{step}\")')]
 
     for metric in metrics:
-        # processed_metric = "%s.%s" % (machine.id, metric)
         query = metric.format(id=machine.id, start=start, stop=stop, step=step)
-        """query = 'fetch("%s", start="%s", stop="%s", step="%s")' % (
-            processed_metric,
-            start,
-            stop,
-            step,
-        )"""
         try:
             raw_machine_data = requests.get(
                 "%s/v1/datapoints?query=%s"
