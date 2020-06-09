@@ -13,9 +13,6 @@ import libcloud.security
 from libcloud.compute.types import NodeState
 from libcloud.container.types import Provider as Container_Provider
 from libcloud.compute.types import Provider
-# Python 2 and 3 support
-from future.standard_library import install_aliases
-install_aliases()
 
 
 log = logging.getLogger(__name__)
