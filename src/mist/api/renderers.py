@@ -63,6 +63,7 @@ def json2csv(value, columns=None):
     flat_value = [flattenjson(x, "__") for x in value]
     if not columns:
         columns = [x for row in flat_value for x in list(row.keys())]
+    columns = ['cost__monthly' if col == 'cost' else col for col in columns]
     columns = list(set(columns))
     fout = StringIO()
     writer = csv.writer(fout, delimiter=',', quotechar='"',
@@ -96,7 +97,8 @@ class CSVRenderer(object):
                 params = params_from_request(request)
                 columns = params.get('columns', '')
                 columns = columns and columns.split(',') or []
-                response.text = json2csv(value, columns)
+                # ',' is necessary, otherwise output is wrong
+                response.text = ',' + json2csv(value, columns)
             else:
                 response.content_type = 'application/json'
                 response.json_body = value

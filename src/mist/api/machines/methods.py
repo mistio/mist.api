@@ -2108,26 +2108,28 @@ def _create_machine_vcloud(conn, machine_name, image,
 
 
 def _create_machine_vsphere(conn, machine_name, image,
-                            size, location, network, folder,
+                            size, location, networks, folder,
                             datastore):
     """Create a machine in vSphere.
 
     """
-    # get location as object from database
-    try:
-        from mist.api.networks.models import VSphereNetwork
-        network = VSphereNetwork.objects.get(id=network)
-    except me.DoesNotExist:
-        network = None
-    if network:
-        network.id = network.network_id
+    # get external network id from database
+    if networks:
+        try:
+            from mist.api.networks.models import VSphereNetwork
+            network = VSphereNetwork.objects.get(id=networks[0])
+            network_id = network.network_id
+        except me.DoesNotExist:
+            network_id = networks[0]
+    else:
+        network_id = None
     try:
         node = conn.create_node(
             name=machine_name,
             image=image,
             size=size,
             location=location,
-            ex_network=network,
+            ex_network=network_id,
             ex_folder=folder,
             ex_datastore=datastore
         )

@@ -167,7 +167,7 @@ def list_storage_accounts(owner, cloud_id):
         conn = connect_provider(cloud)
         accounts = conn.ex_list_storage_accounts()
     else:
-        accounts = []
+        return []
 
     storage_accounts = []
     resource_groups = conn.ex_list_resource_groups()
