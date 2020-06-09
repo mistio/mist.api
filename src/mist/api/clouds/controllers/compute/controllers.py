@@ -1022,8 +1022,9 @@ class GoogleComputeController(BaseComputeController):
         return node_dict['extra'].get('creationTimestamp')
 
     def _list_machines__get_custom_size(self, node):
-        size = self.connection.get_size_metadata_from_node(node['extra'].
-                                                           get('machineType'))
+        machine_type = node.extra.get('machineType', "").split("/")[-1]
+        size = self.connection.ex_get_size(machine_type,
+                                           node.extra.get['zone'])
         # create object only if the size of the node is custom
         if size.get('name', '').startswith('custom'):
             # FIXME: resolve circular import issues
