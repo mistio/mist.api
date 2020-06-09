@@ -815,9 +815,11 @@ def machine_actions(request):
                     'undefine', 'suspend', 'resume'):
         result = getattr(machine.ctl, action)()
     elif action == 'expose':
+        if machine.network:
+            auth_context.check_perm('network', 'read', machine.network)
+            auth_context.check_perm('network', 'edit', machine.network)
         methods.validate_portforwards(port_forwards)
-        result = getattr(machine.ctl, action)(port_forwards,
-                                              auth_context=auth_context)
+        result = getattr(machine.ctl, action)(port_forwards)
     elif action == 'rename':
         if not name:
             raise BadRequestError("You must give a name!")

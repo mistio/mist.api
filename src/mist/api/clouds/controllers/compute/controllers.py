@@ -609,12 +609,10 @@ class GigG8ComputeController(BaseComputeController):
     def _reboot_machine(self, machine, node):
         self.connection.reboot_node(node)
 
-    def expose_port(self, machine, port_forwards, auth_context):
+    def expose_port(self, machine, port_forwards):
         if not machine.network:
             raise MistError('Do not know the network of the machine to expose \
               a port from')
-        auth_context.check_perm('network', 'read', machine.network)
-        auth_context.check_perm('network', 'edit', machine.network)
         node = self._get_libcloud_node(machine)
         networks = self.cloud.ctl.compute.connection.ex_list_networks()
         network = None
@@ -2907,7 +2905,7 @@ class KubeVirtComputeController(BaseComputeController):
             cpu = 1
         return cpu
 
-    def expose_port(self, machine, port_forwards, auth_context):
+    def expose_port(self, machine, port_forwards):
         machine_libcloud = self._get_libcloud_node(machine)
 
         # validate input

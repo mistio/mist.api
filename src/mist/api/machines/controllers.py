@@ -56,11 +56,10 @@ class MachineController(object):
         return self.machine.cloud.ctl.compute.rename_machine(self.machine,
                                                              name)
 
-    def expose(self, port_forwards, auth_context=None):
+    def expose(self, port_forwards):
         """Exposes a machine's port to a public one"""
         return self.machine.cloud.ctl.compute.expose_port(self.machine,
-                                                          port_forwards,
-                                                          auth_context)
+                                                          port_forwards)
 
     # TODO we want this also ?
     # def tag(self):
