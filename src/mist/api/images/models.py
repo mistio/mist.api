@@ -14,7 +14,7 @@ class CloudImage(me.Document):
                               reverse_delete_rule=me.CASCADE)
     external_id = me.StringField(required=True)
     name = me.StringField()
-    starred = me.BooleanField(default=True)
+    starred = me.BooleanField(default=False)
     stored_after_search = me.BooleanField(default=False)
     missing_since = me.DateTimeField()
     extra = MistDictField()
