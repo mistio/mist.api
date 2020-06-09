@@ -150,46 +150,77 @@ def validate_portforwards(port_forwards):
                 port = int(port)
             except (ValueError, TypeError):
                 raise BadRequestError("Port should be an integer")
-
-    pf_error_msg = 'Wrong portforward format. Acceptable formats: "80", \
-                    "80:80", "80:example.com:80", \
-                    "172.17.0.1:80:example.com:80"'
-
-    for pf in port_forwards.keys():
-        ports = pf.split(':')
-        if len(ports) == 1 or len(ports) == 2:    # eg. 80 or 80:80
-            validate_ports(ports)
-
-        elif len(ports) == 3:    # eg 80:example.com:80
-            check_host(ports[1], allow_inaddr_any=True)
-            validate_ports([ports[0], ports[2]])
-
-        elif len(ports) == 4:    # eg 172.17.0.1:example.com:80
-            check_host(ports[0], allow_inaddr_any=True)
-            check_host(ports[2], allow_inaddr_any=True)
-            validate_ports([ports[1], ports[3]])
-
+            except AssertionError:
+                raise BadRequestError("Ports should be an "
+                                      "interger between 1 and 65535")
+    for pf in port_forwards['ports']:
+        if len(pf['port'].split(":")) == 2:
+            host = pf['port'].split(":")[0]
+            check_host(host)
+        port = pf['port'].split(":")[-1]
+        if len(pf['target_port'].split(":")) == 2:
+            target_host = pf['target_port'].split(":")[0]
+            check_host(target_host)
+        target_port = pf['target_port'].split(":")[-1]
+        #  If target_port is a falsey value then it will take the same value as
+        #  port.
+        if not target_port:
+            validate_ports([port])
         else:
-            raise BadRequestError(pf_error_msg)
+            validate_ports([port, target_port])
+
+        if pf['protocol']:
+            if pf['protocol'] not in {"TCP", "UDP"}:
+                raise BadRequestError("Protocol should be either TCP or UPD.")
 
 
 def validate_portforwards_g8(port_forwards, network):
-    for pf in port_forwards:
-        items = pf.split(':')
-        if len(items) == 3 and items[1] != network.publicipaddress:
-            raise BadRequestError("You can only expose a port to the \
-                network's public ip address, which is \
-                    %s" % network.publicipaddress)
+    for pf in port_forwards.get('ports'):
+        if len(pf['port'].split(':')) == 2:
+            if pf['port'].split(':')[0] != network.publicipaddres:
+                raise BadRequestError("You can only expose a port to the \
+                    network's public ip address, which is \
+                        %s" % network.publicipaddress)
+        if len(pf['target_port'].split(':')) == 2:
+            if pf['target_port'].split(':')[0] not in {'localhost',
+                                                       '172.17.0.1',
+                                                       '0.0.0.0'}:
+                raise BadRequestError("The address in target_port "
+                                      "must be the localhost!")
+        if pf['protocol'].lower() not in {'udp', 'tcp'}:
+            raise BadRequestError('Allowed protocols are "UDP" or "TCP"')
 
-        if len(items) == 4 and (items[0] not in ('localhost', '172.17.0.1',
-                                                 '0.0.0.0') or
-                                items[2] != network.publicipaddress):
-            raise BadRequestError("You can only expose a port from localhost to the \
-                network's public ip address, which is \
-                    %s" % network.publicipaddress)
 
-        if port_forwards.get(pf)[0] not in ['udp', 'tcp']:
-            raise BadRequestError('Allowed protocols are "udp" and "tcp"')
+def validate_portforwards_kubevirt(port_forwards):
+    service_type = port_forwards.get('service_type')
+    if service_type not in {"ClusterIP", "NodePort", "LoadBalancer"}:
+        raise BadRequestError('Valid service types are '
+                              'ClusterIP or NodePort or LoadBalancer.')
+    result = {'ports': [],
+              'service_type': port_forwards.get('service_type'),
+              'cluster_ip': None,
+              'load_balancer_ip': None}
+    for pf in port_forwards['ports']:
+        cluster_ip = None
+        load_balancer_ip = None
+        if len(pf['port'].split(":")) == 2:
+            host = pf['port'].split(":")[0]
+            if service_type in {"NodePort", "ClusterIP"}:
+                cluster_ip = host
+            elif service_type == "LoadBalancer":
+                load_balancer_ip = host
+        port = pf['port'].split(":")[-1]
+        target_port = pf.get('target_port', "").split(":")[-1]
+        if not target_port:
+            target_port = port
+        result['ports'].append({
+            'port': port,
+            'target_port': target_port,
+            'protocol': pf['protocol']
+        })
+        result['cluster_ip'] = cluster_ip
+        result['load_balancer_ip'] = load_balancer_ip
+    return result
 
 
 def list_machines(owner, cloud_id, cached=False):
@@ -554,7 +585,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                                         location=location,
                                         disks=volumes,
                                         memory=size_ram, cpu=size_cpu,
-                                        network=network)
+                                        network=network,
+                                        port_forwards=port_forwards)
     else:
         raise BadRequestError("Provider unknown.")
 
@@ -696,7 +728,8 @@ def create_machine_g8(conn, machine_name, image, ram, cpu, disk,
             break
 
     # g8-specific validation
-    validate_portforwards_g8(port_forwards, ex_network)
+    if port_forwards:
+        validate_portforwards_g8(port_forwards, ex_network)
 
     ex_create_attr = {
         "memory": ram,
@@ -724,27 +757,19 @@ def create_machine_g8(conn, machine_name, image, ram, cpu, disk,
     except Exception as e:
         raise MachineCreationError("Gig G8, got exception %s" % e, e)
 
-    for pf in port_forwards.keys():
-        ports = pf.split(':')
-        if len(ports) == 1:
-            public_port = private_port = ports[0]
-        elif len(ports) == 2:
-            private_port, public_port = pf.split(':')
-        elif len(ports) == 3:
-            items = pf.split(':')
-            private_port = items[0]
-            public_port = items[2]
-        elif len(ports) == 4:
-            items = pf.split(':')
-            private_port = items[1]
-            public_port = items[3]
-        protocol = port_forwards.get(pf)[0]
+    if port_forwards:
+        for pf in port_forwards['ports']:
+            public_port = pf['port'].split(":")[-1]
+            private_port = pf['target_port'].split(":")[-1]
+            if not private_port:
+                private_port = public_port
+            protocol = pf.get('protocol', 'tcp').lower()
 
-        try:
-            conn.ex_create_portforward(ex_network, node, public_port,
-                                       private_port, protocol)
-        except BaseHTTPError as exc:
-            raise BadRequestError(exc.message)
+            try:
+                conn.ex_create_portforward(ex_network, node, public_port,
+                                           private_port, protocol)
+            except BaseHTTPError as exc:
+                raise BadRequestError(exc.message)
 
     return node
 
@@ -2204,7 +2229,8 @@ def _create_machine_linode(conn, key_name, private_key, public_key,
 
 def _create_machine_kubevirt(conn, machine_name, location, image, disks=None,
                              memory=None, cpu=None,
-                             network=['pod', 'masquerade', 'net1']):
+                             network=['pod', 'masquerade', 'net1'],
+                             port_forwards=[]):
     """
     disks is either an existing volume that can be or not bound.
     If it is not it must be bound first.
@@ -2241,6 +2267,7 @@ def _create_machine_kubevirt(conn, machine_name, location, image, disks=None,
                             "[network_type, interface, name]")
         network[2] = machine_name_validator(provider='kubevirt',
                                             name=network[2])
+
     try:
         node = conn.create_node(name=machine_name, image=image,
                                 location=location,
@@ -2249,6 +2276,12 @@ def _create_machine_kubevirt(conn, machine_name, location, image, disks=None,
     except Exception as e:
         msg = "KubeVirt, got exception {}".format(e), e
         raise MachineCreationError(msg)
+    if port_forwards:
+        data = validate_portforwards_kubevirt(port_forwards)
+        conn.ex_create_service(node, ports=data['ports'],
+                               service_type=data['service_type'],
+                               cluster_ip=data['cluster_ip'],
+                               load_balancer_ip=data['load_balancer_ip'])
     return node
 
 
