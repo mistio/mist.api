@@ -623,7 +623,7 @@ def find_metrics_by_resource_id(auth_context, resource_id, resource_type):
             auth_context.check_perm("cloud", "read", resource_id)
             resource_objs = list_resources_by_id(
                 "cloud", resource_id, as_dict=False)
-            if len(resource_objs):
+            if resource_objs:
                 machines = [machine for machine in
                             filter_list_machines(auth_context,
                                                  resource_id,
@@ -639,7 +639,7 @@ def find_metrics_by_resource_id(auth_context, resource_id, resource_type):
             auth_context.check_perm(resource_type, "read", resource_id)
             resource_objs = list_resources_by_id(
                 resource_type, resource_id, as_dict=False)
-            if len(resource_objs):
+            if resource_objs:
                 return find_metrics(resource_objs[0])
         except:
             pass
@@ -659,7 +659,7 @@ def find_metrics_by_resource_type(auth_context, resource_type, tags):
         resources = filter_list_resources(
             resource_type, auth_context, perm='read', as_dict=False)
 
-    if tags and len(resources):
+    if tags and resources:
         resources = filter_resources_by_tags(resources, tags)
 
     metrics = {}
@@ -677,7 +677,7 @@ def find_metrics_by_tags(auth_context, tags):
         resources += filter_list_resources(
             resource_type, auth_context, perm='read', as_dict=False)
 
-    if len(resources):
+    if resources:
         resources = filter_resources_by_tags(resources, tags)
 
     metrics = {}
