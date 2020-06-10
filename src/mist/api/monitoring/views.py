@@ -7,6 +7,7 @@ import mist.api.monitoring.methods
 
 from mist.api.helpers import view_config
 from mist.api.helpers import params_from_request
+from mist.api.helpers import trigger_session_update
 
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import ForbiddenError
@@ -391,7 +392,9 @@ def deploy_plugin(request):
         # Add the script.
         script = TelegrafScript.add(auth_context.owner, name, **kwargs)
         # Deploy it.
-        return script.ctl.deploy_and_assoc_python_plugin_from_script(machine)
+        ret = script.ctl.deploy_and_assoc_python_plugin_from_script(machine)
+        trigger_session_update(auth_context.owner, ['scripts'])
+        return ret
     raise BadRequestError('Invalid plugin_type')
 
 
