@@ -1007,22 +1007,22 @@ LANDING_FORMS = [
 ###############################################################################
 
 STATES = {
-    NodeState.RUNNING: 'running',
-    NodeState.REBOOTING: 'rebooting',
-    NodeState.TERMINATED: 'terminated',
-    NodeState.PENDING: 'pending',
+    NodeState.RUNNING.value: 'running',
+    NodeState.REBOOTING.value: 'rebooting',
+    NodeState.TERMINATED.value: 'terminated',
+    NodeState.PENDING.value: 'pending',
     # we assume unknown means stopped, especially for the EC2 case
-    NodeState.UNKNOWN: 'unknown',
-    NodeState.UPDATING: 'updating',
-    NodeState.STOPPED: 'stopped',
-    NodeState.ERROR: 'error',
-    NodeState.PAUSED: 'paused',
-    NodeState.SUSPENDED: 'suspended',
-    NodeState.STARTING: 'starting',
-    NodeState.STOPPING: 'stopping',
-    NodeState.RECONFIGURING: 'reconfiguring',
-    NodeState.MIGRATING: 'migrating',
-    NodeState.NORMAL: 'normal',
+    NodeState.UNKNOWN.value: 'unknown',
+    NodeState.UPDATING.value: 'updating',
+    NodeState.STOPPED.value: 'stopped',
+    NodeState.ERROR.value: 'error',
+    NodeState.PAUSED.value: 'paused',
+    NodeState.SUSPENDED.value: 'suspended',
+    NodeState.STARTING.value: 'starting',
+    NodeState.STOPPING.value: 'stopping',
+    NodeState.RECONFIGURING.value: 'reconfiguring',
+    NodeState.MIGRATING.value: 'migrating',
+    NodeState.NORMAL.value: 'normal',
 }
 
 EC2_SECURITYGROUP = {
