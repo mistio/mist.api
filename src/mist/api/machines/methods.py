@@ -1603,7 +1603,7 @@ def _create_machine_libvirt(cloud, machine_name, disk_size, ram, cpu,
     """
     try:
         host = Machine.objects.get(
-            cloud=cloud, machine_id=location.external_id)
+            cloud=cloud, machine_id=location.id)
     except me.DoesNotExist:
         raise MachineCreationError("The host specified does not exist")
 
