@@ -551,6 +551,7 @@ class GigG8ComputeController(BaseComputeController):
 
         if node_dict['extra'].get('ssh_port', None):
             machine.ssh_port = node_dict['extra']['ssh_port']
+        return True
 
     def _list_machines__machine_actions(self, machine, node_dict):
         super(GigG8ComputeController, self)._list_machines__machine_actions(
@@ -609,6 +610,9 @@ class GigG8ComputeController(BaseComputeController):
         self.connection.reboot_node(node)
 
     def expose_port(self, machine, port_forwards):
+        if not machine.network:
+            raise MistError('Do not know the network of the machine to expose \
+              a port from')
         node = self._get_libcloud_node(machine)
         networks = self.cloud.ctl.compute.connection.ex_list_networks()
         network = None
@@ -622,22 +626,14 @@ class GigG8ComputeController(BaseComputeController):
         validate_portforwards_g8(port_forwards, network)
 
         existing_pfs = self.connection.ex_list_portforwards(network)
-
-        for pf in port_forwards.keys():
-            ports = pf.split(':')
-            if len(ports) == 1:
-                public_port = private_port = ports[0]
-            elif len(ports) == 2:
-                private_port, public_port = pf.split(':')
-            elif len(ports) == 3:
-                items = pf.split(':')
-                private_port = items[0]
-                public_port = items[2]
-            elif len(ports) == 4:
-                items = pf.split(':')
-                private_port = items[1]
-                public_port = items[3]
-            protocol = port_forwards.get(pf)[0]
+        for pf in port_forwards.get('ports'):
+            public_port = pf.get('port')
+            if len(public_port.split(":")) == 2:
+                public_port = public_port.split(":")[1]
+            private_port = pf.get('port')
+            if len(private_port.split(":")) == 2:
+                private_port = private_port.split(":")[1]
+            protocol = pf.get('protocol').lower()
             exists = False
 
             for existing_pf in existing_pfs:
@@ -1022,8 +1018,9 @@ class GoogleComputeController(BaseComputeController):
         return node_dict['extra'].get('creationTimestamp')
 
     def _list_machines__get_custom_size(self, node):
-        size = self.connection.get_size_metadata_from_node(node['extra'].
-                                                           get('machineType'))
+        machine_type = node.extra.get('machineType', "").split("/")[-1]
+        size = self.connection.ex_get_size(machine_type,
+                                           node.extra.get['zone'])
         # create object only if the size of the node is custom
         if size.get('name', '').startswith('custom'):
             # FIXME: resolve circular import issues
@@ -2790,7 +2787,6 @@ class KubeVirtComputeController(BaseComputeController):
         except:
             raise Exception("Make sure host is accessible "
                             "and kubernetes port is specified")
-
         verify = self.cloud.verify
         ca_cert = None
         if self.cloud.ca_cert_file:
@@ -2854,6 +2850,7 @@ class KubeVirtComputeController(BaseComputeController):
         machine.actions.stop = True
         machine.actions.reboot = True
         machine.actions.destroy = True
+        machine.actions.expose = True
 
     def _reboot_machine(self, machine, node):
         return self.connection.reboot_node(node)
@@ -2908,3 +2905,20 @@ class KubeVirtComputeController(BaseComputeController):
         elif cpu > 99:
             cpu = 1
         return cpu
+
+    def expose_port(self, machine, port_forwards):
+        machine_libcloud = self._get_libcloud_node(machine)
+
+        # validate input
+        from mist.api.machines.methods import validate_portforwards_kubevirt
+        data = validate_portforwards_kubevirt(port_forwards)
+
+        self.connection.ex_create_service(machine_libcloud, data.get(
+                                          'ports', []),
+                                          service_type=data.get(
+                                              'service_type'),
+                                          override_existing_ports=True,
+                                          cluster_ip=data.get(
+                                              'cluster_ip', None),
+                                          load_balancer_ip=data.get(
+                                              'load_balancer_ip', None))
