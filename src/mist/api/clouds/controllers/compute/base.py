@@ -507,7 +507,7 @@ class BaseComputeController(BaseController):
         # successful, try to discover custom size.
         try:
             size = self._list_machines__get_size(node)
-            if size:
+            if size and size in sizes_map:
                 size = sizes_map.get(size)
             else:
                 size = self._list_machines__get_custom_size(node)
