@@ -662,7 +662,7 @@ class BaseComputeController(BaseController):
         This is only overriden by the OtherServer Controller.
         It applies only to generic machines.
         """
-        machine.state = config.STATES[NodeState.UNKNOWN]
+        machine.state = config.STATES[NodeState.UNKNOWN.value]
 
     def _list_machines__generic_machine_actions(self, machine):
         """Helper method to update available generic machine's actions
