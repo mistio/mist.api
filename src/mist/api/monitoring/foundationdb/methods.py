@@ -123,6 +123,54 @@ def get_load(org, machines, start, stop, step):
     return data
 
 
+def get_cores(org, machines, start, stop, step):
+
+    metric = "*.cpu\.\d*.usage_idle"
+    query = ('fetch("%s", start="%s", stop="%s", step="%s")') % \
+        (
+        metric,
+        start,
+        stop,
+        step,
+    )
+    try:
+        raw_machine_data = requests.get(
+            "%s/v1/datapoints?query=%s" % (config.TSFDB_URI, query),
+            headers={'x-org-id': org.id,
+                     'x-allowed-resources': json.dumps(machines)},
+            timeout=15
+        )
+    except Exception as exc:
+        log.error(
+            'Got %r on get_load' % exc)
+        return {}
+
+    if not raw_machine_data.ok:
+        log.error('Got %d on get_load: %s',
+                  raw_machine_data.status_code, raw_machine_data.content)
+        return {}
+
+    raw_machine_data = raw_machine_data.json()
+    cores_datapoints = {}
+    for machine_metric, datapoints in raw_machine_data["series"].items():
+        machine, metric = machine_metric.split(".", 1)
+        if not cores_datapoints.get(machine):
+            cores_datapoints[machine] = {}
+        for _, timestamp in datapoints:
+            if not cores_datapoints[machine].get(timestamp):
+                cores_datapoints[machine][timestamp] = set()
+            cores_datapoints[machine][timestamp].add(metric)
+    data = {}
+    for machine, datapoints in cores_datapoints.items():
+        data[machine] = {
+            "datapoints": []
+        }
+        for timestamp, metrics in datapoints.items():
+            data[machine]["datapoints"].append([len(metrics), timestamp])
+
+    return data
+
+
 def find_metrics(machine):
     if not machine.monitoring.hasmonitoring:
         raise ForbiddenError("Machine doesn't have monitoring enabled.")
