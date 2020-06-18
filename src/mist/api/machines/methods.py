@@ -76,7 +76,7 @@ def machine_name_validator(provider, name):
     """
     if not name and provider != Provider.EC2.value:
         raise MachineNameValidationError("machine name cannot be empty")
-    if provider is Container_Provider.DOCKER.value:
+    if provider is Container_Provider.DOCKER:
         pass
     elif provider in {Provider.RACKSPACE_FIRST_GEN.value,
                       Provider.RACKSPACE.value}:
@@ -295,7 +295,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
 
     # if key_id not provided, search for default key
     if cloud.ctl.provider not in [Provider.LIBVIRT.value,
-                                  Container_Provider.DOCKER.value,
+                                  Container_Provider.DOCKER,
                                   Provider.ONAPP.value,
                                   Provider.AZURE_ARM.value,
                                   Provider.GIG_G8.value]:
@@ -427,7 +427,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     cached_machines = [m.as_dict()
                        for m in cloud.ctl.compute.list_cached_machines()]
 
-    if cloud.ctl.provider is Container_Provider.DOCKER.value:
+    if cloud.ctl.provider is Container_Provider.DOCKER:
         if public_key:
             node = _create_machine_docker(
                 conn, machine_name, image.id, '',
@@ -452,7 +452,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                 docker_port_bindings=docker_port_bindings,
                 docker_exposed_ports=docker_exposed_ports
             )
-    elif cloud.ctl.provider is Container_Provider.LXD.value:
+    elif cloud.ctl.provider is Container_Provider.LXD:
 
         node = _create_machine_lxd(conn=conn, machine_name=machine_name,
                                    image=image, parameters=lxd_image_source,
@@ -1290,7 +1290,7 @@ def _create_machine_docker(conn, machine_name, image_id,
             docker_environment = ["%s=%s" % (key, value) for key, value in
                                   docker_env.items()]
             environment += docker_environment
-
+        import ipdb;ipdb.set_trace()
         try:
             container = conn.deploy_container(
                 machine_name, image,
