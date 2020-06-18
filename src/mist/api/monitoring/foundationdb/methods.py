@@ -95,7 +95,7 @@ def get_load(org, machines, start, stop, step):
             "%s/v1/datapoints?query=%s" % (config.TSFDB_URI, query),
             headers={'x-org-id': org.id,
                      'x-allowed-resources': json.dumps(machines)},
-            timeout=15
+            timeout=30
         )
     except Exception as exc:
         log.error(
@@ -138,15 +138,15 @@ def get_cores(org, machines, start, stop, step):
             "%s/v1/datapoints?query=%s" % (config.TSFDB_URI, query),
             headers={'x-org-id': org.id,
                      'x-allowed-resources': json.dumps(machines)},
-            timeout=15
+            timeout=30
         )
     except Exception as exc:
         log.error(
-            'Got %r on get_load' % exc)
+            'Got %r on get_cores' % exc)
         return {}
 
     if not raw_machine_data.ok:
-        log.error('Got %d on get_load: %s',
+        log.error('Got %d on get_cores: %s',
                   raw_machine_data.status_code, raw_machine_data.content)
         return {}
 
