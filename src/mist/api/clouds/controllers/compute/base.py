@@ -1350,7 +1350,7 @@ class BaseComputeController(BaseController):
         Differnent cloud controllers should override this private method, which
         is called by the public method `start_machine`.
         """
-        return self.connection.ex_start_node(node)
+        return self.connection.start_node(node)
 
     def stop_machine(self, machine):
         """Stop machine
@@ -1395,7 +1395,7 @@ class BaseComputeController(BaseController):
         Differnent cloud controllers should override this private method, which
         is called by the public method `stop_machine`.
         """
-        return self.connection.ex_stop_node(node)
+        return self.connection.stop_node(node)
 
     def reboot_machine(self, machine):
         """Reboot machine

@@ -519,12 +519,12 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         )
     elif cloud.ctl.provider is Provider.DIGITAL_OCEAN.value:
         node = _create_machine_digital_ocean(
-            conn, cloud, key_id, private_key,
+            conn, cloud, key_id,
             public_key, machine_name,
             image, size, location, cloud_init, volumes)
     elif cloud.ctl.provider == Provider.AZURE.value:
         node = _create_machine_azure(
-            conn, key_id, private_key,
+            conn, key_id,
             public_key, machine_name,
             image, size, location,
             cloud_init=cloud_init,
@@ -551,7 +551,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                                        size, location, networks, folder,
                                        datastore)
     elif cloud.ctl.provider is Provider.LINODE.value and private_key:
-        node = _create_machine_linode(conn, key_id, private_key, public_key,
+        node = _create_machine_linode(conn, key_id, public_key,
                                       machine_name, image, size,
                                       location)
     elif cloud.ctl.provider == Provider.HOSTVIRTUAL.value:
@@ -1156,16 +1156,16 @@ def _create_machine_softlayer(conn, key_name, private_key, public_key,
         keys = conn.list_key_pairs()
         for k in keys:
             if key == k.public_key:
-                server_key = k.extra.get('id')
+                server_key = k.name
                 break
         if not server_key:
             server_key = conn.import_key_pair_from_string(machine_name, key)
-            server_key = server_key.extra.get('id')
+            server_key = server_key.name
     except:
         server_key = conn.import_key_pair_from_string(
             'mistio' + str(random.randint(1, 100000)), key
         )
-        server_key = server_key.extra.get('id')
+        server_key = server_key.name
 
     if '.' in machine_name:
         domain = '.'.join(machine_name.split('.')[1:])
@@ -1174,13 +1174,6 @@ def _create_machine_softlayer(conn, key_name, private_key, public_key,
         domain = None
         name = machine_name
 
-    # FIXME: SoftLayer allows only bash/script, no actual cloud-init
-    # Also need to upload this on a public https url...
-    if cloud_init:
-        postInstallScriptUri = ''
-    else:
-        postInstallScriptUri = None
-
     try:
         node = conn.create_node(
             name=name,
@@ -1188,9 +1181,8 @@ def _create_machine_softlayer(conn, key_name, private_key, public_key,
             image=image,
             size=size,
             location=location,
-            sshKeys=server_key,
-            bare_metal=bare_metal,
-            postInstallScriptUri=postInstallScriptUri,
+            ex_keyname=server_key,
+            ex_bare_metal=bare_metal,
             ex_hourly=hourly,
             ex_backend_vlan=softlayer_backend_vlan_id
         )
@@ -1512,7 +1504,7 @@ def _create_machine_lxd(conn, machine_name, image,
         raise
 
 
-def _create_machine_digital_ocean(conn, cloud, key_name, private_key,
+def _create_machine_digital_ocean(conn, cloud, key_name,
                                   public_key, machine_name, image, size,
                                   location, user_data, volumes):
     """Create a machine in Digital Ocean.
@@ -1794,6 +1786,7 @@ def _create_machine_vultr(conn, public_key, machine_name, image,
     except Exception as e:
         raise MachineCreationError("Vultr, got exception %s" % e, e)
 
+    conn.start_node(node)
     return node
 
 
@@ -2003,7 +1996,7 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
     return node
 
 
-def _create_machine_azure(conn, key_name, private_key, public_key,
+def _create_machine_azure(conn, key_name, public_key,
                           machine_name, image, size, location, cloud_init,
                           cloud_service_name, azure_port_bindings):
     """Create a machine Azure.
@@ -2201,7 +2194,7 @@ def _create_machine_gce(conn, key_name, private_key, public_key, machine_name,
     return node
 
 
-def _create_machine_linode(conn, key_name, private_key, public_key,
+def _create_machine_linode(conn, key_name, public_key,
                            machine_name, image, size, location):
     """Create a machine in Linode.
 
@@ -2212,19 +2205,18 @@ def _create_machine_linode(conn, key_name, private_key, public_key,
 
     auth = NodeAuthSSHKey(public_key)
 
-    with get_temp_file(private_key) as tmp_key_path:
-        try:
-            node = conn.create_node(
-                name=machine_name,
-                image=image,
-                size=size,
-                location=location,
-                auth=auth,
-                ssh_key=tmp_key_path,
-                ex_private=True
-            )
-        except Exception as e:
-            raise MachineCreationError("Linode, got exception %s" % e, e)
+    
+    try:
+        node = conn.create_node(
+            name=machine_name,
+            image=image,
+            size=size,
+            location=location,
+            auth=auth,
+            ex_private=True
+        )
+    except Exception as e:
+        raise MachineCreationError("Linode, got exception %s" % e, e)
     return node
 
 
