@@ -337,42 +337,6 @@ class NetworkHandler(MainStatsHandler):
         )
 
 
-class MultiCoresHandler(BaseStatsHandler):
-
-    group = ['cpu', 'machine_id']
-
-    def _on_stats_callback(self, data):
-        results = {}
-        datapoints = {}
-        for result in data.get('results', []):
-            for series in result.get('series', []):
-                # Get machine_id in order to groub results by it.
-                cpu = series.get('tags', {}).get('cpu')
-                if not cpu:
-                    log.error('%s: no cpu', self.__class__.__name__)
-                    continue
-                machine_id = series.get('tags', {}).get('machine_id')
-                if not machine_id:
-                    log.error('%s: no machine_id', self.__class__.__name__)
-                    continue
-                # Get datapoints.
-                if not datapoints.get(machine_id):
-                    datapoints[machine_id] = {}
-                for value in series.get('values', []):
-                    if value[1]:
-                        timestamp = iso_to_seconds(value[0])
-                        if not datapoints[machine_id].get(timestamp):
-                            datapoints[machine_id][timestamp] = set()
-                        datapoints[machine_id][timestamp].add(cpu)
-        for machine_id, points in datapoints.items():
-            if not results.get(machine_id):
-                results[machine_id] = {'datapoints': []}
-            for timestamp, cpus in points.items():
-                results[machine_id]['datapoints'].append(((len(cpus),
-                                                           int(timestamp))))
-        return results
-
-
 class MultiLoadHandler(BaseStatsHandler):
 
     group = 'machine_id'
@@ -410,8 +374,45 @@ class MultiLoadHandler(BaseStatsHandler):
                                 'priority': 0,
                                 'unit': '',
                             }
-                        results[machine_id]['datapoints'].append(((point,
-                                                                   int(timestamp))))
+                        results[machine_id]['datapoints'].append((
+                            (point,
+                             int(timestamp))))
+        return results
+
+
+class MultiCoresHandler(BaseStatsHandler):
+
+    group = ['cpu', 'machine_id']
+
+    def _on_stats_callback(self, data):
+        results = {}
+        datapoints = {}
+        for result in data.get('results', []):
+            for series in result.get('series', []):
+                # Get machine_id in order to groub results by it.
+                cpu = series.get('tags', {}).get('cpu')
+                if not cpu:
+                    log.error('%s: no cpu', self.__class__.__name__)
+                    continue
+                machine_id = series.get('tags', {}).get('machine_id')
+                if not machine_id:
+                    log.error('%s: no machine_id', self.__class__.__name__)
+                    continue
+                # Get datapoints.
+                if not datapoints.get(machine_id):
+                    datapoints[machine_id] = {}
+                for value in series.get('values', []):
+                    if value[1]:
+                        timestamp = iso_to_seconds(value[0])
+                        if not datapoints[machine_id].get(timestamp):
+                            datapoints[machine_id][timestamp] = set()
+                        datapoints[machine_id][timestamp].add(cpu)
+        for machine_id, points in datapoints.items():
+            if not results.get(machine_id):
+                results[machine_id] = {'datapoints': []}
+            for timestamp, cpus in points.items():
+                results[machine_id]['datapoints'].append(((len(cpus),
+                                                           int(timestamp))))
         return results
 
 
