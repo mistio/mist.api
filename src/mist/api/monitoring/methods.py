@@ -41,6 +41,12 @@ from mist.api.monitoring.graphite.methods \
 from mist.api.monitoring.graphite.methods \
     import get_cores as graphite_get_cores
 
+from mist.api.monitoring.foundationdb.methods import get_stats as fdb_get_stats
+from mist.api.monitoring.foundationdb.methods import get_load as fdb_get_load
+from mist.api.monitoring.foundationdb.methods import get_cores as fdb_get_cores
+from mist.api.monitoring.foundationdb.methods \
+    import find_metrics as fdb_find_metrics
+
 from mist.api.monitoring import traefik
 
 from mist.api.rules.models import Rule
@@ -171,20 +177,14 @@ def get_load(owner, start="", stop="", step="", uuids=None):
     if influx_uuids:
 
         # Transform "min" and "sec" to "m" and "s", respectively.
-<< << << < HEAD
         _start, _stop, _step = [
             re.sub("in|ec", repl="", string=x)
             for x in (start.strip("-"), stop.strip("-"), step)
         ]
-== == == =
-        _start, _stop, _step = [re.sub('in|ec', repl='', string=x) for x in (
-            start.strip('-'), stop.strip('-'), step)]
->>>>>> > staging
         metric = "system.load1"
         if step:
             metric = "MEAN(%s)" % metric
         influx_data = InfluxMultiLoadHandler(influx_uuids).get_stats(
-<< << << < HEAD
             metric=metric, start=_start, stop=_stop, step=_step,
         )
 
@@ -245,12 +245,7 @@ def get_cores(owner, start="", stop="", step="", uuids=None):
             metric = "MEAN(%s)" % metric
         influx_data = InfluxMultiCoresHandler(influx_uuids).get_stats(
             metric=metric, start=_start, stop=_stop,
-            step=_step,
-=======
-            metric=metric,
-            start=_start, stop=_stop, step=_step,
->>>>>>> staging
-        )
+            step=_step)
 
     if fdb_uuids:
         fdb_data = fdb_get_cores(owner, fdb_uuids, start, stop, step)
@@ -260,56 +255,6 @@ def get_cores(owner, start="", stop="", step="", uuids=None):
             list(graphite_data.items()) +
             list(influx_data.items()) +
             list(fdb_data.items())
-        )
-    else:
-        raise NotFoundError("No machine has monitoring enabled")
-
-
-def get_cores(owner, start="", stop="", step="", uuids=None):
-    """Get cores for all monitored machines."""
-    clouds = Cloud.objects(owner=owner, deleted=None).only("id")
-    machines = Machine.objects(
-        cloud__in=clouds, monitoring__hasmonitoring=True
-    )
-    if uuids:
-        machines.filter(id__in=uuids)
-
-    graphite_uuids = [
-        machine.id
-        for machine in machines
-        if machine.monitoring.method.endswith("-graphite")
-    ]
-    influx_uuids = [
-        machine.id
-        for machine in machines
-        if machine.monitoring.method.endswith("-influxdb")
-    ]
-
-    graphite_data = {}
-    influx_data = {}
-
-    if graphite_uuids:
-        graphite_data = graphite_get_cores(
-            owner, start=start, stop=stop, step=step, uuids=graphite_uuids
-        )
-    if influx_uuids:
-        # Transform "min" and "sec" to "m" and "s", respectively.
-        _start, _stop, _step = [
-            re.sub("in|ec", repl="", string=x)
-            for x in (start.strip("-"), stop.strip("-"), step)
-        ]
-        metric = "cpu.cpu=/cpu\d/.usage_idle"
-        if step:
-            metric = "MEAN(%s)" % metric
-        influx_data = InfluxMultiCoresHandler(influx_uuids).get_stats(
-            metric=metric, start=_start, stop=_stop,
-            step=_step,
-        )
-
-    if graphite_data or influx_data:
-        return dict(
-            list(graphite_data.items()) +
-            list(influx_data.items())
         )
     else:
         raise NotFoundError("No machine has monitoring enabled")
