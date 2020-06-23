@@ -256,7 +256,11 @@ class BaseNetworkController(BaseController):
             cached_networks = {'%s-%s' % (n.id, n.network_id): n.as_dict()
                                for n in self.list_cached_networks()}
             networks = self._list_networks()
-            loop = asyncio.get_event_loop()
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                asyncio.set_event_loop(asyncio.new_event_loop())
+                loop = asyncio.get_event_loop()
             loop.run_until_complete(_list_subnets_async(networks))
 
         # Publish patches to rabbitmq.
