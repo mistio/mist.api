@@ -398,7 +398,7 @@ class LibvirtMainController(BaseMainController):
                     ssh_port=ssh_port,
                     last_seen=datetime.datetime.utcnow(),
                     hostname=_host.get('host'),
-                    state=NodeState.RUNNING,
+                    state=NodeState.RUNNING.value,
                     machine_type='hypervisor',
                     extra=extra
                 )

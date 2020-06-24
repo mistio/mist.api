@@ -45,7 +45,6 @@ from mist.api.exceptions import NetworkNotFoundError
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import MistNotImplementedError
 
-from mist.api.helpers import get_temp_file
 from mist.api.helpers import check_host
 
 from mist.api.methods import connect_provider
@@ -2199,7 +2198,6 @@ def _create_machine_linode(conn, key_name, public_key,
 
     auth = NodeAuthSSHKey(public_key)
 
-    
     try:
         node = conn.create_node(
             name=machine_name,
