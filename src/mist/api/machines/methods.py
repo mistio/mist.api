@@ -465,9 +465,9 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
         node = _create_machine_rackspace(conn, public_key, machine_name, image,
                                          size, location, user_data=cloud_init)
     elif cloud.ctl.provider in [Provider.OPENSTACK.value]:
-        node = _create_machine_openstack(conn, private_key, public_key,
+        node = _create_machine_openstack(conn, public_key,
                                          key.name, machine_name, image, size,
-                                         location, networks, volumes,
+                                         networks, volumes,
                                          cloud_init)
     elif cloud.ctl.provider is Provider.EC2.value:
         locations = conn.list_locations()
@@ -814,8 +814,8 @@ def _create_machine_rackspace(conn, public_key, machine_name,
         raise MachineCreationError("Rackspace, got exception %r" % e, exc=e)
 
 
-def _create_machine_openstack(conn, private_key, public_key, key_name,
-                              machine_name, image, size, location, networks,
+def _create_machine_openstack(conn, public_key, key_name,
+                              machine_name, image, size, networks,
                               volumes, user_data):
     """Create a machine in Openstack.
     """
@@ -855,42 +855,37 @@ def _create_machine_openstack(conn, private_key, public_key, key_name,
         chosen_networks = []
 
     blockdevicemappings = []
-    with get_temp_file(private_key) as tmp_key_path:
-        try:
-            if volumes:
-                if volumes[0].get('size'):
-                    blockdevicemappings = [{
-                        'boot_index': "0",
-                        'delete_on_termination': bool(
-                            volumes[0]['delete_on_termination']),
-                        'source_type': 'image',
-                        'uuid': str(image.id),
-                        'destination_type': 'volume',
-                        'volume_size': int(volumes[0]['size'])
-                    }]
-                else:
-                    from mist.api.volumes.models import Volume
-                    volume_id = volumes[0]['volume_id']
-                    vol = Volume.objects.get(id=volume_id)
-                    blockdevicemappings = [{
-                        'delete_on_termination': bool(volumes[0][
-                            'delete_on_termination']),
-                        'volume_id': vol.external_id
-                    }]
-            node = conn.create_node(
-                name=machine_name,
-                image=image,
-                size=size,
-                location=location,
-                ssh_key=tmp_key_path,
-                ssh_alternate_usernames=['ec2-user', 'ubuntu'],
-                max_tries=1,
-                ex_keyname=server_key,
-                networks=chosen_networks,
-                ex_blockdevicemappings=blockdevicemappings,
-                ex_userdata=user_data)
-        except Exception as e:
-            raise MachineCreationError("OpenStack, got exception %s" % e, e)
+    try:
+        if volumes:
+            if volumes[0].get('size'):
+                blockdevicemappings = [{
+                    'boot_index': "0",
+                    'delete_on_termination': bool(
+                        volumes[0]['delete_on_termination']),
+                    'source_type': 'image',
+                    'uuid': str(image.id),
+                    'destination_type': 'volume',
+                    'volume_size': int(volumes[0]['size'])
+                }]
+            else:
+                from mist.api.volumes.models import Volume
+                volume_id = volumes[0]['volume_id']
+                vol = Volume.objects.get(id=volume_id)
+                blockdevicemappings = [{
+                    'delete_on_termination': bool(volumes[0][
+                        'delete_on_termination']),
+                    'volume_id': vol.external_id
+                }],
+        node = conn.create_node(
+            name=machine_name,
+            size=size,
+            image=image,
+            ex_keyname=server_key,
+            networks=chosen_networks,
+            ex_blockdevicemappings=blockdevicemappings,
+            ex_userdata=user_data)
+    except Exception as e:
+        raise MachineCreationError("OpenStack, got exception %s" % e, e)
     return node
 
 
@@ -1282,7 +1277,6 @@ def _create_machine_docker(conn, machine_name, image_id,
             docker_environment = ["%s=%s" % (key, value) for key, value in
                                   docker_env.items()]
             environment += docker_environment
-        import ipdb;ipdb.set_trace()
         try:
             container = conn.deploy_container(
                 machine_name, image,
