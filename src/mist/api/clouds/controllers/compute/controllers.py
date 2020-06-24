@@ -1018,17 +1018,17 @@ class GoogleComputeController(BaseComputeController):
         return node_dict['extra'].get('creationTimestamp')
 
     def _list_machines__get_custom_size(self, node):
-        machine_type = node.extra.get('machineType', "").split("/")[-1]
+        machine_type = node['extra'].get('machineType', "").split("/")[-1]
         size = self.connection.ex_get_size(machine_type,
-                                           node.extra.get['zone'])
+                                           node['extra']['zone'].get('name'))
         # create object only if the size of the node is custom
-        if size.get('name', '').startswith('custom'):
+        if size.name.startswith('custom'):
             # FIXME: resolve circular import issues
             from mist.api.clouds.models import CloudSize
-            _size = CloudSize(cloud=self.cloud, external_id=size.get('id'))
-            _size.ram = size.get('memoryMb')
-            _size.cpus = size.get('guestCpus')
-            _size.name = size.get('name')
+            _size = CloudSize(cloud=self.cloud, external_id=size.id)
+            _size.ram = size.ram
+            _size.cpus = size.extra.get('guestCpus')
+            _size.name = size.name
             _size.save()
             return _size
 
@@ -1172,6 +1172,8 @@ class GoogleComputeController(BaseComputeController):
         size_type = machine.size.name.split(" ")[0][:2]
         if "custom" in machine.size.name:
             size_type += "_custom"
+            if machine.size.name.startswith('custom'):
+                size_type = 'n1_custom'
         usage_type = "on_demand"
         if "preemptible" in machine.size.name.lower():
             usage_type = "preemptible"
