@@ -1134,7 +1134,6 @@ CELERY_SETTINGS = {
         'mist.api.tasks.ssh_command': {'queue': 'command'},
 
         # Machines queue
-        'mist.api.tasks.list_machines': {'queue': 'machines'},
         'mist.api.poller.tasks.list_machines': {'queue': 'machines'},
 
         # Scripts queue (handled by gevent)
@@ -1144,18 +1143,24 @@ CELERY_SETTINGS = {
         'mist.api.tasks.machine_action': {'queue': 'scripts'},
 
         # SSH probe queue (handled by gevent)
-        'mist.api.tasks.probe_ssh': {'queue': 'probe'},
         'mist.api.poller.tasks.ssh_probe': {'queue': 'probe'},
 
         # Ping probe queue (handled by gevent)
-        'mist.api.tasks.ping': {'queue': 'ping'},
         'mist.api.poller.tasks.ping_probe': {'queue': 'ping'},
 
         # Rule evaluation queue (handled by gevent)
         'mist.api.rules.tasks.evaluate': {'queue': 'rules'},
 
-        # Core tasks
-        'mist.cloudify_insights.tasks.list_deployments': {
+        # Deployment tasks
+        'mist.api.tasks.create_machine_async': {
+            'queue': 'deployments'},
+        'mist.api.tasks.post_deploy_steps': {
+            'queue': 'deployments'},
+        'mist.api.tasks.openstack_post_create_steps': {
+            'queue': 'deployments'},
+        'mist.api.tasks.azure_post_create_steps': {
+            'queue': 'deployments'},
+        'mist.api.tasks.rackspace_first_gen_post_create_steps': {
             'queue': 'deployments'},
         'mist.rbac.tasks.update_mappings': {'queue': 'mappings'},
         'mist.rbac.tasks.remove_mappings': {'queue': 'mappings'},
