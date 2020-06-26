@@ -340,7 +340,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                           extra=cloud_image.extra,
                           driver=conn)
         # star image used for machine
-        if not cloud_image.starred:
+        if not cloud_image.starred and config.STAR_IMAGE_ON_MACHINE_CREATE:
             cloud_image.starred = True
             cloud_image.save()
     except me.DoesNotExist:

@@ -1212,6 +1212,8 @@ STATES = {
     NodeState.NORMAL: 'normal',
 }
 
+STAR_IMAGE_ON_MACHINE_CREATE = True
+
 EC2_SECURITYGROUP = {
     'name': 'mistio',
     'description': 'Security group created by mist.io'
