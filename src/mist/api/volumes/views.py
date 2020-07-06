@@ -190,17 +190,16 @@ def list_storage_classes(request):
     auth_context = auth_context_from_request(request)
     cloud_id = request.matchdict.get('cloud')
 
-    if cloud_id:
-        try:
-            cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
-                                      deleted=None)
-        except Cloud.DoesNotExist:
-            raise CloudNotFoundError()
-        # SEC
-        auth_context.check_perm('cloud', 'read', cloud_id)
-        storage_classes = cloud.ctl.storage.list_storage_classes()
-    else:
-        raise BadRequestError()
+    try:
+        cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
+                                    deleted=None)
+    except Cloud.DoesNotExist:
+        raise CloudNotFoundError()
+    if cloud.as_dict()['provider'] != 'kubevirt':
+        raise BadRequestError('This endpoint is for Kubevirt clouds.')
+    # SEC
+    auth_context.check_perm('cloud', 'read', cloud_id)
+    storage_classes = cloud.ctl.storage.list_storage_classes()
 
     return storage_classes
 
