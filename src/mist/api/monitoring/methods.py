@@ -471,7 +471,8 @@ def disable_monitoring_cloud(owner, cloud_id, no_ssh=False):
 
 def find_metrics(resource):
     """Return the metrics associated with the specified resource."""
-    if not resource.monitoring.hasmonitoring:
+    if not hasattr(resource, "monitoring") or \
+            not resource.monitoring.hasmonitoring:
         return {}
 
     if resource.monitoring.method in ('telegraf-graphite'):
