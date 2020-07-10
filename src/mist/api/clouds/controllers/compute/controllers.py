@@ -451,8 +451,6 @@ class DigitalOceanComputeController(BaseComputeController):
             name += ram + ' GB, '
         if disk:
             name += disk + ' GB SSD Disk, '
-        if bandwidth:
-            name += bandwidth + ' TB transfer, '
         if price_monthly:
             name += '$' + price_monthly + '/month'
 
