@@ -446,15 +446,13 @@ class DigitalOceanComputeController(BaseComputeController):
         bandwidth = str(size.bandwidth)
         price_monthly = str(size.extra.get('price_monthly', ''))
         if cpus:
-            name = cpus + ' CPU/ ' if cpus == '1' else cpus + ' CPUs/ '
+            name = cpus + ' CPU, ' if cpus == '1' else cpus + ' CPUs, '
         if ram:
-            name += ram + ' GB/ '
+            name += ram + ' GB, '
         if disk:
-            name += disk + ' GB SSD Disk/ '
-        if bandwidth:
-            name += bandwidth + ' TB transfer/ '
+            name += disk + ' GB SSD Disk, '
         if price_monthly:
-            name += price_monthly + '$/month'
+            name += '$' + price_monthly + '/month'
 
         return name
 
