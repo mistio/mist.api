@@ -673,11 +673,7 @@ def undeploy_python_plugin(machine, plugin_id):
 
     # TODO Shouldn't we also `disassociate_metric` and remove relevant Rules?
 
-
-<< << << < HEAD
-return {"metric_id": None, "stdout": stdout}
-== == == =
-return {'metric_id': None, 'stdout': stdout}
+    return {'metric_id': None, 'stdout': stdout}
 
 
 def filter_resources_by_tags(resources, tags):
@@ -815,6 +811,3 @@ def find_metrics_by_tags(auth_context, tags):
         metrics.update(find_metrics(resource))
 
     return metrics
-
-
->>>>>> > update - metric - endpoint
