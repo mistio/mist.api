@@ -223,7 +223,7 @@ def validate_portforwards_kubevirt(port_forwards):
     return result
 
 
-def list_machines(owner, cloud_id, cached=False, as_dict=False):
+def list_machines(owner, cloud_id, cached=False, as_dict=True):
     """List all machines in this cloud via API call to the provider."""
     cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
     if cached:
