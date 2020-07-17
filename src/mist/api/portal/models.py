@@ -43,8 +43,8 @@ class Portal(me.Document):
     # Keys & settings unique per portal
     internal_api_key = me.StringField()
     external_api_key = me.StringField()
-    database_version = me.IntField(default=config.ELASTICSEARCH.get(
-        'elastic_database_version', 0), min_value=0)
+    database_version = me.IntField(
+        default=config.DATABASE_VERSION, min_value=0)
 
     # This field has a uniqueness constraint and always has the same value.
     # This is an extra check to ensure that we'll not end up with multiple

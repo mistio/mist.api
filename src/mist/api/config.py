@@ -72,9 +72,10 @@ ELASTICSEARCH = {
     'elastic_username': '',
     'elastic_password': '',
     'elastic_use_ssl': False,
-    'elastic_verify_certs': False,
-    'elastic_database_version': 7
+    'elastic_verify_certs': False
 }
+
+DATABASE_VERSION = 7
 
 UI_TEMPLATE_URL = "http://ui"
 LANDING_TEMPLATE_URL = "http://landing"
