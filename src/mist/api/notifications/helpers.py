@@ -106,36 +106,14 @@ def _alert_pretty_machine_details(owner, rule_id, value, triggered, timestamp,
     # from  the `Rule` instance, as before, since instances of `NoDataRule`
     # will most likely return multiple resources, which is not supported by
     # the current implementation.
+    from mist.api.monitoring.methods import find_metrics
     assert cloud_id and machine_id
     rule = Rule.objects.get(owner_id=owner.id, title=rule_id)
 
     cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
     machine = Machine.objects.get(cloud=cloud, machine_id=machine_id)
 
-    if machine.monitoring.method.endswith('graphite'):
-        metrics = config.GRAPHITE_BUILTIN_METRICS
-    if machine.monitoring.method.endswith('influxdb'):
-        metrics = config.INFLUXDB_BUILTIN_METRICS
-    if machine.monitoring.method.endswith('tsfdb'):
-
-        try:
-            data = requests.get(
-                "%s/v1/resources/%s"
-                % (config.TSFDB_URI, machine_id),
-                timeout=5
-            )
-        except Exception as exc:
-            log.error(
-                'Got %r on _alert_pretty_machine_details for resource %s'
-                % (exc, machine_id))
-            raise ServiceUnavailableError()
-
-        if not data.ok:
-            log.error('Got %d on _alert_pretty_machine_details: %s',
-                      data.status_code, data.content)
-            raise ServiceUnavailableError()
-
-        metrics = data.json()
+    metrics = find_metrics(machine)
 
     if isinstance(rule, NoDataRule):
         # no data alert

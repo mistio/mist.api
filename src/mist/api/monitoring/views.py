@@ -1,11 +1,13 @@
 import copy
 import logging
 
+import mist.api.models
 import mist.api.config as config
 import mist.api.monitoring.methods
 
 from mist.api.helpers import view_config
 from mist.api.helpers import params_from_request
+from mist.api.helpers import trigger_session_update
 
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import ForbiddenError
@@ -261,19 +263,47 @@ def find_metrics(request):
 
     ---
 
-    machine:
-      in: path
-      required: true
+    resource_type:
+      in: query
+      required: false
+      type: string
+
+    id:
+      in: query
+      required: false
+      type: string
+
+    tags:
+      in: query
+      required: false
       type: string
 
     """
+
     auth_context = auth_context_from_request(request)
-    machine = _machine_from_matchdict(request)
 
-    # SEC require permission READ on machine
-    auth_context.check_perm("machine", "read", machine.id)
+    params = params_from_request(request)
+    resource_type = params.get('resource_type', None)
+    resource_id = params.get('resource_id', None)
+    tags = params.get('tags', None)
 
-    return mist.api.monitoring.methods.find_metrics(machine)
+    # Convert the tag list to a dict
+    if tags:
+        tags = dict((key, value[0] if value else '')
+                    for key, *value in (pair.split(':')
+                                        for pair in tags.split(',')))
+
+    if resource_id:
+        return mist.api.monitoring.methods.find_metrics_by_resource_id(
+            auth_context, resource_id, resource_type)
+
+    if resource_type:
+        return mist.api.monitoring.methods.find_metrics_by_resource_type(
+            auth_context, resource_type, tags)
+
+    if tags:
+        return mist.api.monitoring.methods.find_metrics_by_tags(
+            auth_context, tags)
 
 
 # SEC FIXME: (Un)deploying a plugin isn't the same as editing a custom metric.
@@ -364,7 +394,9 @@ def deploy_plugin(request):
         # Add the script.
         script = TelegrafScript.add(auth_context.owner, name, **kwargs)
         # Deploy it.
-        return script.ctl.deploy_and_assoc_python_plugin_from_script(machine)
+        ret = script.ctl.deploy_and_assoc_python_plugin_from_script(machine)
+        trigger_session_update(auth_context.owner, ['scripts'])
+        return ret
     raise BadRequestError('Invalid plugin_type')
 
 
@@ -494,7 +526,7 @@ def update_metric(request):
 
 @view_config(route_name='api_v1_cloud_metrics',
              request_method='PUT', renderer='json')
-@view_config(route_name='api_v1_metrics',
+@view_config(route_name='api_v1_machine_metrics',
              request_method='PUT', renderer='json')
 def associate_metric(request):
     """
@@ -529,7 +561,7 @@ def associate_metric(request):
 
 @view_config(route_name='api_v1_cloud_metrics',
              request_method='DELETE', renderer='json')
-@view_config(route_name='api_v1_metrics',
+@view_config(route_name='api_v1_machine_metrics',
              request_method='DELETE', renderer='json')
 def disassociate_metric(request):
     """
