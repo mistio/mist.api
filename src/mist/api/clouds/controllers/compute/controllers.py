@@ -2523,11 +2523,20 @@ class LibvirtComputeController(BaseComputeController):
         driver = self._get_host_driver(machine)
         return driver.ex_suspend_node(node)
 
-    def _undefine_machine(self, machine, node):
+    def _undefine_machine(self, machine, node, delete_domain_image=False):
         if machine.extra.get('active'):
             raise BadRequestError('Cannot undefine an active domain')
         driver = self._get_host_driver(machine)
-        return driver.ex_undefine_node(node)
+        result = driver.ex_undefine_node(node)
+        if delete_domain_image and result:
+            images_location = machine.extra.get('images_location', '')
+            xml_description = node.extra.get('xml_description', '')
+            if images_location and xml_description:
+                index1 = xml_description.index(images_location)
+                index2 = index1 + xml_description[index1:].index('\'')
+                images_path = xml_description[index1:index2]
+                driver._run_command("rm {}".format(images_path))
+        return result
 
     def _clone_machine(self, machine, node, name, resume):
         driver = self._get_host_driver(machine)

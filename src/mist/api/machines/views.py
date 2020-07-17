@@ -744,6 +744,7 @@ def machine_actions(request):
     snapshot_quiesce = params.get('snapshot_quiesce')
     port_forwards = {'ports': params.get('ports', {}),
                      'service_type': params.get('service_type', None)}
+    delete_domain_image = params.get('delete_domain_image', False)
     auth_context = auth_context_from_request(request)
     if cloud_id:
         machine_id = request.matchdict['machine']
@@ -812,8 +813,10 @@ def machine_actions(request):
         # Schedule a UI update
         trigger_session_update(auth_context.owner, ['clouds'])
     elif action in ('start', 'stop', 'reboot', 'clone',
-                    'undefine', 'suspend', 'resume'):
+                    'suspend', 'resume'):
         result = getattr(machine.ctl, action)()
+    elif action == 'undefine':
+        result = getattr(machine.ctl, action)(delete_domain_image)
     elif action == 'expose':
         if machine.network:
             auth_context.check_perm('network', 'read', machine.network)
