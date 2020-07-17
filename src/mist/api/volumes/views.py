@@ -192,7 +192,7 @@ def list_storage_classes(request):
 
     try:
         cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
-                                    deleted=None)
+                                  deleted=None)
     except Cloud.DoesNotExist:
         raise CloudNotFoundError()
     if cloud.as_dict()['provider'] != 'kubevirt':

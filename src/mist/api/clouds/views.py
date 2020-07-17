@@ -525,7 +525,7 @@ def list_folders(request):
     except Cloud.DoesNotExist:
         raise NotFoundError('Cloud does not exist')
     if cloud.as_dict()['provider'] != 'vsphere':
-      raise BadRequestError('This endpoint is for VSphere clouds.')
+        raise BadRequestError('This endpoint is for VSphere clouds.')
     # SEC
     auth_context.check_perm('cloud', 'read', cloud_id)
     vm_folders = cloud.ctl.compute.list_vm_folders()
@@ -557,7 +557,7 @@ def list_datastores(request):
         raise NotFoundError('Cloud does not exist')
 
     if cloud.as_dict()['provider'] != 'vsphere':
-      raise BadRequestError('This endpoint is for VSphere clouds.')
+        raise BadRequestError('This endpoint is for VSphere clouds.')
     # SEC
     auth_context.check_perm('cloud', 'read', cloud_id)
     try:
