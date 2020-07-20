@@ -1729,7 +1729,7 @@ class BaseComputeController(BaseController):
         """
         raise MistNotImplementedError()
 
-    def undefine_machine(self, machine):
+    def undefine_machine(self, machine, delete_domain_image):
         """Undefine machine
 
         The param `machine` must be an instance of a machine model of this
