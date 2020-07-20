@@ -1729,7 +1729,7 @@ class BaseComputeController(BaseController):
         """
         raise MistNotImplementedError()
 
-    def undefine_machine(self, machine):
+    def undefine_machine(self, machine, delete_domain_image=False):
         """Undefine machine
 
         The param `machine` must be an instance of a machine model of this
@@ -1754,7 +1754,7 @@ class BaseComputeController(BaseController):
 
         node = self._get_libcloud_node(machine)
         try:
-            return self._undefine_machine(machine, node)
+            return self._undefine_machine(machine, node, delete_domain_image)
         except MistError as exc:
             log.error("Could not undefine machine %s", machine)
             raise
