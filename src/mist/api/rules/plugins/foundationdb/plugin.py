@@ -12,7 +12,9 @@ class FoundationDBBackendPlugin(base.BaseBackendPlugin):
 
     def execute(self, query, rid=None):
         # Request data given a simple target expression.
-        data = fdb_methods.get_stats(machine=rid,
+        from mist.api.models import Machine
+        m = Machine.objects.get(id=rid)
+        data = fdb_methods.get_stats(machine=m,
                                      start=self.start,
                                      stop=self.stop,
                                      metrics=[
