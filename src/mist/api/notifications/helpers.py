@@ -1,7 +1,6 @@
 import re
 import time
 import datetime
-import requests
 import logging
 
 from mist.api import config
