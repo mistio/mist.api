@@ -189,4 +189,4 @@ def find_metrics(machine):
                   data.status_code, data.content)
         raise ServiceUnavailableError()
 
-    return data.json()
+    return data.json().get("metrics", {})
