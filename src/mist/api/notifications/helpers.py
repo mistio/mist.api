@@ -8,7 +8,6 @@ from mist.api import config
 from mist.api.helpers import rename_kwargs
 
 from mist.api.exceptions import BadRequestError
-from mist.api.exceptions import ServiceUnavailableError
 
 from mist.api.users.models import Metric
 from mist.api.rules.models import Rule
