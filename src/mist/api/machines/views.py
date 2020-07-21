@@ -751,7 +751,7 @@ def machine_actions(request):
         auth_context.check_perm("cloud", "read", cloud_id)
         try:
             machine = Machine.objects.get(cloud=cloud_id,
-                                          machine_id=machine_id,
+                                          id=machine_id,
                                           state__ne='terminated')
             # used by logging_view_decorator
             request.environ['machine_uuid'] = machine.id
