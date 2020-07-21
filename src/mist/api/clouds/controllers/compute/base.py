@@ -1743,7 +1743,7 @@ class BaseComputeController(BaseController):
         it as needed.
 
         If a subclass of this controller wishes to override the way machines
-        are undefineed, it should override `_undefine_machine` method instead.
+        are undefined, it should override `_undefine_machine` method instead.
 
         """
         # assert isinstance(machine.cloud, Machine)
