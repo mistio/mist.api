@@ -2813,8 +2813,7 @@ class KubeVirtComputeController(BaseComputeController):
                                                  port=port,
                                                  key_file=key_file,
                                                  cert_file=cert_file,
-                                                 ca_cert=ca_cert,
-                                                 verify=verify)
+                                                 ca_cert=ca_cert)
 
         elif self.cloud.token:
             token = self.cloud.token
@@ -2824,8 +2823,7 @@ class KubeVirtComputeController(BaseComputeController):
                                                  host=host,
                                                  port=port,
                                                  ca_cert=ca_cert,
-                                                 token_bearer_auth=True,
-                                                 verify=verify
+                                                 ex_token_bearer_auth=True
                                                  )
         # username/password auth
         elif self.cloud.username and self.cloud.password:
@@ -2836,8 +2834,7 @@ class KubeVirtComputeController(BaseComputeController):
                                                  secret=secret,
                                                  secure=True,
                                                  host=host,
-                                                 port=port,
-                                                 verify=verify)
+                                                 port=port)
         else:
             msg = '''Necessary parameters for authentication are missing.
             Either a key_file/cert_file pair or a username/pass pair
