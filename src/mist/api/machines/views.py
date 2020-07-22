@@ -757,7 +757,7 @@ def machine_actions(request):
             if machine.state == 'terminated' and not isinstance(machine.cloud,
                                                                 LibvirtCloud):
                 raise NotFoundError(
-                    "Machine %s has been terminated" % machine_uuid
+                    "Machine %s has been terminated" % machine.id
                 )
             # used by logging_view_decorator
             request.environ['machine_uuid'] = machine.id
