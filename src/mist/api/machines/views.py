@@ -751,13 +751,13 @@ def machine_actions(request):
         auth_context.check_perm("cloud", "read", cloud_id)
         try:
             machine = Machine.objects.get(cloud=cloud_id,
-                                          id=machine_id)
+                                          machine_id=machine_id)
             # VMs in libvirt can be started no matter if they are terminated
             # also they may be undefined from a terminated state
             if machine.state == 'terminated' and not isinstance(machine.cloud,
                                                                 LibvirtCloud):
                 raise NotFoundError(
-                    "Machine %s has been terminated" % machine_uuid
+                    "Machine %s has been terminated" % machine_id
                 )
             # used by logging_view_decorator
             request.environ['machine_uuid'] = machine.id
