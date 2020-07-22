@@ -196,7 +196,7 @@ def list_storage_classes(request):
     except Cloud.DoesNotExist:
         raise CloudNotFoundError()
     if cloud.as_dict()['provider'] != 'kubevirt':
-        raise BadRequestError('This endpoint is for Kubevirt clouds.')
+        raise BadRequestError('Only available for KubeVirt clouds')
     # SEC
     auth_context.check_perm('cloud', 'read', cloud_id)
     storage_classes = cloud.ctl.storage.list_storage_classes()
