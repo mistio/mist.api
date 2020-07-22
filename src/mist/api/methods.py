@@ -173,7 +173,7 @@ def list_storage_accounts(owner, cloud_id):
     resource_groups = conn.ex_list_resource_groups()
     for account in accounts:
         location_id = account.location
-        location = ""
+        location = None
         # FIXME: circular import
         from mist.api.clouds.models import CloudLocation
         try:
