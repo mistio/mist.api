@@ -2529,13 +2529,12 @@ class LibvirtComputeController(BaseComputeController):
         driver = self._get_host_driver(machine)
         result = driver.ex_undefine_node(node)
         if delete_domain_image and result:
-            images_location = machine.extra.get('images_location', '')
             xml_description = node.extra.get('xml_description', '')
-            if images_location and xml_description:
-                index1 = xml_description.index(images_location)
+            if xml_description:
+                index1 = xml_description.index("source file") + 13
                 index2 = index1 + xml_description[index1:].index('\'')
-                images_path = xml_description[index1:index2]
-                driver._run_command("rm {}".format(images_path))
+                image_path = xml_description[index1:index2]
+                driver._run_command("rm {}".format(image_path))
         return result
 
     def _clone_machine(self, machine, node, name, resume):
