@@ -14,6 +14,7 @@ amqp<3.0
 # see https://serversforhackers.com/running-ansible-2-programmatically
 celery>=4.0,<5.0
 dnspython
+dateparser
 elasticsearch
 elasticsearch_tornado
 flake8

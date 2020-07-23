@@ -7,18 +7,13 @@ import ssl
 import json
 import logging
 import datetime
-
-# Python 2 and 3 support
-from future.standard_library import install_aliases
-install_aliases()
-
+import urllib
 import urllib.parse
-
 import libcloud.security
-from libcloud.compute.types import Provider
-from libcloud.container.types import Provider as Container_Provider
-
 from libcloud.compute.types import NodeState
+from libcloud.container.types import Provider as Container_Provider
+from libcloud.compute.types import Provider
+
 
 log = logging.getLogger(__name__)
 libcloud.security.SSL_VERSION = ssl.PROTOCOL_TLSv1_2
@@ -130,7 +125,7 @@ INFLUXDB_BUILTIN_METRICS = {
         'min_value': 0,
     },
     'system.load1': {
-        'name': 'Load',
+        'name': 'system.load1',
         'unit': '',
         'max_value': 64,
         'min_value': 0,
@@ -234,7 +229,6 @@ GRAPHITE_BUILTIN_METRICS = {
     },
 }
 
-
 # Default Dashboards.
 HOME_DASHBOARD_DEFAULT = {
     "meta": {},
@@ -256,6 +250,190 @@ HOME_DASHBOARD_DEFAULT = {
                 "x-axis": True,
                 "y-axis": True
             }]
+        }],
+        "time": {
+            "from": "now-10m",
+            "to": "now"
+        },
+        "timepicker": {
+            "now": True,
+            "refresh_intervals": [],
+            "time_options": [
+                "10m",
+                "1h",
+                "6h",
+                "24h",
+                "7d",
+                "30d"
+            ]
+        },
+        "timezone": "browser"
+    }
+}
+
+FDB_MACHINE_DASHBOARD_DEFAULT = {
+    "meta": {},
+    "dashboard": {
+        "id": 1,
+        "refresh": "10sec",
+        "rows": [{
+            "height": 300,
+            "panels": [{
+                "id": 0,
+                "title": "Load",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "A",
+                    "target": urllib.parse.quote(
+                        "fetch(\"{id}.system.load(\d)+\"" +
+                        ", start=\"{start}\", stop=\"{stop}\"" +
+                        ", step=\"{step}\")")
+                }],
+                "x-axis": True,
+                "y-axis": True
+            }, {
+                "id": 1,
+                "title": "MEM",
+                "type": "graph",
+                "span": 6,
+                "stack": True,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "B",
+                    "target": urllib.parse.quote(
+                        "fetch(\"{id}.mem.(free|used|cached|buffered)$\"" +
+                        ", start=\"{start}\", stop=\"{stop}\"" +
+                        ", step=\"{step}\")")
+                }, ],
+                "yaxes": [{
+                    "label": "B"
+                }]
+            }, {
+                "id": 2,
+                "title": "CPU total",
+                "type": "graph",
+                "span": 6,
+                "stack": True,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "C",
+                    "target": urllib.parse.quote(
+                        "fetch(\"{id}.cpu.total.usage.*(?<!idle)$\"" +
+                        ", start=\"{start}\", stop=\"{stop}\"" +
+                        ", step=\"{step}\")")
+                }],
+                "yaxes": [{
+                    "label": "%"
+                }]
+            }, {
+                "id": 3,
+                "title": "CPU idle per core",
+                "type": "graph",
+                "span": 6,
+                "stack": True,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "Z",
+                    "target": urllib.parse.quote(
+                        "fetch(\"{id}.cpu.*usage_idle\"" +
+                        ", start=\"{start}\", stop=\"{stop}\"" +
+                        ", step=\"{step}\")")
+                }],
+                "yaxes": [{
+                    "label": "%"
+                }]
+            }, {
+                "id": 4,
+                "title": "NET RX",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "G",
+                    "target": urllib.parse.quote(
+                        "deriv(fetch(\"{id}.net.*.bytes_recv\"" +
+                        ", start=\"{start}\", stop=\"{stop}\"" +
+                        ", step=\"{step}\"))")
+                }],
+                "yaxes": [{
+                    "label": "B/s"
+                }]
+            }, {
+                "id": 5,
+                "title": "NET TX",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "H",
+                    "target": urllib.parse.quote(
+                        "deriv(fetch(\"{id}.net.*.bytes_sent\"" +
+                        ", start=\"{start}\", stop=\"{stop}\"" +
+                        ", step=\"{step}\"))")
+                }],
+                "yaxes": [{
+                    "label": "B/s"
+                }]
+            }, {
+                "id": 6,
+                "title": "DISK READ",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "I",
+                    "target": urllib.parse.quote(
+                        "deriv(fetch(\"{id}.diskio.*.read_bytes\"" +
+                        ", start=\"{start}\", stop=\"{stop}\"" +
+                        ", step=\"{step}\"))")
+                }],
+                "x-axis": True,
+                "y-axis": True,
+                "yaxes": [{
+                    "label": "B/s"
+                }]
+            }, {
+                "id": 7,
+                "title": "DISK WRITE",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "J",
+                    "target": urllib.parse.quote(
+                        "deriv(fetch(\"{id}.diskio.*.write_bytes\"" +
+                        ", start=\"{start}\", stop=\"{stop}\"" +
+                        ", step=\"{step}\"))")
+                }],
+                "yaxes": [{
+                    "label": "B/s"
+                }]
+            }, {
+                "id": 8,
+                "title": "DF",
+                "type": "graph",
+                "span": 12,
+                "height": 400,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "D",
+                    "target": urllib.parse.quote(
+                        "fetch(\"{id}.disk.*\.free\"" +
+                        ", start=\"{start}\", stop=\"{stop}\"" +
+                        ", step=\"{step}\")")
+                }],
+                "yaxes": [{
+                    "label": "B"
+                }]
+            }],
         }],
         "time": {
             "from": "now-10m",
@@ -765,6 +943,7 @@ WINDOWS_MACHINE_DASHBOARD_DEFAULT = {
 
 MONITORING_METHODS = (
     'telegraf-influxdb',
+    'telegraf-tsfdb'
 )
 DEFAULT_MONITORING_METHOD = 'telegraf-influxdb'
 
@@ -777,6 +956,9 @@ CILIA_GRAPHITE_NODATA_TARGETS = (
     "load.shortterm", "load.midterm", "cpu.0.idle"
 )
 CILIA_INFLUXDB_NODATA_TARGETS = (
+    "system.load1", "system.n_cpus", "cpu.cpu=cpu0.usage_user"
+)
+CILIA_FOUNDATIONDB_NODATA_TARGETS = (
     "system.load1", "system.n_cpus", "cpu.cpu=cpu0.usage_user"
 )
 
