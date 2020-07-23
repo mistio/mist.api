@@ -223,13 +223,15 @@ def validate_portforwards_kubevirt(port_forwards):
     return result
 
 
-def list_machines(owner, cloud_id, cached=False):
+def list_machines(owner, cloud_id, cached=False, as_dict=True):
     """List all machines in this cloud via API call to the provider."""
     cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
     if cached:
         machines = cloud.ctl.compute.list_cached_machines()
     else:
         machines = cloud.ctl.compute.list_machines()
+    if not as_dict:
+        return machines
     return [machine.as_dict() for machine in machines]
 
 
@@ -2335,7 +2337,7 @@ def filter_machine_ids(auth_context, cloud_id, machine_ids):
 
 # SEC
 def filter_list_machines(auth_context, cloud_id, machines=None, perm='read',
-                         cached=False):
+                         cached=False, as_dict=True):
     """Returns a list of machines.
 
     In case of non-Owners, the QuerySet only includes machines found in the
@@ -2344,17 +2346,24 @@ def filter_list_machines(auth_context, cloud_id, machines=None, perm='read',
     assert cloud_id
 
     if machines is None:
-        machines = list_machines(auth_context.owner, cloud_id, cached=cached)
+        machines = list_machines(
+            auth_context.owner, cloud_id, cached=cached, as_dict=as_dict)
     if not machines:  # Exit early in case the cloud provider returned 0 nodes.
         return []
     if auth_context.is_owner():
         return machines
 
-    machine_ids = set(machine['id'] for machine in machines)
+    if as_dict:
+        machine_ids = set(machine['id'] for machine in machines)
+    else:
+        machine_ids = set(machine.id for machine in machines)
     allowed_machine_ids = filter_machine_ids(auth_context, cloud_id,
                                              machine_ids)
+    if as_dict:
+        return [machine for machine in machines
+                if machine['id'] in allowed_machine_ids]
     return [machine for machine in machines
-            if machine['id'] in allowed_machine_ids]
+            if machine.id in allowed_machine_ids]
 
 
 def run_pre_action_hooks(machine, action, user):
