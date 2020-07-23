@@ -410,6 +410,8 @@ def add_routes(configurator):
         'api_v1_cloud_metrics',
         '/api/v1/clouds/{cloud}/machines/{machine}/metrics')
     configurator.add_route('api_v1_metrics',
+                           '/api/v1/metrics')
+    configurator.add_route('api_v1_machine_metrics',
                            '/api/v1/machines/{machine_uuid}/metrics')
     configurator.add_route('api_v1_metric', '/api/v1/metrics/{metric}')
     configurator.add_route(

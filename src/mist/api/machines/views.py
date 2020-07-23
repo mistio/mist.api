@@ -744,14 +744,21 @@ def machine_actions(request):
     snapshot_quiesce = params.get('snapshot_quiesce')
     port_forwards = {'ports': params.get('ports', {}),
                      'service_type': params.get('service_type', None)}
+    delete_domain_image = params.get('delete_domain_image', False)
     auth_context = auth_context_from_request(request)
     if cloud_id:
         machine_id = request.matchdict['machine']
         auth_context.check_perm("cloud", "read", cloud_id)
         try:
             machine = Machine.objects.get(cloud=cloud_id,
-                                          machine_id=machine_id,
-                                          state__ne='terminated')
+                                          machine_id=machine_id)
+            # VMs in libvirt can be started no matter if they are terminated
+            # also they may be undefined from a terminated state
+            if machine.state == 'terminated' and not isinstance(machine.cloud,
+                                                                LibvirtCloud):
+                raise NotFoundError(
+                    "Machine %s has been terminated" % machine_id
+                )
             # used by logging_view_decorator
             request.environ['machine_uuid'] = machine.id
         except Machine.DoesNotExist:
@@ -812,8 +819,10 @@ def machine_actions(request):
         # Schedule a UI update
         trigger_session_update(auth_context.owner, ['clouds'])
     elif action in ('start', 'stop', 'reboot', 'clone',
-                    'undefine', 'suspend', 'resume'):
+                    'suspend', 'resume'):
         result = getattr(machine.ctl, action)()
+    elif action == 'undefine':
+        result = getattr(machine.ctl, action)(delete_domain_image)
     elif action == 'expose':
         if machine.network:
             auth_context.check_perm('network', 'read', machine.network)
