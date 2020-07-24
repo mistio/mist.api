@@ -25,6 +25,8 @@ from mist.api.rules.plugins import GraphiteBackendPlugin
 from mist.api.rules.plugins import InfluxDBNoDataPlugin
 from mist.api.rules.plugins import InfluxDBBackendPlugin
 from mist.api.rules.plugins import ElasticSearchBackendPlugin
+from mist.api.rules.plugins import FoundationDBNoDataPlugin
+from mist.api.rules.plugins import FoundationDBBackendPlugin
 
 
 class Rule(me.Document):
@@ -388,6 +390,8 @@ class MachineMetricRule(ResourceRule):
             return GraphiteBackendPlugin
         if config.DEFAULT_MONITORING_METHOD.endswith('-influxdb'):
             return InfluxDBBackendPlugin
+        if config.DEFAULT_MONITORING_METHOD.endswith('-tsfdb'):
+            return FoundationDBBackendPlugin
         raise Exception()
 
     def clean(self):
@@ -408,6 +412,8 @@ class NoDataRule(MachineMetricRule):
             return GraphiteNoDataPlugin
         if config.DEFAULT_MONITORING_METHOD.endswith('-influxdb'):
             return InfluxDBNoDataPlugin
+        if config.DEFAULT_MONITORING_METHOD.endswith('-tsfdb'):
+            return FoundationDBNoDataPlugin
         raise Exception()
 
     # FIXME All following properties are for backwards compatibility.

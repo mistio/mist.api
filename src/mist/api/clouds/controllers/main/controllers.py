@@ -379,7 +379,7 @@ class LibvirtMainController(BaseMainController):
 
             if not errors:
                 try:
-                    ssh_port = int(_host.get('ssh_port', 22))
+                    ssh_port = int(_host.get('port', 22))
                 except (ValueError, TypeError):
                     ssh_port = 22
 

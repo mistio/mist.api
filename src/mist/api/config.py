@@ -7,18 +7,13 @@ import ssl
 import json
 import logging
 import datetime
-
-# Python 2 and 3 support
-from future.standard_library import install_aliases
-install_aliases()
-
+import urllib
 import urllib.parse
-
 import libcloud.security
-from libcloud.compute.types import Provider
-from libcloud.container.types import Provider as Container_Provider
-
 from libcloud.compute.types import NodeState
+from libcloud.container.types import Provider as Container_Provider
+from libcloud.compute.types import Provider
+
 
 log = logging.getLogger(__name__)
 libcloud.security.SSL_VERSION = ssl.PROTOCOL_TLSv1_2
@@ -75,6 +70,8 @@ ELASTICSEARCH = {
     'elastic_verify_certs': False
 }
 
+DATABASE_VERSION = 7
+
 UI_TEMPLATE_URL = "http://ui"
 LANDING_TEMPLATE_URL = "http://landing"
 
@@ -128,7 +125,7 @@ INFLUXDB_BUILTIN_METRICS = {
         'min_value': 0,
     },
     'system.load1': {
-        'name': 'Load',
+        'name': 'system.load1',
         'unit': '',
         'max_value': 64,
         'min_value': 0,
@@ -232,7 +229,6 @@ GRAPHITE_BUILTIN_METRICS = {
     },
 }
 
-
 # Default Dashboards.
 HOME_DASHBOARD_DEFAULT = {
     "meta": {},
@@ -254,6 +250,190 @@ HOME_DASHBOARD_DEFAULT = {
                 "x-axis": True,
                 "y-axis": True
             }]
+        }],
+        "time": {
+            "from": "now-10m",
+            "to": "now"
+        },
+        "timepicker": {
+            "now": True,
+            "refresh_intervals": [],
+            "time_options": [
+                "10m",
+                "1h",
+                "6h",
+                "24h",
+                "7d",
+                "30d"
+            ]
+        },
+        "timezone": "browser"
+    }
+}
+
+FDB_MACHINE_DASHBOARD_DEFAULT = {
+    "meta": {},
+    "dashboard": {
+        "id": 1,
+        "refresh": "10sec",
+        "rows": [{
+            "height": 300,
+            "panels": [{
+                "id": 0,
+                "title": "Load",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "A",
+                    "target": urllib.parse.quote(
+                        "fetch(\"{id}.system.load(\d)+\"" +
+                        ", start=\"{start}\", stop=\"{stop}\"" +
+                        ", step=\"{step}\")")
+                }],
+                "x-axis": True,
+                "y-axis": True
+            }, {
+                "id": 1,
+                "title": "MEM",
+                "type": "graph",
+                "span": 6,
+                "stack": True,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "B",
+                    "target": urllib.parse.quote(
+                        "fetch(\"{id}.mem.(free|used|cached|buffered)$\"" +
+                        ", start=\"{start}\", stop=\"{stop}\"" +
+                        ", step=\"{step}\")")
+                }, ],
+                "yaxes": [{
+                    "label": "B"
+                }]
+            }, {
+                "id": 2,
+                "title": "CPU total",
+                "type": "graph",
+                "span": 6,
+                "stack": True,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "C",
+                    "target": urllib.parse.quote(
+                        "fetch(\"{id}.cpu.total.usage.*(?<!idle)$\"" +
+                        ", start=\"{start}\", stop=\"{stop}\"" +
+                        ", step=\"{step}\")")
+                }],
+                "yaxes": [{
+                    "label": "%"
+                }]
+            }, {
+                "id": 3,
+                "title": "CPU idle per core",
+                "type": "graph",
+                "span": 6,
+                "stack": True,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "Z",
+                    "target": urllib.parse.quote(
+                        "fetch(\"{id}.cpu.*usage_idle\"" +
+                        ", start=\"{start}\", stop=\"{stop}\"" +
+                        ", step=\"{step}\")")
+                }],
+                "yaxes": [{
+                    "label": "%"
+                }]
+            }, {
+                "id": 4,
+                "title": "NET RX",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "G",
+                    "target": urllib.parse.quote(
+                        "deriv(fetch(\"{id}.net.*.bytes_recv\"" +
+                        ", start=\"{start}\", stop=\"{stop}\"" +
+                        ", step=\"{step}\"))")
+                }],
+                "yaxes": [{
+                    "label": "B/s"
+                }]
+            }, {
+                "id": 5,
+                "title": "NET TX",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "H",
+                    "target": urllib.parse.quote(
+                        "deriv(fetch(\"{id}.net.*.bytes_sent\"" +
+                        ", start=\"{start}\", stop=\"{stop}\"" +
+                        ", step=\"{step}\"))")
+                }],
+                "yaxes": [{
+                    "label": "B/s"
+                }]
+            }, {
+                "id": 6,
+                "title": "DISK READ",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "I",
+                    "target": urllib.parse.quote(
+                        "deriv(fetch(\"{id}.diskio.*.read_bytes\"" +
+                        ", start=\"{start}\", stop=\"{stop}\"" +
+                        ", step=\"{step}\"))")
+                }],
+                "x-axis": True,
+                "y-axis": True,
+                "yaxes": [{
+                    "label": "B/s"
+                }]
+            }, {
+                "id": 7,
+                "title": "DISK WRITE",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "J",
+                    "target": urllib.parse.quote(
+                        "deriv(fetch(\"{id}.diskio.*.write_bytes\"" +
+                        ", start=\"{start}\", stop=\"{stop}\"" +
+                        ", step=\"{step}\"))")
+                }],
+                "yaxes": [{
+                    "label": "B/s"
+                }]
+            }, {
+                "id": 8,
+                "title": "DF",
+                "type": "graph",
+                "span": 12,
+                "height": 400,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "D",
+                    "target": urllib.parse.quote(
+                        "fetch(\"{id}.disk.*\.free\"" +
+                        ", start=\"{start}\", stop=\"{stop}\"" +
+                        ", step=\"{step}\")")
+                }],
+                "yaxes": [{
+                    "label": "B"
+                }]
+            }],
         }],
         "time": {
             "from": "now-10m",
@@ -763,6 +943,7 @@ WINDOWS_MACHINE_DASHBOARD_DEFAULT = {
 
 MONITORING_METHODS = (
     'telegraf-influxdb',
+    'telegraf-tsfdb'
 )
 DEFAULT_MONITORING_METHOD = 'telegraf-influxdb'
 
@@ -775,6 +956,9 @@ CILIA_GRAPHITE_NODATA_TARGETS = (
     "load.shortterm", "load.midterm", "cpu.0.idle"
 )
 CILIA_INFLUXDB_NODATA_TARGETS = (
+    "system.load1", "system.n_cpus", "cpu.cpu=cpu0.usage_user"
+)
+CILIA_FOUNDATIONDB_NODATA_TARGETS = (
     "system.load1", "system.n_cpus", "cpu.cpu=cpu0.usage_user"
 )
 
@@ -952,7 +1136,6 @@ CELERY_SETTINGS = {
         'mist.api.tasks.ssh_command': {'queue': 'command'},
 
         # Machines queue
-        'mist.api.tasks.list_machines': {'queue': 'machines'},
         'mist.api.poller.tasks.list_machines': {'queue': 'machines'},
 
         # Scripts queue (handled by gevent)
@@ -962,18 +1145,24 @@ CELERY_SETTINGS = {
         'mist.api.tasks.machine_action': {'queue': 'scripts'},
 
         # SSH probe queue (handled by gevent)
-        'mist.api.tasks.probe_ssh': {'queue': 'probe'},
         'mist.api.poller.tasks.ssh_probe': {'queue': 'probe'},
 
         # Ping probe queue (handled by gevent)
-        'mist.api.tasks.ping': {'queue': 'ping'},
         'mist.api.poller.tasks.ping_probe': {'queue': 'ping'},
 
         # Rule evaluation queue (handled by gevent)
         'mist.api.rules.tasks.evaluate': {'queue': 'rules'},
 
-        # Core tasks
-        'mist.cloudify_insights.tasks.list_deployments': {
+        # Deployment tasks
+        'mist.api.tasks.create_machine_async': {
+            'queue': 'deployments'},
+        'mist.api.tasks.post_deploy_steps': {
+            'queue': 'deployments'},
+        'mist.api.tasks.openstack_post_create_steps': {
+            'queue': 'deployments'},
+        'mist.api.tasks.azure_post_create_steps': {
+            'queue': 'deployments'},
+        'mist.api.tasks.rackspace_first_gen_post_create_steps': {
             'queue': 'deployments'},
         'mist.rbac.tasks.update_mappings': {'queue': 'mappings'},
         'mist.rbac.tasks.remove_mappings': {'queue': 'mappings'},
@@ -1024,6 +1213,8 @@ STATES = {
     NodeState.MIGRATING.value: 'migrating',
     NodeState.NORMAL.value: 'normal',
 }
+
+STAR_IMAGE_ON_MACHINE_CREATE = True
 
 EC2_SECURITYGROUP = {
     'name': 'mistio',

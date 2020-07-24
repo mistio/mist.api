@@ -1,6 +1,7 @@
 import re
 import time
 import datetime
+import logging
 
 from mist.api import config
 
@@ -19,6 +20,8 @@ from mist.api.logs.methods import log_event
 
 from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
+
+log = logging.getLogger(__name__)
 
 
 def _get_alert_details(resource, rule, incident_id,
@@ -101,16 +104,14 @@ def _alert_pretty_machine_details(owner, rule_id, value, triggered, timestamp,
     # from  the `Rule` instance, as before, since instances of `NoDataRule`
     # will most likely return multiple resources, which is not supported by
     # the current implementation.
+    from mist.api.monitoring.methods import find_metrics
     assert cloud_id and machine_id
     rule = Rule.objects.get(owner_id=owner.id, title=rule_id)
 
     cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
     machine = Machine.objects.get(cloud=cloud, machine_id=machine_id)
 
-    if machine.monitoring.method.endswith('graphite'):
-        metrics = config.GRAPHITE_BUILTIN_METRICS
-    if machine.monitoring.method.endswith('influxdb'):
-        metrics = config.INFLUXDB_BUILTIN_METRICS
+    metrics = find_metrics(machine)
 
     if isinstance(rule, NoDataRule):
         # no data alert
