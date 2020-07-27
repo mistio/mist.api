@@ -1832,7 +1832,7 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
             time.sleep(5)
         except Exception as exc:
             raise MachineCreationError('Could not create resource group: %s' %
-                                        exc)
+                                       exc)
 
     storage_accounts = conn.ex_list_storage_accounts()
     ex_storage_account = None
@@ -1860,7 +1860,7 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
                         break
         except Exception as exc:
             raise MachineCreationError('Could not create storage account: %s' %
-                                        exc)
+                                       exc)
     if not isinstance(networks, list):
         networks = [networks]
     network = networks[0]
@@ -1931,7 +1931,7 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
             time.sleep(3)
         except Exception as exc:
             raise MachineCreationError('Could not create security group: %s' %
-                                        exc)
+                                       exc)
 
         # create the new network
         try:
@@ -1941,10 +1941,10 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
                                                 networkSecurityGroup=sg.id)
         except Exception as exc:
             raise MachineCreationError('Could not create new network: %s' %
-                                        exc)
+                                       exc)
 
     ex_subnet = conn.ex_list_subnets(ex_network)[0]
-    import ipdb; ipdb.set_trace()
+
     try:
         ex_ip = conn.ex_create_public_ip(machine_name,
                                          ex_resource_group,
@@ -1959,7 +1959,7 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
                                                   public_ip=ex_ip)
     except Exception as exc:
         raise MachineCreationError('Could not create network interface: %s' %
-                                    exc)
+                                   exc)
 
     data_disks = []
     for volume in volumes:
