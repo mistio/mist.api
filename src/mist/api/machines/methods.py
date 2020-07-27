@@ -1818,8 +1818,8 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
             # add delay cause sometimes the group is not yet ready
             time.sleep(5)
         except Exception as exc:
-            raise InternalServerError("Couldn't create resource group. \
-                %s" % exc)
+            raise MachineCreationError('Could not create resource group: %s' %
+                                        exc)
 
     storage_accounts = conn.ex_list_storage_accounts()
     ex_storage_account = None
@@ -1846,8 +1846,8 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
                         st_account_ready = True
                         break
         except Exception as exc:
-            raise InternalServerError("Couldn't create storage account. \
-                %s" % exc)
+            raise MachineCreationError('Could not create storage account: %s' %
+                                        exc)
     if not isinstance(networks, list):
         networks = [networks]
     network = networks[0]
@@ -1917,8 +1917,8 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
             # add delay cause sometimes the group is not yet ready
             time.sleep(3)
         except Exception as exc:
-            raise InternalServerError("Couldn't create security group \
-                %s" % exc)
+            raise MachineCreationError('Could not create security group: %s' %
+                                        exc)
 
         # create the new network
         try:
@@ -1927,16 +1927,17 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
                                                 location=location,
                                                 networkSecurityGroup=sg.id)
         except Exception as exc:
-            raise InternalServerError("Couldn't create new network", exc)
+            raise MachineCreationError('Could not create new network: %s' %
+                                        exc)
 
     ex_subnet = conn.ex_list_subnets(ex_network)[0]
-
+    import ipdb; ipdb.set_trace()
     try:
         ex_ip = conn.ex_create_public_ip(machine_name,
                                          ex_resource_group,
                                          location)
     except Exception as exc:
-        raise InternalServerError("Couldn't create new ip", exc)
+        raise MachineCreationError('Could not create new ip: %s' % exc)
 
     try:
         ex_nic = conn.ex_create_network_interface(machine_name, ex_subnet,
@@ -1944,7 +1945,8 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
                                                   location=location,
                                                   public_ip=ex_ip)
     except Exception as exc:
-        raise InternalServerError("Couldn't create network interface", exc)
+        raise MachineCreationError('Could not create network interface: %s' %
+                                    exc)
 
     data_disks = []
     for volume in volumes:
