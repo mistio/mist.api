@@ -2268,21 +2268,23 @@ class LibvirtComputeController(BaseComputeController):
             import xml.etree.ElementTree as ET
             root = ET.fromstring(unescape(xml_desc))
             devices = root.find('devices')
-            disks = devices.findall('disk')
-            for disk in disks:
-                if disk.attrib.get('device', '') == 'cdrom':
-                    image = disk.find('source').attrib.get('file', '')
-                    if (machine.image and machine.image.external_id != image) \
-                            or (not machine.image and image):
-                        try:
-                            image = CloudImage.objects.get(
-                                cloud=machine.cloud, external_id=image)
-                        except CloudImage.DoesNotExist:
-                            image = CloudImage(cloud=machine.cloud,
-                                               external_id=image)
-                            image.save()
-                        machine.image = image
-                        updated = True
+            # TODO: rethink image association
+
+            # disks = devices.findall('disk')
+            # for disk in disks:
+            #     if disk.attrib.get('device', '') == 'cdrom':
+            #         image = disk.find('source').attrib.get('file', '')
+            #         if (machine.image and machine.image.external_id != image) \
+            #                 or (not machine.image and image):
+            #             try:
+            #                 image = CloudImage.objects.get(
+            #                     cloud=machine.cloud, external_id=image)
+            #             except CloudImage.DoesNotExist:
+            #                 image = CloudImage(cloud=machine.cloud,
+            #                                    external_id=image)
+            #                 # image.save()
+            #             machine.image = image
+            #             updated = True
 
             vnfs = []
             hostdevs = devices.findall('hostdev') + \
