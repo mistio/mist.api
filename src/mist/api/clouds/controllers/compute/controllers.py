@@ -2257,7 +2257,6 @@ class LibvirtComputeController(BaseComputeController):
         machine.actions.reboot = False
 
     def _list_machines__postparse_machine(self, machine, node_dict):
-        from mist.api.images.models import CloudImage
         updated = False
         xml_desc = node_dict['extra'].get('xml_description')
         if xml_desc:
@@ -2269,22 +2268,6 @@ class LibvirtComputeController(BaseComputeController):
             root = ET.fromstring(unescape(xml_desc))
             devices = root.find('devices')
             # TODO: rethink image association
-
-            # disks = devices.findall('disk')
-            # for disk in disks:
-            #     if disk.attrib.get('device', '') == 'cdrom':
-            #         image = disk.find('source').attrib.get('file', '')
-            #         if (machine.image and machine.image.external_id != image) \
-            #                 or (not machine.image and image):
-            #             try:
-            #                 image = CloudImage.objects.get(
-            #                     cloud=machine.cloud, external_id=image)
-            #             except CloudImage.DoesNotExist:
-            #                 image = CloudImage(cloud=machine.cloud,
-            #                                    external_id=image)
-            #                 # image.save()
-            #             machine.image = image
-            #             updated = True
 
             vnfs = []
             hostdevs = devices.findall('hostdev') + \
