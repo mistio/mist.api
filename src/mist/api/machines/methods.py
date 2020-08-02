@@ -463,8 +463,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                                    volumes=volumes, networks=networks)
     elif cloud.ctl.provider in [Provider.RACKSPACE_FIRST_GEN.value,
                                 Provider.RACKSPACE.value]:
-        node = _create_machine_rackspace(conn, public_key, machine_name, image,
-                                         size, location, user_data=cloud_init)
+        node = _create_machine_rackspace(conn, machine_name, image,
+                                         size, user_data=cloud_init)
     elif cloud.ctl.provider in [Provider.OPENSTACK.value]:
         node = _create_machine_openstack(conn, public_key,
                                          key.name, machine_name, image, size,
@@ -776,40 +776,40 @@ def create_machine_g8(conn, machine_name, image, ram, cpu, disk,
     return node
 
 
-def _create_machine_rackspace(conn, public_key, machine_name,
-                              image, size, location, user_data):
+def _create_machine_rackspace(conn, machine_name, image, size, user_data):
     """Create a machine in Rackspace.
     """
+    #  As noted below the openstack 1.0 driver has no support for
+    #  keys. Thus commenting out the whole key fetching logic below,
+    #  until there is such support. Also no support for cloud init yet.
 
-    key = str(public_key).replace('\n', '')
+    # key = str(public_key).replace('\n', '')
+
+    # try:
+    #     server_key = ''
+    #     keys = conn.ex_list_keypairs()
+    #     for k in keys:
+    #         if key == k.public_key:
+    #             server_key = k.name
+    #             break
+    #     if not server_key:
+    #        server_key = conn.ex_import_keypair_from_string(name=machine_name,
+    #                                                        key_material=key)
+    #         server_key = server_key.name
+    # except:
+    #     try:
+    #         server_key = conn.ex_import_keypair_from_string(
+    #             name='mistio' + str(random.randint(1, 100000)),
+    #             key_material=key)
+    #         server_key = server_key.name
+    #     except AttributeError:
+    #         # RackspaceFirstGenNodeDriver based on OpenStack_1_0_NodeDriver
+    #         # has no support for keys. So don't break here, since
+    #         # create_node won't include it anyway
+    #         server_key = None
 
     try:
-        server_key = ''
-        keys = conn.ex_list_keypairs()
-        for k in keys:
-            if key == k.public_key:
-                server_key = k.name
-                break
-        if not server_key:
-            server_key = conn.ex_import_keypair_from_string(name=machine_name,
-                                                            key_material=key)
-            server_key = server_key.name
-    except:
-        try:
-            server_key = conn.ex_import_keypair_from_string(
-                name='mistio' + str(random.randint(1, 100000)),
-                key_material=key)
-            server_key = server_key.name
-        except AttributeError:
-            # RackspaceFirstGenNodeDriver based on OpenStack_1_0_NodeDriver
-            # has no support for keys. So don't break here, since
-            # create_node won't include it anyway
-            server_key = None
-
-    try:
-        node = conn.create_node(name=machine_name, image=image, size=size,
-                                location=location, ex_keyname=server_key,
-                                ex_userdata=user_data)
+        node = conn.create_node(name=machine_name, image=image, size=size)
         return node
     except Exception as e:
         raise MachineCreationError("Rackspace, got exception %r" % e, exc=e)
@@ -1031,7 +1031,6 @@ def _create_machine_ec2(conn, key_name, public_key,
         'image': image,
         'size': size,
         'location': location,
-        'max_tries': 1,
         'ex_keyname': key_name,
         'ex_userdata': user_data
     }
