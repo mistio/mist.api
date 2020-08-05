@@ -38,7 +38,7 @@ from html import unescape
 
 from xml.sax.saxutils import escape
 
-from libcloud.pricing import get_size_price
+from libcloud.pricing import get_size_price, get_pricing
 from libcloud.compute.base import Node, NodeImage, NodeLocation
 from libcloud.compute.providers import get_driver
 from libcloud.container.providers import get_driver as get_container_driver
@@ -1210,12 +1210,10 @@ class GoogleComputeController(BaseComputeController):
         elif 'ssd' in disk_type:
             disk_type = 'SSD'
 
-        disk_prices = get_size_price(driver_type='compute',
-                                     driver_name='gce_disks',
-                                     size_id=disk_type)
-        gce_instance = get_size_price(driver_type='compute',
-                                      driver_name='gce_instances',
-                                      size_id=size_type)
+        disk_prices = get_pricing(driver_type='compute',
+                                     driver_name='gce_disks')[disk_type]
+        gce_instance = get_pricing(driver_type='compute',
+                                      driver_name='gce_instances')[size_type]
         cpu_price = 0
         ram_price = 0
         os_price = 0
