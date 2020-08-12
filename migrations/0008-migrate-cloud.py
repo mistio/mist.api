@@ -3,23 +3,53 @@
 import sys
 
 from mist.api.clouds.models import Cloud
+from mist.api.images.models import CloudImage
 from mist.api.machines.models import Machine
 from mist.api.networks.models import Network
 
 
 def get_resource_by_id(cloud, resource, resource_type):
-# for machines, we store 'machine_id' instead of 'external_id'
     if resource_type.__name__ == 'Machine':
         new_resource = Machine.objects.get(cloud=cloud,
-                                            machine_id=resource.machine_id,
-                                            missing_since=None)
+                                           machine_id=resource.machine_id,
+                                           missing_since=None)
 
     elif resource_type.__name__ == 'Network':
         new_resource = Network.objects.get(cloud=cloud,
-                                            network_id=resource.network_id,
-                                            missing_since=None)
+                                           network_id=resource.network_id,
+                                           missing_since=None)
     return new_resource
 
+
+def migrate_images(old_cloud, new_cloud):
+    failed = migrated = 0
+    old_images = CloudImage.objects.filter(cloud=old_cloud,
+                                           missing_since=None)
+    print("*** Starting migrating {} Images***".format(old_images.count()))
+
+    for image in old_images:
+        try:
+            new_image = CloudImage.objects.get(cloud=new_cloud,
+                                               external_id=image.external_id,
+                                               missing_since=None)
+            new_image.starred = image.starred
+
+            try:
+                new_image.save()
+                print("Successfully migrated image {}".format(image.name))
+                migrated += 1
+            except Exception:
+                print("*** Could not migrate image {} with mist id {} ***".format(image.name,
+                                                                                  image.id))
+        except CloudImage.DoesNotExist:
+            print("*** WARNING: Image {} with mist id {} was not found on new cloud. Could not migrate ***".format(image.name,
+                                                                                                                   image.id))
+            failed += 1
+
+    print("Successfully migrated {} images".format(migrated))
+
+    if failed:
+        print("Failed to migrate {} images".format(migrated))
 
 def migrate_ownership(old_cloud, new_cloud):
     for resource_type in (Machine, Network):
@@ -28,11 +58,9 @@ def migrate_ownership(old_cloud, new_cloud):
                                                      missing_since=None)
         print("*** Starting migrating {} {}s***".format(old_resources.count(),
                                                         resource_type.__name__))
-        new_resources = resource_type.objects.filter(cloud=new_cloud,
-                                                     missing_since=None)
         for resource in old_resources:
             try:
-                new_resource = get_resource_by_id(new_cloud , resource, resource_type)
+                new_resource = get_resource_by_id(new_cloud, resource, resource_type)
                 new_resource.owned_by = resource.owned_by
                 # also migrate `created_by` field
                 new_resource.created_by = resource.created_by
@@ -52,9 +80,10 @@ def migrate_ownership(old_cloud, new_cloud):
                 failed += 1
 
         print("Successfully migrated {} {}s".format(migrated, resource_type.__name__))
-        
+
         if failed:
             print("Failed to migrate {} {}s".format(migrated, resource_type.__name__))
+
 
 def migrate_cloud(old_cloud_id, new_cloud_id):
     try:
@@ -66,11 +95,12 @@ def migrate_cloud(old_cloud_id, new_cloud_id):
         new_cloud = Cloud.objects.get(id=new_cloud_id)
     except Cloud.DoesNotExist:
         print("Cloud with id {} not found. Exiting...".format(new_cloud_id))
-    
+
     print("=====================================================================")
     print("=== Will migrate {} cloud to {} cloud ===".format(old_cloud.title, new_cloud.title))
     print("=====================================================================")
     migrate_ownership(old_cloud, new_cloud)
+    migrate_images(old_cloud, new_cloud)
     return
 
 
@@ -82,11 +112,7 @@ if __name__ == '__main__':
         print("Old cloud id and new cloud id are required. Exiting...")
         sys.exit(1)
 
-    migrate_cloud(old_cloud_id,new_cloud_id)
-
-
-# ownership (machines, networks)
+    migrate_cloud(old_cloud_id, new_cloud_id)
 
 # tags
 # key associations
-# images
