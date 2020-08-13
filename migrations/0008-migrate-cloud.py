@@ -145,35 +145,34 @@ def migrate_key_associations(old_cloud, new_cloud):
     print("*** Starting migrating key associations of {} Machines***".format(old_machines.count()))
 
     for machine in old_machines:
-            key_associations = KeyMachineAssociation.objects(machine=machine)
-            if key_associations:
-                for key_assoc in key_associations:
-                    new_key_assoc = KeyMachineAssociation()
-                    new_key_assoc.key = key_assoc.key
-                    new_key_assoc.last_used = key_assoc.last_used
-                    new_key_assoc.ssh_user = key_assoc.ssh_user
-                    new_key_assoc.sudo = key_assoc.sudo
-                    new_key_assoc.port = key_assoc.port
+        key_associations = KeyMachineAssociation.objects(machine=machine)
+        if key_associations:
+            for key_assoc in key_associations:
+                new_key_assoc = KeyMachineAssociation()
+                new_key_assoc.key = key_assoc.key
+                new_key_assoc.last_used = key_assoc.last_used
+                new_key_assoc.ssh_user = key_assoc.ssh_user
+                new_key_assoc.sudo = key_assoc.sudo
+                new_key_assoc.port = key_assoc.port
 
+                try:
+                    new_resource = get_resource_by_id(new_cloud, machine, Machine)
+                    new_key_assoc.machine = new_resource
                     try:
-                        new_resource = get_resource_by_id(new_cloud, machine, Machine)
-                        new_key_assoc.machine = new_resource
-                        try:
-                            new_key_assoc.save()
-                            print("Successfully migrated key associations of Machine {}".format(machine.name))
-                            migrated += 1
-                        except Exception:
-                            print("*** Could not migrate key associations of Machine {} with mist id {} ***".format(machine.name,
-                                                                                                                    machine.id))
-                    except resource_type.DoesNotExist:
-                        print("*** WARNING: {} {} with mist id {} was not found on new cloud. Could not migrate tags ***".format(resource_type.__name__,
-                                                                                                                                 resource.name,
-                                                                                                                                 resource.id))
-                        failed += 1
+                        new_key_assoc.save()
+                        print("Successfully migrated key associations of Machine {}".format(machine.name))
+                        migrated += 1
+                    except Exception:
+                        print("*** Could not migrate key associations of Machine {} with mist id {} ***".format(machine.name,
+                                                                                                                machine.id))
+                except Machine.DoesNotExist:
+                    print("*** WARNING: Machine{} with mist id {} was not found on new cloud. Could not migrate tags ***".format(machine.name,
+                                                                                                                                 machine.id))
+                    failed += 1
 
-            else:
-                print("Key associations were not found for Machine {}".format(machine.name))
-                migrated += 1
+        else:
+            print("Key associations were not found for Machine {}".format(machine.name))
+            migrated += 1
 
     print("=====================================================================")
     print("Successfully migrated {} Machines".format(migrated))
