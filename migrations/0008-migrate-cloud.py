@@ -6,6 +6,7 @@ from mist.api.clouds.models import Cloud
 from mist.api.images.models import CloudImage
 from mist.api.machines.models import Machine
 from mist.api.networks.models import Network
+from mist.api.tag.models import Tag
 
 
 def get_resource_by_id(cloud, resource, resource_type):
@@ -45,19 +46,22 @@ def migrate_images(old_cloud, new_cloud):
             print("*** WARNING: Image {} with mist id {} was not found on new cloud. Could not migrate ***".format(image.name,
                                                                                                                    image.id))
             failed += 1
-
+    print("=====================================================================")
     print("Successfully migrated {} images".format(migrated))
+    print("=====================================================================")
 
     if failed:
         print("Failed to migrate {} images".format(migrated))
+        print("=====================================================================")
+
 
 def migrate_ownership(old_cloud, new_cloud):
     for resource_type in (Machine, Network):
         failed = migrated = 0
         old_resources = resource_type.objects.filter(cloud=old_cloud,
                                                      missing_since=None)
-        print("*** Starting migrating {} {}s***".format(old_resources.count(),
-                                                        resource_type.__name__))
+        print("*** Starting migrating ownership of {} {}s***".format(old_resources.count(),
+                                                                     resource_type.__name__))
         for resource in old_resources:
             try:
                 new_resource = get_resource_by_id(new_cloud, resource, resource_type)
@@ -78,11 +82,60 @@ def migrate_ownership(old_cloud, new_cloud):
                                                                                                                               resource.name,
                                                                                                                               resource.id))
                 failed += 1
-
+        print("=====================================================================")
         print("Successfully migrated {} {}s".format(migrated, resource_type.__name__))
-
+        print("=====================================================================")
         if failed:
             print("Failed to migrate {} {}s".format(migrated, resource_type.__name__))
+            print("=====================================================================")
+
+
+def migrate_tags(old_cloud, new_cloud):
+    for resource_type in (Machine, Network):
+        failed = migrated = 0
+        old_resources = resource_type.objects.filter(cloud=old_cloud,
+                                                     missing_since=None)
+        print("*** Starting migrating tags of {} {}s***".format(old_resources.count(),
+                                                                resource_type.__name__))
+        for resource in old_resources:
+            tags = Tag.objects(resource_id=resource.id,
+                               resource_type=resource_type.__name__.lower())
+            if tags:
+                for tag in tags:
+                    new_tag = Tag()
+                    new_tag.key = tag.key
+                    new_tag.value = tag.value
+                    new_tag.owner = tag.owner
+                    new_tag.resource_type = tag.resource_type
+
+                    try:
+                        new_resource = get_resource_by_id(new_cloud, resource, resource_type)
+                        new_tag.resource_id = new_resource.id
+                        try:
+                            new_tag.save()
+                            print("Successfully migrated tags of {} {}".format(resource_type.__name__,
+                                                                               resource.name))
+                            migrated += 1
+                        except Exception:
+                            print("*** Could not migrate tags of {} {} with mist id {} ***".format(resource_type.__name__,
+                                                                                                   resource.name,
+                                                                                                   resource.id))
+                    except resource_type.DoesNotExist:
+                        print("*** WARNING: {} {} with mist id {} was not found on new cloud. Could not migrate tags ***".format(resource_type.__name__,
+                                                                                                                                 resource.name,
+                                                                                                                                 resource.id))
+                        failed += 1
+
+            else:
+                print("Tags were not found for {} {}".format(resource_type.__name__, resource.name))
+                migrated += 1
+
+        print("=====================================================================")
+        print("Successfully migrated {} {}s".format(migrated, resource_type.__name__))
+        print("=====================================================================")
+        if failed:
+            print("Failed to migrate {} {}s".format(migrated, resource_type.__name__))
+            print("=====================================================================")
 
 
 def migrate_cloud(old_cloud_id, new_cloud_id):
@@ -99,8 +152,9 @@ def migrate_cloud(old_cloud_id, new_cloud_id):
     print("=====================================================================")
     print("=== Will migrate {} cloud to {} cloud ===".format(old_cloud.title, new_cloud.title))
     print("=====================================================================")
-    migrate_ownership(old_cloud, new_cloud)
-    migrate_images(old_cloud, new_cloud)
+    # migrate_ownership(old_cloud, new_cloud)
+    migrate_tags(old_cloud, new_cloud)
+    # migrate_images(old_cloud, new_cloud)
     return
 
 
@@ -114,5 +168,4 @@ if __name__ == '__main__':
 
     migrate_cloud(old_cloud_id, new_cloud_id)
 
-# tags
 # key associations
