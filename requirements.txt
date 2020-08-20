@@ -54,3 +54,4 @@ tornado
 #tornado_profile
 uwsgidecorators
 websocket-client
+hvac

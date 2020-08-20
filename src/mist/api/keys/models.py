@@ -4,6 +4,7 @@ import logging
 from uuid import uuid4
 import mongoengine as me
 from paramiko.rsakey import RSAKey
+import hvac, os
 
 import mist.api.tag.models
 from mist.api.users.models import Owner
@@ -12,6 +13,8 @@ from mist.api.keys import controllers
 from mist.api.keys.base import BaseKeyController
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.ownership.mixins import OwnershipMixin
+from mist.api import config
+
 
 log = logging.getLogger(__name__)
 
@@ -49,7 +52,7 @@ class Key(OwnershipMixin, me.Document):
     value should be a subclass of
     `mist.api.keys.controllers.BaseKeyController'. These
     subclasses are stored in `mist.api.keys.BaseKeyController`. When a key is
-    instanciated, it is given a `ctl` attribute which gives access to the
+    instaniated, it is given a `ctl` attribute which gives access to the
     keys controller. This way it is possible to do things like:
 
         key = SSKey.objects.get(id=key_id)
@@ -157,7 +160,7 @@ class SSHKey(Key):
     """An ssh key."""
 
     public = me.StringField(required=True)
-    private = me.StringField(required=True)
+    private = me.ReferenceField('Secret', required=True)
 
     _controller_cls = controllers.SSHKeyController
     _private_fields = ('private',)
@@ -179,7 +182,8 @@ class SSHKey(Key):
 
 
 class SignedSSHKey(SSHKey):
-    """An signed ssh key"""
+    """An signed ssh key."""
+
     certificate = me.StringField(required=True)
 
     _controller_cls = controllers.BaseKeyController
@@ -191,3 +195,52 @@ class SignedSSHKey(SSHKey):
         super(SignedSSHKey, self).clean()
         if not self.certificate.startswith('ssh-rsa-cert-v01@openssh.com'):
             raise BadRequestError("Certificate is not a valid signed RSA key.")
+
+
+class Secret(me.Document):
+    """ TODO """
+    
+    secret_engine_name = me.StringField(required=True)
+    secret_name = me.StringField(required=True)
+    key_name = me.StringField(required=True)
+    private = me.StringField()
+
+    #def __init__(self):
+    #    """ Construct Secret object given Secret's Path """
+
+    def vault_init(self):
+        """ Returns an initialized Vault Client """
+
+        token = config.VAULT_TOKEN
+        url = config.VAULT_ADDR
+        
+        client = hvac.Client(url=url, token=token)
+        assert(client.is_authenticated())
+
+        return client
+    
+    def retrieve_private(self, client):
+        """ Constructs secret path, verifies it exists and retrieves private key """
+
+        # Construct Vault API path
+        secret_path = self.secret_engine_name + '/' + self.secret_name
+
+        # Read Secret
+        result = client.read(secret_path)
+
+        # temp behaviour
+        self.key_name = "hello"
+
+        # Retrieve Secret from "data" of JSON reply
+        if len(result['data']) > 1:
+            self.private = result['data'][self.key_name]
+        else: # If there is only one key inside Secret
+            self.private = result['data'][0]
+
+    def list_secrets(self, client):
+        """ List all available Secrets in Secret Engine """
+        print(client.list(self.secret_engine_name))
+
+    def list_sec_engines(self, client):
+        """ List all available Secret Engines """
+        print(client.list_secret_backends)
