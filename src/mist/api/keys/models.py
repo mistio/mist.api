@@ -4,7 +4,7 @@ import logging
 from uuid import uuid4
 import mongoengine as me
 from paramiko.rsakey import RSAKey
-import hvac, os
+import hvac
 
 import mist.api.tag.models
 from mist.api.users.models import Owner
@@ -198,49 +198,76 @@ class SignedSSHKey(SSHKey):
 
 
 class Secret(me.Document):
-    """ TODO """
-    
+    """ A Vault Secret object """
+
     secret_engine_name = me.StringField(required=True)
     secret_name = me.StringField(required=True)
     key_name = me.StringField(required=True)
-    private = me.StringField()
+    private = me.StringField(required=True)
 
-    #def __init__(self):
-    #    """ Construct Secret object given Secret's Path """
+    client = hvac.Client()
+
+    def __init__(self,
+                 secret_engine_name='kv-v1',
+                 secret_name='ssh',
+                 key_name='takis',
+                 *args, **kwargs):
+
+        """ Construct Secret object given Secret's Path """
+        super(Secret, self).__init__(*args, **kwargs)
+        self.secret_engine_name = secret_engine_name
+        self.secret_name = secret_name
+        self.key_name = key_name
 
     def vault_init(self):
         """ Returns an initialized Vault Client """
 
         token = config.VAULT_TOKEN
         url = config.VAULT_ADDR
-        
-        client = hvac.Client(url=url, token=token)
-        assert(client.is_authenticated())
 
-        return client
-    
-    def retrieve_private(self, client):
-        """ Constructs secret path, verifies it exists and retrieves private key """
+        self.client = hvac.Client(url=url, token=token)
+        assert(self.client.is_authenticated())
+
+    def retrieve_private(self):
+        """
+        Constructs secret path, verifies it exists and retrieves private key
+        """
 
         # Construct Vault API path
         secret_path = self.secret_engine_name + '/' + self.secret_name
 
-        # Read Secret
-        result = client.read(secret_path)
+        # Check KV version; kv or kv2
+        version = self.client.\
+            lists_secret_backends()[self.secret_engine_name + '/']['type']
 
-        # temp behaviour
-        self.key_name = "hello"
+        # KV1
+        if version == 'kv':
+            # Read Secret
+            result = self.client.read(secret_path)
 
-        # Retrieve Secret from "data" of JSON reply
-        if len(result['data']) > 1:
-            self.private = result['data'][self.key_name]
-        else: # If there is only one key inside Secret
-            self.private = result['data'][0]
+            # Retrieve Secret from "data" of JSON reply
+            try:
+                self.private = result['data'][self.key_name]
+            except KeyError:
+                print(result)
+            """ else: # If there is only one key inside Secret
+                try:
+                    self.private = result['data'].values()[0]
+                except KeyError:
+                    print(result)
+            """
+        # KV2
+        elif version == 'kv2':
+            # Placeholder
+            exit(1)
+        # Not Supported
+        else:
+            exit('Wrong Secret type')
 
-    def list_secrets(self, client):
+    def list_secrets(self):
         """ List all available Secrets in Secret Engine """
-        print(client.list(self.secret_engine_name))
+        print(self.client.list(self.secret_engine_name)['data'])
 
-    def list_sec_engines(self, client):
+    def list_sec_engines(self):
         """ List all available Secret Engines """
-        print(client.list_secret_backends)
+        print(self.client.list_secret_backends()['data'])
