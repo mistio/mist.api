@@ -1,6 +1,7 @@
 import re
 import time
 import datetime
+import logging
 
 from mist.api import config
 
@@ -19,6 +20,8 @@ from mist.api.logs.methods import log_event
 
 from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
+
+log = logging.getLogger(__name__)
 
 
 def _get_alert_details(resource, rule, incident_id,
