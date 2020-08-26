@@ -14,7 +14,19 @@ class SSHKeyController(BaseKeyController):
         Random.atfork()
         key = RSA.generate(2048)
         self.key.private = key.exportKey().decode()
+        # vault_secret = VaultSecret(self.name, {"private": key.exportKey().decode()})
+        # vault_secret.save()
+        # self.key.private.secret = vault_secret
+        # self.key.private.key_name = "private"
         self.key.public = key.exportKey('OpenSSH').decode()
+
+    def vault_integrate(self, secret_engine_name, secret_name, key_name):
+        """ Integrates a key from Vault """
+        from mist.api.secrets.models import Secret
+        s = Secret()
+        s.vault_init()
+        s.retrieve_private()
+        self.key.private = s.private
 
     def associate(self, machine, username='root', port=22, no_connect=False):
         key_assoc = super(SSHKeyController, self).associate(

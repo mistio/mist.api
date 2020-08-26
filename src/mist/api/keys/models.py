@@ -4,7 +4,6 @@ import logging
 from uuid import uuid4
 import mongoengine as me
 from paramiko.rsakey import RSAKey
-import hvac
 
 import mist.api.tag.models
 from mist.api.users.models import Owner
@@ -13,23 +12,9 @@ from mist.api.keys import controllers
 from mist.api.keys.base import BaseKeyController
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.ownership.mixins import OwnershipMixin
-from mist.api import config
-
+from mist.api.secrets.models import SecretValue
 
 log = logging.getLogger(__name__)
-
-
-
-class SecretValue(me.EmbeddedDocument):
-    secret = me.ReferenceField('Secret', required=True)
-    key_name = me.StringField()
-
-    @property
-    def value(self):
-        if self.key_name:
-            return self.secret.value[self.key_name]
-        else:
-            return self.secret.value
 
 
 class Key(OwnershipMixin, me.Document):
@@ -209,130 +194,3 @@ class SignedSSHKey(SSHKey):
         super(SignedSSHKey, self).clean()
         if not self.certificate.startswith('ssh-rsa-cert-v01@openssh.com'):
             raise BadRequestError("Certificate is not a valid signed RSA key.")
-
-class Secret(OwnershipMixin, me.Document):
-
-    """ A Secret object """
-
-    name = me.StringField(required=True)
-    owner = me.ReferenceField(Owner, reverse_delete_rule=me.CASCADE)
-    metadata = me.DictField(required=True)
-
-    meta = {
-        'allow_inheritance': True,
-        'collection': 'secrets',
-        'indexes': [
-            {
-                'fields': ['owner', 'name'],
-                'sparse': False,
-                'unique': False,
-                'cls': False,
-            },
-        ],
-    }
-
-    _controller_cls = None
-
-    def __init__(self, *args, **kwargs):
-        super(Key, self).__init__(*args, **kwargs)
-
-        # Set attribute `ctl` to an instance of the appropriate controller.
-        if self._controller_cls is None:
-            raise NotImplementedError(
-                "Can't initialize %s. Secret is an abstract base class and "
-                "shouldn't be used to create cloud instances. All Key "
-                "subclasses should define a `_controller_cls` class attribute "
-                "pointing to a `BaseController` subclass." % self
-            )
-        # elif not issubclass(self._controller_cls, VaultController):
-        #     raise TypeError(
-        #         "Can't initialize %s.  All Secret subclasses should define a"
-        #         " `_controller_cls` class attribute pointing to a "
-        #         "`BaseController` subclass." % self
-        #     )
-        # self.ctl = self._controller_cls(self)
-
-        # # Calculate and store key type specific fields.
-        # self._secret_specific_fields = [field for field in type(self)._fields
-                                        # if field not in Secret._fields]
-
-    @property
-    def data(self):
-        raise NotImplementedError
-
-
-class VaultSecret(Secret):
-    """ A Vault Secret object """
-
-    secret_engine_name = me.StringField(required=True)
-
-    client = hvac.Client()
-
-    #_controller_cls = controllers.VaultController
-
-    def __init__(self,
-                 name,
-                 secret_engine_name='kv1',
-                 metadata={},
-                 *args, **kwargs):
-
-        """ Construct Secret object given Secret's Path """
-        super(Secret, self).__init__(*args, **kwargs)
-        self.secret_engine_name = secret_engine_name
-        self.name = name
-        self.metadata = metadata
-
-    def list_secrets(self):
-        """ List all available Secrets in Secret Engine """
-        print(self.client.list(self.secret_engine_name)['data'])
-
-    def list_sec_engines(self):
-        """ List all available Secret Engines """
-        print(self.client.list_secret_backends()['data'])
-
-    @property
-    def data(self):
-        """ TODO """
-
-        token = config.VAULT_TOKEN
-        url = config.VAULT_ADDR
-
-        self.client = hvac.Client(url=url, token=token)
-        assert(self.client.is_authenticated())
-
-        # Construct Vault API path
-        secret_path = self.secret_engine_name + '/' + self.secret_name
-
-        # Check KV version; kv1 or kv2
-        version = self.client.\
-            lists_secret_backends()[self.secret_engine_name + '/']['type']
-
-        # TODO: Make sure the response works with all types of Secrets
-        api_response = self.client.read(secret_path)
-
-        # KV1
-        if version == 'kv':
-            return self.kv1_secret(api_response)
-        # KV2
-        elif version == 'kv2':
-            return self.kv2_secret(api_response)
-        # Not Supported
-        else:
-            exit('Wrong Secret type')
-
-    def kv1_secret(self, returned_secret):
-        """ Retrieve Secret value from "data" of JSON reply """
-        try:
-            key = returned_secret['data']
-        except KeyError:
-            print(returned_secret)
-        return key
-
-    def kv2_secret(self, returned_secret):
-        # TODO: Check if this works
-        """ Retrieve Secret value from "data" of JSON reply """
-        try:
-            key = returned_secret['data']
-        except KeyError:
-            print(returned_secret)
-        return key
