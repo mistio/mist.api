@@ -40,19 +40,20 @@ def migrate_images(old_cloud, new_cloud):
                 print("Successfully migrated image {}".format(image.name))
                 migrated += 1
             except Exception:
-                print("*** Could not migrate image {} with mist id {} ***".format(image.name,
-                                                                                  image.id))
+                print("*** Could not migrate image {} with mist id \
+                      {} ***".format(image.name, image.id))
         except CloudImage.DoesNotExist:
-            print("*** WARNING: Image {} with mist id {} was not found on new cloud. Could not migrate ***".format(image.name,
-                                                                                                                   image.id))
+            print("*** WARNING: Image {} with mist id {} was not found on \
+                  new cloud. Could not migrate ***".format(image.name,
+                                                           image.id))
             failed += 1
-    print("=====================================================================")
+    print("==============================================================")
     print("Successfully migrated {} images".format(migrated))
-    print("=====================================================================")
+    print("==============================================================")
 
     if failed:
         print("Failed to migrate {} images".format(failed))
-        print("=====================================================================")
+        print("==============================================================")
 
 
 def migrate_ownership(old_cloud, new_cloud):
@@ -60,34 +61,41 @@ def migrate_ownership(old_cloud, new_cloud):
         failed = migrated = 0
         old_resources = resource_type.objects.filter(cloud=old_cloud,
                                                      missing_since=None)
-        print("*** Starting migrating ownership of {} {}s***".format(old_resources.count(),
-                                                                     resource_type.__name__))
+        print("*** Starting migrating ownership of {} \
+              {}s***".format(old_resources.count(),
+                             resource_type.__name__))
         for resource in old_resources:
             try:
-                new_resource = get_resource_by_id(new_cloud, resource, resource_type)
+                new_resource = get_resource_by_id(new_cloud, resource,
+                                                  resource_type)
                 new_resource.owned_by = resource.owned_by
                 # also migrate `created_by` field
                 new_resource.created_by = resource.created_by
                 try:
                     new_resource.save()
-                    print("Successfully migrated ownership of {} {}".format(resource_type.__name__,
-                                                                            resource.name))
+                    print("Successfully migrated ownership of {} \
+                          {}".format(resource_type.__name__,
+                                     resource.name))
                     migrated += 1
                 except Exception:
-                    print("*** Could not migrate ownership of {} {} with mist id {} ***".format(resource_type.__name__,
-                                                                                                resource.name,
-                                                                                                resource.id))
+                    print("*** Could not migrate ownership of {} {} with \
+                          mist id {} ***".format(resource_type.__name__,
+                                                 resource.name,
+                                                 resource.id))
             except resource_type.DoesNotExist:
-                print("*** WARNING: {} {} with mist id {} was not found on new cloud. Could not migrate ownership ***".format(resource_type.__name__,
-                                                                                                                              resource.name,
-                                                                                                                              resource.id))
+                print("*** WARNING: {} {} with mist id {} was not found on new\
+                      cloud. Could not migrate ownership \
+                      ***".format(resource_type.__name__, resource.name,
+                                  resource.id))
                 failed += 1
-        print("=====================================================================")
-        print("Successfully migrated {} {}s".format(migrated, resource_type.__name__))
-        print("=====================================================================")
+        print("==========================================================")
+        print("Successfully migrated {} {}s".format(migrated,
+                                                    resource_type.__name__))
+        print("==========================================================")
         if failed:
-            print("Failed to migrate {} {}s".format(failed, resource_type.__name__))
-            print("=====================================================================")
+            print("Failed to migrate {} {}s".format(failed,
+                                                    resource_type.__name__))
+            print("==========================================================")
 
 
 def migrate_tags(old_cloud, new_cloud):
@@ -95,8 +103,10 @@ def migrate_tags(old_cloud, new_cloud):
         failed = migrated = 0
         old_resources = resource_type.objects.filter(cloud=old_cloud,
                                                      missing_since=None)
-        print("*** Starting migrating tags of {} {}s***".format(old_resources.count(),
-                                                                resource_type.__name__))
+        print("*** Starting migrating tags of {} {}s***".format(old_resources.
+                                                                count(),
+                                                                resource_type.
+                                                                __name__))
         for resource in old_resources:
             tags = Tag.objects(resource_id=resource.id,
                                resource_type=resource_type.__name__.lower())
@@ -109,43 +119,53 @@ def migrate_tags(old_cloud, new_cloud):
                     new_tag.resource_type = tag.resource_type
 
                     try:
-                        new_resource = get_resource_by_id(new_cloud, resource, resource_type)
+                        new_resource = get_resource_by_id(new_cloud, resource,
+                                                          resource_type)
                         new_tag.resource_id = new_resource.id
                         try:
                             new_tag.save()
-                            print("Successfully migrated tags of {} {}".format(resource_type.__name__,
-                                                                               resource.name))
+                            print("Successfully migrated tags of {} \
+                                  {}".format(resource_type.__name__,
+                                             resource.name))
                             migrated += 1
                         except Exception:
-                            print("*** Could not migrate tags of {} {} with mist id {} ***".format(resource_type.__name__,
-                                                                                                   resource.name,
-                                                                                                   resource.id))
+                            print("*** Could not migrate tags of {} {} with \
+                                  mist id {} ***".format(resource_type.
+                                                         __name__,
+                                                         resource.name,
+                                                         resource.id))
                     except resource_type.DoesNotExist:
-                        print("*** WARNING: {} {} with mist id {} was not found on new cloud. Could not migrate tags ***".format(resource_type.__name__,
-                                                                                                                                 resource.name,
-                                                                                                                                 resource.id))
+                        print("*** WARNING: {} {} with mist id {} was not found\
+                              on new cloud. Could not migrate tags\
+                              ***".format(resource_type.__name__,
+                                          resource.name,
+                                          resource.id))
                         failed += 1
 
             else:
-                print("Tags were not found for {} {}".format(resource_type.__name__, resource.name))
+                print("Tags were not found for {} \
+                      {}".format(resource_type.__name__, resource.name))
                 migrated += 1
 
-        print("=====================================================================")
-        print("Successfully migrated {} {}s".format(migrated, resource_type.__name__))
-        print("=====================================================================")
+        print("==========================================================")
+        print("Successfully migrated {} {}s".format(migrated,
+                                                    resource_type.__name__))
+        print("==========================================================")
         if failed:
-            print("Failed to migrate {} {}s".format(failed, resource_type.__name__))
-            print("=====================================================================")
+            print("Failed to migrate {} {}s".format(failed,
+                                                    resource_type.__name__))
+            print("=========================================================")
 
 
 def migrate_key_associations(old_cloud, new_cloud):
     failed = migrated = 0
     old_machines = Machine.objects.filter(cloud=old_cloud,
                                           missing_since=None)
-    print("*** Starting migrating key associations of {} Machines***".format(old_machines.count()))
+    print("*** Starting migrating key associations of {} Machines \
+          ***".format(old_machines.count()))
 
-    for machine in old_machines:
-        key_associations = KeyMachineAssociation.objects(machine=machine)
+    for ma in old_machines:
+        key_associations = KeyMachineAssociation.objects(machine=ma)
         if key_associations:
             for key_assoc in key_associations:
                 new_key_assoc = KeyMachineAssociation()
@@ -156,30 +176,36 @@ def migrate_key_associations(old_cloud, new_cloud):
                 new_key_assoc.port = key_assoc.port
 
                 try:
-                    new_resource = get_resource_by_id(new_cloud, machine, Machine)
+                    new_resource = get_resource_by_id(new_cloud, ma,
+                                                      Machine)
                     new_key_assoc.machine = new_resource
                     try:
                         new_key_assoc.save()
-                        print("Successfully migrated key associations of Machine {}".format(machine.name))
+                        print("Successfully migrated key associations of \
+                              Machine {}".format(ma.name))
                         migrated += 1
                     except Exception:
-                        print("*** Could not migrate key associations of Machine {} with mist id {} ***".format(machine.name,
-                                                                                                                machine.id))
+                        print("*** Could not migrate key associations of \
+                              Machine {} with mist id {} ***".format(ma.name,
+                                                                     ma.id))
                 except Machine.DoesNotExist:
-                    print("*** WARNING: Machine{} with mist id {} was not found on new cloud. Could not migrate tags ***".format(machine.name,
-                                                                                                                                 machine.id))
+                    print("*** WARNING: Machine{} with mist id {} was \
+                          not found on new cloud. Could not migrate \
+                          tags ***".format(ma.name,
+                                           ma.id))
                     failed += 1
 
         else:
-            print("Key associations were not found for Machine {}".format(machine.name))
+            print("Key associations were not found for Machine \
+                  {}".format(ma.name))
             migrated += 1
 
-    print("=====================================================================")
+    print("==============================================================")
     print("Successfully migrated {} Machines".format(migrated))
-    print("=====================================================================")
+    print("==============================================================")
     if failed:
         print("Failed to migrate {} Machines".format(failed))
-        print("=====================================================================")
+        print("==============================================================")
 
 
 def migrate_cloud(old_cloud_id, new_cloud_id):
@@ -193,9 +219,10 @@ def migrate_cloud(old_cloud_id, new_cloud_id):
     except Cloud.DoesNotExist:
         print("Cloud with id {} not found. Exiting...".format(new_cloud_id))
 
-    print("=====================================================================")
-    print("=== Will migrate {} cloud to {} cloud ===".format(old_cloud.title, new_cloud.title))
-    print("=====================================================================")
+    print("==============================================================")
+    print("=== Will migrate {} cloud to {} cloud ===".format(old_cloud.title,
+                                                             new_cloud.title))
+    print("==============================================================")
     migrate_ownership(old_cloud, new_cloud)
     migrate_tags(old_cloud, new_cloud)
     migrate_images(old_cloud, new_cloud)
