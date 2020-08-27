@@ -9,6 +9,7 @@ from mist.api import config
 
 log = logging.getLogger(__name__)
 
+
 class Secret(OwnershipMixin, me.Document):
 
     """ A Secret object """
@@ -39,15 +40,15 @@ class Secret(OwnershipMixin, me.Document):
         if self._controller_cls is None:
             raise NotImplementedError(
                 "Can't initialize %s. Secret is an abstract base class and "
-                "shouldn't be used to create cloud instances. All Key "
+                "shouldn't be used to create cloud instances. All Secret "
                 "subclasses should define a `_controller_cls` class attribute "
-                "pointing to a `BaseController` subclass." % self
+                "pointing to a `BaseSecretController` subclass." % self
             )
         elif not issubclass(self._controller_cls, controllers.BaseSecretController):
             raise TypeError(
                 "Can't initialize %s.  All Secret subclasses should define a"
                 " `_controller_cls` class attribute pointing to a "
-                "`BaseController` subclass." % self
+                "`BaseSecretController` subclass." % self
             )
         self.ctl = self._controller_cls(self)
 
@@ -79,57 +80,32 @@ class VaultSecret(Secret):
         self.secret_engine_name = secret_engine_name
         self.name = name
         self.metadata = metadata
-        self.ctl.create(name, data)
 
     @property
     def data(self):
-        """ TODO """
-
-        # Construct Vault API path
-        secret_path = self.secret_engine_name + '/' + self.name
-
-        # Check KV version; kv1 or kv2
-        version = self.ctl.client.\
-            lists_secret_backends()[self.secret_engine_name + '/']['type']
-
-        # TODO: Make sure the response works with all types of Secrets
-        api_response = self.ctl.client.read(secret_path)
-
-        # KV1
-        if version == 'kv':
-            return self.kv1_secret(api_response)
-        # KV2
-        elif version == 'kv2':
-            return self.kv2_secret(api_response)
-        # Not Supported
+        if self._data:
+            return self._data
         else:
-            exit('Wrong Secret type')
+            return None
 
-    def kv1_secret(self, returned_secret):
+    def retrieve_kv(self):
         """ Retrieve Secret value from "data" of JSON reply """
         try:
-            key = returned_secret['data']
+            key = self.data['data']
         except KeyError:
-            print(returned_secret)
-        return key
-
-    def kv2_secret(self, returned_secret):
-        # TODO: Check if this works
-        """ Retrieve Secret value from "data" of JSON reply """
-        try:
-            key = returned_secret['data']
-        except KeyError:
-            print(returned_secret)
+            print(self.data)
         return key
 
 
 class SecretValue(me.EmbeddedDocument):
+    """ TODO: Take key_name """
+
     secret = me.ReferenceField(Secret, required=True)
     key_name = me.StringField()
 
     @property
     def value(self):
         if self.key_name:
-            return self.secret.value[self.key_name]
+            return self.secret.data[self.key_name]
         else:
-            return self.secret.value
+            return self.secret.data
