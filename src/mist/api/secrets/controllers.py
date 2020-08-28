@@ -30,14 +30,14 @@ class VaultSecretController(BaseSecretController):
         """ List all available Secrets in Secret Engine """
         print(self.client.list(self.secret.secret_engine_name)['data'])
 
-    def list_sec_engines(self):
+    def list_secret_engines(self):
         """ List all available Secret Engines """
-        print(self.client.list_secret_backends()['data'])
+        print(self.client.list_secret_backends())
 
-    def create_secret(self):
+    def create_secret(self, data):
         """ Create a Vault Secret """
 
-        # Read version and map the read_secret
+        # Read version and map the create_secret
         version = self.secret_type()
 
         if version == 'kv':
@@ -48,7 +48,7 @@ class VaultSecretController(BaseSecretController):
         create_secret(
                 mount_point=self.secret.secret_engine_name,
                 path=self.secret.name,
-                secret=self.secret.data,
+                secret=data,
         )
         print(self.client.secrets.kv.v1.read_secret(
                 mount_point=self.secret.secret_engine_name,
@@ -56,9 +56,11 @@ class VaultSecretController(BaseSecretController):
         ))
 
     def secret_type(self):
-        """ TODO: Maybe this should be in the metadata of the VaultSecret object """
+        """ Get Secret's type """
+
         what_secret = self.client.list_secret_backends()\
             [self.secret.secret_engine_name + '/']['type']
+
         return what_secret
 
     def read_secret(self):

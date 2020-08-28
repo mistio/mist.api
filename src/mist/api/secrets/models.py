@@ -11,7 +11,6 @@ log = logging.getLogger(__name__)
 
 
 class Secret(OwnershipMixin, me.Document):
-
     """ A Secret object """
 
     name = me.StringField(required=True)
@@ -75,7 +74,7 @@ class VaultSecret(Secret):
                  metadata={},
                  *args, **kwargs):
 
-        """ Construct Secret object given Secret's Path """
+        """ Construct Secret object given Secret's path """
         super(VaultSecret, self).__init__(*args, **kwargs)
         self.secret_engine_name = secret_engine_name
         self.name = name
@@ -84,13 +83,14 @@ class VaultSecret(Secret):
     @property
     def data(self):
         if self._data:
-            return self._data
+            self.ctl.create_secret(self._data)
         else:
-            return None
+            return self.ctl.read_secret()
 
     def retrieve_kv(self):
         """ Retrieve Secret value from "data" of JSON reply """
         try:
+            # Supposes that data is read from Vault
             key = self.data['data']
         except KeyError:
             print(self.data)
@@ -98,7 +98,7 @@ class VaultSecret(Secret):
 
 
 class SecretValue(me.EmbeddedDocument):
-    """ TODO: Take key_name """
+    """ Retrieve the value of a Secret object """
 
     secret = me.ReferenceField(Secret, required=True)
     key_name = me.StringField()
