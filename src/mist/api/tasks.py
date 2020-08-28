@@ -621,7 +621,6 @@ def create_machine_async(
               persist=persist, quantity=quantity, key_id=key_id,
               machine_names=names, volumes=volumes)
 
-    executor = ThreadPoolExecutor(max_workers=10)
     specs = []
     for name in names:
         specs.append((
@@ -678,8 +677,8 @@ def create_machine_async(
                 error=error, external_id=node.get('id', ''),
                 user_id=auth_context.user.id
             )
-
-    results = executor.map(create_machine_wrapper, specs)
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        results = executor.map(create_machine_wrapper, specs)
     print('create_machine_async: unprocessed results {}'.format(results))
     print('create_machine_async: waiting for real results')
     real_results = list(results)
