@@ -106,6 +106,6 @@ class SecretValue(me.EmbeddedDocument):
     @property
     def value(self):
         if self.key_name:
-            return self.secret.data[self.key_name]
+            return self.secret.retrieve_kv[self.key_name]
         else:
-            return self.secret.data
+            return self.secret.retrieve_kv
