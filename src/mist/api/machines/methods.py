@@ -299,7 +299,10 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                                   Container_Provider.DOCKER,
                                   Provider.ONAPP,
                                   Provider.AZURE_ARM,
-                                  Provider.GIG_G8]:
+                                  Provider.GIG_G8,
+                                  Provider.VSPHERE,
+                                  Provider.KUBEVIRT,
+                                  Container_Provider.LXD]:
         if not key_id:
             try:
                 key = Key.objects.get(owner=auth_context.owner,
