@@ -77,12 +77,12 @@ class VaultSecret(Secret):
         super(VaultSecret, self).__init__(*args, **kwargs)
         self.secret_engine_name = secret_engine_name
         self.name = name
-        self.metadata = metadata
+        self.metadata = self._data['metadata']
 
     @property
     def data(self):
         print('We are reading your secret')
-        return self.ctl.read_secret()
+        return self.ctl.read_secret()['data']
 
     @data.setter
     def data(self, d):
@@ -90,14 +90,7 @@ class VaultSecret(Secret):
         print('Data value is: ', d)
         self.ctl.create_secret(d)
 
-    def retrieve_kv(self):
-        """ Retrieve Secret value from "data" of JSON reply """
-        try:
-            # Supposes that data is read from Vault
-            key = self.data['data']
-        except KeyError:
-            print(self.data)
-        return key
+    def print_meta(self): print(self.metadata)
 
 
 class SecretValue(me.EmbeddedDocument):
@@ -109,6 +102,6 @@ class SecretValue(me.EmbeddedDocument):
     @property
     def value(self):
         if self.key_name:
-            return self.secret.retrieve_kv[self.key_name]
+            return self.secret.data[self.key_name]
         else:
-            return self.secret.retrieve_kv
+            return self.secret.data
