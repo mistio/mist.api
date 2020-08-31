@@ -15,10 +15,12 @@ class SSHKeyController(BaseKeyController):
         Random.atfork()
         key = RSA.generate(2048)
 
-        vault_secret = VaultSecret('ssh', {"private": key.exportKey().decode()})
+        vault_secret = VaultSecret('ssh', data={"private": key.exportKey().decode()})
         vault_secret.save()
 
-        self.key.private = SecretValue(secret=vault_secret)
+        secret_value = SecretValue(secret=vault_secret)
+
+        self.key.private = secret_value
         self.key.private.key_name = "private"
 
         self.key.public = key.exportKey('OpenSSH').decode()
