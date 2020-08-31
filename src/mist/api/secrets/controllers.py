@@ -29,7 +29,7 @@ class VaultSecretController(BaseSecretController):
     def secret_type(self):
         """ Get Secret's type """
 
-        what_secret = self.client.list_secret_backends()\
+        what_secret = self.client.list_secret_backends() \
             [self.secret.secret_engine_name + '/']['type']
 
         return what_secret
@@ -46,13 +46,13 @@ class VaultSecretController(BaseSecretController):
             list_secrets = self.client.secrets.kv.v2.list_secrets
 
         api_secrets_result = list_secrets(
-            mount_point = self.secret.secret_engine_name,
-            path = self.secret.name
+            mount_point=self.secret.secret_engine_name,
+            #path=self.secret.name
         )
 
         print('The following keys found under the selected path ("/v1/secret/{path}"): {keys}'.format(
-            path = self.secret.secret_engine_name,
-            keys = ','.join(api_secrets_result['data']['keys']),
+            path=self.secret.secret_engine_name,
+            keys=','.join(api_secrets_result['data']['keys']),
         ))
 
     def list_secret_engines(self):
@@ -112,5 +112,3 @@ class VaultSecretController(BaseSecretController):
             mount_point=self.secret.secret_engine_name,
             path=self.secret.name
         )
-
-    def update_secret(self): self.create_secret
