@@ -1,6 +1,5 @@
 import logging
 import mongoengine as me
-#import hvac
 from mist.api.users.models import Owner
 from mist.api.ownership.mixins import OwnershipMixin
 from mist.api.secrets import controllers
@@ -82,10 +81,14 @@ class VaultSecret(Secret):
 
     @property
     def data(self):
-        if self._data:
-            self.ctl.create_secret(self._data)
-        else:
-            return self.ctl.read_secret()
+        print('We are reading your secret')
+        return self.ctl.read_secret()
+
+    @data.setter
+    def data(self, d):
+        assert(isinstance(d, dict))
+        print('Data value is: ', d)
+        self.ctl.create_secret(d)
 
     def retrieve_kv(self):
         """ Retrieve Secret value from "data" of JSON reply """
