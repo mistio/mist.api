@@ -4,10 +4,12 @@ import mongoengine as me
 
 from mist.api.mongoengine_extras import MistDictField
 
+from mist.api.ownership.mixins import OwnershipMixin
+
 from mist.api.tag.models import Tag
 
 
-class CloudImage(me.Document):
+class CloudImage(OwnershipMixin, me.Document):
     """A base Cloud Image Model."""
     id = me.StringField(primary_key=True, default=lambda: uuid.uuid4().hex)
     cloud = me.ReferenceField('Cloud', required=True,
