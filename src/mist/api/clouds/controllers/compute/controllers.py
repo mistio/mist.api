@@ -446,15 +446,13 @@ class DigitalOceanComputeController(BaseComputeController):
         bandwidth = str(size.bandwidth)
         price_monthly = str(size.extra.get('price_monthly', ''))
         if cpus:
-            name = cpus + ' CPU/ ' if cpus == '1' else cpus + ' CPUs/ '
+            name = cpus + ' CPU, ' if cpus == '1' else cpus + ' CPUs, '
         if ram:
-            name += ram + ' GB/ '
+            name += ram + ' GB, '
         if disk:
-            name += disk + ' GB SSD Disk/ '
-        if bandwidth:
-            name += bandwidth + ' TB transfer/ '
+            name += disk + ' GB SSD Disk, '
         if price_monthly:
-            name += price_monthly + '$/month'
+            name += '$' + price_monthly + '/month'
 
         return name
 
@@ -551,6 +549,7 @@ class GigG8ComputeController(BaseComputeController):
 
         if node_dict['extra'].get('ssh_port', None):
             machine.ssh_port = node_dict['extra']['ssh_port']
+        return True
 
     def _list_machines__machine_actions(self, machine, node_dict):
         super(GigG8ComputeController, self)._list_machines__machine_actions(
@@ -609,6 +608,9 @@ class GigG8ComputeController(BaseComputeController):
         self.connection.reboot_node(node)
 
     def expose_port(self, machine, port_forwards):
+        if not machine.network:
+            raise MistError('Do not know the network of the machine to expose \
+              a port from')
         node = self._get_libcloud_node(machine)
         networks = self.cloud.ctl.compute.connection.ex_list_networks()
         network = None
@@ -622,22 +624,14 @@ class GigG8ComputeController(BaseComputeController):
         validate_portforwards_g8(port_forwards, network)
 
         existing_pfs = self.connection.ex_list_portforwards(network)
-
-        for pf in port_forwards.keys():
-            ports = pf.split(':')
-            if len(ports) == 1:
-                public_port = private_port = ports[0]
-            elif len(ports) == 2:
-                private_port, public_port = pf.split(':')
-            elif len(ports) == 3:
-                items = pf.split(':')
-                private_port = items[0]
-                public_port = items[2]
-            elif len(ports) == 4:
-                items = pf.split(':')
-                private_port = items[1]
-                public_port = items[3]
-            protocol = port_forwards.get(pf)[0]
+        for pf in port_forwards.get('ports'):
+            public_port = pf.get('port')
+            if len(public_port.split(":")) == 2:
+                public_port = public_port.split(":")[1]
+            private_port = pf.get('port')
+            if len(private_port.split(":")) == 2:
+                private_port = private_port.split(":")[1]
+            protocol = pf.get('protocol').lower()
             exists = False
 
             for existing_pf in existing_pfs:
@@ -1022,16 +1016,17 @@ class GoogleComputeController(BaseComputeController):
         return node_dict['extra'].get('creationTimestamp')
 
     def _list_machines__get_custom_size(self, node):
-        size = self.connection.get_size_metadata_from_node(node['extra'].
-                                                           get('machineType'))
+        machine_type = node['extra'].get('machineType', "").split("/")[-1]
+        size = self.connection.ex_get_size(machine_type,
+                                           node['extra']['zone'].get('name'))
         # create object only if the size of the node is custom
-        if size.get('name', '').startswith('custom'):
+        if size.name.startswith('custom'):
             # FIXME: resolve circular import issues
             from mist.api.clouds.models import CloudSize
-            _size = CloudSize(cloud=self.cloud, external_id=size.get('id'))
-            _size.ram = size.get('memoryMb')
-            _size.cpus = size.get('guestCpus')
-            _size.name = size.get('name')
+            _size = CloudSize(cloud=self.cloud, external_id=size.id)
+            _size.ram = size.ram
+            _size.cpus = size.extra.get('guestCpus')
+            _size.name = size.name
             _size.save()
             return _size
 
@@ -1175,6 +1170,8 @@ class GoogleComputeController(BaseComputeController):
         size_type = machine.size.name.split(" ")[0][:2]
         if "custom" in machine.size.name:
             size_type += "_custom"
+            if machine.size.name.startswith('custom'):
+                size_type = 'n1_custom'
         usage_type = "on_demand"
         if "preemptible" in machine.size.name.lower():
             usage_type = "preemptible"
@@ -1569,6 +1566,12 @@ class VSphereComputeController(BaseComputeController):
 
     def _list_machine_snapshots(self, machine, node):
         return self.connection.ex_list_snapshots(node)
+
+    def _list_images__fetch_images(self, search=None):
+        image_folders = []
+        if config.VSPHERE_IMAGE_FOLDERS:
+            image_folders = config.VSPHERE_IMAGE_FOLDERS
+        return self.connection.list_images(folder_ids=image_folders)
 
 
 class VCloudComputeController(BaseComputeController):
@@ -2254,7 +2257,6 @@ class LibvirtComputeController(BaseComputeController):
         machine.actions.reboot = False
 
     def _list_machines__postparse_machine(self, machine, node_dict):
-        from mist.api.images.models import CloudImage
         updated = False
         xml_desc = node_dict['extra'].get('xml_description')
         if xml_desc:
@@ -2265,21 +2267,7 @@ class LibvirtComputeController(BaseComputeController):
             import xml.etree.ElementTree as ET
             root = ET.fromstring(unescape(xml_desc))
             devices = root.find('devices')
-            disks = devices.findall('disk')
-            for disk in disks:
-                if disk.attrib.get('device', '') == 'cdrom':
-                    image = disk.find('source').attrib.get('file', '')
-                    if (machine.image and machine.image.external_id != image) \
-                            or (not machine.image and image):
-                        try:
-                            image = CloudImage.objects.get(
-                                cloud=machine.cloud, external_id=image)
-                        except CloudImage.DoesNotExist:
-                            image = CloudImage(cloud=machine.cloud,
-                                               external_id=image)
-                            image.save()
-                        machine.image = image
-                        updated = True
+            # TODO: rethink image association
 
             vnfs = []
             hostdevs = devices.findall('hostdev') + \
@@ -2407,7 +2395,11 @@ class LibvirtComputeController(BaseComputeController):
         from mist.api.machines.models import Machine
         hosts = Machine.objects(cloud=self.cloud, parent=None,
                                 missing_since=None)
-        loop = asyncio.get_event_loop()
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            asyncio.set_event_loop(asyncio.new_event_loop())
+            loop = asyncio.get_event_loop()
         all_images = loop.run_until_complete(self.list_images_all_hosts(hosts,
                                                                         loop))
         return [image for host_images in all_images for image in host_images]
@@ -2516,11 +2508,19 @@ class LibvirtComputeController(BaseComputeController):
         driver = self._get_host_driver(machine)
         return driver.ex_suspend_node(node)
 
-    def _undefine_machine(self, machine, node):
+    def _undefine_machine(self, machine, node, delete_domain_image=False):
         if machine.extra.get('active'):
             raise BadRequestError('Cannot undefine an active domain')
         driver = self._get_host_driver(machine)
-        return driver.ex_undefine_node(node)
+        result = driver.ex_undefine_node(node)
+        if delete_domain_image and result:
+            xml_description = node.extra.get('xml_description', '')
+            if xml_description:
+                index1 = xml_description.index("source file") + 13
+                index2 = index1 + xml_description[index1:].index('\'')
+                image_path = xml_description[index1:index2]
+                driver._run_command("rm {}".format(image_path))
+        return result
 
     def _clone_machine(self, machine, node, name, resume):
         driver = self._get_host_driver(machine)
@@ -2784,7 +2784,6 @@ class KubeVirtComputeController(BaseComputeController):
         except:
             raise Exception("Make sure host is accessible "
                             "and kubernetes port is specified")
-
         verify = self.cloud.verify
         ca_cert = None
         if self.cloud.ca_cert_file:
@@ -2848,6 +2847,7 @@ class KubeVirtComputeController(BaseComputeController):
         machine.actions.stop = True
         machine.actions.reboot = True
         machine.actions.destroy = True
+        machine.actions.expose = True
 
     def _reboot_machine(self, machine, node):
         return self.connection.reboot_node(node)
@@ -2902,3 +2902,20 @@ class KubeVirtComputeController(BaseComputeController):
         elif cpu > 99:
             cpu = 1
         return cpu
+
+    def expose_port(self, machine, port_forwards):
+        machine_libcloud = self._get_libcloud_node(machine)
+
+        # validate input
+        from mist.api.machines.methods import validate_portforwards_kubevirt
+        data = validate_portforwards_kubevirt(port_forwards)
+
+        self.connection.ex_create_service(machine_libcloud, data.get(
+                                          'ports', []),
+                                          service_type=data.get(
+                                              'service_type'),
+                                          override_existing_ports=True,
+                                          cluster_ip=data.get(
+                                              'cluster_ip', None),
+                                          load_balancer_ip=data.get(
+                                              'load_balancer_ip', None))

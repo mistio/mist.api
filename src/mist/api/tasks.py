@@ -596,7 +596,7 @@ def create_machine_async(
     volumes=[], ip_addresses=[], expiration={}, sec_group='', vnfs=[],
     description='', port_forwards={}
 ):
-    from multiprocessing.dummy import Pool as ThreadPool
+    from concurrent.futures import ThreadPoolExecutor
     from mist.api.machines.methods import create_machine
     from mist.api.exceptions import MachineCreationError
     log.warn('MULTICREATE ASYNC %d' % quantity)
@@ -621,8 +621,6 @@ def create_machine_async(
               persist=persist, quantity=quantity, key_id=key_id,
               machine_names=names, volumes=volumes)
 
-    THREAD_COUNT = 5
-    pool = ThreadPool(THREAD_COUNT)
     specs = []
     for name in names:
         specs.append((
@@ -679,10 +677,12 @@ def create_machine_async(
                 error=error, external_id=node.get('id', ''),
                 user_id=auth_context.user.id
             )
-
-    pool.map(create_machine_wrapper, specs)
-    pool.close()
-    pool.join()
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        results = executor.map(create_machine_wrapper, specs)
+    print('create_machine_async: unprocessed results {}'.format(results))
+    print('create_machine_async: waiting for real results')
+    real_results = list(results)
+    print('create_machine_async: results: {}'.format(real_results))
 
 
 @app.task(bind=True, default_retry_delay=5, max_retries=3)

@@ -10,12 +10,14 @@ from mist.api.networks.methods import filter_list_networks
 
 from mist.api.tag.methods import add_tags_to_resource
 from mist.api.auth.methods import auth_context_from_request
+from mist.api.clouds.methods import filter_list_clouds
 
 from mist.api.exceptions import CloudNotFoundError
 from mist.api.exceptions import SubnetNotFoundError
 from mist.api.exceptions import NetworkNotFoundError
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import MistNotImplementedError
+from mist.api.exceptions import CloudUnauthorizedError, CloudUnavailableError
 
 from mist.api.helpers import params_from_request, view_config
 
@@ -24,6 +26,8 @@ OK = Response("OK", 200)
 
 
 @view_config(route_name='api_v1_networks',
+             request_method='GET', renderer='json')
+@view_config(route_name='api_v1_cloud_networks',
              request_method='GET', renderer='json')
 def list_networks(request):
     """
@@ -40,14 +44,39 @@ def list_networks(request):
       schema:
         type: string
     """
-    cloud_id = request.matchdict['cloud']
-    params = params_from_request(request)
-    cached = bool(params.get('cached', False))
     auth_context = auth_context_from_request(request)
-    return filter_list_networks(auth_context, cloud_id, cached=cached)
+    cloud_id = request.matchdict.get('cloud')
+    params = params_from_request(request)
+
+    if cloud_id:
+        cached = bool(params.get('cached', False))
+        try:
+            Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
+                              deleted=None)
+        except Cloud.DoesNotExist:
+            raise CloudNotFoundError()
+        # SEC
+        auth_context.check_perm('cloud', 'read', cloud_id)
+        networks = filter_list_networks(auth_context, cloud_id, cached=cached)
+
+    else:
+        cached = bool(params.get('cached', True))   # return cached by default
+        auth_context.check_perm("cloud", "read", None)
+        clouds = filter_list_clouds(auth_context)
+        networks = []
+        for cloud in clouds:
+            if cloud.get('enabled'):
+                try:
+                    networks += filter_list_networks(auth_context,
+                                                     cloud.get('id'),
+                                                     cached=cached)
+                except (CloudUnavailableError, CloudUnauthorizedError):
+                    pass
+
+    return networks
 
 
-@view_config(route_name='api_v1_networks',
+@view_config(route_name='api_v1_cloud_networks',
              request_method='POST', renderer='json')
 def create_network(request):
     """

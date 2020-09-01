@@ -150,55 +150,88 @@ def validate_portforwards(port_forwards):
                 port = int(port)
             except (ValueError, TypeError):
                 raise BadRequestError("Port should be an integer")
-
-    pf_error_msg = 'Wrong portforward format. Acceptable formats: "80", \
-                    "80:80", "80:example.com:80", \
-                    "172.17.0.1:80:example.com:80"'
-
-    for pf in port_forwards.keys():
-        ports = pf.split(':')
-        if len(ports) == 1 or len(ports) == 2:    # eg. 80 or 80:80
-            validate_ports(ports)
-
-        elif len(ports) == 3:    # eg 80:example.com:80
-            check_host(ports[1], allow_inaddr_any=True)
-            validate_ports([ports[0], ports[2]])
-
-        elif len(ports) == 4:    # eg 172.17.0.1:example.com:80
-            check_host(ports[0], allow_inaddr_any=True)
-            check_host(ports[2], allow_inaddr_any=True)
-            validate_ports([ports[1], ports[3]])
-
+            except AssertionError:
+                raise BadRequestError("Ports should be an "
+                                      "interger between 1 and 65535")
+    for pf in port_forwards['ports']:
+        if len(pf['port'].split(":")) == 2:
+            host = pf['port'].split(":")[0]
+            check_host(host)
+        port = pf['port'].split(":")[-1]
+        if len(pf['target_port'].split(":")) == 2:
+            target_host = pf['target_port'].split(":")[0]
+            check_host(target_host)
+        target_port = pf['target_port'].split(":")[-1]
+        #  If target_port is a falsey value then it will take the same value as
+        #  port.
+        if not target_port:
+            validate_ports([port])
         else:
-            raise BadRequestError(pf_error_msg)
+            validate_ports([port, target_port])
+
+        if pf['protocol']:
+            if pf['protocol'] not in {"TCP", "UDP"}:
+                raise BadRequestError("Protocol should be either TCP or UPD.")
 
 
 def validate_portforwards_g8(port_forwards, network):
-    for pf in port_forwards:
-        items = pf.split(':')
-        if len(items) == 3 and items[1] != network.publicipaddress:
-            raise BadRequestError("You can only expose a port to the \
-                network's public ip address, which is \
-                    %s" % network.publicipaddress)
-
-        if len(items) == 4 and (items[0] not in ('localhost', '172.17.0.1',
-                                                 '0.0.0.0') or
-                                items[2] != network.publicipaddress):
-            raise BadRequestError("You can only expose a port from localhost to the \
-                network's public ip address, which is \
-                    %s" % network.publicipaddress)
-
-        if port_forwards.get(pf)[0] not in ['udp', 'tcp']:
-            raise BadRequestError('Allowed protocols are "udp" and "tcp"')
+    for pf in port_forwards.get('ports'):
+        if len(pf['port'].split(':')) == 2:
+            if pf['port'].split(':')[0] != network.publicipaddres:
+                raise BadRequestError("You can only expose a port to the \
+                    network's public ip address, which is \
+                        %s" % network.publicipaddress)
+        if len(pf['target_port'].split(':')) == 2:
+            if pf['target_port'].split(':')[0] not in {'localhost',
+                                                       '172.17.0.1',
+                                                       '0.0.0.0'}:
+                raise BadRequestError("The address in target_port "
+                                      "must be the localhost!")
+        if pf['protocol'].lower() not in {'udp', 'tcp'}:
+            raise BadRequestError('Allowed protocols are "UDP" or "TCP"')
 
 
-def list_machines(owner, cloud_id, cached=False):
+def validate_portforwards_kubevirt(port_forwards):
+    service_type = port_forwards.get('service_type')
+    if service_type not in {"ClusterIP", "NodePort", "LoadBalancer"}:
+        raise BadRequestError('Valid service types are '
+                              'ClusterIP or NodePort or LoadBalancer.')
+    result = {'ports': [],
+              'service_type': port_forwards.get('service_type'),
+              'cluster_ip': None,
+              'load_balancer_ip': None}
+    for pf in port_forwards['ports']:
+        cluster_ip = None
+        load_balancer_ip = None
+        if len(pf['port'].split(":")) == 2:
+            host = pf['port'].split(":")[0]
+            if service_type in {"NodePort", "ClusterIP"}:
+                cluster_ip = host
+            elif service_type == "LoadBalancer":
+                load_balancer_ip = host
+        port = pf['port'].split(":")[-1]
+        target_port = pf.get('target_port', "").split(":")[-1]
+        if not target_port:
+            target_port = port
+        result['ports'].append({
+            'port': port,
+            'target_port': target_port,
+            'protocol': pf['protocol']
+        })
+        result['cluster_ip'] = cluster_ip
+        result['load_balancer_ip'] = load_balancer_ip
+    return result
+
+
+def list_machines(owner, cloud_id, cached=False, as_dict=True):
     """List all machines in this cloud via API call to the provider."""
     cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
     if cached:
         machines = cloud.ctl.compute.list_cached_machines()
     else:
         machines = cloud.ctl.compute.list_machines()
+    if not as_dict:
+        return machines
     return [machine.as_dict() for machine in machines]
 
 
@@ -309,7 +342,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                           extra=cloud_image.extra,
                           driver=conn)
         # star image used for machine
-        if not cloud_image.starred:
+        if not cloud_image.starred and config.STAR_IMAGE_ON_MACHINE_CREATE:
             cloud_image.starred = True
             cloud_image.save()
     except me.DoesNotExist:
@@ -554,7 +587,8 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                                         location=location,
                                         disks=volumes,
                                         memory=size_ram, cpu=size_cpu,
-                                        network=network)
+                                        network=network,
+                                        port_forwards=port_forwards)
     else:
         raise BadRequestError("Provider unknown.")
 
@@ -696,7 +730,8 @@ def create_machine_g8(conn, machine_name, image, ram, cpu, disk,
             break
 
     # g8-specific validation
-    validate_portforwards_g8(port_forwards, ex_network)
+    if port_forwards:
+        validate_portforwards_g8(port_forwards, ex_network)
 
     ex_create_attr = {
         "memory": ram,
@@ -724,27 +759,19 @@ def create_machine_g8(conn, machine_name, image, ram, cpu, disk,
     except Exception as e:
         raise MachineCreationError("Gig G8, got exception %s" % e, e)
 
-    for pf in port_forwards.keys():
-        ports = pf.split(':')
-        if len(ports) == 1:
-            public_port = private_port = ports[0]
-        elif len(ports) == 2:
-            private_port, public_port = pf.split(':')
-        elif len(ports) == 3:
-            items = pf.split(':')
-            private_port = items[0]
-            public_port = items[2]
-        elif len(ports) == 4:
-            items = pf.split(':')
-            private_port = items[1]
-            public_port = items[3]
-        protocol = port_forwards.get(pf)[0]
+    if port_forwards:
+        for pf in port_forwards['ports']:
+            public_port = pf['port'].split(":")[-1]
+            private_port = pf['target_port'].split(":")[-1]
+            if not private_port:
+                private_port = public_port
+            protocol = pf.get('protocol', 'tcp').lower()
 
-        try:
-            conn.ex_create_portforward(ex_network, node, public_port,
-                                       private_port, protocol)
-        except BaseHTTPError as exc:
-            raise BadRequestError(exc.message)
+            try:
+                conn.ex_create_portforward(ex_network, node, public_port,
+                                           private_port, protocol)
+            except BaseHTTPError as exc:
+                raise BadRequestError(exc.message)
 
     return node
 
@@ -1578,7 +1605,7 @@ def _create_machine_libvirt(cloud, machine_name, disk_size, ram, cpu,
     """
     try:
         host = Machine.objects.get(
-            cloud=cloud, machine_id=location.external_id)
+            cloud=cloud, machine_id=location.id)
     except me.DoesNotExist:
         raise MachineCreationError("The host specified does not exist")
 
@@ -1804,8 +1831,8 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
             # add delay cause sometimes the group is not yet ready
             time.sleep(5)
         except Exception as exc:
-            raise InternalServerError("Couldn't create resource group. \
-                %s" % exc)
+            raise MachineCreationError('Could not create resource group: %s' %
+                                       exc)
 
     storage_accounts = conn.ex_list_storage_accounts()
     ex_storage_account = None
@@ -1832,8 +1859,8 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
                         st_account_ready = True
                         break
         except Exception as exc:
-            raise InternalServerError("Couldn't create storage account. \
-                %s" % exc)
+            raise MachineCreationError('Could not create storage account: %s' %
+                                       exc)
     if not isinstance(networks, list):
         networks = [networks]
     network = networks[0]
@@ -1903,8 +1930,8 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
             # add delay cause sometimes the group is not yet ready
             time.sleep(3)
         except Exception as exc:
-            raise InternalServerError("Couldn't create security group \
-                %s" % exc)
+            raise MachineCreationError('Could not create security group: %s' %
+                                       exc)
 
         # create the new network
         try:
@@ -1913,7 +1940,8 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
                                                 location=location,
                                                 networkSecurityGroup=sg.id)
         except Exception as exc:
-            raise InternalServerError("Couldn't create new network", exc)
+            raise MachineCreationError('Could not create new network: %s' %
+                                       exc)
 
     ex_subnet = conn.ex_list_subnets(ex_network)[0]
 
@@ -1922,7 +1950,7 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
                                          ex_resource_group,
                                          location)
     except Exception as exc:
-        raise InternalServerError("Couldn't create new ip", exc)
+        raise MachineCreationError('Could not create new ip: %s' % exc)
 
     try:
         ex_nic = conn.ex_create_network_interface(machine_name, ex_subnet,
@@ -1930,7 +1958,8 @@ def _create_machine_azure_arm(owner, cloud_id, conn, public_key, machine_name,
                                                   location=location,
                                                   public_ip=ex_ip)
     except Exception as exc:
-        raise InternalServerError("Couldn't create network interface", exc)
+        raise MachineCreationError('Could not create network interface: %s' %
+                                   exc)
 
     data_disks = []
     for volume in volumes:
@@ -2083,26 +2112,28 @@ def _create_machine_vcloud(conn, machine_name, image,
 
 
 def _create_machine_vsphere(conn, machine_name, image,
-                            size, location, network, folder,
+                            size, location, networks, folder,
                             datastore):
     """Create a machine in vSphere.
 
     """
-    # get location as object from database
-    try:
-        from mist.api.networks.models import VSphereNetwork
-        network = VSphereNetwork.objects.get(id=network)
-    except me.DoesNotExist:
-        network = None
-    if network:
-        network.id = network.network_id
+    # get external network id from database
+    if networks:
+        try:
+            from mist.api.networks.models import VSphereNetwork
+            network = VSphereNetwork.objects.get(id=networks[0])
+            network_id = network.network_id
+        except me.DoesNotExist:
+            network_id = networks[0]
+    else:
+        network_id = None
     try:
         node = conn.create_node(
             name=machine_name,
             image=image,
             size=size,
             location=location,
-            ex_network=network,
+            ex_network=network_id,
             ex_folder=folder,
             ex_datastore=datastore
         )
@@ -2202,7 +2233,8 @@ def _create_machine_linode(conn, key_name, private_key, public_key,
 
 def _create_machine_kubevirt(conn, machine_name, location, image, disks=None,
                              memory=None, cpu=None,
-                             network=['pod', 'masquerade', 'net1']):
+                             network=['pod', 'masquerade', 'net1'],
+                             port_forwards=[]):
     """
     disks is either an existing volume that can be or not bound.
     If it is not it must be bound first.
@@ -2239,6 +2271,7 @@ def _create_machine_kubevirt(conn, machine_name, location, image, disks=None,
                             "[network_type, interface, name]")
         network[2] = machine_name_validator(provider='kubevirt',
                                             name=network[2])
+
     try:
         node = conn.create_node(name=machine_name, image=image,
                                 location=location,
@@ -2247,6 +2280,12 @@ def _create_machine_kubevirt(conn, machine_name, location, image, disks=None,
     except Exception as e:
         msg = "KubeVirt, got exception {}".format(e), e
         raise MachineCreationError(msg)
+    if port_forwards:
+        data = validate_portforwards_kubevirt(port_forwards)
+        conn.ex_create_service(node, ports=data['ports'],
+                               service_type=data['service_type'],
+                               cluster_ip=data['cluster_ip'],
+                               load_balancer_ip=data['load_balancer_ip'])
     return node
 
 
@@ -2300,7 +2339,7 @@ def filter_machine_ids(auth_context, cloud_id, machine_ids):
 
 # SEC
 def filter_list_machines(auth_context, cloud_id, machines=None, perm='read',
-                         cached=False):
+                         cached=False, as_dict=True):
     """Returns a list of machines.
 
     In case of non-Owners, the QuerySet only includes machines found in the
@@ -2309,17 +2348,24 @@ def filter_list_machines(auth_context, cloud_id, machines=None, perm='read',
     assert cloud_id
 
     if machines is None:
-        machines = list_machines(auth_context.owner, cloud_id, cached=cached)
+        machines = list_machines(
+            auth_context.owner, cloud_id, cached=cached, as_dict=as_dict)
     if not machines:  # Exit early in case the cloud provider returned 0 nodes.
         return []
     if auth_context.is_owner():
         return machines
 
-    machine_ids = set(machine['id'] for machine in machines)
+    if as_dict:
+        machine_ids = set(machine['id'] for machine in machines)
+    else:
+        machine_ids = set(machine.id for machine in machines)
     allowed_machine_ids = filter_machine_ids(auth_context, cloud_id,
                                              machine_ids)
+    if as_dict:
+        return [machine for machine in machines
+                if machine['id'] in allowed_machine_ids]
     return [machine for machine in machines
-            if machine['id'] in allowed_machine_ids]
+            if machine.id in allowed_machine_ids]
 
 
 def run_pre_action_hooks(machine, action, user):

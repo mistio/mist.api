@@ -242,7 +242,7 @@ class BaseStorageController(BaseController):
             libvol = self.cloud.ctl.compute.connection.create_volume(**kwargs)
         except Exception as exc:
             log.exception('Error creating volume in %s: %r', self.cloud, exc)
-            raise mist.api.exceptions.CloudUnavailableError(exc=exc)
+            raise mist.api.exceptions.VolumeCreationError(exc)
 
         # Invoke `self.list_volumes` to update the UI and return the Volume
         # object at the API. Try 3 times before failing

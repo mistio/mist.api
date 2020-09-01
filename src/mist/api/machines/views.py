@@ -23,7 +23,6 @@ from mist.api.exceptions import BadRequestError, NotFoundError, ForbiddenError
 from mist.api.exceptions import MachineCreationError, RedirectError
 from mist.api.exceptions import CloudUnauthorizedError, CloudUnavailableError
 from mist.api.exceptions import MistNotImplementedError, MethodNotAllowedError
-from mist.api.exceptions import MistError
 
 from mist.api.monitoring.methods import enable_monitoring
 from mist.api.monitoring.methods import disable_monitoring
@@ -482,7 +481,6 @@ def create_machine(request):
               'sec_group': sec_group,
               'description': description,
               'port_forwards': port_forwards}
-
     if not run_async:
         ret = methods.create_machine(auth_context, *args, **kwargs)
     else:
@@ -751,16 +749,23 @@ def machine_actions(request):
     snapshot_description = params.get('snapshot_description')
     snapshot_dump_memory = params.get('snapshot_dump_memory')
     snapshot_quiesce = params.get('snapshot_quiesce')
-    port_forwards = params.get('port_forwards', {})
+    port_forwards = {'ports': params.get('ports', {}),
+                     'service_type': params.get('service_type', None)}
+    delete_domain_image = params.get('delete_domain_image', False)
     auth_context = auth_context_from_request(request)
-
     if cloud_id:
         machine_id = request.matchdict['machine']
         auth_context.check_perm("cloud", "read", cloud_id)
         try:
             machine = Machine.objects.get(cloud=cloud_id,
-                                          machine_id=machine_id,
-                                          state__ne='terminated')
+                                          machine_id=machine_id)
+            # VMs in libvirt can be started no matter if they are terminated
+            # also they may be undefined from a terminated state
+            if machine.state == 'terminated' and not isinstance(machine.cloud,
+                                                                LibvirtCloud):
+                raise NotFoundError(
+                    "Machine %s has been terminated" % machine_id
+                )
             # used by logging_view_decorator
             request.environ['machine_uuid'] = machine.id
         except Machine.DoesNotExist:
@@ -821,16 +826,15 @@ def machine_actions(request):
         # Schedule a UI update
         trigger_session_update(auth_context.owner, ['clouds'])
     elif action in ('start', 'stop', 'reboot', 'clone',
-                    'undefine', 'suspend', 'resume'):
+                    'suspend', 'resume'):
         result = getattr(machine.ctl, action)()
+    elif action == 'undefine':
+        result = getattr(machine.ctl, action)(delete_domain_image)
     elif action == 'expose':
+        if machine.network:
+            auth_context.check_perm('network', 'read', machine.network)
+            auth_context.check_perm('network', 'edit', machine.network)
         methods.validate_portforwards(port_forwards)
-        network = machine.network
-        if not network:
-            raise MistError('Do not know the network of the machine to expose \
-              a port from')
-        auth_context.check_perm('network', 'read', network)
-        auth_context.check_perm('network', 'edit', network)
         result = getattr(machine.ctl, action)(port_forwards)
     elif action == 'rename':
         if not name:
@@ -872,8 +876,7 @@ def machine_actions(request):
 
     methods.run_post_action_hooks(machine, action, auth_context.user, result)
 
-    # TODO: We shouldn't return list_machines, just OK. Save the API!
-    return methods.filter_list_machines(auth_context, cloud_id)
+    return OK
 
 
 @view_config(route_name='api_v1_cloud_machine_rdp',

@@ -257,7 +257,8 @@ def add_routes(configurator):
     configurator.add_route('api_v1_storage_pools',
                            '/api/v1/clouds/{cloud}/storage-pools')
 
-    configurator.add_route('api_v1_networks',
+    configurator.add_route('api_v1_networks', '/api/v1/networks')
+    configurator.add_route('api_v1_cloud_networks',
                            '/api/v1/clouds/{cloud}/networks')
     configurator.add_route('api_v1_network',
                            '/api/v1/clouds/{cloud}/networks/{network}')
@@ -409,6 +410,8 @@ def add_routes(configurator):
         'api_v1_cloud_metrics',
         '/api/v1/clouds/{cloud}/machines/{machine}/metrics')
     configurator.add_route('api_v1_metrics',
+                           '/api/v1/metrics')
+    configurator.add_route('api_v1_machine_metrics',
                            '/api/v1/machines/{machine_uuid}/metrics')
     configurator.add_route('api_v1_metric', '/api/v1/metrics/{metric}')
     configurator.add_route(
