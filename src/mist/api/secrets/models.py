@@ -3,7 +3,6 @@ import mongoengine as me
 from mist.api.users.models import Owner
 from mist.api.ownership.mixins import OwnershipMixin
 from mist.api.secrets import controllers
-from mist.api import config
 
 
 log = logging.getLogger(__name__)
@@ -14,7 +13,7 @@ class Secret(OwnershipMixin, me.Document):
 
     name = me.StringField(required=True)
     owner = me.ReferenceField(Owner, reverse_delete_rule=me.CASCADE)
-    metadata = me.DictField(required=False) # TODO
+    metadata = me.DictField(required=False)  # TODO
 
     meta = {
         'allow_inheritance': True,
@@ -42,7 +41,8 @@ class Secret(OwnershipMixin, me.Document):
                 "subclasses should define a `_controller_cls` class attribute "
                 "pointing to a `BaseSecretController` subclass." % self
             )
-        elif not issubclass(self._controller_cls, controllers.BaseSecretController):
+        elif not issubclass(self._controller_cls,
+                            controllers.BaseSecretController):
             raise TypeError(
                 "Can't initialize %s.  All Secret subclasses should define a"
                 " `_controller_cls` class attribute pointing to a "
@@ -90,7 +90,8 @@ class VaultSecret(Secret):
         print('Data value is: ', d)
         self.ctl.create_secret(d)
 
-    def print_meta(self): print(self.metadata)
+    def print_meta(self):
+        print(self.metadata)
 
 
 class SecretValue(me.EmbeddedDocument):
