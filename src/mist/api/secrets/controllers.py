@@ -1,6 +1,7 @@
 import hvac
 from mist.api import config
 
+
 class BaseSecretController(object):
     def __init__(self, secret):
         """Initialize a secret controller given a secret
@@ -29,15 +30,15 @@ class VaultSecretController(BaseSecretController):
     def secret_type(self):
         """ Get Secret's type """
 
-        what_secret = self.client.list_secret_backends() \
-            [self.secret.secret_engine_name + '/']['type']
+        what_secret = self.client.list_secret_backends()[self.secret.
+                                                         secret_engine_name + '/']['type']
 
         return what_secret
 
     def list_secrets(self):
         """ List all available Secrets in Secret Engine """
 
-         # Read version and map the create_secret
+        # Read version and map the create_secret
         version = self.secret_type()
 
         if version == 'kv':
@@ -47,10 +48,11 @@ class VaultSecretController(BaseSecretController):
 
         api_secrets_result = list_secrets(
             mount_point=self.secret.secret_engine_name,
-            #path=self.secret.name
+            # path=self.secret.name
         )
 
-        print('The following keys found under the selected path ("/v1/secret/{path}"): {keys}'.format(
+        print('The following keys found under the selected path \
+            ("/v1/secret/{path}"): {keys}'.format(
             path=self.secret.secret_engine_name,
             keys=','.join(api_secrets_result['data']['keys']),
         ))
@@ -71,14 +73,14 @@ class VaultSecretController(BaseSecretController):
             create_secret = self.client.secrets.kv.v2.create_or_update_secret
 
         create_secret(
-                mount_point=self.secret.secret_engine_name,
-                path=self.secret.name,
-                secret=data,
+            mount_point=self.secret.secret_engine_name,
+            path=self.secret.name,
+            secret=data,
         )
         print(self.client.secrets.kv.v1.read_secret(
-                mount_point=self.secret.secret_engine_name,
-                path=self.secret.name
-        ))
+              mount_point=self.secret.secret_engine_name,
+              path=self.secret.name)
+        )
 
     def read_secret(self):
         """ Read a Vault KV* Secret """

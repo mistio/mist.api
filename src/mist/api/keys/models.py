@@ -154,7 +154,6 @@ class Key(OwnershipMixin, me.Document):
                                          self.id, self.owner)
 
 
-
 class SSHKey(Key):
     """An ssh key."""
 
@@ -172,7 +171,8 @@ class SSHKey(Key):
 
         # Generate public key from private key file.
         try:
-            key = RSAKey.from_private_key(io.StringIO(self.private.secret.value))
+            key = RSAKey.from_private_key(io.StringIO(self.private.secret.
+                                                      value))
             self.public = 'ssh-rsa ' + key.get_base64()
         except Exception:
             log.exception("Error while constructing public key "

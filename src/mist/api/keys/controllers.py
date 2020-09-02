@@ -14,8 +14,8 @@ class SSHKeyController(BaseKeyController):
         from mist.api.secrets.models import VaultSecret, SecretValue
         Random.atfork()
         key = RSA.generate(2048)
-
-        vault_secret = VaultSecret('ssh', data={"private": key.exportKey().decode()})
+        data = {"private": key.exportKey().decode()}
+        vault_secret = VaultSecret('ssh', data=data)
         vault_secret.save()
 
         secret_value = SecretValue(secret=vault_secret)
