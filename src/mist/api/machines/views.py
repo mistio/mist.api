@@ -435,6 +435,15 @@ def create_machine(request):
         except ImportError:
             pass
 
+    # check size constraint
+    size_constraint = constraints.get('size', {})
+    if size_constraint:
+        try:
+            from mist.rbac.methods import check_size
+            check_size(auth_context.org, size_constraint, size)
+        except ImportError:
+            pass
+
     args = (cloud_id, key_id, machine_name,
             location_id, image_id, size,
             image_extra, disk, image_name, size_name,
@@ -844,6 +853,15 @@ def machine_actions(request):
                 check_cost(auth_context.org, cost_constraint)
             except ImportError:
                 pass
+        # check size constraint
+        size_constraint = constraints.get('size', {})
+        if size_constraint:
+            try:
+                from mist.rbac.methods import check_size
+                check_size(auth_context.org, size_constraint, size_id)
+            except ImportError:
+                pass
+
         kwargs = {}
         if memory:
             kwargs['memory'] = memory
