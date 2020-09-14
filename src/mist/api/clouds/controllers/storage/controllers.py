@@ -16,7 +16,6 @@ from mist.api.exceptions import NotFoundError
 
 from libcloud.common.types import LibcloudError
 from libcloud.compute.base import NodeLocation
-from libcloud.compute.drivers.ec2 import ExEC2AvailabilityZone
 
 
 log = logging.getLogger(__name__)
