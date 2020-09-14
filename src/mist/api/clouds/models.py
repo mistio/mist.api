@@ -241,6 +241,35 @@ class Cloud(OwnershipMixin, me.Document):
                       if key not in self._private_fields})
         return cdict
 
+    def as_dict_v2(self):
+        cdict = {
+            'id': self.id,
+            'title': self.title,
+            'provider': self.ctl.provider,
+            'features': {
+                'compute': self.enabled,
+                'dns': self.dns_enabled,
+                'observation_logs': self.observation_logs_enabled,
+                'polling': self.polling_interval
+            },
+            'config': {},
+            'tags': {
+                tag.key: tag.value
+                for tag in Tag.objects(
+                    owner=self.owner,
+                    resource_id=self.id,
+                    resource_type='cloud').only('key', 'value')
+            },
+            'owned_by': self.owned_by.id if self.owned_by else '',
+            'created_by': self.created_by.id if self.created_by else '',
+        }
+        cdict['config'].update({
+            key: getattr(self, key)
+            for key in self._cloud_specific_fields
+            if key not in self._private_fields
+        })
+        return cdict
+
     def __str__(self):
         return '%s cloud %s (%s) of %s' % (type(self), self.title,
                                            self.id, self.owner)
