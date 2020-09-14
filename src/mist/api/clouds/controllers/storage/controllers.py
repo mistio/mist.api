@@ -16,6 +16,7 @@ from mist.api.exceptions import NotFoundError
 
 from libcloud.common.types import LibcloudError
 from libcloud.compute.base import NodeLocation
+from libcloud.compute.drivers.ec2 import ExEC2AvailabilityZone
 
 
 log = logging.getLogger(__name__)
@@ -102,7 +103,17 @@ class AmazonStorageController(BaseStorageController):
             location = CloudLocation.objects.get(id=kwargs['location'])
         except CloudLocation.DoesNotExist:
             raise NotFoundError("Location with id '%s'." % kwargs['location'])
-        kwargs['location'] = location.name
+
+        node_location = NodeLocation(id=location.external_id,
+                                     name=location.name,
+                                     country=location.country, driver=None)
+        zones = self.cloud.ctl.compute.connection.ex_list_availability_zones()
+        for zone in zones:
+            if zone.name == location.name:
+                node_location.availability_zone = zone
+                break
+
+        kwargs['location'] = node_location
 
     def _attach_volume(self, libcloud_volume, libcloud_node, **kwargs):
         if not kwargs.get('device'):
