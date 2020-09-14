@@ -9,35 +9,13 @@ log = logging.getLogger(__name__)
 class SSHKeyController(BaseKeyController):
 
     def generate(self):
-        """Generates a new RSA keypair and assigns to self. TODO """
+        """Generates a new RSA keypair and assigns to self."""
         from Crypto import Random
         from mist.api.secrets.models import VaultSecret, SecretValue
         Random.atfork()
         key = RSA.generate(2048)
-        data = {"private": key.exportKey().decode()}
-        vault_secret = VaultSecret('ssh', data=data)
-        vault_secret.save()
-
-        secret_value = SecretValue(secret=vault_secret)
-
-        self.key.private = secret_value
-        self.key.private.key_name = "private"
-
+        self.key.private = key.exportKey().decode()
         self.key.public = key.exportKey('OpenSSH').decode()
-
-    def vault_integrate(self, secret_backend, secret_name, key):
-        """ Integrates a key from Vault and stores only the SecretValue """
-        from mist.api.secrets.models import VaultSecret, SecretValue
-
-        vault_secret = VaultSecret(
-            secret_engine_name=secret_backend,
-            data=None,
-            name=secret_name,
-        ).save()
-
-        self.key.private = SecretValue(vault_secret, key_name=key)
-        self.key.private.key_name = "Vault" + key
-        self.key.public = self.key.ctl.construct_public_from_private()
 
     def associate(self, machine, username='root', port=22, no_connect=False):
         key_assoc = super(SSHKeyController, self).associate(
