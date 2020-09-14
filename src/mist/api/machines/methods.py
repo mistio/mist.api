@@ -297,9 +297,12 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
     # if key_id not provided, search for default key
     if cloud.ctl.provider not in [Provider.LIBVIRT.value,
                                   Container_Provider.DOCKER,
-                                  Provider.ONAPP.value,
-                                  Provider.AZURE_ARM.value,
-                                  Provider.GIG_G8.value]:
+                                  Provider.ONAPP,
+                                  Provider.AZURE_ARM,
+                                  Provider.GIG_G8,
+                                  Provider.VSPHERE,
+                                  Provider.KUBEVIRT,
+                                  Container_Provider.LXD]:
         if not key_id:
             try:
                 key = Key.objects.get(owner=auth_context.owner,
