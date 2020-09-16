@@ -11,7 +11,6 @@ class SSHKeyController(BaseKeyController):
     def generate(self):
         """Generates a new RSA keypair and assigns to self."""
         from Crypto import Random
-        from mist.api.secrets.models import VaultSecret, SecretValue
         Random.atfork()
         key = RSA.generate(2048)
         self.key.private = key.exportKey().decode()

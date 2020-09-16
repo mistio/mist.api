@@ -9,6 +9,7 @@ from mist.api.users.models import User, Organization, Owner  # noqa
 from mist.api.dns.models import Zone, Record  # noqa
 from mist.api.rules.models import Rule # noqa
 from mist.api.images.models import CloudImage # noqa
+from mist.api.secrets.models import VaultSecret, SecretValue # noqa
 
 try:
     from mist.orchestration.models import Template, Stack  # noqa
