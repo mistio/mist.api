@@ -15,7 +15,6 @@ class SSHKeyController(BaseKeyController):
         """Generates a new RSA keypair and assigns to self."""
 >>>>>>> 10620ec9b (Revert changes made on generate_key. No need to save key on generate. Remove unused code)
         from Crypto import Random
-        from mist.api.secrets.models import VaultSecret, SecretValue
         Random.atfork()
         key = RSA.generate(2048)
         self.key.private = key.exportKey().decode()
