@@ -1,5 +1,7 @@
 import logging
 import mongoengine as me
+from uuid import uuid4
+
 from mist.api.users.models import Owner
 from mist.api.ownership.mixins import OwnershipMixin
 from mist.api.secrets import controllers
@@ -10,10 +12,11 @@ log = logging.getLogger(__name__)
 
 class Secret(OwnershipMixin, me.Document):
     """ A Secret object """
-
+    id = me.StringField(primary_key=True,
+                        default=lambda: uuid4().hex)
     name = me.StringField(required=True)
+    data = me.StringField(required=True)
     owner = me.ReferenceField(Owner, reverse_delete_rule=me.CASCADE)
-    metadata = me.DictField(required=False)  # TODO
 
     meta = {
         'allow_inheritance': True,
@@ -22,7 +25,7 @@ class Secret(OwnershipMixin, me.Document):
             {
                 'fields': ['owner', 'name'],
                 'sparse': False,
-                'unique': False,
+                'unique': True,
                 'cls': False,
             },
         ],
@@ -32,7 +35,6 @@ class Secret(OwnershipMixin, me.Document):
 
     def __init__(self, *args, **kwargs):
         super(Secret, self).__init__(*args, **kwargs)
-
         # Set attribute `ctl` to an instance of the appropriate controller.
         if self._controller_cls is None:
             raise NotImplementedError(
@@ -56,48 +58,37 @@ class Secret(OwnershipMixin, me.Document):
 
     @property
     def data(self):
-        raise NotImplementedError
+        raise NotImplementedError()
+
+    def __str__(self):
+        return '%s key %s (%s) of %s' % (type(self), self.name,
+                                         self.id, self.owner)
 
 
 class VaultSecret(Secret):
     """ A Vault Secret object """
-
-    secret_engine_name = me.StringField(required=True)
-
+    secret_engine_name = me.StringField(default='kv1')
     _controller_cls = controllers.VaultSecretController
+    # path?
 
-    def __init__(self,
-                 name,
-                 data,
-                 secret_engine_name='kv1',
-                 metadata={},
-                 *args, **kwargs):
-
+    def __init__(self, name, secret_engine_name='kv1',
+                 metadata={}, *args, **kwargs):
         """ Construct Secret object given Secret's path """
         super(VaultSecret, self).__init__(*args, **kwargs)
         self.secret_engine_name = secret_engine_name
         self.name = name
-        self.metadata = self._data['metadata']
+        self.metadata = self.metadata
 
     @property
     def data(self):
         print('We are reading your secret')
         return self.ctl.read_secret()['data']
 
-    @data.setter
-    def data(self, d):
-        assert(isinstance(d, dict))
-        print('Data value is: ', d)
-        self.ctl.create_secret(d)
 
-    def print_meta(self):
-        print(self.metadata)
-
-
-class SecretValue(me.EmbeddedDocument):
+class SecretValue(me.Document):
     """ Retrieve the value of a Secret object """
 
-    secret = me.ReferenceField(Secret, required=True)
+    secret = me.ReferenceField(Secret, required=False)
     key_name = me.StringField()
 
     @property
