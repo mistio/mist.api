@@ -818,9 +818,8 @@ def machine_actions(request):
         result = machine.ctl.remove()
         # Schedule a UI update
         trigger_session_update(auth_context.owner, ['clouds'])
-    elif action in ('start', 'stop', 'reboot', 'clone',
-                    'suspend', 'resume'):
-        result = getattr(machine.ctl, action)(name)
+    elif action in ('start', 'stop', 'reboot', 'suspend', 'resume'):
+        result = getattr(machine.ctl, action)()
     elif action == 'undefine':
         result = getattr(machine.ctl, action)(delete_domain_image)
     elif action == 'expose':
@@ -829,7 +828,7 @@ def machine_actions(request):
             auth_context.check_perm('network', 'edit', machine.network)
         methods.validate_portforwards(port_forwards)
         result = getattr(machine.ctl, action)(port_forwards)
-    elif action == 'rename':
+    elif action in {'rename', 'clone'}:
         if not name:
             raise BadRequestError("You must give a name!")
         result = getattr(machine.ctl, action)(name)
