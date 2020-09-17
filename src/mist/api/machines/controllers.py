@@ -99,11 +99,12 @@ class MachineController(object):
             self.machine,
             delete_domain_image=delete_domain_image)
 
-    def clone(self):
+    def clone(self, name=None):
         """
-        Clones machine - used in KVM libvirt
+        Clones machine - used in KVM libvirt and vSphere
         """
-        return self.machine.cloud.ctl.compute.clone_machine(self.machine)
+        return self.machine.cloud.ctl.compute.clone_machine(self.machine,
+                                                            name=name)
 
     def associate_key(self, key, username=None, port=22, no_connect=False):
         """Associate an sshkey with a machine"""

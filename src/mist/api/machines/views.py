@@ -820,7 +820,7 @@ def machine_actions(request):
         trigger_session_update(auth_context.owner, ['clouds'])
     elif action in ('start', 'stop', 'reboot', 'clone',
                     'suspend', 'resume'):
-        result = getattr(machine.ctl, action)()
+        result = getattr(machine.ctl, action)(name)
     elif action == 'undefine':
         result = getattr(machine.ctl, action)(delete_domain_image)
     elif action == 'expose':
