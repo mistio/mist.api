@@ -61,9 +61,8 @@ class VaultSecretController(BaseSecretController):
         """ List all available Secret Engines """
         print(self.client.list_secret_backends())
 
-    def create_secret(self, data):
+    def create_secret(self, key, value):
         """ Create a Vault KV* Secret """
-
         # Read version and map the create_secret
         version = self.secret_type()
 
@@ -75,7 +74,7 @@ class VaultSecretController(BaseSecretController):
         create_secret(
             mount_point=self.secret.secret_engine_name,
             path=self.secret.name,
-            secret=data,
+            secret={key:value},
         )
         print(self.client.secrets.kv.v1.read_secret(
               mount_point=self.secret.secret_engine_name,
@@ -84,7 +83,6 @@ class VaultSecretController(BaseSecretController):
 
     def read_secret(self):
         """ Read a Vault KV* Secret """
-
         # Read version and map the read_secret
         version = self.secret_type()
 

@@ -15,9 +15,7 @@ class Secret(OwnershipMixin, me.Document):
     id = me.StringField(primary_key=True,
                         default=lambda: uuid4().hex)
     name = me.StringField(required=True)
-    data = me.StringField(required=True)
     owner = me.ReferenceField(Owner, reverse_delete_rule=me.CASCADE)
-
     meta = {
         'allow_inheritance': True,
         'collection': 'secrets',
@@ -68,20 +66,19 @@ class Secret(OwnershipMixin, me.Document):
 class VaultSecret(Secret):
     """ A Vault Secret object """
     secret_engine_name = me.StringField(default='kv1')
-    _controller_cls = controllers.VaultSecretController
-    # path?
 
-    def __init__(self, name, secret_engine_name='kv1',
-                 metadata={}, *args, **kwargs):
-        """ Construct Secret object given Secret's path """
+    _controller_cls = controllers.VaultSecretController
+
+    def __init__(self, name, key, value, secret_engine_name='kv1',
+                 *args, **kwargs):
+        """ Construct Secret object given Secret's path and key:value"""
         super(VaultSecret, self).__init__(*args, **kwargs)
-        self.secret_engine_name = secret_engine_name
         self.name = name
-        self.metadata = self.metadata
+        self.secret_engine_name = secret_engine_name
+        self.ctl.create_secret(key, value)
 
     @property
     def data(self):
-        print('We are reading your secret')
         return self.ctl.read_secret()['data']
 
 
