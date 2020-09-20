@@ -18,6 +18,7 @@ class BaseSecretController(object):
 class VaultSecretController(BaseSecretController):
 
     client = hvac.Client
+    version = me.StringField(default='kv', options=['kv', 'kv2'])
 
     def __init__(self, secret):
         super(VaultSecretController, self).__init__(secret)
@@ -26,24 +27,15 @@ class VaultSecretController(BaseSecretController):
 
         self.client = hvac.Client(url=url, token=token)
         assert(self.client.is_authenticated())
-
-    def secret_type(self):
-        """ Get Secret's type """
-
-        what_secret = self.client.list_secret_backends()[self.secret.
-                                                         secret_engine_name + '/']['type']
-
-        return what_secret
+        self.version = self.client.list_secret_backends()[self.secret.
+                                                          secret_engine_name + '/']['type']
 
     def list_secrets(self):
         """ List all available Secrets in Secret Engine """
 
-        # Read version and map the create_secret
-        version = self.secret_type()
-
-        if version == 'kv':
+        if self.version == 'kv':
             list_secrets = self.client.secrets.kv.v1.list_secrets
-        elif version == 'kv2':
+        elif self.version == 'kv2':
             list_secrets = self.client.secrets.kv.v2.list_secrets
 
         api_secrets_result = list_secrets(
@@ -63,12 +55,10 @@ class VaultSecretController(BaseSecretController):
 
     def create_secret(self, key, value):
         """ Create a Vault KV* Secret """
-        # Read version and map the create_secret
-        version = self.secret_type()
 
-        if version == 'kv':
+        if self.version == 'kv':
             create_secret = self.client.secrets.kv.v1.create_or_update_secret
-        elif version == 'kv2':
+        elif self.version == 'kv2':
             create_secret = self.client.secrets.kv.v2.create_or_update_secret
 
         create_secret(
@@ -83,12 +73,10 @@ class VaultSecretController(BaseSecretController):
 
     def read_secret(self):
         """ Read a Vault KV* Secret """
-        # Read version and map the read_secret
-        version = self.secret_type()
 
-        if version == 'kv':
+        if self.version == 'kv':
             read_secret = self.client.secrets.kv.v1.read_secret
-        elif version == 'kv2':
+        elif self.version == 'kv2':
             read_secret = self.client.secrets.kv.v2.read_secret
 
         api_response = read_secret(
@@ -100,12 +88,9 @@ class VaultSecretController(BaseSecretController):
     def delete_secret(self):
         " Delete a Vault KV* Secret"
 
-        # Read version and map the read_secret
-        version = self.secret_type()
-
-        if version == 'kv':
+        if self.version == 'kv':
             delete_secret = self.client.secrets.kv.v1.delete_secret
-        elif version == 'kv2':
+        elif self.version == 'kv2':
             delete_secret = self.client.secrets.kv.v2.delete_secret
 
         delete_secret(
