@@ -1581,6 +1581,7 @@ class VSphereComputeController(BaseComputeController):
         for location in locations:
             if location.id == machine.location.external_id:
                 node_location = location
+                break
         folder = node.extra.get('folder', None)
         datastore = node.extra.get('datastore', None)
         return self.connection.create_node(name=name, image=node,
