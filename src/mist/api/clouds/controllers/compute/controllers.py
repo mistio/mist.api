@@ -1530,6 +1530,8 @@ class VSphereComputeController(BaseComputeController):
     def _list_machines__machine_actions(self, machine, node_dict):
         super(VSphereComputeController, self)._list_machines__machine_actions(
             machine, node_dict)
+        machine.actions.clone = True
+        machine.actions.rename = True
         machine.actions.create_snapshot = True
         if len(machine.extra.get('snapshots')):
             machine.actions.remove_snapshot = True
@@ -1572,6 +1574,21 @@ class VSphereComputeController(BaseComputeController):
         if config.VSPHERE_IMAGE_FOLDERS:
             image_folders = config.VSPHERE_IMAGE_FOLDERS
         return self.connection.list_images(folder_ids=image_folders)
+
+    def _clone_machine(self, machine, node, name, resume):
+        locations = self.connection.list_locations()
+        node_location = None
+        for location in locations:
+            if location.id == machine.location.external_id:
+                node_location = location
+                break
+        folder = node.extra.get('folder', None)
+        datastore = node.extra.get('datastore', None)
+        return self.connection.create_node(name=name, image=node,
+                                           size=node.size,
+                                           location=node_location,
+                                           ex_folder=folder,
+                                           ex_datastore=datastore)
 
 
 class VCloudComputeController(BaseComputeController):
@@ -2524,7 +2541,7 @@ class LibvirtComputeController(BaseComputeController):
 
     def _clone_machine(self, machine, node, name, resume):
         driver = self._get_host_driver(machine)
-        return driver.ex_clone_node(node)
+        return driver.ex_clone_node(node, new_name=name)
 
     def _list_sizes__get_cpu(self, size):
         return size.extra.get('cpu')
