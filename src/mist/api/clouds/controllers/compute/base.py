@@ -662,7 +662,7 @@ class BaseComputeController(BaseController):
         This is only overriden by the OtherServer Controller.
         It applies only to generic machines.
         """
-        machine.state = config.STATES[NodeState.UNKNOWN]
+        machine.state = config.STATES[NodeState.UNKNOWN.value]
 
     def _list_machines__generic_machine_actions(self, machine):
         """Helper method to update available generic machine's actions
@@ -1350,7 +1350,7 @@ class BaseComputeController(BaseController):
         Differnent cloud controllers should override this private method, which
         is called by the public method `start_machine`.
         """
-        return self.connection.ex_start_node(node)
+        return self.connection.start_node(node)
 
     def stop_machine(self, machine):
         """Stop machine
@@ -1395,7 +1395,7 @@ class BaseComputeController(BaseController):
         Differnent cloud controllers should override this private method, which
         is called by the public method `stop_machine`.
         """
-        return self.connection.ex_stop_node(node)
+        return self.connection.stop_node(node)
 
     def reboot_machine(self, machine):
         """Reboot machine
