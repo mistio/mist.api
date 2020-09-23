@@ -257,7 +257,6 @@ def get_private_key(request):
       required: true
       type: string
     """
-
     key_id = request.matchdict['key']
     if not key_id:
         raise RequiredParameterMissingError("key_id")
@@ -274,7 +273,7 @@ def get_private_key(request):
         auth_context.owner.id, 'request', 'read_private',
         key_id=key.id, user_id=auth_context.user.id,
     )
-    return key.private
+    return key.private.value
 
 
 @view_config(route_name='api_v1_key_public', request_method='GET',

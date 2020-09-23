@@ -2172,7 +2172,7 @@ class LibvirtComputeController(BaseComputeController):
         driver = get_driver(Provider.LIBVIRT)(
             host, hypervisor=machine.hostname, ssh_port=int(port),
             user=key_associations[0].ssh_user,
-            ssh_key=key_associations[0].key.private)
+            ssh_key=key_associations[0].key.private.value)
 
         return driver
 

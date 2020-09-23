@@ -308,7 +308,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                 pass
             key_id = key.name
     if key:
-        private_key = key.private
+        private_key = key.private.value
         public_key = key.public.replace('\n', '')
     else:
         public_key = None

@@ -7,6 +7,7 @@ from mist.api.exceptions import KeyExistsError
 from mist.api.exceptions import BadRequestError
 from mist.api.helpers import rename_kwargs
 from mist.api.helpers import trigger_session_update
+from mist.api.secrets.models import VaultSecret, SecretValue
 
 log = logging.getLogger(__name__)
 
@@ -52,7 +53,16 @@ class BaseKeyController(object):
             })
 
         for key, value in kwargs.items():
-            setattr(self.key, key, value)
+            if key == 'private':
+                secret = VaultSecret(name=self.key.name, owner=self.key.owner)
+                secret.ctl.create_secret(key, value)
+                secret.save()
+                secret_value = SecretValue(secret=secret, key='private')
+                secret_value.save()
+            else:
+                setattr(self.key, key, value)
+
+        self.key.private = secret_value
 
         if not Key.objects(owner=self.key.owner, default=True):
             self.key.default = True
