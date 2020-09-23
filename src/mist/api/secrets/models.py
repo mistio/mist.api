@@ -62,7 +62,7 @@ class Secret(OwnershipMixin, me.Document):
 
     def __str__(self):
         return '%s secret %s (%s) of %s' % (type(self), self.name,
-                                         self.id, self.owner)
+                                            self.id, self.owner)
 
 
 class VaultSecret(Secret):
@@ -78,7 +78,7 @@ class VaultSecret(Secret):
 class SecretValue(me.Document):
     """ Retrieve the value of a Secret object """
     id = me.StringField(primary_key=True,
-                            default=lambda: uuid4().hex)
+                        default=lambda: uuid4().hex)
     secret = me.ReferenceField(Secret, required=False)
     key = me.StringField(required=True)
 
@@ -95,5 +95,5 @@ class SecretValue(me.Document):
             return self.secret.data
 
     def __str__(self):
-            return '%s secret value of %s (%s)' % (type(self),
-                    self.secret.name, self.id)
+        return '%s secret value of %s (%s)' % (type(self),
+                                               self.secret.name, self.id)
