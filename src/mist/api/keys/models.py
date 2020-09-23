@@ -12,7 +12,6 @@ from mist.api.keys import controllers
 from mist.api.keys.base import BaseKeyController
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.ownership.mixins import OwnershipMixin
-from mist.api.secrets.models import SecretValue
 
 log = logging.getLogger(__name__)
 
