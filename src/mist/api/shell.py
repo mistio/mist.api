@@ -104,7 +104,7 @@ class ParamikoShell(object):
                                                 "provided.")
 
         if key:
-            private = key.private
+            private = key.private.value
             if isinstance(key, SignedSSHKey) and cert_file:
                 # signed ssh key, use RSACert
                 rsa_key = paramiko.RSACert(privkey_file_obj=StringIO(private),
