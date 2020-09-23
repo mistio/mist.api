@@ -185,7 +185,9 @@ class SSHKey(Key):
     """An ssh key."""
 
     public = me.StringField(required=True)
-    private = me.EmbeddedDocumentField(SecretValue)
+    # private = me.StringField(required=True)
+    private = me.ReferenceField('SecretValue', required=True,
+                                reverse_delete_rule=me.CASCADE)
 
     _controller_cls = controllers.SSHKeyController
     _private_fields = ('private',)
@@ -198,8 +200,7 @@ class SSHKey(Key):
 
         # Generate public key from private key file.
         try:
-            key = RSAKey.from_private_key(io.StringIO(self.private.secret.
-                                                      value))
+            key = RSAKey.from_private_key(io.StringIO(self.private.value))
             self.public = 'ssh-rsa ' + key.get_base64()
         except Exception:
             log.exception("Error while constructing public key "

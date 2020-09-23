@@ -17,13 +17,15 @@ class Secret(OwnershipMixin, me.Document):
     name = me.StringField(required=True)
     owner = me.ReferenceField(Owner, reverse_delete_rule=me.CASCADE)
     meta = {
+        'strict': False,
         'allow_inheritance': True,
         'collection': 'secrets',
         'indexes': [
+            'owner',
             {
                 'fields': ['owner', 'name'],
                 'sparse': False,
-                'unique': True,
+                'unique': False,
                 'cls': False,
             },
         ],
@@ -59,23 +61,14 @@ class Secret(OwnershipMixin, me.Document):
         raise NotImplementedError()
 
     def __str__(self):
-        return '%s key %s (%s) of %s' % (type(self), self.name,
+        return '%s secret %s (%s) of %s' % (type(self), self.name,
                                          self.id, self.owner)
 
 
 class VaultSecret(Secret):
     """ A Vault Secret object """
     secret_engine_name = me.StringField(default='kv1')
-
     _controller_cls = controllers.VaultSecretController
-
-    def __init__(self, name, key, value, secret_engine_name='kv1',
-                 *args, **kwargs):
-        """ Construct Secret object given Secret's path and key:value"""
-        super(VaultSecret, self).__init__(*args, **kwargs)
-        self.name = name
-        self.secret_engine_name = secret_engine_name
-        self.ctl.create_secret(key, value)
 
     @property
     def data(self):
@@ -84,13 +77,23 @@ class VaultSecret(Secret):
 
 class SecretValue(me.Document):
     """ Retrieve the value of a Secret object """
-
+    id = me.StringField(primary_key=True,
+                            default=lambda: uuid4().hex)
     secret = me.ReferenceField(Secret, required=False)
-    key_name = me.StringField()
+    key = me.StringField(required=True)
+
+    def __init__(self, secret, key, *args, **kwargs):
+        super(SecretValue, self).__init__(*args, **kwargs)
+        self.secret = secret
+        self.key = key
 
     @property
     def value(self):
-        if self.key_name:
-            return self.secret.data[self.key_name]
+        if self.key:
+            return self.secret.data[self.key]
         else:
             return self.secret.data
+
+    def __str__(self):
+            return '%s secret value of %s (%s)' % (type(self),
+                    self.secret.name, self.id)
