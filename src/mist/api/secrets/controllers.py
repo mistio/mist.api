@@ -30,11 +30,9 @@ class VaultSecretController(BaseSecretController):
         self.client = hvac.Client(url=url, token=token)
         assert(self.client.is_authenticated())
 
-
     def secret_type(self):
         """ Get Secret's type """
-        return self.client.sys.list_mounted_secrets_engines()[self.secret.
-                                                              secret_engine_name + '/']['type']
+        return self.client.sys.list_mounted_secrets_engines()[self.secret.secret_engine_name + '/']['type']
 
     def list_secrets(self):
         """ List all available Secrets in Secret Engine """
@@ -72,7 +70,7 @@ class VaultSecretController(BaseSecretController):
         create_secret(
             mount_point=self.secret.secret_engine_name,
             path=self.secret.name,
-            secret={key:value},
+            secret={key: value},
         )
         # print(self.client.secrets.kv.v1.read_secret(
         #       mount_point=self.secret.secret_engine_name,
