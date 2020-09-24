@@ -60,6 +60,9 @@ def _populate_clouds():
             value = globals()[key]
             if issubclass(value, Cloud) and value is not Cloud:
                 CLOUDS[value._controller_cls.provider] = value
+    CLOUDS['amazon'] = CLOUDS['ec2']
+    CLOUDS['kvm'] = CLOUDS['libvirt']
+    CLOUDS['other'] = CLOUDS['bare_metal']
 
 
 class Cloud(OwnershipMixin, me.Document):
