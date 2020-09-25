@@ -38,7 +38,7 @@ from html import unescape
 
 from xml.sax.saxutils import escape
 
-from libcloud.pricing import get_size_price
+from libcloud.pricing import get_size_price, get_pricing
 from libcloud.compute.base import Node, NodeImage, NodeLocation
 from libcloud.compute.providers import get_driver
 from libcloud.container.providers import get_driver as get_container_driver
@@ -93,7 +93,7 @@ class AmazonComputeController(BaseComputeController):
         super(AmazonComputeController, self)._list_machines__machine_actions(
             machine, node_dict)
         machine.actions.rename = True
-        if node_dict['state'] != NodeState.TERMINATED:
+        if node_dict['state'] != NodeState.TERMINATED.value:
             machine.actions.resize = True
 
     def _resize_machine(self, machine, node, node_size, kwargs):
@@ -179,7 +179,7 @@ class AmazonComputeController(BaseComputeController):
         # TODO: stopped instances still charge for the EBS device
         # https://aws.amazon.com/ebs/pricing/
         # Need to add this cost for all instances
-        if node_dict['state'] == NodeState.STOPPED:
+        if node_dict['state'] == NodeState.STOPPED.value:
             return 0, 0
 
         sizes = self.connection.list_sizes()
@@ -468,7 +468,7 @@ class MaxihostComputeController(BaseComputeController):
     def _list_machines__machine_actions(self, machine, node_dict):
         super(MaxihostComputeController, self)._list_machines__machine_actions(
             machine, node_dict)
-        if node_dict['state'] is NodeState.PAUSED:
+        if node_dict['state'] is NodeState.PAUSED.value:
             machine.actions.start = True
 
     def _list_machines__postparse_machine(self, machine, node_dict):
@@ -554,7 +554,7 @@ class GigG8ComputeController(BaseComputeController):
     def _list_machines__machine_actions(self, machine, node_dict):
         super(GigG8ComputeController, self)._list_machines__machine_actions(
             machine, node_dict)
-        if node_dict['state'] is NodeState.PAUSED:
+        if node_dict['state'] is NodeState.PAUSED.value:
             machine.actions.start = True
         machine.actions.expose = True
 
@@ -670,7 +670,7 @@ class LinodeComputeController(BaseComputeController):
         machine.actions.resize = True
         # machine.actions.stop = False
         # After resize, node gets to pending mode, needs to be started.
-        if node_dict['state'] is NodeState.PENDING:
+        if node_dict['state'] is NodeState.PENDING.value:
             machine.actions.start = True
 
     def _list_machines__cost_machine(self, machine, node_dict):
@@ -840,8 +840,8 @@ class AzureComputeController(BaseComputeController):
         return updated
 
     def _list_machines__cost_machine(self, machine, node_dict):
-        if node_dict['state'] not in [NodeState.RUNNING,
-                                      NodeState.PAUSED]:
+        if node_dict['state'] not in [NodeState.RUNNING.value,
+                                      NodeState.PAUSED.value]:
             return 0, 0
         return node_dict['extra'].get('cost_per_hour', 0), 0
 
@@ -904,7 +904,7 @@ class AzureComputeController(BaseComputeController):
     def _list_machines__machine_actions(self, machine, node_dict):
         super(AzureComputeController, self)._list_machines__machine_actions(
             machine, node_dict)
-        if node_dict['state'] is NodeState.PAUSED:
+        if node_dict['state'] is NodeState.PAUSED.value:
             machine.actions.start = True
 
 
@@ -946,15 +946,15 @@ class AzureArmComputeController(BaseComputeController):
         return updated
 
     def _list_machines__cost_machine(self, machine, node_dict):
-        if node_dict['state'] not in [NodeState.RUNNING,
-                                      NodeState.PAUSED]:
+        if node_dict['state'] not in [NodeState.RUNNING.value,
+                                      NodeState.PAUSED.value]:
             return 0, 0
         return node_dict['extra'].get('cost_per_hour', 0), 0
 
     def _list_machines__machine_actions(self, machine, node_dict):
         super(AzureArmComputeController, self)._list_machines__machine_actions(
             machine, node_dict)
-        if node_dict['state'] is NodeState.PAUSED:
+        if node_dict['state'] is NodeState.PAUSED.value:
             machine.actions.start = True
 
     def _list_machines__get_location(self, node):
@@ -1162,7 +1162,7 @@ class GoogleComputeController(BaseComputeController):
         return images
 
     def _list_machines__cost_machine(self, machine, node_dict):
-        if node_dict['state'] == NodeState.STOPPED or not machine.size:
+        if node_dict['state'] == NodeState.STOPPED.value or not machine.size:
             return 0, 0
         # eg n1-standard-1 (1 vCPU, 3.75 GB RAM)
         machine_cpu = float(machine.size.cpus)
@@ -1210,12 +1210,10 @@ class GoogleComputeController(BaseComputeController):
         elif 'ssd' in disk_type:
             disk_type = 'SSD'
 
-        disk_prices = get_size_price(driver_type='compute',
-                                     driver_name='gce_disks',
-                                     size_id=disk_type)
-        gce_instance = get_size_price(driver_type='compute',
-                                      driver_name='gce_instances',
-                                      size_id=size_type)
+        disk_prices = get_pricing(driver_type='compute',
+                                  driver_name='gce_disks')[disk_type]
+        gce_instance = get_pricing(driver_type='compute',
+                                   driver_name='gce_instances')[size_type]
         cpu_price = 0
         ram_price = 0
         os_price = 0
@@ -1586,7 +1584,7 @@ class VCloudComputeController(BaseComputeController):
     def _list_machines__machine_actions(self, machine, node_dict):
         super(VCloudComputeController, self)._list_machines__machine_actions(
             machine, node_dict)
-        if node_dict['state'] is NodeState.PENDING:
+        if node_dict['state'] is NodeState.PENDING.value:
             machine.actions.start = True
             machine.actions.stop = True
 
@@ -2212,39 +2210,39 @@ class LibvirtComputeController(BaseComputeController):
     def _list_machines__update_generic_machine_state(self, machine):
         # Defaults
         machine.unreachable_since = None
-        machine.state = config.STATES[NodeState.RUNNING]
+        machine.state = config.STATES[NodeState.RUNNING.value]
 
         # If any of the probes has succeeded, then state is running
         if (
             machine.ssh_probe and not machine.ssh_probe.unreachable_since or
             machine.ping_probe and not machine.ping_probe.unreachable_since
         ):
-            machine.state = config.STATES[NodeState.RUNNING]
+            machine.state = config.STATES[NodeState.RUNNING.value]
 
         # If ssh probe failed, then unreachable since then
         if machine.ssh_probe and machine.ssh_probe.unreachable_since:
             machine.unreachable_since = machine.ssh_probe.unreachable_since
-            machine.state = config.STATES[NodeState.UNKNOWN]
+            machine.state = config.STATES[NodeState.UNKNOWN.value]
         # Else if ssh probe has never succeeded and ping probe failed,
         # then unreachable since then
         elif (not machine.ssh_probe and
               machine.ping_probe and machine.ping_probe.unreachable_since):
             machine.unreachable_since = machine.ping_probe.unreachable_since
-            machine.state = config.STATES[NodeState.UNKNOWN]
+            machine.state = config.STATES[NodeState.UNKNOWN.value]
 
     def _list_machines__machine_actions(self, machine, node_dict):
         super(LibvirtComputeController, self)._list_machines__machine_actions(
             machine, node_dict)
         machine.actions.clone = True
         machine.actions.undefine = False
-        if node_dict['state'] is NodeState.TERMINATED:
+        if node_dict['state'] is NodeState.TERMINATED.value:
             # In libvirt a terminated machine can be started.
             machine.actions.start = True
             machine.actions.undefine = True
             machine.actions.rename = True
-        if node_dict['state'] is NodeState.RUNNING:
+        if node_dict['state'] is NodeState.RUNNING.value:
             machine.actions.suspend = True
-        if node_dict['state'] is NodeState.SUSPENDED:
+        if node_dict['state'] is NodeState.SUSPENDED.value:
             machine.actions.resume = True
 
     def _list_machines__generic_machine_actions(self, machine):
@@ -2257,7 +2255,6 @@ class LibvirtComputeController(BaseComputeController):
         machine.actions.reboot = False
 
     def _list_machines__postparse_machine(self, machine, node_dict):
-        from mist.api.images.models import CloudImage
         updated = False
         xml_desc = node_dict['extra'].get('xml_description')
         if xml_desc:
@@ -2268,21 +2265,7 @@ class LibvirtComputeController(BaseComputeController):
             import xml.etree.ElementTree as ET
             root = ET.fromstring(unescape(xml_desc))
             devices = root.find('devices')
-            disks = devices.findall('disk')
-            for disk in disks:
-                if disk.attrib.get('device', '') == 'cdrom':
-                    image = disk.find('source').attrib.get('file', '')
-                    if (machine.image and machine.image.external_id != image) \
-                            or (not machine.image and image):
-                        try:
-                            image = CloudImage.objects.get(
-                                cloud=machine.cloud, external_id=image)
-                        except CloudImage.DoesNotExist:
-                            image = CloudImage(cloud=machine.cloud,
-                                               external_id=image)
-                            image.save()
-                        machine.image = image
-                        updated = True
+            # TODO: rethink image association
 
             vnfs = []
             hostdevs = devices.findall('hostdev') + \
@@ -2557,9 +2540,9 @@ class OnAppComputeController(BaseComputeController):
         super(OnAppComputeController, self)._list_machines__machine_actions(
             machine, node_dict)
         machine.actions.resize = True
-        if node_dict['state'] is NodeState.RUNNING:
+        if node_dict['state'] is NodeState.RUNNING.value:
             machine.actions.suspend = True
-        if node_dict['state'] is NodeState.SUSPENDED:
+        if node_dict['state'] is NodeState.SUSPENDED.value:
             machine.actions.resume = True
 
     def _list_machines__machine_creation_date(self, machine, node_dict):
@@ -2599,7 +2582,7 @@ class OnAppComputeController(BaseComputeController):
         return updated
 
     def _list_machines__cost_machine(self, machine, node_dict):
-        if node_dict['state'] == NodeState.STOPPED:
+        if node_dict['state'] == NodeState.STOPPED.value:
             cost_per_hour = node_dict['extra'].get(
                 'price_per_hour_powered_off', 0)
         else:
@@ -2737,19 +2720,19 @@ class OtherComputeController(BaseComputeController):
             machine.ssh_probe and not machine.ssh_probe.unreachable_since or
             machine.ping_probe and not machine.ping_probe.unreachable_since
         ):
-            machine.state = config.STATES[NodeState.RUNNING]
+            machine.state = config.STATES[NodeState.RUNNING.value]
         # If ssh probe failed, then unreachable since then
         elif machine.ssh_probe and machine.ssh_probe.unreachable_since:
             machine.unreachable_since = machine.ssh_probe.unreachable_since
-            machine.state = config.STATES[NodeState.UNKNOWN]
+            machine.state = config.STATES[NodeState.UNKNOWN.value]
         # Else if ssh probe has never succeeded and ping probe failed,
         # then unreachable since then
         elif (not machine.ssh_probe and
               machine.ping_probe and machine.ping_probe.unreachable_since):
             machine.unreachable_since = machine.ping_probe.unreachable_since
-            machine.state = config.STATES[NodeState.UNKNOWN]
+            machine.state = config.STATES[NodeState.UNKNOWN.value]
         else:  # Asume running if no indication otherwise
-            machine.state = config.STATES[NodeState.RUNNING]
+            machine.state = config.STATES[NodeState.RUNNING.value]
 
     def _list_machines__generic_machine_actions(self, machine):
         """Update an action for a bare metal machine
@@ -2823,8 +2806,7 @@ class KubeVirtComputeController(BaseComputeController):
                                                  port=port,
                                                  key_file=key_file,
                                                  cert_file=cert_file,
-                                                 ca_cert=ca_cert,
-                                                 verify=verify)
+                                                 ca_cert=ca_cert)
 
         elif self.cloud.token:
             token = self.cloud.token
@@ -2834,8 +2816,7 @@ class KubeVirtComputeController(BaseComputeController):
                                                  host=host,
                                                  port=port,
                                                  ca_cert=ca_cert,
-                                                 token_bearer_auth=True,
-                                                 verify=verify
+                                                 ex_token_bearer_auth=True
                                                  )
         # username/password auth
         elif self.cloud.username and self.cloud.password:
@@ -2846,8 +2827,7 @@ class KubeVirtComputeController(BaseComputeController):
                                                  secret=secret,
                                                  secure=True,
                                                  host=host,
-                                                 port=port,
-                                                 verify=verify)
+                                                 port=port)
         else:
             msg = '''Necessary parameters for authentication are missing.
             Either a key_file/cert_file pair or a username/pass pair
