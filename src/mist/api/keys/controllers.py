@@ -9,11 +9,7 @@ log = logging.getLogger(__name__)
 class SSHKeyController(BaseKeyController):
 
     def generate(self):
-<<<<<<< HEAD
         """Generates a new RSA key pair and assigns to self."""
-=======
-        """Generates a new RSA keypair and assigns to self."""
->>>>>>> 10620ec9b (Revert changes made on generate_key. No need to save key on generate. Remove unused code)
         from Crypto import Random
         Random.atfork()
         key = RSA.generate(2048)
