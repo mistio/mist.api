@@ -1,5 +1,7 @@
 import logging
 import datetime
+import hvac
+import mongoengine as me
 
 from mist.api.dramatiq_app import dramatiq
 
@@ -141,6 +143,32 @@ def list_buckets(schedule_id):
     from mist.api.poller.models import ListBucketsPollingSchedule
     sched = ListBucketsPollingSchedule.objects.get(id=schedule_id)
     sched.cloud.ctl.objectstorage.list_buckets(persist=False)
+
+
+@dramatiq.actor(queue_name='ping_probe', time_limit=45_000, max_age=30_000)
+def list_secrets(schedule_id):
+    """Perform list secrets in Vault. For every new secret found,
+       a VaultSecret object is stored in MongoDB
+    """
+
+    from mist.api.poller.models import ListSecretsPollingSchedule
+    sched = ListSecretsPollingSchedule.objects.get(id=schedule_id)
+
+    client = hvac.Client(url=sched.url, token=sched.token)
+    res = client.secrets.kv.v1.list_secrets(mount_point='kv1',
+                                            path='.')
+    keys = res['data'].get('keys', [])
+    from mist.api.secrets.models import VaultSecret, SecretValue
+
+    # parse the keys, if not found, create one
+    for key in keys:
+        try:
+            VaultSecret.objects.get(name=key)
+        except me.DoesNotExist:
+            secret = VaultSecret(name=key)
+            secret.save()
+            secret_value = SecretValue(secret=secret)
+            secret_value.save()
 
 
 @dramatiq.actor(queue_name='ping_probe', time_limit=45_000, max_age=30_000)
