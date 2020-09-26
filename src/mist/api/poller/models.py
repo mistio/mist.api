@@ -401,3 +401,35 @@ class FindCoresMachinePollingSchedule(MachinePollingSchedule):
     def enabled(self):
         return (super(FindCoresMachinePollingSchedule, self).enabled and
                 config.ENABLE_METERING)
+
+
+class VaultPollingSchedule(PollingSchedule):
+
+    url = me.StringField(required=True)
+    token = me.StringField(required=True)
+
+    @classmethod
+    def add(cls, url, token, run_immediately=True, interval=None, ttl=300):
+        try:
+            schedule = cls.objects.get(url=url, token=token)
+        except cls.DoesNotExist:
+            schedule = cls(url=url, token=token)
+            try:
+                schedule.save()
+            except me.NotUniqueError:
+                # Work around race condition where schedule was created since
+                # last time we checked.
+                schedule = cls.objects.get(url=url, token=token)
+        schedule.set_default_interval(60 * 60 * 2)
+        if interval is not None:
+            schedule.add_interval(interval, ttl)
+        if run_immediately:
+            schedule.run_immediately = True
+        schedule.cleanup_expired_intervals()
+        schedule.save()
+        return schedule
+
+
+class ListSecretsPollingSchedule(VaultPollingSchedule):
+
+    task = 'mist.api.poller.tasks.list_secrets'

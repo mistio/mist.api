@@ -94,7 +94,7 @@ class BaseKeyController(object):
             return
         self.key.name = name
         self.key.save()
-        log.info("Renamed key '%s' to '%s'.", self.key.name, name)
+        log.info("Renamed key %s to '%s'.", self.key.id, name)
         trigger_session_update(self.key.owner, ['keys'])
 
     def set_default(self):

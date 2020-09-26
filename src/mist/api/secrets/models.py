@@ -80,12 +80,13 @@ class SecretValue(me.Document):
     id = me.StringField(primary_key=True,
                         default=lambda: uuid4().hex)
     secret = me.ReferenceField(Secret, required=False)
-    key = me.StringField(required=True)
+    key = me.StringField()
 
-    def __init__(self, secret, key, *args, **kwargs):
+    def __init__(self, secret, key='', *args, **kwargs):
         super(SecretValue, self).__init__(*args, **kwargs)
         self.secret = secret
-        self.key = key
+        if key:
+            self.key = key
 
     @property
     def value(self):

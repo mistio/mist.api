@@ -20,7 +20,6 @@ class BaseSecretController(object):
 class VaultSecretController(BaseSecretController):
 
     client = hvac.Client
-    version = me.StringField()
 
     def __init__(self, secret):
         super(VaultSecretController, self).__init__(secret)
@@ -32,8 +31,8 @@ class VaultSecretController(BaseSecretController):
 
     def secret_type(self):
         """ Get Secret's type """
-        return self.client.sys.list_mounted_secrets_engines()
-        [self.secret.secret_engine_name + '/']['type']
+        res = self.client.sys.list_mounted_secrets_engines()
+        return res[self.secret.secret_engine_name + '/']['type']
 
     def list_secrets(self):
         """ List all available Secrets in Secret Engine """
