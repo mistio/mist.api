@@ -6,15 +6,31 @@ from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import CloudNotFoundError
 
 
-def list_images(owner, cloud_id, term=None):
+def list_images(owner, cloud_id, cached=False, term=None):
     """List the images of the specified cloud"""
     try:
         cloud = Cloud.objects.get(owner=owner, id=cloud_id)
     except Cloud.DoesNotExist:
         raise CloudNotFoundError()
 
-    images = cloud.ctl.compute.list_images(search=term)
+    if cached:
+        images = cloud.ctl.compute.list_cached_images()
+    else:
+        images = cloud.ctl.compute.list_images(search=term)
     return [image.as_dict() for image in images]
+
+
+def filter_list_images(auth_context, cloud_id, perm='read',
+                       cached=False, term=''):
+    images = list_images(auth_context.owner, cloud_id, cached, term)
+    if not auth_context.is_owner():
+        allowed_resources = auth_context.get_allowed_resources(perm)
+        if cloud_id not in allowed_resources['clouds']:
+            return {'cloud_id': cloud_id, 'images': []}
+        for i in range(len(images) - 1, -1, -1):
+            if images[i]['id'] not in allowed_resources['images']:
+                images.pop(i)
+    return images
 
 
 def star_image(owner, cloud_id, image_id):

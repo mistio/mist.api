@@ -74,13 +74,9 @@ def list_images(request):
         raise NotFoundError('Cloud does not exist')
 
     cached = bool(params.get('cached', False))
-    if cached:
-        images = [image.as_dict() for image in
-                  cloud.ctl.compute.list_cached_images()]
-    else:
-        images = methods.list_images(auth_context.owner, cloud_id, term)
 
-    return images
+    return methods.filter_list_images(auth_context, cloud_id, cached=cached,
+                                      term=term)
 
 
 @view_config(route_name='api_v1_image', request_method='POST', renderer='json')
