@@ -103,6 +103,8 @@ def delete_key(request):
       type: string
     """
     auth_context = auth_context_from_request(request)
+    params = params_from_request(request)
+    delete_from_vault = params.get('delete_from_vault', False)
     key_id = request.matchdict.get('key')
     if not key_id:
         raise KeyParameterMissingError()
@@ -114,64 +116,8 @@ def delete_key(request):
         raise NotFoundError('Key id does not exist')
 
     auth_context.check_perm('key', 'remove', key.id)
-    m_delete_key(auth_context.owner, key_id)
+    m_delete_key(auth_context.owner, key_id, delete_from_vault)
     return OK
-
-
-@view_config(route_name='api_v1_keys',
-             request_method='DELETE', renderer='json')
-def delete_keys(request):
-    """
-    Tags: keys
-    ---
-    Deletes multiple keys.
-    Provide a list of key ids to be deleted. The method will try to delete
-    all of them and then return a json that describes for each key id
-    whether or not it was deleted or not_found if the key id could not
-    be located. If no key id was found then a 404(Not Found) response will
-    be returned.
-    REMOVE permission required on each key.
-    ---
-    key_ids:
-      required: true
-      type: array
-      items:
-        type: string
-    """
-    auth_context = auth_context_from_request(request)
-
-    params = params_from_request(request)
-    key_ids = params.get('key_ids', [])
-    if type(key_ids) != list or len(key_ids) == 0:
-        raise RequiredParameterMissingError('No key ids provided')
-    # remove duplicate ids if there are any
-    key_ids = set(key_ids)
-
-    report = {}
-    for key_id in key_ids:
-        try:
-            key = Key.objects.get(owner=auth_context.owner,
-                                  id=key_id, deleted=None)
-        except me.DoesNotExist:
-            report[key_id] = 'not_found'
-            continue
-        try:
-            auth_context.check_perm('key', 'remove', key.id)
-        except PolicyUnauthorizedError:
-            report[key_id] = 'unauthorized'
-        else:
-            delete_key(auth_context.owner, key_id)
-            report[key_id] = 'deleted'
-
-    # if no key id was valid raise exception
-    if len([key_id for key_id in report
-            if report[key_id] == 'not_found']) == len(key_ids):
-        raise NotFoundError('No valid key id provided')
-    # if user was unauthorized for all keys
-    if len([key_id for key_id in report
-            if report[key_id] == 'unauthorized']) == len(key_ids):
-        raise NotFoundError('Unauthorized to modify any of the keys')
-    return report
 
 
 @view_config(route_name='api_v1_key_action', request_method='PUT',
