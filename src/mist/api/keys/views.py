@@ -115,7 +115,7 @@ def delete_key(request):
 
     auth_context.check_perm('key', 'remove', key.id)
     m_delete_key(auth_context.owner, key_id)
-    return list_keys(request)
+    return OK
 
 
 @view_config(route_name='api_v1_keys',
