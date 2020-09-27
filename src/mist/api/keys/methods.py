@@ -2,6 +2,7 @@ from datetime import datetime
 
 from mist.api.keys.models import Key
 from mist.api.machines.models import KeyMachineAssociation
+from mist.api.secrets.models import VaultSecret, SecretValue
 
 from mist.api.tag.methods import get_tags_for_resource
 
@@ -20,7 +21,7 @@ logging.basicConfig(level=config.PY_LOG_LEVEL,
 log = logging.getLogger(__name__)
 
 
-def delete_key(owner, key_id):
+def delete_key(owner, key_id, delete_from_vault=False):
     """Deletes given key.
     If key was default, then it checks if there are still keys left
     and assigns another one as default.
@@ -42,6 +43,17 @@ def delete_key(owner, key_id):
         other_key.save()
 
     log.info("Deleted key with id '%s'.", key_id)
+
+    if delete_from_vault:
+        key.private.secret.ctl.delete_secret()
+        secret = VaultSecret.objects.get(name=key.name)
+        # also delete SecretValues referring to that secret
+        values = SecretValue.objects.filter(secret=secret)
+        for value in values:
+            value.delete()
+
+        secret.delete()
+
     trigger_session_update(owner, ['keys'])
 
 
