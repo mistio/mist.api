@@ -96,12 +96,23 @@ log = logging.getLogger(__name__)
 OK = Response("OK", 200)
 
 
-def get_ui_template():
-    get_file(config.UI_TEMPLATE_URL, 'templates/ui.pt')
+def get_ui_template(build_path=''):
+    # if build_path and build_path[0] != '/':
+    #     build_path = '/' + build_path
+    #     template_url = config.UI_TEMPLATE_URL_URL
+    # else:
+    #     template_url = config.UI_TEMPLATE_URL_URL + ':8000'
+    template_url = config.UI_TEMPLATE_URL
+    get_file(template_url + build_path, 'templates/ui.pt')
 
 
-def get_landing_template():
-    get_file(config.LANDING_TEMPLATE_URL, 'templates/landing.pt')
+def get_landing_template(build_path=''):
+    if build_path and build_path[0] != '/':
+        build_path = '/' + build_path
+        template_url = config.LANDING_TEMPLATE_URL
+    else:
+        template_url = config.LANDING_TEMPLATE_URL + ':8000'
+    get_file(template_url + build_path, 'templates/landing.pt')
 
 
 @view_config(context=Exception)
@@ -169,7 +180,7 @@ def home(request):
                                     backend=external_auth)
             raise RedirectError(url)
 
-        get_landing_template()
+        get_landing_template(build_path)
         page = request.path.strip('/').replace('.', '')
         if not page:
             page = 'home'
@@ -200,7 +211,7 @@ def home(request):
         auth_context.owner.last_active = datetime.now()
         auth_context.owner.save()
 
-    get_ui_template()
+    get_ui_template(build_path)
     return render_to_response('templates/ui.pt', template_inputs)
 
 
@@ -226,11 +237,11 @@ def not_found(request):
                                     backend=external_auth)
             raise RedirectError(url)
 
-        get_landing_template()
+        get_landing_template(build_path)
         return render_to_response('templates/landing.pt', template_inputs,
                                   request=request)
 
-    get_ui_template()
+    get_ui_template(build_path)
     return render_to_response('templates/ui.pt', template_inputs,
                               request=request)
 
@@ -762,7 +773,7 @@ def reset_password(request):
         template_inputs['build_path'] = build_path
         template_inputs['csrf_token'] = json.dumps(get_csrf_token(request))
 
-        get_landing_template()
+        get_landing_template(build_path)
         return render_to_response('templates/landing.pt', template_inputs)
     elif request.method == 'POST':
 
@@ -914,7 +925,7 @@ def set_password(request):
         template_inputs['build_path'] = build_path
         template_inputs['csrf_token'] = json.dumps(get_csrf_token(request))
 
-        get_landing_template()
+        get_landing_template(build_path)
         return render_to_response('templates/landing.pt', template_inputs)
     elif request.method == 'POST':
         password = params.get('password', '')
