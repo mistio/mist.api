@@ -1,11 +1,15 @@
 #!/usr/bin/env python
 
 from mist.api.users.models import Organization
-from mist.rbac.models import Rule
 
 
 def migrate_rbac_images():
     ''''Add `ALLOW images * rule to team's policy'''
+    try:
+        from mist.rbac.models import Rule
+    except ImportError:
+        return  # Nothing to migrate
+
     orgs = Organization.objects()
     total_teams = failed = migrated = skipped = 0
     print("WIll update teams of %d organizations" % len(orgs))
