@@ -2,7 +2,7 @@ from datetime import datetime
 
 from mist.api.keys.models import Key
 from mist.api.machines.models import KeyMachineAssociation
-from mist.api.secrets.models import VaultSecret, SecretValue
+from mist.api.secrets.models import VaultSecret
 
 from mist.api.tag.methods import get_tags_for_resource
 
