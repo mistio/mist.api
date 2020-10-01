@@ -13,7 +13,6 @@ from mist.api.logs.methods import log_event
 from mist.api.keys.methods import filter_list_keys
 from mist.api.keys.methods import delete_key as m_delete_key
 
-from mist.api.exceptions import PolicyUnauthorizedError
 from mist.api.exceptions import BadRequestError, KeyParameterMissingError
 from mist.api.exceptions import RequiredParameterMissingError, NotFoundError
 

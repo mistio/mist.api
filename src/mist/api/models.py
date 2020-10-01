@@ -11,7 +11,7 @@ from mist.api.rules.models import Rule # noqa
 from mist.api.images.models import CloudImage # noqa
 from mist.api.secrets.models import VaultSecret, SecretValue # noqa
 
-from mist.api import config
+from mist.api import config # noqa
 
 try:
     from mist.orchestration.models import Template, Stack  # noqa
