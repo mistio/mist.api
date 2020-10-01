@@ -12,6 +12,7 @@ from mist.api.keys import controllers
 from mist.api.keys.base import BaseKeyController
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.ownership.mixins import OwnershipMixin
+from mist.api.secrets.models import SecretValue
 
 log = logging.getLogger(__name__)
 
@@ -157,9 +158,7 @@ class SSHKey(Key):
     """An ssh key."""
 
     public = me.StringField(required=True)
-    # private = me.StringField(required=True)
-    private = me.ReferenceField('SecretValue', required=True,
-                                reverse_delete_rule=me.CASCADE)
+    private = me.EmbeddedDocumentField(SecretValue, required=True)
 
     _controller_cls = controllers.SSHKeyController
     _private_fields = ('private',)

@@ -56,9 +56,12 @@ class BaseKeyController(object):
             if key == 'private':
                 secret = VaultSecret(name=self.key.name, owner=self.key.owner)
                 secret.ctl.create_secret(key, value)
-                secret.save()
+                try:
+                    secret.save()
+                except me.NotUniqueError:
+                    raise BadRequestError("The path specified exists on Vault. \
+                        Try changing the name of the key")
                 secret_value = SecretValue(secret=secret, key='private')
-                secret_value.save()
             else:
                 setattr(self.key, key, value)
 

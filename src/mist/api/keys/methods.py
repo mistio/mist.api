@@ -47,11 +47,6 @@ def delete_key(owner, key_id, delete_from_vault=False):
     if delete_from_vault:
         key.private.secret.ctl.delete_secret()
         secret = VaultSecret.objects.get(name=key.name)
-        # also delete SecretValues referring to that secret
-        values = SecretValue.objects.filter(secret=secret)
-        for value in values:
-            value.delete()
-
         secret.delete()
 
     trigger_session_update(owner, ['keys'])
