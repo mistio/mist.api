@@ -16,6 +16,7 @@ class Secret(OwnershipMixin, me.Document):
                         default=lambda: uuid4().hex)
     name = me.StringField(required=True)
     owner = me.ReferenceField(Owner, reverse_delete_rule=me.CASCADE)
+
     meta = {
         'strict': False,
         'allow_inheritance': True,
@@ -25,7 +26,7 @@ class Secret(OwnershipMixin, me.Document):
             {
                 'fields': ['owner', 'name'],
                 'sparse': False,
-                'unique': False,
+                'unique': True,
                 'cls': False,
             },
         ],
@@ -75,11 +76,9 @@ class VaultSecret(Secret):
         return self.ctl.read_secret()['data']
 
 
-class SecretValue(me.Document):
+class SecretValue(me.EmbeddedDocument):
     """ Retrieve the value of a Secret object """
-    id = me.StringField(primary_key=True,
-                        default=lambda: uuid4().hex)
-    secret = me.ReferenceField(Secret, required=False)
+    secret = me.ReferenceField('Secret', required=False)
     key = me.StringField()
 
     def __init__(self, secret, key='', *args, **kwargs):
@@ -96,5 +95,5 @@ class SecretValue(me.Document):
             return self.secret.data
 
     def __str__(self):
-        return '%s secret value of %s (%s)' % (type(self),
-                                               self.secret.name, self.id)
+        return '%s secret value of %s' % (type(self),
+                                               self.secret.name)
