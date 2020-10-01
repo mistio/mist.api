@@ -96,4 +96,4 @@ class SecretValue(me.EmbeddedDocument):
 
     def __str__(self):
         return '%s secret value of %s' % (type(self),
-                                               self.secret.name)
+                                          self.secret.name)

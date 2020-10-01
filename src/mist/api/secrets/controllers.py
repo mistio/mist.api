@@ -1,5 +1,4 @@
 import hvac
-import mongoengine as me
 
 from mist.api import config
 
