@@ -18,6 +18,7 @@ flake8
 future
 gevent
 greenlet
+hvac
 ipaddress # requests needs this for dns matching
 ipython
 iso8601
@@ -53,4 +54,3 @@ tornado
 #tornado_profile
 uwsgidecorators
 websocket-client
-hvac
