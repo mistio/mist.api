@@ -117,7 +117,7 @@ TELEGRAF_TARGET = ""
 TRAEFIK_API = "http://traefik:8080"
 
 # Hashicorp Vault Default Vars
-VAULT_TOKEN = 'P4c8WrUdATjnKtBMbiUhs7ji'
+VAULT_TOKEN = ''
 VAULT_ADDR = 'http://vault:8200'
 
 # Default, built-in metrics.
