@@ -33,31 +33,11 @@ class VaultSecretController(BaseSecretController):
         res = self.client.sys.list_mounted_secrets_engines()
         return res[self.secret.secret_engine_name + '/']['type']
 
-    def list_secrets(self):
-        """ List all available Secrets in Secret Engine """
-        version = self.secret_type()
-
-        if version == 'kv':
-            list_secrets = self.client.secrets.kv.v1.list_secrets
-        elif version == 'kv2':
-            list_secrets = self.client.secrets.kv.v2.list_secrets
-
-        api_secrets_result = list_secrets(
-            mount_point=self.secret.secret_engine_name,
-            # path=self.secret.name
-        )
-
-        print('The following keys found under the selected path \
-            ("/v1/secret/{path}"): {keys}'.format(
-            path=self.secret.secret_engine_name,
-            keys=','.join(api_secrets_result['data']['keys']),
-        ))
-
     def list_secret_engines(self):
         """ List all available Secret Engines """
         print(self.client.sys.list_mounted_secrets_engines())
 
-    def create_secret(self, key, value):
+    def create_secret(self, org_name, key, value):
         """ Create a Vault KV* Secret """
         version = self.secret_type()
 
@@ -66,17 +46,14 @@ class VaultSecretController(BaseSecretController):
         elif version == 'kv2':
             create_secret = self.client.secrets.kv.v2.create_or_update_secret
 
+        path = org_name + '/' + self.secret.name
         create_secret(
             mount_point=self.secret.secret_engine_name,
-            path=self.secret.name,
+            path=path,
             secret={key: value},
         )
-        # print(self.client.secrets.kv.v1.read_secret(
-        #       mount_point=self.secret.secret_engine_name,
-        #       path=self.secret.name)
-        # )
 
-    def read_secret(self):
+    def read_secret(self, org_name):
         """ Read a Vault KV* Secret """
         version = self.secret_type()
 
@@ -85,13 +62,14 @@ class VaultSecretController(BaseSecretController):
         elif version == 'kv2':
             read_secret = self.client.secrets.kv.v2.read_secret
 
+        path = org_name + '/' + self.secret.name
         api_response = read_secret(
             mount_point=self.secret.secret_engine_name,
-            path=self.secret.name
+            path=path
         )
         return api_response
 
-    def delete_secret(self):
+    def delete_secret(self, org_name):
         " Delete a Vault KV* Secret"
         version = self.secret_type()
 
@@ -100,7 +78,8 @@ class VaultSecretController(BaseSecretController):
         elif version == 'kv2':
             delete_secret = self.client.secrets.kv.v2.delete_secret
 
+        path = org_name + '/' + self.secret.name
         delete_secret(
             mount_point=self.secret.secret_engine_name,
-            path=self.secret.name
+            path=path
         )
