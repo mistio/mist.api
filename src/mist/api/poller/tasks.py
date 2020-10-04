@@ -113,22 +113,27 @@ def list_secrets(schedule_id):
 
     from mist.api.poller.models import ListSecretsPollingSchedule
     sched = ListSecretsPollingSchedule.objects.get(id=schedule_id)
-
+    owner = sched.owner
     client = hvac.Client(url=sched.url, token=sched.token)
-    res = client.secrets.kv.v1.list_secrets(mount_point='kv1',
-                                            path='.')
-    keys = res['data'].get('keys', [])
-    from mist.api.secrets.models import VaultSecret, SecretValue
 
+    res = client.secrets.kv.v1.list_secrets(mount_point='kv1',
+                                            path=sched.owner.name)
+    keys = res['data'].get('keys', [])
+
+    from mist.api.secrets.models import VaultSecret
+    existing_secrets = []
     # parse the keys, if not found, create one
     for key in keys:
         try:
-            VaultSecret.objects.get(name=key)
+            secret = VaultSecret.objects.get(owner=owner, name=key)
+            existing_secrets.append(secret)
         except me.DoesNotExist:
-            secret = VaultSecret(name=key)
+            secret = VaultSecret(owner=owner, name=key)
             secret.save()
-            secret_value = SecretValue(secret=secret)
-            secret_value.save()
+            existing_secrets.append(secret)
+
+    # delete secret objects that have been removed from Vault, from mongoDB
+    VaultSecret.objects(id__nin=[s.id for s in existing_secrets]).delete()
 
 
 @app.task(time_limit=45, soft_time_limit=40)

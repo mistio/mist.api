@@ -55,7 +55,7 @@ class BaseKeyController(object):
         for key, value in kwargs.items():
             if key == 'private':
                 secret = VaultSecret(name=self.key.name, owner=self.key.owner)
-                secret.ctl.create_secret(key, value)
+                secret.ctl.create_secret(self.key.owner.name, key, value)
                 try:
                     secret.save()
                 except me.NotUniqueError:

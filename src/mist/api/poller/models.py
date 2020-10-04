@@ -8,6 +8,7 @@ import mongoengine as me
 from mist.api import config
 from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
+from mist.api.users.models import Owner
 from mist.api.sharding.mixins import ShardedScheduleMixin
 
 
@@ -405,21 +406,22 @@ class FindCoresMachinePollingSchedule(MachinePollingSchedule):
 
 class VaultPollingSchedule(PollingSchedule):
 
+    owner = me.ReferenceField(Owner, reverse_delete_rule=me.CASCADE)
     url = me.StringField(required=True)
     token = me.StringField(required=True)
 
     @classmethod
-    def add(cls, url, token, run_immediately=True, interval=None, ttl=300):
+    def add(cls, owner, url, token, run_immediately=True, interval=None, ttl=300):
         try:
-            schedule = cls.objects.get(url=url, token=token)
+            schedule = cls.objects.get(owner=owner, url=url, token=token)
         except cls.DoesNotExist:
-            schedule = cls(url=url, token=token)
+            schedule = cls(owner=owner, url=url, token=token)
             try:
                 schedule.save()
             except me.NotUniqueError:
                 # Work around race condition where schedule was created since
                 # last time we checked.
-                schedule = cls.objects.get(url=url, token=token)
+                schedule = cls.objects.get(owner=owner, url=url, token=token)
         schedule.set_default_interval(60 * 60 * 2)
         if interval is not None:
             schedule.add_interval(interval, ttl)
