@@ -1413,6 +1413,7 @@ def create_organization(request):
 
     name = params.get('name')
     super_org = params.get('super_org')
+    enable_vault_polling = params.get('enable_vault_polling', True)
 
     if not name:
         raise RequiredParameterMissingError()
@@ -1434,6 +1435,11 @@ def create_organization(request):
         raise BadRequestError({"msg": str(e), "errors": e.to_dict()})
     except me.OperationError:
         raise OrganizationOperationError()
+
+    if enable_vault_polling:
+        from mist.api.poller.models import ListSecretsPollingSchedule
+        ListSecretsPollingSchedule.add(org, config.VAULT_ADDR,
+                                       config.VAULT_TOKEN)
 
     trigger_session_update(auth_context.user, ['user'])
     return org.as_dict()
@@ -1557,6 +1563,7 @@ def edit_organization(request):
     alerts_email = params.get('alerts_email')
     avatar = params.get('avatar')
     enable_r12ns = params.get('enable_r12ns')
+    enable_vault_polling = params.get('enable_vault_polling', True)
 
     if avatar:
         try:
@@ -1574,6 +1581,11 @@ def edit_organization(request):
 
     if enable_r12ns is not None:
         auth_context.org.enable_r12ns = enable_r12ns
+
+    if enable_vault_polling:
+        from mist.api.poller.models import ListSecretsPollingSchedule
+        ListSecretsPollingSchedule.add(auth_context.org, config.VAULT_ADDR,
+                                       config.VAULT_TOKEN)
 
     # SEC check if owner
     if not (auth_context.org and auth_context.is_owner() and

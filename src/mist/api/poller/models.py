@@ -411,7 +411,8 @@ class VaultPollingSchedule(PollingSchedule):
     token = me.StringField(required=True)
 
     @classmethod
-    def add(cls, owner, url, token, run_immediately=True, interval=None, ttl=300):
+    def add(cls, owner, url, token, run_immediately=True, interval=None,
+            ttl=300):
         try:
             schedule = cls.objects.get(owner=owner, url=url, token=token)
         except cls.DoesNotExist:
