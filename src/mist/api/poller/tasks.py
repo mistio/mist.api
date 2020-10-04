@@ -115,9 +115,13 @@ def list_secrets(schedule_id):
     sched = ListSecretsPollingSchedule.objects.get(id=schedule_id)
     owner = sched.owner
     client = hvac.Client(url=sched.url, token=sched.token)
+    try:
+        res = client.secrets.kv.v1.list_secrets(mount_point='kv1',
+                                                path=owner.name)
+    except hvac.exceptions.InvalidPath:
+        log.info('No vault backend exists for organization %s' % owner.id)
+        return
 
-    res = client.secrets.kv.v1.list_secrets(mount_point='kv1',
-                                            path=sched.owner.name)
     keys = res['data'].get('keys', [])
 
     from mist.api.secrets.models import VaultSecret

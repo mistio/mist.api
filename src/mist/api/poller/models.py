@@ -432,6 +432,10 @@ class VaultPollingSchedule(PollingSchedule):
         schedule.save()
         return schedule
 
+    def get_name(self):
+        return '%s(%s)' % (super(VaultPollingSchedule, self).get_name(),
+                           self.owner.id)
+
 
 class ListSecretsPollingSchedule(VaultPollingSchedule):
 
