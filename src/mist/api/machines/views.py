@@ -118,6 +118,8 @@ def create_machine(request):
     CREATE_RESOURCES permission required on cloud.
     READ permission required on location.
     CREATE_RESOURCES permission required on location.
+    READ permission required on image.
+    CREATE_RESOURCES permission required on image.
     CREATE permission required on machine.
     RUN permission required on script.
     READ permission required on key.
@@ -385,9 +387,14 @@ def create_machine(request):
 
     auth_context.check_perm("cloud", "read", cloud_id)
     auth_context.check_perm("cloud", "create_resources", cloud_id)
+
     if location_id:
         auth_context.check_perm("location", "read", location_id)
         auth_context.check_perm("location", "create_resources", location_id)
+
+    if image_id:
+        auth_context.check_perm("image", "read", image_id)
+        auth_context.check_perm("image", "create_resources", image_id)
 
     tags, constraints = auth_context.check_perm("machine", "create", None)
     if script_id:
@@ -818,8 +825,7 @@ def machine_actions(request):
         result = machine.ctl.remove()
         # Schedule a UI update
         trigger_session_update(auth_context.owner, ['clouds'])
-    elif action in ('start', 'stop', 'reboot', 'clone',
-                    'suspend', 'resume'):
+    elif action in ('start', 'stop', 'reboot', 'suspend', 'resume'):
         result = getattr(machine.ctl, action)()
     elif action == 'undefine':
         result = getattr(machine.ctl, action)(delete_domain_image)
@@ -829,7 +835,7 @@ def machine_actions(request):
             auth_context.check_perm('network', 'edit', machine.network)
         methods.validate_portforwards(port_forwards)
         result = getattr(machine.ctl, action)(port_forwards)
-    elif action == 'rename':
+    elif action in {'rename', 'clone'}:
         if not name:
             raise BadRequestError("You must give a name!")
         result = getattr(machine.ctl, action)(name)
