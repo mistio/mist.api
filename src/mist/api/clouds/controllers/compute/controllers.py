@@ -1481,8 +1481,18 @@ class VSphereComputeController(BaseComputeController):
 
     def _list_machines__fetch_machines(self):
         """Perform the actual libcloud call to get list of nodes"""
-        return [node_to_dict(node) for node in self.connection.list_nodes(
-            max_properties=self.cloud.max_properties_per_request)]
+        machine_list = []
+        for node in self.connection.list_nodes(
+                max_properties=self.cloud.max_properties_per_request):
+            # Check for VMs without uuid
+            if node.id is None:
+                log.error("Skipping machine {} on cloud {} - {}): uuid is "
+                          "null".format(node.name,
+                                        self.cloud.title,
+                                        self.cloud.id))
+                continue
+            machine_list.append(node_to_dict(node))
+        return machine_list
 
     def _list_machines__get_size(self, node_dict):
         """Return key of size_map dict for a specific node
@@ -1569,7 +1579,16 @@ class VSphereComputeController(BaseComputeController):
         image_folders = []
         if config.VSPHERE_IMAGE_FOLDERS:
             image_folders = config.VSPHERE_IMAGE_FOLDERS
-        return self.connection.list_images(folder_ids=image_folders)
+        image_list = self.connection.list_images(folder_ids=image_folders)
+        # Check for templates without uuid
+        for image in image_list[:]:
+            if image.id is None:
+                log.error("Skipping machine {} on cloud {} - {}): uuid is "
+                          "null".format(image.name,
+                                        self.cloud.title,
+                                        self.cloud.id))
+                image_list.remove(image)
+        return image_list
 
 
 class VCloudComputeController(BaseComputeController):
