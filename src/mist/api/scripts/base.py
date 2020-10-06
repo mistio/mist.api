@@ -103,9 +103,6 @@ class BaseScriptController(object):
         """Edit name or description of an existing script"""
         log.info("Edit script '%s''.", self.script.name)
 
-        if name and name == self.script.name:
-            log.warning("Same name provided. No reason to edit this script")
-            return
         if name:
             self.script.name = name
         if description:
