@@ -145,7 +145,7 @@ def add_routes(configurator):
                             'sign-up', 'sign-in', 'forgot-password',
                             'buy-license', 'request-pricing', 'get-started',
                             'privacy-policy', 'pledge', 'tos',
-                            'error', 'index']
+                            'error', 'index', 'blog']
         for section in ui_sections + landing_sections:
             if request.path.startswith('/' + section):
                 return True
