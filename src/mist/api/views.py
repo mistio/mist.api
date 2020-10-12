@@ -198,7 +198,8 @@ def home(request):
                     try:
                         from bs4 import BeautifulSoup
                         soup = BeautifulSoup(response.text, 'html.parser')
-                        section = soup.select('body')[0].renderContents().decode()
+                        body = soup.select('body')[0]
+                        section = body.renderContents().decode()
                         template_inputs['title'] = soup.select('title')[0].text
                     except Exception as exc:
                         log.error("Failed to parse page `%s` from `%s`: %r" % (
