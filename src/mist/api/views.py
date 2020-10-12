@@ -97,8 +97,8 @@ OK = Response("OK", 200)
 
 
 def get_ui_template(build_path=''):
-    # if build_path and build_path[0] != '/':
-    #     build_path = '/' + build_path
+    if build_path and build_path[0] != '/':
+        build_path = '/' + build_path
     #     template_url = config.UI_TEMPLATE_URL_URL
     # else:
     #     template_url = config.UI_TEMPLATE_URL_URL + ':8000'
