@@ -97,8 +97,8 @@ OK = Response("OK", 200)
 
 
 def get_ui_template(build_path=''):
-    # if build_path and build_path[0] != '/':
-    #     build_path = '/' + build_path
+    if build_path and build_path[0] != '/':
+        build_path = '/' + build_path
     #     template_url = config.UI_TEMPLATE_URL_URL
     # else:
     #     template_url = config.UI_TEMPLATE_URL_URL + ':8000'
@@ -185,12 +185,26 @@ def home(request):
         if not page:
             page = 'home'
         if page not in config.LANDING_FORMS:
-            page_uri = '%s/static/landing/sections/%s.html' % (
-                request.application_url, page)
+            if 'blog' in page:
+                uri_prefix = config.BLOG_CDN_URI or \
+                    request.application_url + "/static/blog/dist"
+                page_uri = '%s/%s.html' % (uri_prefix, page)
+            else:
+                page_uri = '%s/static/landing/sections/%s.html' % (
+                    request.application_url, page)
             try:
                 response = requests.get(page_uri)
                 if response.ok:
-                    section = response.text
+                    try:
+                        from bs4 import BeautifulSoup
+                        soup = BeautifulSoup(response.text, 'html.parser')
+                        body = soup.select('body')[0]
+                        section = body.renderContents().decode()
+                        template_inputs['title'] = soup.select('title')[0].text
+                    except Exception as exc:
+                        log.error("Failed to parse page `%s` from `%s`: %r" % (
+                            page, page_uri, exc))
+                        section = response.text
                     template_inputs['section'] = section
                 else:
                     log.error("Failed to fetch page `%s` from `%s`: %r" % (
