@@ -383,7 +383,7 @@ class GigG8Cloud(Cloud):
 class LinodeCloud(Cloud):
 
     apikey = me.StringField(required=True)
-
+    apiversion = me.StringField(null=True, default=None)
     _private_fields = ('apikey', )
     _controller_cls = controllers.LinodeMainController
 

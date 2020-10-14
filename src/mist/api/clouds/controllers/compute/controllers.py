@@ -658,7 +658,11 @@ class GigG8ComputeController(BaseComputeController):
 class LinodeComputeController(BaseComputeController):
 
     def _connect(self, **kwargs):
-        return get_driver(Provider.LINODE)(self.cloud.apikey)
+        if self.cloud.apiversion is None:
+            return get_driver(Provider.LINODE)(self.cloud.apikey)
+        else:
+            return get_driver(Provider.LINODE)(self.cloud.apikey,
+                                               api_version=self.cloud.apiversion)
 
     def _list_machines__machine_creation_date(self, machine, node_dict):
         return node_dict['extra'].get('CREATE_DT')  # iso8601 string
