@@ -681,10 +681,21 @@ class LinodeComputeController(BaseComputeController):
             machine.actions.start = True
 
     def _list_machines__cost_machine(self, machine, node_dict):
-        size = node_dict['extra'].get('PLANID')
-        price = get_size_price(driver_type='compute', driver_name='linode',
-                               size_id=size)
-        return 0, price or 0
+        if self.cloud.apiversion is not None:
+            size = node_dict['extra'].get('PLANID')
+            price = get_size_price(driver_type='compute', driver_name='linode',
+                                   size_id=size)
+            return 0, price or 0
+        else:
+            hourly_price = 0.0
+            monthly_price = 0.0
+            try:
+                hourly_price = machine.cost.hourly
+                monthly_price = machine.cost.monthly
+            except:
+                log.exception("Couldn't get price for machine %s:%s for %s",
+                              machine.id, machine.name, self.cloud)
+            return hourly_price, monthly_price
 
     def _list_machines__get_size(self, node):
         if self.cloud.apiversion is not None:
