@@ -665,7 +665,10 @@ class LinodeComputeController(BaseComputeController):
                                                api_version=self.cloud.apiversion)
 
     def _list_machines__machine_creation_date(self, machine, node_dict):
-        return node_dict['extra'].get('CREATE_DT')  # iso8601 string
+        if self.cloud.apiversion is not None:
+            return node_dict['extra'].get('CREATE_DT')  # iso8601 string
+        else:
+            return node_dict.get('created_at')
 
     def _list_machines__machine_actions(self, machine, node_dict):
         super(LinodeComputeController, self)._list_machines__machine_actions(
@@ -684,10 +687,16 @@ class LinodeComputeController(BaseComputeController):
         return 0, price or 0
 
     def _list_machines__get_size(self, node):
-        return node['extra'].get('PLANID')
+        if self.cloud.apiversion is not None:
+            return node['extra'].get('PLANID')
+        else:
+            return node.get('size')
 
     def _list_machines__get_location(self, node):
-        return str(node['extra'].get('DATACENTERID'))
+        if self.cloud.apiversion is not None:
+            return str(node['extra'].get('DATACENTERID'))
+        else:
+            return node['extra'].get('location')
 
 
 class RackSpaceComputeController(BaseComputeController):
