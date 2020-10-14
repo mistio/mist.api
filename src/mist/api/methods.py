@@ -545,8 +545,7 @@ def list_resources(auth_context, resource_type, search='',
             # TODO: only allow terms on indexed fields
             # TODO: support OR keyword
             query[k] = v
-
-        result = resource_model.objects(**query)
+    result = resource_model.objects(**query)
     if not auth_context.is_owner():
         allowed_resources = auth_context.get_allowed_resources(
             rtype=resource_type)
