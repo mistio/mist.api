@@ -687,15 +687,21 @@ class LinodeComputeController(BaseComputeController):
                                    size_id=size)
             return 0, price or 0
         else:
-            hourly_price = 0.0
-            monthly_price = 0.0
+            size = node_dict.get('size')
+            from mist.api.clouds.models import CloudSize
             try:
-                hourly_price = machine.cost.hourly
-                monthly_price = machine.cost.monthly
-            except:
-                log.exception("Couldn't get price for machine %s:%s for %s",
-                              machine.id, machine.name, self.cloud)
-            return hourly_price, monthly_price
+                _size = CloudSize.objects.get(external_id=size, cloud=self.cloud)
+            except CloudSize.DoesNotExist:
+                try:
+                    _size = CloudSize.objects.get(cloud=self.cloud,
+                                                  name__contains=size)
+                except CloudSize.DoesNotExist:
+                    raise NotFoundError()
+
+            price_per_month = _size.extra.get('monthly_price', 0.0)
+            price_per_hour = _size.extra.get('price', 0.0)
+
+            return price_per_hour, price_per_month
 
     def _list_machines__get_size(self, node):
         if self.cloud.apiversion is not None:
