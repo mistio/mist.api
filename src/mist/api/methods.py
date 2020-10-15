@@ -522,7 +522,10 @@ def list_resources(auth_context, resource_type, search='',
 
     resource_model = get_resource_model(resource_type)
     # Init query dict
-    query = {"owner": auth_context.org}
+    if resource_type == 'rule':
+        query = {"owner_id": auth_context.org.id}
+    else:
+        query = {"owner": auth_context.org}
     search = search or ''
     sort = sort or ''
     # search filter is either an id or a space separated key/value terms

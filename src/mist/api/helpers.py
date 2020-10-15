@@ -742,6 +742,7 @@ rtype_to_classpath = {
     'volume': 'mist.api.volumes.models.Volume',
     'location': 'mist.api.clouds.models.CloudLocation',
     'image': 'mist.api.images.models.CloudImage',
+    'rule': 'mist.api.rules.models.Rule'
 }
 
 if config.HAS_VPN:
