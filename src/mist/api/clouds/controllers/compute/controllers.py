@@ -692,11 +692,7 @@ class LinodeComputeController(BaseComputeController):
             try:
                 _size = CloudSize.objects.get(external_id=size, cloud=self.cloud)
             except CloudSize.DoesNotExist:
-                try:
-                    _size = CloudSize.objects.get(cloud=self.cloud,
-                                                  name__contains=size)
-                except CloudSize.DoesNotExist:
-                    raise NotFoundError()
+                raise NotFoundError()
 
             price_per_month = _size.extra.get('monthly_price', 0.0)
             price_per_hour = _size.extra.get('price', 0.0)
