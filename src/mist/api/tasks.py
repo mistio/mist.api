@@ -575,6 +575,7 @@ def rackspace_first_gen_post_create_steps(
         if str(exc).startswith('Retry'):
             raise
 
+
 @app.task
 def clone_machine_async(auth_context_serialized, machine_id, name,
                         job=None, job_id=None):
@@ -606,6 +607,7 @@ def clone_machine_async(auth_context_serialized, machine_id, name,
                 user_id=auth_context.user.id
             )
     print('clone_machine_async: results: {}'.format(result))
+
 
 @app.task
 def create_machine_async(

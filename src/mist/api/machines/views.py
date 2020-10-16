@@ -844,7 +844,7 @@ def machine_actions(request):
             raise BadRequestError("You must give a name!")
         job = 'clone_machine'
         job_id = uuid.uuid4().hex
-        clone_async = True # False for debug
+        clone_async = True  # False for debug
         ret = {}
         if clone_async:
             args = (auth_context.serialize(), machine.id, name)
@@ -854,7 +854,7 @@ def machine_actions(request):
             ret = getattr(machine.ctl, action)(name)
         ret.update({'job': job, 'job_id': job_id})
         return ret
- 
+
     elif action == 'resize':
         _, constraints = auth_context.check_perm("machine", "resize",
                                                  machine.id)

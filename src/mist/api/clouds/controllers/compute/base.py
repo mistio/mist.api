@@ -2018,7 +2018,7 @@ class BaseComputeController(BaseController):
         ret = {'id': clone.id,
                'name': clone.name,
                'extra': clone.extra
-            }
+               }
         return ret
 
     def _clone_machine(self, machine, node, name=None,
