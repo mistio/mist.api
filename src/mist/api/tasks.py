@@ -575,6 +575,37 @@ def rackspace_first_gen_post_create_steps(
         if str(exc).startswith('Retry'):
             raise
 
+@app.task
+def clone_machine_async(auth_context_serialized, machine_id, name,
+                        job=None, job_id=None):
+    from concurrent.futures import ThreadPoolExecutor
+    from mist.api.exceptions import MachineCreationError
+    machine = Machine.objects.get(id=machine_id)
+    auth_context = AuthContext.deserialize(auth_context_serialized)
+    job_id = job_id or uuid.uuid4().hex
+    msg = f"starting for {machine_id} with name {machine.name}"
+    log.warn(msg)
+    log_event(auth_context.owner.id, 'job', 'async_clone_machine_started',
+              user_id=auth_context.user.id, job_id=job_id, job=job,
+              cloud_id=machine.cloud.id, machine_name=machine.name)
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        error = False
+        result = {}
+        try:
+            result = getattr(machine.ctl, 'clone')(name)
+        except MachineCreationError as err:
+            error = str(err)
+        except Exception as exc:
+            error = repr(exc)
+        finally:
+            log_event(
+                auth_context.owner.id, 'job', 'clone_machine_finished',
+                job=job, job_id=job_id, cloud_id=machine.cloud.id,
+                machine_name=machine.name, error=error,
+                external_id=result.get('id', ''),
+                user_id=auth_context.user.id
+            )
+    print('clone_machine_async: results: {}'.format(result))
 
 @app.task
 def create_machine_async(

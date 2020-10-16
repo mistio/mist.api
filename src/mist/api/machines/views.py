@@ -835,10 +835,26 @@ def machine_actions(request):
             auth_context.check_perm('network', 'edit', machine.network)
         methods.validate_portforwards(port_forwards)
         result = getattr(machine.ctl, action)(port_forwards)
-    elif action in {'rename', 'clone'}:
+    elif action == 'rename':
         if not name:
             raise BadRequestError("You must give a name!")
         result = getattr(machine.ctl, action)(name)
+    elif action == 'clone':
+        if not name:
+            raise BadRequestError("You must give a name!")
+        job = 'clone_machine'
+        job_id = uuid.uuid4().hex
+        clone_async = True # False for debug
+        ret = {}
+        if clone_async:
+            args = (auth_context.serialize(), machine.id, name)
+            kwargs = {'job': job, 'job_id': job_id}
+            tasks.clone_machine_async.apply_async(args, kwargs, countdown=2)
+        else:
+            ret = getattr(machine.ctl, action)(name)
+        ret.update({'job': job, 'job_id': job_id})
+        return ret
+ 
     elif action == 'resize':
         _, constraints = auth_context.check_perm("machine", "resize",
                                                  machine.id)

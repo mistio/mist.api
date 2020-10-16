@@ -2008,13 +2008,18 @@ class BaseComputeController(BaseController):
 
         node = self._get_libcloud_node(machine)
         try:
-            self._clone_machine(machine, node, name, resume)
+            clone = self._clone_machine(machine, node, name, resume)
         except MistError as exc:
             log.error("Failed to clone %s", machine)
             raise
         except Exception as exc:
             log.exception(exc)
             raise InternalServerError(exc=exc)
+        ret = {'id': clone.id,
+               'name': clone.name,
+               'extra': clone.extra
+            }
+        return ret
 
     def _clone_machine(self, machine, node, name=None,
                        resume=False):
