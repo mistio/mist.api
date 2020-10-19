@@ -661,8 +661,9 @@ class LinodeComputeController(BaseComputeController):
         if self.cloud.apiversion is None:
             return get_driver(Provider.LINODE)(self.cloud.apikey)
         else:
-            return get_driver(Provider.LINODE)(self.cloud.apikey,
-                                               api_version=self.cloud.apiversion)
+            return get_driver(Provider.LINODE)(
+                self.cloud.apikey,
+                api_version=self.cloud.apiversion)
 
     def _list_machines__machine_creation_date(self, machine, node_dict):
         if self.cloud.apiversion is not None:
@@ -690,7 +691,8 @@ class LinodeComputeController(BaseComputeController):
             size = node_dict.get('size')
             from mist.api.clouds.models import CloudSize
             try:
-                _size = CloudSize.objects.get(external_id=size, cloud=self.cloud)
+                _size = CloudSize.objects.get(external_id=size,
+                                              cloud=self.cloud)
             except CloudSize.DoesNotExist:
                 raise NotFoundError()
 
