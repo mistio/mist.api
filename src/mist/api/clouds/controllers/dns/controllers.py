@@ -98,12 +98,11 @@ class LinodeDNSController(BaseDNSController):
 
     def _connect(self):
         if self.cloud.apiversion is None:
-            driver = get_driver(Provider.LINODE)(self.cloud.apikey)
+            return get_driver(Provider.LINODE)(self.cloud.apikey)
         else:
-            driver = get_driver(Provider.LINODE)(
+            return get_driver(Provider.LINODE)(
                 self.cloud.apikey,
                 api_version=self.cloud.apiversion)
-        return driver
 
     def _create_zone__prepare_args(self, kwargs):
         if kwargs['type'] == "master":
