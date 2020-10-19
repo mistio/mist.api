@@ -524,6 +524,8 @@ def list_resources(auth_context, resource_type, search='',
     # Init query dict
     if resource_type == 'rule':
         query = {"owner_id": auth_context.org.id}
+    elif resource_type in ['cloud', 'key', 'script', 'template']:
+        query = {"owner": auth_context.org, "deleted": False}
     else:
         query = {"owner": auth_context.org}
     search = search or ''
