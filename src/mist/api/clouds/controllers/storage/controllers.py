@@ -601,3 +601,53 @@ class GigG8StorageController(BaseStorageController):
     def _detach_volume(self, libcloud_volume, libcloud_node):
         self.cloud.ctl.compute.connection.detach_volume(libcloud_node,
                                                         libcloud_volume)
+
+
+class LinodeStorageController(BaseStorageController):
+
+    def _create_volume__prepare_args(self, kwargs):
+        from mist.api.clouds.models import CloudLocation
+        if not kwargs.get('location'):
+            raise RequiredParameterMissingError('location')
+        try:
+            location = CloudLocation.objects.get(id=kwargs['location'])
+        except CloudLocation.DoesNotExist:
+            raise NotFoundError("Location with id '%s'." % kwargs['location'])
+        node_location = NodeLocation(id=location.external_id,
+                                     name=location.name,
+                                     country=location.country, driver=None)
+
+        kwargs['location'] = node_location
+
+    def _attach_volume(self, libcloud_volume, libcloud_node, **kwargs):
+        self.cloud.ctl.compute.connection.attach_volume(libcloud_volume,
+                                                        libcloud_node)
+        self.list_volumes()
+
+    def _list_volumes__postparse_volume(self, volume, libcloud_volume):
+        from mist.api.machines.models import Machine
+        from mist.api.clouds.models import CloudLocation
+
+        # Find the volume's location.
+        try:
+            volume.location = CloudLocation.objects.get(
+                name=libcloud_volume.extra.get('location', ''),
+                cloud=self.cloud, missing_since=None
+            )
+        except CloudLocation.DoesNotExist:
+            volume.location = None
+
+        # Find the machine to which the volume is attached.
+        volume.attached_to = []
+        machine_id = libcloud_volume.extra.get('linode_id', None)
+        if machine_id:
+            try:
+                machine = Machine.objects.get(
+                    machine_id=str(machine_id),
+                    cloud=self.cloud,
+                    missing_since=None
+                )
+                volume.attached_to = [machine]
+            except Machine.DoesNotExist:
+                log.error('%s attached to unknown machine "%s"', volume,
+                          machine_id)
