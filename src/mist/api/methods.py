@@ -519,7 +519,6 @@ def list_resources(auth_context, resource_type, search='',
     """
     from mist.api.helpers import get_resource_model
     from mist.api.clouds.models import CLOUDS
-
     resource_model = get_resource_model(resource_type)
     # Init query dict
     if resource_type == 'rule':
@@ -551,7 +550,12 @@ def list_resources(auth_context, resource_type, search='',
             # TODO: support OR keyword
             query[k] = v
     result = resource_model.objects(**query)
-    if not auth_context.is_owner():
+    if not result.count() and query.get('id'):
+        # Try searching for name or title field
+        field_name = 'name' if getattr(resource_model, 'name', None) else 'title'
+        query[field_name] = query.pop('id')
+        result = resource_model.objects(**query)
+    if not auth_context.is_owner() and result.count():
         allowed_resources = auth_context.get_allowed_resources(
             rtype=resource_type)
         result = result.filter(id__in=allowed_resources)
