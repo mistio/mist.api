@@ -1668,7 +1668,7 @@ def _create_machine_equinixmetal(conn, public_key, machine_name, image,
                                  size, location, cloud_init, cloud,
                                  project_id=None, volumes=[],
                                  ip_addresses=[]):
-    """Create a machine in metal.equinix.com.
+    """Create a machine in Equinix Metal.
     """
     key = public_key.replace('\n', '')
     try:
@@ -1689,7 +1689,7 @@ def _create_machine_equinixmetal(conn, public_key, machine_name, image,
                 ex_project_id = conn.projects[0].id
             except IndexError:
                 raise BadRequestError(
-                    "You don't have any projects on metal.equinix.com"
+                    "You don't have any projects on Equinix Metal"
                 )
     else:
         for project_obj in conn.projects:
@@ -1742,7 +1742,7 @@ def _create_machine_equinixmetal(conn, public_key, machine_name, image,
         )
     except Exception as e:
         raise MachineCreationError(
-            "metal.equinix.com, got exception %s" % e, e)
+            "Equinix Metal, got exception %s" % e, e)
 
     return node
 

@@ -98,7 +98,7 @@ def filter_list_locations(auth_context, cloud_id, locations=None, perm='read',
 
 def list_projects(owner, cloud_id):
     """List projects for each account.
-    Currently supported for metal.equinix.com. For other providers
+    Currently supported for Equinix Metal clouds. For other providers
     this returns an empty list
     """
     cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
