@@ -71,7 +71,7 @@ ELASTICSEARCH = {
     'elastic_verify_certs': False
 }
 
-DATABASE_VERSION = 7
+DATABASE_VERSION = 9
 
 UI_TEMPLATE_URL = "http://ui"
 LANDING_TEMPLATE_URL = "http://landing"
