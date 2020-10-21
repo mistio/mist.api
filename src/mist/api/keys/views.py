@@ -103,7 +103,7 @@ def delete_key(request):
     """
     auth_context = auth_context_from_request(request)
     params = params_from_request(request)
-    delete_from_vault = params.get('delete_from_vault', True)
+    delete_from_vault = params.get('delete_from_vault', False)
     key_id = request.matchdict.get('key')
     if not key_id:
         raise KeyParameterMissingError()

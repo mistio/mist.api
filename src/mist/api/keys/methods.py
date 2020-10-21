@@ -21,7 +21,7 @@ logging.basicConfig(level=config.PY_LOG_LEVEL,
 log = logging.getLogger(__name__)
 
 
-def delete_key(owner, key_id, delete_from_vault=True):
+def delete_key(owner, key_id, delete_from_vault=False):
     """Deletes given key.
     If key was default, then it checks if there are still keys left
     and assigns another one as default.
