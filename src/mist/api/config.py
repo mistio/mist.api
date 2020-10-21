@@ -1544,10 +1544,10 @@ SUPPORTED_PROVIDERS = [
         'provider': Provider.VSPHERE,
         'regions': []
     },
-    # Packet
+    # EquinixMetal
     {
-        'title': 'Packet',
-        'provider': Provider.PACKET,
+        'title': 'EquinixMetal',
+        'provider': Provider.EQUINIXMETAL,
         'regions': []
     },
     # Maxihost

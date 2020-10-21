@@ -98,12 +98,12 @@ def filter_list_locations(auth_context, cloud_id, locations=None, perm='read',
 
 def list_projects(owner, cloud_id):
     """List projects for each account.
-    Currently supported for Packet.net. For other providers
+    Currently supported for metal.equinix.com. For other providers
     this returns an empty list
     """
     cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
 
-    if cloud.ctl.provider in ['packet']:
+    if cloud.ctl.provider in ['equinixmetal']:
         conn = connect_provider(cloud)
         projects = conn.ex_list_projects()
         ret = [{'id': project.id,

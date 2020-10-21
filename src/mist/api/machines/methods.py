@@ -101,7 +101,7 @@ def machine_name_validator(provider, name):
             raise MachineNameValidationError(
                 "machine name may only contain ASCII letters "
                 "or numbers, dashes and dots")
-    elif provider is Provider.PACKET.value:
+    elif provider is Provider.EQUINIXMETAL.value:
         if not re.search(r'^[0-9a-zA-Z-.]+$', name):
             raise MachineNameValidationError(
                 "machine name may only contain ASCII letters "
@@ -576,10 +576,13 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                                        public_key=public_key,
                                        cloud_init=cloud_init,
                                        vnfs=vnfs)
-    elif cloud.ctl.provider == Provider.PACKET.value:
-        node = _create_machine_packet(conn, public_key, machine_name, image,
-                                      size, location, cloud_init, cloud,
-                                      project_id, volumes, ip_addresses)
+    elif cloud.ctl.provider == Provider.EQUINIXMETAL.value:
+        node = _create_machine_equinixmetal(conn, public_key, machine_name,
+                                            image,size, location, cloud_init,
+                                            cloud,project_id, volumes,
+                                            ip_addresses)
+
+
     elif cloud.ctl.provider == Provider.MAXIHOST.value:
         node = _create_machine_maxihost(conn, machine_name, image,
                                         size, location, public_key)
@@ -1662,10 +1665,10 @@ def _create_machine_hostvirtual(conn, public_key,
     return node
 
 
-def _create_machine_packet(conn, public_key, machine_name, image,
+def _create_machine_equinixmetal(conn, public_key, machine_name, image,
                            size, location, cloud_init, cloud,
                            project_id=None, volumes=[], ip_addresses=[]):
-    """Create a machine in Packet.net.
+    """Create a machine in metal.equinix.com.
     """
     key = public_key.replace('\n', '')
     try:
@@ -1686,7 +1689,7 @@ def _create_machine_packet(conn, public_key, machine_name, image,
                 ex_project_id = conn.projects[0].id
             except IndexError:
                 raise BadRequestError(
-                    "You don't have any projects on packet.net"
+                    "You don't have any projects on metal.equinix.com"
                 )
     else:
         for project_obj in conn.projects:
@@ -1738,7 +1741,8 @@ def _create_machine_packet(conn, public_key, machine_name, image,
             disk_size=disk_size
         )
     except Exception as e:
-        raise MachineCreationError("Packet.net, got exception %s" % e, e)
+        raise MachineCreationError(
+            "metal.equinix.com, got exception %s" % e, e)
 
     return node
 
