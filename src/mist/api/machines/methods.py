@@ -578,10 +578,9 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
                                        vnfs=vnfs)
     elif cloud.ctl.provider == Provider.EQUINIXMETAL.value:
         node = _create_machine_equinixmetal(conn, public_key, machine_name,
-                                            image,size, location, cloud_init,
-                                            cloud,project_id, volumes,
+                                            image, size, location, cloud_init,
+                                            cloud, project_id, volumes,
                                             ip_addresses)
-
 
     elif cloud.ctl.provider == Provider.MAXIHOST.value:
         node = _create_machine_maxihost(conn, machine_name, image,
@@ -1666,8 +1665,9 @@ def _create_machine_hostvirtual(conn, public_key,
 
 
 def _create_machine_equinixmetal(conn, public_key, machine_name, image,
-                           size, location, cloud_init, cloud,
-                           project_id=None, volumes=[], ip_addresses=[]):
+                                 size, location, cloud_init, cloud,
+                                 project_id=None, volumes=[],
+                                 ip_addresses=[]):
     """Create a machine in metal.equinix.com.
     """
     key = public_key.replace('\n', '')
