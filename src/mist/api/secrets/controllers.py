@@ -1,7 +1,9 @@
 import hvac
+import logging
 
 from mist.api import config
 
+log = logging.getLogger(__name__)
 
 class BaseSecretController(object):
     def __init__(self, secret):
@@ -25,7 +27,7 @@ class VaultSecretController(BaseSecretController):
         token = config.VAULT_TOKEN
         url = config.VAULT_ADDR
 
-        self.client = hvac.Client(url=url, token='s.Stog1SrqidWVQcr6R60N446a')
+        self.client = hvac.Client(url=url, token=token)
         assert(self.client.is_authenticated())
 
     def create_secret(self, org_name, key, value):
@@ -38,6 +40,7 @@ class VaultSecretController(BaseSecretController):
             )
         except hvac.exceptions.InvalidPath:
             # create relative handler for specific org
+            log.info('No KV secret engine found for org %s. Creating one...' % org_name)
             self.client.sys.enable_secrets_engine(backend_type='kv', path=org_name,
                                                   options={'version':2}
                                                   )
@@ -58,7 +61,7 @@ class VaultSecretController(BaseSecretController):
 
     def delete_secret(self, org_name):
         " Delete a Vault KV* Secret"
-        self.client.secrets.kv.v2.delete_secret(
+        self.client.secrets.kv.v2.delete_latest_version_of_secret(
             mount_point=org_name,
             path=self.secret.name
         )
