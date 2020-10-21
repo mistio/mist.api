@@ -33,7 +33,7 @@ __all__ = [
     "AzureArmCloud",
     "GoogleCloud",
     "HostVirtualCloud",
-    "PacketCloud",
+    "EquinixMetalCloud",
     "VultrCloud",
     "VSphereCloud",
     "VCloud",
@@ -477,13 +477,13 @@ class HostVirtualCloud(Cloud):
     _controller_cls = controllers.HostVirtualMainController
 
 
-class PacketCloud(Cloud):
+class EquinixMetalCloud(Cloud):
 
     apikey = me.StringField(required=True)
     project_id = me.StringField(required=False)
 
     _private_fields = ('apikey', )
-    _controller_cls = controllers.PacketMainController
+    _controller_cls = controllers.EquinixMetalMainController
 
 
 class VultrCloud(Cloud):

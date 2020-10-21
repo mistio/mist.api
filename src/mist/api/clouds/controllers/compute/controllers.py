@@ -1351,10 +1351,10 @@ class HostVirtualComputeController(BaseComputeController):
         return get_driver(Provider.HOSTVIRTUAL)(self.cloud.apikey)
 
 
-class PacketComputeController(BaseComputeController):
+class EquinixMetalComputeController(BaseComputeController):
 
     def _connect(self, **kwargs):
-        return get_driver(Provider.PACKET)(self.cloud.apikey,
+        return get_driver(Provider.EQUINIXMETAL)(self.cloud.apikey,
                                            project=self.cloud.project_id)
 
     def _list_machines__machine_creation_date(self, machine, node_dict):
