@@ -68,7 +68,7 @@ class Secret(OwnershipMixin, me.Document):
 
 class VaultSecret(Secret):
     """ A Vault Secret object """
-    secret_engine_name = me.StringField(default='kv1')
+    #secret_engine_name = me.StringField(default='kv2')
     _controller_cls = controllers.VaultSecretController
 
     @property
@@ -89,8 +89,9 @@ class SecretValue(me.EmbeddedDocument):
 
     @property
     def value(self):
+        import ipdb; ipdb.set_trace()
         if self.key:
-            return self.secret.data[self.key]
+            return self.secret.data['data'][self.key]
         else:
             return self.secret.data
 
