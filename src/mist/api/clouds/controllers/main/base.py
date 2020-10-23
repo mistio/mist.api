@@ -34,6 +34,8 @@ from mist.api.clouds.controllers.compute.base import BaseComputeController
 from mist.api.clouds.controllers.dns.base import BaseDNSController
 from mist.api.clouds.controllers.storage.base import BaseStorageController
 
+from mist.api.secrets.models import VaultSecret, SecretValue
+
 
 log = logging.getLogger(__name__)
 
@@ -255,10 +257,18 @@ class BaseMainController(object):
                 'msg': "Invalid parameters %s." % list(errors.keys()),
                 'errors': errors,
             })
-
         # Set fields to cloud model and perform early validation.
+        secret = VaultSecret(name='clouds/%s' % self.cloud.title, owner=self.cloud.owner)
+        try:
+            secret.save()
+        except me.NotUniqueError:
+            raise BadRequestError("The path specified exists on Vault. \
+                Try changing the name of the cloud")
         for key, value in kwargs.items():
-            setattr(self.cloud, key, value)
+            secret.ctl.create_secret(self.cloud.owner.name, key, value)
+            secret_value = SecretValue(secret=secret, key=key)
+            setattr(self.cloud, key, secret_value)
+
         try:
             self.cloud.validate(clean=True)
         except me.ValidationError as exc:
