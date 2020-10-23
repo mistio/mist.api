@@ -41,7 +41,7 @@ class VaultSecretController(BaseSecretController):
             )
         except hvac.exceptions.InvalidPath as exc:
             # no existing data in this path
-            if 'No value found' in  exc.args[0]:
+            if 'No value found' in exc.args[0]:
                 self.client.secrets.kv.v2.create_or_update_secret(
                     mount_point=org_name,
                     path=self.secret.name,
@@ -51,9 +51,9 @@ class VaultSecretController(BaseSecretController):
                 log.info('No KV secret engine found for org %s. \
                     Creating one...' % org_name)
                 self.client.sys.enable_secrets_engine(backend_type='kv',
-                                                    path=org_name,
-                                                    options={'version': 2}
-                                                    )
+                                                      path=org_name,
+                                                      options={'version': 2}
+                                                      )
                 self.client.secrets.kv.v2.create_or_update_secret(
                     mount_point=org_name,
                     path=self.secret.name,
