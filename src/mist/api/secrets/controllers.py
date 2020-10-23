@@ -34,24 +34,31 @@ class VaultSecretController(BaseSecretController):
     def create_secret(self, org_name, key, value):
         """ Create a Vault KV* Secret """
         try:
-            self.client.secrets.kv.v2.create_or_update_secret(
+            self.client.secrets.kv.v2.patch(
                 mount_point=org_name,
                 path=self.secret.name,
                 secret={key: value}
             )
-        except hvac.exceptions.InvalidPath:
-            # create relative handler for specific org
-            log.info('No KV secret engine found for org %s. \
-                Creating one...' % org_name)
-            self.client.sys.enable_secrets_engine(backend_type='kv',
-                                                  path=org_name,
-                                                  options={'version': 2}
-                                                  )
-            self.client.secrets.kv.v2.create_or_update_secret(
-                mount_point=org_name,
-                path=self.secret.name,
-                secret={key: value}
-            )
+        except hvac.exceptions.InvalidPath as exc:
+            # no existing data in this path
+            if 'No value found' in  exc.args[0]:
+                self.client.secrets.kv.v2.create_or_update_secret(
+                    mount_point=org_name,
+                    path=self.secret.name,
+                    secret={key: value}
+                )
+            else:  # TODO: check error msg
+                log.info('No KV secret engine found for org %s. \
+                    Creating one...' % org_name)
+                self.client.sys.enable_secrets_engine(backend_type='kv',
+                                                    path=org_name,
+                                                    options={'version': 2}
+                                                    )
+                self.client.secrets.kv.v2.create_or_update_secret(
+                    mount_point=org_name,
+                    path=self.secret.name,
+                    secret={key: value}
+                )
 
     def read_secret(self, org_name):
         """ Read a Vault KV* Secret """

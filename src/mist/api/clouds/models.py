@@ -521,7 +521,8 @@ class DockerCloud(Cloud):
     cert_file = me.EmbeddedDocumentField(SecretValue, required=False)
     ca_cert_file = me.EmbeddedDocumentField(SecretValue, required=False)
     # Show running and stopped containers
-    show_all = me.BooleanField(default=False)
+    # TODO: this or `casing` when parsing params?
+    show_all = me.EmbeddedDocumentField(SecretValue, required=False)
 
     _private_fields = ('password', 'key_file')
     _controller_cls = controllers.DockerMainController
