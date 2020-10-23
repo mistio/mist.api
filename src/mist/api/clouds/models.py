@@ -9,6 +9,7 @@ from mist.api.tag.models import Tag
 from mist.api.users.models import Organization
 from mist.api.ownership.mixins import OwnershipMixin
 from mist.api.mongoengine_extras import MistDictField
+from mist.api.secrets.models import SecretValue
 
 from mist.api.clouds.controllers.main import controllers
 
@@ -472,9 +473,9 @@ class CloudSize(me.Document):
 
 class AmazonCloud(Cloud):
 
-    apikey = me.StringField(required=True)
-    apisecret = me.StringField(required=True)
-    region = me.StringField(required=True)
+    apikey = me.EmbeddedDocumentField(SecretValue, required=True)
+    apisecret = me.EmbeddedDocumentField(SecretValue, required=True)
+    region = me.EmbeddedDocumentField(SecretValue, required=True)
 
     _private_fields = ('apisecret', )
     _controller_cls = controllers.AmazonMainController
@@ -487,7 +488,7 @@ class AlibabaCloud(AmazonCloud):
 
 class DigitalOceanCloud(Cloud):
 
-    token = me.StringField(required=True)
+    token = me.EmbeddedDocumentField(SecretValue, required=True)
 
     _private_fields = ('token', )
     _controller_cls = controllers.DigitalOceanMainController
@@ -495,7 +496,7 @@ class DigitalOceanCloud(Cloud):
 
 class MaxihostCloud(Cloud):
 
-    token = me.StringField(required=True)
+    token = me.EmbeddedDocumentField(SecretValue, required=True)
 
     _private_fields = ('token', )
     _controller_cls = controllers.MaxihostMainController
@@ -506,16 +507,15 @@ class GigG8Cloud(Cloud):
     DEPRECATED
     """
 
-    apikey = me.StringField(required=True)
-    user_id = me.IntField(required=True)
-    url = me.StringField(required=True)
+    apikey = me.EmbeddedDocumentField(SecretValue, required=True)
+    user_id = me.EmbeddedDocumentField(SecretValue, required=True)
+    url = me.EmbeddedDocumentField(SecretValue, required=True)
 
     _private_fields = ('apikey', )
 
 
 class LinodeCloud(Cloud):
-
-    apikey = me.StringField(required=True)
+    apikey = me.EmbeddedDocumentField(SecretValue, required=True)
     apiversion = me.StringField(null=True, default=None)
     _private_fields = ('apikey', )
     _controller_cls = controllers.LinodeMainController
@@ -523,9 +523,9 @@ class LinodeCloud(Cloud):
 
 class RackSpaceCloud(Cloud):
 
-    username = me.StringField(required=True)
-    apikey = me.StringField(required=True)
-    region = me.StringField(required=True)
+    username = me.EmbeddedDocumentField(SecretValue, required=True)
+    apikey = me.EmbeddedDocumentField(SecretValue, required=True)
+    region = me.EmbeddedDocumentField(SecretValue, required=True)
 
     _private_fields = ('apikey', )
     _controller_cls = controllers.RackSpaceMainController
@@ -533,8 +533,8 @@ class RackSpaceCloud(Cloud):
 
 class SoftLayerCloud(Cloud):
 
-    username = me.StringField(required=True)
-    apikey = me.StringField(required=True)
+    username = me.EmbeddedDocumentField(SecretValue, required=True)
+    apikey = me.EmbeddedDocumentField(SecretValue, required=True)
 
     _private_fields = ('apikey', )
     _controller_cls = controllers.SoftLayerMainController
@@ -542,8 +542,8 @@ class SoftLayerCloud(Cloud):
 
 class AzureCloud(Cloud):
 
-    subscription_id = me.StringField(required=True)
-    certificate = me.StringField(required=True)
+    subscription_id = me.EmbeddedDocumentField(SecretValue, required=True)
+    certificate = me.EmbeddedDocumentField(SecretValue, required=True)
 
     _private_fields = ('certificate', )
     _controller_cls = controllers.AzureMainController
@@ -551,10 +551,10 @@ class AzureCloud(Cloud):
 
 class AzureArmCloud(Cloud):
 
-    tenant_id = me.StringField(required=True)
-    subscription_id = me.StringField(required=True)
-    key = me.StringField(required=True)
-    secret = me.StringField(required=True)
+    tenant_id = me.EmbeddedDocumentField(SecretValue, required=True)
+    subscription_id = me.EmbeddedDocumentField(SecretValue, required=True)
+    key = me.EmbeddedDocumentField(SecretValue, required=True)
+    secret = me.EmbeddedDocumentField(SecretValue, required=True)
 
     _private_fields = ('secret', )
     _controller_cls = controllers.AzureArmMainController
@@ -562,9 +562,9 @@ class AzureArmCloud(Cloud):
 
 class GoogleCloud(Cloud):
 
-    email = me.StringField(required=True)
-    private_key = me.StringField(required=True)
-    project_id = me.StringField(required=True)
+    email = me.EmbeddedDocumentField(SecretValue, required=True)
+    private_key = me.EmbeddedDocumentField(SecretValue, required=True)
+    project_id = me.EmbeddedDocumentField(SecretValue, required=True)
 
     _private_fields = ('private_key', )
     _controller_cls = controllers.GoogleMainController
@@ -572,7 +572,7 @@ class GoogleCloud(Cloud):
 
 class HostVirtualCloud(Cloud):
 
-    apikey = me.StringField(required=True)
+    apikey = me.EmbeddedDocumentField(SecretValue, required=True)
 
     _private_fields = ('apikey', )
     _controller_cls = controllers.HostVirtualMainController
@@ -580,20 +580,8 @@ class HostVirtualCloud(Cloud):
 
 class EquinixMetalCloud(Cloud):
 
-    apikey = me.StringField(required=True)
-    project_id = me.StringField(required=False)
-
-    _private_fields = ('apikey', )
-    _controller_cls = controllers.EquinixMetalMainController
-
-
-class PacketCloud(Cloud):
-    """
-        For backwards compatibility, to prevent poller crashes
-        TODO: Remove in v5
-    """
-    apikey = me.StringField(required=True)
-    project_id = me.StringField(required=False)
+    apikey = me.EmbeddedDocumentField(SecretValue, required=True)
+    project_id = me.EmbeddedDocumentField(SecretValue, required=False)
 
     _private_fields = ('apikey', )
     _controller_cls = controllers.EquinixMetalMainController
@@ -601,7 +589,7 @@ class PacketCloud(Cloud):
 
 class VultrCloud(Cloud):
 
-    apikey = me.StringField(required=True)
+    apikey = me.EmbeddedDocumentField(SecretValue, required=True)
 
     _private_fields = ('apikey', )
     _controller_cls = controllers.VultrMainController
@@ -609,10 +597,10 @@ class VultrCloud(Cloud):
 
 class VSphereCloud(Cloud):
 
-    host = me.StringField(required=True)
-    username = me.StringField(required=True)
-    password = me.StringField(required=True)
-    ca_cert_file = me.StringField(required=False)
+    host = me.EmbeddedDocumentField(SecretValue, required=True)
+    username = me.EmbeddedDocumentField(SecretValue, required=True)
+    password = me.EmbeddedDocumentField(SecretValue, required=True)
+    ca_cert_file = me.EmbeddedDocumentField(SecretValue, required=False)
     # Some vSphere clouds will timeout when calling list_nodes, unless we
     # perform the requests in batches, fetching a few properties each time.
     # The following property should be set to something like 4 when that
@@ -628,10 +616,10 @@ class VSphereCloud(Cloud):
 
 class VCloud(Cloud):
 
-    host = me.StringField(required=True)
-    username = me.StringField(required=True)
-    password = me.StringField(required=True)
-    port = me.IntField(required=True, default=443)
+    host = me.EmbeddedDocumentField(SecretValue, required=True)
+    username = me.EmbeddedDocumentField(SecretValue, required=True)
+    password = me.EmbeddedDocumentField(SecretValue, required=True)
+    port = me.EmbeddedDocumentField(SecretValue, required=True, default=443)
 
     _private_fields = ('password', )
     _controller_cls = controllers.VCloudMainController
@@ -639,16 +627,14 @@ class VCloud(Cloud):
 
 class OpenStackCloud(Cloud):
 
-    username = me.StringField(required=True)
-    password = me.StringField(required=True)
-    url = me.StringField(required=True)
-    tenant = me.StringField(required=True)
-    domain = me.StringField(required=False)
-    region = me.StringField(required=False)
-    compute_endpoint = me.StringField(required=False)
-    # tenant_id will be lazily populated when
-    # a request to get security_groups is made
-    tenant_id = me.StringField(required=False)
+    username = me.EmbeddedDocumentField(SecretValue, required=True)
+    password = me.EmbeddedDocumentField(SecretValue, required=True)
+    url = me.EmbeddedDocumentField(SecretValue, required=True)
+    tenant = me.EmbeddedDocumentField(SecretValue, required=True)
+    tenant_id = me.EmbeddedDocumentField(SecretValue, required=True)
+    domain = me.EmbeddedDocumentField(SecretValue, required=False)
+    region = me.EmbeddedDocumentField(SecretValue, required=False)
+    compute_endpoint = me.EmbeddedDocumentField(SecretValue, required=False)
 
     _private_fields = ('password', )
     _controller_cls = controllers.OpenStackMainController
@@ -656,17 +642,17 @@ class OpenStackCloud(Cloud):
 
 class DockerCloud(Cloud):
 
-    host = me.StringField(required=True)
-    port = me.IntField(required=True, default=4243)
+    host = me.EmbeddedDocumentField(SecretValue, required=True)
+    port = me.EmbeddedDocumentField(SecretValue, required=True, default=4243)
 
     # User/Password Authentication (optional)
-    username = me.StringField(required=False)
-    password = me.StringField(required=False)
+    username = me.EmbeddedDocumentField(SecretValue, required=False)
+    password = me.EmbeddedDocumentField(SecretValue, required=False)
 
     # TLS Authentication (optional)
-    key_file = me.StringField(required=False)
-    cert_file = me.StringField(required=False)
-    ca_cert_file = me.StringField(required=False)
+    key_file = me.EmbeddedDocumentField(SecretValue, required=False)
+    cert_file = me.EmbeddedDocumentField(SecretValue, required=False)
+    ca_cert_file = me.EmbeddedDocumentField(SecretValue, required=False)
     # Show running and stopped containers
     show_all = me.BooleanField(default=False)
 
@@ -679,17 +665,17 @@ class LXDCloud(Cloud):
     Model  specializing Cloud for LXC.
     """
 
-    host = me.StringField(required=True)
-    port = me.IntField(required=True, default=8443)
+    host = me.EmbeddedDocumentField(SecretValue, required=True)
+    port = me.EmbeddedDocumentField(SecretValue, required=True, default=8443)
 
     # User/Password Authentication (optional)
-    username = me.StringField(required=False)
-    password = me.StringField(required=False)
+    username = me.EmbeddedDocumentField(SecretValue, required=False)
+    password = me.EmbeddedDocumentField(SecretValue, required=False)
 
     # TLS Authentication (optional)
-    key_file = me.StringField(required=False)
-    cert_file = me.StringField(required=False)
-    ca_cert_file = me.StringField(required=False)
+    key_file = me.EmbeddedDocumentField(SecretValue, required=False)
+    cert_file = me.EmbeddedDocumentField(SecretValue, required=False)
+    ca_cert_file = me.EmbeddedDocumentField(SecretValue, required=False)
 
     # Show running and stopped containers
     show_all = me.BooleanField(default=False)
@@ -706,10 +692,10 @@ class LibvirtCloud(Cloud):
 
 class OnAppCloud(Cloud):
 
-    username = me.StringField(required=True)
-    apikey = me.StringField(required=True)
-    host = me.StringField(required=True)
-    verify = me.BooleanField(default=True)
+    username = me.EmbeddedDocumentField(SecretValue, required=True)
+    apikey = me.EmbeddedDocumentField(SecretValue, required=True)
+    host = me.EmbeddedDocumentField(SecretValue, required=True)
+    verify = me.EmbeddedDocumentField(SecretValue, default=True)
 
     _private_fields = ('apikey', )
     _controller_cls = controllers.OnAppMainController
@@ -721,20 +707,26 @@ class OtherCloud(Cloud):
 
 
 class _KubernetesBaseCloud(Cloud):
-    host = me.StringField(required=True)
-    port = me.IntField(required=True, default=6443)
+    host = me.EmbeddedDocumentField(SecretValue, required=True)
+    port = me.EmbeddedDocumentField(SecretValue, required=True, default=6443)
+
     # USER / PASS authentication optional
-    username = me.StringField(required=False)
-    password = me.StringField(required=False)
+    username = me.EmbeddedDocumentField(SecretValue, required=False)
+    password = me.EmbeddedDocumentField(SecretValue, required=False)
+
     # Bearer Token authentication optional
-    token = me.StringField(required=False)
+    token = me.EmbeddedDocumentField(SecretValue, required=False)
+
     # TLS Authentication
-    key_file = me.StringField(required=False)
-    cert_file = me.StringField(required=False)
+    key_file = me.EmbeddedDocumentField(SecretValue, required=False)
+    cert_file = me.EmbeddedDocumentField(SecretValue, required=False)
+
     # certificate authority
-    ca_cert_file = me.StringField(required=False)
+    ca_cert_file = me.EmbeddedDocumentField(SecretValue, required=False)
+
     # certificate verification
-    verify = me.BooleanField(required=False)
+    verify = me.EmbeddedDocumentField(SecretValue, required=False)
+
     _private_fields = ('password', 'key_file', 'cert_file', 'ca_cert_file')
 
 
@@ -762,9 +754,9 @@ class OpenShiftCloud(_KubernetesProxyCloud):
 
 class CloudSigmaCloud(Cloud):
 
-    username = me.StringField(required=True)
-    password = me.StringField(required=True)
-    region = me.StringField(required=True)
+    username = me.EmbeddedDocumentField(SecretValue, required=True)
+    password = me.EmbeddedDocumentField(SecretValue, required=True)
+    region = me.EmbeddedDocumentField(SecretValue, required=True)
 
     _private_fields = ('password', )
     _controller_cls = controllers.CloudSigmaMainController
