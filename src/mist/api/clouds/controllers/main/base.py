@@ -258,7 +258,8 @@ class BaseMainController(object):
                 'errors': errors,
             })
         # Set fields to cloud model and perform early validation.
-        secret = VaultSecret(name='clouds/%s' % self.cloud.title, owner=self.cloud.owner)
+        secret = VaultSecret(name='clouds/%s' % self.cloud.title,
+                             owner=self.cloud.owner)
         try:
             secret.save()
         except me.NotUniqueError:

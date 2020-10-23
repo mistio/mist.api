@@ -1354,7 +1354,8 @@ class HostVirtualComputeController(BaseComputeController):
 class PacketComputeController(BaseComputeController):
 
     def _connect(self, **kwargs):
-        project_id = self.cloud.project_id.value if self.cloud.project_id else ''
+        project_id = self.cloud.project_id.value if self.cloud.project_id \
+            else ''
         return get_driver(Provider.PACKET)(self.cloud.apikey.value,
                                            project=project_id)
 
@@ -1684,7 +1685,8 @@ class DockerComputeController(BaseComputeController):
         self._dockerhost = None
 
     def _connect(self, **kwargs):
-        host, port = dnat(self.cloud.owner, self.cloud.host.value, self.cloud.port.value)
+        host, port = dnat(self.cloud.owner, self.cloud.host.value,
+                          self.cloud.port.value)
 
         try:
             socket.setdefaulttimeout(15)
@@ -1731,7 +1733,8 @@ class DockerComputeController(BaseComputeController):
 
     def _list_machines__fetch_machines(self):
         """Perform the actual libcloud call to get list of containers"""
-        containers = self.connection.list_containers(all=self.cloud.show_all.value)
+        containers = self.connection.list_containers(all=self.cloud.show_all.
+                                                     value)
         # add public/private ips for mist
         for container in containers:
             public_ips, private_ips = [], []
@@ -2089,7 +2092,8 @@ class LXDComputeController(BaseComputeController):
         )
 
     def _connect(self, **kwargs):
-        host, port = dnat(self.cloud.owner, self.cloud.host.value, self.cloud.port.value)
+        host, port = dnat(self.cloud.owner, self.cloud.host.value,
+                          self.cloud.port.value)
 
         try:
             socket.setdefaulttimeout(15)
