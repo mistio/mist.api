@@ -920,10 +920,10 @@ class LinodeComputeController(BaseComputeController):
     def _connect(self, **kwargs):
         if self.cloud.apiversion is not None:
             return get_driver(Provider.LINODE)(
-                self.cloud.apikey,
+                self.cloud.apikey.value,
                 api_version=self.cloud.apiversion)
         else:
-            return get_driver(Provider.LINODE)(self.cloud.apikey)
+            return get_driver(Provider.LINODE)(self.cloud.apikey.value)
 
     def _list_machines__machine_creation_date(self, machine, node_dict):
         if self.cloud.apiversion is not None:
@@ -1096,12 +1096,12 @@ class LinodeComputeController(BaseComputeController):
 class RackSpaceComputeController(BaseComputeController):
 
     def _connect(self, **kwargs):
-        if self.cloud.region in ('us', 'uk'):
+        if self.cloud.region.value in ('us', 'uk'):
             driver = get_driver(Provider.RACKSPACE_FIRST_GEN)
         else:
             driver = get_driver(Provider.RACKSPACE)
-        return driver(self.cloud.username, self.cloud.apikey,
-                      region=self.cloud.region)
+        return driver(self.cloud.username.value, self.cloud.apikey.value,
+                      region=self.cloud.region.value)
 
     def _list_machines__machine_creation_date(self, machine, node_dict):
         return node_dict['extra'].get('created')  # iso8601 string
@@ -1368,10 +1368,10 @@ class AzureComputeController(BaseComputeController):
 class AzureArmComputeController(BaseComputeController):
 
     def _connect(self, **kwargs):
-        return get_driver(Provider.AZURE_ARM)(self.cloud.tenant_id,
-                                              self.cloud.subscription_id,
-                                              self.cloud.key,
-                                              self.cloud.secret)
+        return get_driver(Provider.AZURE_ARM)(self.cloud.tenant_id.value,
+                                              self.cloud.subscription_id.value,
+                                              self.cloud.key.value,
+                                              self.cloud.secret.value)
 
     def _list_machines__postparse_machine(self, machine, node_dict):
         updated = False
@@ -1723,9 +1723,9 @@ class AzureArmComputeController(BaseComputeController):
 class GoogleComputeController(BaseComputeController):
 
     def _connect(self, **kwargs):
-        return get_driver(Provider.GCE)(self.cloud.email,
-                                        self.cloud.private_key,
-                                        project=self.cloud.project_id)
+        return get_driver(Provider.GCE)(self.cloud.email.value,
+                                        self.cloud.private_key.value,
+                                        project=self.cloud.project_id.value)
 
     def _list_machines__get_machine_extra(self, machine, node_dict):
         # FIXME: we delete the extra.metadata for now because it can be
@@ -2425,9 +2425,10 @@ class HostVirtualComputeController(BaseComputeController):
 class EquinixMetalComputeController(BaseComputeController):
 
     def _connect(self, **kwargs):
+        project_id = self.cloud.project_id.value if self.cloud.project_id else ''
         return get_driver(
-            Provider.EQUINIXMETAL)(self.cloud.apikey,
-                                   project=self.cloud.project_id)
+            Provider.EQUINIXMETAL)(self.cloud.apikey.value,
+                                   project=project_id)
 
     def _list_machines__machine_creation_date(self, machine, node_dict):
         return node_dict['extra'].get('created_at')  # iso8601 string
@@ -2656,7 +2657,7 @@ class EquinixMetalComputeController(BaseComputeController):
 class VultrComputeController(BaseComputeController):
 
     def _connect(self, **kwargs):
-        return get_driver(Provider.VULTR)(self.cloud.apikey)
+        return get_driver(Provider.VULTR)(self.cloud.apikey.value)
 
     def _list_machines__postparse_machine(self, machine, node_dict):
         updated = False
@@ -3046,7 +3047,7 @@ class DockerComputeController(BaseComputeController):
         self._dockerhost = None
 
     def _connect(self, **kwargs):
-        host, port = dnat(self.cloud.owner, self.cloud.host, self.cloud.port)
+        host, port = dnat(self.cloud.owner, self.cloud.host.value, self.cloud.port.value)
 
         try:
             socket.setdefaulttimeout(15)
@@ -3060,15 +3061,15 @@ class DockerComputeController(BaseComputeController):
         # TLS authentication.
         if self.cloud.key_file and self.cloud.cert_file:
             key_temp_file = tempfile.NamedTemporaryFile(delete=False)
-            key_temp_file.write(self.cloud.key_file.encode())
+            key_temp_file.write(self.cloud.key_file.value.encode())
             key_temp_file.close()
             cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
-            cert_temp_file.write(self.cloud.cert_file.encode())
+            cert_temp_file.write(self.cloud.cert_file.value.encode())
             cert_temp_file.close()
             ca_cert = None
             if self.cloud.ca_cert_file:
                 ca_cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
-                ca_cert_temp_file.write(self.cloud.ca_cert_file.encode())
+                ca_cert_temp_file.write(self.cloud.ca_cert_file.value.encode())
                 ca_cert_temp_file.close()
                 ca_cert = ca_cert_temp_file.name
 
@@ -3083,8 +3084,8 @@ class DockerComputeController(BaseComputeController):
         if self.cloud.username and self.cloud.password:
 
             return get_container_driver(Container_Provider.DOCKER)(
-                key=self.cloud.username,
-                secret=self.cloud.password,
+                key=self.cloud.username.value,
+                secret=self.cloud.password.value,
                 host=host, port=port)
         # open authentication.
         else:
@@ -3093,11 +3094,11 @@ class DockerComputeController(BaseComputeController):
 
     def _list_machines__fetch_machines(self):
         """Perform the actual libcloud call to get list of containers"""
-        containers = self.connection.list_containers(all=self.cloud.show_all)
+        containers = self.connection.list_containers(all=self.cloud.show_all.value)
         # add public/private ips for mist
         for container in containers:
             public_ips, private_ips = [], []
-            host = sanitize_host(self.cloud.host)
+            host = sanitize_host(self.cloud.host.value)
             if is_private_subnet(host):
                 private_ips.append(host)
             else:
@@ -3175,7 +3176,7 @@ class DockerComputeController(BaseComputeController):
         # Update dockerhost machine model fields.
         changed = False
         for attr, val in {'name': self.cloud.name,
-                          'hostname': self.cloud.host,
+                          'hostname': self.cloud.host.value,
                           'machine_type': 'container-host'}.items():
             if getattr(machine, attr) != val:
                 setattr(machine, attr, val)
@@ -3226,7 +3227,7 @@ class DockerComputeController(BaseComputeController):
         if not node_id:
             node_id = result.get('ID', '')
 
-        host = sanitize_host(self.cloud.host)
+        host = sanitize_host(self.cloud.host.value)
         public_ips, private_ips = [], []
         if is_private_subnet(host):
             private_ips.append(host)
@@ -3456,7 +3457,7 @@ class LXDComputeController(BaseComputeController):
         )
 
     def _connect(self, **kwargs):
-        host, port = dnat(self.cloud.owner, self.cloud.host, self.cloud.port)
+        host, port = dnat(self.cloud.owner, self.cloud.host.value, self.cloud.port.value)
 
         try:
             socket.setdefaulttimeout(15)
@@ -3467,7 +3468,7 @@ class LXDComputeController(BaseComputeController):
             raise Exception("Make sure host is accessible "
                             "and LXD port is specified")
 
-        if self.cloud.key_file and self.cloud.cert_file:
+        if self.cloud.key_file.value and self.cloud.cert_file.value:
             tls_auth = self._tls_authenticate(host=host, port=port)
 
             if tls_auth is None:
@@ -3476,11 +3477,11 @@ class LXDComputeController(BaseComputeController):
             return tls_auth
 
         # Username/Password authentication.
-        if self.cloud.username and self.cloud.password:
+        if self.cloud.username.value and self.cloud.password.value:
 
             return get_container_driver(Container_Provider.LXD)(
-                key=self.cloud.username,
-                secret=self.cloud.password,
+                key=self.cloud.username.value,
+                secret=self.cloud.password.value,
                 host=host, port=port)
         # open authentication.
         else:
@@ -3493,16 +3494,16 @@ class LXDComputeController(BaseComputeController):
         # TLS authentication.
 
         key_temp_file = tempfile.NamedTemporaryFile(delete=False)
-        key_temp_file.write(self.cloud.key_file.encode())
+        key_temp_file.write(self.cloud.key_file.value.encode())
         key_temp_file.close()
         cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
-        cert_temp_file.write(self.cloud.cert_file.encode())
+        cert_temp_file.write(self.cloud.cert_file.value.encode())
         cert_temp_file.close()
         ca_cert = None
 
         if self.cloud.ca_cert_file:
             ca_cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
-            ca_cert_temp_file.write(self.cloud.ca_cert_file.encode())
+            ca_cert_temp_file.write(self.cloud.ca_cert_file.value.encode())
             ca_cert_temp_file.close()
             ca_cert = ca_cert_temp_file.name
 
@@ -4292,7 +4293,7 @@ class OtherComputeController(BaseComputeController):
 class _KubernetesBaseComputeController(BaseComputeController):
     def _connect(self, provider, use_container_driver=True, **kwargs):
         host, port = dnat(self.cloud.owner,
-                          self.cloud.host, self.cloud.port)
+                          self.cloud.host.value, self.cloud.port.value)
         try:
             socket.setdefaulttimeout(15)
             so = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -4305,22 +4306,24 @@ class _KubernetesBaseComputeController(BaseComputeController):
             get_driver_method = get_container_driver
         else:
             get_driver_method = get_driver
-        verify = self.cloud.verify
+
+        # verify = self.cloud.verify.value if self.cloud.verify else False
+
         ca_cert = None
-        if self.cloud.ca_cert_file:
+        if self.cloud.ca_cert_file.value:
             ca_cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
-            ca_cert_temp_file.write(self.cloud.ca_cert_file.encode())
+            ca_cert_temp_file.write(self.cloud.ca_cert_file.value.encode())
             ca_cert_temp_file.close()
             ca_cert = ca_cert_temp_file.name
 
         # tls authentication
-        if self.cloud.key_file and self.cloud.cert_file:
+        if self.cloud.key_file.value and self.cloud.cert_file.value:
             key_temp_file = tempfile.NamedTemporaryFile(delete=False)
-            key_temp_file.write(self.cloud.key_file.encode())
+            key_temp_file.write(self.cloud.key_file.value.encode())
             key_temp_file.close()
             key_file = key_temp_file.name
             cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
-            cert_temp_file.write(self.cloud.cert_file.encode())
+            cert_temp_file.write(self.cloud.cert_file.value.encode())
             cert_temp_file.close()
             cert_file = cert_temp_file.name
 
@@ -4332,7 +4335,7 @@ class _KubernetesBaseComputeController(BaseComputeController):
                                                ca_cert=ca_cert)
 
         elif self.cloud.token:
-            token = self.cloud.token
+            token = self.cloud.token.value
 
             return get_driver_method(provider)(key=token,
                                                secure=True,
@@ -4341,9 +4344,9 @@ class _KubernetesBaseComputeController(BaseComputeController):
                                                ca_cert=ca_cert,
                                                ex_token_bearer_auth=True)
         # username/password auth
-        elif self.cloud.username and self.cloud.password:
-            key = self.cloud.username
-            secret = self.cloud.password
+        elif self.cloud.username.value and self.cloud.password.value:
+            key = self.cloud.username.value
+            secret = self.cloud.password.value
 
             return get_driver_method(provider)(key=key,
                                                secret=secret,
