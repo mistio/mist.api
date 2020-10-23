@@ -111,9 +111,9 @@ def is_private_subnet(host):
 class AmazonComputeController(BaseComputeController):
 
     def _connect(self, **kwargs):
-        return get_driver(Provider.EC2)(self.cloud.apikey,
-                                        self.cloud.apisecret,
-                                        region=self.cloud.region)
+        return get_driver(Provider.EC2)(self.cloud.apikey.value,
+                                        self.cloud.apisecret.value,
+                                        region=self.cloud.region.value)
 
     def _list_machines__machine_actions(self, machine, node_dict):
         super(AmazonComputeController, self)._list_machines__machine_actions(
@@ -631,9 +631,9 @@ class AmazonComputeController(BaseComputeController):
 class AlibabaComputeController(AmazonComputeController):
 
     def _connect(self, **kwargs):
-        return get_driver(Provider.ALIYUN_ECS)(self.cloud.apikey,
-                                               self.cloud.apisecret,
-                                               region=self.cloud.region)
+        return get_driver(Provider.ALIYUN_ECS)(self.cloud.apikey.value,
+                                               self.cloud.apisecret.value,
+                                               region=self.cloud.region.value)
 
     def _resize_machine(self, machine, node, node_size, kwargs):
         # instance must be in stopped mode
@@ -989,7 +989,7 @@ class AlibabaComputeController(AmazonComputeController):
 class DigitalOceanComputeController(BaseComputeController):
 
     def _connect(self, **kwargs):
-        return get_driver(Provider.DIGITAL_OCEAN)(self.cloud.token)
+        return get_driver(Provider.DIGITAL_OCEAN)(self.cloud.token.value)
 
     def _list_machines__postparse_machine(self, machine, node_dict):
         updated = False
@@ -1172,7 +1172,7 @@ class DigitalOceanComputeController(BaseComputeController):
 class MaxihostComputeController(BaseComputeController):
 
     def _connect(self, **kwargs):
-        return get_driver(Provider.MAXIHOST)(self.cloud.token)
+        return get_driver(Provider.MAXIHOST)(self.cloud.token.value)
 
     def _list_machines__machine_actions(self, machine, node_dict):
         super(MaxihostComputeController, self)._list_machines__machine_actions(
@@ -1504,8 +1504,8 @@ class RackSpaceComputeController(BaseComputeController):
 class SoftLayerComputeController(BaseComputeController):
 
     def _connect(self, **kwargs):
-        return get_driver(Provider.SOFTLAYER)(self.cloud.username,
-                                              self.cloud.apikey)
+        return get_driver(Provider.SOFTLAYER)(self.cloud.username.value,
+                                              self.cloud.apikey.value)
 
     def _list_machines__machine_creation_date(self, machine, node_dict):
         try:
@@ -3621,17 +3621,17 @@ class VSphereComputeController(BaseComputeController):
 class OpenStackComputeController(BaseComputeController):
 
     def _connect(self, **kwargs):
-        url = dnat(self.cloud.owner, self.cloud.url)
+        url = dnat(self.cloud.owner, self.cloud.url.value)
         return get_driver(Provider.OPENSTACK)(
-            self.cloud.username,
-            self.cloud.password,
+            self.cloud.username.value,
+            self.cloud.password.value,
             api_version='2.2',
             ex_force_auth_version='3.x_password',
-            ex_tenant_name=self.cloud.tenant,
-            ex_force_service_region=self.cloud.region,
-            ex_force_base_url=self.cloud.compute_endpoint,
+            ex_tenant_name=self.cloud.tenant.value,
+            ex_force_service_region=self.cloud.region.value,
+            ex_force_base_url=self.cloud.compute_endpoint.value,
             ex_auth_url=url,
-            ex_domain_name=self.cloud.domain or 'Default'
+            ex_domain_name=self.cloud.domain.value or 'Default'
         )
 
     def _list_machines__machine_creation_date(self, machine, node_dict):
@@ -5360,10 +5360,10 @@ class LibvirtComputeController(BaseComputeController):
 class OnAppComputeController(BaseComputeController):
 
     def _connect(self, **kwargs):
-        return get_driver(Provider.ONAPP)(key=self.cloud.username,
-                                          secret=self.cloud.apikey,
-                                          host=self.cloud.host,
-                                          verify=self.cloud.verify)
+        return get_driver(Provider.ONAPP)(key=self.cloud.username.value,
+                                          secret=self.cloud.apikey.value,
+                                          host=self.cloud.host.value,
+                                          verify=self.cloud.verify.value)
 
     def _list_machines__machine_actions(self, machine, node_dict):
         super(OnAppComputeController, self)._list_machines__machine_actions(
