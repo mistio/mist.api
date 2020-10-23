@@ -619,11 +619,6 @@ class LinodeStorageController(BaseStorageController):
 
         kwargs['location'] = node_location
 
-    def _attach_volume(self, libcloud_volume, libcloud_node, **kwargs):
-        self.cloud.ctl.compute.connection.attach_volume(libcloud_volume,
-                                                        libcloud_node)
-        self.list_volumes()
-
     def _list_volumes__postparse_volume(self, volume, libcloud_volume):
         from mist.api.machines.models import Machine
         from mist.api.clouds.models import CloudLocation
