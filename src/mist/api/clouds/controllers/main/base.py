@@ -295,6 +295,7 @@ class BaseMainController(object):
             self.cloud.validate(clean=True)
         except me.ValidationError as exc:
             log.error("Error updating %s: %s", self.cloud, exc.to_dict())
+            secret.delete()
             raise BadRequestError({'msg': str(exc),
                                    'errors': exc.to_dict()})
 
@@ -306,10 +307,12 @@ class BaseMainController(object):
                     SSLError) as exc:
                 log.error("Will not update cloud %s because "
                           "we couldn't connect: %r", self.cloud, exc)
+                secret.delete()
                 raise
             except Exception as exc:
                 log.exception("Will not update cloud %s because "
                               "we couldn't connect.", self.cloud)
+                secret.delete()
                 raise CloudUnavailableError(exc=exc)
 
         # Attempt to save.
@@ -317,10 +320,12 @@ class BaseMainController(object):
             self.cloud.save()
         except me.ValidationError as exc:
             log.error("Error updating %s: %s", self.cloud, exc.to_dict())
+            secret.delete()
             raise BadRequestError({'msg': str(exc),
                                    'errors': exc.to_dict()})
         except me.NotUniqueError as exc:
             log.error("Cloud %s not unique error: %s", self.cloud, exc)
+            secret.delete()
             raise CloudExistsError()
 
         # Execute list_images immediately, addresses flaky edit creds test
