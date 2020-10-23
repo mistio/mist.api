@@ -237,9 +237,9 @@ class Cloud(OwnershipMixin, me.Document):
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
         }
-        cdict.update({key: getattr(self, key)
+        cdict.update({key: getattr(self, key).value
                       for key in self._cloud_specific_fields
-                      if key not in self._private_fields})
+                      if (key not in self._private_fields and getattr(self, key))})
         return cdict
 
     def __str__(self):
@@ -476,7 +476,7 @@ class VSphereCloud(Cloud):
     # cases this is not necessary. The default value will fetch all requested
     # properties at once
 
-    max_properties_per_request = me.IntField(default=20)
+    max_properties_per_request = me.EmbeddedDocumentField(SecretValue, required=False)
 
     _private_fields = ('password', )
     _controller_cls = controllers.VSphereMainController

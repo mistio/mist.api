@@ -110,7 +110,7 @@ def list_secrets(schedule_id):
     """Perform list secrets in Vault. For every new secret found,
        a VaultSecret object is stored in MongoDB
     """
-
+    # TODO: Recheck!!!!
     from mist.api.poller.models import ListSecretsPollingSchedule
     sched = ListSecretsPollingSchedule.objects.get(id=schedule_id)
     owner = sched.owner
