@@ -105,24 +105,24 @@ class LinodeDNSController(BaseDNSController):
                 api_version=self.cloud.apiversion)
 
     def _create_zone__prepare_args(self, kwargs):
+        """
+        Parse keyword arguments. The request can contain
+        either `SOA_Email` or `SOA_email` and `master_ips`
+        independently of type
+        """
+        if 'SOA_email' in kwargs:
+            soa_email = kwargs.pop('SOA_email', '')
+        elif 'SOA_Email' in kwargs:
+            soa_email = kwargs.pop('SOA_Email', '')
+        if 'master_ips' in kwargs:
+            ips = kwargs.pop('master_ips', '')
+
         if kwargs['type'] == "master":
-            # kwargs can contain either 'SOA_email' or 'SOA_Email'
-            # and master_ips even though it is not used in master zones
-            if 'SOA_email' in kwargs:
-                soa_email = kwargs.pop('SOA_email', "")
-            elif 'SOA_Email' in kwargs:
-                soa_email = kwargs.pop('SOA_Email', "")
-            else:
-                raise RequiredParameterMissingError('SOA_Email')
-            # pop master_ips as it is not needed
-            if 'master_ips' in kwargs:
-                _ = kwargs.pop('master_ips')
             if self.cloud.apiversion is None:
                 kwargs['extra'] = {'soa_email': soa_email}
             else:
                 kwargs['extra'] = {'SOA_Email': soa_email}
         if kwargs['type'] == "slave":
-            ips = kwargs.pop('master_ips', "")
             if not isinstance(ips, list):
                 ips = ips.split()
             kwargs['extra'] = {'master_ips': ips}
