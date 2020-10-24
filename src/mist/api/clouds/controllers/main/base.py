@@ -258,13 +258,17 @@ class BaseMainController(object):
                 'errors': errors,
             })
         # Set fields to cloud model and perform early validation.
-        secret = VaultSecret(name='clouds/%s' % self.cloud.title,
-                             owner=self.cloud.owner)
         try:
-            secret.save()
-        except me.NotUniqueError:
-            raise BadRequestError("The path specified exists on Vault. \
-                Try changing the name of the cloud")
+            secret = VaultSecret.objects.get(name='clouds/%s' % self.cloud.title,
+                                             owner=self.cloud.owner)
+        except me.DoesNotExist:
+            secret = VaultSecret(name='clouds/%s' % self.cloud.title,
+                                 owner=self.cloud.owner)
+            try:
+                secret.save()
+            except me.NotUniqueError:
+                raise BadRequestError("The path specified exists on Vault. \
+                    Try changing the name of the cloud")
         for key, value in kwargs.items():
             secret.ctl.create_secret(self.cloud.owner.name, key, value)
             secret_value = SecretValue(secret=secret, key=key)
