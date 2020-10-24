@@ -400,6 +400,27 @@ class Machine(OwnershipMixin, me.Document):
         except (AttributeError, me.DoesNotExist) as exc:
             log.error(exc)
 
+    def as_dict_v2(self, deref='auto', only=''):
+        only_fields = only.split(',')
+        deref_fields = [] if deref == 'auto' else deref.split(',')
+        ret = {}
+        if self.id or 'id' in only_fields:
+            ret['id'] = self.id
+        if self.name or 'name' in only_fields:
+            ret['name'] = self.name
+        if self.cloud or 'cloud' in only_fields:
+            if deref == 'auto':
+                ret['cloud'] = self.cloud.title
+            else:
+                deref_filtered = [f for f in deref_fields
+                                    if f.strip().startswith('cloud:')]
+                if deref_filtered:
+                    target = deref_filtered[0].split(':')[1]
+                    ret['cloud'] = getattr(self.cloud, target, None)
+                else:
+                    ret['cloud'] = self.cloud.id
+        return ret
+
     def as_dict(self):
         # Return a dict as it will be returned to the API
         tags = {tag.key: tag.value for tag in mist.api.tag.models.Tag.objects(
