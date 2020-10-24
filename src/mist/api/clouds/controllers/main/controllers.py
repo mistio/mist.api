@@ -147,7 +147,7 @@ class RackSpaceMainController(BaseMainController):
                                              username=username,
                                              deleted=None).first()
             if cloud is not None:
-                kwargs['apikey'] = cloud.apikey
+                kwargs['apikey'] = cloud.apikey.value
 
 
 class SoftLayerMainController(BaseMainController):
