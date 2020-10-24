@@ -76,11 +76,13 @@ class AmazonMainController(BaseMainController):
         apikey = kwargs.get('apikey')
         apisecret = kwargs.get('apisecret')
         if apikey and apisecret == 'getsecretfromdb':
-            cloud = type(self.cloud).objects(owner=self.cloud.owner,
-                                             apikey=apikey,
-                                             deleted=None).first()
-            if cloud is not None:
-                kwargs['apisecret'] = cloud.apisecret
+            amazon_clouds = type(self.cloud).objects(owner=self.cloud.owner,
+                                                     deleted=None)
+            if amazon_clouds:
+                for amazon_cloud in amazon_clouds:
+                    if amazon_cloud.apikey.value == apikey:
+                        kwargs['apisecret'] = amazon_cloud.apisecret.value
+                        break
 
 
 class AlibabaMainController(AmazonMainController):
