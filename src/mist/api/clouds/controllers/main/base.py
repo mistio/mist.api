@@ -259,8 +259,8 @@ class BaseMainController(object):
             })
         # Set fields to cloud model and perform early validation.
         try:
-            secret = VaultSecret.objects.get(name='clouds/%s' % self.cloud.title,
-                                             owner=self.cloud.owner)
+            secret = VaultSecret.objects.get(name='clouds/%s' % self.cloud.
+                                             title, owner=self.cloud.owner)
         except me.DoesNotExist:
             secret = VaultSecret(name='clouds/%s' % self.cloud.title,
                                  owner=self.cloud.owner)
