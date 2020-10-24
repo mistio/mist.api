@@ -90,7 +90,7 @@ def rename_cloud(owner, cloud_id, new_name):
     trigger_session_update(owner, ['clouds'])
 
 
-def delete_cloud(owner, cloud_id):
+def delete_cloud(owner, cloud_id, delete_from_vault=False):
     """Deletes cloud with given cloud_id."""
 
     log.info("Deleting cloud: %s", cloud_id)
@@ -108,6 +108,16 @@ def delete_cloud(owner, cloud_id):
         raise NotFoundError('Cloud does not exist')
 
     log.info("Successfully deleted cloud '%s'", cloud_id)
+
+    if delete_from_vault:
+        if cloud._private_fields:
+            getattr(cloud, cloud._private_fields[0]).secret.ctl.delete_secret(
+                owner.name)
+            from mist.api.secrets.models import VaultSecret
+            secret = VaultSecret.objects.get(owner=owner,
+                                             name='clouds/%s' % cloud.title)
+            secret.delete()
+
     trigger_session_update(owner, ['clouds'])
     c_count = Cloud.objects(owner=owner, deleted=None).count()
     if owner.clouds_count != c_count:

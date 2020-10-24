@@ -275,7 +275,9 @@ def delete_cloud(request):
     except Cloud.DoesNotExist:
         raise NotFoundError('Cloud does not exist')
     auth_context.check_perm('cloud', 'remove', cloud_id)
-    m_delete_cloud(auth_context.owner, cloud_id)
+    params = params_from_request(request)
+    delete_from_vault = params.get('delete_from_vault', False)
+    m_delete_cloud(auth_context.owner, cloud_id, delete_from_vault)
     return OK
 
 
