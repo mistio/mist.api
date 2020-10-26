@@ -594,7 +594,7 @@ class HostVirtualCloud(Cloud):
 class EquinixMetalCloud(Cloud):
 
     apikey = me.EmbeddedDocumentField(SecretValue, required=True)
-    project_id = me.StringField(required=True)
+    project_id = me.StringField(required=False)
 
     _private_fields = ('apikey', )
     _controller_cls = controllers.EquinixMetalMainController
@@ -660,29 +660,27 @@ class DockerCloud(Cloud):
     cert_file = me.StringField(required=False)
     ca_cert_file = me.StringField(required=False)
     # Show running and stopped containers
-    # TODO: this or `casing` when parsing params?
     show_all = me.BooleanField(default=False)
 
     _private_fields = ('password', 'key_file')
     _controller_cls = controllers.DockerMainController
-
 
 class LXDCloud(Cloud):
     """
     Model  specializing Cloud for LXC.
     """
 
-    host = me.EmbeddedDocumentField(SecretValue, required=True)
-    port = me.EmbeddedDocumentField(SecretValue, required=True, default=8443)
+    host = me.StringField(required=True)
+    port = me.IntField(required=True, default=8443)
 
     # User/Password Authentication (optional)
-    username = me.EmbeddedDocumentField(SecretValue, required=False)
+    username = me.StringField(required=False)
     password = me.EmbeddedDocumentField(SecretValue, required=False)
 
     # TLS Authentication (optional)
     key_file = me.EmbeddedDocumentField(SecretValue, required=False)
-    cert_file = me.EmbeddedDocumentField(SecretValue, required=False)
-    ca_cert_file = me.EmbeddedDocumentField(SecretValue, required=False)
+    cert_file = me.StringField(required=False)
+    ca_cert_file = me.StringField(required=False)
 
     # Show running and stopped containers
     show_all = me.BooleanField(default=False)
