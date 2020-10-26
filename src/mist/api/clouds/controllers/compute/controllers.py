@@ -2090,8 +2090,8 @@ class LXDComputeController(BaseComputeController):
         )
 
     def _connect(self, **kwargs):
-        host, port = dnat(self.cloud.owner, self.cloud.host.value,
-                          self.cloud.port.value)
+        host, port = dnat(self.cloud.owner, self.cloud.host,
+                          self.cloud.port)
 
         try:
             socket.setdefaulttimeout(15)
@@ -2102,7 +2102,7 @@ class LXDComputeController(BaseComputeController):
             raise Exception("Make sure host is accessible "
                             "and LXD port is specified")
 
-        if self.cloud.key_file.value and self.cloud.cert_file.value:
+        if self.cloud.key_file.value and self.cloud.cert_file:
             tls_auth = self._tls_authenticate(host=host, port=port)
 
             if tls_auth is None:
@@ -2111,10 +2111,10 @@ class LXDComputeController(BaseComputeController):
             return tls_auth
 
         # Username/Password authentication.
-        if self.cloud.username.value and self.cloud.password.value:
+        if self.cloud.username and self.cloud.password.value:
 
             return get_container_driver(Container_Provider.LXD)(
-                key=self.cloud.username.value,
+                key=self.cloud.username,
                 secret=self.cloud.password.value,
                 host=host, port=port)
         # open authentication.
@@ -2131,13 +2131,13 @@ class LXDComputeController(BaseComputeController):
         key_temp_file.write(self.cloud.key_file.value.encode())
         key_temp_file.close()
         cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
-        cert_temp_file.write(self.cloud.cert_file.value.encode())
+        cert_temp_file.write(self.cloud.cert_file.encode())
         cert_temp_file.close()
         ca_cert = None
 
         if self.cloud.ca_cert_file:
             ca_cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
-            ca_cert_temp_file.write(self.cloud.ca_cert_file.value.encode())
+            ca_cert_temp_file.write(self.cloud.ca_cert_file.encode())
             ca_cert_temp_file.close()
             ca_cert = ca_cert_temp_file.name
 
