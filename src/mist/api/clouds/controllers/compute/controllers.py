@@ -106,9 +106,9 @@ def is_private_subnet(host):
 class AmazonComputeController(BaseComputeController):
 
     def _connect(self, **kwargs):
-        return get_driver(Provider.EC2)(self.cloud.apikey.value,
+        return get_driver(Provider.EC2)(self.cloud.apikey,
                                         self.cloud.apisecret.value,
-                                        region=self.cloud.region.value)
+                                        region=self.cloud.region)
 
     def _list_machines__machine_actions(self, machine, node_dict):
         super(AmazonComputeController, self)._list_machines__machine_actions(
@@ -230,11 +230,15 @@ class AmazonComputeController(BaseComputeController):
     def _list_images__fetch_images(self, search=None):
         if not search:
             from mist.api.images.models import CloudImage
+<<<<<<< HEAD
             images_file = os.path.join(config.MIST_API_DIR,
                                        config.EC2_IMAGES_FILE)
             with open(images_file, 'r') as f:
                 default_images = json.load(f)[self.cloud.region]
 
+=======
+            default_images = config.EC2_IMAGES[self.cloud.region]
+>>>>>>> Only store private_fields in Vault
             image_ids = list(default_images.keys())
             try:
                 # this might break if image_ids contains starred images
@@ -557,9 +561,9 @@ class AmazonComputeController(BaseComputeController):
 class AlibabaComputeController(AmazonComputeController):
 
     def _connect(self, **kwargs):
-        return get_driver(Provider.ALIYUN_ECS)(self.cloud.apikey.value,
+        return get_driver(Provider.ALIYUN_ECS)(self.cloud.apikey,
                                                self.cloud.apisecret.value,
-                                               region=self.cloud.region.value)
+                                               region=self.cloud.region)
 
     def _resize_machine(self, machine, node, node_size, kwargs):
         # instance must be in stopped mode
@@ -918,12 +922,33 @@ class MaxihostComputeController(BaseComputeController):
 class LinodeComputeController(BaseComputeController):
 
     def _connect(self, **kwargs):
+<<<<<<< HEAD
         if self.cloud.apiversion is not None:
             return get_driver(Provider.LINODE)(
                 self.cloud.apikey.value,
                 api_version=self.cloud.apiversion)
         else:
             return get_driver(Provider.LINODE)(self.cloud.apikey.value)
+=======
+        return get_driver(Provider.GIG_G8)(self.cloud.user_id,
+                                           self.cloud.apikey.value,
+                                           self.cloud.url)
+
+    def _list_machines__postparse_machine(self, machine, node_dict):
+        # Discover network of machine.
+        network_id = node_dict['extra'].get('network_id', None)
+        if network_id:
+            from mist.api.networks.models import Network
+            try:
+                machine.network = Network.objects.get(cloud=self.cloud,
+                                                      network_id=network_id,
+                                                      missing_since=None)
+            except Network.DoesNotExist:
+                machine.network = None
+
+        if machine.network:
+            machine.public_ips = [machine.network.public_ip]
+>>>>>>> Only store private_fields in Vault
 
     def _list_machines__machine_creation_date(self, machine, node_dict):
         if self.cloud.apiversion is not None:
@@ -1096,12 +1121,12 @@ class LinodeComputeController(BaseComputeController):
 class RackSpaceComputeController(BaseComputeController):
 
     def _connect(self, **kwargs):
-        if self.cloud.region.value in ('us', 'uk'):
+        if self.cloud.region in ('us', 'uk'):
             driver = get_driver(Provider.RACKSPACE_FIRST_GEN)
         else:
             driver = get_driver(Provider.RACKSPACE)
-        return driver(self.cloud.username.value, self.cloud.apikey.value,
-                      region=self.cloud.region.value)
+        return driver(self.cloud.username, self.cloud.apikey.value,
+                      region=self.cloud.region)
 
     def _list_machines__machine_creation_date(self, machine, node_dict):
         return node_dict['extra'].get('created')  # iso8601 string
@@ -1183,7 +1208,7 @@ class RackSpaceComputeController(BaseComputeController):
 class SoftLayerComputeController(BaseComputeController):
 
     def _connect(self, **kwargs):
-        return get_driver(Provider.SOFTLAYER)(self.cloud.username.value,
+        return get_driver(Provider.SOFTLAYER)(self.cloud.username,
                                               self.cloud.apikey.value)
 
     def _list_machines__machine_creation_date(self, machine, node_dict):
@@ -1368,9 +1393,9 @@ class AzureComputeController(BaseComputeController):
 class AzureArmComputeController(BaseComputeController):
 
     def _connect(self, **kwargs):
-        return get_driver(Provider.AZURE_ARM)(self.cloud.tenant_id.value,
-                                              self.cloud.subscription_id.value,
-                                              self.cloud.key.value,
+        return get_driver(Provider.AZURE_ARM)(self.cloud.tenant_id,
+                                              self.cloud.subscription_id,
+                                              self.cloud.key,
                                               self.cloud.secret.value)
 
     def _list_machines__postparse_machine(self, machine, node_dict):
@@ -1723,9 +1748,9 @@ class AzureArmComputeController(BaseComputeController):
 class GoogleComputeController(BaseComputeController):
 
     def _connect(self, **kwargs):
-        return get_driver(Provider.GCE)(self.cloud.email.value,
+        return get_driver(Provider.GCE)(self.cloud.email,
                                         self.cloud.private_key.value,
-                                        project=self.cloud.project_id.value)
+                                        project=self.cloud.project_id)
 
     def _list_machines__get_machine_extra(self, machine, node_dict):
         # FIXME: we delete the extra.metadata for now because it can be
@@ -2711,20 +2736,20 @@ class VSphereComputeController(BaseComputeController):
         ca_cert = None
         if self.cloud.ca_cert_file.value:
             ca_cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
-            ca_cert_temp_file.write(self.cloud.ca_cert_file.value.encode())
+            ca_cert_temp_file.write(self.cloud.ca_cert_file.encode())
             ca_cert_temp_file.close()
             ca_cert = ca_cert_temp_file.name
 
         host, port = dnat(self.cloud.owner, self.cloud.host.value, 443)
         driver_6_5 = VSphereNodeDriver(host=host,
-                                       username=self.cloud.username.value,
+                                       username=self.cloud.username,
                                        password=self.cloud.password.value,
                                        port=port,
                                        ca_cert=ca_cert)
         self.version = driver_6_5._get_version()
         if '6.7' in self.version and config.ENABLE_VSPHERE_REST:
             self.version = '6.7'
-            return VSphere_6_7_NodeDriver(self.cloud.username.value,
+            return VSphere_6_7_NodeDriver(self.cloud.username,
                                           secret=self.cloud.password.value,
                                           host=host,
                                           port=port,
@@ -2914,10 +2939,10 @@ class VSphereComputeController(BaseComputeController):
 class VCloudComputeController(BaseComputeController):
 
     def _connect(self, **kwargs):
-        host = dnat(self.cloud.owner, self.cloud.host.value)
-        return get_driver(self.provider)(self.cloud.username.value,
+        host = dnat(self.cloud.owner, self.cloud.host)
+        return get_driver(self.provider)(self.cloud.username,
                                          self.cloud.password.value, host=host,
-                                         port=int(self.cloud.port.value)
+                                         port=int(self.cloud.port)
                                          )
 
     def _list_machines__machine_actions(self, machine, node_dict):
@@ -2939,17 +2964,17 @@ class VCloudComputeController(BaseComputeController):
 class OpenStackComputeController(BaseComputeController):
 
     def _connect(self, **kwargs):
-        url = dnat(self.cloud.owner, self.cloud.url.value)
+        url = dnat(self.cloud.owner, self.cloud.url)
         return get_driver(Provider.OPENSTACK)(
-            self.cloud.username.value,
+            self.cloud.username,
             self.cloud.password.value,
             api_version='2.2',
             ex_force_auth_version='3.x_password',
-            ex_tenant_name=self.cloud.tenant.value,
-            ex_force_service_region=self.cloud.region.value,
-            ex_force_base_url=self.cloud.compute_endpoint.value,
+            ex_tenant_name=self.cloud.tenant,
+            ex_force_service_region=self.cloud.region,
+            ex_force_base_url=self.cloud.compute_endpoint,
             ex_auth_url=url,
-            ex_domain_name=self.cloud.domain.value or 'Default'
+            ex_domain_name=self.cloud.domain or 'Default'
         )
 
     def _list_machines__machine_creation_date(self, machine, node_dict):
@@ -3048,8 +3073,8 @@ class DockerComputeController(BaseComputeController):
         self._dockerhost = None
 
     def _connect(self, **kwargs):
-        host, port = dnat(self.cloud.owner, self.cloud.host.value,
-                          self.cloud.port.value)
+        host, port = dnat(self.cloud.owner, self.cloud.host,
+                          self.cloud.port)
 
         try:
             socket.setdefaulttimeout(15)
@@ -3066,12 +3091,12 @@ class DockerComputeController(BaseComputeController):
             key_temp_file.write(self.cloud.key_file.value.encode())
             key_temp_file.close()
             cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
-            cert_temp_file.write(self.cloud.cert_file.value.encode())
+            cert_temp_file.write(self.cloud.cert_file.encode())
             cert_temp_file.close()
             ca_cert = None
             if self.cloud.ca_cert_file:
                 ca_cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
-                ca_cert_temp_file.write(self.cloud.ca_cert_file.value.encode())
+                ca_cert_temp_file.write(self.cloud.ca_cert_file.encode())
                 ca_cert_temp_file.close()
                 ca_cert = ca_cert_temp_file.name
 
@@ -3086,7 +3111,7 @@ class DockerComputeController(BaseComputeController):
         if self.cloud.username and self.cloud.password:
 
             return get_container_driver(Container_Provider.DOCKER)(
-                key=self.cloud.username.value,
+                key=self.cloud.username,
                 secret=self.cloud.password.value,
                 host=host, port=port)
         # open authentication.
@@ -3179,7 +3204,7 @@ class DockerComputeController(BaseComputeController):
         # Update dockerhost machine model fields.
         changed = False
         for attr, val in {'name': self.cloud.name,
-                          'hostname': self.cloud.host.value,
+                          'hostname': self.cloud.host,
                           'machine_type': 'container-host'}.items():
             if getattr(machine, attr) != val:
                 setattr(machine, attr, val)
@@ -3230,7 +3255,7 @@ class DockerComputeController(BaseComputeController):
         if not node_id:
             node_id = result.get('ID', '')
 
-        host = sanitize_host(self.cloud.host.value)
+        host = sanitize_host(self.cloud.host)
         public_ips, private_ips = [], []
         if is_private_subnet(host):
             private_ips.append(host)
@@ -4042,10 +4067,10 @@ class LibvirtComputeController(BaseComputeController):
 class OnAppComputeController(BaseComputeController):
 
     def _connect(self, **kwargs):
-        return get_driver(Provider.ONAPP)(key=self.cloud.username.value,
+        return get_driver(Provider.ONAPP)(key=self.cloud.username,
                                           secret=self.cloud.apikey.value,
-                                          host=self.cloud.host.value,
-                                          verify=self.cloud.verify.value)
+                                          host=self.cloud.host,
+                                          verify=self.cloud.verify)
 
     def _list_machines__machine_actions(self, machine, node_dict):
         super(OnAppComputeController, self)._list_machines__machine_actions(
@@ -4297,7 +4322,7 @@ class OtherComputeController(BaseComputeController):
 class _KubernetesBaseComputeController(BaseComputeController):
     def _connect(self, provider, use_container_driver=True, **kwargs):
         host, port = dnat(self.cloud.owner,
-                          self.cloud.host.value, self.cloud.port.value)
+                          self.cloud.host, self.cloud.port)
         try:
             socket.setdefaulttimeout(15)
             so = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -4311,7 +4336,7 @@ class _KubernetesBaseComputeController(BaseComputeController):
         else:
             get_driver_method = get_driver
 
-        # verify = self.cloud.verify.value if self.cloud.verify else False
+        # verify = self.cloud.verify if self.cloud.verify else False
 
         ca_cert = None
         if self.cloud.ca_cert_file.value:
@@ -4348,8 +4373,8 @@ class _KubernetesBaseComputeController(BaseComputeController):
                                                ca_cert=ca_cert,
                                                ex_token_bearer_auth=True)
         # username/password auth
-        elif self.cloud.username.value and self.cloud.password.value:
-            key = self.cloud.username.value
+        elif self.cloud.username and self.cloud.password.value:
+            key = self.cloud.username
             secret = self.cloud.password.value
 
             return get_driver_method(provider)(key=key,
