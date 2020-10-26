@@ -605,12 +605,6 @@ class GigG8StorageController(BaseStorageController):
 
 class LinodeStorageController(BaseStorageController):
 
-    def __init__(self, main_ctl):
-        super(LinodeStorageController, self).__init__(main_ctl)
-        if self.cloud.apiversion is not None:
-            raise BadRequestError("Volume provisioning is not supported \
-            for Linode's older API version")
-
     def _create_volume__prepare_args(self, kwargs):
         from mist.api.clouds.models import CloudLocation
         if not kwargs.get('location'):
