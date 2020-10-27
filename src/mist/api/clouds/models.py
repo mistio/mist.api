@@ -527,6 +527,7 @@ class DockerCloud(Cloud):
     _private_fields = ('password', 'key_file')
     _controller_cls = controllers.DockerMainController
 
+
 class LXDCloud(Cloud):
     """
     Model  specializing Cloud for LXC.

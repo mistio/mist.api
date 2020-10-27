@@ -358,6 +358,10 @@ def add_routes(configurator):
     configurator.add_route('api_v1_schedule',
                            '/api/v1/schedules/{schedule_id}')
 
+    # Secrets
+    configurator.add_route('api_v1_secrets', '/api/v1/secrets')
+    configurator.add_route('api_v1_secret', '/api/v1/secrets/{secret_id}')
+
     # Tokens & sessions
     configurator.add_route('api_v1_tokens', '/api/v1/tokens')
     configurator.add_route('api_v1_sessions', '/api/v1/sessions')

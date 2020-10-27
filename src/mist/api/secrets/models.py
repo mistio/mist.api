@@ -65,6 +65,13 @@ class Secret(OwnershipMixin, me.Document):
         return '%s secret %s (%s) of %s' % (type(self), self.name,
                                             self.id, self.owner)
 
+    def as_dict(self):
+        s_dict = {
+            'id': self.id,
+            'name': self.name
+        }
+        return s_dict
+
 
 class VaultSecret(Secret):
     """ A Vault Secret object """

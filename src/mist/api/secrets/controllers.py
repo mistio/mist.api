@@ -1,9 +1,22 @@
 import hvac
 import logging
 
+import mongoengine as me
+
 from mist.api import config
 
+from mist.api.exceptions import BadRequestError
+
 log = logging.getLogger(__name__)
+
+
+def create_secret_name(path):
+    if path == '.':
+        return ''
+    elif not path.endswith('/'):
+        return path + '/'
+    else:
+        return path
 
 
 class BaseSecretController(object):
@@ -28,11 +41,46 @@ class VaultSecretController(BaseSecretController):
         token = config.VAULT_TOKEN
         url = config.VAULT_ADDR
 
-        self.client = hvac.Client(url=url, token=token)
-        assert(self.client.is_authenticated())
+        self.client = hvac.Client(url=url, token='s.Stog1SrqidWVQcr6R60N446a')
+        try:
+            self.client.is_authenticated()
+        except hvac.exceptions.VaultDown:
+            raise BadRequestError("Vault is sealed.")
+
+    def list_secrets(self, owner, path):
+        import ipdb; ipdb.set_trace()
+        try:
+            response = self.client.secrets.kv.v2.list_secrets(
+                        mount_point=owner.name,
+                        path=path
+                    )
+        except hvac.exceptions.InvalidPath:
+            raise BadRequestError("The path specified does not exist in Vault.")
+
+        path = create_secret_name(path)
+        from mist.api.secrets.models import VaultSecret
+        secrets = []
+        for key in response['data']['keys']:
+            if not key.endswith('/'):  # if not a dir
+                try:
+                    secret = VaultSecret.objects.get(name=path + key,
+                                                     owner=owner)
+                except me.DoesNotExist:
+                    secret = VaultSecret(name=path + key,
+                                         owner=owner)
+                    secret.save()
+                secrets.append(secret)
+            else:
+                import ipdb; ipdb.set_trace()
+                # find recursively all the secrets
+                secrets += self.list_secrets(owner, key)
+
+        import ipdb; ipdb.set_trace()
+        return secrets
 
     def create_secret(self, org_name, key, value):
         """ Create a Vault KV* Secret """
+        import ipdb; ipdb.set_trace()
         try:
             self.client.secrets.kv.v2.patch(
                 mount_point=org_name,
@@ -71,6 +119,7 @@ class VaultSecretController(BaseSecretController):
 
     def delete_secret(self, org_name):
         " Delete a Vault KV* Secret"
+        import ipdb; ipdb.set_trace()
         self.client.secrets.kv.v2.delete_latest_version_of_secret(
             mount_point=org_name,
             path=self.secret.name
