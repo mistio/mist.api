@@ -413,7 +413,7 @@ class Machine(OwnershipMixin, me.Document):
                 ret['cloud'] = self.cloud.title
             else:
                 deref_filtered = [f for f in deref_fields
-                                    if f.strip().startswith('cloud:')]
+                                  if f.strip().startswith('cloud:')]
                 if deref_filtered:
                     target = deref_filtered[0].split(':')[1]
                     ret['cloud'] = getattr(self.cloud, target, None)

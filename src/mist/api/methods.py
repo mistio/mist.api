@@ -532,7 +532,8 @@ def list_resources(auth_context, resource_type, search='', cloud='',
         query['missing_since'] = None
 
     if cloud:
-        clouds, _ = list_resources(auth_context, 'cloud', search=cloud, only='id')
+        clouds, _ = list_resources(auth_context, 'cloud',
+                                   search=cloud, only='id')
         query['cloud__in'] = clouds
 
     search = search or ''
@@ -567,7 +568,8 @@ def list_resources(auth_context, resource_type, search='', cloud='',
 
     if not result.count() and query.get('id'):
         # Try searching for name or title field
-        field_name = 'name' if getattr(resource_model, 'name', None) else 'title'
+        field_name = 'name' if getattr(
+            resource_model, 'name', None) else 'title'
         query[field_name] = query.pop('id')
         result = resource_model.objects(**query)
 
