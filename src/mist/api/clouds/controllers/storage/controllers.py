@@ -364,7 +364,7 @@ class AlibabaStorageController(BaseStorageController):
                 volume.actions.detach = False
 
 
-class PacketStorageController(BaseStorageController):
+class EquinixMetalStorageController(BaseStorageController):
 
     def _create_volume__prepare_args(self, kwargs):
         # FIXME Imported here due to circular dependency issues.
