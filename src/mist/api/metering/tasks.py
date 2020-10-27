@@ -108,11 +108,13 @@ def push_metering_info(owner_id):
             timeout=15
         )
         if not result.ok:
-            raise Exception('Could not fetch gocky datapoints counters from TSFDB')
+            raise Exception(
+                'Could not fetch gocky datapoints counters from TSFDB')
         result = result.json()
         for _, datapoints in result['series'].items():
             if datapoints:
-                metering[owner_id]['datapoints'] += max(datapoints,key=lambda x: x[0])[0]
+                metering[owner_id]['datapoints'] += max(
+                    datapoints, key=lambda x: x[0])[0]
     except Exception as exc:
         log.error('Failed upon datapoints metering: %r', exc)
 
@@ -126,9 +128,9 @@ def push_metering_info(owner_id):
     # Write metering data.
     data = '\n'.join(points)
     write = requests.post(
-            "%s/v1/metering/datapoints" % (config.TSFDB_URI),
-            headers={'x-org-id': owner_id}, data=data,
-            timeout=15
-        )
+        "%s/v1/metering/datapoints" % (config.TSFDB_URI),
+        headers={'x-org-id': owner_id}, data=data,
+        timeout=15
+    )
     if not write.ok:
         log.error('Failed to write metering data: %s', write.text)

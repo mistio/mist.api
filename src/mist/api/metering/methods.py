@@ -35,6 +35,7 @@ def _merge_series(ensure_keys=None, *series_lists):
 
     return data
 
+
 def get_usage(owner_id='', full_days=6):
     """Request metering data
 
@@ -53,7 +54,8 @@ def get_usage(owner_id='', full_days=6):
         )
         try:
             result = requests.get(
-                "%s/v1/metering/datapoints?query=%s" % (config.TSFDB_URI, query),
+                "%s/v1/metering/datapoints?query=%s" % (
+                    config.TSFDB_URI, query),
                 headers={'x-org-id': owner_id},
                 timeout=15
             )
@@ -74,6 +76,7 @@ def get_usage(owner_id='', full_days=6):
             'usage': data[d]
         } for d in sorted(data)
     ]
+
 
 def get_current_portal_usage():
     usage = get_usage(owner_id='', full_days=2)
