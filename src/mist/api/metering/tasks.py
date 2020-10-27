@@ -100,22 +100,19 @@ def push_metering_info(owner_id):
             log.error('Failed upon checks metering of %s: %r', rule.id, exc)
 
     # Datapoints
-    q = '\n'.join((
-        "SELECT SUM(partial_machine_counter) AS counter",
-        "FROM (",
-        "    SELECT MAX(counter) AS partial_machine_counter",
-        "    FROM datapoints",
-        "    WHERE owner = '{owner_id}' AND time >= now() - 30m",
-        "    GROUP BY machine,gockyId",
-        ")",
-        "GROUP BY machine",
-    )).format(owner_id=owner_id)
+    query = ('fetch("*.dp.gocky.*counter", start="-30m", stop="", step="")')
     try:
-        result = requests.post('%s/query?db=metering' % url,
-                               data={'q': q}).json()
-        result = result['results'][0]['series']
-        for series in result:
-            metering[owner_id]['datapoints'] += series['values'][0][-1]
+        result = requests.get(
+            "%s/v1/metering/datapoints?query=%s" % (config.TSFDB_URI, query),
+            headers={'x-org-id': owner_id},
+            timeout=15
+        )
+        if not result.ok:
+            raise Exception('Could not fetch gocky datapoints counters from TSFDB')
+        result = result.json()
+        for _, datapoints in result['series'].items():
+            if datapoints:
+                metering[owner_id]['datapoints'] += max(datapoints,key=lambda x: x[0])[0]
     except Exception as exc:
         log.error('Failed upon datapoints metering: %r', exc)
 
@@ -123,11 +120,15 @@ def push_metering_info(owner_id):
     points = []
     for owner, counters in metering.items():
         value = ','.join(['%s=%s' % (k, v) for k, v in counters.items()])
-        point = 'usage,owner=%s %s' % (owner, value)
+        point = 'usage,machine_id=%s %s' % (owner, value)
         points.append(point)
 
     # Write metering data.
     data = '\n'.join(points)
-    write = requests.post('%s/write?db=metering&precision=s' % url, data=data)
+    write = requests.post(
+            "%s/v1/metering/datapoints" % (config.TSFDB_URI),
+            headers={'x-org-id': owner_id}, data=data,
+            timeout=15
+        )
     if not write.ok:
         log.error('Failed to write metering data: %s', write.text)
