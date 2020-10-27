@@ -3,6 +3,7 @@ import datetime
 import requests
 
 from mist.api import config
+from mist.api.models import Organization
 
 
 log = logging.getLogger(__name__)
@@ -33,7 +34,7 @@ def _merge_series(ensure_keys=None, *series_lists):
     return data
 
 
-def get_usage(owner_id='', full_days=6):
+def get_usage(owner_id, full_days=6):
     """Request metering data
 
     If no owner_id is specified, then sum for all owners.
@@ -76,9 +77,14 @@ def get_usage(owner_id='', full_days=6):
 
 
 def get_current_portal_usage():
-    usage = get_usage(owner_id='', full_days=2)
-    current = usage[-2]['usage']
-    for k in current:
-        if current[k] is None:
-            current[k] = 0
-    return current
+    metrics = ['cores', 'checks', 'datapoints']
+    result = {}
+    for metric in metrics:
+        result.setdefault(metric, 0)
+    for org in Organization.objects():
+        usage = get_usage(owner_id=org.id, full_days=2)
+        current = usage[-2]['usage']
+        for k in current:
+            if current[k] is not None:
+                result[k] += current[k]
+    return result
