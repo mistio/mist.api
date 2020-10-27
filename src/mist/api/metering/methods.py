@@ -4,9 +4,6 @@ import requests
 
 from mist.api import config
 
-from mist.api.exceptions import BadRequestError
-from mist.api.exceptions import ServiceUnavailableError
-
 
 log = logging.getLogger(__name__)
 
