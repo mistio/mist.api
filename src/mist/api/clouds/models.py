@@ -454,11 +454,16 @@ class EquinixMetalCloud(Cloud):
     _controller_cls = controllers.EquinixMetalMainController
 
 
-class PacketCloud(EquinixMetalCloud):
+class PacketCloud(Cloud):
     """
         For backwards compatibility, to prevent poller crashes
         TODO: Remove in v5
     """
+    apikey = me.StringField(required=True)
+    project_id = me.StringField(required=False)
+
+    _private_fields = ('apikey', )
+    _controller_cls = controllers.EquinixMetalMainController
 
 
 class VultrCloud(Cloud):
