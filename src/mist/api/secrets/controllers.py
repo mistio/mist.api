@@ -76,7 +76,7 @@ class VaultSecretController(BaseSecretController):
 
         return secrets
 
-    def create_secret(self, org_name, secret):
+    def create_or_update_secret(self, org_name, secret):
         """ Create a Vault KV* Secret """
         try:
             self.client.secrets.kv.v2.patch(
