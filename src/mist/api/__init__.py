@@ -360,7 +360,7 @@ def add_routes(configurator):
 
     # Secrets
     configurator.add_route('api_v1_secrets', '/api/v1/secrets')
-    configurator.add_route('api_v1_secret', '/api/v1/secrets/{secret_id}')
+    configurator.add_route('api_v1_secret', '/api/v1/secrets/{secret}')
 
     # Tokens & sessions
     configurator.add_route('api_v1_tokens', '/api/v1/tokens')

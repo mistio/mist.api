@@ -48,7 +48,6 @@ class VaultSecretController(BaseSecretController):
             raise BadRequestError("Vault is sealed.")
 
     def list_secrets(self, owner, path):
-        import ipdb; ipdb.set_trace()
         try:
             response = self.client.secrets.kv.v2.list_secrets(
                         mount_point=owner.name,
@@ -71,11 +70,9 @@ class VaultSecretController(BaseSecretController):
                     secret.save()
                 secrets.append(secret)
             else:
-                import ipdb; ipdb.set_trace()
                 # find recursively all the secrets
                 secrets += self.list_secrets(owner, key)
 
-        import ipdb; ipdb.set_trace()
         return secrets
 
     def create_secret(self, org_name, key, value):
@@ -117,10 +114,13 @@ class VaultSecretController(BaseSecretController):
 
         return api_response
 
-    def delete_secret(self, org_name):
+    def delete_secret(self):
         " Delete a Vault KV* Secret"
         import ipdb; ipdb.set_trace()
-        self.client.secrets.kv.v2.delete_latest_version_of_secret(
-            mount_point=org_name,
+        self.client.secrets.kv.v2.delete_metadata_and_all_versions(
+            mount_point=self.secret.owner.name,
             path=self.secret.name
         )
+
+        # list all secrets
+        self.list_secrets(self.secret.owner, path='.')
