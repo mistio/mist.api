@@ -41,7 +41,7 @@ class VaultSecretController(BaseSecretController):
         token = config.VAULT_TOKEN
         url = config.VAULT_ADDR
 
-        self.client = hvac.Client(url=url, token='s.Stog1SrqidWVQcr6R60N446a')
+        self.client = hvac.Client(url=url, token=token)
         try:
             self.client.is_authenticated()
         except hvac.exceptions.VaultDown:
@@ -50,11 +50,12 @@ class VaultSecretController(BaseSecretController):
     def list_secrets(self, owner, path):
         try:
             response = self.client.secrets.kv.v2.list_secrets(
-                        mount_point=owner.name,
-                        path=path
-                    )
+                mount_point=owner.name,
+                path=path
+            )
         except hvac.exceptions.InvalidPath:
-            raise BadRequestError("The path specified does not exist in Vault.")
+            raise BadRequestError("The path specified does not exist \
+                in Vault.")
 
         path = create_secret_name(path)
         from mist.api.secrets.models import VaultSecret
@@ -77,7 +78,6 @@ class VaultSecretController(BaseSecretController):
 
     def create_secret(self, org_name, key, value):
         """ Create a Vault KV* Secret """
-        import ipdb; ipdb.set_trace()
         try:
             self.client.secrets.kv.v2.patch(
                 mount_point=org_name,
@@ -116,7 +116,6 @@ class VaultSecretController(BaseSecretController):
 
     def delete_secret(self):
         " Delete a Vault KV* Secret"
-        import ipdb; ipdb.set_trace()
         self.client.secrets.kv.v2.delete_metadata_and_all_versions(
             mount_point=self.secret.owner.name,
             path=self.secret.name
