@@ -76,7 +76,7 @@ def create_secret(request):
         raise BadRequestError("The path specified exists on Vault. \
                     Try changing the name of the secret")
 
-    _secret.ctl.create_secret(owner.name, secret)
+    _secret.ctl.create_or_update_secret(owner.name, secret)
 
     # FIXME
     # trigger_session_update(owner.id, ['secrets'])
@@ -120,6 +120,34 @@ def get_secret(request):
                               % (secret.name, key))
 
     return secret_dict if not key else {key: secret_dict[key]}
+
+
+@view_config(route_name='api_v1_secret', request_method='PUT',
+             renderer='json')
+def update_secret(request):
+    """
+    Tags: secrets
+    ---
+    Edit secret.
+    EDIT permission required on secret.
+    ---
+    """
+    auth_context = auth_context_from_request(request)
+    params = params_from_request(request)
+    secret_id = request.matchdict.get('secret')
+    secret = params.get('secret', {})
+    if not secret:
+        raise RequiredParameterMissingError('secret')
+
+    try:
+        _secret = VaultSecret.objects.get(owner=auth_context.owner,
+                                          id=secret_id)
+    except me.DoesNotExist:
+        raise NotFoundError('Secret does not exist')
+
+    _secret.ctl.create_or_update_secret(auth_context.owner.name, secret)
+
+    return OK
 
 
 @view_config(route_name='api_v1_secret', request_method='DELETE',
