@@ -7,13 +7,13 @@ from mist.api.auth.methods import auth_context_from_request
 
 from mist.api.helpers import view_config, params_from_request
 
-from mist.api.exceptions import BadRequestError
-from mist.api.exceptions import RequiredParameterMissingError, NotFoundError
+from mist.api.exceptions import NotFoundError
 
 OK = Response("OK", 200)
 
 
-@view_config(route_name='api_v1_secrets', request_method='GET', renderer='json')
+@view_config(route_name='api_v1_secrets', request_method='GET',
+             renderer='json')
 def list_secrets(request):
     """
     Tags: secrets
@@ -31,7 +31,8 @@ def list_secrets(request):
     if cached:
         secrets = VaultSecret.objects(owner=owner)
         if path != '.':
-            secrets = [secret for secret in secrets if secret.name.startswith(path)]
+            secrets = [secret for secret in secrets
+                       if secret.name.startswith(path)]
 
     else:
         # TODO: is there a better way?
@@ -41,7 +42,8 @@ def list_secrets(request):
     return [secret.as_dict() for secret in secrets]
 
 
-@view_config(route_name='api_v1_secret', request_method='DELETE', renderer='json')
+@view_config(route_name='api_v1_secret', request_method='DELETE',
+             renderer='json')
 def delete_secret(request):
     """
     Tags: secrets
