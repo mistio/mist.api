@@ -271,7 +271,7 @@ class BaseMainController(object):
                     Try changing the name of the cloud")
         for key, value in kwargs.items():
             if key in self.cloud._private_fields:
-                secret.ctl.create_secret(self.cloud.owner.name, key, value)
+                secret.ctl.create_secret(self.cloud.owner.name, {key: value})
                 secret_value = SecretValue(secret=secret, key=key)
                 setattr(self.cloud, key, secret_value)
             else:

@@ -79,7 +79,7 @@ class VaultSecret(Secret):
 
     @property
     def data(self):
-        return self.ctl.read_secret(self.owner.name)['data']
+        return self.ctl.read_secret(self.owner.name)
 
 
 class SecretValue(me.EmbeddedDocument):
@@ -96,9 +96,9 @@ class SecretValue(me.EmbeddedDocument):
     @property
     def value(self):
         if self.key:
-            return self.secret.data['data'][self.key]
+            return self.secret.data[self.key]
         else:
-            return self.secret.data['data']
+            return self.secret.data
 
     def __str__(self):
         return '%s secret value of %s' % (type(self),

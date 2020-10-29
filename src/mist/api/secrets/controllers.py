@@ -76,13 +76,13 @@ class VaultSecretController(BaseSecretController):
 
         return secrets
 
-    def create_secret(self, org_name, key, value):
+    def create_secret(self, org_name, secret):
         """ Create a Vault KV* Secret """
         try:
             self.client.secrets.kv.v2.patch(
                 mount_point=org_name,
                 path=self.secret.name,
-                secret={key: value}
+                secret=secret
             )
         except hvac.exceptions.InvalidPath as exc:
             # no existing data in this path
@@ -90,7 +90,7 @@ class VaultSecretController(BaseSecretController):
                 self.client.secrets.kv.v2.create_or_update_secret(
                     mount_point=org_name,
                     path=self.secret.name,
-                    secret={key: value}
+                    secret=secret
                 )
             else:  # TODO: check error msg
                 log.info('No KV secret engine found for org %s. \
@@ -102,7 +102,7 @@ class VaultSecretController(BaseSecretController):
                 self.client.secrets.kv.v2.create_or_update_secret(
                     mount_point=org_name,
                     path=self.secret.name,
-                    secret={key: value}
+                    secret=secret
                 )
 
     def read_secret(self, org_name):
@@ -112,7 +112,7 @@ class VaultSecretController(BaseSecretController):
             path=self.secret.name
         )
 
-        return api_response
+        return api_response['data']['data']
 
     def delete_secret(self):
         " Delete a Vault KV* Secret"
