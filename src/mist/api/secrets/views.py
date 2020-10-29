@@ -8,6 +8,7 @@ from mist.api.auth.methods import auth_context_from_request
 from mist.api.helpers import view_config, params_from_request
 
 from mist.api.exceptions import NotFoundError, BadRequestError
+from mist.api.exceptions import RequiredParameterMissingError
 
 OK = Response("OK", 200)
 
@@ -25,8 +26,8 @@ def list_secrets(request):
     auth_context = auth_context_from_request(request)
     owner = auth_context.owner
     params = params_from_request(request)
-    cached = bool(params.get('cached', True))  # return cached by default
-    path = params.get('path', 'clouds')
+    cached = bool(params.get('cached', False))  # return cached by default
+    path = params.get('path', '.')
 
     if cached:
         secrets = VaultSecret.objects(owner=owner)
@@ -40,6 +41,56 @@ def list_secrets(request):
         secrets = secret.ctl.list_secrets(owner, path)
 
     return [secret.as_dict() for secret in secrets]
+
+
+@view_config(route_name='api_v1_secrets', request_method='POST',
+             renderer='json')
+def create_secret(request):
+    """
+    Tags: secrets
+    ---
+    Create secret.
+    ADD permission required on secret.
+    ---
+    secret:
+      required: true
+      type: object
+    """
+    auth_context = auth_context_from_request(request)
+    owner = auth_context.owner
+    params = params_from_request(request)
+    name = params.get('name', '')
+    secret = params.get('secret', {})
+    if not secret:
+        raise RequiredParameterMissingError('secret')
+    if not name:
+        raise RequiredParameterMissingError('name')
+
+    if not isinstance(secret, dict):
+        raise BadRequestError('Secret needs to be a dict.')
+
+    _secret = VaultSecret(name=name, owner=owner)
+    try:
+        _secret.save()
+    except me.NotUniqueError:
+        raise BadRequestError("The path specified exists on Vault. \
+                    Try changing the name of the secret")
+
+    _secret.ctl.create_secret(owner.name, secret)
+
+    # FIXME
+    # trigger_session_update(owner.id, ['secrets'])
+
+    # SEC
+    # Update the RBAC & User/Ownership mappings with the new secret and finally
+    # trigger a session update by registering it as a chained task.
+    # if config.HAS_RBAC:
+    #     owner.mapper.update(
+    #         secret,
+    #         callback=async_session_update, args=(owner.id, ['secrets'], )
+    #     )
+
+    return _secret.as_dict()
 
 
 @view_config(route_name='api_v1_secret', request_method='GET',
