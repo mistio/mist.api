@@ -564,7 +564,7 @@ def add_machine(request):
     except Cloud.DoesNotExist:
         raise NotFoundError('Cloud does not exist')
 
-    if cloud.ctl.provider not in ['libvirt', 'bare_metal']:
+    if cloud.ctl.provider not in ['libvirt', 'other']:
         raise MistNotImplementedError()
 
     params = params_from_request(request)
