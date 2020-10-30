@@ -728,6 +728,7 @@ class LinodeComputeController(BaseComputeController):
                 image.extra['created'] = image.extra['created'].isoformat()
         return images
 
+
 class RackSpaceComputeController(BaseComputeController):
 
     def _connect(self, **kwargs):
