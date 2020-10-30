@@ -684,8 +684,12 @@ class LinodeComputeController(BaseComputeController):
     def _list_machines__cost_machine(self, machine, node_dict):
         if self.cloud.apiversion is not None:
             size = node_dict['extra'].get('PLANID')
-            price = get_size_price(driver_type='compute', driver_name='linode',
-                                   size_id=size)
+            try:
+                price = get_size_price(driver_type='compute',
+                                       driver_name='linode',
+                                       size_id=size)
+            except KeyError:
+                price = 0
             return 0, price or 0
         else:
             size = node_dict.get('size')
