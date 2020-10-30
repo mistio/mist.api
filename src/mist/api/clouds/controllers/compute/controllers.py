@@ -713,6 +713,16 @@ class LinodeComputeController(BaseComputeController):
         else:
             return node['extra'].get('location')
 
+    def _list_images__fetch_images(self, search=None):
+        """ Convert datetime object to isoformat
+        """
+        images = self.connection.list_images()
+        from datetime import datetime
+        for image in images:
+            if 'created' in image.extra and \
+                    isinstance(image.extra['created'], datetime):
+                image.extra['created'] = image.extra['created'].isoformat()
+        return images
 
 class RackSpaceComputeController(BaseComputeController):
 
