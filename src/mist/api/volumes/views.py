@@ -141,7 +141,7 @@ def create_volume(request):
     auth_context.check_perm("location", "create_resources", location)
     tags, _ = auth_context.check_perm("volume", "add", None)
 
-    if not name and cloud.ctl.provider != 'packet':
+    if not name and cloud.ctl.provider != 'equinixmetal':
         raise RequiredParameterMissingError('name')
 
     if not hasattr(cloud.ctl, 'storage'):

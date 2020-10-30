@@ -34,7 +34,7 @@ __all__ = [
     "AzureArmCloud",
     "GoogleCloud",
     "HostVirtualCloud",
-    "PacketCloud",
+    "EquinixMetalCloud",
     "VultrCloud",
     "VSphereCloud",
     "VCloud",
@@ -447,13 +447,25 @@ class HostVirtualCloud(Cloud):
     _controller_cls = controllers.HostVirtualMainController
 
 
-class PacketCloud(Cloud):
+class EquinixMetalCloud(Cloud):
 
     apikey = me.EmbeddedDocumentField(SecretValue, required=True)
     project_id = me.StringField(required=False)
 
     _private_fields = ('apikey', )
-    _controller_cls = controllers.PacketMainController
+    _controller_cls = controllers.EquinixMetalMainController
+
+
+class PacketCloud(Cloud):
+    """
+        For backwards compatibility, to prevent poller crashes
+        TODO: Remove in v5
+    """
+    apikey = me.EmbeddedDocumentField(SecretValue, required=True)
+    project_id = me.StringField(required=False)
+
+    _private_fields = ('apikey', )
+    _controller_cls = controllers.EquinixMetalMainController
 
 
 class VultrCloud(Cloud):
