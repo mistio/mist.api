@@ -364,7 +364,9 @@ def notify_user(owner, title, message="", email_notify=True, **kwargs):
     if 'command' in kwargs:
         output = '%s\n' % kwargs['command']
         if 'output' in kwargs:
-            output += '%s\n' % kwargs['output'].decode('utf-8', 'ignore')
+            if not isinstance(kwargs['output'], str):
+                kwargs['output'] = kwargs['output'].decode('utf-8', 'ignore')
+            output += '%s\n' % kwargs['output']
         if 'retval' in kwargs:
             output += 'returned with exit code %s.\n' % kwargs['retval']
         payload['output'] = output
