@@ -113,7 +113,7 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
                 if n.id == machine_id:
                     node = n
                     break
-            msg = "Cloud:\n  Name: %s\n  Id: %s\n" % (cloud.title, cloud_id)
+            msg = "Cloud:\n  Name: %s\n  Id: %s\n" % (cloud.name, cloud_id)
             msg += "Machine:\n  Name: %s\n  Id: %s\n" % (node.name, node.id)
             tmp_log('Machine found, proceeding to post deploy steps\n%s' % msg)
         except:
@@ -333,7 +333,7 @@ def post_deploy_steps(self, owner_id, cloud_id, machine_id, monitoring,
             raise
         notify_admin("Deployment script failed for machine %s (%s) in cloud %s"
                      " (%s) by user %s" % (machine.name, machine_id,
-                                           cloud.title, cloud_id, str(owner)),
+                                           cloud.name, cloud_id, str(owner)),
                      repr(exc))
         log_event(
             owner.id,

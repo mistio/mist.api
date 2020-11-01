@@ -460,7 +460,7 @@ class Machine(OwnershipMixin, me.Document):
             'location': self.location.id if self.location else '',
             'size': self.size.name if self.size else '',
             'image': self.image.id if self.image else '',
-            'cloud_title': self.cloud.title,
+            'cloud_title': self.cloud.name,
             'last_seen': str(self.last_seen.replace(tzinfo=None)
                              if self.last_seen else ''),
             'missing_since': str(self.missing_since.replace(tzinfo=None)

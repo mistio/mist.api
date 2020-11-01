@@ -15,9 +15,9 @@ def autodisable_cloud(cloud):
     """Disable cloud after multiple failures and notify user"""
     log.warning("Autodisabling %s", cloud)
     cloud.ctl.disable()
-    title = "Cloud %s has been automatically disabled" % cloud.title
+    title = "Cloud %s has been automatically disabled" % cloud.name
     message = "%s after multiple failures to connect to it." % title
-    notify_user(cloud.owner, title=cloud, message=message, email_notify=True)
+    notify_user(cloud.owner, title=title, message=message, email_notify=True)
 
 
 @app.task

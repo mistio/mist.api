@@ -115,7 +115,7 @@ class Key(OwnershipMixin, me.Document):
             key = SSHKey.add(owner=org, name='unicorn', **kwargs)
         """
         if not name:
-            raise RequiredParameterMissingError('title')
+            raise RequiredParameterMissingError('name')
         if not owner or not isinstance(owner, Owner):
             raise BadRequestError('owner')
         key = cls(owner=owner, name=name)

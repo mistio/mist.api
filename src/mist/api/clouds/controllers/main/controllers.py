@@ -349,7 +349,7 @@ class LibvirtMainController(BaseMainController):
                                    'errors': exc.to_dict()})
         except me.NotUniqueError:
             raise CloudExistsError("Cloud with name %s already exists"
-                                   % self.cloud.title)
+                                   % self.cloud.name)
         total_errors = {}
 
         for _host in kwargs['hosts']:
@@ -593,7 +593,7 @@ class OtherMainController(BaseMainController):
         method of `BaseMainController`.
 
         This is only expected to be called by `Cloud.add` classmethod to create
-        a cloud. Fields `owner` and `title` are already populated in
+        a cloud. Fields `owner` and `name` are already populated in
         `self.cloud`. The `self.cloud` model is not yet saved.
 
         If appropriate kwargs are passed, this can currently also act as a
@@ -608,7 +608,7 @@ class OtherMainController(BaseMainController):
                                    'errors': exc.to_dict()})
         except me.NotUniqueError:
             raise CloudExistsError("Cloud with name %s already exists"
-                                   % self.cloud.title)
+                                   % self.cloud.name)
 
         if kwargs:
             errors = []
@@ -626,7 +626,7 @@ class OtherMainController(BaseMainController):
             else:  # old api, single machine
                 try:
                     self.add_machine_wrapper(
-                        self.cloud.title, fail_on_error=fail_on_error,
+                        self.cloud.name, fail_on_error=fail_on_error,
                         fail_on_invalid_params=fail_on_invalid_params, **kwargs
                     )
                 except Exception as exc:
@@ -640,7 +640,7 @@ class OtherMainController(BaseMainController):
     def update(self, fail_on_error=True, fail_on_invalid_params=True,
                **kwargs):
         raise BadRequestError("OtherServer clouds don't support `update`. "
-                              "Only title can be changed, using `rename`. "
+                              "Only name can be changed, using `rename`. "
                               "To change machine details, one must edit the "
                               "machines themselves, not the cloud.")
 

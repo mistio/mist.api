@@ -260,7 +260,7 @@ class BaseDNSController(BaseController):
                         log.exception("Could not save %s record %s for cloud "
                                       "%s (%s): %r" % (
                                           record.type, record.name,
-                                          self.cloud.title, self.cloud.id, exc
+                                          self.cloud.name, self.cloud.id, exc
                                       ))
             except me.ValidationError as exc:
                 log.error("Error updating %s: %s", record, exc.to_dict())

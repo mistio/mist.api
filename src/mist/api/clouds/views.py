@@ -127,6 +127,10 @@ def add_cloud(request):
     machine_user:
       type: string
       description: Required for KVM
+    name:
+      description: The name of the cloud.
+      type: string
+      required: True
     organization:
       type: string
       description: Required for Vcloud
@@ -189,10 +193,6 @@ def add_cloud(request):
     tenant_name:
       type: string
       description: Required for OpenStack
-    title:
-      description: The human readable title of the cloud.
-      type: string
-      required: True
     token:
       type: string
       description: Required for Digitalocean
@@ -213,14 +213,14 @@ def add_cloud(request):
             params[key] = params[key].rstrip().lstrip()
 
     # api_version = request.headers.get('Api-Version', 1)
-    title = params.get('title', '')
+    name = params.get('name', '')
     provider = params.get('provider', '')
 
     if not provider:
         raise RequiredParameterMissingError('provider')
 
     monitoring = None
-    result = add_cloud_v_2(owner, title, provider, params)
+    result = add_cloud_v_2(owner, name, provider, params)
     cloud_id = result['cloud_id']
     monitoring = result.get('monitoring')
     errors = result.get('errors')

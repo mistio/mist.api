@@ -378,12 +378,12 @@ def notify_user(owner, title, message="", email_notify=True, **kwargs):
         body += "Cloud:\n"
         try:
             cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
-            cloud_title = cloud.title
+            cloud_name = cloud.name
         except DoesNotExist:
-            cloud_title = ''
+            cloud_name = ''
             cloud = ''
-        if cloud_title:
-            body += "  Name: %s\n" % cloud_title
+        if cloud_name:
+            body += "  Name: %s\n" % cloud_name
         body += "  Id: %s\n" % cloud_id
         if 'machine_id' in kwargs:
             machine_id = kwargs['machine_id']

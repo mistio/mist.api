@@ -107,7 +107,7 @@ class Cloud(OwnershipMixin, me.Document):
     owner = me.ReferenceField(Organization, required=True,
                               reverse_delete_rule=me.CASCADE)
 
-    title = me.StringField(required=True)
+    name = me.StringField(required=True)
     enabled = me.BooleanField(default=True)
 
     machine_count = me.IntField(default=0)
@@ -130,9 +130,9 @@ class Cloud(OwnershipMixin, me.Document):
         'collection': 'clouds',  # collection 'cloud' is used by core's model
         'indexes': [
             'owner',
-            # Following index ensures owner with title combos are unique
+            # Following index ensures owner with name combos are unique
             {
-                'fields': ['owner', 'title', 'deleted'],
+                'fields': ['owner', 'name', 'deleted'],
                 'sparse': False,
                 'unique': True,
                 'cls': False,
@@ -168,7 +168,7 @@ class Cloud(OwnershipMixin, me.Document):
                                        if field not in Cloud._fields]
 
     @classmethod
-    def add(cls, owner, title, id='', **kwargs):
+    def add(cls, owner, name, id='', **kwargs):
         """Add cloud
 
         This is a class method, meaning that it is meant to be called on the
@@ -177,23 +177,23 @@ class Cloud(OwnershipMixin, me.Document):
         You're not meant to be calling this directly, but on a cloud subclass
         instead like this:
 
-            cloud = AmazonCloud.add(owner=org, title='EC2',
+            cloud = AmazonCloud.add(owner=org, name='EC2',
                                     apikey=apikey, apisecret=apisecret)
 
         Params:
-        - owner and title are common and required params
+        - owner and name are common and required params
         - only provide a custom cloud id if you're migrating something
         - kwargs will be passed to appropriate controller, in most cases these
           should match the extra fields of the particular cloud type.
 
         """
-        if not title:
-            raise RequiredParameterMissingError('title')
+        if not name:
+            raise RequiredParameterMissingError('name')
         if not owner or not isinstance(owner, Organization):
             raise BadRequestError('owner')
-        if Cloud.objects(owner=owner, title=title, deleted=None):
+        if Cloud.objects(owner=owner, name=name, deleted=None):
             raise CloudExistsError()
-        cloud = cls(owner=owner, title=title)
+        cloud = cls(owner=owner, name=name)
         if id:
             cloud.id = id
         cloud.ctl.add(**kwargs)
@@ -219,7 +219,7 @@ class Cloud(OwnershipMixin, me.Document):
     def as_dict(self):
         cdict = {
             'id': self.id,
-            'title': self.title,
+            'name': self.name,
             'provider': self.ctl.provider,
             'enabled': self.enabled,
             'dns_enabled': self.dns_enabled,
@@ -242,7 +242,7 @@ class Cloud(OwnershipMixin, me.Document):
         return cdict
 
     def __str__(self):
-        return '%s cloud %s (%s) of %s' % (type(self), self.title,
+        return '%s cloud %s (%s) of %s' % (type(self), self.name,
                                            self.id, self.owner)
 
 

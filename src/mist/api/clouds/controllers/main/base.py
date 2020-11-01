@@ -130,7 +130,7 @@ class BaseMainController(object):
         """Add new Cloud to the database
 
         This is only expected to be called by `Cloud.add` classmethod to create
-        a cloud. Fields `owner` and `title` are already populated in
+        a cloud. Fields `owner` and `name` are already populated in
         `self.cloud`. The `self.cloud` model is not yet saved.
 
         Params:
@@ -319,9 +319,9 @@ class BaseMainController(object):
         """
         return
 
-    def rename(self, title):
+    def rename(self, name):
         try:
-            self.cloud.title = title
+            self.cloud.name = name
             self.cloud.save()
         except me.NotUniqueError:
             raise CloudExistsError()
