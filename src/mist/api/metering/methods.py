@@ -67,13 +67,22 @@ def get_usage(owner_id, full_days=6):
     # Merge series.
     data = _merge_series(['cores', 'checks', 'datapoints'], *parts)
 
-    return [
-        {
-            'date': d,
-            'cost': data[d].pop('cost', 0),
-            'usage': data[d]
-        } for d in sorted(data)
-    ]
+    stop = datetime.datetime.now()
+    stop = stop.replace(hour=0, minute=0, second=0, microsecond=0)
+    start = stop - datetime.timedelta(days=full_days - 1)
+
+    result = []
+    dt = start
+    usage_empty = {metric: 0 for metric in metrics}
+    while dt <= stop:
+        result.append({
+            'date': str(dt),
+            'cost': data.get(str(dt), {}).pop('cost', 0),
+            'usage': data.get(str(dt), usage_empty)
+        })
+        dt += datetime.timedelta(days=1)
+
+    return result
 
 
 def get_current_portal_usage():
