@@ -12,7 +12,7 @@ def migrate_clouds():
     # drop index containing title
     db_clouds.drop_index('owner_1_title_1_deleted_1')
 
-    failed = migrated = skipped = 0
+    failed = migrated = 0
 
     for cloud in db_clouds.find():
         print('Updating cloud ' + cloud['_id'])
@@ -34,8 +34,6 @@ def migrate_clouds():
             migrated += 1
 
     print('Clouds migrated: %d' % migrated)
-    if skipped:
-        print('Skipped: %d' % skipped)
 
     if failed:
         print('********* WARNING ************')
