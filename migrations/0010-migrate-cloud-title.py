@@ -37,7 +37,7 @@ def migrate_clouds():
 
     if failed:
         print('********* WARNING ************')
-        print('Failed to migrate %d clouds' % skipped)
+        print('Failed to migrate %d clouds' % failed)
 
     c.close()
 
