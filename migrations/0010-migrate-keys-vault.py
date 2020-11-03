@@ -25,7 +25,10 @@ def migrate_keys():
             secret = VaultSecret(name=key["name"], owner=owner)
             secret.save()
             # store secret in Vault
-            secret.ctl.create_secret(owner.name, 'private', private)
+            secret_dict = {
+                'private': private
+            }
+            secret.ctl.create_or_update_secret(owner.name, secret_dict)
 
             # update_one in keys collection
             # secret_value = SecretValue(secret=secret, key='private')
@@ -44,7 +47,6 @@ def migrate_keys():
             failed += 1
             continue
         else:
-            print('OK')
             migrated += 1
 
     print('Keys migrated: ' + str(migrated))
