@@ -9,6 +9,9 @@ def migrate_clouds():
     db = c.get_database('mist2')
     db_clouds = db['clouds']
 
+    # drop index containing title
+    db_clouds.drop_index('owner_1_title_1_deleted_1')
+
     failed = migrated = skipped = 0
 
     for cloud in db_clouds.find():
@@ -28,12 +31,15 @@ def migrate_clouds():
             failed += 1
             continue
         else:
-            print('OK')
             migrated += 1
 
     print('Clouds migrated: %d' % migrated)
     if skipped:
         print('Skipped: %d' % skipped)
+
+    if failed:
+        print('********* WARNING ************')
+        print('Failed to migrate %d clouds' % skipped)
 
     c.close()
 
