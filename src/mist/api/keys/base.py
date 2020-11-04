@@ -9,6 +9,8 @@ from mist.api.helpers import rename_kwargs
 from mist.api.helpers import trigger_session_update
 from mist.api.secrets.models import VaultSecret, SecretValue
 
+from mist.api.secrets.methods import value_refers_to_secret
+
 log = logging.getLogger(__name__)
 
 
@@ -54,16 +56,28 @@ class BaseKeyController(object):
 
         for key, value in kwargs.items():
             if key == 'private':
-                secret = VaultSecret(name='keys/%s' % self.key.name,
-                                     owner=self.key.owner)
-                secret.ctl.create_or_update_secret(self.key.owner.name,
-                                                   {key: value})
-                try:
-                    secret.save()
-                except me.NotUniqueError:
-                    raise BadRequestError("The path specified exists on Vault. \
-                        Try changing the name of the key")
-                secret_value = SecretValue(secret=secret, key='private')
+                existing_secret, _key = value_refers_to_secret(value,
+                                                               self.key.owner)
+                if existing_secret:
+                    data = existing_secret.ctl.read_secret(self.key.owner.name)
+                    if _key not in data.keys():
+                        raise BadRequestError('The key specified (%s) does not exist in \
+                            secret `%s`' % (_key, existing_secret.name))
+
+                    secret_value = SecretValue(secret=existing_secret,
+                                               key=_key)
+                else:
+                    secret = VaultSecret(name='keys/%s' % self.key.name,
+                                         owner=self.key.owner)
+                    try:
+                        secret.save()
+                    except me.NotUniqueError:
+                        raise BadRequestError("The path `keys/%s` exists on Vault. \
+                            Try changing the name of the key" % self.key.name)
+
+                    secret.ctl.create_or_update_secret(self.key.owner.name,
+                                                       {key: value})
+                    secret_value = SecretValue(secret=secret, key='private')
             else:
                 setattr(self.key, key, value)
 
@@ -76,6 +90,12 @@ class BaseKeyController(object):
             self.key.save()
         except me.ValidationError as exc:
             log.error("Error adding %s: %s", self.key.name, exc.to_dict())
+            # delete VaultSecret object and secret
+            # if it was just added to Vault
+            if not existing_secret:
+                secret.delete()
+                secret.ctl.delete_secret()
+
             raise BadRequestError("%s" % str(exc.to_dict()['__all__']))
         except me.NotUniqueError as exc:
             log.error("Key %s not unique error: %s", self.key.name, exc)
