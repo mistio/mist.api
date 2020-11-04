@@ -56,15 +56,16 @@ class BaseKeyController(object):
 
         for key, value in kwargs.items():
             if key == 'private':
-                existing_secret, _key = value_refers_to_secret(value,
-                                                               self.key.owner)
-                if existing_secret:
-                    data = existing_secret.ctl.read_secret()
+                secret, _key, arg_from_vault = value_refers_to_secret(value,
+                                                                      self.key.
+                                                                      owner)
+                if secret:
+                    data = secret.ctl.read_secret()
                     if _key not in data.keys():
                         raise BadRequestError('The key specified (%s) does not exist in \
-                            secret `%s`' % (_key, existing_secret.name))
+                            secret `%s`' % (_key, secret.name))
 
-                    secret_value = SecretValue(secret=existing_secret,
+                    secret_value = SecretValue(secret=secret,
                                                key=_key)
                 else:
                     secret = VaultSecret(name='keys/%s' % self.key.name,
@@ -91,7 +92,7 @@ class BaseKeyController(object):
             log.error("Error adding %s: %s", self.key.name, exc.to_dict())
             # delete VaultSecret object and secret
             # if it was just added to Vault
-            if not existing_secret:
+            if arg_from_vault:
                 secret.delete()
                 secret.ctl.delete_secret()
 
