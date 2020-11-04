@@ -80,7 +80,7 @@ class AmazonMainController(BaseMainController):
                                                      deleted=None)
             if amazon_clouds:
                 for amazon_cloud in amazon_clouds:
-                    if amazon_cloud.apikey.value == apikey:
+                    if amazon_cloud.apikey == apikey:
                         kwargs['apisecret'] = amazon_cloud.apisecret.value
                         break
 
