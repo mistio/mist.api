@@ -97,8 +97,7 @@ def delete_cloud(owner, cloud_id, delete_from_vault=False):
 
     if delete_from_vault:
         if cloud._private_fields:
-            getattr(cloud, cloud._private_fields[0]).secret.ctl.delete_secret(
-                owner.name)
+            getattr(cloud, cloud._private_fields[0]).secret.ctl.delete_secret()
             from mist.api.secrets.models import VaultSecret
             secret = VaultSecret.objects.get(owner=owner,
                                              name='clouds/%s' % cloud.title)
