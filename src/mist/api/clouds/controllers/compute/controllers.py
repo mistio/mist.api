@@ -1424,13 +1424,13 @@ class VSphereComputeController(BaseComputeController):
         from libcloud.compute.drivers.vsphere import VSphereNodeDriver
         from libcloud.compute.drivers.vsphere import VSphere_6_7_NodeDriver
         ca_cert = None
-        if self.cloud.ca_cert_file.value:
+        if self.cloud.ca_cert_file:
             ca_cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
             ca_cert_temp_file.write(self.cloud.ca_cert_file.encode())
             ca_cert_temp_file.close()
             ca_cert = ca_cert_temp_file.name
 
-        host, port = dnat(self.cloud.owner, self.cloud.host.value, 443)
+        host, port = dnat(self.cloud.owner, self.cloud.host, 443)
         driver_6_5 = VSphereNodeDriver(host=host,
                                        username=self.cloud.username,
                                        password=self.cloud.password.value,
@@ -2122,7 +2122,7 @@ class LXDComputeController(BaseComputeController):
             raise Exception("Make sure host is accessible "
                             "and LXD port is specified")
 
-        if self.cloud.key_file.value and self.cloud.cert_file:
+        if self.cloud.key_file and self.cloud.cert_file:
             tls_auth = self._tls_authenticate(host=host, port=port)
 
             if tls_auth is None:
@@ -2131,7 +2131,7 @@ class LXDComputeController(BaseComputeController):
             return tls_auth
 
         # Username/Password authentication.
-        if self.cloud.username and self.cloud.password.value:
+        if self.cloud.username and self.cloud.password:
 
             return get_container_driver(Container_Provider.LXD)(
                 key=self.cloud.username,
@@ -2826,14 +2826,14 @@ class KubeVirtComputeController(BaseComputeController):
         verify = self.cloud.verify if self.cloud.verify else False
 
         ca_cert = None
-        if self.cloud.ca_cert_file.value:
+        if self.cloud.ca_cert_file:
             ca_cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
             ca_cert_temp_file.write(self.cloud.ca_cert_file.value.encode())
             ca_cert_temp_file.close()
             ca_cert = ca_cert_temp_file.name
 
         # tls authentication
-        if self.cloud.key_file.value and self.cloud.cert_file.value:
+        if self.cloud.key_file and self.cloud.cert_file:
             key_temp_file = tempfile.NamedTemporaryFile(delete=False)
             key_temp_file.write(self.cloud.key_file.value.encode())
             key_temp_file.close()
@@ -2860,7 +2860,7 @@ class KubeVirtComputeController(BaseComputeController):
                                                  ex_token_bearer_auth=True
                                                  )
         # username/password auth
-        elif self.cloud.username and self.cloud.password.value:
+        elif self.cloud.username and self.cloud.password:
             key = self.cloud.username
             secret = self.cloud.password.value
 
