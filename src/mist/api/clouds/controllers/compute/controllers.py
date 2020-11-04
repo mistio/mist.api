@@ -230,15 +230,11 @@ class AmazonComputeController(BaseComputeController):
     def _list_images__fetch_images(self, search=None):
         if not search:
             from mist.api.images.models import CloudImage
-<<<<<<< HEAD
             images_file = os.path.join(config.MIST_API_DIR,
                                        config.EC2_IMAGES_FILE)
             with open(images_file, 'r') as f:
                 default_images = json.load(f)[self.cloud.region]
 
-=======
-            default_images = config.EC2_IMAGES[self.cloud.region]
->>>>>>> Only store private_fields in Vault
             image_ids = list(default_images.keys())
             try:
                 # this might break if image_ids contains starred images
@@ -922,33 +918,12 @@ class MaxihostComputeController(BaseComputeController):
 class LinodeComputeController(BaseComputeController):
 
     def _connect(self, **kwargs):
-<<<<<<< HEAD
         if self.cloud.apiversion is not None:
             return get_driver(Provider.LINODE)(
                 self.cloud.apikey.value,
                 api_version=self.cloud.apiversion)
         else:
             return get_driver(Provider.LINODE)(self.cloud.apikey.value)
-=======
-        return get_driver(Provider.GIG_G8)(self.cloud.user_id,
-                                           self.cloud.apikey.value,
-                                           self.cloud.url)
-
-    def _list_machines__postparse_machine(self, machine, node_dict):
-        # Discover network of machine.
-        network_id = node_dict['extra'].get('network_id', None)
-        if network_id:
-            from mist.api.networks.models import Network
-            try:
-                machine.network = Network.objects.get(cloud=self.cloud,
-                                                      network_id=network_id,
-                                                      missing_since=None)
-            except Network.DoesNotExist:
-                machine.network = None
-
-        if machine.network:
-            machine.public_ips = [machine.network.public_ip]
->>>>>>> Only store private_fields in Vault
 
     def _list_machines__machine_creation_date(self, machine, node_dict):
         if self.cloud.apiversion is not None:
@@ -3121,12 +3096,11 @@ class DockerComputeController(BaseComputeController):
 
     def _list_machines__fetch_machines(self):
         """Perform the actual libcloud call to get list of containers"""
-        containers = self.connection.list_containers(all=self.cloud.show_all.
-                                                     value)
+        containers = self.connection.list_containers(all=self.cloud.show_all)
         # add public/private ips for mist
         for container in containers:
             public_ips, private_ips = [], []
-            host = sanitize_host(self.cloud.host.value)
+            host = sanitize_host(self.cloud.host)
             if is_private_subnet(host):
                 private_ips.append(host)
             else:
@@ -4335,8 +4309,6 @@ class _KubernetesBaseComputeController(BaseComputeController):
             get_driver_method = get_container_driver
         else:
             get_driver_method = get_driver
-
-        # verify = self.cloud.verify if self.cloud.verify else False
 
         ca_cert = None
         if self.cloud.ca_cert_file:
