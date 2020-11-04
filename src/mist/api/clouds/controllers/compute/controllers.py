@@ -1751,12 +1751,11 @@ class DockerComputeController(BaseComputeController):
 
     def _list_machines__fetch_machines(self):
         """Perform the actual libcloud call to get list of containers"""
-        containers = self.connection.list_containers(all=self.cloud.show_all.
-                                                     value)
+        containers = self.connection.list_containers(all=self.cloud.show_all)
         # add public/private ips for mist
         for container in containers:
             public_ips, private_ips = [], []
-            host = sanitize_host(self.cloud.host.value)
+            host = sanitize_host(self.cloud.host)
             if is_private_subnet(host):
                 private_ips.append(host)
             else:
@@ -2823,7 +2822,7 @@ class KubeVirtComputeController(BaseComputeController):
             raise Exception("Make sure host is accessible "
                             "and kubernetes port is specified")
 
-        verify = self.cloud.verify if self.cloud.verify else False
+        verify = self.cloud.verify
 
         ca_cert = None
         if self.cloud.ca_cert_file:
