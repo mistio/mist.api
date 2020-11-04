@@ -47,10 +47,10 @@ class VaultSecretController(BaseSecretController):
         except hvac.exceptions.VaultDown:
             raise BadRequestError("Vault is sealed.")
 
-    def list_secrets(self, owner, path):
+    def list_secrets(self, path):
         try:
             response = self.client.secrets.kv.v2.list_secrets(
-                mount_point=owner.name,
+                mount_point=self.secret.owner.name,
                 path=path
             )
         except hvac.exceptions.InvalidPath:
@@ -64,23 +64,23 @@ class VaultSecretController(BaseSecretController):
             if not key.endswith('/'):  # if not a dir
                 try:
                     secret = VaultSecret.objects.get(name=path + key,
-                                                     owner=owner)
+                                                     owner=self.secret.owner)
                 except me.DoesNotExist:
                     secret = VaultSecret(name=path + key,
-                                         owner=owner)
+                                         owner=self.secret.owner)
                     secret.save()
                 secrets.append(secret)
             else:
                 # find recursively all the secrets
-                secrets += self.list_secrets(owner, key)
+                secrets += self.list_secrets(key)
 
         return secrets
 
-    def create_or_update_secret(self, org_name, secret):
+    def create_or_update_secret(self, secret):
         """ Create a Vault KV* Secret """
         try:
             self.client.secrets.kv.v2.patch(
-                mount_point=org_name,
+                mount_point=self.secret.owner.name,
                 path=self.secret.name,
                 secret=secret
             )
@@ -88,27 +88,27 @@ class VaultSecretController(BaseSecretController):
             # no existing data in this path
             if 'No value found' in exc.args[0]:
                 self.client.secrets.kv.v2.create_or_update_secret(
-                    mount_point=org_name,
+                    mount_point=self.secret.owner.name,
                     path=self.secret.name,
                     secret=secret
                 )
             else:  # TODO: check error msg
                 log.info('No KV secret engine found for org %s. \
-                    Creating one...' % org_name)
+                    Creating one...' % self.secret.owner)
                 self.client.sys.enable_secrets_engine(backend_type='kv',
-                                                      path=org_name,
+                                                      path=self.secret.owner,
                                                       options={'version': 2}
                                                       )
                 self.client.secrets.kv.v2.create_or_update_secret(
-                    mount_point=org_name,
+                    mount_point=self.secret.owner.name,
                     path=self.secret.name,
                     secret=secret
                 )
 
-    def read_secret(self, org_name):
+    def read_secret(self):
         """ Read a Vault KV* Secret """
         api_response = self.client.secrets.kv.v2.read_secret_version(
-            mount_point=org_name,
+            mount_point=self.secret.owner.name,
             path=self.secret.name
         )
 
@@ -122,4 +122,4 @@ class VaultSecretController(BaseSecretController):
         )
 
         # list all secrets
-        self.list_secrets(self.secret.owner, path='.')
+        self.list_secrets(path='.')

@@ -26,7 +26,7 @@ def list_secrets(request):
     auth_context = auth_context_from_request(request)
     owner = auth_context.owner
     params = params_from_request(request)
-    cached = bool(params.get('cached', False))  # return cached by default
+    cached = bool(params.get('cached', True))  # return cached by default
     path = params.get('path', '.')
 
     if cached:
@@ -37,8 +37,8 @@ def list_secrets(request):
 
     else:
         # TODO: is there a better way?
-        secret = VaultSecret()
-        secrets = secret.ctl.list_secrets(owner, path)
+        secret = VaultSecret(owner=owner)
+        secrets = secret.ctl.list_secrets(path)
 
     return [secret.as_dict() for secret in secrets]
 
@@ -76,7 +76,7 @@ def create_secret(request):
         raise BadRequestError("The path specified exists on Vault. \
                     Try changing the name of the secret")
 
-    _secret.ctl.create_or_update_secret(owner.name, secret)
+    _secret.ctl.create_or_update_secret(secret)
 
     # FIXME
     # trigger_session_update(owner.id, ['secrets'])
@@ -113,10 +113,10 @@ def get_secret(request):
     except me.DoesNotExist:
         raise NotFoundError('Secret does not exist')
 
-    secret_dict = secret.ctl.read_secret(auth_context.owner.name)
+    secret_dict = secret.ctl.read_secret()
 
     if key and not secret_dict.get(key, ''):
-        raise BadRequestError('Secret %s does not have a %s attribute'
+        raise BadRequestError('Secret %s does not have a %s key'
                               % (secret.name, key))
 
     return secret_dict if not key else {key: secret_dict[key]}
@@ -145,7 +145,7 @@ def update_secret(request):
     except me.DoesNotExist:
         raise NotFoundError('Secret does not exist')
 
-    _secret.ctl.create_or_update_secret(auth_context.owner.name, secret)
+    _secret.ctl.create_or_update_secret(secret)
 
     return OK
 
