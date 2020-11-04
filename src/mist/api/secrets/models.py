@@ -79,7 +79,7 @@ class VaultSecret(Secret):
 
     @property
     def data(self):
-        return self.ctl.read_secret(self.owner.name)
+        return self.ctl.read_secret()
 
 
 class SecretValue(me.EmbeddedDocument):
