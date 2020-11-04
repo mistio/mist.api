@@ -59,7 +59,7 @@ class BaseKeyController(object):
                 existing_secret, _key = value_refers_to_secret(value,
                                                                self.key.owner)
                 if existing_secret:
-                    data = existing_secret.ctl.read_secret(self.key.owner.name)
+                    data = existing_secret.ctl.read_secret()
                     if _key not in data.keys():
                         raise BadRequestError('The key specified (%s) does not exist in \
                             secret `%s`' % (_key, existing_secret.name))
@@ -75,8 +75,7 @@ class BaseKeyController(object):
                         raise BadRequestError("The path `keys/%s` exists on Vault. \
                             Try changing the name of the key" % self.key.name)
 
-                    secret.ctl.create_or_update_secret(self.key.owner.name,
-                                                       {key: value})
+                    secret.ctl.create_or_update_secret({key: value})
                     secret_value = SecretValue(secret=secret, key='private')
             else:
                 setattr(self.key, key, value)
