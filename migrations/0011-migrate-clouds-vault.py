@@ -25,20 +25,14 @@ def migrate_clouds():
             private_fields = getattr(eval(cloud['_cls'].split('.')[1]),
                                      '_private_fields')
             for private_field in private_fields:
-
-                # insert new secret in secrets collection
                 try:
-                    secret = VaultSecret.objects.get(name="clouds/%s" % cloud['title'],
+                    secret = VaultSecret.objects.get(name="clouds/%s" %
+                                                     cloud['title'],
                                                      owner=owner)
                 except me.DoesNotExist:
                     secret = VaultSecret(name="clouds/%s" % cloud['title'],
                                          owner=owner)
                     secret.save()
-                # store secret in Vault
-                secret_dict = {
-                    private_field: cloud[private_field]
-                }
-                secret.ctl.create_or_update_secret(owner.name, secret_dict)
 
                 # update_one in clouds collection
                 secret_value = {
@@ -50,6 +44,14 @@ def migrate_clouds():
                     {'_id': cloud['_id']},
                     {'$set': {private_field: secret_value}}
                 )
+
+                # save to vault only if the private_field is set
+                if cloud[private_field]:
+                    secret_dict = {
+                        private_field: cloud[private_field]
+                    }
+
+                    secret.ctl.create_or_update_secret(owner.name, secret_dict)
         except Exception:
             print('*** WARNING ** Could not migrate cloud %s' % cloud['_id'])
             traceback.print_exc()
@@ -64,6 +66,3 @@ def migrate_clouds():
 
 if __name__ == '__main__':
     migrate_clouds()
-
-
-# TODO: Update only if not empty!!!
