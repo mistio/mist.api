@@ -100,7 +100,9 @@ def remove_cloud(owner, cloud_id, delete_from_vault=False):
             getattr(cloud, cloud._private_fields[0]).secret.ctl.delete_secret()
             from mist.api.secrets.models import VaultSecret
             secret = VaultSecret.objects.get(owner=owner,
-                                             name='clouds/%s' % cloud.title)
+                                             name='%s%s' %
+                                             (config.VAULT_CLOUDS_PATH,
+                                              cloud.title))
             secret.delete()
 
     trigger_session_update(owner, ['clouds'])
