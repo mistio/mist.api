@@ -39,6 +39,8 @@ from mist.api.clouds.controllers.objectstorage.base import BaseObjectStorageCont
 from mist.api.secrets.models import VaultSecret, SecretValue
 from mist.api.secrets.methods import value_refers_to_secret
 
+from mist.api import config
+
 
 log = logging.getLogger(__name__)
 
@@ -303,20 +305,24 @@ class BaseMainController(object):
 
                 else:
                     try:
-                        secret = VaultSecret.objects.get(name='clouds/%s' %
-                                                         self.cloud.title,
+                        secret = VaultSecret.objects.get(name='%s%s' %
+                                                         (config.
+                                                          VAULT_CLOUDS_PATH,
+                                                          self.cloud.title),
                                                          owner=self.cloud.
                                                          owner)
                     except me.DoesNotExist:
-                        secret = VaultSecret(name='clouds/%s' %
-                                             self.cloud.title,
+                        secret = VaultSecret(name='%s%s' %
+                                             (config.VAULT_CLOUDS_PATH,
+                                              self.cloud.title),
                                              owner=self.cloud.owner)
                         try:
                             secret.save()
                         except me.NotUniqueError:
-                            raise BadRequestError("The path `clouds/%s` exists on Vault. \
+                            raise BadRequestError("The path `%s%s` exists on Vault. \
                                 Try changing the name of the cloud" %
-                                                  self.cloud.title)
+                                                  (config.VAULT_CLOUDS_PATH,
+                                                   self.cloud.title))
 
                     secret.ctl.create_or_update_secret({key: value})
 
