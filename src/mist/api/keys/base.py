@@ -93,6 +93,9 @@ class BaseKeyController(object):
 
         try:
             self.key.save()
+            # store public key as well if key is new
+            if not arg_from_vault:
+                secret.ctl.create_or_update_secret({'public': self.key.public})
         except me.ValidationError as exc:
             log.error("Error adding %s: %s", self.key.name, exc.to_dict())
             # delete VaultSecret object and secret
