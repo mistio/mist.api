@@ -11,6 +11,8 @@ from mist.api.secrets.models import VaultSecret, SecretValue
 
 from mist.api.secrets.methods import value_refers_to_secret
 
+from mist.api import config
+
 log = logging.getLogger(__name__)
 
 
@@ -68,13 +70,16 @@ class BaseKeyController(object):
                     secret_value = SecretValue(secret=secret,
                                                key=_key)
                 else:
-                    secret = VaultSecret(name='keys/%s' % self.key.name,
+                    secret = VaultSecret(name='%s%s' % (config.VAULT_KEYS_PATH,
+                                                        self.key.name),
                                          owner=self.key.owner)
                     try:
                         secret.save()
                     except me.NotUniqueError:
-                        raise BadRequestError("The path `keys/%s` exists on Vault. \
-                            Try changing the name of the key" % self.key.name)
+                        raise BadRequestError("The path `%s%s` exists on Vault. \
+                            Try changing the name of the key" %
+                                              (config.VAULT_KEYS_PATH,
+                                               self.key.name))
 
                     secret.ctl.create_or_update_secret({key: value})
                     secret_value = SecretValue(secret=secret, key='private')
@@ -92,7 +97,7 @@ class BaseKeyController(object):
             log.error("Error adding %s: %s", self.key.name, exc.to_dict())
             # delete VaultSecret object and secret
             # if it was just added to Vault
-            if arg_from_vault:
+            if not arg_from_vault:
                 secret.delete()
                 secret.ctl.delete_secret()
 
