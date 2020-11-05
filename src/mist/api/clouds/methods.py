@@ -95,15 +95,8 @@ def delete_cloud(owner, cloud_id, delete_from_vault=False):
 
     log.info("Successfully deleted cloud '%s'", cloud_id)
 
-    if delete_from_vault:
-        if cloud._private_fields:
-            getattr(cloud, cloud._private_fields[0]).secret.ctl.delete_secret()
-            from mist.api.secrets.models import VaultSecret
-            secret = VaultSecret.objects.get(owner=owner,
-                                             name='%s%s' %
-                                             (config.VAULT_CLOUDS_PATH,
-                                              cloud.title))
-            secret.delete()
+    if delete_from_vault and cloud._private_fields:
+        getattr(cloud, cloud._private_fields[0]).secret.ctl.delete_secret()
 
     trigger_session_update(owner, ['clouds'])
     c_count = Cloud.objects(owner=owner, deleted=None).count()
