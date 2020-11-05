@@ -1,0 +1,5 @@
+#!/bin/sh
+
+pip install -U 'dramatiq[rabbitmq]'
+
+dramatiq mist.api.poller.dramatiq_tasks -Q dramatiq_ping
