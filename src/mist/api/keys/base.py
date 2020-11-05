@@ -103,10 +103,14 @@ class BaseKeyController(object):
             if not arg_from_vault:
                 secret.delete()
                 secret.ctl.delete_secret()
-
             raise BadRequestError("%s" % str(exc.to_dict()['__all__']))
         except me.NotUniqueError as exc:
             log.error("Key %s not unique error: %s", self.key.name, exc)
+            # delete VaultSecret object and secret
+            # if it was just added to Vault
+            if not arg_from_vault:
+                secret.delete()
+                secret.ctl.delete_secret()
             raise KeyExistsError()
 
         # SEC
