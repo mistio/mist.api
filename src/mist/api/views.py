@@ -1497,9 +1497,8 @@ def create_organization(request):
         raise OrganizationOperationError()
 
     if enable_vault_polling:
-        from mist.api.poller.models import ListSecretsPollingSchedule
-        ListSecretsPollingSchedule.add(org, config.VAULT_ADDR,
-                                       config.VAULT_TOKEN)
+        from mist.api.poller.models import ListVaultSecretsPollingSchedule
+        ListVaultSecretsPollingSchedule.add(org)
 
     trigger_session_update(auth_context.user, ['user'])
     return org.as_dict()
@@ -1643,9 +1642,8 @@ def edit_organization(request):
         auth_context.org.enable_r12ns = enable_r12ns
 
     if enable_vault_polling:
-        from mist.api.poller.models import ListSecretsPollingSchedule
-        ListSecretsPollingSchedule.add(auth_context.org, config.VAULT_ADDR,
-                                       config.VAULT_TOKEN)
+        from mist.api.poller.models import ListVaultSecretsPollingSchedule
+        ListVaultSecretsPollingSchedule.add(auth_context.org)
 
     # SEC check if owner
     if not (auth_context.org and auth_context.is_owner() and
