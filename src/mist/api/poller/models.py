@@ -404,25 +404,22 @@ class FindCoresMachinePollingSchedule(MachinePollingSchedule):
                 config.ENABLE_METERING)
 
 
-class VaultPollingSchedule(PollingSchedule):
+class SecretsPollingSchedule(PollingSchedule):
 
     owner = me.ReferenceField(Owner, reverse_delete_rule=me.CASCADE)
-    url = me.StringField(required=True)
-    token = me.StringField(required=True)
 
     @classmethod
-    def add(cls, owner, url, token, run_immediately=True, interval=None,
-            ttl=300):
+    def add(cls, owner, run_immediately=True, interval=None, ttl=300):
         try:
-            schedule = cls.objects.get(owner=owner, url=url, token=token)
+            schedule = cls.objects.get(owner=owner)
         except cls.DoesNotExist:
-            schedule = cls(owner=owner, url=url, token=token)
+            schedule = cls(owner=owner)
             try:
                 schedule.save()
             except me.NotUniqueError:
                 # Work around race condition where schedule was created since
                 # last time we checked.
-                schedule = cls.objects.get(owner=owner, url=url, token=token)
+                schedule = cls.objects.get(owner=owner)
         schedule.set_default_interval(60 * 60 * 2)
         if interval is not None:
             schedule.add_interval(interval, ttl)
@@ -433,10 +430,10 @@ class VaultPollingSchedule(PollingSchedule):
         return schedule
 
     def get_name(self):
-        return '%s(%s)' % (super(VaultPollingSchedule, self).get_name(),
+        return '%s(%s)' % (super(SecretsPollingSchedule, self).get_name(),
                            self.owner.id)
 
 
-class ListSecretsPollingSchedule(VaultPollingSchedule):
+class ListVaultSecretsPollingSchedule(SecretsPollingSchedule):
 
-    task = 'mist.api.poller.tasks.list_secrets'
+    task = 'mist.api.poller.tasks.list_vault_secrets'
