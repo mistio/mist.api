@@ -1,7 +1,5 @@
 import logging
 import datetime
-import hvac
-import mongoengine as me
 
 from mist.api.dramatiq_app import dramatiq
 
@@ -248,38 +246,16 @@ def list_buckets(schedule_id):
 
 
 @dramatiq.actor(queue_name='dramatiq_secrets', time_limit=45_000, max_age=30_000)
-def list_secrets(schedule_id):
+def list_vault_secrets(schedule_id):
     """Perform list secrets in Vault. For every new secret found,
        a VaultSecret object is stored in MongoDB
     """
-    # TODO: Recheck!!!!
-    from mist.api.poller.models import ListSecretsPollingSchedule
-    sched = ListSecretsPollingSchedule.objects.get(id=schedule_id)
-    owner = sched.owner
-    client = hvac.Client(url=sched.url, token=sched.token)
-    try:
-        res = client.secrets.kv.v1.list_secrets(mount_point='kv1',
-                                                path=owner.name)
-    except hvac.exceptions.InvalidPath:
-        log.info('No vault backend exists for organization %s' % owner.id)
-        return
-
-    keys = res['data'].get('keys', [])
-
+    from mist.api.poller.models import ListVaultSecretsPollingSchedule
+    sched = ListVaultSecretsPollingSchedule.objects.get(id=schedule_id)
     from mist.api.secrets.models import VaultSecret
-    existing_secrets = []
-    # parse the keys, if not found, create one
-    for key in keys:
-        try:
-            secret = VaultSecret.objects.get(owner=owner, name=key)
-            existing_secrets.append(secret)
-        except me.DoesNotExist:
-            secret = VaultSecret(owner=owner, name=key)
-            secret.save()
-            existing_secrets.append(secret)
-
-    # delete secret objects that have been removed from Vault, from mongoDB
-    VaultSecret.objects(id__nin=[s.id for s in existing_secrets]).delete()
+    # TODO: Is there a better way?
+    secret = VaultSecret(owner=sched.owner)
+    secret.ctl.list_secrets()
 
 
 @dramatiq.actor(queue_name='dramatiq_ping_probe',
