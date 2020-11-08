@@ -52,23 +52,25 @@ class VaultSecretController(BaseSecretController):
         This method checks whether a secret engine exists for
         the org. If it doesn't, it creates one.
         '''
-        org_name = self.secret.owner.name
+        org = self.secret.owner
         response = self.client.sys.list_mounted_secrets_engines()
         existing_secret_engines = response['data'].keys()
         # if no secret engine exists for the org, create one
-        if org_name + '/' not in existing_secret_engines:
+        if org.vault_secret_engine_path + '/' not in existing_secret_engines:
             log.info('No KV secret engine found for org %s. \
-                    Creating one...' % org_name)
+                    Creating one...' % org.name)
             self.client.sys.enable_secrets_engine(backend_type='kv',
-                                                  path=org_name,
+                                                  path=org.
+                                                  vault_secret_engine_path,
                                                   options={'version': 2}
                                                   )
 
     def list_secrets(self, path='.'):
         self.check_if_secret_engine_exists()
+        org = self.secret.owner
         try:
             response = self.client.secrets.kv.v2.list_secrets(
-                mount_point=self.secret.owner.name,
+                mount_point=org.vault_secret_engine_path,
                 path=path
             )
             keys = response['data']['keys']
@@ -85,10 +87,10 @@ class VaultSecretController(BaseSecretController):
             if not key.endswith('/'):  # if not a dir
                 try:
                     secret = VaultSecret.objects.get(name=path + key,
-                                                     owner=self.secret.owner)
+                                                     owner=org)
                 except me.DoesNotExist:
                     secret = VaultSecret(name=path + key,
-                                         owner=self.secret.owner)
+                                         owner=org)
                     secret.save()
                 secrets.append(secret)
             else:
@@ -96,7 +98,7 @@ class VaultSecretController(BaseSecretController):
                 secrets += self.list_secrets(key)
 
         # delete secret objects that have been removed from Vault, from mongoDB
-        VaultSecret.objects(owner=self.secret.owner,
+        VaultSecret.objects(owner=org,
                             id__nin=[s.id for s in secrets]).delete()
         return secrets
 
@@ -105,14 +107,14 @@ class VaultSecretController(BaseSecretController):
         self.check_if_secret_engine_exists()
         try:
             self.client.secrets.kv.v2.patch(
-                mount_point=self.secret.owner.name,
+                mount_point=self.secret.owner.vault_secret_engine_path,
                 path=self.secret.name,
                 secret=secret
             )
         except hvac.exceptions.InvalidPath:
             # no existing data in this path
             self.client.secrets.kv.v2.create_or_update_secret(
-                mount_point=self.secret.owner.name,
+                mount_point=self.secret.owner.vault_secret_engine_path,
                 path=self.secret.name,
                 secret=secret
             )
@@ -120,7 +122,7 @@ class VaultSecretController(BaseSecretController):
     def read_secret(self):
         """ Read a Vault KV* Secret """
         api_response = self.client.secrets.kv.v2.read_secret_version(
-            mount_point=self.secret.owner.name,
+            mount_point=self.secret.owner.vault_secret_engine_path,
             path=self.secret.name
         )
 
@@ -129,7 +131,7 @@ class VaultSecretController(BaseSecretController):
     def delete_secret(self):
         " Delete a Vault KV* Secret"
         self.client.secrets.kv.v2.delete_metadata_and_all_versions(
-            mount_point=self.secret.owner.name,
+            mount_point=self.secret.owner.vault_secret_engine_path,
             path=self.secret.name
         )
 
