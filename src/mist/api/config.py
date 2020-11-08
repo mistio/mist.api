@@ -121,6 +121,8 @@ VAULT_TOKEN = ''
 VAULT_ADDR = 'http://vault:8200'
 VAULT_CLOUDS_PATH = 'clouds/'
 VAULT_KEYS_PATH = 'keys/'
+# Mappings between organization names and secret engine paths
+VAULT_SECRET_ENGINE_PATHS = {}
 
 # Default, built-in metrics.
 INFLUXDB_BUILTIN_METRICS = {
