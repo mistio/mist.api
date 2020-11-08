@@ -462,6 +462,7 @@ class Organization(Owner):
     teams = me.EmbeddedDocumentListField(Team, default=_get_default_org_teams)
     teams_count = me.IntField(default=0)
     clouds_count = me.IntField(default=0)
+    vault_secret_engine_path = me.StringField(required=True)
     # These are assigned only to organization from now on
     promo_codes = me.ListField()
     selected_plan = me.StringField()
@@ -695,6 +696,10 @@ class Organization(Owner):
 
         self.members_count = len(self.members)
         self.teams_count = len(self.teams)
+
+        secret_engine_path = config.VAULT_SECRET_ENGINE_PATHS[self.name] \
+            if self.name in config.VAULT_SECRET_ENGINE_PATHS else self.name
+        self.vault_secret_engine_path = secret_engine_path
 
         # Add schedule for metering.
         try:
