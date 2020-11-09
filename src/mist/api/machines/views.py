@@ -235,7 +235,7 @@ def create_machine(request):
     docker_port_bindings:
       type: object
     project_id:
-      description: ' Needed only by Packet cloud'
+      description: ' Needed only by EquinixMetal cloud'
       type: string
     softlayer_backend_vlan_id:
       description: 'Specify id of a backend(private) vlan'

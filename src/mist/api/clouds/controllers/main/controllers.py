@@ -210,11 +210,11 @@ class HostVirtualMainController(BaseMainController):
     ComputeController = compute_ctls.HostVirtualComputeController
 
 
-class PacketMainController(BaseMainController):
+class EquinixMetalMainController(BaseMainController):
 
-    provider = 'packet'
-    ComputeController = compute_ctls.PacketComputeController
-    StorageController = storage_ctls.PacketStorageController
+    provider = 'equinixmetal'
+    ComputeController = compute_ctls.EquinixMetalComputeController
+    StorageController = storage_ctls.EquinixMetalStorageController
 
 
 class VultrMainController(BaseMainController):
