@@ -1,0 +1,3 @@
+#!/bin/sh
+
+python /mist.api/src/mist/api/poller/ap_scheduler.py

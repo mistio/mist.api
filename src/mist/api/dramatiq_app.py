@@ -15,18 +15,23 @@ class LoggingMiddleware(Middleware):
     state = local()
 
     def before_process_message(self, broker, message):
-        msg_id = '{}[{}]'.format(message.actor_name, message.message_id)
-        log.info('Starting task:  %s', msg_id)
+        msg_id = "{}[{}]".format(message.actor_name, message.message_id)
+        log.info("Starting task:  %s", msg_id)
         self.state.msg_id = msg_id
         self.state.start = perf_counter()
 
-    def after_process_message(self, broker, message, *,
-                              result=None, exception=None):
+    def after_process_message(
+        self, broker, message, *, result=None, exception=None
+    ):
         try:
             delta = perf_counter() - self.state.start
-            outcome = 'Task failed' if exception else 'Completed task'
-            log.info("%s: %s - %.02fms elapsed.", outcome, 
-                     self.state.msg_id, delta * 1000)
+            outcome = "Task failed" if exception else "Completed task"
+            log.info(
+                "%s: %s - %.02fms elapsed.",
+                outcome,
+                self.state.msg_id,
+                delta * 1000,
+            )
             del self.state.start
             del self.state.msg_id
         except AttributeError:
