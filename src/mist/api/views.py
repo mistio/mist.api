@@ -2427,6 +2427,9 @@ def section(request):
         return HTTPFound(path)
 
     page = 'blog'
+    post = section_id.split('--')[-1]
+    if post != 'blog':
+        page = 'blog/%s' % post
     uri_prefix = config.BLOG_CDN_URI or \
         request.application_url + "/static/blog/dist"
     page_uri = '%s/%s.html' % (uri_prefix, page)
