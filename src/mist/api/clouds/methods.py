@@ -9,11 +9,6 @@ from mist.api.helpers import trigger_session_update
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import BadRequestError, NotFoundError
 
-from mist.api.poller.models import ListMachinesPollingSchedule
-from mist.api.poller.models import ListLocationsPollingSchedule
-from mist.api.poller.models import ListSizesPollingSchedule
-from mist.api.poller.models import ListImagesPollingSchedule
-
 from mist.api.monitoring.methods import disable_monitoring_cloud
 
 from mist.api import config
