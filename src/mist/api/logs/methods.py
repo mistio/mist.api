@@ -139,6 +139,11 @@ def log_observations(owner_id, cloud_id, resource_type, patch,
                 resource_id = ids.pop(0).strip('/')
                 key = _patch.get('path')[1:-5]  # strip '/' and '/size'
                 name = cached_resources.get(key).get('name')
+                # do not produce observation log in case the machine.size
+                # had not been set, most probably because there were no
+                # CloudSize objects in the database
+                if not cached_resources.get(key).get('size'):
+                    continue
                 external_id = '-'.join(ids)[:-5]  # strip '/size'
                 log_dict.update({'new_size': _patch.get('value')})
             else:
