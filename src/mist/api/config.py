@@ -1241,6 +1241,9 @@ LINODE_DATACENTERS = {
 PROVIDERS_WITH_CUSTOM_SIZES = ['vsphere', 'onapp', 'libvirt', 'lxd', 'gig_g8',
                                'kubevirt']
 
+PROVIDERS_WITHOUT_DEFAULT_KEY = ['libvirt', 'docker', 'onapp', 'azure_arm',
+                                 'gig_g8', 'vsphere', 'kubevirt', 'lxd']
+
 SUPPORTED_PROVIDERS = [
     # BareMetal
     {
