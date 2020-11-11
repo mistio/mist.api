@@ -45,7 +45,7 @@ class PollingSchedule(ShardedScheduleMixin, me.Document):
     meta = {
         'allow_inheritance': True,
         'strict': False,
-        'indexes': ['shard_id']
+        'indexes': ['shard_id', 'shard_update_at']
     }
 
     # We use a unique name for easy identification and to avoid running the

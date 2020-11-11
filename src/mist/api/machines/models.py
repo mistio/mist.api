@@ -326,6 +326,7 @@ class Machine(OwnershipMixin, me.Document):
     meta = {
         'collection': 'machines',
         'indexes': [
+            'owner', 'last_seen', 'missing_since',
             {
                 'fields': [
                     'cloud',
