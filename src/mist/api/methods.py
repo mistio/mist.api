@@ -526,8 +526,11 @@ def list_resources(auth_context, resource_type, search='', cloud='',
     # Init query dict
     if resource_type == 'rule':
         query = {"owner_id": auth_context.org.id}
-    else:
+    elif hasattr(resource_model, 'owner'):
         query = {"owner": auth_context.org}
+    else:
+        query = {}
+
     if resource_type in ['cloud', 'key', 'script', 'template']:
         query['deleted'] = False
     elif resource_type in ['machine', 'network', 'volume', 'image']:
