@@ -234,6 +234,12 @@ class CloudPollingSchedule(PollingSchedule):
 
     cloud = me.ReferenceField(Cloud, reverse_delete_rule=me.CASCADE)
 
+    meta = {
+        'allow_inheritance': True,
+        'strict': False,
+        'indexes': ['cloud', 'shard_id', 'shard_update_at']
+    }
+
     def get_name(self):
         return '%s(%s)' % (super(CloudPollingSchedule, self).get_name(),
                            self.cloud.id)
