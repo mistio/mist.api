@@ -569,6 +569,7 @@ class GigG8ComputeController(BaseComputeController):
         from mist.api.clouds.models import CloudSize
         try:
             _size = CloudSize.objects.get(
+                cloud=self.cloud,
                 external_id=str(node['size'].get('id')))
         except me.DoesNotExist:
             _size = CloudSize(cloud=self.cloud,
