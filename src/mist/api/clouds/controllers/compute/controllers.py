@@ -923,29 +923,19 @@ class AzureArmComputeController(BaseComputeController):
             machine.os_type = os_type
             updated = True
 
-        # azure does not provide with the network info in list VMs call
-        # we have to make an extra call in order to get the subnet of the
-        # VM and then parse the subnet's id to get the network's id ffs
         nic_id = node_dict['extra'].get('networkProfile')[0].get('id')
-        nic = self.connection.ex_get_nic(nic_id)
-        properties = nic.extra.get('ipConfigurations')[0].get('properties')
-        subnet_id = properties.get('subnet').get('id')
-        network_id = subnet_id.split('/subnets')[-2]
+        from mist.api.networks.models import Network
+        nets = Network.objects.filter(cloud=self.cloud, missing_since=None)
+        for net in nets:
+            for nic in net.extra.get('nics', []):
+                if nic == nic_id:
+                    if net != machine.network:
+                        machine.network = net
+                        updated = True
+                    break
+        network_id = machine.network.network_id if machine.network else ''
         if machine.extra.get('network') != network_id:
             machine.extra['network'] = network_id
-            updated = True
-
-        # Discover network of machine.
-        from mist.api.networks.models import Network
-        try:
-            network = Network.objects.get(cloud=self.cloud,
-                                          network_id=network_id,
-                                          missing_since=None)
-        except Network.DoesNotExist:
-            network = None
-
-        if network != machine.network:
-            machine.network = network
             updated = True
 
         return updated
