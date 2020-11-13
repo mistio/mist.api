@@ -685,6 +685,79 @@ class LinodeComputeController(BaseComputeController):
     def _list_machines__get_location(self, node):
         return str(node['extra'].get('DATACENTERID'))
 
+    def generate_create_machine_plan(self, auth_context,
+                                     create_machine_request):
+        """
+        key_name
+        public_key
+        machine_name
+        image
+        size
+        location
+        """
+        from mist.api.machines.methods import machine_name_validator
+        machine_name = machine_name_validator(
+                       self.provider,
+                       create_machine_request.name)
+        from mist.api.methods import list_resources
+        try:
+            [location], _ = list_resources(
+                auth_context, 'location',
+                search=create_machine_request.location,
+                cloud=self.cloud.id, limit=1)
+        except ValueError:
+            raise NotFoundError('Location does not exist')
+        auth_context.check_perm('location', 'create_resources', location.id)
+
+        search = ''
+        for value in ['id', 'name']:
+            if value in create_machine_request.size:
+                search = create_machine_request.size[value]
+                break
+        try:
+            [size], _ = list_resources(
+                auth_context, 'size', search=search, cloud=self.cloud.id,
+                limit=1
+            )
+        except ValueError:
+            raise NotFoundError('Size does not exist')
+
+        search = ''
+        for value in ['id', 'name']:
+            if value in create_machine_request.image:
+                search = create_machine_request.image[value]
+                break
+        try:
+            [image], _ = list_resources(
+                auth_context, 'image', search=search,
+                cloud=self.cloud.id, limit=1
+            )
+        except ValueError:
+            raise NotFoundError('Image does not exist')
+
+        search = ''
+        key_dict = create_machine_request.key or {}
+        for value in ['id', 'name']:
+            if value in key_dict:
+                search = key_dict[value]
+                break
+        try:
+            [key], _ = list_resources(
+                auth_context, 'key', search=search, limit=1
+            )
+        except ValueError:
+            raise NotFoundError('Key does not exist')
+
+        plan = {
+            'name': machine_name,
+            'cloud': self.cloud.title,
+            'location': location.name,
+            'image': image.name,
+            'size': size.name,
+            'key': key.name
+        }
+        return plan
+
 
 class RackSpaceComputeController(BaseComputeController):
 
