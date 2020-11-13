@@ -334,8 +334,8 @@ class AlibabaComputeController(AmazonComputeController):
     def _list_machines__cost_machine(self, machine, node_dict):
         size = node_dict['extra'].get('instance_type', {})
         driver_name = 'ecs-' + node_dict['extra'].get('zone_id')
-        price = get_size_price(driver_type='compute', driver_name=driver_name,
-                               size_id=size)
+        price = get_pricing(
+            driver_type='compute', driver_name=driver_name).get(size, {})
         image = node_dict['extra'].get('image_id', '')
         if 'win' in image:
             price = price.get('windows', '')
