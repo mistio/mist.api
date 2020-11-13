@@ -4,6 +4,7 @@ import uuid
 import time
 import datetime
 import logging
+import asyncio
 
 import mongoengine as me
 
@@ -591,6 +592,23 @@ def disable_monitoring_cloud(owner, cloud_id, no_ssh=False):
             )
 
 
+async def async_find_metrics(resources):
+    loop = asyncio.get_event_loop()
+    metrics_all = [
+        loop.run_in_executor(None, find_metrics, resource)
+        for resource in resources
+    ]
+    metrics_all = await asyncio.gather(*metrics_all, return_exceptions=True)
+    metrics_dict = {}
+    for resource, metrics in zip(resources, metrics_all):
+        if isinstance(metrics, Exception):
+            log.error("Failed to get metrics for resource %s: %r" %
+                      (resource, metrics))
+        else:
+            metrics_dict.update(metrics)
+    return metrics_dict
+
+
 def find_metrics(resource):
     """Return the metrics associated with the specified resource."""
     if not hasattr(resource, "monitoring") or \
@@ -791,11 +809,10 @@ def find_metrics_by_resource_type(auth_context, resource_type, tags):
     if tags and resources:
         resources = filter_resources_by_tags(resources, tags)
 
-    metrics = {}
-
-    for resource in resources:
-        metrics.update(find_metrics(resource))
-
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    metrics = loop.run_until_complete(async_find_metrics(resources))
+    loop.close()
     return metrics
 
 
@@ -812,9 +829,8 @@ def find_metrics_by_tags(auth_context, tags):
     if resources:
         resources = filter_resources_by_tags(resources, tags)
 
-    metrics = {}
-
-    for resource in resources:
-        metrics.update(find_metrics(resource))
-
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    metrics = loop.run_until_complete(async_find_metrics(resources))
+    loop.close()
     return metrics
