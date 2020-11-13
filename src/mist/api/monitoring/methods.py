@@ -16,6 +16,7 @@ from mist.api.helpers import trigger_session_update
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import MethodNotAllowedError
+from mist.api.exceptions import PolicyUnauthorizedError
 
 from mist.api.users.models import Metric
 from mist.api.clouds.models import Cloud
@@ -712,11 +713,9 @@ def list_resources_by_id(resource_type, resource_id, as_dict=True):
         return [resource.as_dict() for resource in resource_objs]
     return resource_objs
 
+
 # SEC
-
-
-def filter_list_resources(
-        resource_type, auth_context, perm='read', as_dict=True):
+def filter_list_resources(resource_type, auth_context, as_dict=True):
     """Returns a list of resources, which is filtered based on RBAC Mappings for
     non-Owners.
     """
@@ -756,7 +755,7 @@ def find_metrics_by_resource_id(auth_context, resource_id, resource_type):
                 for machine in machines:
                     metrics.update(find_metrics(machine))
                 return metrics
-        except:
+        except Cloud.DoesNotExist:
             pass
     for resource_type in resource_types:
         try:
@@ -766,7 +765,9 @@ def find_metrics_by_resource_id(auth_context, resource_id, resource_type):
                 resource_type, resource_id, as_dict=False)
             if resource_objs:
                 return find_metrics(resource_objs[0])
-        except:
+        except NotFoundError:
+            pass
+        except PolicyUnauthorizedError:
             pass
     raise NotFoundError("resource with id:%s" % resource_id)
 
@@ -778,11 +779,14 @@ def find_metrics_by_resource_type(auth_context, resource_type, tags):
     if resource_type == "machine":
         clouds = filter_list_clouds(auth_context, as_dict=False)
         for cloud in clouds:
-            resources += filter_list_machines(
-                auth_context, cloud.id, as_dict=False)
+            try:
+                resources += filter_list_machines(
+                    auth_context, cloud.id, cached=True, as_dict=False)
+            except Cloud.DoesNotExist:
+                log.error("Cloud with id=%s does not exist" % cloud.id)
     else:
         resources = filter_list_resources(
-            resource_type, auth_context, perm='read', as_dict=False)
+            resource_type, auth_context, as_dict=False)
 
     if tags and resources:
         resources = filter_resources_by_tags(resources, tags)
@@ -799,8 +803,11 @@ def find_metrics_by_tags(auth_context, tags):
     resource_types = ['cloud', 'machine']
     resources = []
     for resource_type in resource_types:
-        resources += filter_list_resources(
-            resource_type, auth_context, perm='read', as_dict=False)
+        try:
+            resources += filter_list_resources(
+                resource_type, auth_context, as_dict=False)
+        except NotFoundError as e:
+            log.error("%r" % e)
 
     if resources:
         resources = filter_resources_by_tags(resources, tags)
