@@ -923,9 +923,14 @@ class AzureArmComputeController(BaseComputeController):
             machine.os_type = os_type
             updated = True
 
-        net_id = node_dict['extra'].get('networkProfile')[0].get('id')
-        net_id = net_id.replace('networkInterfaces', 'virtualNetworks')
-        network_id = net_id + '-vnet'
+        # azure does not provide with the network info in list VMs call
+        # we have to make an extra call in order to get the subnet of the
+        # VM and then parse the subnet's id to get the network's id ffs
+        nic_id = node_dict['extra'].get('networkProfile')[0].get('id')
+        nic = self.connection.ex_get_nic(nic_id)
+        properties = nic.extra.get('ipConfigurations')[0].get('properties')
+        subnet_id = properties.get('subnet').get('id')
+        network_id = subnet_id.split('/subnets')[-2]
         if machine.extra.get('network') != network_id:
             machine.extra['network'] = network_id
             updated = True
