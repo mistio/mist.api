@@ -187,6 +187,8 @@ def home(request):
             if 'blog' in page:
                 uri_prefix = config.BLOG_CDN_URI or \
                     request.application_url + "/static/blog/dist"
+                if params.get('page', None):
+                    page = 'page%s' % params.get('page')
             else:
                 uri_prefix = config.LANDING_CDN_URI or \
                     request.application_url + "/static/landing/sections/"
@@ -2429,7 +2431,7 @@ def section(request):
     page = 'blog'
     post = section_id.split('--')[-1]
     if post != 'blog':
-        page = 'blog/%s' % post
+        page = post if post.startswith('page') else 'blog/%s' % post
     uri_prefix = config.BLOG_CDN_URI or \
         request.application_url + "/static/blog/dist"
     page_uri = '%s/%s.html' % (uri_prefix, page)
