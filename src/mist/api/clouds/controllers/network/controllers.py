@@ -50,6 +50,17 @@ class AzureArmNetworkController(BaseNetworkController):
                 break
         network.resource_group = r_group_id
 
+        # also save an array of `nic_id`s in network.extra['nics']
+        # needed for machine-network association
+        for subnet in libcloud_network.extra['subnets']:
+            ip_configs = subnet.get('properties').get('ipConfigurations', [])
+            for ip_config in ip_configs:
+                nic_id = ip_config.get('id').split('/ipConfigurations')[-2]
+                if not network.extra.get('nics', []):
+                    network.extra['nics'] = [nic_id]
+                else:
+                    network.extra['nics'].append(nic_id)
+
     def _list_subnets__fetch_subnets(self, network):
         l_network = AzureNetwork(network.network_id,
                                  network.name, '', network.extra)
