@@ -1,6 +1,6 @@
 import time
 import logging
-
+from random import randrange
 import mongoengine as me
 import dramatiq
 
@@ -39,6 +39,21 @@ def dramatiq_create_machine_async(auth_context_serialized, job_id, plan):
                     continue
 
     machine.assign_to(auth_context.user)
+    if plan['expiration']:
+        params = {
+            'schedule_type': 'one_off',
+            'description': 'Scheduled to run when machine expires',
+            'schedule_entry': plan['expiration'].get('date'),
+            'action': plan['expiration'].get('action'),
+            'selectors': [{'type': 'machines', 'ids': [machine.id]}],
+            'task_enabled': True,
+            'notify': plan['expiration'].get('notify', ''),
+            'notify_msg': plan['expiration'].get('notify_msg', '')
+        }
+        name = machine.name + '-expiration-' + str(randrange(1000))
+        from mist.api.schedules.models import Schedule
+        machine.expiration = Schedule.add(auth_context, name, **params)
+        machine.save()
     # Associate key.
     if plan['key'] is not None:
         from mist.api.keys.models import Key
@@ -47,5 +62,5 @@ def dramatiq_create_machine_async(auth_context_serialized, job_id, plan):
         machine.ctl.associate_key(key, username=username,
                                   port=22, no_connect=True)
     if plan['tags']:
-        resolve_id_and_set_tags(auth_context. owner, 'machine',
+        resolve_id_and_set_tags(auth_context.owner, 'machine',
                                 node.id, plan['tags'], cloud_id=cloud.id)
