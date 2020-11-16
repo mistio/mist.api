@@ -1455,7 +1455,7 @@ class BaseComputeController(BaseController):
             # TODO move it up
             from mist.api.methods import ssh_command
             return ssh_command(self.cloud.owner, self.cloud.id,
-                               machine.machine_id, hostname, command)
+                               machine.id, hostname, command)
         except MistError as exc:
             log.error("Could not reboot machine %s", machine)
             raise
