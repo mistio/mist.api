@@ -39,7 +39,8 @@ from html import unescape
 from xml.sax.saxutils import escape
 
 from libcloud.pricing import get_size_price, get_pricing
-from libcloud.compute.base import Node, NodeImage, NodeLocation
+from libcloud.compute.base import Node, NodeImage, NodeLocation, NodeSize
+from libcloud.compute.base import NodeAuthSSHKey
 from libcloud.compute.providers import get_driver
 from libcloud.container.providers import get_driver as get_container_driver
 from libcloud.compute.types import Provider, NodeState
@@ -54,6 +55,7 @@ from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import PortForwardCreationError
 from mist.api.exceptions import ForbiddenError
+from mist.api.exceptions import MachineCreationError
 from mist.api.helpers import sanitize_host
 from mist.api.helpers import amqp_owner_listening
 from mist.api.helpers import node_to_dict
@@ -748,6 +750,28 @@ class LinodeComputeController(BaseComputeController):
         except ValueError:
             raise NotFoundError('Key does not exist')
 
+        if create_machine_request.dry:
+            plan = {
+                'name': machine_name,
+                'cloud': self.cloud.title,
+                'location': location.name,
+                'image': image.name,
+                'size': size.name,
+                'key': key.name
+            }
+        else:
+            plan = {
+                'name': machine_name,
+                'cloud': self.cloud.id,
+                'location': location.id,
+                'image': image.id,
+                'size': size.id,
+                'key': key.id
+            }
+        return plan
+
+    def create_machine(self, plan):
+        """
         plan = {
             'name': machine_name,
             'cloud': self.cloud.title,
@@ -756,7 +780,47 @@ class LinodeComputeController(BaseComputeController):
             'size': size.name,
             'key': key.name
         }
-        return plan
+        """
+        from mist.api.keys.models import Key
+        from mist.api.images.models import CloudImage
+        from mist.api.clouds.models import CloudLocation
+        from mist.api.clouds.models import CloudSize
+
+        key = Key.objects.get(id=plan['key'])
+        cloud_image = CloudImage.objects.get(id=plan['image'])
+        image = NodeImage(cloud_image.external_id,
+                          name=cloud_image.name,
+                          extra=cloud_image.extra,
+                          driver=self.connection)
+
+        cloud_location = CloudLocation.objects.get(id=plan['location'])
+        location = NodeLocation(cloud_location.external_id,
+                                name=cloud_location.name,
+                                country=cloud_location.country,
+                                extra=cloud_location.extra,
+                                driver=self.connection)
+
+        cloud_size = CloudSize.objects.get(id=plan['size'])
+        size = NodeSize(cloud_size.external_id,
+                        name=cloud_size.name,
+                        ram=cloud_size.ram,
+                        disk=cloud_size.disk,
+                        bandwidth=cloud_size.bandwidth,
+                        price=cloud_size.extra.get('price'),
+                        driver=self.connection)
+        auth = NodeAuthSSHKey(key.public)
+        try:
+            node = self.connection.create_node(
+                 name=plan['name'],
+                 image=image,
+                 size=size,
+                 location=location,
+                 auth=auth,
+                 ex_private=True
+            )
+        except Exception as e:
+            raise MachineCreationError("Linode, got exception %s" % e, e)
+        return node
 
 
 class RackSpaceComputeController(BaseComputeController):
