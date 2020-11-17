@@ -929,7 +929,8 @@ class AzureArmComputeController(BaseComputeController):
             network_id = subnet.split('/subnets')[0]
             from mist.api.networks.models import Network
             try:
-                network = Network.objects.get(cloud=self.cloud, network_id=network_id,
+                network = Network.objects.get(cloud=self.cloud,
+                                              network_id=network_id,
                                               missing_since=None)
                 if network != machine.network:
                     machine.network = network
