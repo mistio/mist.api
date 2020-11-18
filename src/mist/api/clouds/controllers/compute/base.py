@@ -1554,7 +1554,7 @@ class BaseComputeController(BaseController):
             node_size = NodeSize(size.external_id, name=size.name,
                                  ram=size.ram, disk=size.disk,
                                  bandwidth=size.bandwidth,
-                                 price=size.extra['price'],
+                                 price=size.extra.get('price'),
                                  driver=self.connection)
             self._resize_machine(machine, node, node_size, kwargs)
         except Exception as exc:
