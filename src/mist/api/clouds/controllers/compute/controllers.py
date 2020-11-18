@@ -924,16 +924,20 @@ class AzureArmComputeController(BaseComputeController):
             machine.os_type = os_type
             updated = True
 
-        nic_id = node_dict['extra'].get('networkProfile')[0].get('id')
-        from mist.api.networks.models import Network
-        nets = Network.objects.filter(cloud=self.cloud, missing_since=None)
-        for net in nets:
-            for nic in net.extra.get('nics', []):
-                if nic == nic_id:
-                    if net != machine.network:
-                        machine.network = net
-                        updated = True
-                    break
+        subnet = node_dict['extra'].get('subnet')
+        if subnet:
+            network_id = subnet.split('/subnets')[0]
+            from mist.api.networks.models import Network
+            try:
+                network = Network.objects.get(cloud=self.cloud,
+                                              network_id=network_id,
+                                              missing_since=None)
+                if network != machine.network:
+                    machine.network = network
+                    updated = True
+            except me.DoesNotExist:
+                pass
+
         network_id = machine.network.network_id if machine.network else ''
         if machine.extra.get('network') != network_id:
             machine.extra['network'] = network_id
