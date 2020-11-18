@@ -196,13 +196,13 @@ def dramatiq_post_deploy(
         dramatiq_add_schedules.message_with_options(
             args=(auth_context_serialized, external_id, machine_id, log_dict),
             kwargs={"schedule": plan.get("schedules")},
-            options={"pipe_ignore": True},
+            pipe_ignore=True
         )
         | dramatiq_add_dns_record.message_with_options(
             args=(auth_context_serialized, host, log_dict),
             # kwargs={"fqdn": plan.get("fqdn")},
             kwargs={"fqdn": ''},
-            options={"pipe_ignore": True},
+            pipe_ignore=True
         )
         | dramatiq_enable_monitoring.message_with_options(
             args=(
@@ -216,7 +216,7 @@ def dramatiq_post_deploy(
                 "monitoring": plan.get("monitoring", False),
                 "plugins": None,
             },
-            options={"pipe_ignore": True},
+            pipe_ignore=True
         )
     )
     pipe.run()
@@ -287,12 +287,8 @@ def dramatiq_add_dns_record(
 
 @dramatiq.actor(queue_name="dramatiq_enable_monitoring")
 def dramatiq_enable_monitoring(
-    auth_context_serialized,
-    cloud_id,
-    job_id,
-    external_id,
-    log_dict,
-    monitoring=False,
+    auth_context_serialized, cloud_id, job_id,
+    external_id, log_dict, monitoring=False,
     plugins=None,
 ):
     if monitoring:
