@@ -711,41 +711,41 @@ class LinodeComputeController(BaseComputeController):
             raise NotFoundError('Location does not exist')
         auth_context.check_perm('location', 'create_resources', location.id)
 
-        search = ''
+        size_search = ''
         for value in ['id', 'name']:
             if value in create_machine_request.size:
-                search = create_machine_request.size[value]
+                size_search = create_machine_request.size[value]
                 break
         try:
             [size], _ = list_resources(
-                auth_context, 'size', search=search, cloud=self.cloud.id,
+                auth_context, 'size', search=size_search, cloud=self.cloud.id,
                 limit=1
             )
         except ValueError:
             raise NotFoundError('Size does not exist')
 
-        search = ''
+        image_search = ''
         for value in ['id', 'name']:
             if value in create_machine_request.image:
-                search = create_machine_request.image[value]
+                image_search = create_machine_request.image[value]
                 break
         try:
             [image], _ = list_resources(
-                auth_context, 'image', search=search,
+                auth_context, 'image', search=image_search,
                 cloud=self.cloud.id, limit=1
             )
         except ValueError:
             raise NotFoundError('Image does not exist')
 
-        search = ''
+        key_search = ''
         key_dict = create_machine_request.key or {}
         for value in ['id', 'name']:
             if value in key_dict:
-                search = key_dict[value]
+                key_search = key_dict[value]
                 break
         try:
             [key], _ = list_resources(
-                auth_context, 'key', search=search, limit=1
+                auth_context, 'key', search=key_search, limit=1
             )
         except ValueError:
             raise NotFoundError('Key does not exist')
@@ -768,6 +768,9 @@ class LinodeComputeController(BaseComputeController):
                 'size': size.id,
                 'key': key.id
             }
+        plan['cloudinit'] = create_machine_request.cloudinit or ''
+        plan['fqdn'] = create_machine_request.fqdn or ''
+        plan['monitoring'] = create_machine_request.monitoring or False
         return plan
 
     def create_machine(self, plan):
