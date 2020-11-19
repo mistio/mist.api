@@ -9,6 +9,8 @@ from dramatiq.errors import Retry
 from libcloud.compute.types import NodeState
 from libcloud.container.base import Container
 
+from paramiko.ssh_exception import SSHException
+
 from mist.api.clouds.models import Cloud, DockerCloud
 from mist.api.machines.models import Machine
 from mist.api.users.models import Owner
@@ -17,8 +19,9 @@ from mist.api.keys.models import Key
 from mist.api.dns.models import RECORDS
 
 from mist.api.exceptions import MachineCreationError
+from mist.api.exceptions import ServiceUnavailableError
 
-from mist.api.methods import connect_provider
+from mist.api.methods import connect_provider, probe_ssh_only
 from mist.api.methods import notify_user, notify_admin
 from mist.api.auth.methods import AuthContext
 from mist.api.logs.methods import log_event
@@ -95,13 +98,8 @@ def dramatiq_create_machine_async(
             key, username=username, port=22, no_connect=True
         )
     if plan["tags"]:
-        resolve_id_and_set_tags(
-            auth_context.owner,
-            "machine",
-            node.id,
-            plan["tags"],
-            cloud_id=cloud.id,
-        )
+        resolve_id_and_set_tags(auth_context.owner, "machine", node.id,
+                                plan["tags"], cloud_id=cloud.id)
 
     dramatiq_post_deploy.send(
         auth_context_serialized,
@@ -116,16 +114,10 @@ def dramatiq_create_machine_async(
 
 
 @dramatiq.actor(queue_name="dramatiq_post_deploy_steps")
-def dramatiq_post_deploy(
-    auth_context_serialized,
-    owner_id,
-    cloud_id,
-    machine_id,
-    external_id,
-    plan,
-    job_id=None,
-    job=None,
-):
+def dramatiq_post_deploy(auth_context_serialized, owner_id, cloud_id,
+                         machine_id, external_id, plan,
+                         job_id=None, job=None):
+
     # TODO check how dramatiq handles different
     # num of retries based on some conditions
     owner = Owner.objects.get(id=owner_id)
@@ -200,18 +192,34 @@ def dramatiq_post_deploy(
         )
         | dramatiq_add_dns_record.message_with_options(
             args=(auth_context_serialized, host, log_dict),
-            # kwargs={"fqdn": plan.get("fqdn")},
-            kwargs={"fqdn": ''},
+            kwargs={"fqdn": plan.get("fqdn")},
+            pipe_ignore=True
+        )
+        | dramatiq_cloud_post_deploy.message_with_options(
+            args=(auth_context_serialized, cloud_id, host,
+                  external_id, node.name),
+            kwargs={
+                "username": None,
+                "password": None,
+                "port": 22,
+                "key_id": plan.get("key")
+            },
+            pipe_ignore=True
+        )
+        | dramatiq_probe_ssh.message_with_options(
+            args=(auth_context_serialized, host, cloud_id,
+                  machine_id, log_dict),
+            kwargs={
+                "username": None,
+                "password": None,
+                "port": 22,
+                "key_id": plan.get("key")
+            },
             pipe_ignore=True
         )
         | dramatiq_enable_monitoring.message_with_options(
-            args=(
-                auth_context_serialized,
-                cloud_id,
-                job_id,
-                external_id,
-                log_dict,
-            ),
+            args=(auth_context_serialized, cloud_id, job_id,
+                  external_id, log_dict),
             kwargs={
                 "monitoring": plan.get("monitoring", False),
                 "plugins": None,
@@ -223,9 +231,9 @@ def dramatiq_post_deploy(
 
 
 @dramatiq.actor(queue_name="dramatiq_add_schedules")
-def dramatiq_add_schedules(
-    auth_context_serialized, external_id, machine_id, log_dict, schedule=None
-):
+def dramatiq_add_schedules(auth_context_serialized, external_id, machine_id,
+                           log_dict, schedule=None):
+
     # TODO Handle multiple schedules
     auth_context = AuthContext.deserialize(auth_context_serialized)
     if schedule and schedule.get("name"):  # ugly hack to prevent dupes
@@ -261,9 +269,9 @@ def dramatiq_add_schedules(
 
 
 @dramatiq.actor(queue_name="dramatiq_add_dns_record")
-def dramatiq_add_dns_record(
-    auth_context_serialized, host, log_dict, fqdn=None
-):
+def dramatiq_add_dns_record(auth_context_serialized, host,
+                            log_dict, fqdn=None):
+
     if fqdn:
         kwargs = {}
         auth_context = AuthContext.deserialize(auth_context_serialized)
@@ -277,20 +285,94 @@ def dramatiq_add_dns_record(
             dns_cls.add(owner=auth_context.owner, **kwargs)
             log_event(action="Create_A_record", hostname=fqdn, **log_dict)
         except Exception as exc:
-            log_event(
-                action="Create_A_record",
-                hostname=fqdn,
-                error=str(exc),
-                **log_dict
+            log_event(action="Create_A_record", hostname=fqdn,
+                      error=str(exc), **log_dict)
+
+
+@dramatiq.actor(queue_name="dramatiq_cloud_post_deploy")
+def dramatiq_cloud_post_deploy(auth_context_serialized, cloud_id,
+                               host, external_id, machine_name,
+                               username=None, password=None, port=22,
+                               key_id=None):
+    """
+    Run post deploy steps defined in CLOUD_POST_DEPLOY.
+
+    """
+    auth_context = AuthContext.deserialize(auth_context_serialized)
+
+    try:
+        cloud_post_deploy_steps = config.CLOUD_POST_DEPLOY.get(cloud_id, [])
+    except AttributeError:
+        cloud_post_deploy_steps = []
+    try:
+        shell = Shell(host)
+        for post_deploy_step in cloud_post_deploy_steps:
+            predeployed_key_id = post_deploy_step.get('key')
+            if predeployed_key_id and key_id:
+                # Use predeployed key to deploy the user selected key
+                shell.autoconfigure(
+                    auth_context.owner, cloud_id, external_id,
+                    predeployed_key_id, username, password, port
+                )
+                retval, output = shell.command(
+                            'echo %s >> ~/.ssh/authorized_keys'
+                            % Key.objects.get(id=key_id).public)
+                if retval > 0:
+                    notify_admin('Deploy user key failed for machine %s'
+                                 % machine_name)
+            command = post_deploy_step.get('script', '').replace(
+                        '${node.name}', machine_name)
+            if command and key_id:
+                tmp_log('Executing cloud post deploy cmd: %s' % command)
+                shell.autoconfigure(
+                    auth_context.owner, cloud_id, external_id, key_id,
+                    username, password, port
+                )
+                retval, output = shell.command(command)
+                if retval > 0:
+                    notify_admin('Cloud post deploy command `%s` failed '
+                                 'for machine %s' % (command, machine_name))
+        shell.disconnect()
+    except (ServiceUnavailableError, SSHException) as exc:
+        tmp_log(repr(exc))
+        raise Retry(delay=60000)
+        # raise self.retry(exc=exc, countdown=60, max_retries=15)
+
+
+@dramatiq.actor(queue_name="dramatiq_probe_ssh")
+def dramatiq_probe_ssh(auth_context_serialized, host, cloud_id,
+                       machine_id, log_dict,
+                       key_id=None, username=None, password=None,
+                       port=22):
+    try:
+        if key_id:
+            # connect with ssh even if no command, to create association
+            # to be able to enable monitoring
+            auth_context = AuthContext.deserialize(auth_context_serialized)
+            shell = Shell(host)
+            tmp_log('attempting to connect to shell')
+            key_id, ssh_user = shell.autoconfigure(
+                auth_context.owner, cloud_id, machine_id, key_id, username,
+                password, port
             )
+            tmp_log('connected to shell')
+            result = probe_ssh_only(auth_context.owner, cloud_id, machine_id,
+                                    host=None, key_id=key_id,
+                                    ssh_user=ssh_user, shell=shell)
+
+            log_dict['ssh_user'] = ssh_user
+            log_event(action='probe', result=result, **log_dict)
+            shell.disconnect()
+    except (ServiceUnavailableError, SSHException) as exc:
+        tmp_log(repr(exc))
+        raise Retry(delay=60000)
 
 
 @dramatiq.actor(queue_name="dramatiq_enable_monitoring")
-def dramatiq_enable_monitoring(
-    auth_context_serialized, cloud_id, job_id,
-    external_id, log_dict, monitoring=False,
-    plugins=None,
-):
+def dramatiq_enable_monitoring(auth_context_serialized, cloud_id, job_id,
+                               external_id, log_dict, monitoring=False,
+                               plugins=None):
+
     if monitoring:
         auth_context = AuthContext.deserialize(auth_context_serialized)
         try:
