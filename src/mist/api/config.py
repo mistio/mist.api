@@ -181,10 +181,11 @@ TRAEFIK_API = "http://traefik:8080"
 # Hashicorp Vault Default Vars
 VAULT_TOKEN = ''
 VAULT_ADDR = 'http://vault:8200'
-VAULT_CLOUDS_PATH = 'clouds/'
-VAULT_KEYS_PATH = 'keys/'
 # Mappings between organization names and secret engine paths
 VAULT_SECRET_ENGINE_PATHS = {}
+VAULT_KV_VERSION = 2  # 1 or 2
+VAULT_CLOUDS_PATH = 'clouds/'
+VAULT_KEYS_PATH = 'keys/'
 
 # Default, built-in metrics.
 INFLUXDB_BUILTIN_METRICS = {
