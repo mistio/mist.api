@@ -8,4 +8,5 @@ dramatiq mist.api.dramatiq_tasks -Q dramatiq_create_machine \
                                     dramatiq_add_dns_record \
                                     dramatiq_enable_monitoring \
                                     dramatiq_probe_ssh \
-                                    dramatiq_cloud_post_deploy
+                                    dramatiq_cloud_post_deploy \
+                                    dramatiq_run_scripts

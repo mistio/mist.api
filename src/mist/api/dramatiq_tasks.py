@@ -217,6 +217,15 @@ def dramatiq_post_deploy(auth_context_serialized, owner_id, cloud_id,
             },
             pipe_ignore=True
         )
+        | dramatiq_run_scripts.message_with_options(
+            args=(auth_context_serialized, host, plan.get('scripts'),
+                  cloud_id, machine_id, log_dict,
+                  node.name),
+            kwargs={
+                "job_id": job_id,
+            },
+            pipe_ignore=True
+        )
         | dramatiq_enable_monitoring.message_with_options(
             args=(auth_context_serialized, cloud_id, job_id,
                   external_id, log_dict),
@@ -365,6 +374,59 @@ def dramatiq_probe_ssh(auth_context_serialized, host, cloud_id,
             shell.disconnect()
     except (ServiceUnavailableError, SSHException) as exc:
         tmp_log(repr(exc))
+        raise Retry(delay=60000)
+
+
+@dramatiq.actor(queue_name="dramatiq_run_scripts")
+def dramatiq_run_scripts(auth_context_serialized, host, scripts,
+                         cloud_id, machine_id, log_dict,
+                         machine_name, job_id=None):
+    """
+    """
+    auth_context = AuthContext.deserialize(auth_context_serialized)
+    try:
+        from mist.api.tasks import run_script
+        shell = Shell(host)
+        for script in scripts:
+            if script.get('id'):
+                tmp_log('will run script_id %s', script['id'])
+                ret = run_script.run(
+                    auth_context.owner, script['id'], machine_id,
+                    params=script.get('params'), host=host, job_id=job_id
+                )
+                # error = ret['error']
+                tmp_log('executed script_id %s', script['id'])
+            elif script.get('body'):
+                tmp_log('will run script')
+                log_event(action='deployment_script_started',
+                          command=script['body'],
+                          **log_dict)
+                start_time = time()
+                retval, output = shell.command(script['body'])
+                tmp_log('executed script %s', script['body'])
+                execution_time = time() - start_time
+                title = "Deployment script %s" % ('failed' if retval
+                                                  else 'succeeded')
+                # error = retval > 0
+                notify_user(auth_context.owner, title,
+                            cloud_id=cloud_id,
+                            machine_id=machine_id,
+                            machine_name=machine_name,
+                            command=script['body'],
+                            output=output,
+                            duration=execution_time,
+                            retval=retval,
+                            error=retval > 0)
+                log_event(action='deployment_script_finished',
+                          error=retval > 0,
+                          return_value=retval,
+                          command=script['body'],
+                          stdout=output,
+                          **log_dict)
+        shell.disconnect()
+    except (ServiceUnavailableError, SSHException) as exc:
+        tmp_log(repr(exc))
+        # raise self.retry(exc=exc, countdown=60, max_retries=15)
         raise Retry(delay=60000)
 
 
