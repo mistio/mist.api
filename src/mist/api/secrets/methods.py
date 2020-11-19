@@ -11,7 +11,7 @@ def maybe_get_secret(value, owner):
     Returns (secret, key, True) if the value is of the following format:
     secret(clouds.ec2.apikey), otherwise (None, '', False)
     '''
-    if value.startswith('secret('):
+    if isinstance(value, str) and value.startswith('secret('):
         secret_selector = value[7:-1].replace('.', '/').split('/')
         secret_name = '/'.join(secret_selector[:-1])
         try:
