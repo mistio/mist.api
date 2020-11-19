@@ -139,6 +139,9 @@ def update_secret(request):
     if not secret:
         raise RequiredParameterMissingError('secret')
 
+    if not isinstance(secret, dict):
+        raise BadRequestError('Secret needs to be a dict.')
+
     try:
         _secret = VaultSecret.objects.get(owner=auth_context.owner,
                                           id=secret_id)
