@@ -21,3 +21,28 @@ def maybe_get_secret(value, owner):
             return (None, '', False)
 
     return (None, '', False)
+
+
+def list_secrets(owner, cached=True, path='.'):
+    if cached:
+        secrets = VaultSecret.objects(owner=owner)
+        if path != '.':
+            secrets = [secret for secret in secrets
+                       if secret.name.startswith(path)]
+
+    else:
+        # TODO: is there a better way?
+        secret = VaultSecret(owner=owner)
+        secrets = secret.ctl.list_secrets(path)
+
+    return [secret.as_dict() for secret in secrets]
+
+
+def filter_list_secrets(auth_context, cached=True, path='.'):
+    secrets = list_secrets(auth_context.owner, cached, path)
+    if not auth_context.is_owner():
+        allowed_resources = auth_context.get_allowed_resources(perm)
+        for i in range(len(secrets) - 1, -1, -1):
+            if secrets[i]['id'] not in allowed_resources['secrets']:
+                secrets.pop(i)
+    return secrets
