@@ -9,7 +9,7 @@ from mist.api.helpers import rename_kwargs
 from mist.api.helpers import trigger_session_update
 from mist.api.secrets.models import VaultSecret, SecretValue
 
-from mist.api.secrets.methods import maybe_get_secret
+from mist.api.secrets.methods import maybe_get_secret_from_arg
 
 from mist.api import config
 
@@ -58,8 +58,10 @@ class BaseKeyController(object):
 
         for key, value in kwargs.items():
             if key == 'private':
-                secret, _key, arg_from_vault = maybe_get_secret(value,
-                                                                self.key.owner)
+                secret, _key, arg_from_vault = maybe_get_secret_from_arg(value,
+                                                                         self.
+                                                                         key.
+                                                                         owner)
                 if secret:
                     data = secret.ctl.read_secret()
                     if _key not in data.keys():
