@@ -29,18 +29,7 @@ def list_secrets(request):
     cached = bool(params.get('cached', True))  # return cached by default
     path = params.get('path', '.')
 
-    if cached:
-        secrets = VaultSecret.objects(owner=owner)
-        if path != '.':
-            secrets = [secret for secret in secrets
-                       if secret.name.startswith(path)]
-
-    else:
-        # TODO: is there a better way?
-        secret = VaultSecret(owner=owner)
-        secrets = secret.ctl.list_secrets(path)
-
-    return [secret.as_dict() for secret in secrets]
+    return methods.filter_list_secrets(auth_context, cached=cached, path=path)
 
 
 @view_config(route_name='api_v1_secrets', request_method='POST',
@@ -50,7 +39,7 @@ def create_secret(request):
     Tags: secrets
     ---
     Create secret.
-    ADD permission required on secret.
+    CREATE permission required on secret.
     ---
     secret:
       required: true
@@ -69,6 +58,7 @@ def create_secret(request):
     if not isinstance(secret, dict):
         raise BadRequestError('Secret needs to be a dict.')
 
+    auth_context.check_perm("secret", "create")
     _secret = VaultSecret(name=name, owner=owner)
     try:
         _secret.save()
@@ -113,6 +103,7 @@ def get_secret(request):
     except me.DoesNotExist:
         raise NotFoundError('Secret does not exist')
 
+    auth_context.check_perm("secret", "read", secret_id)
     secret_dict = secret.ctl.read_secret()
 
     if key and not secret_dict.get(key, ''):
@@ -148,6 +139,7 @@ def update_secret(request):
     except me.DoesNotExist:
         raise NotFoundError('Secret does not exist')
 
+    auth_context.check_perm("secret", "edit", secret_id)
     _secret.ctl.create_or_update_secret(secret)
 
     return OK
@@ -171,7 +163,7 @@ def delete_secret(request):
     except me.DoesNotExist:
         raise NotFoundError('Secret does not exist')
 
-    # auth_context.check_perm('secret', 'remove', secret_id)
+    auth_context.check_perm('secret', 'delete', secret_id)
     secret.ctl.delete_secret()
 
     return OK
