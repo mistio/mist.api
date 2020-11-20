@@ -299,8 +299,7 @@ class BaseMainController(object):
                 # ensure that the redundant resource (VaultSecret object) will
                 # be deleted
                 secret, _key, arg_from_vault = maybe_get_secret(value, self.
-                                                                       cloud.
-                                                                       owner)
+                                                                cloud.owner)
 
                 if secret:  # value will be obtained from vault
                     data = secret.ctl.read_secret()
@@ -342,7 +341,6 @@ class BaseMainController(object):
                         setattr(self.cloud, key, secret_value)
                     else:
                         setattr(self.cloud, key, value)
-
         try:
             self.cloud.validate(clean=True)
         except me.ValidationError as exc:
