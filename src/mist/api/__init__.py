@@ -157,7 +157,7 @@ def add_routes(configurator):
                        'templates', 'stacks', 'teams', 'networks', 'volumes',
                        'tunnels', 'members', 'insights', 'my-account',
                        'schedules', 'zones', 'rules', 'incidents',
-                       'buckets']
+                       'buckets', 'secrets']
         landing_sections = ['sign-up', 'sign-in', 'forgot-password', 'about',
                             'product', 'buy-license', 'request-pricing',
                             'get-started', 'privacy-policy', 'pledge', 'tos',
