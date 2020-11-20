@@ -7,6 +7,8 @@ from mist.api.auth.methods import auth_context_from_request
 
 from mist.api.helpers import view_config, params_from_request
 
+from mist.api.secrets import methods
+
 from mist.api.exceptions import NotFoundError, BadRequestError
 from mist.api.exceptions import RequiredParameterMissingError
 
@@ -24,7 +26,6 @@ def list_secrets(request):
     ---
     """
     auth_context = auth_context_from_request(request)
-    owner = auth_context.owner
     params = params_from_request(request)
     cached = bool(params.get('cached', True))  # return cached by default
     path = params.get('path', '.')
