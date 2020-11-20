@@ -771,6 +771,8 @@ class LinodeComputeController(BaseComputeController):
         plan['cloudinit'] = create_machine_request.cloudinit or ''
         plan['fqdn'] = create_machine_request.fqdn or ''
         plan['monitoring'] = create_machine_request.monitoring or False
+        plan['scripts'] = create_machine_request.scripts or {}
+        plan['extra'] = create_machine_request.extra or {}
         return plan
 
     def create_machine(self, plan):
