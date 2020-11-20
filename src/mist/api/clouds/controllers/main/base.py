@@ -37,7 +37,7 @@ from mist.api.clouds.controllers.storage.base import BaseStorageController
 from mist.api.clouds.controllers.objectstorage.base import BaseObjectStorageController  # noqa: E501
 
 from mist.api.secrets.models import VaultSecret, SecretValue
-from mist.api.secrets.methods import maybe_get_secret
+from mist.api.secrets.methods import maybe_get_secret_from_arg
 
 from mist.api import config
 
@@ -288,8 +288,10 @@ class BaseMainController(object):
                 # given plain, and some to be obtained from vault, this doesn't
                 # ensure that the redundant resource (VaultSecret object) will
                 # be deleted
-                secret, _key, arg_from_vault = maybe_get_secret(value, self.
-                                                                cloud.owner)
+                secret, _key, arg_from_vault = maybe_get_secret_from_arg(value,
+                                                                         self.
+                                                                         cloud.
+                                                                         owner)
 
                 if secret:  # value will be obtained from vault
                     data = secret.ctl.read_secret()

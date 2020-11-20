@@ -3,7 +3,7 @@ import mongoengine as me
 from mist.api.secrets.models import VaultSecret
 
 
-def maybe_get_secret(value, owner):
+def maybe_get_secret_from_arg(value, owner):
     '''
     This method parses a value given, which might
     refer to a private key or to part of cloud
