@@ -31,6 +31,7 @@ from mist.api.monitoring.methods import enable_monitoring
 from mist.api import config
 from mist.api.shell import Shell
 from mist.api.dramatiq_app import broker
+from mist.api.tasks import run_script
 
 
 logging.basicConfig(
@@ -41,8 +42,12 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 
-def tmp_log(msg, *args):
+def tmp_log_error(msg, *args):
     log.error("Post deploy: %s" % msg, *args)
+
+
+def tmp_log(msg, *args):
+    log.info("Post deploy: %s" % msg, *args)
 
 
 @dramatiq.actor(queue_name="dramatiq_create_machine", broker=broker)
@@ -147,7 +152,7 @@ def dramatiq_post_deploy(auth_context_serialized, owner_id, cloud_id,
         msg += "Machine:\n  Name: %s\n  Id: %s\n" % (node.name, node.id)
         tmp_log("Machine found, proceeding to post deploy steps\n%s" % msg)
     except Exception as exc:
-        tmp_log("Got exception %s, retrying" % str(exc))
+        tmp_log_error("Got exception %s, retrying" % str(exc))
         raise Retry(delay=10000)
 
     if node and isinstance(node, Container):
@@ -159,16 +164,16 @@ def dramatiq_post_deploy(auth_context_serialized, owner_id, cloud_id,
             ip for ip in node.public_ips + node.private_ips if ":" not in ip
         ]
         if not ips:
-            tmp_log("ip not found, retrying")
+            tmp_log_error("ip not found, retrying")
             raise Retry(delay=60000)
         host = ips[0]
         tmp_log("Host Found, %s" % host)
     else:
-        tmp_log("ip not found, retrying")
+        tmp_log_error("ip not found, retrying")
         raise Retry(delay=60000)
 
     if node.state != NodeState.RUNNING:
-        tmp_log("not running state")
+        tmp_log_error("not running state")
         # raise Retry(delay=120000)
         raise Retry(delay=60000)
     # auth_context = AuthContext.deserialize(auth_context_serialized)
@@ -181,7 +186,7 @@ def dramatiq_post_deploy(auth_context_serialized, owner_id, cloud_id,
         "job_id": job_id,
         "job": job,
         "host": host,
-        "key_id": plan.get("key"),
+        "key_id": plan.get("key", ""),
     }
     # TODO chain tasks
     pipe = (
@@ -220,9 +225,12 @@ def dramatiq_post_deploy(auth_context_serialized, owner_id, cloud_id,
         | dramatiq_run_scripts.message_with_options(
             args=(auth_context_serialized, host, plan.get('scripts'),
                   cloud_id, machine_id, log_dict,
-                  node.name),
+                  node.name, plan.get("key")),
             kwargs={
                 "job_id": job_id,
+                "username": None,
+                "password": None,
+                "port": 22
             },
             pipe_ignore=True
         )
@@ -264,11 +272,11 @@ def dramatiq_add_schedules(auth_context_serialized, external_id, machine_id,
                 **log_dict
             )
         except Exception as e:
-            print(repr(e))
+            tmp_log_error("Exception occured %s", repr(e))
             error = repr(e)
             notify_user(
                 auth_context.owner,
-                "add scheduler entry failed for " "machine %s" % external_id,
+                "add scheduler entry failed for machine %s" % external_id,
                 repr(e),
                 error=error,
             )
@@ -343,7 +351,7 @@ def dramatiq_cloud_post_deploy(auth_context_serialized, cloud_id,
                                  'for machine %s' % (command, machine_name))
         shell.disconnect()
     except (ServiceUnavailableError, SSHException) as exc:
-        tmp_log(repr(exc))
+        tmp_log_error(repr(exc))
         raise Retry(delay=60000)
         # raise self.retry(exc=exc, countdown=60, max_retries=15)
 
@@ -373,21 +381,22 @@ def dramatiq_probe_ssh(auth_context_serialized, host, cloud_id,
             log_event(action='probe', result=result, **log_dict)
             shell.disconnect()
     except (ServiceUnavailableError, SSHException) as exc:
-        tmp_log(repr(exc))
+        tmp_log_error(repr(exc))
         raise Retry(delay=60000)
 
 
 @dramatiq.actor(queue_name="dramatiq_run_scripts")
 def dramatiq_run_scripts(auth_context_serialized, host, scripts,
                          cloud_id, machine_id, log_dict,
-                         machine_name, job_id=None):
+                         machine_name, key_id,
+                         job_id=None, username=None, password=None,
+                         port=22):
     """
     """
     auth_context = AuthContext.deserialize(auth_context_serialized)
     try:
-        from mist.api.tasks import run_script
         shell = Shell(host)
-        for script in scripts:
+        for name, script in scripts.items():
             if script.get('id'):
                 tmp_log('will run script_id %s', script['id'])
                 ret = run_script.run(
@@ -401,10 +410,15 @@ def dramatiq_run_scripts(auth_context_serialized, host, scripts,
                 log_event(action='deployment_script_started',
                           command=script['body'],
                           **log_dict)
-                start_time = time()
+                start_time = time.time()
+                key_id, ssh_user = shell.autoconfigure(
+                    auth_context.owner, cloud_id, machine_id,
+                    key_id, username, password,
+                    port
+                )
                 retval, output = shell.command(script['body'])
                 tmp_log('executed script %s', script['body'])
-                execution_time = time() - start_time
+                execution_time = time.time() - start_time
                 title = "Deployment script %s" % ('failed' if retval
                                                   else 'succeeded')
                 # error = retval > 0
@@ -425,7 +439,7 @@ def dramatiq_run_scripts(auth_context_serialized, host, scripts,
                           **log_dict)
         shell.disconnect()
     except (ServiceUnavailableError, SSHException) as exc:
-        tmp_log(repr(exc))
+        tmp_log_error(repr(exc))
         # raise self.retry(exc=exc, countdown=60, max_retries=15)
         raise Retry(delay=60000)
 
@@ -438,6 +452,7 @@ def dramatiq_enable_monitoring(auth_context_serialized, cloud_id, job_id,
     if monitoring:
         auth_context = AuthContext.deserialize(auth_context_serialized)
         try:
+            tmp_log('Enabling monitoring')
             enable_monitoring(
                 auth_context.owner,
                 cloud_id,
@@ -448,8 +463,9 @@ def dramatiq_enable_monitoring(auth_context_serialized, cloud_id, job_id,
                 plugins=plugins,
                 deploy_async=False,
             )
+            tmp_log('Monitoring enabled')
         except Exception as e:
-            print(repr(e))
+            tmp_log_error(repr(e))
             notify_user(
                 auth_context.owner,
                 "Enable monitoring failed for machine %s" % external_id,
