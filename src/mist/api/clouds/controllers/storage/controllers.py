@@ -545,6 +545,12 @@ class LXDStorageController(BaseStorageController):
                                 "size_type": "GB",
                                 "config": config}
 
+    def _list_volumes__volume_actions(self, volume, libcloud_volume):
+        super(LXDStorageController, self)._list_volumes__volume_actions(
+            volume, libcloud_volume)
+        # detach_volume is not implemented in libcloud driver
+        volume.actions.detach = False
+
     def _attach_volume(self, libcloud_volume, libcloud_node, **kwargs):
 
         pool_id = libcloud_volume.extra["pool_id"]
