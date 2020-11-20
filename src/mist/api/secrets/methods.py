@@ -38,7 +38,7 @@ def list_secrets(owner, cached=True, path='.'):
     return [secret.as_dict() for secret in secrets]
 
 
-def filter_list_secrets(auth_context, cached=True, path='.'):
+def filter_list_secrets(auth_context, cached=True, path='.', perm='read'):
     secrets = list_secrets(auth_context.owner, cached, path)
     if not auth_context.is_owner():
         allowed_resources = auth_context.get_allowed_resources(perm)
