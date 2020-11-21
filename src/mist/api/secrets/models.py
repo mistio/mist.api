@@ -4,6 +4,7 @@ from uuid import uuid4
 
 from mist.api.users.models import Owner
 from mist.api.ownership.mixins import OwnershipMixin
+from mist.api.tag.models import Tag
 from mist.api.secrets import controllers
 
 
@@ -65,10 +66,22 @@ class Secret(OwnershipMixin, me.Document):
         return '%s secret %s (%s) of %s' % (type(self), self.name,
                                             self.id, self.owner)
 
+    @property
+    def tags(self):
+        """Return the tags of this secret."""
+        return [{'key': tag.key,
+                 'value': tag.value} for tag in Tag.objects(resource=self)]
+
+    def delete(self):
+        super(Secret, self).delete()
+        self.owner.mapper.remove(self)
+        Tag.objects(resource=self).delete()
+
     def as_dict(self):
         s_dict = {
             'id': self.id,
-            'name': self.name
+            'name': self.name,
+            'tags': self.tags
         }
         return s_dict
 
