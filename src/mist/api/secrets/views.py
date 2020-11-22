@@ -59,7 +59,7 @@ def create_secret(request):
     if not isinstance(secret, dict):
         raise BadRequestError('Secret needs to be a dict.')
 
-    auth_context.check_perm("secret", "create")
+    auth_context.check_perm("secret", "create", None)
     _secret = VaultSecret(name=name, owner=owner)
     try:
         _secret.save()
