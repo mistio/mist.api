@@ -69,13 +69,14 @@ class Secret(OwnershipMixin, me.Document):
     @property
     def tags(self):
         """Return the tags of this secret."""
-        return [{'key': tag.key,
-                 'value': tag.value} for tag in Tag.objects(resource=self)]
+        return {tag.key: tag.value
+                for tag in Tag.objects(resource_id=self.id,
+                                       resource_type='secret')}
 
     def delete(self):
         super(Secret, self).delete()
         self.owner.mapper.remove(self)
-        Tag.objects(resource=self).delete()
+        Tag.objects(resource_id=self.id, resource_type='secret').delete()
 
     def as_dict(self):
         s_dict = {
