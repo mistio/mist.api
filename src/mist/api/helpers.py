@@ -1084,7 +1084,7 @@ def logging_view_decorator(func):
             # Match resource type based on the action performed.
             for rtype in ['cloud', 'machine', 'key', 'script', 'tunnel',
                           'stack', 'template', 'schedule', 'volume',
-                          'buckets', 'secret']:
+                          'zone', 'network', 'buckets', 'secret']:
                 if rtype in log_dict['action']:
                     if 'id' in bdict and '%s_id' % rtype not in log_dict:
                         log_dict['%s_id' % rtype] = bdict['id']
