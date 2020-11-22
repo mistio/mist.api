@@ -67,6 +67,9 @@ def create_secret(request):
         raise BadRequestError("The path specified exists on Vault. \
                     Try changing the name of the secret")
 
+    # Set ownership.
+    _secret.assign_to(auth_context.user)
+
     _secret.ctl.create_or_update_secret(secret)
 
     # FIXME
