@@ -6,6 +6,7 @@ from mist.api.secrets.models import VaultSecret
 from mist.api.auth.methods import auth_context_from_request
 
 from mist.api.helpers import view_config, params_from_request
+from mist.api.helpers import trigger_session_update
 
 from mist.api.secrets import methods
 
@@ -73,7 +74,7 @@ def create_secret(request):
     _secret.ctl.create_or_update_secret(secret)
 
     # FIXME
-    # trigger_session_update(owner.id, ['secrets'])
+    trigger_session_update(owner.id, ['secrets'])
 
     # SEC
     # Update the RBAC & User/Ownership mappings with the new secret and finally
