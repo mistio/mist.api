@@ -451,3 +451,33 @@ class BaseMainController(object):
         """
         raise BadRequestError("Adding machines is only supported in Bare"
                               "Metal and KVM/Libvirt clouds.")
+
+    def has_create_machine_feature(self, param_type):
+        """Returns a dictionary can accept certain parameters
+        in create_machine.
+        param_type can be:
+            location
+            key
+            networks
+            volumes
+            custom_size
+            cloudinit
+        """
+        from mist.api.config import PROVIDERS
+        from mist.api.exceptions import NotFoundError
+        provider_dict = None
+        try:
+            provider_dict = PROVIDERS[self.provider]
+        except KeyError:
+            for value in PROVIDERS.values():
+                if self.provider == value['driver']:
+                    provider_dict = value
+                    break
+            if not provider_dict:
+                raise NotFoundError('Provider does not exist')
+        try:
+            ret = provider_dict['create_machine_features'][param_type]
+        except KeyError:
+            raise NotFoundError('Invalid parameter %s' % param_type)
+        else:
+            return ret
