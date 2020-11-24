@@ -63,6 +63,7 @@ def _populate_clouds():
     CLOUDS['amazon'] = CLOUDS['ec2']
     CLOUDS['kvm'] = CLOUDS['libvirt']
     CLOUDS['other'] = CLOUDS['bare_metal']
+    CLOUDS['google'] = CLOUDS['gce']
 
 
 class Cloud(OwnershipMixin, me.Document):
