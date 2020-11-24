@@ -57,65 +57,78 @@ def dramatiq_create_machine_async(
 
     auth_context = AuthContext.deserialize(auth_context_serialized)
     cloud = Cloud.objects.get(id=plan["cloud"])
+    '''
+    log_event(auth_context.owner.id, 'job', 'async_machine_creation_started',
+              user_id=auth_context.user.id, job_id=job_id, job=job,
+              cloud_id=cloud_id, script=script, script_id=script_id,
+              script_params=script_params, monitoring=monitoring,
+              persist=persist, quantity=quantity, key_id=key_id,
+              machine_names=names, volumes=volumes)
+    '''
+    cached_machines = [m.as_dict()
+                       for m in cloud.ctl.compute.list_cached_machines()]
+    # TODO support multiple machines
     try:
         node = cloud.ctl.compute.create_machine(plan)
-    except MachineCreationError:
+    except Exception as exc:
+        tmp_log_error("Got exception %s" % str(exc))
         # TODO Handle creation, linode might throw exception and still
         # create the machine, causing the task to be retried and as a result
         # creating multiple machines
-        pass
-    for i in range(0, 10):
-        try:
-            machine = Machine.objects.get(cloud=cloud, machine_id=node.id)
-            break
-        except me.DoesNotExist:
-            if i < 6:
-                time.sleep(i * 10)
-                continue
+    else:
+        for i in range(0, 10):
             try:
-                cloud.ctl.compute._list_machines()
-            except Exception as e:
-                if i > 8:
-                    raise (e)
-                else:
-                    continue
+                machine = Machine.objects.get(cloud=cloud, machine_id=node.id)
+                break
+            except me.DoesNotExist:
+                time.sleep(30)
+                try:
+                    cloud.ctl.compute._list_machines()
+                except Exception as exc:
+                    tmp_log_error("Got exception %s in _list_machines"
+                                  % str(exc))
 
-    machine.assign_to(auth_context.user)
-    if plan["expiration"]:
-        params = {
-            "schedule_type": "one_off",
-            "description": "Scheduled to run when machine expires",
-            "schedule_entry": plan["expiration"].get("date"),
-            "action": plan["expiration"].get("action"),
-            "selectors": [{"type": "machines", "ids": [machine.id]}],
-            "task_enabled": True,
-            "notify": plan["expiration"].get("notify", ""),
-            "notify_msg": plan["expiration"].get("notify_msg", ""),
-        }
-        name = machine.name + "-expiration-" + str(randrange(1000))
-        machine.expiration = Schedule.add(auth_context, name, **params)
-        machine.save()
-    # Associate key.
-    if plan["key"] is not None:
-        key = Key.objects.get(id=plan["key"])
-        username = node.extra.get("username", "")
-        machine.ctl.associate_key(
-            key, username=username, port=22, no_connect=True
+        machine.assign_to(auth_context.user)
+        if plan.get('expiration'):
+            params = {
+                "schedule_type": "one_off",
+                "description": "Scheduled to run when machine expires",
+                "schedule_entry": plan["expiration"].get("date"),
+                "action": plan["expiration"].get("action"),
+                "selectors": [{"type": "machines", "ids": [machine.id]}],
+                "task_enabled": True,
+                "notify": plan["expiration"].get("notify", ""),
+                "notify_msg": plan["expiration"].get("notify_msg", ""),
+            }
+            name = machine.name + "-expiration-" + str(randrange(1000))
+            machine.expiration = Schedule.add(auth_context, name, **params)
+            machine.save()
+        # Associate key.
+        if plan.get('key') is not None:
+            key = Key.objects.get(id=plan["key"])
+            username = node.extra.get("username", "")
+            # TODO port could be something else
+            machine.ctl.associate_key(
+                key, username=username, port=22, no_connect=True
+            )
+        if plan.get('tags'):
+            resolve_id_and_set_tags(auth_context.owner, 'machine', node.id,
+                                    plan['tags'], cloud_id=cloud.id)
+
+        fresh_machines = cloud.ctl.compute._list_machines()
+        cloud.ctl.compute.produce_and_publish_patch(cached_machines,
+                                                    fresh_machines,
+                                                    first_run=True)
+        dramatiq_post_deploy.send(
+            auth_context_serialized,
+            auth_context.owner.id,
+            cloud.id,
+            machine.id,
+            node.id,
+            plan,
+            job_id=job_id,
+            job=job,
         )
-    if plan["tags"]:
-        resolve_id_and_set_tags(auth_context.owner, "machine", node.id,
-                                plan["tags"], cloud_id=cloud.id)
-
-    dramatiq_post_deploy.send(
-        auth_context_serialized,
-        auth_context.owner.id,
-        cloud.id,
-        machine.id,
-        node.id,
-        plan,
-        job_id=job_id,
-        job=job,
-    )
 
 
 @dramatiq.actor(queue_name="dramatiq_post_deploy_steps")
@@ -188,7 +201,7 @@ def dramatiq_post_deploy(auth_context_serialized, owner_id, cloud_id,
         "host": host,
         "key_id": plan.get("key", ""),
     }
-    # TODO chain tasks
+
     pipe = (
         dramatiq_add_schedules.message_with_options(
             args=(auth_context_serialized, external_id, machine_id, log_dict),
@@ -301,6 +314,7 @@ def dramatiq_add_dns_record(auth_context_serialized, host,
             dns_cls = RECORDS[kwargs["type"]]
             dns_cls.add(owner=auth_context.owner, **kwargs)
             log_event(action="Create_A_record", hostname=fqdn, **log_dict)
+            tmp_log("Added A Record, fqdn: %s IP: %s", fqdn, host)
         except Exception as exc:
             log_event(action="Create_A_record", hostname=fqdn,
                       error=str(exc), **log_dict)
@@ -406,6 +420,12 @@ def dramatiq_run_scripts(auth_context_serialized, host, scripts,
                 # error = ret['error']
                 tmp_log('executed script_id %s', script['id'])
             elif script.get('body'):
+                key_id, ssh_user = shell.autoconfigure(
+                    auth_context.owner, cloud_id, machine_id,
+                    key_id, username, password,
+                    port
+                )
+                log_dict['ssh_user'] = ssh_user
                 tmp_log('will run script')
                 log_event(action='deployment_script_started',
                           command=script['body'],
