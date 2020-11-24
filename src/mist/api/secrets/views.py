@@ -10,8 +10,12 @@ from mist.api.helpers import trigger_session_update
 
 from mist.api.secrets import methods
 
+from mist.api.tasks import async_session_update
+
 from mist.api.exceptions import NotFoundError, BadRequestError
 from mist.api.exceptions import RequiredParameterMissingError
+
+from mist.api import config
 
 OK = Response("OK", 200)
 
@@ -77,13 +81,12 @@ def create_secret(request):
     trigger_session_update(owner.id, ['secrets'])
 
     # SEC
-    # Update the RBAC & User/Ownership mappings with the new secret and finally
-    # trigger a session update by registering it as a chained task.
-    # if config.HAS_RBAC:
-    #     owner.mapper.update(
-    #         secret,
-    #         callback=async_session_update, args=(owner.id, ['secrets'], )
-    #     )
+    # Update the RBAC & User/Ownership mappings with the new secret
+    if config.HAS_RBAC:
+        owner.mapper.update(
+            _secret,
+            callback=async_session_update, args=(owner.id, ['secrets'], )
+        )
 
     return _secret.as_dict()
 
