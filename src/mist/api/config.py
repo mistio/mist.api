@@ -1253,6 +1253,14 @@ PROVIDERS = {
             'dns': True,
             'storage': True,
             'networks': True
+        },
+        'create_machine_features': {
+            'location': True,
+            'key': True,
+            'networks': True,
+            'volumes': True,
+            'custom_size': False,
+            'cloudinit': True
         }
     },
     'azure': {
@@ -1265,6 +1273,14 @@ PROVIDERS = {
             'provision': True,
             'storage': True,
             'networks': True
+        },
+        'create_machine_features': {
+            'location': True,
+            'key': True,
+            'networks': True,
+            'volumes': True,
+            'custom_size': False,
+            'cloudinit': True
         }
     },
     'google': {
@@ -1278,6 +1294,14 @@ PROVIDERS = {
             'dns': True,
             'storage': True,
             'networks': True
+        },
+        'create_machine_features': {
+            'location': True,
+            'key': True,
+            'networks': True,
+            'volumes': True,
+            'custom_size': False,
+            'cloudinit': True
         }
     },
     'alibaba': {
@@ -1290,6 +1314,14 @@ PROVIDERS = {
             'provision': True,
             'storage': True,
             'networks': True
+        },
+        'create_machine_features': {
+            'location': True,
+            'key': True,
+            'networks': True,
+            'volumes': True,
+            'custom_size': False,
+            'cloudinit': True
         }
     },
     'equinix': {
@@ -1303,6 +1335,14 @@ PROVIDERS = {
             'storage': True,
             'networks': True,
             'metal': True
+        },
+        'create_machine_features': {
+            'location': True,
+            'key': True,
+            'networks': True,
+            'volumes': True,
+            'custom_size': False,
+            'cloudinit': True
         }
     },
     'ibm': {
@@ -1314,6 +1354,14 @@ PROVIDERS = {
             'compute': True,
             'provision': True,
             'metal': True
+        },
+        'create_machine_features': {
+            'location': True,
+            'key': True,
+            'networks': True,
+            'volumes': False,
+            'custom_size': False,
+            'cloudinit': True
         }
     },
     'digitalocean': {
@@ -1325,6 +1373,14 @@ PROVIDERS = {
             'compute': True,
             'provision': True,
             'storage': True,
+        },
+        'create_machine_features': {
+            'location': True,
+            'key': True,
+            'networks': False,
+            'volumes': True,
+            'custom_size': False,
+            'cloudinit': True
         }
     },
     'linode': {
@@ -1337,6 +1393,14 @@ PROVIDERS = {
             'provision': True,
             'dns': True,
             'storage': True,
+        },
+        'create_machine_features': {
+            'location': True,
+            'key': True,
+            'networks': False,
+            'volumes': False,
+            'custom_size': False,
+            'cloudinit': False
         }
     },
     'rackspace': {
@@ -1349,6 +1413,14 @@ PROVIDERS = {
             'provision': True,
             'dns': True,
             'storage': True,
+        },
+        'create_machine_features': {
+            'location': False,
+            'key': False,
+            'networks': False,
+            'volumes': False,
+            'custom_size': False,
+            'cloudinit': True
         }
     },
     'maxihost': {
@@ -1360,6 +1432,14 @@ PROVIDERS = {
             'compute': True,
             'provision': True,
             'metal': True,
+        },
+        'create_machine_features': {
+            'location': True,
+            'key': True,
+            'networks': False,
+            'volumes': False,
+            'custom_size': False,
+            'cloudinit': False
         }
     },
     'vultr': {
@@ -1370,6 +1450,14 @@ PROVIDERS = {
         'features': {
             'compute': True,
             'provision': True,
+        },
+        'create_machine_features': {
+            'location': True,
+            'key': True,
+            'networks': False,
+            'volumes': False,
+            'custom_size': False,
+            'cloudinit': True
         }
     },
     'g8': {
@@ -1381,6 +1469,14 @@ PROVIDERS = {
             'compute': True,
             'provision': True,
             'storage': True,
+        },
+        'create_machine_features': {
+            'location': False,
+            'key': True,
+            'networks': True,
+            'volumes': True,
+            'custom_size': True,
+            'cloudinit': True
         }
     },
     'openstack': {
@@ -1392,6 +1488,14 @@ PROVIDERS = {
             'compute': True,
             'provision': True,
             'storage': True,
+        },
+        'create_machine_features': {
+            'location': False,
+            'key': True,
+            'networks': True,
+            'volumes': True,
+            'custom_size': False,
+            'cloudinit': True
         }
     },
     'onapp': {
@@ -1403,6 +1507,14 @@ PROVIDERS = {
             'compute': True,
             'provision': True,
             'storage': False,
+        },
+        'create_machine_features': {
+            'location': False,
+            'key': True,
+            'networks': True,
+            'volumes': False,
+            'custom_size': True,
+            'cloudinit': False
         }
     },
     'vsphere': {
@@ -1414,6 +1526,14 @@ PROVIDERS = {
             'compute': True,
             'provision': True,
             'storage': False,
+        },
+        'create_machine_features': {
+            'location': True,
+            'key': False,
+            'networks': True,
+            'volumes': False,
+            'custom_size': True,
+            'cloudinit': False
         }
     },
     'vcloud': {
@@ -1425,6 +1545,14 @@ PROVIDERS = {
             'compute': True,
             'provision': True,
             'storage': False,
+        },
+        'create_machine_features': {
+            'location': False,
+            'key': True,
+            'networks': True,
+            'volumes': False,
+            'custom_size': False,
+            'cloudinit': False
         }
     },
     'kvm': {
@@ -1436,6 +1564,14 @@ PROVIDERS = {
             'compute': True,
             'provision': True,
             'storage': False,
+        },
+        'create_machine_features': {
+            'location': True,
+            'key': True,
+            'networks': True,
+            'volumes': False,
+            'custom_size': True,
+            'cloudinit': True
         }
     },
     'lxd': {
@@ -1448,6 +1584,14 @@ PROVIDERS = {
             'container': True,
             'provision': True,
             'storage': True,
+        },
+        'create_machine_features': {
+            'location': False,
+            'key': False,
+            'networks': True,
+            'volumes': True,
+            'custom_size': True,
+            'cloudinit': False
         }
     },
     'docker': {
@@ -1460,6 +1604,14 @@ PROVIDERS = {
             'container': True,
             'provision': True,
             'storage': False,
+        },
+        'create_machine_features': {
+            'location': False,
+            'key': True,
+            'networks': True,
+            'volumes': False,
+            'custom_size': False,
+            'cloudinit': False
         }
     },
     'kubevirt': {
@@ -1472,6 +1624,14 @@ PROVIDERS = {
             'container': True,
             'provision': True,
             'storage': True,
+        },
+        'create_machine_features': {
+            'location': True,
+            'key': False,
+            'networks': True,
+            'volumes': False,
+            'custom_size': True,
+            'cloudinit': False
         }
     },
     'other': {
