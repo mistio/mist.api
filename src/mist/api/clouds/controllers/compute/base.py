@@ -40,6 +40,7 @@ from mist.api.exceptions import CloudUnavailableError
 from mist.api.exceptions import CloudUnauthorizedError
 from mist.api.exceptions import SSLError
 from mist.api.exceptions import MistNotImplementedError
+from mist.api.exceptions import NotFoundError
 
 from mist.api.helpers import get_datetime
 from mist.api.helpers import amqp_publish
@@ -2033,3 +2034,192 @@ class BaseComputeController(BaseController):
 
         """
         raise MistNotImplementedError()
+
+    def generate_create_machine_plan(self, auth_context,
+                                     create_machine_request, plan):
+        """Add provider specific parameters in place to machine creation plan from
+        create_machine_request
+        """
+        image_dict = create_machine_request.image or {}
+        image = self._parse_image_from_request(auth_context, image_dict)
+        if image:
+            plan['image'] = image
+
+        location = self._parse_location_from_request(
+                        auth_context,
+                        create_machine_request.location)
+        if location:
+            plan['location'] = location
+
+        size_dict = create_machine_request.size or {}
+        size = self._parse_size_from_request(auth_context, size_dict)
+        if size:
+            plan['size'] = size
+
+        key_dict = create_machine_request.key or {}
+        key = self._parse_key_from_request(auth_context, key_dict)
+        if key:
+            plan['key'] = key
+
+        networks_dict = create_machine_request.net or {}
+        networks = self._parse_networks_from_request(auth_context,
+                                                     networks_dict)
+        if networks:
+            plan['networks'] = networks
+
+        volumes_dict = create_machine_request.volumes or {}
+        volumes = self._parse_volumes_from_request(auth_context,
+                                                   volumes_dict)
+        if volumes:
+            plan['volumes'] = volumes
+
+        disks_dict = create_machine_request.disks or {}
+        disks = self._parse_disks_from_request(auth_context,
+                                               disks_dict)
+        if disks:
+            plan['disks'] = disks
+
+        scripts_dict = create_machine_request.scripts or {}
+        scripts = self._parse_scripts_from_request(auth_context,
+                                                   scripts_dict)
+        if scripts:
+            plan['scripts'] = scripts
+
+        extra = create_machine_request.extra or {}
+        self._parse_extra_from_request(extra, plan)
+
+        if create_machine_request.cloudinit:
+            plan['cloudinit'] = create_machine_request.cloudinit
+
+        if create_machine_request.fqdn:
+            plan['fqdn'] = create_machine_request.fqdn
+
+        if create_machine_request.monitoring is not None:
+            plan['monitoring'] = create_machine_request.monitoring
+
+        if create_machine_request.quantity is not None:
+            plan['quantity'] = create_machine_request.quantity
+        else:
+            plan['quantity'] = 1
+
+        self._post_parse_plan(plan)
+        return plan
+
+    def _parse_image_from_request(self, auth_context, image_dict):
+        from mist.api.methods import list_resources
+        image_search = ''
+        for value in ['id', 'name']:
+            if value in image_dict:
+                image_search = image_dict[value]
+                break
+        try:
+            # TODO handle multiple images
+            [image], _ = list_resources(
+                auth_context, 'image', search=image_search,
+                cloud=self.cloud.id, limit=1
+            )
+        except ValueError:
+            raise NotFoundError('Image does not exist')
+        return image.id
+
+    def _parse_location_from_request(self, auth_context, location_search):
+        from mist.api.methods import list_resources
+        try:
+            # TODO handle multiple locations
+            [location], _ = list_resources(
+                auth_context, 'location',
+                search=location_search,
+                cloud=self.cloud.id, limit=1)
+        except ValueError:
+            raise NotFoundError('Location does not exist')
+        # TODO add perimissions other than read to list_resources
+        auth_context.check_perm('location', 'create_resources',
+                                location.id)
+        return location.id
+
+    def _parse_size_from_request(self, auth_context, size_dict):
+        from mist.api.methods import list_resources
+        size_search = ''
+        for value in ['id', 'name']:
+            if value in size_dict:
+                size_search = size_dict[value]
+                break
+        try:
+            [size], _ = list_resources(
+                auth_context, 'size', search=size_search,
+                cloud=self.cloud.id,
+                limit=1
+            )
+        except ValueError:
+            raise NotFoundError('Size does not exist')
+
+        return size.id
+
+    def _parse_key_from_request(self, auth_context, key_dict):
+        from mist.api.methods import list_resources
+        key_search = ''
+        for value in ['id', 'name']:
+            if value in key_dict:
+                key_search = key_dict[value]
+                break
+        try:
+            # TODO default key?
+            [key], _ = list_resources(
+                auth_context, 'key', search=key_search, limit=1
+            )
+        except ValueError:
+            raise NotFoundError('Key does not exist')
+
+        return key.id
+
+    def _parse_scripts_from_request(self, auth_context, scripts_dict):
+        from mist.api.methods import list_resources
+        """
+        Scripts dictionary could be:
+        {
+            id OR name: {
+                params: str(optional)
+            },
+            dummy_script_key: {
+                inline: str
+            }
+        }
+        """
+        ret_scripts = []
+        for key, value in scripts_dict.items():
+            if value.get('inline'):
+                ret_scripts.append({key: value})
+            else:
+                try:
+                    [script], _ = list_resources(auth_context, 'script',
+                                                 search=key,
+                                                 limit=1)
+                    auth_context.check_perm('script', 'run', script.id)    
+                except ValueError:
+                    raise NotFoundError('Script does not exist')
+                else:
+                    ret_scripts.append({
+                        script.id: value.get('params')
+                    })
+        return ret_scripts
+
+    def _parse_networks_from_request(self, auth_context, network_dict):
+        pass
+
+    def _parse_volumes_from_request(self, auth_context, volumes_dict):
+        pass
+
+    def _parse_disks_from_request(self, auth_context, disks_dict):
+        pass
+
+    def _parse_extra_from_request(self, extra, plan):
+        """Extract provider specific parameters from extra and add them to plan
+        """
+        pass
+
+    def _post_parse_plan(self, plan):
+        """Used to parse whole plan in place, instead of specific aspects of it.
+        For example a provider could have some parameters from extra and
+        networks that need to be computed together
+        """
+        pass
