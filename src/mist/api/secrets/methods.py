@@ -35,7 +35,13 @@ def list_secrets(owner, cached=True, path='.'):
         secret = VaultSecret(owner=owner)
         secrets = secret.ctl.list_secrets(path)
 
-    return [secret.as_dict() for secret in secrets]
+        if path == '.':
+            # delete secret objects that have been removed
+            # from Vault, from mongoDB
+            VaultSecret.objects(owner=owner,
+                                id__nin=[s.id for s in secrets]).delete()
+
+    return [_secret.as_dict() for _secret in secrets]
 
 
 def filter_list_secrets(auth_context, cached=True, path='.', perm='read'):
