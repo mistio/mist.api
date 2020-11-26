@@ -41,6 +41,9 @@ def list_secrets(owner, cached=True, path='.'):
             VaultSecret.objects(owner=owner,
                                 id__nin=[s.id for s in secrets]).delete()
 
+        # Update RBAC Mappings given the list of new secrets.
+        owner.mapper.update(secrets, asynchronous=False)
+
     return [_secret.as_dict() for _secret in secrets]
 
 
