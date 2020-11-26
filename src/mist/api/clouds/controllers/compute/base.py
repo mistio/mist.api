@@ -24,7 +24,7 @@ import mongoengine as me
 
 from libcloud.common.types import InvalidCredsError
 from libcloud.compute.types import NodeState
-from libcloud.compute.base import NodeLocation, Node, NodeSize
+from libcloud.compute.base import NodeLocation, Node, NodeSize, NodeImage
 from libcloud.common.exceptions import BaseHTTPError
 from mist.api.clouds.utils import LibcloudExceptionHandler
 
@@ -2194,10 +2194,10 @@ class BaseComputeController(BaseController):
                     [script], _ = list_resources(auth_context, 'script',
                                                  search=key,
                                                  limit=1)
-                    auth_context.check_perm('script', 'run', script.id)
                 except ValueError:
                     raise NotFoundError('Script does not exist')
                 else:
+                    auth_context.check_perm('script', 'run', script.id)
                     ret_scripts.append({
                         script.id: value.get('params')
                     })
@@ -2237,6 +2237,43 @@ class BaseComputeController(BaseController):
     def _post_parse_plan(self, plan):
         """Used to parse whole plan in place, instead of specific aspects of it.
         For example a provider could have some parameters from extra and
-        networks that need to be computed together
+        networks that need to be processed together
         """
         pass
+
+    def get_libcloud_objects(self, plan):
+        """Convert mongo ids to libcloud objects
+        """
+        from mist.api.images.models import CloudImage
+        from mist.api.clouds.models import CloudLocation
+        from mist.api.clouds.models import CloudSize
+
+        image = None
+        location = None
+        size = None
+
+        if plan.get('image'):
+            cloud_image = CloudImage.objects.get(id=plan['image'])
+            image = NodeImage(cloud_image.external_id,
+                              name=cloud_image.name,
+                              extra=cloud_image.extra,
+                              driver=self.connection)
+
+        if plan.get('location'):
+            cloud_location = CloudLocation.objects.get(id=plan['location'])
+            location = NodeLocation(cloud_location.external_id,
+                                    name=cloud_location.name,
+                                    country=cloud_location.country,
+                                    extra=cloud_location.extra,
+                                    driver=self.connection)
+        if plan.get('size'):
+            cloud_size = CloudSize.objects.get(id=plan['size'])
+            size = NodeSize(cloud_size.external_id,
+                            name=cloud_size.name,
+                            ram=cloud_size.ram,
+                            disk=cloud_size.disk,
+                            bandwidth=cloud_size.bandwidth,
+                            price=cloud_size.extra.get('price'),
+                            driver=self.connection)
+
+        return image, location, size
