@@ -42,6 +42,7 @@ class VaultSecretController(BaseSecretController):
         url = config.VAULT_ADDR
 
         self.client = hvac.Client(url=url, token=token)
+
         try:
             self.client.is_authenticated()
         except hvac.exceptions.VaultDown:
@@ -62,14 +63,17 @@ class VaultSecretController(BaseSecretController):
             self.client.sys.enable_secrets_engine(backend_type='kv',
                                                   path=org.
                                                   vault_secret_engine_path,
-                                                  options={'version': 2}
+                                                  options={
+                                                      'version':
+                                                      config.VAULT_KV_VERSION
+                                                  }
                                                   )
 
     def list_secrets(self, path='.'):
         self.check_if_secret_engine_exists()
         org = self.secret.owner
         try:
-            response = self.client.secrets.kv.v2.list_secrets(
+            response = self.client.secrets.kv.list_secrets(
                 mount_point=org.vault_secret_engine_path,
                 path=path
             )
@@ -80,6 +84,9 @@ class VaultSecretController(BaseSecretController):
             else:
                 raise BadRequestError("The path specified does not exist \
                     in Vault.")
+        except hvac.exceptions.Forbidden:
+            raise BadRequestError("Make sure your Vault token has the \
+                permissions to list secrets")
         path = create_secret_name(path)
         from mist.api.secrets.models import VaultSecret
         secrets = []
@@ -95,45 +102,59 @@ class VaultSecretController(BaseSecretController):
                 secrets.append(secret)
             else:
                 # find recursively all the secrets
-                secrets += self.list_secrets(key)
+                secrets += self.list_secrets(path + key)
 
-        # delete secret objects that have been removed from Vault, from mongoDB
-        VaultSecret.objects(owner=org,
-                            id__nin=[s.id for s in secrets]).delete()
-        return secrets
+        return set(secrets)
 
     def create_or_update_secret(self, secret):
         """ Create a Vault KV* Secret """
         self.check_if_secret_engine_exists()
-        try:
+        try:  # kv2 update
             self.client.secrets.kv.v2.patch(
                 mount_point=self.secret.owner.vault_secret_engine_path,
                 path=self.secret.name,
                 secret=secret
             )
-        except hvac.exceptions.InvalidPath:
+        except KeyError:  # kv1 update
+            self.client.secrets.kv.v1.create_or_update_secret(
+                mount_point=self.secret.owner.vault_secret_engine_path,
+                path=self.secret.name,
+                secret=secret
+            )
+        except hvac.exceptions.InvalidPath:  # kv1 and kv2 create
             # no existing data in this path
             self.client.secrets.kv.v2.create_or_update_secret(
                 mount_point=self.secret.owner.vault_secret_engine_path,
                 path=self.secret.name,
                 secret=secret
             )
+        except hvac.exceptions.Forbidden:
+            raise BadRequestError("Make sure your Vault token has the \
+                permissions to create secret")
 
     def read_secret(self):
         """ Read a Vault KV* Secret """
-        api_response = self.client.secrets.kv.v2.read_secret_version(
-            mount_point=self.secret.owner.vault_secret_engine_path,
-            path=self.secret.name
-        )
+        try:
+            api_response = self.client.secrets.kv.v2.read_secret_version(
+                mount_point=self.secret.owner.vault_secret_engine_path,
+                path=self.secret.name
+            )
+        except hvac.exceptions.Forbidden:
+            raise BadRequestError("Make sure your Vault token has the \
+                permissions to read secret")
 
         return api_response['data']['data']
 
     def delete_secret(self):
         " Delete a Vault KV* Secret"
-        self.client.secrets.kv.v2.delete_metadata_and_all_versions(
-            mount_point=self.secret.owner.vault_secret_engine_path,
-            path=self.secret.name
-        )
+        try:
+            self.client.secrets.kv.v2.delete_metadata_and_all_versions(
+                mount_point=self.secret.owner.vault_secret_engine_path,
+                path=self.secret.name
+            )
+        except hvac.exceptions.Forbidden:
+            raise BadRequestError("Make sure your Vault token has the \
+                permissions to delete secret")
 
         # list all secrets
         self.list_secrets(path='.')
