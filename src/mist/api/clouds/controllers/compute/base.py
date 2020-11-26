@@ -2194,7 +2194,7 @@ class BaseComputeController(BaseController):
                     [script], _ = list_resources(auth_context, 'script',
                                                  search=key,
                                                  limit=1)
-                    auth_context.check_perm('script', 'run', script.id)    
+                    auth_context.check_perm('script', 'run', script.id)
                 except ValueError:
                     raise NotFoundError('Script does not exist')
                 else:
@@ -2207,7 +2207,24 @@ class BaseComputeController(BaseController):
         pass
 
     def _parse_volumes_from_request(self, auth_context, volumes_dict):
-        pass
+        """
+        volumes = {
+            'id' or 'name: {}
+        }
+        """
+        from mist.api.methods import list_resources
+        # TODO handle handle volume creation
+        ret_volumes = []
+        for vol_id in volumes_dict:
+            try:
+                [volume], _ = list_resources(auth_context, 'volume',
+                                             search=vol_id,
+                                             limit=1)
+            except ValueError:
+                raise NotFoundError('Volume does not exist')
+            else:
+                ret_volumes.append(volume.id)
+        return ret_volumes
 
     def _parse_disks_from_request(self, auth_context, disks_dict):
         pass
