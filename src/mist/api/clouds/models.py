@@ -61,6 +61,9 @@ def _populate_clouds():
             value = globals()[key]
             if issubclass(value, Cloud) and value is not Cloud:
                 CLOUDS[value._controller_cls.provider] = value
+    CLOUDS['amazon'] = CLOUDS['ec2']
+    CLOUDS['kvm'] = CLOUDS['libvirt']
+    CLOUDS['other'] = CLOUDS['bare_metal']
 
 
 class Cloud(OwnershipMixin, me.Document):
@@ -241,6 +244,35 @@ class Cloud(OwnershipMixin, me.Document):
                       for key in self._cloud_specific_fields
                       if (key not in self._private_fields and getattr(self,
                                                                       key))})
+        return cdict
+
+    def as_dict_v2(self):
+        cdict = {
+            'id': self.id,
+            'title': self.title,
+            'provider': self.ctl.provider,
+            'features': {
+                'compute': self.enabled,
+                'dns': self.dns_enabled,
+                'observation_logs': self.observation_logs_enabled,
+                'polling': self.polling_interval
+            },
+            'config': {},
+            'tags': {
+                tag.key: tag.value
+                for tag in Tag.objects(
+                    owner=self.owner,
+                    resource_id=self.id,
+                    resource_type='cloud').only('key', 'value')
+            },
+            'owned_by': self.owned_by.id if self.owned_by else '',
+            'created_by': self.created_by.id if self.created_by else '',
+        }
+        cdict['config'].update({
+            key: getattr(self, key)
+            for key in self._cloud_specific_fields
+            if key not in self._private_fields
+        })
         return cdict
 
     def __str__(self):
