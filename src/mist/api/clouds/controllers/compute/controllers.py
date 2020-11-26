@@ -311,6 +311,122 @@ class AmazonComputeController(BaseComputeController):
                 return 'vyatta'
             return 'linux'
 
+    def _parse_networks_from_request(self, auth_context, network_dict):
+        security_group = network_dict.get('security_group')
+        subnet = network_dict.get('subnet')
+
+        networks = {}
+        if security_group:
+            sec_groups = self.connection.ex_list_security_groups()
+            for sec_group in sec_groups:
+                if (security_group == sec_group['id'] or
+                        security_group == sec_group['name']):
+                    networks['security_group'] = {
+                        'name': sec_group['name'],
+                        'id': sec_group['id']
+                    }
+                    break
+            else:
+                raise NotFoundError('Security group not found: %s'
+                                    % security_group)
+        else:
+            networks['security_group'] = {
+                'name': config.EC2_SECURITYGROUP.get('name', ''),
+                'description': config.EC2_SECURITYGROUP.get('description', '')
+            }
+
+        if subnet:
+            # APIv1 also searches for amazon's id
+            from mist.api.methods import list_resources
+            try:
+                [sub_net], _ = list_resources(auth_context, 'subnet',
+                                              search=subnet,
+                                              limit=1)
+            except ValueError:
+                raise NotFoundError('Subnet not found %s' % subnet)
+            else:
+                networks['subnet'] = sub_net.id
+
+        return networks
+
+    def _parse_volumes_from_request(self, auth_context, volumes_dict):
+        # TODO
+        pass
+
+    def create_machine(self, plan):
+
+        from mist.api.keys.models import Key
+
+        key = Key.objects.get(id=plan['key'])
+        image, location, size = self.get_libcloud_objects(plan)
+        kwargs = {
+            'auth': NodeAuthSSHKey(pubkey=key.public.replace('\n', '')),
+            'name': plan['machine_name'],
+            'image': image,
+            'size': size,
+            'location': location,
+            'ex_keyname': key.name,
+            'ex_userdata': plan.get('cloudinit', '')
+        }
+
+        security_group = plan['networks']['security_group']
+
+        # if id is not given, security_group was not provided
+        # so try to create a default security_group
+        if not security_group.get('id'):
+            try:
+                log.info("Attempting to create security group")
+                return_dict = self.connection.ex_create_security_group(
+                    name=plan['networks']['security_group']['name'],
+                    description=plan['networks']['security_group']['description']
+                )
+                self.connection.ex_authorize_security_group_permissive(
+                    name=plan['networks']['security_group']['name'])
+                # return_dict contains the newly created security_group's id
+                # so we assign it to our security group dictionary,
+                # as it is needed later
+                security_group['id'] = return_dict['group_id']
+            except Exception as exc:
+                if 'Duplicate' in str(exc):
+                    log.info('Security group already exists, not doing anything.')
+                else:
+                    raise InternalServerError(
+                        "Couldn't create security group", exc)
+
+        subnet_id = plan['networks'].get('subnet')
+        if subnet_id:
+            from mist.api.networks.models import Subnet
+            subnet = Subnet.objects.get(id=subnet_id)
+            subnet_external_id = subnet.subnet_id
+
+            # TODO check if the following API call is not needed
+            # and instead instantiate an EC2NetworkSubnet object
+            # libcloud.compute.drivers.ec2.EC2NetworkSubnet
+            libcloud_subnets = self.connection.ex_list_subnets()
+            for libcloud_subnet in libcloud_subnets:
+                if libcloud_subnet.id == subnet_external_id:
+                    subnet = libcloud_subnet
+                    break
+            else:
+                raise NotFoundError('Subnet specified does not exist')
+            # if subnet is specified, then security group id
+            # instead of security group name is needed
+            kwargs.update({
+                'ex_subnet': subnet,
+                'ex_security_group_ids': security_group['id']
+            })
+        else:
+            kwargs.update({
+                'ex_securitygroup': plan['networks']['security_group']['name']
+            })
+
+        try:
+            node = self.connection.create_node(**kwargs)
+        except Exception as exc:
+            raise MachineCreationError("EC2, got exception %s" % exc, exc)
+
+        return node
+
 
 class AlibabaComputeController(AmazonComputeController):
 
@@ -575,6 +691,37 @@ class MaxihostComputeController(BaseComputeController):
             return 'windows'
         else:
             return 'linux'
+
+    def create_machine(self, plan):
+        from mist.api.keys.models import Key
+        key = Key.objects.get(id=plan['key'])
+
+        public_key = str(key.public.replace('\n', ''))
+        ssh_keys = []
+        server_key = ''
+        keys = self.connection.list_key_pairs()
+        for k in keys:
+            if public_key == k.public_key:
+                server_key = k
+                break
+        if not server_key:
+            server_key = self.connection.create_key_pair(
+                         name=plan['machine_name'],
+                         public_key=public_key)
+        ssh_keys.append(server_key.fingerprint)
+        # todo fix size in libcloud
+        image, location, size = self.get_libcloud_objects(plan)
+
+        try:
+            node = self.connection.create_node(plan['machine_name'],
+                                               size,
+                                               image,
+                                               location,
+                                               ssh_keys)
+        except Exception as exc:
+            raise MachineCreationError('Maxihost, exception %s' % exc)
+
+        return node
 
 
 class GigG8ComputeController(BaseComputeController):
