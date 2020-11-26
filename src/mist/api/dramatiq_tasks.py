@@ -462,6 +462,9 @@ def dramatiq_run_scripts(auth_context_serialized, host, scripts,
         tmp_log_error(repr(exc))
         # raise self.retry(exc=exc, countdown=60, max_retries=15)
         raise Retry(delay=60000)
+    except AttributeError:
+        # TODO fix scripts
+        pass
 
 
 @dramatiq.actor(queue_name="dramatiq_enable_monitoring")
