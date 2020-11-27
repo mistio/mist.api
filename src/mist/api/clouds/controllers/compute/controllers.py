@@ -316,8 +316,8 @@ class AmazonComputeController(BaseComputeController):
         subnet = network_dict.get('subnet')
 
         networks = {}
+        sec_groups = self.connection.ex_list_security_groups()
         if security_group:
-            sec_groups = self.connection.ex_list_security_groups()
             for sec_group in sec_groups:
                 if (security_group == sec_group['id'] or
                         security_group == sec_group['name']):
@@ -330,10 +330,21 @@ class AmazonComputeController(BaseComputeController):
                 raise NotFoundError('Security group not found: %s'
                                     % security_group)
         else:
-            networks['security_group'] = {
-                'name': config.EC2_SECURITYGROUP.get('name', ''),
-                'description': config.EC2_SECURITYGROUP.get('description', '')
-            }
+            # check if default security_group already exists
+            for sec_group in sec_groups:
+                if sec_group['name'] == config.EC2_SECURITYGROUP.get('name',
+                                                                     ''):
+                    networks['security_group'] = {
+                        'name': sec_group['name'],
+                        'id': sec_group['id']
+                    }
+                    break
+            else:
+                networks['security_group'] = {
+                    'name': config.EC2_SECURITYGROUP.get('name', ''),
+                    'description': config.EC2_SECURITYGROUP.get('description',
+                                                                '')
+                }
 
         if subnet:
             # APIv1 also searches for amazon's id
@@ -371,27 +382,21 @@ class AmazonComputeController(BaseComputeController):
 
         security_group = plan['networks']['security_group']
 
-        # if id is not given, security_group was not provided
-        # so try to create a default security_group
+        # if id is not given, then default security group does not exist
         if not security_group.get('id'):
             try:
-                log.info("Attempting to create security group")
-                return_dict = self.connection.ex_create_security_group(
+                log.info('Attempting to create security group')
+                ret_dict = self.connection.ex_create_security_group(
                     name=plan['networks']['security_group']['name'],
                     description=plan['networks']['security_group']['description']
                 )
                 self.connection.ex_authorize_security_group_permissive(
                     name=plan['networks']['security_group']['name'])
-                # return_dict contains the newly created security_group's id
-                # so we assign it to our security group dictionary,
-                # as it is needed later
-                security_group['id'] = return_dict['group_id']
             except Exception as exc:
-                if 'Duplicate' in str(exc):
-                    log.info('Security group already exists, not doing anything.')
-                else:
-                    raise InternalServerError(
-                        "Couldn't create security group", exc)
+                raise InternalServerError(
+                    "Couldn't create security group", exc)
+            else:
+                security_group['id'] = ret_dict['group_id']
 
         subnet_id = plan['networks'].get('subnet')
         if subnet_id:
