@@ -30,6 +30,8 @@ import mongoengine as me
 
 from libcloud.utils.networking import is_private_subnet
 
+from libcloud.compute.base import NodeState
+
 from mist.api.exceptions import MistError
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import BadRequestError
@@ -57,7 +59,6 @@ if config.HAS_VPN:
     from mist.vpn.methods import to_tunnel
 else:
     from mist.api.dummy.methods import to_tunnel
-
 
 log = logging.getLogger(__name__)
 
@@ -91,18 +92,40 @@ class AlibabaMainController(AmazonMainController):
     DnsController = None
 
 
-class ClearAPIMainController(BaseMainController):
-
-    provider = 'clearapi'
-    ComputeController = compute_ctls.ClearAPIComputeController
-
-
 class DigitalOceanMainController(BaseMainController):
 
     provider = 'digitalocean'
     ComputeController = compute_ctls.DigitalOceanComputeController
     DnsController = dns_ctls.DigitalOceanDNSController
     StorageController = storage_ctls.DigitalOceanStorageController
+
+
+class MaxihostMainController(BaseMainController):
+
+    provider = 'maxihost'
+    ComputeController = compute_ctls.MaxihostComputeController
+
+
+class GigG8MainController(BaseMainController):
+
+    provider = 'gig_g8'
+    ComputeController = compute_ctls.GigG8ComputeController
+    StorageController = storage_ctls.GigG8StorageController
+    NetworkController = network_ctls.GigG8NetworkController
+
+    def _add__preparse_kwargs(self, kwargs):
+        base_url = kwargs.pop('url')
+        if base_url.endswith('/'):
+            base_url = base_url[:-1]
+        kwargs['url'] = base_url + '/restmachine/cloudapi' if \
+            not base_url.endswith('/restmachine/cloudapi') else base_url
+
+    def _update__preparse_kwargs(self, kwargs):
+        base_url = kwargs.pop('url')
+        if base_url.endswith('/'):
+            base_url = base_url[:-1]
+        kwargs['url'] = base_url + '/restmachine/cloudapi' if \
+            not base_url.endswith('/restmachine/cloudapi') else base_url
 
 
 class LinodeMainController(BaseMainController):
@@ -187,11 +210,11 @@ class HostVirtualMainController(BaseMainController):
     ComputeController = compute_ctls.HostVirtualComputeController
 
 
-class PacketMainController(BaseMainController):
+class EquinixMetalMainController(BaseMainController):
 
-    provider = 'packet'
-    ComputeController = compute_ctls.PacketComputeController
-    StorageController = storage_ctls.PacketStorageController
+    provider = 'equinixmetal'
+    ComputeController = compute_ctls.EquinixMetalComputeController
+    StorageController = storage_ctls.EquinixMetalStorageController
 
 
 class VultrMainController(BaseMainController):
@@ -246,6 +269,7 @@ class OpenStackMainController(BaseMainController):
     def _update__preparse_kwargs(self, kwargs):
         rename_kwargs(kwargs, 'auth_url', 'url')
         rename_kwargs(kwargs, 'tenant_name', 'tenant')
+        rename_kwargs(kwargs, 'domain_name', 'domain')
         url = kwargs.get('url', self.cloud.url)
         if url:
             if url.endswith('/v2.0/'):
@@ -273,6 +297,23 @@ class DockerMainController(BaseMainController):
             check_host(host)
 
 
+class LXDMainController(BaseMainController):
+    """
+    Main controller class for LXC containers
+    """
+
+    provider = 'lxd'
+    ComputeController = compute_ctls.LXDComputeController
+    StorageController = storage_ctls.LXDStorageController
+    NetworkController = network_ctls.LXDNetworkController
+
+    def _update__preparse_kwargs(self, kwargs):
+        host = kwargs.get('host', self.cloud.host)
+        if host:
+            host = sanitize_host(host)
+            check_host(host)
+
+
 class LibvirtMainController(BaseMainController):
 
     provider = 'libvirt'
@@ -281,6 +322,7 @@ class LibvirtMainController(BaseMainController):
 
     def _add__preparse_kwargs(self, kwargs):
         rename_kwargs(kwargs, 'machine_hostname', 'host')
+        rename_kwargs(kwargs, 'machine_name', 'alias')
         rename_kwargs(kwargs, 'machine_user', 'username')
         rename_kwargs(kwargs, 'machine_key', 'key')
         rename_kwargs(kwargs, 'ssh_port', 'port')
@@ -295,45 +337,233 @@ class LibvirtMainController(BaseMainController):
             except Key.DoesNotExist:
                 raise NotFoundError("Key does not exist.")
 
-    def add(self, fail_on_error=True, fail_on_invalid_params=True, **kwargs):
-        """This is a hack to associate a key with the VM hosting this cloud"""
-        super(LibvirtMainController, self).add(
-            fail_on_error=fail_on_error,
-            fail_on_invalid_params=fail_on_invalid_params,
-            add=True, **kwargs
-        )
-        # FIXME: Don't use self.cloud.host as machine_id, this prevents us from
-        # changing the cloud's host.
-        # FIXME: Add type field to differentiate between actual vm's and the
-        # host.
+    # TODO: fail_on_error True or False by default?
+    def add(self, fail_on_error=True, fail_on_invalid_params=False, **kwargs):
         from mist.api.machines.models import Machine
-
-        host_machine_id = self.cloud.host.replace('.', '-')
+        if not kwargs.get('hosts'):
+            raise RequiredParameterMissingError('hosts')
         try:
-            machine = Machine.objects.get(
-                cloud=self.cloud,
-                machine_id=host_machine_id)
-        except me.DoesNotExist:
-            machine = Machine(cloud=self.cloud,
-                              name=self.cloud.name,
-                              machine_id=host_machine_id).save()
-        if self.cloud.key:
-            machine.ctl.associate_key(self.cloud.key,
-                                      username=self.cloud.username,
-                                      port=self.cloud.port)
+            self.cloud.save()
+        except me.ValidationError as exc:
+            raise BadRequestError({'msg': str(exc),
+                                   'errors': exc.to_dict()})
+        except me.NotUniqueError:
+            raise CloudExistsError("Cloud with name %s already exists"
+                                   % self.cloud.title)
+        total_errors = {}
+
+        for _host in kwargs['hosts']:
+            self._add__preparse_kwargs(_host)
+            errors = {}
+            for key in list(_host.keys()):
+                if key not in ('host', 'alias', 'username', 'port', 'key',
+                               'images_location'):
+                    error = "Invalid parameter %s=%r." % (key, _host[key])
+                    if fail_on_invalid_params:
+                        self.cloud.delete()
+                        raise BadRequestError(error)
+                    else:
+                        log.warning(error)
+                        _host.pop(key)
+
+            for key in ('host', 'key'):
+                if key not in _host or not _host.get(key):
+                    error = "Required parameter missing: %s" % key
+                    errors[key] = error
+                    if fail_on_error:
+                        self.cloud.delete()
+                        raise RequiredParameterMissingError(key)
+                    else:
+                        log.warning(error)
+                        total_errors.update({key: error})
+
+            if not errors:
+                try:
+                    ssh_port = int(_host.get('port', 22))
+                except (ValueError, TypeError):
+                    ssh_port = 22
+
+                images_location = _host.get('images_location',
+                                            '/var/lib/libvirt/images')
+                extra = {
+                    'images_location': images_location,
+                    'tags': {'type': 'hypervisor'},
+                    'username': _host.get('username')
+                }
+                # Create and save machine entry to database.
+                machine = Machine(
+                    cloud=self.cloud,
+                    machine_id=_host.get('host').replace('.', '-'),
+                    name=_host.get('alias') or _host.get('host'),
+                    ssh_port=ssh_port,
+                    last_seen=datetime.datetime.utcnow(),
+                    hostname=_host.get('host'),
+                    state=NodeState.RUNNING.value,
+                    machine_type='hypervisor',
+                    extra=extra
+                )
+                # Sanitize inputs.
+                host = sanitize_host(_host.get('host'))
+                check_host(_host.get('host'))
+                machine.hostname = host
+
+                if is_private_subnet(socket.gethostbyname(_host.get('host'))):
+                    machine.private_ips = [_host.get('host')]
+                else:
+                    machine.public_ips = [_host.get('host')]
+
+                try:
+                    machine.save(write_concern={'w': 1, 'fsync': True})
+                except me.NotUniqueError:
+                    error = 'Duplicate machine entry. Maybe the same \
+                            host has been added twice?'
+                    if fail_on_error:
+                        self.cloud.delete()
+                        raise MistError(error)
+                    else:
+                        total_errors.update({_host.get('host'): error})
+                        continue
+
+                # associate key and attempt to connect
+                try:
+                    machine.ctl.associate_key(_host.get('key'),
+                                              username=_host.get('username'),
+                                              port=ssh_port)
+                except MachineUnauthorizedError as exc:
+                    log.error("Could not connect to host %s."
+                              % _host.get('host'))
+                    machine.delete()
+                    if fail_on_error:
+                        self.cloud.delete()
+                        raise CloudUnauthorizedError(exc)
+                except ServiceUnavailableError as exc:
+                    log.error("Could not connect to host %s."
+                              % _host.get('host'))
+                    machine.delete()
+                    if fail_on_error:
+                        self.cloud.delete()
+                        raise MistError("Couldn't connect to host '%s'."
+                                        % _host.get('host'))
+
+        # check if host was added successfully
+        # if not, delete the cloud and raise
+        if Machine.objects(cloud=self.cloud):
+            if amqp_owner_listening(self.cloud.owner.id):
+                old_machines = [m.as_dict() for m in
+                                self.cloud.ctl.compute.list_cached_machines()]
+                new_machines = self.cloud.ctl.compute.list_machines()
+                self.cloud.ctl.compute.produce_and_publish_patch(
+                    old_machines, new_machines)
+
+            self.cloud.errors = total_errors
+
+        else:
+            self.cloud.delete()
+            raise BadRequestError(total_errors)
 
     def update(self, fail_on_error=True, fail_on_invalid_params=True,
                add=False, **kwargs):
         # FIXME: Add update support, need to clean up kvm 'host' from libcloud,
         # and especially stop using cloud.host as the machine id ffs.
         if not add:
-            raise BadRequestError("Update action is not currently support for "
-                                  "Libvirt/KVM clouds.")
+            raise BadRequestError("Update action is not currently supported "
+                                  "for Libvirt/KVM clouds.")
         super(LibvirtMainController, self).update(
             fail_on_error=fail_on_error,
             fail_on_invalid_params=fail_on_invalid_params,
             **kwargs
         )
+
+    def add_machine(self, host, ssh_user='root', ssh_port=22, ssh_key=None,
+                    **kwargs):
+        try:
+            ssh_port = int(ssh_port)
+        except (ValueError, TypeError):
+            ssh_port = 22
+
+        if not ssh_key:
+            raise RequiredParameterMissingError('machine_key')
+
+        try:
+            ssh_key = Key.objects.get(owner=self.cloud.owner, id=ssh_key,
+                                      deleted=None)
+        except Key.DoesNotExist:
+            raise NotFoundError("Key does not exist.")
+
+        images_location = kwargs.get('images_location',
+                                     '/var/lib/libvirt/images')
+        extra = {
+            'images_location': images_location,
+            'tags': {'type': 'hypervisor'},
+            'username': ssh_user
+        }
+
+        from mist.api.machines.models import Machine
+        # Create and save machine entry to database.
+        # first check if the host has already been added to the cloud
+        try:
+            machine = Machine.objects.get(cloud=self.cloud,
+                                          machine_id=host.replace('.', '-'))
+            machine.name = kwargs.get('name') or host
+            machine.ssh_port = ssh_port
+            machine.extra = extra
+            machine.last_seen = datetime.datetime.utcnow()
+            machine.missing_since = None
+        except me.DoesNotExist:
+            machine = Machine(
+                cloud=self.cloud,
+                name=kwargs.get('name') or host,
+                hostname=host,
+                machine_id=host.replace('.', '-'),
+                ssh_port=ssh_port,
+                extra=extra,
+                state=NodeState.RUNNING,
+                last_seen=datetime.datetime.utcnow(),
+            )
+
+        # Sanitize inputs.
+        host = sanitize_host(host)
+        check_host(host)
+        machine.hostname = host
+
+        if is_private_subnet(socket.gethostbyname(host)):
+            machine.private_ips = [host]
+        else:
+            machine.public_ips = [host]
+
+        machine.save(write_concern={'w': 1, 'fsync': True})
+
+        # associate key and attempt to connect
+        try:
+            machine.ctl.associate_key(ssh_key,
+                                      username=ssh_user,
+                                      port=ssh_port)
+        except MachineUnauthorizedError as exc:
+            log.error("Could not connect to host %s."
+                      % host)
+            machine.delete()
+            raise CloudUnauthorizedError(exc)
+        except ServiceUnavailableError as exc:
+            log.error("Could not connect to host %s."
+                      % host)
+            machine.delete()
+            raise MistError("Couldn't connect to host '%s'."
+                            % host)
+
+        if amqp_owner_listening(self.cloud.owner.id):
+            old_machines = []
+            for cached_machine in \
+                    self.cloud.ctl.compute.list_cached_machines():
+                # make sure that host just added becomes visible
+                if cached_machine.id != machine.id:
+                    old_machines.append(cached_machine)
+            old_machines = [m.as_dict() for m in
+                            old_machines]
+            new_machines = self.cloud.ctl.compute.list_machines()
+            self.cloud.ctl.compute.produce_and_publish_patch(
+                old_machines, new_machines)
+
+        return machine
 
 
 class OtherMainController(BaseMainController):
@@ -353,6 +583,9 @@ class OtherMainController(BaseMainController):
         self.cloud.enabled = False
         self.cloud.save()
 
+    # FIXME: make sure that errors are properly shown to the user
+    # FIXME: make sure that cloud is not added in the db if no
+    # host is successfully added ffs
     def add(self, fail_on_error=True, fail_on_invalid_params=True, **kwargs):
         """Add new Cloud to the database
 
@@ -379,7 +612,7 @@ class OtherMainController(BaseMainController):
 
         if kwargs:
             errors = []
-            if 'machines' in kwargs:  # new api: list of multitple machines
+            if 'machines' in kwargs:  # new api: list of multiple machines
                 for machine_kwargs in kwargs['machines']:
                     machine_name = machine_kwargs.pop('machine_name', '')
                     try:
@@ -421,7 +654,7 @@ class OtherMainController(BaseMainController):
         """
 
         # Sanitize params.
-        rename_kwargs(kwargs, 'machine_ip', 'host')
+        rename_kwargs(kwargs, 'machine_hostname', 'host')
         rename_kwargs(kwargs, 'machine_user', 'ssh_user')
         rename_kwargs(kwargs, 'machine_key', 'ssh_key')
         rename_kwargs(kwargs, 'machine_port', 'ssh_port')
@@ -471,9 +704,10 @@ class OtherMainController(BaseMainController):
 
         return machine
 
-    def add_machine(self, name, host='',
+    def add_machine(self, name='', host='',
                     ssh_user='root', ssh_port=22, ssh_key=None,
-                    os_type='unix', rdp_port=3389, fail_on_error=True):
+                    os_type='unix', rdp_port=3389, images_location='',
+                    fail_on_error=True):
         """Add machine to this dummy Cloud
 
         This is a special method that exists only on this Cloud subclass.
@@ -501,7 +735,7 @@ class OtherMainController(BaseMainController):
         # Create and save machine entry to database.
         machine = Machine(
             cloud=self.cloud,
-            name=name,
+            name=name or host,
             machine_id=uuid.uuid4().hex,
             os_type=os_type,
             ssh_port=ssh_port,
@@ -531,7 +765,7 @@ class OtherMainController(BaseMainController):
                                           "machine hostname is empty.")
                 to_tunnel(self.cloud.owner, host)  # May raise VPNTunnelError
                 ssh_command(
-                    self.cloud.owner, self.cloud.id, machine.machine_id, host,
+                    self.cloud.owner, self.cloud.id, machine.id, host,
                     'uptime', key_id=ssh_key.id, username=ssh_user,
                     port=ssh_port
                 )
@@ -556,7 +790,13 @@ class OtherMainController(BaseMainController):
         return machine
 
 
-class ClearCenterMainController(BaseMainController):
+class KubeVirtMainController(BaseMainController):
+    provider = 'kubevirt'
+    ComputeController = compute_ctls.KubeVirtComputeController
+    StorageController = storage_ctls.KubernetesStorageController
 
-    provider = 'clearcenter'
-    ComputeController = compute_ctls.ClearCenterComputeController
+    def _update__preparse_kwargs(self, kwargs):
+        host = kwargs.get('host', self.cloud.host)
+        if host:
+            host = sanitize_host(host)
+            check_host(host)

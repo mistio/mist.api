@@ -123,7 +123,7 @@
         <div id="unsub_button" class="button" onclick="request_unsubscribe()">Unsubscribe</div>
     </div>
 
-    <a class="back" href="${uri}">Back to <span tal:content="portal_name|nothing">mist.io</a></a>
+    <a class="back" href="${uri}">Back to <span tal:content="portal_name|nothing">mist.io<</span></a>
 </div>
 
 </body>

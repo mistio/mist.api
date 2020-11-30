@@ -128,7 +128,7 @@ def create_token(request):
     except UserUnauthorizedError:
         # The following should apply, but currently it can't due to tests.
         # if not org_id:
-            # raise RequiredParameterMissingError("No org_id provided")
+        #     raise RequiredParameterMissingError("No org_id provided")
         if not email:
             raise RequiredParameterMissingError("No email provided")
         org = None

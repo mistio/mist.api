@@ -33,7 +33,7 @@ class AuthContext(object):
         pass
 
     def check_perm(self, rtype, action, rid):
-        return
+        return {}, {}
 
     def get_security_tags(self):
         return []
@@ -42,6 +42,9 @@ class AuthContext(object):
         return {}
 
     def _get_matching_tags(self, rtype, action):
+        return {}
+
+    def _get_matching_constraints(self, rtype, action):
         return {}
 
     def serialize(self):

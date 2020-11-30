@@ -7,7 +7,7 @@ from mist.api import config
 from mist.api.exceptions import BadRequestError
 
 from mist.api.users.models import Organization
-from mist.api.conditions.models import ConditionalClassMixin
+from mist.api.selectors.models import SelectorClassMixin
 
 from mist.api.rules.base import NoDataRuleController
 from mist.api.rules.base import ResourceRuleController
@@ -25,6 +25,8 @@ from mist.api.rules.plugins import GraphiteBackendPlugin
 from mist.api.rules.plugins import InfluxDBNoDataPlugin
 from mist.api.rules.plugins import InfluxDBBackendPlugin
 from mist.api.rules.plugins import ElasticSearchBackendPlugin
+from mist.api.rules.plugins import FoundationDBNoDataPlugin
+from mist.api.rules.plugins import FoundationDBBackendPlugin
 
 
 class Rule(me.Document):
@@ -256,13 +258,13 @@ class Rule(me.Document):
     def is_arbitrary(self):
         """Return True if self is arbitrary.
 
-        Arbitrary rules lack a list of `conditions` that refer to resources
+        Arbitrary rules lack a list of `selectors` that refer to resources
         either by their UUIDs or by tags. Such a list makes it easy to setup
         rules referencing specific resources without the need to provide the
         raw query expression.
 
         """
-        return 'conditions' not in type(self)._fields
+        return 'selectors' not in type(self)._fields
 
     def clean(self):
         # FIXME This is needed in order to ensure rule name convention remains
@@ -305,19 +307,19 @@ class ArbitraryRule(Rule):
     _controller_cls = ArbitraryRuleController
 
 
-class ResourceRule(Rule, ConditionalClassMixin):
+class ResourceRule(Rule, SelectorClassMixin):
     """A rule bound to a specific resource type.
 
     Resource-bound rules are less elastic than arbitrary rules, but allow
     users to perform quick, more dynamic filtering given a resource object's
     UUID, tags, or model fields.
 
-    Every subclass of `ResourceRule` MUST define its `condition_resource_cls`
+    Every subclass of `ResourceRule` MUST define its `selector_resource_cls`
     class attribute in order for queries to be executed against the intended
     mongodb collection.
 
     A `ResourceRule` may also apply to multiple resources, which depends on
-    the rule's list of `conditions`. By default such a rule will trigger an
+    the rule's list of `selectors`. By default such a rule will trigger an
     alert if just one of its queries evaluates to True.
 
     """
@@ -337,7 +339,7 @@ class ResourceRule(Rule, ConditionalClassMixin):
 
     def as_dict(self):
         d = super(ResourceRule, self).as_dict()
-        d['selectors'] = [cond.as_dict() for cond in self.conditions]
+        d['selectors'] = [cond.as_dict() for cond in self.selectors]
         d['resource_type'] = self.resource_model_name
         return d
 
@@ -388,6 +390,8 @@ class MachineMetricRule(ResourceRule):
             return GraphiteBackendPlugin
         if config.DEFAULT_MONITORING_METHOD.endswith('-influxdb'):
             return InfluxDBBackendPlugin
+        if config.DEFAULT_MONITORING_METHOD.endswith('-tsfdb'):
+            return FoundationDBBackendPlugin
         raise Exception()
 
     def clean(self):
@@ -408,6 +412,8 @@ class NoDataRule(MachineMetricRule):
             return GraphiteNoDataPlugin
         if config.DEFAULT_MONITORING_METHOD.endswith('-influxdb'):
             return InfluxDBNoDataPlugin
+        if config.DEFAULT_MONITORING_METHOD.endswith('-tsfdb'):
+            return FoundationDBNoDataPlugin
         raise Exception()
 
     # FIXME All following properties are for backwards compatibility.
@@ -444,29 +450,11 @@ class ResourceLogsRule(ResourceRule):
     _data_type_str = 'logs'
     _backend_plugin = ElasticSearchBackendPlugin
 
-    def clean(self):
-        super(ResourceLogsRule, self).clean()
-        if not (
-            len(self.actions) is 1 and
-            isinstance(self.actions[0], NotificationAction)
-        ):
-            raise me.ValidationError('Only a single notification action may '
-                                     'be performed by this type of rule')
-
 
 class ArbitraryLogsRule(ArbitraryRule):
 
     _data_type_str = 'logs'
     _backend_plugin = ElasticSearchBackendPlugin
-
-    def clean(self):
-        super(ArbitraryLogsRule, self).clean()
-        if not (
-            len(self.actions) is 1 and
-            isinstance(self.actions[0], NotificationAction)
-        ):
-            raise me.ValidationError('Only a single notification action may '
-                                     'be performed by this type of rule')
 
 
 def _populate_rules():

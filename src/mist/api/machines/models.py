@@ -75,6 +75,7 @@ class Actions(me.EmbeddedDocument):
     remove = me.BooleanField(default=False)
     tag = me.BooleanField(default=False)
     resume = me.BooleanField(default=False)
+    expose = me.BooleanField(default=False)
     suspend = me.BooleanField(default=False)
     undefine = me.BooleanField(default=False)
     clone = me.BooleanField(default=False)
@@ -98,7 +99,8 @@ class Monitoring(me.EmbeddedDocument):
             self.collectd_password = os.urandom(32).hex()
 
     def get_commands(self):
-        if self.method in ('telegraf-influxdb', 'telegraf-graphite'):
+        if self.method in ('telegraf-influxdb', 'telegraf-graphite',
+                           'telegraf-tsfdb'):
             from mist.api.monitoring.commands import unix_install
             from mist.api.monitoring.commands import coreos_install
             from mist.api.monitoring.commands import windows_install
@@ -268,6 +270,8 @@ class Machine(OwnershipMixin, me.Document):
                                  reverse_delete_rule=me.DENY)
     size = me.ReferenceField('CloudSize', required=False,
                              reverse_delete_rule=me.DENY)
+    image = me.ReferenceField('CloudImage', required=False,
+                              reverse_delete_rule=me.DENY)
     network = me.ReferenceField('Network', required=False,
                                 reverse_delete_rule=me.NULLIFY)
     subnet = me.ReferenceField('Subnet', required=False,
@@ -288,7 +292,6 @@ class Machine(OwnershipMixin, me.Document):
     actions = me.EmbeddedDocumentField(Actions, default=lambda: Actions())
     extra = MistDictField()
     cost = me.EmbeddedDocumentField(Cost, default=lambda: Cost())
-    image_id = me.StringField()
     # libcloud.compute.types.NodeState
     state = me.StringField(default='unknown',
                            choices=tuple(config.STATES.values()))
@@ -323,6 +326,7 @@ class Machine(OwnershipMixin, me.Document):
     meta = {
         'collection': 'machines',
         'indexes': [
+            'owner', 'last_seen', 'missing_since',
             {
                 'fields': [
                     'cloud',
@@ -364,8 +368,7 @@ class Machine(OwnershipMixin, me.Document):
             self.key_associations = []
 
         # Populate owner field based on self.cloud.owner
-        if not self.owner:
-            self.owner = self.cloud.owner
+        self.owner = self.cloud.owner
 
         self.clean_os_type()
 
@@ -403,6 +406,35 @@ class Machine(OwnershipMixin, me.Document):
         tags = {tag.key: tag.value for tag in mist.api.tag.models.Tag.objects(
             resource_id=self.id, resource_type='machine'
         ).only('key', 'value')}
+        try:
+            if self.expiration:
+                expiration = {
+                    'id': self.expiration.id,
+                    'action': self.expiration.task_type.action,
+                    'date': self.expiration.schedule_type.entry.isoformat(),
+                    'notify': self.expiration.reminder and int((
+                        self.expiration.schedule_type.entry -
+                        self.expiration.reminder.schedule_type.entry
+                    ).total_seconds()) or 0,
+                }
+            else:
+                expiration = None
+        except Exception as exc:
+            log.error("Error getting expiration for machine %s: %r" % (
+                self.id, exc))
+            self.expiration = None
+            self.save()
+            expiration = None
+
+        try:
+            from bson import json_util
+            extra = json.loads(json.dumps(self.extra,
+                                          default=json_util.default))
+        except Exception as exc:
+            log.error('Failed to serialize extra metadata for %s: %s\n%s' % (
+                self, self.extra, exc))
+            extra = {}
+
         return {
             'id': self.id,
             'hostname': self.hostname,
@@ -415,9 +447,8 @@ class Machine(OwnershipMixin, me.Document):
             'machine_id': self.machine_id,
             'actions': {action: self.actions[action]
                         for action in self.actions},
-            'extra': dict(self.extra),
+            'extra': extra,
             'cost': self.cost.as_dict(),
-            'image_id': self.image_id,
             'state': self.state,
             'tags': tags,
             'monitoring':
@@ -429,6 +460,7 @@ class Machine(OwnershipMixin, me.Document):
             'cloud': self.cloud.id,
             'location': self.location.id if self.location else '',
             'size': self.size.name if self.size else '',
+            'image': self.image.id if self.image else '',
             'cloud_title': self.cloud.title,
             'last_seen': str(self.last_seen.replace(tzinfo=None)
                              if self.last_seen else ''),
@@ -440,7 +472,7 @@ class Machine(OwnershipMixin, me.Document):
             'created': str(self.created.replace(tzinfo=None)
                            if self.created else ''),
             'machine_type': self.machine_type,
-            'parent_id': self.parent.id if self.parent is not None else '',
+            'parent': self.parent.id if self.parent is not None else '',
             'probe': {
                 'ping': (self.ping_probe.as_dict()
                          if self.ping_probe is not None
@@ -454,15 +486,8 @@ class Machine(OwnershipMixin, me.Document):
             'subnet': self.subnet.id if self.subnet else '',
             'owned_by': self.owned_by.id if self.owned_by else '',
             'created_by': self.created_by.id if self.created_by else '',
-            'expiration': {
-                'id': self.expiration.id,
-                'action': self.expiration.task_type.action,
-                'date': self.expiration.schedule_type.entry,
-                'notify': self.expiration.reminder and int((
-                    self.expiration.schedule_type.entry -
-                    self.expiration.reminder.schedule_type.entry
-                ).total_seconds()) or 0,
-            } if self.expiration else None,
+            'expiration': expiration,
+            'provider': self.cloud.ctl.provider
         }
 
     def __str__(self):

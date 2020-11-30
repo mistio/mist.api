@@ -29,14 +29,16 @@ import netaddr
 import tempfile
 import iso8601
 import pytz
+import asyncio
 
 import mongoengine as me
 
 from time import sleep
+from html import unescape
 
 from xml.sax.saxutils import escape
 
-from libcloud.pricing import get_size_price
+from libcloud.pricing import get_size_price, get_pricing
 from libcloud.compute.base import Node, NodeImage, NodeLocation
 from libcloud.compute.providers import get_driver
 from libcloud.container.providers import get_driver as get_container_driver
@@ -44,13 +46,17 @@ from libcloud.compute.types import Provider, NodeState
 from libcloud.container.types import Provider as Container_Provider
 from libcloud.container.types import ContainerState
 from libcloud.container.base import ContainerImage, Container
+from libcloud.common.exceptions import BaseHTTPError
 from mist.api.exceptions import MistError
 from mist.api.exceptions import InternalServerError
 from mist.api.exceptions import MachineNotFoundError
 from mist.api.exceptions import BadRequestError
+from mist.api.exceptions import NotFoundError
+from mist.api.exceptions import PortForwardCreationError
+from mist.api.exceptions import ForbiddenError
 from mist.api.helpers import sanitize_host
-
-from mist.api.misc.cloud import CloudImage
+from mist.api.helpers import amqp_owner_listening
+from mist.api.helpers import node_to_dict
 
 from mist.api.clouds.controllers.main.base import BaseComputeController
 
@@ -78,106 +84,133 @@ def is_private_subnet(host):
 
 class AmazonComputeController(BaseComputeController):
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         return get_driver(Provider.EC2)(self.cloud.apikey,
                                         self.cloud.apisecret,
                                         region=self.cloud.region)
 
-    def _list_machines__machine_actions(self, machine, machine_libcloud):
+    def _list_machines__machine_actions(self, machine, node_dict):
         super(AmazonComputeController, self)._list_machines__machine_actions(
-            machine, machine_libcloud)
+            machine, node_dict)
         machine.actions.rename = True
-        if machine_libcloud.state != NodeState.TERMINATED:
+        if node_dict['state'] != NodeState.TERMINATED.value:
             machine.actions.resize = True
 
-    def _resize_machine(self, machine, machine_libcloud, node_size, kwargs):
+    def _resize_machine(self, machine, node, node_size, kwargs):
         attributes = {'InstanceType.Value': node_size.id}
         # instance must be in stopped mode
-        if machine_libcloud.state != NodeState.STOPPED:
+        if node.state != NodeState.STOPPED:
             raise BadRequestError('The instance has to be stopped '
                                   'in order to be resized')
         try:
-            self.connection.ex_modify_instance_attribute(machine_libcloud,
+            self.connection.ex_modify_instance_attribute(node,
                                                          attributes)
-            self.connection.ex_start_node(machine_libcloud)
+            self.connection.ex_start_node(node)
         except Exception as exc:
             raise BadRequestError('Failed to resize node: %s' % exc)
 
-    def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        # Find os_type.
-        try:
-            machine.os_type = CloudImage.objects.get(
-                cloud_provider=machine_libcloud.driver.type,
-                image_id=machine_libcloud.extra.get('image_id'),
-            ).os_type
-        except:
-            # This is windows for windows servers and None for Linux.
-            machine.os_type = machine_libcloud.extra.get('platform')
-        if not machine.os_type:
-            machine.os_type = 'linux'
+    def _list_machines__postparse_machine(self, machine, node_dict):
+        updated = False
+        # This is windows for windows servers and None for Linux.
+        os_type = node_dict['extra'].get('platform', 'linux')
+
+        if machine.os_type != os_type:
+            machine.os_type = os_type
+            updated = True
 
         try:
             # return list of ids for network interfaces as str
-            network_interfaces = machine.extra['network_interfaces']
-            network_interfaces = [network_interface.id for network_interface
-                                  in network_interfaces]
-            network_interfaces = ','.join(network_interfaces)
-            machine.extra['network_interfaces'] = network_interfaces
-        except:
-            machine.extra['network_interfaces'] = []
+            network_interfaces = node_dict['extra'].get(
+                'network_interfaces', [])
+            network_interfaces = [{
+                'id': network_interface.id,
+                'state': network_interface.state,
+                'extra': network_interface.extra
+            } for network_interface in network_interfaces]
+        except Exception as exc:
+            log.warning("Cannot parse net ifaces for machine %s/%s/%s: %r" % (
+                machine.name, machine.id, machine.owner.name, exc
+            ))
+            network_interfaces = []
 
-        network_id = machine_libcloud.extra.get('vpc_id')
-        machine.extra['network'] = network_id
+        if network_interfaces != machine.extra.get('network_interfaces'):
+            machine.extra['network_interfaces'] = network_interfaces
+            updated = True
+
+        network_id = node_dict['extra'].get('vpc_id')
+
+        if machine.extra.get('network') != network_id:
+            machine.extra['network'] = network_id
+            updated = True
 
         # Discover network of machine.
         from mist.api.networks.models import Network
         try:
-            machine.network = Network.objects.get(cloud=self.cloud,
-                                                  network_id=network_id,
-                                                  missing_since=None)
+            network = Network.objects.get(cloud=self.cloud,
+                                          network_id=network_id,
+                                          missing_since=None)
         except Network.DoesNotExist:
-            machine.network = None
+            network = None
+
+        if network != machine.network:
+            machine.network = network
+            updated = True
 
         subnet_id = machine.extra.get('subnet_id')
-        machine.extra['subnet'] = subnet_id
+        if machine.extra.get('subnet') != subnet_id:
+            machine.extra['subnet'] = subnet_id
+            updated = True
 
         # Discover subnet of machine.
         from mist.api.networks.models import Subnet
         try:
-            machine.subnet = Subnet.objects.get(subnet_id=subnet_id,
-                                                network=machine.network,
-                                                missing_since=None)
+            subnet = Subnet.objects.get(subnet_id=subnet_id,
+                                        network=machine.network,
+                                        missing_since=None)
         except Subnet.DoesNotExist:
-            machine.subnet = None
+            subnet = None
+        if subnet != machine.subnet:
+            machine.subnet = subnet
+            updated = True
 
-    def _list_machines__cost_machine(self, machine, machine_libcloud):
+        return updated
+
+    def _list_machines__cost_machine(self, machine, node_dict):
         # TODO: stopped instances still charge for the EBS device
         # https://aws.amazon.com/ebs/pricing/
         # Need to add this cost for all instances
-        if machine_libcloud.state == NodeState.STOPPED:
+        if node_dict['state'] == NodeState.STOPPED.value:
             return 0, 0
 
-        sizes = machine_libcloud.driver.list_sizes()
-        size = machine_libcloud.extra.get('instance_type')
+        sizes = self.connection.list_sizes()
+        size = node_dict['extra'].get('instance_type')
         for node_size in sizes:
             if node_size.id == size and node_size.price:
-                plan_price = node_size.price.get(machine.os_type)
-                if not plan_price:
-                    # Use the default which is linux.
-                    plan_price = node_size.price.get('linux')
-                return plan_price.replace('/hour', '').replace('$', ''), 0
+                if isinstance(node_size.price, dict):
+                    plan_price = node_size.price.get(machine.os_type)
+                    if not plan_price:
+                        # Use the default which is linux.
+                        plan_price = node_size.price.get('linux')
+                else:
+                    plan_price = node_size.price
+                if isinstance(plan_price, float) or isinstance(plan_price,
+                                                               int):
+                    return plan_price, 0
+                else:
+                    return plan_price.replace('/hour', '').replace('$', ''), 0
         return 0, 0
 
     def _list_machines__get_location(self, node):
-        return node.extra.get('availability')
+        return node['extra'].get('availability')
 
     def _list_machines__get_size(self, node):
-        return node.extra.get('instance_type')
+        return node['extra'].get('instance_type')
 
     def _list_images__fetch_images(self, search=None):
-        default_images = config.EC2_IMAGES[self.cloud.region]
-        image_ids = list(default_images.keys()) + self.cloud.starred
         if not search:
+            from mist.api.images.models import CloudImage
+            default_images = config.EC2_IMAGES[self.cloud.region]
+            image_ids = list(default_images.keys())
             try:
                 # this might break if image_ids contains starred images
                 # that are not valid anymore for AWS
@@ -186,33 +219,52 @@ class AmazonComputeController(BaseComputeController):
                 bad_ids = re.findall(r'ami-\w*', str(e), re.DOTALL)
                 for bad_id in bad_ids:
                     try:
-                        self.cloud.starred.remove(bad_id)
-                    except ValueError:
-                        log.error('Starred Image %s not found in cloud %r' % (
+                        _image = CloudImage.objects.get(cloud=self.cloud,
+                                                        external_id=bad_id)
+                        _image.delete()
+                    except CloudImage.DoesNotExist:
+                        log.error('Image %s not found in cloud %r' % (
                             bad_id, self.cloud
                         ))
-                self.cloud.save()
-                images = self.connection.list_images(
-                    None, list(default_images.keys()) + self.cloud.starred)
+                keys = list(default_images.keys())
+                try:
+                    images = self.connection.list_images(None, keys)
+                except BaseHTTPError as e:
+                    if 'UnauthorizedOperation' in str(e.message):
+                        images = []
+                    else:
+                        raise()
             for image in images:
                 if image.id in default_images:
                     image.name = default_images[image.id]
-            images += self.connection.list_images(ex_owner='self')
+            try:
+                images += self.connection.list_images(ex_owner='self')
+            except BaseHTTPError as e:
+                if 'UnauthorizedOperation' in str(e.message):
+                    pass
+                else:
+                    raise()
         else:
-            image_models = CloudImage.objects(
-                me.Q(cloud_provider=self.connection.type,
-                     image_id__icontains=search) |
-                me.Q(cloud_provider=self.connection.type,
-                     name__icontains=search)
-            )[:200]
-            images = [NodeImage(id=image.image_id, name=image.name,
-                                driver=self.connection, extra={})
-                      for image in image_models]
-            if not images:
-                # Actual search on EC2.
-                images = self.connection.list_images(
+            # search on EC2.
+            try:
+                libcloud_images = self.connection.list_images(
                     ex_filters={'name': '*%s*' % search}
                 )
+            except BaseHTTPError as e:
+                if 'UnauthorizedOperation' in str(e.message):
+                    libcloud_images = []
+                else:
+                    raise()
+
+            search = search.lower()
+            images = [img for img in libcloud_images
+                      if search in img.id.lower() or
+                      search in img.name.lower()]
+
+        # filter out invalid images
+        images = [img for img in images
+                  if img.name and img.id[:3] not in ('aki', 'ari')]
+
         return images
 
     def image_is_default(self, image_id):
@@ -239,48 +291,77 @@ class AmazonComputeController(BaseComputeController):
     def _list_sizes__get_name(self, size):
         return '%s - %s' % (size.id, size.name)
 
+    def _list_images__get_os_type(self, image):
+        # os_type is needed for the pricing per VM
+        if image.name:
+            if any(x in image.name.lower() for x in ['sles',
+                                                     'suse linux enterprise']):
+                return 'sles'
+            if any(x in image.name.lower() for x in ['rhel', 'red hat']):
+                return 'rhel'
+            if 'windows' in image.name.lower():
+                if 'sql' in image.name.lower():
+                    if 'web' in image.name.lower():
+                        return 'mswinSQLWeb'
+                    return 'mswinSQL'
+                return 'mswin'
+            if 'vyatta' in image.name.lower():
+                return 'vyatta'
+            return 'linux'
+
 
 class AlibabaComputeController(AmazonComputeController):
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         return get_driver(Provider.ALIYUN_ECS)(self.cloud.apikey,
                                                self.cloud.apisecret,
                                                region=self.cloud.region)
 
-    def _resize_machine(self, machine, machine_libcloud, node_size, kwargs):
+    def _resize_machine(self, machine, node, node_size, kwargs):
         # instance must be in stopped mode
-        if machine_libcloud.state != NodeState.STOPPED:
+        if node.state != NodeState.STOPPED:
             raise BadRequestError('The instance has to be stopped '
                                   'in order to be resized')
         try:
-            self.connection.ex_resize_node(machine_libcloud, node_size.id)
-            self.connection.ex_start_node(machine_libcloud)
+            self.connection.ex_resize_node(node, node_size.id)
+            self.connection.ex_start_node(node)
         except Exception as exc:
             raise BadRequestError('Failed to resize node: %s' % exc)
 
     def _list_machines__get_location(self, node):
-        return node.extra.get('zone_id')
+        return node['extra'].get('zone_id')
 
-    def _list_machines__cost_machine(self, machine, machine_libcloud):
-        size = machine_libcloud.extra.get('instance_type', {})
-        driver_name = 'ecs-' + machine_libcloud.extra.get('zone_id')
-        price = get_size_price(driver_type='compute', driver_name=driver_name,
-                               size_id=size)
-        image = machine_libcloud.extra.get('image_id', '')
+    def _list_machines__cost_machine(self, machine, node_dict):
+        size = node_dict['extra'].get('instance_type', {})
+        driver_name = 'ecs-' + node_dict['extra'].get('zone_id')
+        price = get_pricing(
+            driver_type='compute', driver_name=driver_name).get(size, {})
+        image = node_dict['extra'].get('image_id', '')
         if 'win' in image:
             price = price.get('windows', '')
         else:
             price = price.get('linux', '')
-        if machine_libcloud.extra.get('instance_charge_type') == 'PostPaid':
+        if node_dict['extra'].get('instance_charge_type') == 'PostPaid':
             return (price.get('pay_as_you_go', 0), 0)
         else:
             return (0, price.get('prepaid', 0))
+
+    def _list_machines__machine_creation_date(self, machine, node_dict):
+        return node_dict['extra'].get('creation_time')
 
     def _list_images__fetch_images(self, search=None):
         return self.connection.list_images()
 
     def image_is_default(self, image_id):
         return True
+
+    def _list_images__get_os_type(self, image):
+        if image.extra.get('os_type', ''):
+            return image.extra.get('os_type').lower()
+        if 'windows' in image.name.lower():
+            return 'windows'
+        else:
+            return 'linux'
 
     def _list_locations__fetch_locations(self):
         """List ECS regions as locations, embed info about zones
@@ -310,107 +391,305 @@ class AlibabaComputeController(AmazonComputeController):
 
     def _list_sizes__get_name(self, size):
         specs = str(size.extra['cpu_core_count']) + ' cpus/ ' \
-            + str(size.ram) + 'Gb RAM '
+            + str(size.ram / 1024) + 'Gb RAM '
         return "%s (%s)" % (size.name, specs)
-
-
-class ClearAPIComputeController(BaseComputeController):
-
-    def _connect(self):
-        return get_driver(Provider.CLEARAPI)(key=self.cloud.apikey,
-                                             url=self.cloud.url)
-
-    def _list_machines__machine_actions(self, machine, machine_libcloud):
-        super(ClearAPIComputeController, self)._list_machines__machine_actions(
-            machine, machine_libcloud)
-        machine.actions.reboot = False
-        machine.actions.destroy = False
-
-        if machine_libcloud.state is NodeState.RUNNING:
-            machine.actions.stop = True
-            machine.actions.start = False
-        else:
-            machine.actions.start = True
-            machine.actions.stop = False
-
-    def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        machine.machine_type = 'ilo-host'
 
 
 class DigitalOceanComputeController(BaseComputeController):
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         return get_driver(Provider.DIGITAL_OCEAN)(self.cloud.token)
 
-    def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        machine.extra['cpus'] = machine.extra.get('size', {}).get('vcpus', 0)
+    def _list_machines__postparse_machine(self, machine, node_dict):
+        updated = False
+        cpus = machine.extra.get('size', {}).get('vcpus', 0)
+        if machine.extra.get('cpus') != cpus:
+            machine.extra['cpus'] = cpus
+            updated = True
+        return updated
 
-    def _list_machines__machine_creation_date(self, machine, machine_libcloud):
-        return machine_libcloud.extra.get('created_at')  # iso8601 string
+    def _list_machines__machine_creation_date(self, machine, node_dict):
+        return node_dict['extra'].get('created_at')  # iso8601 string
 
-    def _list_machines__machine_actions(self, machine, machine_libcloud):
+    def _list_machines__machine_actions(self, machine, node_dict):
         super(DigitalOceanComputeController,
-              self)._list_machines__machine_actions(machine, machine_libcloud)
+              self)._list_machines__machine_actions(machine, node_dict)
         machine.actions.rename = True
         machine.actions.resize = True
 
-    def _resize_machine(self, machine, machine_libcloud, node_size, kwargs):
+    def _resize_machine(self, machine, node, node_size, kwargs):
         try:
-            self.connection.ex_resize_node(machine_libcloud, node_size.id)
+            self.connection.ex_resize_node(node, node_size)
         except Exception as exc:
             raise BadRequestError('Failed to resize node: %s' % exc)
 
-    def _list_machines__cost_machine(self, machine, machine_libcloud):
-        size = machine_libcloud.extra.get('size', {})
+    def _list_machines__cost_machine(self, machine, node_dict):
+        size = node_dict['extra'].get('size', {})
         return size.get('price_hourly', 0), size.get('price_monthly', 0)
 
-    def _stop_machine(self, machine, machine_libcloud):
-        self.connection.ex_shutdown_node(machine_libcloud)
+    def _stop_machine(self, machine, node):
+        self.connection.ex_shutdown_node(node)
+
+    def _start_machine(self, machine, node):
+        self.connection.ex_power_on_node(node)
 
     def _list_machines__get_location(self, node):
-        return node.extra.get('region')
+        return node['extra'].get('region')
 
     def _list_machines__get_size(self, node):
-        return node.extra.get('size_slug')
+        return node['extra'].get('size_slug')
+
+    def _list_sizes__get_name(self, size):
+        cpus = str(size.extra.get('vcpus', ''))
+        ram = str(size.ram / 1024)
+        disk = str(size.disk)
+        bandwidth = str(size.bandwidth)
+        price_monthly = str(size.extra.get('price_monthly', ''))
+        if cpus:
+            name = cpus + ' CPU, ' if cpus == '1' else cpus + ' CPUs, '
+        if ram:
+            name += ram + ' GB, '
+        if disk:
+            name += disk + ' GB SSD Disk, '
+        if price_monthly:
+            name += '$' + price_monthly + '/month'
+
+        return name
 
     def _list_sizes__get_cpu(self, size):
         return size.extra.get('vcpus')
 
 
+class MaxihostComputeController(BaseComputeController):
+
+    def _connect(self, **kwargs):
+        return get_driver(Provider.MAXIHOST)(self.cloud.token)
+
+    def _list_machines__machine_actions(self, machine, node_dict):
+        super(MaxihostComputeController, self)._list_machines__machine_actions(
+            machine, node_dict)
+        if node_dict['state'] is NodeState.PAUSED.value:
+            machine.actions.start = True
+
+    def _list_machines__postparse_machine(self, machine, node_dict):
+        updated = False
+        if node_dict['extra'].get('ips', []):
+            name = node_dict['extra'].get('ips')[0].get(
+                'device_hostname')
+            if machine.hostname != name:
+                machine.hostname = name
+                updated = True
+        return updated
+
+    def _list_machines__get_location(self, node):
+        return node['extra'].get('location').get('facility_code')
+
+    def _start_machine(self, machine, node):
+        node.id = node.extra.get('id', '')
+        return self.connection.ex_start_node(node)
+
+    def _stop_machine(self, machine, node):
+        node.id = node.extra.get('id', '')
+        return self.connection.ex_stop_node(node)
+
+    def _reboot_machine(self, machine, node):
+        node.id = node.extra.get('id', '')
+        return self.connection.reboot_node(node)
+
+    def _destroy_machine(self, machine, node):
+        node.id = node.extra.get('id', '')
+        return self.connection.destroy_node(node)
+
+    def _list_sizes__get_name(self, size):
+        name = size.extra['specs']['cpus']['type']
+        try:
+            cpus = int(size.extra['specs']['cpus']['cores'])
+        except ValueError:  # 'N/A'
+            cpus = None
+        memory = size.extra['specs']['memory']['total']
+        disk_count = size.extra['specs']['drives'][0]['count']
+        disk_size = size.extra['specs']['drives'][0]['size']
+        disk_type = size.extra['specs']['drives'][0]['type']
+        cpus_info = str(cpus) + ' cores/' if cpus else ''
+        return name + '/ ' + cpus_info \
+                           + memory + ' RAM/ ' \
+                           + str(disk_count) + ' * ' + disk_size + ' ' \
+                           + disk_type
+
+    def _list_images__get_os_type(self, image):
+        if image.extra.get('operating_system', ''):
+            return image.extra.get('operating_system').lower()
+        if 'windows' in image.name.lower():
+            return 'windows'
+        else:
+            return 'linux'
+
+
+class GigG8ComputeController(BaseComputeController):
+
+    def _connect(self, **kwargs):
+        return get_driver(Provider.GIG_G8)(self.cloud.user_id,
+                                           self.cloud.apikey,
+                                           self.cloud.url)
+
+    def _list_machines__postparse_machine(self, machine, node_dict):
+        # Discover network of machine.
+        network_id = node_dict['extra'].get('network_id', None)
+        if network_id:
+            from mist.api.networks.models import Network
+            try:
+                machine.network = Network.objects.get(cloud=self.cloud,
+                                                      network_id=network_id,
+                                                      missing_since=None)
+            except Network.DoesNotExist:
+                machine.network = None
+
+        if machine.network:
+            machine.public_ips = [machine.network.public_ip]
+
+        if node_dict['extra'].get('ssh_port', None):
+            machine.ssh_port = node_dict['extra']['ssh_port']
+        return True
+
+    def _list_machines__machine_actions(self, machine, node_dict):
+        super(GigG8ComputeController, self)._list_machines__machine_actions(
+            machine, node_dict)
+        if node_dict['state'] is NodeState.PAUSED.value:
+            machine.actions.start = True
+        machine.actions.expose = True
+
+    def _list_machines__get_size(self, node):
+        """Return key of size_map dict for a specific node
+
+        Subclasses MAY override this method.
+        """
+        return None
+
+    def _list_machines__get_custom_size(self, node):
+        from mist.api.clouds.models import CloudSize
+        try:
+            _size = CloudSize.objects.get(
+                cloud=self.cloud,
+                external_id=str(node['size'].get('id')))
+        except me.DoesNotExist:
+            _size = CloudSize(cloud=self.cloud,
+                              external_id=str(node['size'].get('id')))
+        _size.ram = node['size'].get('ram')
+        _size.cpus = node['size'].get('extra', {}).get('cpus')
+        _size.disk = node['size'].get('disk')
+        name = ""
+        if _size.cpus:
+            name += '%s CPUs, ' % _size.cpus
+        if _size.ram:
+            name += '%sMB RAM, ' % _size.ram
+        if _size.disk:
+            name += '%sGB disk.' % _size.disk
+        _size.name = name
+        _size.save()
+
+        return _size
+
+    def _list_machines__machine_creation_date(self, machine, node_dict):
+        return node_dict['extra'].get('created_at')
+
+    def list_sizes(self, persist=True):
+        # only custom sizes are supported
+        return []
+
+    def list_locations(self, persist=True):
+        return []
+
+    def _stop_machine(self, machine, node):
+        self.connection.stop_node(node)
+
+    def _start_machine(self, machine, node):
+        self.connection.start_node(node)
+
+    def _reboot_machine(self, machine, node):
+        self.connection.reboot_node(node)
+
+    def expose_port(self, machine, port_forwards):
+        if not machine.network:
+            raise MistError('Do not know the network of the machine to expose \
+              a port from')
+        node = self._get_libcloud_node(machine)
+        networks = self.cloud.ctl.compute.connection.ex_list_networks()
+        network = None
+        for net in networks:
+            if net.id == machine.network.network_id:
+                network = net
+                break
+
+        # validate input
+        from mist.api.machines.methods import validate_portforwards_g8
+        validate_portforwards_g8(port_forwards, network)
+
+        existing_pfs = self.connection.ex_list_portforwards(network)
+        for pf in port_forwards.get('ports'):
+            public_port = pf.get('port')
+            if len(public_port.split(":")) == 2:
+                public_port = public_port.split(":")[1]
+            private_port = pf.get('port')
+            if len(private_port.split(":")) == 2:
+                private_port = private_port.split(":")[1]
+            protocol = pf.get('protocol').lower()
+            exists = False
+
+            for existing_pf in existing_pfs:
+                if existing_pf.publicport == int(public_port) and \
+                   existing_pf.protocol == protocol:
+                    existing_pfs.remove(existing_pf)
+                    exists = True
+                    break
+
+            if not exists:
+                try:
+                    self.connection.ex_create_portforward(network,
+                                                          node,
+                                                          public_port,
+                                                          private_port,
+                                                          protocol)
+                except BaseHTTPError as exc:
+                    raise PortForwardCreationError(exc.message)
+
+        for pf in existing_pfs:
+            self.connection.ex_delete_portforward(pf)
+
+
 class LinodeComputeController(BaseComputeController):
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         return get_driver(Provider.LINODE)(self.cloud.apikey)
 
-    def _list_machines__machine_creation_date(self, machine, machine_libcloud):
-        return machine_libcloud.extra.get('CREATE_DT')  # iso8601 string
+    def _list_machines__machine_creation_date(self, machine, node_dict):
+        return node_dict['extra'].get('CREATE_DT')  # iso8601 string
 
-    def _list_machines__machine_actions(self, machine, machine_libcloud):
+    def _list_machines__machine_actions(self, machine, node_dict):
         super(LinodeComputeController, self)._list_machines__machine_actions(
-            machine, machine_libcloud)
+            machine, node_dict)
         machine.actions.rename = True
         machine.actions.resize = True
         # machine.actions.stop = False
         # After resize, node gets to pending mode, needs to be started.
-        if machine_libcloud.state is NodeState.PENDING:
+        if node_dict['state'] is NodeState.PENDING.value:
             machine.actions.start = True
 
-    def _list_machines__cost_machine(self, machine, machine_libcloud):
-        size = machine_libcloud.extra.get('PLANID')
+    def _list_machines__cost_machine(self, machine, node_dict):
+        size = node_dict['extra'].get('PLANID')
         price = get_size_price(driver_type='compute', driver_name='linode',
                                size_id=size)
         return 0, price or 0
 
     def _list_machines__get_size(self, node):
-        return node.extra.get('PLANID')
+        return node['extra'].get('PLANID')
 
     def _list_machines__get_location(self, node):
-        return str(node.extra.get('DATACENTERID'))
+        return str(node['extra'].get('DATACENTERID'))
 
 
 class RackSpaceComputeController(BaseComputeController):
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         if self.cloud.region in ('us', 'uk'):
             driver = get_driver(Provider.RACKSPACE_FIRST_GEN)
         else:
@@ -418,26 +697,27 @@ class RackSpaceComputeController(BaseComputeController):
         return driver(self.cloud.username, self.cloud.apikey,
                       region=self.cloud.region)
 
-    def _list_machines__machine_creation_date(self, machine, machine_libcloud):
-        return machine_libcloud.extra.get('created')  # iso8601 string
+    def _list_machines__machine_creation_date(self, machine, node_dict):
+        return node_dict['extra'].get('created')  # iso8601 string
 
-    def _list_machines__machine_actions(self, machine, machine_libcloud):
+    def _list_machines__machine_actions(self, machine, node_dict):
         super(RackSpaceComputeController,
-              self)._list_machines__machine_actions(machine, machine_libcloud)
+              self)._list_machines__machine_actions(machine, node_dict)
         machine.actions.rename = True
 
-    def _list_machines__cost_machine(self, machine, machine_libcloud):
+    def _list_machines__cost_machine(self, machine, node_dict):
         # Need to get image in order to specify the OS type
         # out of the image id.
-        size = machine_libcloud.extra.get('flavorId')
-        location = machine_libcloud.driver.region[:3]
+        size = node_dict['extra'].get('flavorId')
+        location = self.connection.region[:3]
         driver_name = 'rackspacenova' + location
+        price = None
         try:
             price = get_size_price(driver_type='compute',
                                    driver_name=driver_name,
                                    size_id=size)
         except KeyError:
-            log.error('Pricing for %s:%s was not found.') % (driver_name, size)
+            log.error('Pricing for %s:%s was not found.' % (driver_name, size))
 
         if price:
             plan_price = price.get(machine.os_type) or price.get('linux')
@@ -449,69 +729,83 @@ class RackSpaceComputeController(BaseComputeController):
             # https://www.rackspace.com/cloud/public-pricing
             # there's a minimum service charge of $50/mo across all servers.
 
-    def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        # do not include ipv6 on public ips
-        public_ips = []
-        for ip in machine.public_ips:
-            if ip and ':' not in ip:
-                public_ips.append(ip)
-        machine.public_ips = public_ips
-
-        # Find os_type.
-        try:
-            machine.os_type = CloudImage.objects.get(
-                cloud_provider=machine_libcloud.driver.type,
-                image_id=machine_libcloud.extra.get('imageId'),
-            ).os_type
-        except:
-            machine.os_type = 'linux'
+    def _list_machines__postparse_machine(self, machine, node_dict):
+        updated = False
+        # Find os_type. TODO: Look in extra
+        os_type = machine.os_type or 'linux'
+        if machine.os_type != os_type:
+            machine.os_type = os_type
+            updated = True
+        return updated
 
     def _list_machines__get_size(self, node):
-        return node.extra.get('flavorId')
+        return node['extra'].get('flavorId')
 
     def _list_sizes__get_cpu(self, size):
         return size.vcpus
 
+    def _list_images__get_os_type(self, image):
+        if image.extra.get('metadata', '').get('os_type', ''):
+            return image.extra.get('metadata').get('os_type').lower()
+        if 'windows' in image.name.lower():
+            return 'windows'
+        else:
+            return 'linux'
+
 
 class SoftLayerComputeController(BaseComputeController):
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         return get_driver(Provider.SOFTLAYER)(self.cloud.username,
                                               self.cloud.apikey)
 
-    def _list_machines__machine_creation_date(self, machine, machine_libcloud):
-        return machine_libcloud.extra.get('created')  # iso8601 string
+    def _list_machines__machine_creation_date(self, machine, node_dict):
+        return node_dict['extra'].get('created')  # iso8601 string
 
-    def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        machine.os_type = 'linux'
-        if 'windows' in str(machine_libcloud.extra.get('image', '')).lower():
-            machine.os_type = 'windows'
+    def _list_machines__postparse_machine(self, machine, node_dict):
+        updated = False
+        os_type = 'linux'
+        if 'windows' in str(
+                node_dict['extra'].get('image', '')).lower():
+            os_type = 'windows'
+        if os_type != machine.os_type:
+            machine.os_type = os_type
+            updated = True
 
         # Get number of vCPUs for bare metal and cloud servers, respectively.
-        if 'cpu' in machine.extra:
-            machine.extra['cpus'] = machine.extra['cpu']
-        if 'maxCpu' in machine.extra:
-            machine.extra['cpus'] = machine.extra['maxCpu']
+        if 'cpu' in node_dict['extra'] and \
+                node_dict['extra'].get('cpu') != machine.extra.get(
+                    'cpus'):
+            machine.extra['cpus'] = node_dict['extra'].get['cpu']
+            updated = True
+        elif 'maxCpu' in node_dict.extra and \
+                machine.extra['cpus'] != node_dict['extra']['maxCpu']:
+            machine.extra['cpus'] = node_dict['extra']['maxCpu']
+            updated = True
+        return updated
 
-    def _list_machines__cost_machine(self, machine, machine_libcloud):
+    def _list_machines__cost_machine(self, machine, node_dict):
         # SoftLayer includes recurringFee on the VM metadata but
         # this is only for the compute - CPU pricing.
         # Other costs (ram, bandwidth, image) are included
         # on billingItemChildren.
 
         extra_fee = 0
-        if not machine_libcloud.extra.get('hourlyRecurringFee'):
-            cpu_fee = float(machine_libcloud.extra.get('recurringFee'))
-            for item in machine_libcloud.extra.get('billingItemChildren', ()):
+        if not node_dict['extra'].get('hourlyRecurringFee'):
+            cpu_fee = float(node_dict['extra'].get('recurringFee'))
+            for item in node_dict['extra'].get('billingItemChildren',
+                                               ()):
                 # don't calculate billing that is cancelled
                 if not item.get('cancellationDate'):
                     extra_fee += float(item.get('recurringFee'))
             return 0, cpu_fee + extra_fee
         else:
-            # machine_libcloud.extra.get('recurringFee')
+            # node_dict['extra'].get('recurringFee')
             # here will show what it has cost for the current month, up to now.
-            cpu_fee = float(machine_libcloud.extra.get('hourlyRecurringFee'))
-            for item in machine_libcloud.extra.get('billingItemChildren', ()):
+            cpu_fee = float(
+                node_dict['extra'].get('hourlyRecurringFee'))
+            for item in node_dict['extra'].get('billingItemChildren',
+                                               ()):
                 # don't calculate billing that is cancelled
                 if not item.get('cancellationDate'):
                     extra_fee += float(item.get('hourlyRecurringFee'))
@@ -519,32 +813,38 @@ class SoftLayerComputeController(BaseComputeController):
             return cpu_fee + extra_fee, 0
 
     def _list_machines__get_location(self, node):
-        return node.extra.get('datacenter')
+        return node['extra'].get('datacenter')
 
-    def _reboot_machine(self, machine, machine_libcloud):
-        self.connection.reboot_node(machine_libcloud)
+    def _reboot_machine(self, machine, node):
+        self.connection.reboot_node(node)
         return True
 
-    def _destroy_machine(self, machine, machine_libcloud):
-        self.connection.destroy_node(machine_libcloud)
+    def _destroy_machine(self, machine, node):
+        self.connection.destroy_node(node)
 
 
 class AzureComputeController(BaseComputeController):
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         tmp_cert_file = tempfile.NamedTemporaryFile(delete=False)
         tmp_cert_file.write(self.cloud.certificate.encode())
         tmp_cert_file.close()
         return get_driver(Provider.AZURE)(self.cloud.subscription_id,
                                           tmp_cert_file.name)
 
-    def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        machine.os_type = machine_libcloud.extra.get('os_type', 'linux')
+    def _list_machines__postparse_machine(self, machine, node_dict):
+        updated = False
+        os_type = node_dict['extra'].get('os_type', 'linux')
+        if machine.os_type != os_type:
+            machine.os_type = os_type
+            updated = True
+        return updated
 
-    def _list_machines__cost_machine(self, machine, machine_libcloud):
-        if machine_libcloud.state not in [NodeState.RUNNING, NodeState.PAUSED]:
+    def _list_machines__cost_machine(self, machine, node_dict):
+        if node_dict['state'] not in [NodeState.RUNNING.value,
+                                      NodeState.PAUSED.value]:
             return 0, 0
-        return machine_libcloud.extra.get('cost_per_hour', 0), 0
+        return node_dict['extra'].get('cost_per_hour', 0), 0
 
     def _list_images__fetch_images(self, search=None):
         images = self.connection.list_images()
@@ -560,16 +860,16 @@ class AzureComputeController(BaseComputeController):
                 images_dict[image.name] = image
         return list(images_dict.values())
 
-    def _cloud_service(self, machine_libcloud_id):
+    def _cloud_service(self, node_id):
         """
         Azure libcloud driver needs the cloud service
         specified as well as the node
         """
         cloud_service = self.connection.get_cloud_service_from_node_id(
-            machine_libcloud_id)
+            node_id)
         return cloud_service
 
-    def _get_machine_libcloud(self, machine, no_fail=False):
+    def _get_libcloud_node(self, machine, no_fail=False):
         cloud_service = self._cloud_service(machine.machine_id)
         for node in self.connection.list_nodes(
                 ex_cloud_service_name=cloud_service):
@@ -582,73 +882,86 @@ class AzureComputeController(BaseComputeController):
             raise MachineNotFoundError("Machine with id '%s'." %
                                        machine.machine_id)
 
-    def _start_machine(self, machine, machine_libcloud):
+    def _start_machine(self, machine, node):
         cloud_service = self._cloud_service(machine.machine_id)
         return self.connection.ex_start_node(
-            machine_libcloud, ex_cloud_service_name=cloud_service)
+            node, ex_cloud_service_name=cloud_service)
 
-    def _stop_machine(self, machine, machine_libcloud):
+    def _stop_machine(self, machine, node):
         cloud_service = self._cloud_service(machine.machine_id)
         return self.connection.ex_stop_node(
-            machine_libcloud, ex_cloud_service_name=cloud_service)
+            node, ex_cloud_service_name=cloud_service)
 
-    def _reboot_machine(self, machine, machine_libcloud):
+    def _reboot_machine(self, machine, node):
         cloud_service = self._cloud_service(machine.machine_id)
         return self.connection.reboot_node(
-            machine_libcloud, ex_cloud_service_name=cloud_service)
+            node, ex_cloud_service_name=cloud_service)
 
-    def _destroy_machine(self, machine, machine_libcloud):
+    def _destroy_machine(self, machine, node):
         cloud_service = self._cloud_service(machine.machine_id)
         return self.connection.destroy_node(
-            machine_libcloud, ex_cloud_service_name=cloud_service)
+            node, ex_cloud_service_name=cloud_service)
 
-    def _list_machines__machine_actions(self, machine, machine_libcloud):
+    def _list_machines__machine_actions(self, machine, node_dict):
         super(AzureComputeController, self)._list_machines__machine_actions(
-            machine, machine_libcloud)
-        if machine_libcloud.state is NodeState.PAUSED:
+            machine, node_dict)
+        if node_dict['state'] is NodeState.PAUSED.value:
             machine.actions.start = True
 
 
 class AzureArmComputeController(BaseComputeController):
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         return get_driver(Provider.AZURE_ARM)(self.cloud.tenant_id,
                                               self.cloud.subscription_id,
                                               self.cloud.key,
                                               self.cloud.secret)
 
-    def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        machine.os_type = machine_libcloud.extra.get('os_type', 'linux')
+    def _list_machines__postparse_machine(self, machine, node_dict):
+        updated = False
+        os_type = node_dict['extra'].get('os_type', 'linux')
+        if os_type != machine.os_type:
+            machine.os_type = os_type
+            updated = True
 
-        net_id = machine_libcloud.extra.get('networkProfile')[0].get('id')
-        network_id = net_id.split('/')[-1] + '-vnet'
-        machine.extra['network'] = network_id
+        subnet = node_dict['extra'].get('subnet')
+        if subnet:
+            network_id = subnet.split('/subnets')[0]
+            from mist.api.networks.models import Network
+            try:
+                network = Network.objects.get(cloud=self.cloud,
+                                              network_id=network_id,
+                                              missing_since=None)
+                if network != machine.network:
+                    machine.network = network
+                    updated = True
+            except me.DoesNotExist:
+                pass
 
-        # Discover network of machine.
-        from mist.api.networks.models import Network
-        try:
-            machine.network = Network.objects.get(cloud=self.cloud,
-                                                  network_id=network_id,
-                                                  missing_since=None)
-        except Network.DoesNotExist:
-            machine.network = None
+        network_id = machine.network.network_id if machine.network else ''
+        if machine.extra.get('network') != network_id:
+            machine.extra['network'] = network_id
+            updated = True
 
-    def _list_machines__cost_machine(self, machine, machine_libcloud):
-        if machine_libcloud.state not in [NodeState.RUNNING, NodeState.PAUSED]:
+        return updated
+
+    def _list_machines__cost_machine(self, machine, node_dict):
+        if node_dict['state'] not in [NodeState.RUNNING.value,
+                                      NodeState.PAUSED.value]:
             return 0, 0
-        return machine_libcloud.extra.get('cost_per_hour', 0), 0
+        return node_dict['extra'].get('cost_per_hour', 0), 0
 
-    def _list_machines__machine_actions(self, machine, machine_libcloud):
+    def _list_machines__machine_actions(self, machine, node_dict):
         super(AzureArmComputeController, self)._list_machines__machine_actions(
-            machine, machine_libcloud)
-        if machine_libcloud.state is NodeState.PAUSED:
+            machine, node_dict)
+        if node_dict['state'] is NodeState.PAUSED.value:
             machine.actions.start = True
 
     def _list_machines__get_location(self, node):
-        return node.extra.get('location')
+        return node['extra'].get('location')
 
     def _list_machines__get_size(self, node):
-        return node.extra.get('size')
+        return node['extra'].get('size')
 
     def _list_images__fetch_images(self, search=None):
         # Fetch mist's recommended images
@@ -657,11 +970,11 @@ class AzureArmComputeController(BaseComputeController):
                   for image, name in list(config.AZURE_ARM_IMAGES.items())]
         return images
 
-    def _reboot_machine(self, machine, machine_libcloud):
-        self.connection.reboot_node(machine_libcloud)
+    def _reboot_machine(self, machine, node):
+        self.connection.reboot_node(node)
 
-    def _destroy_machine(self, machine, machine_libcloud):
-        self.connection.destroy_node(machine_libcloud)
+    def _destroy_machine(self, machine, node):
+        self.connection.destroy_node(node)
 
     def _list_sizes__fetch_sizes(self):
         location = self.connection.list_locations()[0]
@@ -672,18 +985,18 @@ class AzureArmComputeController(BaseComputeController):
 
     def _list_sizes__get_name(self, size):
         return size.name + ' ' + str(size.extra['numberOfCores']) \
-                         + ' cpus/' + str(size.ram / 1024) + 'G RAM/ ' \
+                         + ' cpus/' + str(size.ram / 1024) + 'GB RAM/ ' \
                          + str(size.disk) + 'GB SSD'
 
 
 class GoogleComputeController(BaseComputeController):
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         return get_driver(Provider.GCE)(self.cloud.email,
                                         self.cloud.private_key,
                                         project=self.cloud.project_id)
 
-    def _list_machines__get_machine_extra(self, machine, machine_libcloud):
+    def _list_machines__get_machine_extra(self, machine, node_dict):
         # FIXME: we delete the extra.metadata for now because it can be
         # > 40kb per machine on GCE clouds with enabled GKE, causing the
         # websocket to overload and hang and is also a security concern.
@@ -691,54 +1004,61 @@ class GoogleComputeController(BaseComputeController):
         # metadata and if there are other fields that should be filtered
         # as well
 
-        extra = copy.copy(machine_libcloud.extra)
+        extra = copy.copy(node_dict['extra'])
 
         for key in list(extra.keys()):
             if key in ['metadata']:
                 del extra[key]
         return extra
 
-    def _list_machines__machine_creation_date(self, machine, machine_libcloud):
+    def _list_machines__machine_creation_date(self, machine, node_dict):
         # iso8601 string
-        return machine_libcloud.extra.get('creationTimestamp')
+        return node_dict['extra'].get('creationTimestamp')
 
     def _list_machines__get_custom_size(self, node):
-        size = self.connection.get_size_metadata_from_node(node.extra.
-                                                           get('machineType'))
+        machine_type = node['extra'].get('machineType', "").split("/")[-1]
+        size = self.connection.ex_get_size(machine_type,
+                                           node['extra']['zone'].get('name'))
         # create object only if the size of the node is custom
-        if size.get('name', '').startswith('custom'):
+        if size.name.startswith('custom'):
             # FIXME: resolve circular import issues
             from mist.api.clouds.models import CloudSize
-            _size = CloudSize(cloud=self.cloud, external_id=size.get('id'))
-            _size.ram = size.get('memoryMb')
-            _size.cpus = size.get('guestCpus')
-            _size.name = size.get('name')
+            _size = CloudSize(cloud=self.cloud, external_id=size.id)
+            _size.ram = size.ram
+            _size.cpus = size.extra.get('guestCpus')
+            _size.name = size.name
             _size.save()
             return _size
 
-    def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        extra = machine_libcloud.extra
+    def _list_machines__postparse_machine(self, machine, node_dict):
+        updated = False
+        extra = node_dict['extra']
 
         # Wrap in try/except to prevent from future GCE API changes.
         # Identify server OS.
         os_type = 'linux'
-        machine.os_type = machine.extra['os_type'] = os_type
+        extra_os_type = None
 
         try:
             license = extra.get('license')
             if license:
                 if 'sles' in license:
-                    os_type = 'sles'
+                    extra_os_type = 'sles'
                 if 'rhel' in license:
-                    os_type = 'rhel'
+                    extra_os_type = 'rhel'
                 if 'win' in license:
-                    os_type = 'win'
-                    machine.os_type = 'windows'
-                machine.extra['os_type'] = os_type
-
-            if 'windows-cloud' in extra['disks'][0]['licenses'][0]:
-                machine.os_type = 'windows'
-                machine.extra['os_type'] = 'win'
+                    extra_os_type = 'win'
+                    os_type = 'windows'
+            if extra.get('disks') and extra['disks'][0].get('licenses') and \
+                    'windows-cloud' in extra['disks'][0]['licenses'][0]:
+                os_type = 'windows'
+                extra_os_type = 'win'
+            if extra_os_type and machine.extra.get('os_type') != extra_os_type:
+                machine.extra['os_type'] = extra_os_type
+                updated = True
+            if machine.os_type != os_type:
+                machine.os_type = os_type
+                updated = True
         except:
             log.exception("Couldn't parse os_type for machine %s:%s for %s",
                           machine.id, machine.name, self.cloud)
@@ -746,10 +1066,19 @@ class GoogleComputeController(BaseComputeController):
         # Get disk metadata.
         try:
             if extra.get('boot_disk'):
-                machine.extra['boot_disk_size'] = extra['boot_disk'].size
-                machine.extra['boot_disk_type'] = extra[
-                    'boot_disk'].extra.get('type')
-                machine.extra.pop('boot_disk')
+                if machine.extra.get('boot_disk_size') != extra[
+                        'boot_disk'].get('size'):
+                    machine.extra['boot_disk_size'] = extra['boot_disk'].get(
+                        'size')
+                    updated = True
+                if machine.extra.get('boot_disk_type') != extra[
+                        'boot_disk'].get('extra', {}).get('type'):
+                    machine.extra['boot_disk_type'] = extra[
+                        'boot_disk'].get('extra', {}).get('type')
+                    updated = True
+                if machine.extra.get('boot_disk'):
+                    machine.extra.pop('boot_disk')
+                    updated = True
         except:
             log.exception("Couldn't parse disk for machine %s:%s for %s",
                           machine.id, machine.name, self.cloud)
@@ -757,7 +1086,10 @@ class GoogleComputeController(BaseComputeController):
         # Get zone name.
         try:
             if extra.get('zone'):
-                machine.extra['zone'] = extra['zone'].name
+                if machine.extra.get('zone') != extra.get('zone',
+                                                          {}).get('name'):
+                    machine.extra['zone'] = extra.get('zone', {}).get('name')
+                    updated = True
         except:
             log.exception("Couldn't parse zone for machine %s:%s for %s",
                           machine.id, machine.name, self.cloud)
@@ -766,46 +1098,60 @@ class GoogleComputeController(BaseComputeController):
         try:
             if extra.get('machineType'):
                 machine_type = extra['machineType'].split('/')[-1]
-                machine.extra['machine_type'] = machine_type
+                if machine.extra.get('machine_type') != machine_type:
+                    machine.extra['machine_type'] = machine_type
+                    updated = True
         except:
             log.exception("Couldn't parse machine type "
                           "for machine %s:%s for %s",
                           machine.id, machine.name, self.cloud)
 
-        network_interface = machine_libcloud.extra.get('networkInterfaces')[0]
-
+        network_interface = node_dict['extra'].get(
+            'networkInterfaces')[0]
         network = network_interface.get('network')
         network_name = network.split('/')[-1]
-        machine.extra['network'] = network_name
+        if machine.extra.get('network') != network_name:
+            machine.extra['network'] = network_name
+            updated = True
 
         # Discover network of machine.
         from mist.api.networks.models import Network
         try:
-            machine.network = Network.objects.get(cloud=self.cloud,
-                                                  name=network_name,
-                                                  missing_since=None)
+            network = Network.objects.get(cloud=self.cloud,
+                                          name=network_name,
+                                          missing_since=None)
         except Network.DoesNotExist:
-            machine.network = None
+            network = None
+
+        if machine.network != network:
+            machine.network = network
+            updated = True
 
         subnet = network_interface.get('subnetwork')
         if subnet:
             subnet_name = subnet.split('/')[-1]
             subnet_region = subnet.split('/')[-3]
-            machine.extra['subnet'] = (subnet_name, subnet_region)
-
+            if machine.extra.get('subnet') != (subnet_name, subnet_region):
+                machine.extra['subnet'] = (subnet_name, subnet_region)
+                updated = True
             # Discover subnet of machine.
             from mist.api.networks.models import Subnet
             try:
-                machine.subnet = Subnet.objects.get(name=subnet_name,
-                                                    network=machine.network,
-                                                    region=subnet_region,
-                                                    missing_since=None)
+                subnet = Subnet.objects.get(name=subnet_name,
+                                            network=machine.network,
+                                            region=subnet_region,
+                                            missing_since=None)
             except Subnet.DoesNotExist:
-                machine.subnet = None
+                subnet = None
+            if subnet != machine.subnet:
+                machine.subnet = subnet
+                updated = True
 
-    def _list_machines__machine_actions(self, machine, machine_libcloud):
+            return updated
+
+    def _list_machines__machine_actions(self, machine, node_dict):
         super(GoogleComputeController,
-              self)._list_machines__machine_actions(machine, machine_libcloud)
+              self)._list_machines__machine_actions(machine, node_dict)
         machine.actions.resize = True
 
     def _list_images__fetch_images(self, search=None):
@@ -815,80 +1161,159 @@ class GoogleComputeController(BaseComputeController):
             image.extra.pop('licenses', None)
         return images
 
-    def _list_machines__cost_machine(self, machine, machine_libcloud):
-        if machine_libcloud.state == NodeState.STOPPED:
+    def _list_machines__cost_machine(self, machine, node_dict):
+        if node_dict['state'] == NodeState.STOPPED.value or not machine.size:
             return 0, 0
-        # https://cloud.google.com/compute/pricing
-        size = machine_libcloud.extra.get('machineType').split('/')[-1]
-        location = machine_libcloud.extra.get('zone').name
-        # could be europe-west1-d, we want europe_west1
+        # eg n1-standard-1 (1 vCPU, 3.75 GB RAM)
+        machine_cpu = float(machine.size.cpus)
+        machine_ram = float(machine.size.ram) / 1024
+        size_type = machine.size.name.split(" ")[0][:2]
+        if "custom" in machine.size.name:
+            size_type += "_custom"
+            if machine.size.name.startswith('custom'):
+                size_type = 'n1_custom'
+        usage_type = "on_demand"
+        if "preemptible" in machine.size.name.lower():
+            usage_type = "preemptible"
+        if "1yr" in machine.size.name.lower():
+            usage_type = '1yr_commitment'
+        if "3yr" in machine.size.name.lower():
+            usage_type = '3yr_commitment'
+        default_location = "us-central1"
+        location = node_dict['extra'].get('zone', {}).get('name')
+        # could be europe-west1-d, we want europe-west1
         location = '-'.join(location.split('-')[:2])
+        os_type = machine.os_type
+        disk_type = machine.extra.get('boot_disk_type') or \
+            node_dict['extra'].get('boot_disk',
+                                   {}).get('extra',
+                                           {}).get('type')
+        disk_usage_type = "on_demand"
+        disk_size = 0
+        for disk in machine.extra['disks']:
+            disk_size += float(disk['diskSizeGb'])
+        if 'regional' in disk_type:
+            if 'standard' in disk_type:
+                disk_type = 'Regional Standard'
+            elif 'ssd' in disk_type:
+                disk_type = 'Regional SSD'
+        elif 'local' in disk_type:
+            if 'preemptible' in disk_type:
+                disk_usage_type = 'preemptible'
+            elif '1yr' in disk_type:
+                disk_usage_type = '1yr_commitment'
+            elif '3yr' in disk_type:
+                disk_usage_type = '3yr_commitment'
+            disk_type = 'Local SSD'
+        elif 'standard' in disk_type:
+            disk_type = 'Standard'
+        elif 'ssd' in disk_type:
+            disk_type = 'SSD'
 
-        driver_name = 'google_' + location
-        price = get_size_price(driver_type='compute', driver_name=driver_name,
-                               size_id=size)
-
-        if not price:
-            if size.startswith('custom'):
-                cpu_price = 'custom-vm-core'
-                ram_price = 'custom-vm-ram'
-                if 'preemptible' in size:
-                    cpu_price = 'custom-vm-core-preemptible'
-                    ram_price = 'custom-vm-ram-preemptible'
-
-                cpu_price = get_size_price(driver_type='compute',
-                                           driver_name=driver_name,
-                                           size_id=cpu_price)
-                ram_price = get_size_price(driver_type='compute',
-                                           driver_name=driver_name,
-                                           size_id=ram_price)
-                # Example custom-4-16384
+        disk_prices = get_pricing(driver_type='compute',
+                                  driver_name='gce_disks')[disk_type]
+        gce_instance = get_pricing(driver_type='compute',
+                                   driver_name='gce_instances')[size_type]
+        cpu_price = 0
+        ram_price = 0
+        os_price = 0
+        disk_price = 0
+        if disk_prices:
+            try:
+                disk_price = disk_prices[disk_usage_type][
+                    location].get('price', 0)
+            except KeyError:
+                disk_price = disk_prices[disk_usage_type][
+                    default_location].get('price', 0)
+        if gce_instance:
+            try:
+                cpu_price = gce_instance['cpu'][usage_type][
+                    location].get('price', 0)
+            except KeyError:
+                cpu_price = gce_instance['cpu'][usage_type][
+                    default_location].get('price', 0)
+            if size_type not in {'f1', 'g1'}:
                 try:
-                    cpu = int(size.split('-')[1])
-                    ram = int(size.split('-')[2]) / 1024
-                    price = cpu * cpu_price + ram * ram_price
-                except:
-                    log.exception("Couldn't parse custom size %s for cloud %s",
-                                  size, self.cloud)
-                    return 0, 0
+                    ram_price = gce_instance['ram'][usage_type][
+                        location].get('price', 0)
+                except KeyError:
+                    ram_price = gce_instance['ram'][usage_type][
+                        default_location].get('price', 0)
+            ram_instance = None
+            if (size_type == "n1" and machine_cpu > 0 and
+               machine_ram / machine_cpu > 6.5):
+                size_type += "_extended"
+                ram_instance = get_size_price(driver_type='compute',
+                                              driver_name='gce_instances',
+                                              size_id=size_type)
+            if (size_type == "n2" and machine_cpu > 0 and
+               machine_ram / machine_cpu > 8):
+                size_type += "_extended"
+                ram_instance = get_size_price(driver_type='compute',
+                                              driver_name='gce_instances',
+                                              size_id=size_type)
+            if (size_type == "n2d" and machine_cpu > 0 and
+               machine_ram / machine_cpu > 8):
+                size_type += "_extended"
+                ram_instance = get_size_price(driver_type='compute',
+                                              driver_name='gce_instances',
+                                              size_id=size_type)
+            if ram_instance:
+                try:
+                    ram_price = ram_instance['ram'][
+                        usage_type][location].get('price', 0)
+                except KeyError:
+                    ram_price = ram_instance['ram'][
+                        usage_type][default_location].get('price', 0)
+        if os_type in {'win', 'windows'}:
+            os_prices = get_size_price(driver_type='compute',
+                                       driver_name='gce_images',
+                                       size_id="Windows Server")
+            if size_type in {'f1', 'g1'}:
+                os_price = os_prices[size_type].get('price', 0)
             else:
-                return 0, 0
-        os_type = machine_libcloud.extra.get('os_type')
-        os_cost_per_hour = 0
-        if os_type == 'sles':
-            if size in ('f1-micro', 'g1-small'):
-                os_cost_per_hour = 0.02
+                os_price = os_prices['any'].get('price', 0) * machine_cpu
+        if os_type in {'rhel'}:
+            os_prices = get_size_price(driver_type='compute',
+                                       driver_name='gce_images',
+                                       size_id="RHEL")
+            if machine_cpu <= 4:
+                os_price = os_prices['4vcpu or less'].get('price', 0)
             else:
-                os_cost_per_hour = 0.11
-        if os_type == 'win':
-            if size in ('f1-micro', 'g1-small'):
-                os_cost_per_hour = 0.02
+                os_price = os_prices['6vcpu or more'].get('price', 0)
+        if os_type in {'sles'}:
+            os_prices = get_size_price(driver_type='compute',
+                                       driver_name='gce_images',
+                                       size_id="SLES")
+            if size_type in {'f1', 'g1'}:
+                os_price = os_prices[size_type].get('price', 0)
             else:
-                cores = size.split('-')[-1]
-                os_cost_per_hour = cores * 0.04
-        if os_type == 'rhel':
-            if size in ('n1-highmem-2', 'n1-highcpu-2', 'n1-highmem-4',
-                        'n1-highcpu-4', 'f1-micro', 'g1-small',
-                        'n1-standard-1', 'n1-standard-2', 'n1-standard-4'):
-                os_cost_per_hour = 0.06
+                os_price = os_prices['any'].get('price', 0)
+        if "sles for sap" in os_type:
+            os_prices = get_size_price(driver_type='compute',
+                                       driver_name='gce_images',
+                                       size_id="SLES for SAP")
+            if machine_cpu >= 6:
+                os_price = os_prices['6vcpu or more'].get('price', 0)
+            elif 2 < machine_cpu <= 4:
+                os_price = os_prices['3-4vcpu'].get('price', 0)
+            elif machine_cpu <= 2:
+                os_price = os_prices['1-2vcpu'].get('price', 0)
+        if "rhel" in os_type and "update services" in os_type:
+            os_prices = get_size_price(driver_type='compute',
+                                       driver_name='gce_images',
+                                       size_id="RHEL with Update Services")
+            if machine_cpu <= 4:
+                os_price = os_prices['4vcpu or less'].get('price', 0)
             else:
-                os_cost_per_hour = 0.13
+                os_price = os_prices['6vcpu or more'].get('price', 0)
 
-        try:
-            if 'preemptible' in size:
-                # No monthly discount.
-                return price + os_cost_per_hour, 0
-            else:
-                # Monthly discount of 30% if the VM runs all the billing month.
-                # Monthly discount on instance size only (not on OS image).
-                return 0.7 * price + os_cost_per_hour, 0
-            # TODO: better calculate the discounts, taking under consideration
-            # when the VM has been initiated.
-        except:
-            pass
+        total_price = (machine_cpu * cpu_price + machine_ram *
+                       ram_price + os_price + disk_price * disk_size)
+        return total_price, 0
 
-    def _list_machines__get_location(self, node):
-        return node.extra.get('zone').id
+    def _list_machines__get_location(self, node_dict):
+        return node_dict['extra'].get('zone', {}).get('id')
 
     def _list_sizes__get_name(self, size):
         return "%s (%s)" % (size.name, size.extra.get('description'))
@@ -896,70 +1321,94 @@ class GoogleComputeController(BaseComputeController):
     def _list_sizes__get_cpu(self, size):
         return size.extra.get('guestCpus')
 
-    def _resize_machine(self, machine, machine_libcloud, node_size, kwargs):
+    def _list_sizes__get_extra(self, size):
+        extra = {}
+        description = size.extra.get('description', '')
+        if description:
+            extra.update({'description': description})
+        if size.price:
+            extra.update({'price': size.price})
+        return extra
+
+    def _resize_machine(self, machine, node, node_size, kwargs):
         # instance must be in stopped mode
-        if machine_libcloud.state != NodeState.STOPPED:
+        if node.state != NodeState.STOPPED:
             raise BadRequestError('The instance has to be stopped '
                                   'in order to be resized')
         # get size name as returned by libcloud
         machine_type = node_size.name.split(' ')[0]
         try:
-            self.connection.ex_set_machine_type(machine_libcloud,
+            self.connection.ex_set_machine_type(node,
                                                 machine_type)
-            self.connection.ex_start_node(machine_libcloud)
+            self.connection.ex_start_node(node)
         except Exception as exc:
             raise BadRequestError('Failed to resize node: %s' % exc)
 
 
 class HostVirtualComputeController(BaseComputeController):
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         return get_driver(Provider.HOSTVIRTUAL)(self.cloud.apikey)
 
 
-class PacketComputeController(BaseComputeController):
+class EquinixMetalComputeController(BaseComputeController):
 
-    def _connect(self):
-        return get_driver(Provider.PACKET)(self.cloud.apikey,
-                                           project=self.cloud.project_id)
+    def _connect(self, **kwargs):
+        return get_driver(
+            Provider.EQUINIXMETAL)(self.cloud.apikey,
+                                   project=self.cloud.project_id)
 
-    def _list_machines__machine_creation_date(self, machine, machine_libcloud):
-        return machine_libcloud.extra.get('created_at')  # iso8601 string
+    def _list_machines__machine_creation_date(self, machine, node_dict):
+        return node_dict['extra'].get('created_at')  # iso8601 string
 
-    def _list_machines__cost_machine(self, machine, machine_libcloud):
-        size = machine_libcloud.extra.get('plan')
+    def _list_machines__cost_machine(self, machine, node_dict):
+        size = node_dict['extra'].get('plan')
         from mist.api.clouds.models import CloudSize
-        price = CloudSize.objects.get(
-            external_id=size, cloud=self.cloud).extra.get('price', 0.0)
+        try:
+            _size = CloudSize.objects.get(external_id=size, cloud=self.cloud)
+        except CloudSize.DoesNotExist:
+            # for some sizes, part of the name instead of id is returned
+            # eg. t1.small.x86 for size is returned for size with external_id
+            # baremetal_0 and name t1.small.x86 - 8192 RAM
+            try:
+                _size = CloudSize.objects.get(cloud=self.cloud,
+                                              name__contains=size)
+            except CloudSize.DoesNotExist:
+                raise NotFoundError()
+        price = _size.extra.get('price', 0.0)
         if machine.extra.get('billing_cycle') == 'hourly':
             return price, 0
 
-    def _list_machines__get_location(self, node):
-        return node.extra.get('facility', {}).get('id', '')
+    def _list_machines__get_location(self, node_dict):
+        return node_dict['extra'].get('facility', {}).get('id', '')
 
-    def _list_machines__get_size(self, node):
-        return node.extra.get('plan')
+    def _list_machines__get_size(self, node_dict):
+        return node_dict['extra'].get('plan')
 
 
 class VultrComputeController(BaseComputeController):
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         return get_driver(Provider.VULTR)(self.cloud.apikey)
 
-    def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        machine.extra['cpus'] = machine.extra.get('vcpu_count', 0)
+    def _list_machines__postparse_machine(self, machine, node_dict):
+        updated = False
+        if machine.extra.get('cpus') != machine.extra.get('vcpu_count', 0):
+            machine.extra['cpus'] = machine.extra.get('vcpu_count', 0)
+            updated = True
+        return updated
 
-    def _list_machines__machine_creation_date(self, machine, machine_libcloud):
-        return machine_libcloud.extra.get('date_created')  # iso8601 string
+    def _list_machines__machine_creation_date(self, machine, node_dict):
+        return node_dict['extra'].get('date_created')  # iso8601 string
 
-    def _list_machines__cost_machine(self, machine, machine_libcloud):
-        return 0, machine_libcloud.extra.get('cost_per_month', 0)
+    def _list_machines__cost_machine(self, machine, node_dict):
+        return 0, node_dict['extra'].get('cost_per_month', 0)
 
-    def _list_machines__get_size(self, node):
-        return node.extra.get('VPSPLANID')
+    def _list_machines__get_size(self, node_dict):
+        return node_dict['extra'].get('VPSPLANID')
 
-    def _list_machines__get_location(self, node):
-        return node.extra.get('DCID')
+    def _list_machines__get_location(self, node_dict):
+        return node_dict['extra'].get('DCID')
 
     def _list_sizes__get_cpu(self, size):
         return size.extra.get('vcpu_count')
@@ -971,11 +1420,33 @@ class VultrComputeController(BaseComputeController):
 
 class VSphereComputeController(BaseComputeController):
 
-    def _connect(self):
+    def _connect(self, **kwargs):
+        from libcloud.compute.drivers.vsphere import VSphereNodeDriver
+        from libcloud.compute.drivers.vsphere import VSphere_6_7_NodeDriver
+        ca_cert = None
+        if self.cloud.ca_cert_file:
+            ca_cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
+            ca_cert_temp_file.write(self.cloud.ca_cert_file.encode())
+            ca_cert_temp_file.close()
+            ca_cert = ca_cert_temp_file.name
+
         host, port = dnat(self.cloud.owner, self.cloud.host, 443)
-        return get_driver(Provider.VSPHERE)(host=host, port=port,
-                                            username=self.cloud.username,
-                                            password=self.cloud.password)
+        driver_6_5 = VSphereNodeDriver(host=host,
+                                       username=self.cloud.username,
+                                       password=self.cloud.password,
+                                       port=port,
+                                       ca_cert=ca_cert)
+        self.version = driver_6_5._get_version()
+        if '6.7'in self.version and config.ENABLE_VSPHERE_REST:
+            self.version = '6.7'
+            return VSphere_6_7_NodeDriver(self.cloud.username,
+                                          secret=self.cloud.password,
+                                          host=host,
+                                          port=port,
+                                          ca_cert=ca_cert)
+        else:
+            self.version = "6.5-"
+            return driver_6_5
 
     def check_connection(self):
         """Check connection without performing `list_machines`
@@ -986,32 +1457,90 @@ class VSphereComputeController(BaseComputeController):
         """
         self.connect()
 
-    def _list_machines__get_location(self, node):
-        cluster = node.extra.get('cluster', '')
-        host = node.extra.get('host', '')
+    def _list_machines__get_location(self, node_dict):
+        cluster = node_dict['extra'].get('cluster', '')
+        host = node_dict['extra'].get('host', '')
         return cluster or host
+
+    def list_vm_folders(self):
+        all_folders = self.connection.ex_list_folders()
+        vm_folders = [folder for folder in all_folders if
+                      "VirtualMachine" in folder[
+                          'type'] or "VIRTUAL_MACHINE" in folder['type']]
+        return vm_folders
+
+    def list_datastores(self):
+        datastores_raw = self.connection.ex_list_datastores()
+        return datastores_raw
 
     def _list_locations__fetch_locations(self):
         """List locations for vSphere
 
-        If there are clusters with drs enabled, return those.
-        Otherwise return the list of available hosts.
+        Return all locations, clusters and hosts
         """
-        locations = self.connection.list_locations()
-        clusters = [l for l in locations
-                    if l.extra['type'] == 'cluster' and l.extra['drs']]
-        hosts = [l for l in locations if l.extra['type'] == 'host']
-
-        return clusters or hosts
+        return self.connection.list_locations()
 
     def _list_machines__fetch_machines(self):
         """Perform the actual libcloud call to get list of nodes"""
-        return self.connection.list_nodes(
-            max_properties=self.cloud.max_properties_per_request)
+        machine_list = []
+        for node in self.connection.list_nodes(
+                max_properties=self.cloud.max_properties_per_request):
+            # Check for VMs without uuid
+            if node.id is None:
+                log.error("Skipping machine {} on cloud {} - {}): uuid is "
+                          "null".format(node.name,
+                                        self.cloud.title,
+                                        self.cloud.id))
+                continue
+            machine_list.append(node_to_dict(node))
+        return machine_list
 
-    def _list_machines__machine_actions(self, machine, machine_libcloud):
+    def _list_machines__get_size(self, node_dict):
+        """Return key of size_map dict for a specific node
+
+        Subclasses MAY override this method.
+        """
+        return None
+
+    def _list_machines__get_custom_size(self, node_dict):
+        # FIXME: resolve circular import issues
+        from mist.api.clouds.models import CloudSize
+        updated = False
+        try:
+            _size = CloudSize.objects.get(
+                external_id=node_dict['size'].get('id'))
+        except me.DoesNotExist:
+            _size = CloudSize(cloud=self.cloud,
+                              external_id=str(node_dict['size'].get('id')))
+            updated = True
+        if _size.ram != node_dict['size'].get('ram'):
+            _size.ram = node_dict['size'].get('ram')
+            updated = True
+        if _size.cpus != node_dict['size'].get('extra', {}).get('cpus'):
+            _size.cpus = node_dict['size'].get('extra', {}).get('cpus')
+            updated = True
+        if _size.disk != node_dict['size'].get('disk'):
+            _size.disk = node_dict['size'].get('disk')
+            updated = True
+        name = ""
+        if _size.cpus:
+            name += f'{_size.cpus}vCPUs, '
+        if _size.ram:
+            name += f'{_size.ram}MB RAM, '
+        if _size.disk:
+            name += f'{_size.disk}GB disk.'
+        if _size.name != name:
+            _size.name = name
+            updated = True
+        if updated:
+            _size.save()
+        return _size
+
+    def _list_machines__machine_actions(self, machine, node_dict):
         super(VSphereComputeController, self)._list_machines__machine_actions(
-            machine, machine_libcloud)
+            machine, node_dict)
+        machine.actions.clone = True
+        machine.actions.rename = True
         machine.actions.create_snapshot = True
         if len(machine.extra.get('snapshots')):
             machine.actions.remove_snapshot = True
@@ -1020,53 +1549,94 @@ class VSphereComputeController(BaseComputeController):
             machine.actions.remove_snapshot = False
             machine.actions.revert_to_snapshot = False
 
-    def _create_machine_snapshot(self, machine, machine_libcloud,
+    def _stop_machine(self, machine, node):
+        return self.connection.stop_node(node)
+
+    def _start_machine(self, machine, node):
+        return self.connection.start_node(node)
+
+    def _create_machine_snapshot(self, machine, node,
                                  snapshot_name, description='',
                                  dump_memory=False, quiesce=False):
         """Create a snapshot for a given machine"""
         return self.connection.ex_create_snapshot(
-            machine_libcloud, snapshot_name, description,
+            node, snapshot_name, description,
             dump_memory=dump_memory, quiesce=quiesce)
 
-    def _revert_machine_to_snapshot(self, machine, machine_libcloud,
+    def _revert_machine_to_snapshot(self, machine, node,
                                     snapshot_name=None):
         """Revert a given machine to a previous snapshot"""
-        return self.connection.ex_revert_to_snapshot(machine_libcloud,
+        return self.connection.ex_revert_to_snapshot(node,
                                                      snapshot_name)
 
-    def _remove_machine_snapshot(self, machine, machine_libcloud,
+    def _remove_machine_snapshot(self, machine, node,
                                  snapshot_name=None):
         """Removes a given machine snapshot"""
-        return self.connection.ex_remove_snapshot(machine_libcloud,
+        return self.connection.ex_remove_snapshot(node,
                                                   snapshot_name)
 
-    def _list_machine_snapshots(self, machine, machine_libcloud):
-        return self.connection.ex_list_snapshots(machine_libcloud)
+    def _list_machine_snapshots(self, machine, node):
+        return self.connection.ex_list_snapshots(node)
+
+    def _list_images__fetch_images(self, search=None):
+        image_folders = []
+        if config.VSPHERE_IMAGE_FOLDERS:
+            image_folders = config.VSPHERE_IMAGE_FOLDERS
+        image_list = self.connection.list_images(folder_ids=image_folders)
+        # Check for templates without uuid
+        for image in image_list[:]:
+            if image.id is None:
+                log.error("Skipping machine {} on cloud {} - {}): uuid is "
+                          "null".format(image.name,
+                                        self.cloud.title,
+                                        self.cloud.id))
+                image_list.remove(image)
+        return image_list
+
+    def _clone_machine(self, machine, node, name, resume):
+        locations = self.connection.list_locations()
+        node_location = None
+        for location in locations:
+            if location.id == machine.location.external_id:
+                node_location = location
+                break
+        folder = node.extra.get('folder', None)
+        datastore = node.extra.get('datastore', None)
+        return self.connection.create_node(name=name, image=node,
+                                           size=node.size,
+                                           location=node_location,
+                                           ex_folder=folder,
+                                           ex_datastore=datastore)
 
 
 class VCloudComputeController(BaseComputeController):
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         host = dnat(self.cloud.owner, self.cloud.host)
         return get_driver(self.provider)(self.cloud.username,
                                          self.cloud.password, host=host,
                                          port=int(self.cloud.port)
                                          )
 
-    def _list_machines__machine_actions(self, machine, machine_libcloud):
+    def _list_machines__machine_actions(self, machine, node_dict):
         super(VCloudComputeController, self)._list_machines__machine_actions(
-            machine, machine_libcloud)
-        if machine_libcloud.state is NodeState.PENDING:
+            machine, node_dict)
+        if node_dict['state'] is NodeState.PENDING.value:
             machine.actions.start = True
             machine.actions.stop = True
 
-    def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        machine.os_type = machine.extra.get('os_type')
+    def _list_machines__postparse_machine(self, machine, node_dict):
+        updated = False
+        if machine.extra.get('os_type', '') and \
+           machine.os_type != machine.extra.get('os_type'):
+            machine.os_type = machine.extra.get('os_type')
+            updated = True
+        return updated
 
 
 class OpenStackComputeController(BaseComputeController):
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         url = dnat(self.cloud.owner, self.cloud.url)
         return get_driver(Provider.OPENSTACK)(
             self.cloud.username,
@@ -1076,49 +1646,54 @@ class OpenStackComputeController(BaseComputeController):
             ex_tenant_name=self.cloud.tenant,
             ex_force_service_region=self.cloud.region,
             ex_force_base_url=self.cloud.compute_endpoint,
-            ex_auth_url=url
+            ex_auth_url=url,
+            ex_domain_name=self.cloud.domain or 'Default'
         )
 
-    def _list_machines__machine_creation_date(self, machine, machine_libcloud):
-        return machine_libcloud.extra.get('created')  # iso8601 string
+    def _list_machines__machine_creation_date(self, machine, node_dict):
+        return node_dict['extra'].get('created')  # iso8601 string
 
-    def _list_machines__machine_actions(self, machine, machine_libcloud):
+    def _list_machines__machine_actions(self, machine, node_dict):
         super(OpenStackComputeController,
-              self)._list_machines__machine_actions(machine, machine_libcloud)
+              self)._list_machines__machine_actions(machine, node_dict)
         machine.actions.rename = True
         machine.actions.resize = True
 
-    def _resize_machine(self, machine, machine_libcloud, node_size, kwargs):
+    def _resize_machine(self, machine, node, node_size, kwargs):
         try:
-            self.connection.ex_resize(machine_libcloud, node_size)
+            self.connection.ex_resize(node, node_size)
         except Exception as exc:
             raise BadRequestError('Failed to resize node: %s' % exc)
 
         try:
             sleep(50)
-            machine_libcloud = self._get_machine_libcloud(machine)
-            return self.connection.ex_confirm_resize(machine_libcloud)
+            node = self._get_libcloud_node(machine)
+            return self.connection.ex_confirm_resize(node)
         except Exception as exc:
             sleep(50)
-            machine_libcloud = self._get_machine_libcloud(machine)
+            node = self._get_libcloud_node(machine)
             try:
-                return self.connection.ex_confirm_resize(machine_libcloud)
+                return self.connection.ex_confirm_resize(node)
             except Exception as exc:
                 raise BadRequestError('Failed to resize node: %s' % exc)
 
-    def _list_machines__postparse_machine(self, machine, machine_libcloud):
+    def _list_machines__postparse_machine(self, machine, node_dict):
+        updated = False
         # do not include ipv6 on public ips
         public_ips = []
         for ip in machine.public_ips:
             if ip and ':' not in ip:
                 public_ips.append(ip)
-        machine.public_ips = public_ips
+        if machine.public_ips != public_ips:
+            machine.public_ips = public_ips
+            updated = True
+        return updated
 
     def _list_sizes__get_cpu(self, size):
         return size.vcpus
 
     def _list_machines__get_size(self, node):
-        return node.extra.get('flavorId')
+        return node['extra'].get('flavorId')
 
 
 class DockerComputeController(BaseComputeController):
@@ -1127,7 +1702,7 @@ class DockerComputeController(BaseComputeController):
         super(DockerComputeController, self).__init__(*args, **kwargs)
         self._dockerhost = None
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         host, port = dnat(self.cloud.owner, self.cloud.host, self.cloud.port)
 
         try:
@@ -1188,36 +1763,45 @@ class DockerComputeController(BaseComputeController):
             container.private_ips = private_ips
             container.size = None
             container.image = container.image.name
-        return containers
+        return [node_to_dict(node) for node in containers]
 
-    def _list_machines__machine_creation_date(self, machine, machine_libcloud):
-        return machine_libcloud.extra.get('created')  # unix timestamp
+    def _list_machines__machine_creation_date(self, machine, node_dict):
+        return node_dict['extra'].get('created')  # unix timestamp
 
-    def _list_machines__machine_actions(self, machine, machine_libcloud):
+    def _list_machines__machine_actions(self, machine, node_dict):
         # todo this is not necessary
         super(DockerComputeController, self)._list_machines__machine_actions(
-            machine, machine_libcloud)
-        if machine_libcloud.state in (ContainerState.REBOOTING,
-                                      ContainerState.PENDING):
+            machine, node_dict)
+        if node_dict['state'] in (ContainerState.RUNNING,):
+            machine.actions.rename = True
+        elif node_dict['state'] in (ContainerState.REBOOTING,
+                                    ContainerState.PENDING):
             machine.actions.start = False
             machine.actions.stop = False
             machine.actions.reboot = False
-        elif machine_libcloud.state in (ContainerState.STOPPED,
-                                        ContainerState.UNKNOWN):
+        elif node_dict['state'] in (ContainerState.STOPPED,
+                                    ContainerState.UNKNOWN):
             # We assume unknown state means stopped.
             machine.actions.start = True
             machine.actions.stop = False
             machine.actions.reboot = False
-        elif machine_libcloud.state in (ContainerState.TERMINATED, ):
+            machine.actions.rename = True
+        elif node_dict['state'] in (ContainerState.TERMINATED, ):
             machine.actions.start = False
             machine.actions.stop = False
             machine.actions.reboot = False
             machine.actions.destroy = False
             machine.actions.rename = False
 
-    def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        machine.machine_type = 'container'
-        machine.parent = self.dockerhost
+    def _list_machines__postparse_machine(self, machine, node_dict):
+        updated = False
+        if machine.machine_type != 'container':
+            machine.machine_type = 'container'
+            updated = True
+        if machine.parent != self.dockerhost:
+            machine.parent = self.dockerhost
+            updated = True
+        return updated
 
     @property
     def dockerhost(self):
@@ -1272,13 +1856,13 @@ class DockerComputeController(BaseComputeController):
         self._dockerhost = machine
         return machine
 
-    def inspect_node(self, machine_libcloud):
+    def inspect_node(self, node):
         """
         Inspect a container
         """
         result = self.connection.connection.request(
             "/v%s/containers/%s/json" % (self.connection.version,
-                                         machine_libcloud.id)).object
+                                         node.id)).object
 
         name = result.get('Name').strip('/')
         if result['State']['Running']:
@@ -1336,28 +1920,24 @@ class DockerComputeController(BaseComputeController):
         return [self.dockerhost]
 
     def _list_images__fetch_images(self, search=None):
-        # Fetch mist's recommended images
-        images = [ContainerImage(id=image, name=name, path=None,
-                                 version=None, driver=self.connection,
-                                 extra={})
-                  for image, name in list(config.DOCKER_IMAGES.items())]
-        # Add starred images
-        images += [ContainerImage(id=image, name=image, path=None,
-                                  version=None, driver=self.connection,
-                                  extra={})
-                   for image in self.cloud.starred
-                   if image not in config.DOCKER_IMAGES]
-        # Fetch images from libcloud (supports search).
-        if search:
-            images += self.connection.ex_search_images(term=search)[:100]
-        else:
+        if not search:
+            # Fetch mist's recommended images
+            images = [ContainerImage(id=image, name=name, path=None,
+                                     version=None, driver=self.connection,
+                                     extra={})
+                      for image, name in list(config.DOCKER_IMAGES.items())]
             images += self.connection.list_images()
+
+        else:
+            # search on dockerhub
+            images = self.connection.ex_search_images(term=search)[:100]
+
         return images
 
     def image_is_default(self, image_id):
         return image_id in config.DOCKER_IMAGES
 
-    def _action_change_port(self, machine, machine_libcloud):
+    def _action_change_port(self, machine, node):
         """This part exists here for docker specific reasons. After start,
         reboot and destroy actions, docker machine instance need to rearrange
         its port. Finally save the machine in db.
@@ -1365,7 +1945,7 @@ class DockerComputeController(BaseComputeController):
         # this exist here cause of docker host implementation
         if machine.machine_type == 'container-host':
             return
-        container_info = self.inspect_node(machine_libcloud)
+        container_info = self.inspect_node(node)
 
         try:
             port = container_info.extra[
@@ -1381,7 +1961,7 @@ class DockerComputeController(BaseComputeController):
             key_assoc.save()
         return True
 
-    def _get_machine_libcloud(self, machine, no_fail=False):
+    def _get_libcloud_node(self, machine, no_fail=False):
         """Return an instance of a libcloud node
 
         This is a private method, used mainly by machine action methods.
@@ -1393,7 +1973,7 @@ class DockerComputeController(BaseComputeController):
         if no_fail:
             container = Container(id=machine.machine_id,
                                   name=machine.machine_id,
-                                  image=machine.image_id,
+                                  image=machine.image.id,
                                   state=0,
                                   ip_addresses=[],
                                   driver=self.connection,
@@ -1406,9 +1986,9 @@ class DockerComputeController(BaseComputeController):
             "Machine with machine_id '%s'." % machine.machine_id
         )
 
-    def _start_machine(self, machine, machine_libcloud):
-        ret = self.connection.start_container(machine_libcloud)
-        self._action_change_port(machine, machine_libcloud)
+    def _start_machine(self, machine, node):
+        ret = self.connection.start_container(node)
+        self._action_change_port(machine, node)
         return ret
 
     def reboot_machine(self, machine):
@@ -1416,112 +1996,570 @@ class DockerComputeController(BaseComputeController):
             return self.reboot_machine_ssh(machine)
         return super(DockerComputeController, self).reboot_machine(machine)
 
-    def _reboot_machine(self, machine, machine_libcloud):
-        self.connection.restart_container(machine_libcloud)
-        self._action_change_port(machine, machine_libcloud)
+    def _reboot_machine(self, machine, node):
+        self.connection.restart_container(node)
+        self._action_change_port(machine, node)
 
-    def _stop_machine(self, machine, machine_libcloud):
-        return self.connection.stop_container(machine_libcloud)
+    def _stop_machine(self, machine, node):
+        return self.connection.stop_container(node)
 
-    def _destroy_machine(self, machine, machine_libcloud):
-        if machine_libcloud.state == ContainerState.RUNNING:
-            self.connection.stop_container(machine_libcloud)
-        return self.connection.destroy_container(machine_libcloud)
+    def _destroy_machine(self, machine, node):
+        if node.state == ContainerState.RUNNING:
+            self.connection.stop_container(node)
+        return self.connection.destroy_container(node)
 
     def _list_sizes__fetch_sizes(self):
         return []
 
+    def _rename_machine(self, machine, node, name):
+        """Private method to rename a given machine"""
+        self.connection.ex_rename_container(node, name)
+
+
+class LXDComputeController(BaseComputeController):
+    """
+    Compute controller for LXC containers
+    """
+    def __init__(self, *args, **kwargs):
+        super(LXDComputeController, self).__init__(*args, **kwargs)
+        self._lxchost = None
+        self.is_lxc = True
+
+    def _stop_machine(self, machine, node):
+        """Stop the given machine"""
+        return self.connection.stop_container(container=machine)
+
+    def _start_machine(self, machine, node):
+        """Start the given container"""
+        return self.connection.start_container(container=machine)
+
+    def _destroy_machine(self, machine, node):
+        """Delet the given container"""
+
+        from libcloud.container.drivers.lxd import LXDAPIException
+        from libcloud.container.types import ContainerState
+        try:
+
+            if node.state == ContainerState.RUNNING:
+                self.connection.stop_container(container=machine)
+
+            container = self.connection.destroy_container(container=machine)
+            return container
+        except LXDAPIException as e:
+            raise MistError(msg=e.message, exc=e)
+        except Exception as e:
+            raise MistError(exc=e)
+
+    def _reboot_machine(self, machine, node):
+        """Restart the given container"""
+        return self.connection.restart_container(container=machine)
+
+    def _list_sizes__fetch_sizes(self):
+        return []
+
+    def _list_machines__fetch_machines(self):
+        """Perform the actual libcloud call to get list of containers"""
+
+        containers = self.connection.list_containers()
+
+        # add public/private ips for mist
+        for container in containers:
+            public_ips, private_ips = [], []
+            for ip in container.extra.get('ips'):
+                if is_private_subnet(ip):
+                    private_ips.append(ip)
+                else:
+                    public_ips.append(ip)
+
+            container.public_ips = public_ips
+            container.private_ips = private_ips
+            container.size = None
+            container.image = container.image.name
+
+        return [node_to_dict(node) for node in containers]
+
+    def _list_machines__machine_creation_date(self, machine, node_dict):
+        """Unix timestap of when the machine was created"""
+        return node_dict['extra'].get('created')  # unix timestamp
+
+    def _list_machines__postparse_machine(self, machine, node_dict):
+        updated = False
+        if machine.machine_type != 'container':
+            machine.machine_type = 'container'
+            updated = True
+        return updated
+
+    def _get_libcloud_node(self, machine, no_fail=False):
+        """Return an instance of a libcloud node
+
+        This is a private method, used mainly by machine action methods.
+        """
+        # assert isinstance(machine.cloud, Machine)
+        assert self.cloud == machine.cloud
+        for node in self.connection.list_containers():
+            if node.id == machine.machine_id:
+                return node
+        if no_fail:
+            return Node(machine.machine_id, name=machine.machine_id,
+                        state=0, public_ips=[], private_ips=[],
+                        driver=self.connection)
+        raise MachineNotFoundError(
+            "Machine with machine_id '%s'." % machine.machine_id
+        )
+
+    def _connect(self, **kwargs):
+        host, port = dnat(self.cloud.owner, self.cloud.host, self.cloud.port)
+
+        try:
+            socket.setdefaulttimeout(15)
+            so = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            so.connect((sanitize_host(host), int(port)))
+            so.close()
+        except:
+            raise Exception("Make sure host is accessible "
+                            "and LXD port is specified")
+
+        if self.cloud.key_file and self.cloud.cert_file:
+            tls_auth = self._tls_authenticate(host=host, port=port)
+
+            if tls_auth is None:
+                raise Exception("key_file and cert_file exist "
+                                "but TLS certification was not possible ")
+            return tls_auth
+
+        # Username/Password authentication.
+        if self.cloud.username and self.cloud.password:
+
+            return get_container_driver(Container_Provider.LXD)(
+                key=self.cloud.username,
+                secret=self.cloud.password,
+                host=host, port=port)
+        # open authentication.
+        else:
+            return get_container_driver(Container_Provider.LXD)(
+                host=host, port=port)
+
+    def _tls_authenticate(self, host, port):
+        """Perform TLS authentication given the host and port"""
+
+        # TLS authentication.
+
+        key_temp_file = tempfile.NamedTemporaryFile(delete=False)
+        key_temp_file.write(self.cloud.key_file.encode())
+        key_temp_file.close()
+        cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
+        cert_temp_file.write(self.cloud.cert_file.encode())
+        cert_temp_file.close()
+        ca_cert = None
+
+        if self.cloud.ca_cert_file:
+            ca_cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
+            ca_cert_temp_file.write(self.cloud.ca_cert_file.encode())
+            ca_cert_temp_file.close()
+            ca_cert = ca_cert_temp_file.name
+
+        # tls auth
+        cert_file = cert_temp_file.name
+        key_file = key_temp_file.name
+        return \
+            get_container_driver(Container_Provider.LXD)(host=host,
+                                                         port=port,
+                                                         key_file=key_file,
+                                                         cert_file=cert_file,
+                                                         ca_cert=ca_cert)
+
 
 class LibvirtComputeController(BaseComputeController):
 
-    def _connect(self):
-        """Three supported ways to connect: local system, qemu+tcp, qemu+ssh"""
+    def _connect(self, **kwargs):
+        """
+        Look for the host that corresponds to the provided location
+        """
+        from mist.api.clouds.models import CloudLocation
+        from mist.api.machines.models import Machine
+        location = CloudLocation.objects.get(
+            id=kwargs.get('location_id'), cloud=self.cloud)
+        host = Machine.objects.get(
+            cloud=self.cloud, parent=None, machine_id=location.external_id)
 
+        return self._get_host_driver(host)
+
+    def _get_host_driver(self, machine):
         import libcloud.compute.drivers.libvirt_driver
         libvirt_driver = libcloud.compute.drivers.libvirt_driver
         libvirt_driver.ALLOW_LIBVIRT_LOCALHOST = config.ALLOW_LIBVIRT_LOCALHOST
 
-        if self.cloud.key:
-            host, port = dnat(self.cloud.owner,
-                              self.cloud.host, self.cloud.port)
-            return get_driver(Provider.LIBVIRT)(host,
-                                                hypervisor=self.cloud.host,
-                                                user=self.cloud.username,
-                                                ssh_key=self.cloud.key.private,
-                                                ssh_port=int(port))
-        else:
-            host, port = dnat(self.cloud.owner, self.cloud.host, 5000)
-            return get_driver(Provider.LIBVIRT)(host,
-                                                hypervisor=self.cloud.host,
-                                                user=self.cloud.username,
-                                                tcp_port=int(port))
+        if not machine.extra.get('tags', {}).get('type') == 'hypervisor':
+            machine = machine.parent
 
-    def _list_machines__machine_actions(self, machine, machine_libcloud):
+        from mist.api.machines.models import KeyMachineAssociation
+        from mongoengine import Q
+        # Get key associations, prefer root or sudoer ones
+        # TODO: put this in a helper function
+        key_associations = KeyMachineAssociation.objects(
+            Q(machine=machine) & (Q(ssh_user='root') | Q(sudo=True))) \
+            or KeyMachineAssociation.objects(machine=machine)
+        if not key_associations:
+            raise ForbiddenError()
+
+        host, port = dnat(machine.cloud.owner,
+                          machine.hostname, machine.ssh_port)
+        driver = get_driver(Provider.LIBVIRT)(
+            host, hypervisor=machine.hostname, ssh_port=int(port),
+            user=key_associations[0].ssh_user,
+            ssh_key=key_associations[0].key.private)
+
+        return driver
+
+    def list_machines_single_host(self, host):
+        driver = self._get_host_driver(host)
+        return driver.list_nodes()
+
+    async def list_machines_all_hosts(self, hosts, loop):
+        vms = [
+            loop.run_in_executor(None, self.list_machines_single_host, host)
+            for host in hosts
+        ]
+        return await asyncio.gather(*vms)
+
+    def _list_machines__fetch_machines(self):
+        from mist.api.machines.models import Machine
+        nodes = []
+        for machine in Machine.objects.filter(cloud=self.cloud,
+                                              missing_since=None):
+            if machine.extra.get('tags', {}).get('type') == 'hypervisor':
+                driver = self._get_host_driver(machine)
+                nodes += [node_to_dict(node)
+                          for node in driver.list_nodes()]
+
+        return nodes
+
+    def _list_machines__fetch_generic_machines(self):
+        machines = []
+        from mist.api.machines.models import Machine
+        all_machines = Machine.objects(cloud=self.cloud, missing_since=None)
+        for machine in all_machines:
+            if machine.extra.get('tags', {}).get('type') == 'hypervisor':
+                machines.append(machine)
+
+        return machines
+
+    def _list_machines__update_generic_machine_state(self, machine):
+        # Defaults
+        machine.unreachable_since = None
+        machine.state = config.STATES[NodeState.RUNNING.value]
+
+        # If any of the probes has succeeded, then state is running
+        if (
+            machine.ssh_probe and not machine.ssh_probe.unreachable_since or
+            machine.ping_probe and not machine.ping_probe.unreachable_since
+        ):
+            machine.state = config.STATES[NodeState.RUNNING.value]
+
+        # If ssh probe failed, then unreachable since then
+        if machine.ssh_probe and machine.ssh_probe.unreachable_since:
+            machine.unreachable_since = machine.ssh_probe.unreachable_since
+            machine.state = config.STATES[NodeState.UNKNOWN.value]
+        # Else if ssh probe has never succeeded and ping probe failed,
+        # then unreachable since then
+        elif (not machine.ssh_probe and
+              machine.ping_probe and machine.ping_probe.unreachable_since):
+            machine.unreachable_since = machine.ping_probe.unreachable_since
+            machine.state = config.STATES[NodeState.UNKNOWN.value]
+
+    def _list_machines__machine_actions(self, machine, node_dict):
         super(LibvirtComputeController, self)._list_machines__machine_actions(
-            machine, machine_libcloud)
-        if machine.extra.get('tags', {}).get('type') == 'hypervisor':
-            # Allow only reboot and tag actions for hypervisor.
-            for action in ('start', 'stop', 'destroy', 'rename'):
-                setattr(machine.actions, action, False)
-        else:
-            machine.actions.clone = True
+            machine, node_dict)
+        machine.actions.clone = True
+        machine.actions.undefine = False
+        if node_dict['state'] is NodeState.TERMINATED.value:
+            # In libvirt a terminated machine can be started.
+            machine.actions.start = True
             machine.actions.undefine = True
-            if machine_libcloud.state is NodeState.TERMINATED:
-                # In libvirt a terminated machine can be started.
-                machine.actions.start = True
-            if machine_libcloud.state is NodeState.RUNNING:
-                machine.actions.suspend = True
-            if machine_libcloud.state is NodeState.SUSPENDED:
-                machine.actions.resume = True
+            machine.actions.rename = True
+        if node_dict['state'] is NodeState.RUNNING.value:
+            machine.actions.suspend = True
+        if node_dict['state'] is NodeState.SUSPENDED.value:
+            machine.actions.resume = True
 
-    def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        xml_desc = machine_libcloud.extra.get('xml_description')
+    def _list_machines__generic_machine_actions(self, machine):
+        super(LibvirtComputeController,
+              self)._list_machines__generic_machine_actions(machine)
+        machine.actions.rename = True
+        machine.actions.start = False
+        machine.actions.stop = False
+        machine.actions.destroy = False
+        machine.actions.reboot = False
+
+    def _list_machines__postparse_machine(self, machine, node_dict):
+        updated = False
+        xml_desc = node_dict['extra'].get('xml_description')
         if xml_desc:
-            machine.extra['xml_description'] = escape(xml_desc)
+            escaped_xml_desc = escape(xml_desc)
+            if machine.extra.get('xml_description') != escaped_xml_desc:
+                machine.extra['xml_description'] = escaped_xml_desc
+                updated = True
+            import xml.etree.ElementTree as ET
+            root = ET.fromstring(unescape(xml_desc))
+            devices = root.find('devices')
+            # TODO: rethink image association
+
+            vnfs = []
+            hostdevs = devices.findall('hostdev') + \
+                devices.findall('interface[@type="hostdev"]')
+            for hostdev in hostdevs:
+                address = hostdev.find('source').find('address')
+                vnf_addr = '%s:%s:%s.%s' % (
+                    address.attrib.get('domain').replace('0x', ''),
+                    address.attrib.get('bus').replace('0x', ''),
+                    address.attrib.get('slot').replace('0x', ''),
+                    address.attrib.get('function').replace('0x', ''),
+                )
+                vnfs.append(vnf_addr)
+            if machine.extra.get('vnfs', []) != vnfs:
+                machine.extra['vnfs'] = vnfs
+                updated = True
 
         # Number of CPUs allocated to guest.
-        if 'processors' in machine.extra:
+        if 'processors' in machine.extra and \
+                machine.extra.get('cpus', []) != machine.extra['processors']:
             machine.extra['cpus'] = machine.extra['processors']
+            updated = True
+
+        # set machine's parent
+        hypervisor = machine.extra.get('hypervisor', '')
+        if hypervisor:
+            try:
+                from mist.api.machines.models import Machine
+                parent = Machine.objects.get(cloud=machine.cloud,
+                                             name=hypervisor)
+            except Machine.DoesNotExist:
+                # backwards compatibility
+                hypervisor = hypervisor.replace('.', '-')
+                try:
+                    parent = Machine.objects.get(cloud=machine.cloud,
+                                                 machine_id=hypervisor)
+                except me.DoesNotExist:
+                    parent = None
+            if machine.parent != parent:
+                machine.parent = parent
+                updated = True
+        return updated
+
+    def _list_machines__get_machine_extra(self, machine, node_dict):
+        extra = copy.copy(node_dict['extra'])
+        # make sure images_location is not overriden
+        extra.update({'images_location': machine.extra.get('images_location')})
+        return extra
+
+    def _list_machines__get_size(self, node):
+        return None
+
+    def _list_machines__get_custom_size(self, node):
+        if not node.get('size'):
+            return
+        from mist.api.clouds.models import CloudSize
+        updated = False
+        try:
+            _size = CloudSize.objects.get(
+                cloud=self.cloud, external_id=node['size'].get('id'))
+        except me.DoesNotExist:
+            _size = CloudSize(cloud=self.cloud,
+                              external_id=node['size'].get('id'))
+            updated = True
+        if _size.ram != node['size'].get('ram'):
+            _size.ram = node['size'].get('ram')
+            updated = True
+        if _size.cpus != node['size'].get('extra', {}).get('cpus'):
+            _size.cpus = node['size'].get('extra', {}).get('cpus')
+            updated = True
+        if _size.disk != int(node['size'].get('disk')):
+            _size.disk = int(node['size'].get('disk'))
+        name = ""
+        if _size.cpus:
+            name += '%s CPUs, ' % _size.cpus
+        if _size.ram:
+            name += '%dMB RAM' % _size.ram
+        if _size.disk:
+            name += f', {_size.disk}GB disk.'
+        if _size.name != name:
+            _size.name = name
+            updated = True
+        if updated:
+            _size.save()
+
+        return _size
+
+    def _list_machines__get_location(self, node):
+        return node['extra'].get('hypervisor').replace('.', '-')
+
+    def list_sizes(self, persist=True):
+        return []
+
+    def _list_locations__fetch_locations(self, persist=True):
+        """
+        We refer to hosts (KVM hypervisors) as 'location' for
+        consistency purpose.
+        """
+        from mist.api.machines.models import Machine
+        # FIXME: query parent for better performance
+        hosts = Machine.objects(cloud=self.cloud,
+                                missing_since=None,
+                                parent=None)
+        locations = [NodeLocation(id=host.machine_id,
+                                  name=host.name,
+                                  country='', driver=None,
+                                  extra=copy.deepcopy(host.extra))
+                     for host in hosts]
+
+        return locations
+
+    def list_images_single_host(self, host):
+        driver = self._get_host_driver(host)
+        return driver.list_images(location=host.extra.get(
+            'images_location', {}))
+
+    async def list_images_all_hosts(self, hosts, loop):
+        images = [
+            loop.run_in_executor(None, self.list_images_single_host, host)
+            for host in hosts
+        ]
+        return await asyncio.gather(*images)
 
     def _list_images__fetch_images(self, search=None):
-        return self.connection.list_images(location=self.cloud.images_location)
+        from mist.api.machines.models import Machine
+        hosts = Machine.objects(cloud=self.cloud, parent=None,
+                                missing_since=None)
+        try:
+            loop = asyncio.get_event_loop()
+        except RuntimeError:
+            asyncio.set_event_loop(asyncio.new_event_loop())
+            loop = asyncio.get_event_loop()
+        all_images = loop.run_until_complete(self.list_images_all_hosts(hosts,
+                                                                        loop))
+        return [image for host_images in all_images for image in host_images]
 
-    def _reboot_machine(self, machine, machine_libcloud):
-        hypervisor = machine_libcloud.extra.get('tags', {}).get('type', None)
+    def _list_images__postparse_image(self, image, image_libcloud):
+        locations = []
+        if image_libcloud.extra.get('host', ''):
+            host_name = image_libcloud.extra.get('host')
+            from mist.api.clouds.models import CloudLocation
+            try:
+                host = CloudLocation.objects.get(cloud=self.cloud,
+                                                 name=host_name)
+                locations.append(host.id)
+            except me.DoesNotExist:
+                host_name = host_name.replace('.', '-')
+                try:
+                    host = CloudLocation.objects.get(cloud=self.cloud,
+                                                     external_id=host_name)
+                    locations.append(host.id)
+                except me.DoesNotExist:
+                    pass
+        image.extra.update({'locations': locations})
+
+    def _get_libcloud_node(self, machine, no_fail=False):
+        assert self.cloud == machine.cloud
+        machine_type = machine.extra.get('tags', {}).get('type')
+        host = machine if machine_type == 'hypervisor' else machine.parent
+
+        driver = self._get_host_driver(host)
+
+        for node in driver.list_nodes():
+            if node.id == machine.machine_id:
+                return node
+
+        if no_fail:
+            return Node(machine.machine_id, name=machine.machine_id,
+                        state=0, public_ips=[], private_ips=[],
+                        driver=self.connection)
+        raise MachineNotFoundError(
+            "Machine with machine_id '%s'." % machine.machine_id
+        )
+
+    def _reboot_machine(self, machine, node):
+        hypervisor = node.extra.get('tags', {}).get('type', None)
         if hypervisor == 'hypervisor':
             # issue an ssh command for the libvirt hypervisor
             try:
-                hostname = machine_libcloud.public_ips[0] if \
-                    machine_libcloud.public_ips else \
-                    machine_libcloud.private_ips[0]
+                hostname = node.public_ips[0] if \
+                    node.public_ips else \
+                    node.private_ips[0]
                 command = '$(command -v sudo) shutdown -r now'
                 # todo move it up
                 from mist.api.methods import ssh_command
                 ssh_command(self.cloud.owner, self.cloud.id,
-                            machine_libcloud.id, hostname, command)
+                            node.id, hostname, command)
                 return True
             except MistError as exc:
                 log.error("Could not ssh machine %s", machine.name)
                 raise
             except Exception as exc:
                 log.exception(exc)
+                # FIXME: Do not raise InternalServerError!
                 raise InternalServerError(exc=exc)
         else:
-            machine_libcloud.reboot()
+            node.reboot()
 
-    def _resume_machine(self, machine, machine_libcloud):
-        self.connection.ex_resume_node(machine_libcloud)
+    def _rename_machine(self, machine, node, name):
+        if machine.extra.get('tags', {}).get('type') == 'hypervisor':
+            machine.name = name
+            machine.save()
+            from mist.api.helpers import trigger_session_update
+            trigger_session_update(machine.owner.id, ['clouds'])
+        else:
+            self.connection.ex_rename_node(node, name)
 
-    def _suspend_machine(self, machine, machine_libcloud):
-        self.connection.ex_suspend_node(machine_libcloud)
+    def remove_machine(self, machine):
+        from mist.api.machines.models import KeyMachineAssociation
+        KeyMachineAssociation.objects(machine=machine).delete()
+        machine.missing_since = datetime.datetime.now()
+        machine.save()
 
-    def _undefine_machine(self, machine, machine_libcloud):
+        if amqp_owner_listening(self.cloud.owner.id):
+            old_machines = [m.as_dict() for m in
+                            self.cloud.ctl.compute.list_cached_machines()]
+            new_machines = self.cloud.ctl.compute.list_machines()
+            self.cloud.ctl.compute.produce_and_publish_patch(
+                old_machines, new_machines)
+
+    def _start_machine(self, machine, node):
+        driver = self._get_host_driver(machine)
+        return driver.ex_start_node(node)
+
+    def _stop_machine(self, machine, node):
+        driver = self._get_host_driver(machine)
+        return driver.ex_stop_node(node)
+
+    def _resume_machine(self, machine, node):
+        driver = self._get_host_driver(machine)
+        return driver.ex_resume_node(node)
+
+    def _destroy_machine(self, machine, node):
+        driver = self._get_host_driver(machine)
+        return driver.destroy_node(node)
+
+    def _suspend_machine(self, machine, node):
+        driver = self._get_host_driver(machine)
+        return driver.ex_suspend_node(node)
+
+    def _undefine_machine(self, machine, node, delete_domain_image=False):
         if machine.extra.get('active'):
             raise BadRequestError('Cannot undefine an active domain')
-        self.connection.ex_undefine_node(machine_libcloud)
+        driver = self._get_host_driver(machine)
+        result = driver.ex_undefine_node(node)
+        if delete_domain_image and result:
+            xml_description = node.extra.get('xml_description', '')
+            if xml_description:
+                index1 = xml_description.index("source file") + 13
+                index2 = index1 + xml_description[index1:].index('\'')
+                image_path = xml_description[index1:index2]
+                driver._run_command("rm {}".format(image_path))
+        return result
 
-    def _clone_machine(self, machine, machine_libcloud, name, resume):
-        self.connection.ex_clone_node(machine_libcloud, name, resume)
+    def _clone_machine(self, machine, node, name, resume):
+        driver = self._get_host_driver(machine)
+        return driver.ex_clone_node(node, new_name=name)
 
     def _list_sizes__get_cpu(self, size):
         return size.extra.get('cpu')
@@ -1529,65 +2567,82 @@ class LibvirtComputeController(BaseComputeController):
 
 class OnAppComputeController(BaseComputeController):
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         return get_driver(Provider.ONAPP)(key=self.cloud.username,
                                           secret=self.cloud.apikey,
                                           host=self.cloud.host,
                                           verify=self.cloud.verify)
 
-    def _list_machines__machine_actions(self, machine, machine_libcloud):
+    def _list_machines__machine_actions(self, machine, node_dict):
         super(OnAppComputeController, self)._list_machines__machine_actions(
-            machine, machine_libcloud)
+            machine, node_dict)
         machine.actions.resize = True
-        if machine_libcloud.state is NodeState.RUNNING:
+        if node_dict['state'] is NodeState.RUNNING.value:
             machine.actions.suspend = True
-        if machine_libcloud.state is NodeState.SUSPENDED:
+        if node_dict['state'] is NodeState.SUSPENDED.value:
             machine.actions.resume = True
 
-    def _list_machines__machine_creation_date(self, machine, machine_libcloud):
-        created_at = machine_libcloud.extra.get('created_at')
+    def _list_machines__machine_creation_date(self, machine, node_dict):
+        created_at = node_dict['extra'].get('created_at')
         created_at = iso8601.parse_date(created_at)
         created_at = pytz.UTC.normalize(created_at)
         return created_at
 
-    def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        machine.os_type = machine_libcloud.extra.get('operating_system',
-                                                     'linux')
+    def _list_machines__postparse_machine(self, machine, node_dict):
+        updated = False
+
+        os_type = node_dict['extra'].get('operating_system', 'linux')
         # on a VM this has been freebsd and it caused list_machines to raise
         # exception due to validation of machine model
-        if machine.os_type not in ('unix', 'linux', 'windows', 'coreos'):
-            machine.os_type = 'linux'
+        if os_type not in ('unix', 'linux', 'windows', 'coreos'):
+            os_type = 'linux'
+        if os_type != machine.os_type:
+            machine.os_type = os_type
+            updated = True
 
-        machine.extra['image_id'] = machine.extra.get('template_label') \
+        image_id = machine.extra.get('template_label') \
             or machine.extra.get('operating_system_distro')
-        machine.extra.pop('template_label', None)
-        machine.extra['size'] = "%scpu, %sM ram" % \
-            (machine.extra.get('cpus'), machine.extra.get('memory'))
+        if image_id != machine.extra.get('image_id'):
+            machine.extra['image_id'] = image_id
+            updated = True
 
-    def _list_machines__cost_machine(self, machine, machine_libcloud):
-        if machine_libcloud.state == NodeState.STOPPED:
-            return machine_libcloud.extra.get('price_per_hour_powered_off',
-                                              0), 0
+        if machine.extra.get('template_label'):
+            machine.extra.pop('template_label', None)
+            updated = True
+
+        size = "%scpu, %sM ram" % \
+            (machine.extra.get('cpus'), machine.extra.get('memory'))
+        if size != machine.extra.get('size'):
+            machine.extra['size'] = size
+            updated = True
+
+        return updated
+
+    def _list_machines__cost_machine(self, machine, node_dict):
+        if node_dict['state'] == NodeState.STOPPED.value:
+            cost_per_hour = node_dict['extra'].get(
+                'price_per_hour_powered_off', 0)
         else:
-            return machine_libcloud.extra.get('price_per_hour', 0), 0
+            cost_per_hour = node_dict['extra'].get('price_per_hour', 0)
+        return cost_per_hour, 0
 
     def _list_machines__get_custom_size(self, node):
         # FIXME: resolve circular import issues
         from mist.api.clouds.models import CloudSize
         _size = CloudSize(cloud=self.cloud,
-                          external_id=str(node.extra.get('id')))
-        _size.ram = node.extra.get('memory')
-        _size.cpus = node.extra.get('cpus')
+                          external_id=str(node['extra'].get('id')))
+        _size.ram = node['extra'].get('memory')
+        _size.cpus = node['extra'].get('cpus')
         _size.save()
         return _size
 
-    def _resume_machine(self, machine, machine_libcloud):
-        return self.connection.ex_resume_node(machine_libcloud)
+    def _resume_machine(self, machine, node):
+        return self.connection.ex_resume_node(node)
 
-    def _suspend_machine(self, machine, machine_libcloud):
-        return self.connection.ex_suspend_node(machine_libcloud)
+    def _suspend_machine(self, machine, node):
+        return self.connection.ex_suspend_node(node)
 
-    def _resize_machine(self, machine, machine_libcloud, node_size, kwargs):
+    def _resize_machine(self, machine, node, node_size, kwargs):
         # send only non empty valid args
         valid_kwargs = {}
         for param in kwargs:
@@ -1595,7 +2650,7 @@ class OnAppComputeController(BaseComputeController):
                     and kwargs[param]:
                 valid_kwargs[param] = kwargs[param]
         try:
-            return self.connection.ex_resize_node(machine_libcloud,
+            return self.connection.ex_resize_node(node,
                                                   **valid_kwargs)
         except Exception as exc:
             raise BadRequestError('Failed to resize node: %s' % exc)
@@ -1682,7 +2737,7 @@ class OnAppComputeController(BaseComputeController):
 
 class OtherComputeController(BaseComputeController):
 
-    def _connect(self):
+    def _connect(self, **kwargs):
         return None
 
     def _list_machines__fetch_machines(self):
@@ -1696,23 +2751,25 @@ class OtherComputeController(BaseComputeController):
 
         # Defaults
         machine.unreachable_since = None
-        machine.state = config.STATES[NodeState.UNKNOWN]
 
         # If any of the probes has succeeded, then state is running
         if (
             machine.ssh_probe and not machine.ssh_probe.unreachable_since or
             machine.ping_probe and not machine.ping_probe.unreachable_since
         ):
-            machine.state = config.STATES[NodeState.RUNNING]
-
+            machine.state = config.STATES[NodeState.RUNNING.value]
         # If ssh probe failed, then unreachable since then
-        if machine.ssh_probe and machine.ssh_probe.unreachable_since:
+        elif machine.ssh_probe and machine.ssh_probe.unreachable_since:
             machine.unreachable_since = machine.ssh_probe.unreachable_since
+            machine.state = config.STATES[NodeState.UNKNOWN.value]
         # Else if ssh probe has never succeeded and ping probe failed,
         # then unreachable since then
         elif (not machine.ssh_probe and
               machine.ping_probe and machine.ping_probe.unreachable_since):
             machine.unreachable_since = machine.ping_probe.unreachable_since
+            machine.state = config.STATES[NodeState.UNKNOWN.value]
+        else:  # Asume running if no indication otherwise
+            machine.state = config.STATES[NodeState.RUNNING.value]
 
     def _list_machines__generic_machine_actions(self, machine):
         """Update an action for a bare metal machine
@@ -1723,7 +2780,7 @@ class OtherComputeController(BaseComputeController):
               self)._list_machines__generic_machine_actions(machine)
         machine.actions.remove = True
 
-    def _get_machine_libcloud(self, machine):
+    def _get_libcloud_node(self, machine):
         return None
 
     def _list_machines__fetch_generic_machines(self):
@@ -1739,7 +2796,7 @@ class OtherComputeController(BaseComputeController):
         machine.missing_since = datetime.datetime.now()
         machine.save()
 
-    def list_images(self, search=None):
+    def list_images(self, persist=True, search=None):
         return []
 
     def list_sizes(self, persist=True):
@@ -1749,36 +2806,148 @@ class OtherComputeController(BaseComputeController):
         return []
 
 
-class ClearCenterComputeController(BaseComputeController):
+class KubeVirtComputeController(BaseComputeController):
 
-    def _connect(self):
-        return get_driver(Provider.CLEARCENTER)(key=self.cloud.apikey,
-                                                uri=self.cloud.uri,
-                                                verify=self.cloud.verify)
+    def _connect(self, **kwargs):
+        host, port = dnat(self.cloud.owner,
+                          self.cloud.host, self.cloud.port)
+        try:
+            socket.setdefaulttimeout(15)
+            so = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            so.connect((sanitize_host(host), int(port)))
+            so.close()
+        except:
+            raise Exception("Make sure host is accessible "
+                            "and kubernetes port is specified")
+        verify = self.cloud.verify
+        ca_cert = None
+        if self.cloud.ca_cert_file:
+            ca_cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
+            ca_cert_temp_file.write(self.cloud.ca_cert_file.encode())
+            ca_cert_temp_file.close()
+            ca_cert = ca_cert_temp_file.name
 
-    def _list_machines__machine_creation_date(self, machine, machine_libcloud):
-        return machine_libcloud.extra.get('created_timestamp')
+        # tls authentication
+        if self.cloud.key_file and self.cloud.cert_file:
+            key_temp_file = tempfile.NamedTemporaryFile(delete=False)
+            key_temp_file.write(self.cloud.key_file.encode())
+            key_temp_file.close()
+            key_file = key_temp_file.name
+            cert_temp_file = tempfile.NamedTemporaryFile(delete=False)
+            cert_temp_file.write(self.cloud.cert_file.encode())
+            cert_temp_file.close()
+            cert_file = cert_temp_file.name
 
-    def _list_machines__machine_actions(self, machine, machine_libcloud):
-        super(ClearCenterComputeController,
-              self)._list_machines__machine_actions(machine, machine_libcloud)
-        machine.actions.remove = False
-        machine.actions.destroy = False
-        machine.actions.rename = False
-        machine.actions.reboot = False
-        machine.actions.stop = False
+            return get_driver(Provider.KUBEVIRT)(secure=True,
+                                                 host=host,
+                                                 port=port,
+                                                 key_file=key_file,
+                                                 cert_file=cert_file,
+                                                 ca_cert=ca_cert)
 
-    def _list_machines__postparse_machine(self, machine, machine_libcloud):
-        machine.hostname = machine_libcloud.extra['hostname']
+        elif self.cloud.token:
+            token = self.cloud.token
 
-    def _list_machines__cost_machine(self, machine, machine_libcloud):
-        return 0, machine_libcloud.extra['monthly_cost_estimate']
+            return get_driver(Provider.KUBEVIRT)(key=token,
+                                                 secure=True,
+                                                 host=host,
+                                                 port=port,
+                                                 ca_cert=ca_cert,
+                                                 ex_token_bearer_auth=True
+                                                 )
+        # username/password auth
+        elif self.cloud.username and self.cloud.password:
+            key = self.cloud.username
+            secret = self.cloud.password
 
-    def list_images(self, search=None):
-        return []
+            return get_driver(Provider.KUBEVIRT)(key=key,
+                                                 secret=secret,
+                                                 secure=True,
+                                                 host=host,
+                                                 port=port)
+        else:
+            msg = '''Necessary parameters for authentication are missing.
+            Either a key_file/cert_file pair or a username/pass pair
+            or a bearer token.'''
+            raise ValueError(msg)
 
-    def list_sizes(self, persist=True):
-        return []
+    def _list_machines__machine_actions(self, machine, node_dict):
+        super(KubeVirtComputeController,
+              self)._list_machines__machine_actions(
+            machine, node_dict)
+        machine.actions.start = True
+        machine.actions.stop = True
+        machine.actions.reboot = True
+        machine.actions.destroy = True
+        machine.actions.expose = True
 
-    def list_locations(self, persist=True):
-        return []
+    def _reboot_machine(self, machine, node):
+        return self.connection.reboot_node(node)
+
+    def _start_machine(self, machine, node):
+        return self.connection.start_node(node)
+
+    def _stop_machine(self, machine, node):
+        return self.connection.stop_node(node)
+
+    def _destroy_machine(self, machine, node):
+        res = self.connection.destroy_node(node)
+        if res:
+            if machine.extra.get('pvcs'):
+                # FIXME: resolve circular import issues
+                from mist.api.models import Volume
+                volumes = Volume.objects.filter(cloud=self.cloud)
+                for volume in volumes:
+                    if machine.id in volume.attached_to:
+                        volume.attached_to.remove(machine.id)
+
+    def _list_machines__postparse_machine(self, machine, node_dict):
+        updated = False
+        if machine.machine_type != 'container':
+            machine.machine_type = 'container'
+            updated = True
+
+        if node_dict['extra']['pvcs']:
+            pvcs = node_dict['extra']['pvcs']
+            from mist.api.models import Volume
+            volumes = Volume.objects.filter(
+                cloud=self.cloud, missing_since=None)
+            for volume in volumes:
+                if 'pvc' in volume.extra:
+                    if volume.extra['pvc']['name'] in pvcs:
+                        if machine not in volume.attached_to:
+                            volume.attached_to.append(machine)
+                            volume.save()
+                            updated = True
+        return updated
+
+    def _list_machines__get_location(self, node):
+        return node['extra'].get('namespace', "")
+
+    def _list_machines__get_size(self, node):
+        return node['size'].get('id')
+
+    def _list_sizes__get_cpu(self, size):
+        cpu = int(size.extra.get('cpus') or 1)
+        if cpu > 1000:
+            cpu = cpu / 1000
+        elif cpu > 99:
+            cpu = 1
+        return cpu
+
+    def expose_port(self, machine, port_forwards):
+        machine_libcloud = self._get_libcloud_node(machine)
+
+        # validate input
+        from mist.api.machines.methods import validate_portforwards_kubevirt
+        data = validate_portforwards_kubevirt(port_forwards)
+
+        self.connection.ex_create_service(machine_libcloud, data.get(
+                                          'ports', []),
+                                          service_type=data.get(
+                                              'service_type'),
+                                          override_existing_ports=True,
+                                          cluster_ip=data.get(
+                                              'cluster_ip', None),
+                                          load_balancer_ip=data.get(
+                                              'load_balancer_ip', None))

@@ -1,6 +1,9 @@
 import uuid
 import logging
+import urllib
+
 from pyramid.response import Response
+from pyramid.renderers import render_to_response
 
 import mist.api.machines.methods as methods
 
@@ -15,11 +18,11 @@ from mist.api.auth.methods import auth_context_from_request
 from mist.api.helpers import view_config, params_from_request
 from mist.api.helpers import trigger_session_update
 
-
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import BadRequestError, NotFoundError, ForbiddenError
 from mist.api.exceptions import MachineCreationError, RedirectError
 from mist.api.exceptions import CloudUnauthorizedError, CloudUnavailableError
+from mist.api.exceptions import MistNotImplementedError, MethodNotAllowedError
 
 from mist.api.monitoring.methods import enable_monitoring
 from mist.api.monitoring.methods import disable_monitoring
@@ -115,6 +118,8 @@ def create_machine(request):
     CREATE_RESOURCES permission required on cloud.
     READ permission required on location.
     CREATE_RESOURCES permission required on location.
+    READ permission required on image.
+    CREATE_RESOURCES permission required on image.
     CREATE permission required on machine.
     RUN permission required on script.
     READ permission required on key.
@@ -129,14 +134,14 @@ def create_machine(request):
       required: true
       example: "my-digital-ocean-machine"
     image:
-      description: Provider's image id to be used on creation
+      description: Provider's image id
       required: true
       type: string
       example: "17384153"
     size:
       type: string
-      description: Provider's size id to be used on creation
-      example: "512mb"
+      description: Mist internal size id
+      example: "9417745961a84bffbf6419e5of68faa5"
     location:
       type: string
       description: Mist internal location id
@@ -167,7 +172,7 @@ def create_machine(request):
       type: string
     image_extra:
       type: string
-      description: Required for GCE and Linode
+      description: Required for GCE and Linode and VSphere 6.7
     schedule:
       type: object
     script:
@@ -230,7 +235,7 @@ def create_machine(request):
     docker_port_bindings:
       type: object
     project_id:
-      description: ' Needed only by Packet cloud'
+      description: ' Needed only by EquinixMetal cloud'
       type: string
     softlayer_backend_vlan_id:
       description: 'Specify id of a backend(private) vlan'
@@ -243,6 +248,21 @@ def create_machine(request):
       items:
         type:
           object
+    security_group:
+      type: string
+      description: Machine will join this security group
+    vnfs:
+      description: Network Virtual Functions to configure in machine
+      type: array
+      items:
+        type: string
+      description:
+        description: Description of machine. Only for KVM machines
+        type: string
+    port_forwards:
+      description: Applies only in GigG8 clouds
+      type: object
+      example: {"2200:22": ["tcp"]}
     """
 
     params = params_from_request(request)
@@ -277,7 +297,11 @@ def create_machine(request):
     machine_username = params.get('machine_username', '')
     resource_group = params.get('resource_group', '')
     volumes = params.get('volumes', [])
+    if volumes and volumes[0].get('volume_id'):
+        request.matchdict['volume'] = volumes[0].get('volume_id')
     networks = params.get('networks', [])
+    if isinstance(networks, str):
+        networks = networks and [networks] or []
     subnet_id = params.get('subnet_id', '')
     subnetwork = params.get('subnetwork', None)
     ip_addresses = params.get('ip_addresses', [])
@@ -308,9 +332,13 @@ def create_machine(request):
     # servers, while False means the server has montly pricing
     softlayer_backend_vlan_id = params.get('softlayer_backend_vlan_id', None)
     hourly = params.get('hourly', True)
-
+    sec_group = params.get('security_group', '')
+    vnfs = params.get('vnfs', [])
+    port_forwards = params.get('port_forwards', {})
     expiration = params.get('expiration', {})
-
+    description = params.get('description', '')
+    folder = params.get('folders', None)
+    datastore = params.get('datastore', None)
     job_id = params.get('job_id')
     # The `job` variable points to the event that started the job. If a job_id
     # is not provided, then it means that this is the beginning of a new story
@@ -330,18 +358,6 @@ def create_machine(request):
                                   id=cloud_id, deleted=None)
     except Cloud.DoesNotExist:
         raise NotFoundError('Cloud does not exist')
-
-    # FIXME For backwards compatibility.
-    if cloud.ctl.provider in ('vsphere', 'onapp', 'libvirt', ):
-        if not size or not isinstance(size, dict):
-            size = {}
-        for param in (
-            'size_ram', 'size_cpu', 'size_disk_primary', 'size_disk_swap',
-            'boot', 'build', 'cpu_priority', 'cpu_sockets', 'cpu_threads',
-            'port_speed', 'hypervisor_group_id',
-        ):
-            if param in params and params[param]:
-                size[param.replace('size_', '')] = params[param]
 
     # compose schedule as a dict from relative parameters
     if not params.get('schedule_type'):
@@ -371,10 +387,16 @@ def create_machine(request):
 
     auth_context.check_perm("cloud", "read", cloud_id)
     auth_context.check_perm("cloud", "create_resources", cloud_id)
+
     if location_id:
         auth_context.check_perm("location", "read", location_id)
         auth_context.check_perm("location", "create_resources", location_id)
-    tags = auth_context.check_perm("machine", "create", None) or {}
+
+    if image_id:
+        auth_context.check_perm("image", "read", image_id)
+        auth_context.check_perm("image", "create_resources", image_id)
+
+    tags, constraints = auth_context.check_perm("machine", "create", None)
     if script_id:
         auth_context.check_perm("script", "run", script_id)
     if key_id:
@@ -401,6 +423,24 @@ def create_machine(request):
         raise BadRequestError('Invalid tags format. Expecting either a '
                               'dictionary of tags or a list of single-item '
                               'dictionaries')
+
+    # check expiration constraint
+    exp_constraint = constraints.get('expiration', {})
+    if exp_constraint:
+        try:
+            from mist.rbac.methods import check_expiration
+            check_expiration(expiration, exp_constraint)
+        except ImportError:
+            pass
+
+    # check cost constraint
+    cost_constraint = constraints.get('cost', {})
+    if cost_constraint:
+        try:
+            from mist.rbac.methods import check_cost
+            check_cost(auth_context.org, cost_constraint)
+        except ImportError:
+            pass
 
     args = (cloud_id, key_id, machine_name,
             location_id, image_id, size,
@@ -432,8 +472,15 @@ def create_machine(request):
               'machine_username': machine_username,
               'volumes': volumes,
               'ip_addresses': ip_addresses,
-              'expiration': expiration}
-
+              'vnfs': vnfs,
+              'expiration': expiration,
+              'folder': folder,
+              'datastore': datastore,
+              'ephemeral': params.get('ephemeral', False),
+              'lxd_image_source': params.get('lxd_image_source', None),
+              'sec_group': sec_group,
+              'description': description,
+              'port_forwards': port_forwards}
     if not run_async:
         ret = methods.create_machine(auth_context, *args, **kwargs)
     else:
@@ -451,13 +498,16 @@ def add_machine(request):
     """
     Tags: machines
     ---
-    Add a machine to an OtherServer Cloud. This works for bare_metal clouds.
+    Add a machine to an OtherServer/Libvirt Cloud.
+    READ permission required on cloud.
+    EDIT permission required on cloud.
+    READ permission required on key.
     ---
     cloud:
       in: path
       required: true
       type: string
-    machine_ip:
+    machine_hostname:
       type: string
       required: true
     operating_system:
@@ -474,20 +524,35 @@ def add_machine(request):
       type: string
     monitoring:
       type: boolean
+    images_location:
+      type: string
     """
     cloud_id = request.matchdict.get('cloud')
+
+    auth_context = auth_context_from_request(request)
+
+    try:
+        cloud = Cloud.objects.get(owner=auth_context.owner,
+                                  id=cloud_id, deleted=None)
+    except Cloud.DoesNotExist:
+        raise NotFoundError('Cloud does not exist')
+
+    if cloud.ctl.provider not in ['libvirt', 'bare_metal']:
+        raise MistNotImplementedError()
+
     params = params_from_request(request)
-    machine_ip = params.get('machine_ip')
-    if not machine_ip:
-        raise RequiredParameterMissingError("machine_ip")
+    machine_hostname = params.get('machine_hostname')
+    if not machine_hostname:
+        raise RequiredParameterMissingError("machine_hostname")
 
     operating_system = params.get('operating_system', '')
     machine_name = params.get('machine_name', '')
     machine_key = params.get('machine_key', '')
     machine_user = params.get('machine_user', '')
-    machine_port = params.get('machine_port', '')
+    machine_port = params.get('machine_port', 22)
     remote_desktop_port = params.get('remote_desktop_port', '')
-    monitoring = params.get('monitoring', '')
+    images_location = params.get('images_location', '')
+    monitoring = params.get('monitoring', False)
 
     job_id = params.get('job_id')
     if not job_id:
@@ -496,33 +561,27 @@ def add_machine(request):
     else:
         job = None
 
-    auth_context = auth_context_from_request(request)
     auth_context.check_perm("cloud", "read", cloud_id)
+    auth_context.check_perm("cloud", "edit", cloud_id)
 
     if machine_key:
         auth_context.check_perm("key", "read", machine_key)
 
-    try:
-        Cloud.objects.get(owner=auth_context.owner,
-                          id=cloud_id, deleted=None)
-    except Cloud.DoesNotExist:
-        raise NotFoundError('Cloud does not exist')
-
-    log.info('Adding bare metal machine %s on cloud %s'
+    log.info('Adding host machine %s on cloud %s'
              % (machine_name, cloud_id))
-    cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
-                              deleted=None)
 
     try:
-        machine = cloud.ctl.add_machine(machine_name, host=machine_ip,
+        machine = cloud.ctl.add_machine(host=machine_hostname,
                                         ssh_user=machine_user,
                                         ssh_port=machine_port,
                                         ssh_key=machine_key,
+                                        name=machine_name,
                                         os_type=operating_system,
                                         rdp_port=remote_desktop_port,
-                                        fail_on_error=True)
+                                        images_location=images_location
+                                        )
     except Exception as e:
-        raise MachineCreationError("OtherServer, got exception %r" % e,
+        raise MachineCreationError("Adding host got exception %r" % e,
                                    exc=e)
 
     # Enable monitoring
@@ -611,7 +670,16 @@ def edit_machine(request):
     if machine.cloud.owner != auth_context.owner:
         raise NotFoundError("Machine %s doesn't exist" % machine.id)
 
-    auth_context.check_perm('machine', 'edit', machine.id)
+    tags, constraints = auth_context.check_perm("machine", "edit", machine.id)
+    expiration = params.get('expiration', {})
+    # check expiration constraint
+    exp_constraint = constraints.get('expiration', {})
+    if exp_constraint:
+        try:
+            from mist.rbac.methods import check_expiration
+            check_expiration(expiration, exp_constraint)
+        except ImportError:
+            pass
 
     return machine.ctl.update(auth_context, params)
 
@@ -639,16 +707,21 @@ def machine_actions(request):
       - stop
       - reboot
       - destroy
+      - remove
       - resize
       - rename
       - create_snapshot
       - remove_snapshot
       - revert_to_snapshot
+      - expose
       required: true
       type: string
     name:
       description: The new name of the renamed machine
       type: string
+    port_forwards:
+      description: Applies only in GigG8 clouds
+      type: object
     size:
       description: The size id of the plan to resize
       type: string
@@ -676,15 +749,23 @@ def machine_actions(request):
     snapshot_description = params.get('snapshot_description')
     snapshot_dump_memory = params.get('snapshot_dump_memory')
     snapshot_quiesce = params.get('snapshot_quiesce')
+    port_forwards = {'ports': params.get('ports', {}),
+                     'service_type': params.get('service_type', None)}
+    delete_domain_image = params.get('delete_domain_image', False)
     auth_context = auth_context_from_request(request)
-
     if cloud_id:
         machine_id = request.matchdict['machine']
         auth_context.check_perm("cloud", "read", cloud_id)
         try:
             machine = Machine.objects.get(cloud=cloud_id,
-                                          machine_id=machine_id,
-                                          state__ne='terminated')
+                                          machine_id=machine_id)
+            # VMs in libvirt can be started no matter if they are terminated
+            # also they may be undefined from a terminated state
+            if machine.state == 'terminated' and not isinstance(machine.cloud,
+                                                                LibvirtCloud):
+                raise NotFoundError(
+                    "Machine %s has been terminated" % machine_id
+                )
             # used by logging_view_decorator
             request.environ['machine_uuid'] = machine.id
         except Machine.DoesNotExist:
@@ -716,7 +797,7 @@ def machine_actions(request):
     actions = ('start', 'stop', 'reboot', 'destroy', 'resize',
                'rename', 'undefine', 'suspend', 'resume', 'remove',
                'list_snapshots', 'create_snapshot', 'remove_snapshot',
-               'revert_to_snapshot', 'clone')
+               'revert_to_snapshot', 'clone', 'expose')
 
     if action not in actions:
         raise BadRequestError("Action '%s' should be "
@@ -744,14 +825,31 @@ def machine_actions(request):
         result = machine.ctl.remove()
         # Schedule a UI update
         trigger_session_update(auth_context.owner, ['clouds'])
-    elif action in ('start', 'stop', 'reboot',
-                    'undefine', 'suspend', 'resume'):
+    elif action in ('start', 'stop', 'reboot', 'suspend', 'resume'):
         result = getattr(machine.ctl, action)()
-    elif action == 'rename':
+    elif action == 'undefine':
+        result = getattr(machine.ctl, action)(delete_domain_image)
+    elif action == 'expose':
+        if machine.network:
+            auth_context.check_perm('network', 'read', machine.network)
+            auth_context.check_perm('network', 'edit', machine.network)
+        methods.validate_portforwards(port_forwards)
+        result = getattr(machine.ctl, action)(port_forwards)
+    elif action in {'rename', 'clone'}:
         if not name:
             raise BadRequestError("You must give a name!")
         result = getattr(machine.ctl, action)(name)
     elif action == 'resize':
+        _, constraints = auth_context.check_perm("machine", "resize",
+                                                 machine.id)
+        # check cost constraint
+        cost_constraint = constraints.get('cost', {})
+        if cost_constraint:
+            try:
+                from mist.rbac.methods import check_cost
+                check_cost(auth_context.org, cost_constraint)
+            except ImportError:
+                pass
         kwargs = {}
         if memory:
             kwargs['memory'] = memory
@@ -777,8 +875,7 @@ def machine_actions(request):
 
     methods.run_post_action_hooks(machine, action, auth_context.user, result)
 
-    # TODO: We shouldn't return list_machines, just OK. Save the API!
-    return methods.filter_list_machines(auth_context, cloud_id)
+    return OK
 
 
 @view_config(route_name='api_v1_cloud_machine_rdp',
@@ -866,6 +963,8 @@ def machine_rdp(request):
 @view_config(route_name='api_v1_cloud_machine_console',
              request_method='POST', renderer='json')
 @view_config(route_name='api_v1_machine_console',
+             request_method='GET', renderer='json')
+@view_config(route_name='api_v1_machine_console',
              request_method='POST', renderer='json')
 def machine_console(request):
     """
@@ -925,12 +1024,56 @@ def machine_console(request):
 
     auth_context.check_perm("machine", "read", machine.id)
 
-    if machine.cloud.ctl.provider not in ['vsphere', 'openstack']:
-        raise NotImplementedError(
-            "VNC console only supported for vSphere and OpenStack")
+    if machine.cloud.ctl.provider not in ['vsphere', 'openstack', 'libvirt']:
+        raise MistNotImplementedError(
+            "VNC console only supported for vSphere, OpenStack or KVM")
 
-    console_uri = machine.cloud.ctl.compute.connection.ex_open_console(
-        machine.machine_id
-    )
-
-    raise RedirectError(console_uri)
+    if machine.cloud.ctl.provider == 'libvirt':
+        import xml.etree.ElementTree as ET
+        from html import unescape
+        from datetime import datetime
+        import hmac
+        import hashlib
+        xml_desc = unescape(machine.extra.get('xml_description', ''))
+        root = ET.fromstring(xml_desc)
+        vnc_element = root.find('devices').find('graphics[@type="vnc"]')
+        if not vnc_element:
+            raise MethodNotAllowedError(
+                "VNC console not supported by this KVM domain")
+        vnc_port = vnc_element.attrib.get('port')
+        vnc_host = vnc_element.attrib.get('listen')
+        from mongoengine import Q
+        # Get key associations, prefer root or sudoer ones
+        key_associations = KeyMachineAssociation.objects(
+            Q(machine=machine.parent) & (Q(ssh_user='root') | Q(sudo=True))) \
+            or KeyMachineAssociation.objects(machine=machine.parent)
+        if not key_associations:
+            raise ForbiddenError()
+        key_id = key_associations[0].key.id
+        host = '%s@%s:%d' % (key_associations[0].ssh_user,
+                             machine.parent.hostname,
+                             key_associations[0].port)
+        expiry = int(datetime.now().timestamp()) + 100
+        msg = '%s,%s,%s,%s,%s' % (host, key_id, vnc_host, vnc_port, expiry)
+        mac = hmac.new(
+            config.SECRET.encode(),
+            msg=msg.encode(),
+            digestmod=hashlib.sha256).hexdigest()
+        base_ws_uri = config.CORE_URI.replace('http', 'ws')
+        proxy_uri = '%s/proxy/%s/%s/%s/%s/%s/%s' % (
+            base_ws_uri, host, key_id, vnc_host, vnc_port, expiry, mac)
+        return render_to_response('../templates/novnc.pt', {'url': proxy_uri})
+    if machine.cloud.ctl.provider == 'vsphere':
+        console_uri = machine.cloud.ctl.compute.connection.ex_open_console(
+            machine.machine_id
+        )
+        protocol, host = config.CORE_URI.split('://')
+        protocol = protocol.replace('http', 'ws')
+        params = urllib.parse.urlencode({'url': console_uri})
+        proxy_uri = f"{protocol}://{host}/wsproxy/?{params}"
+        return render_to_response('../templates/novnc.pt', {'url': proxy_uri})
+    else:
+        console_url = machine.cloud.ctl.compute.connection.ex_open_console(
+            machine.machine_id
+        )
+    raise RedirectError(console_url)

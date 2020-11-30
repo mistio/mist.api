@@ -50,5 +50,4 @@ exec bin/wait-for \
     $(if [ -n "$CMD" ]; then echo -c "$CMD"; fi) \
     elasticsearch:9200 \
     mongodb:27017 \
-    rabbitmq:5672 \
-    memcached:11211
+    rabbitmq:5672

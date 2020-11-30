@@ -76,32 +76,31 @@ class BaseStorageController(BaseController):
         """
         task_key = 'cloud:list_volumes:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
+        first_run = False if task.last_success else True
         with task.task_runner(persist=persist):
             cached_volumes = {'%s-%s' % (v.id, v.external_id): v.as_dict()
                               for v in self.list_cached_volumes()}
 
             volumes = self._list_volumes()
 
-        if amqp_owner_listening(self.cloud.owner.id):
-            volumes_dict = [v.as_dict() for v in volumes]
-            if cached_volumes and volumes_dict:
-                # Publish patches to rabbitmq.
-                new_volumes = {'%s-%s' % (v['id'], v['external_id']): v
-                               for v in volumes_dict}
-                patch = jsonpatch.JsonPatch.from_diff(cached_volumes,
-                                                      new_volumes).patch
-                if patch:
+        volumes_dict = [v.as_dict() for v in volumes]
+        if cached_volumes or volumes:
+            # Publish patches to rabbitmq.
+            new_volumes = {'%s-%s' % (v['id'], v['external_id']): v
+                           for v in volumes_dict}
+            patch = jsonpatch.JsonPatch.from_diff(cached_volumes,
+                                                  new_volumes).patch
+            if patch:
+                if not first_run and self.cloud.observation_logs_enabled:
+                    from mist.api.logs.methods import log_observations
+                    log_observations(self.cloud.owner.id, self.cloud.id,
+                                     'volume', patch, cached_volumes,
+                                     new_volumes)
+                if amqp_owner_listening(self.cloud.owner.id):
                     amqp_publish_user(self.cloud.owner.id,
                                       routing_key='patch_volumes',
                                       data={'cloud_id': self.cloud.id,
                                             'patch': patch})
-            # FIXME: remove this block, once patches
-            # are implemented in the UI
-            else:
-                amqp_publish_user(self.cloud.owner.id,
-                                  routing_key='list_volumes',
-                                  data={'cloud_id': self.cloud.id,
-                                        'volumes': volumes_dict})
         return volumes
 
     @LibcloudExceptionHandler(mist.api.exceptions.VolumeListingError)
@@ -190,6 +189,9 @@ class BaseStorageController(BaseController):
             cloud=self.cloud, id__nin=[v.id for v in volumes],
             missing_since=None
         ).update(missing_since=datetime.datetime.utcnow())
+        Volume.objects(
+            cloud=self.cloud, id__in=[v.id for v in volumes]
+        ).update(missing_since=None)
 
         # Update RBAC Mappings given the list of new volumes.
         self.cloud.owner.mapper.update(new_volumes, asynchronous=False)
@@ -240,7 +242,7 @@ class BaseStorageController(BaseController):
             libvol = self.cloud.ctl.compute.connection.create_volume(**kwargs)
         except Exception as exc:
             log.exception('Error creating volume in %s: %r', self.cloud, exc)
-            raise mist.api.exceptions.CloudUnavailableError(exc=exc)
+            raise mist.api.exceptions.VolumeCreationError(exc)
 
         # Invoke `self.list_volumes` to update the UI and return the Volume
         # object at the API. Try 3 times before failing
@@ -334,7 +336,7 @@ class BaseStorageController(BaseController):
         assert volume.cloud == self.cloud
         assert machine.cloud == self.cloud
         libcloud_volume = self.get_libcloud_volume(volume)
-        libcloud_node = self.cloud.ctl.compute._get_machine_libcloud(machine)
+        libcloud_node = self.cloud.ctl.compute._get_libcloud_node(machine)
         self._attach_volume(libcloud_volume, libcloud_node, **kwargs)
 
     def _attach_volume(self, libcloud_volume, libcloud_node, **kwargs):
@@ -354,7 +356,7 @@ class BaseStorageController(BaseController):
         assert volume.cloud == self.cloud
         assert machine.cloud == self.cloud
         libcloud_volume = self.get_libcloud_volume(volume)
-        libcloud_node = self.cloud.ctl.compute._get_machine_libcloud(machine)
+        libcloud_node = self.cloud.ctl.compute._get_libcloud_node(machine)
         self._detach_volume(libcloud_volume, libcloud_node)
 
     def _detach_volume(self, libcloud_volume, libcloud_node):
@@ -380,3 +382,6 @@ class BaseStorageController(BaseController):
         raise mist.api.exceptions.VolumeNotFoundError(
             'Volume %s with external_id %s' % (volume.name, volume.external_id)
         )
+
+    def list_storage_classes(self):
+        raise NotImplementedError()

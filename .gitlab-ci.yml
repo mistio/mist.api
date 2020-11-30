@@ -96,7 +96,7 @@ flake8:
   before_script:
     - cd /mist.api
   script:
-    - flake8 --ignore=E402,E722
+    - flake8 --ignore=E402,E722,F632,F841,W504,W605
 
 uniq:
   stage: test

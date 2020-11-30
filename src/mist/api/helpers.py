@@ -36,6 +36,7 @@ import jsonpickle
 import subprocess
 
 from time import time, strftime, sleep
+from datetime import timedelta
 
 from base64 import urlsafe_b64encode
 
@@ -356,7 +357,7 @@ def amqp_subscribe_user(owner, queue, callback):
     amqp_subscribe(_amqp_owner_exchange(owner), callback, queue)
 
 
-def amqp_owner_listening(owner):
+def amqp_owner_listening(owner, retries=3):
     exchange = kombu.Exchange(_amqp_owner_exchange(owner), type='fanout')
     with kombu.pools.connections[kombu.Connection(config.BROKER_URL)].acquire(
             block=True, timeout=10) as connection:
@@ -364,6 +365,14 @@ def amqp_owner_listening(owner):
             exchange(connection).declare(passive=True)
         except AmqpNotFound:
             return False
+        except TimeoutError:
+            if retries:
+                return amqp_owner_listening(owner,
+                                            retries - 1)
+            else:
+                log.error(
+                    'Timed out multiple times when connecting to RabbitMQ')
+                return False
         else:
             return True
 
@@ -490,7 +499,8 @@ def extract_prefix(url, prefixes=['http://', 'https://']):
         return ''
 
 
-def check_host(host, allow_localhost=config.ALLOW_CONNECT_LOCALHOST):
+def check_host(host, allow_localhost=config.ALLOW_CONNECT_LOCALHOST,
+               allow_inaddr_any=False):
     """Check if a given host is a valid DNS name or IPv4 address"""
 
     try:
@@ -510,7 +520,6 @@ def check_host(host, allow_localhost=config.ALLOW_CONNECT_LOCALHOST):
         raise MistError(msg + " is not a valid IPv4 address.")
 
     forbidden_subnets = {
-        '0.0.0.0/8': "used for broadcast messages to the current network",
         '100.64.0.0/10': ("used for communications between a service provider "
                           "and its subscribers when using a "
                           "Carrier-grade NAT"),
@@ -534,6 +543,10 @@ def check_host(host, allow_localhost=config.ALLOW_CONNECT_LOCALHOST):
                                "destination address"),
     }
 
+    if not allow_inaddr_any:
+        forbidden_subnets['0.0.0.0/8'] = ("used for broadcast messages "
+                                          "to the current network")
+
     if not allow_localhost:
         forbidden_subnets['127.0.0.0/8'] = ("used for loopback addresses "
                                             "to the local host")
@@ -547,15 +560,31 @@ def check_host(host, allow_localhost=config.ALLOW_CONNECT_LOCALHOST):
 
 
 def transform_key_machine_associations(associations):
-    return [
-        [association.machine.cloud.id,
-         association.machine.machine_id,
-         association.last_used,
-         association.ssh_user,
-         association.sudo,
-         association.port]
-        for association in associations
-    ]
+    try:
+        transformed = [
+            [association.machine.cloud.id,
+             association.machine.machine_id,
+             association.last_used,
+             association.ssh_user,
+             association.sudo,
+             association.port]
+            for association in associations
+        ]
+    except DoesNotExist:
+        # If there are broken references get rid of them
+        transformed = []
+        for association in associations:
+            try:
+                transformed.append([
+                    association.machine.cloud.id,
+                    association.machine.machine_id,
+                    association.last_used,
+                    association.ssh_user,
+                    association.sudo,
+                    association.port])
+            except DoesNotExist:
+                association.delete()
+    return transformed
 
 
 def get_datetime(timestamp):
@@ -636,6 +665,7 @@ def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3,
     sender: the email address of the sender. default value taken from config
 
     """
+
     if not sender:
         sender = config.EMAIL_FROM
     if isinstance(recipients, string_types):
@@ -687,8 +717,9 @@ def send_email(subject, body, recipients, sender=None, bcc=None, attempts=3,
             return True
         except smtplib.SMTPException as exc:
             if attempt == attempts - 1:
-                log.error("Could not send email after %d retries! Error: %r",
-                          attempts, exc)
+                log.error(
+                    "Could not send email to %s after %d retries! Error: %r",
+                    recipients, attempts, exc)
                 return False
             else:
                 log.warn("Could not send email! Error: %r", exc)
@@ -710,7 +741,7 @@ rtype_to_classpath = {
     'subnet': 'mist.api.networks.models.Subnet',
     'volume': 'mist.api.volumes.models.Volume',
     'location': 'mist.api.clouds.models.CloudLocation',
-    'image': 'mist.api.clouds.models.CloudImage',
+    'image': 'mist.api.images.models.CloudImage',
 }
 
 if config.HAS_VPN:
@@ -942,7 +973,7 @@ def logging_view_decorator(func):
         params = dict(params_from_request(request))
         for key in ['email', 'cloud', 'machine', 'rule', 'script_id',
                     'tunnel_id', 'story_id', 'stack_id', 'template_id',
-                    'zone', 'record', 'network', 'subnet', 'volume']:
+                    'zone', 'record', 'network', 'subnet', 'volume', 'key']:
             if key != 'email' and key in request.matchdict:
                 if not key.endswith('_id'):
                     log_dict[key + '_id'] = request.matchdict[key]
@@ -962,13 +993,13 @@ def logging_view_decorator(func):
 
         machine_id = request.environ.get('machine_id')
         if machine_id and not log_dict.get('machine_id'):
-            log_dict['machine_id'] = request.environ.get('machine_id')
+            log_dict['external_id'] = request.environ.get('machine_id')
 
         machine_uuid = (request.matchdict.get('machine_uuid') or
                         params.get('machine_uuid') or
                         request.environ.get('machine_uuid'))
         if machine_uuid and not log_dict.get('machine_uuid'):
-            log_dict['machine_uuid'] = machine_uuid
+            log_dict['machine_id'] = machine_uuid
 
         # Attempt to hide passwords, API keys, certificates, etc.
         for key in ('priv', 'password', 'new_password', 'apikey', 'apisecret',
@@ -982,7 +1013,6 @@ def logging_view_decorator(func):
             censor = {'vcloud': 'password',
                       'ec2': 'api_secret',
                       'rackspace': 'api_key',
-                      'nephoscale': 'password',
                       'softlayer': 'api_key',
                       'onapp': 'api_key',
                       'digitalocean': 'token',
@@ -990,7 +1020,7 @@ def logging_view_decorator(func):
                       'azure': 'certificate',
                       'linode': 'api_key',
                       'docker': 'auth_password',
-                      'hp': 'password',
+                      'maxihost': 'token',
                       'openstack': 'password'}.get(provider)
             if censor and censor in params:
                 params[censor] = '***CENSORED***'
@@ -1188,7 +1218,7 @@ def get_file(url, filename, update=True):
                 raise
             log.error(err)
         else:
-            data = resp.text
+            data = resp.text.replace('<!--! do not remove -->', '')
             if resp.status_code != 200:
                 err = "Bad response fetching file '%s' from '%s': %r" % (
                     filename, url, data
@@ -1261,7 +1291,7 @@ def maybe_submit_cloud_task(cloud, task_name):
 
     """
     if task_name == 'list_projects':
-        if cloud.ctl.provider != 'packet':
+        if cloud.ctl.provider != 'equinixmetal':
             return False
     return True
 
@@ -1360,3 +1390,57 @@ def filter_resource_ids(auth_context, cloud_id, resource_type, resource_ids):
 
     allowed_ids = set(auth_context.get_allowed_resources(rtype=resource_type))
     return resource_ids & allowed_ids
+
+
+def convert_to_timedelta(time_val):
+    """
+    Receives a time_val param. time_val should be either an integer,
+    or a relative delta in the following format:
+    '_s', '_m', '_h', '_d', '_mo', for seconds, minutes, hours, days
+    months respectively. Returns a timedelta object if right param is
+    given, else None
+    """
+    try:
+        seconds = int(time_val)
+        return timedelta(seconds=seconds)
+    except ValueError:
+        try:
+            num = int(time_val[:-1])
+            if time_val.endswith('s'):
+                return timedelta(seconds=num)
+            elif time_val.endswith('m'):
+                return timedelta(minutes=num)
+            elif time_val.endswith('h'):
+                return timedelta(hours=num)
+            elif time_val.endswith('d'):
+                return timedelta(days=num)
+            elif time_val.endswith('mo'):
+                num = int(time_val[:-2])
+                return timedelta(months=num)
+        except ValueError:
+            if time_val.endswith('mo'):
+                num = int(time_val[:-2])
+                return timedelta(days=30 * num)
+    return None
+
+
+def node_to_dict(node):
+    if isinstance(node, str):
+        return node
+    elif isinstance(node, datetime.datetime):
+        return node.isoformat()
+    elif not getattr(node, "__dict__"):
+        return str(node)
+    ret = node.__dict__
+    if ret.get('driver'):
+        ret.pop('driver')
+    if ret.get('size'):
+        ret['size'] = node_to_dict(ret['size'])
+    if ret.get('image'):
+        ret['image'] = node_to_dict(ret['image'])
+    if ret.get('state'):
+        ret['state'] = str(ret['state'])
+    if 'extra' in ret:
+        ret['extra'] = json.loads(json.dumps(
+            ret['extra'], default=node_to_dict))
+    return ret

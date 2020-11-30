@@ -45,7 +45,7 @@ class PollingSchedule(ShardedScheduleMixin, me.Document):
     meta = {
         'allow_inheritance': True,
         'strict': False,
-        'indexes': ['shard_id']
+        'indexes': ['shard_id', 'shard_update_at']
     }
 
     # We use a unique name for easy identification and to avoid running the
@@ -234,6 +234,12 @@ class CloudPollingSchedule(PollingSchedule):
 
     cloud = me.ReferenceField(Cloud, reverse_delete_rule=me.CASCADE)
 
+    meta = {
+        'allow_inheritance': True,
+        'strict': False,
+        'indexes': ['cloud', 'shard_id', 'shard_update_at']
+    }
+
     def get_name(self):
         return '%s(%s)' % (super(CloudPollingSchedule, self).get_name(),
                            self.cloud.id)
@@ -295,6 +301,11 @@ class ListLocationsPollingSchedule(CloudPollingSchedule):
 class ListSizesPollingSchedule(CloudPollingSchedule):
 
     task = 'mist.api.poller.tasks.list_sizes'
+
+
+class ListImagesPollingSchedule(CloudPollingSchedule):
+
+    task = 'mist.api.poller.tasks.list_images'
 
 
 class ListNetworksPollingSchedule(CloudPollingSchedule):

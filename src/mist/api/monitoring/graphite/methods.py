@@ -141,7 +141,11 @@ def _get_multimachine_stats(owner, metric, start='', stop='', step='',
         raise ServiceUnavailableError()
     ret = {}
     for item in data:
-        uuid = item['target'].split('.')[1]
+        target = item['target'].split('.')
+        if len(target) > 1:
+            uuid = target[1]
+        else:
+            uuid = target[0]
         item['name'] = uuid
         ret[uuid] = item
     return ret

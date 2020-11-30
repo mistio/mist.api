@@ -10,7 +10,7 @@ from mist.api.helpers import view_config, params_from_request
 
 from mist.api.decorators import require_cc
 
-from mist.api.exceptions import BadRequestError
+from mist.api.exceptions import BadRequestError, MistNotImplementedError
 from mist.api.exceptions import RequiredParameterMissingError, NotFoundError
 
 from mist.api.clouds.methods import filter_list_clouds, add_cloud_v_2
@@ -20,6 +20,8 @@ from mist.api.clouds.methods import delete_cloud as m_delete_cloud
 from mist.api.tag.methods import add_tags_to_resource
 
 from mist.api import config
+
+import mist.api.methods as methods
 
 
 logging.basicConfig(level=config.PY_LOG_LEVEL,
@@ -61,7 +63,7 @@ def add_cloud(request):
     apikey:
       type: string
       description: Required for Ec2, Hostvirtual, Linode, \
-      Packet, Rackspace, OnApp, SoftLayer, Vultr
+      EquinixMetal, Rackspace, OnApp, SoftLayer, Vultr
     apisecret:
       type: string
       description: Required for Ec2
@@ -99,6 +101,9 @@ def add_cloud(request):
       description: Required for Docker
     docker_port:
       type: string
+    domain:
+      type: string
+      description: Optional for OpenStack
     host:
       type: string
       description: Required for OnApp, Vcloud, vSphere
@@ -136,7 +141,7 @@ def add_cloud(request):
       description: Required for GCE
     project_id:
       type: string
-      description: Required for GCE. Optional for Packet
+      description: Required for GCE. Optional for EquinixMetal
     provider:
       description: The cloud provider.
       required: True
@@ -158,7 +163,6 @@ def add_cloud(request):
       - onapp
       - hostvirtual
       - vultr
-      - clearcenter
       - aliyun_ecs
       required: true
       type: string
@@ -198,7 +202,7 @@ def add_cloud(request):
       SoftLayer, OpenStack, Vcloud, vSphere
     """
     auth_context = auth_context_from_request(request)
-    cloud_tags = auth_context.check_perm("cloud", "add", None)
+    cloud_tags, _ = auth_context.check_perm("cloud", "add", None)
     owner = auth_context.owner
     params = params_from_request(request)
     # remove spaces from start/end of string fields that are often included
@@ -216,10 +220,10 @@ def add_cloud(request):
         raise RequiredParameterMissingError('provider')
 
     monitoring = None
-    ret = add_cloud_v_2(owner, title, provider, params)
-
-    cloud_id = ret['cloud_id']
-    monitoring = ret.get('monitoring')
+    result = add_cloud_v_2(owner, title, provider, params)
+    cloud_id = result['cloud_id']
+    monitoring = result.get('monitoring')
+    errors = result.get('errors')
 
     cloud = Cloud.objects.get(owner=owner, id=cloud_id)
 
@@ -243,6 +247,8 @@ def add_cloud(request):
     c_count = Cloud.objects(owner=owner, deleted=None).count()
     ret = cloud.as_dict()
     ret['index'] = c_count - 1
+    if errors:
+        ret['errors'] = errors
     if monitoring:
         ret['monitoring'] = monitoring
 
@@ -389,6 +395,13 @@ def toggle_cloud(request):
 
     new_state = params_from_request(request).get('new_state', None)
     dns_enabled = params_from_request(request).get('dns_enabled', None)
+    observation_logs_enabled = params_from_request(request).get(
+        'observation_logs_enabled', None)
+
+    if new_state is None and dns_enabled is None and \
+            observation_logs_enabled is None:
+        raise RequiredParameterMissingError('new_state or dns_enabled or \
+          observation_logs_enabled')
 
     if new_state == '1':
         cloud.ctl.enable()
@@ -404,8 +417,154 @@ def toggle_cloud(request):
     elif dns_enabled:
         raise BadRequestError('Invalid DNS state')
 
-    if new_state is None and dns_enabled is None:
-        raise RequiredParameterMissingError('new_state or dns_enabled')
+    if observation_logs_enabled == 1:
+        cloud.ctl.observation_logs_enable()
+    elif observation_logs_enabled == 0:
+        cloud.ctl.observation_logs_disable()
+    elif observation_logs_enabled:
+        raise BadRequestError('Invalid observation_logs_enabled state')
 
     trigger_session_update(auth_context.owner, ['clouds'])
     return OK
+
+
+@view_config(route_name='api_v1_cloud_security_groups', request_method='GET',
+             renderer='json')
+def list_security_groups(request):
+    """
+    Tags: security-groups
+    ---
+    Lists security groups on cloud.
+    Currently only supported for AWS.
+    READ permission required on cloud.
+    ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    """
+    auth_context = auth_context_from_request(request)
+    cloud_id = request.matchdict['cloud']
+
+    # SEC
+    auth_context.check_perm("cloud", "read", cloud_id)
+    try:
+        cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
+                                  deleted=None)
+    except Cloud.DoesNotExist:
+        raise NotFoundError('Cloud does not exist')
+
+    try:
+        sec_groups = cloud.ctl.compute.connection.ex_list_security_groups()
+    except Exception as e:
+        log.error("Could not list security groups for cloud %s: %r" % (
+            cloud, e))
+        raise MistNotImplementedError
+
+    return sec_groups
+
+
+@view_config(route_name='api_v1_cloud_projects', request_method='GET',
+             renderer='json')
+def list_projects(request):
+    """
+    Tags: projects
+    ---
+    Lists projects on cloud.
+    Only supported for EquinixMetal.
+    For other providers,returns an empty list
+    READ permission required on cloud.
+    ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    """
+    auth_context = auth_context_from_request(request)
+    cloud_id = request.matchdict['cloud']
+
+    # SEC
+    auth_context.check_perm("cloud", "read", cloud_id)
+    try:
+        cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
+                                  deleted=None)
+    except Cloud.DoesNotExist:
+        raise NotFoundError('Cloud does not exist')
+    try:
+        projects = methods.list_projects(auth_context.owner, cloud_id)
+    except Exception as e:
+        log.error("Could not list projects for cloud %s: %r" % (
+            cloud, e))
+        raise MistNotImplementedError()
+
+    return projects
+
+
+# For VSphere only VM folders
+@view_config(route_name='api_v1_cloud_folders', request_method='GET',
+             renderer='json')
+def list_folders(request):
+    """
+    Tags: folders
+    ---
+    Lists all the folders that contain VMs.
+    It is needed for machine creation for the 6.7 REST api of VSphere.
+    In the future it might not be necessary.
+    READ permission required on cloud.
+    ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    """
+    auth_context = auth_context_from_request(request)
+    cloud_id = request.matchdict.get('cloud')
+
+    try:
+        cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
+                                  deleted=None)
+    except Cloud.DoesNotExist:
+        raise NotFoundError('Cloud does not exist')
+    if cloud.as_dict()['provider'] != 'vsphere':
+        raise BadRequestError('Only available for vSphere clouds')
+    # SEC
+    auth_context.check_perm('cloud', 'read', cloud_id)
+    vm_folders = cloud.ctl.compute.list_vm_folders()
+    return vm_folders
+
+
+@view_config(route_name='api_v1_cloud_datastores', request_method='GET',
+             renderer='json')
+def list_datastores(request):
+    """
+    Tags: datastores
+    ---
+    Lists datastores on cloud.
+    Only supported for Vsphere.
+    READ permission required on cloud.
+    ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    """
+    auth_context = auth_context_from_request(request)
+    cloud_id = request.matchdict.get('cloud')
+
+    try:
+        cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
+                                  deleted=None)
+    except Cloud.DoesNotExist:
+        raise NotFoundError('Cloud does not exist')
+
+    if cloud.as_dict()['provider'] != 'vsphere':
+        raise BadRequestError('Only available for vSphere clouds.')
+    # SEC
+    auth_context.check_perm('cloud', 'read', cloud_id)
+    try:
+        datastores = cloud.ctl.compute.list_datastores()
+        return datastores
+    except Exception as e:
+        log.error("Could not list datastores for cloud %s: %r" % (
+                  cloud, e))
+        raise MistNotImplementedError()

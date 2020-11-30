@@ -62,7 +62,7 @@ class SSHKeyController(BaseKeyController):
 
         try:
             # Deploy key.
-            ssh_command(self.key.owner, machine.cloud.id, machine.machine_id,
+            ssh_command(self.key.owner, machine.cloud.id, machine.id,
                         machine.hostname, command,
                         username=username, port=port)
             log.info("Key associated and deployed successfully.")
@@ -70,7 +70,7 @@ class SSHKeyController(BaseKeyController):
             # Couldn't deploy key, maybe key was already deployed?
             deploy_error = True
         try:
-            ssh_command(self.key.owner, machine.cloud.id, machine.machine_id,
+            ssh_command(self.key.owner, machine.cloud.id, machine.id,
                         machine.hostname, 'uptime', key_id=self.key.id,
                         username=username, port=port)
         except MachineUnauthorizedError:
@@ -92,6 +92,6 @@ class SSHKeyController(BaseKeyController):
             # FIXME
             from mist.api.methods import ssh_command
             ssh_command(self.key.owner, machine.cloud.id,
-                        machine.machine_id, machine.hostname, command)
+                        machine.id, machine.hostname, command)
         except Exception as exc:
             log.info("Undeploying key %s failed: %s", self.key.id, str(exc))

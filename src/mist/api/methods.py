@@ -8,7 +8,6 @@ from mongoengine import DoesNotExist
 
 from time import time
 
-from libcloud.compute.types import Provider
 from libcloud.common.types import InvalidCredsError
 from libcloud.utils.networking import is_private_subnet
 from libcloud.dns.types import Provider as DnsProvider
@@ -25,9 +24,6 @@ from mist.api.helpers import amqp_publish_user
 
 from mist.api.helpers import dirty_cow, parse_os_release
 
-import mist.api.tasks
-import mist.api.inventory
-
 from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
 
@@ -43,13 +39,13 @@ logging.basicConfig(level=config.PY_LOG_LEVEL,
 log = logging.getLogger(__name__)
 
 
-def connect_provider(cloud):
+def connect_provider(cloud, **kwargs):
     """Establishes cloud connection using the credentials specified.
 
     Cloud is expected to be a cloud mongoengine model instance.
 
     """
-    return cloud.ctl.compute.connect()
+    return cloud.ctl.compute.connect(**kwargs)
 
 
 def ssh_command(owner, cloud_id, machine_id, host, command,
@@ -100,58 +96,24 @@ def filter_list_locations(auth_context, cloud_id, locations=None, perm='read',
     return locations
 
 
-def list_images(owner, cloud_id, term=None):
-    """List images from each cloud"""
-    return Cloud.objects.get(owner=owner, id=cloud_id,
-                             deleted=None).ctl.compute.list_images(term)
-
-
-def star_image(owner, cloud_id, image_id):
-    """Toggle image star (star/unstar)"""
-    cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
-
-    star = cloud.ctl.compute.image_is_starred(image_id)
-    if star:
-        if image_id in cloud.starred:
-            cloud.starred.remove(image_id)
-        if image_id not in cloud.unstarred:
-            cloud.unstarred.append(image_id)
-    else:
-        if image_id not in cloud.starred:
-            cloud.starred.append(image_id)
-        if image_id in cloud.unstarred:
-            cloud.unstarred.remove(image_id)
-    cloud.save()
-    task = mist.api.tasks.list_images
-    task.clear_cache(owner.id, cloud_id)
-    task.delay(owner.id, cloud_id)
-    return not star
-
-
 def list_projects(owner, cloud_id):
     """List projects for each account.
-    Currently supported for Packet.net. For other providers
+    Currently supported for Equinix Metal clouds. For other providers
     this returns an empty list
     """
     cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
-    conn = connect_provider(cloud)
 
-    ret = {}
-    if conn.type in [Provider.PACKET]:
+    if cloud.ctl.provider in ['equinixmetal']:
+        conn = connect_provider(cloud)
         projects = conn.ex_list_projects()
+        ret = [{'id': project.id,
+                'name': project.name,
+                'extra': project.extra
+                }
+               for project in projects]
     else:
-        projects = []
+        ret = []
 
-    ret = [{'id': project.id,
-            'name': project.name,
-            'extra': project.extra
-            }
-           for project in projects]
-    return ret
-
-    if conn.type == 'libvirt':
-        # close connection with libvirt
-        conn.disconnect()
     return ret
 
 
@@ -176,6 +138,25 @@ def list_resource_groups(owner, cloud_id):
     return ret
 
 
+def list_storage_pools(owner, cloud_id):
+    """
+    List storage pools for LXD containers.
+    """
+
+    cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
+
+    if cloud.ctl.provider in ['lxd']:
+        conn = connect_provider(cloud)
+        storage_pools = conn.ex_list_storage_pools(detailed=False)
+    else:
+        storage_pools = []
+
+    ret = [{'title': pool.name,
+            'val': pool.name}
+           for pool in storage_pools]
+    return ret
+
+
 def list_storage_accounts(owner, cloud_id):
     """List storage accounts for each account.
     Currently supported for Azure Arm. For other providers
@@ -186,13 +167,13 @@ def list_storage_accounts(owner, cloud_id):
         conn = connect_provider(cloud)
         accounts = conn.ex_list_storage_accounts()
     else:
-        accounts = []
+        return []
 
     storage_accounts = []
     resource_groups = conn.ex_list_resource_groups()
     for account in accounts:
         location_id = account.location
-
+        location = None
         # FIXME: circular import
         from mist.api.clouds.models import CloudLocation
         try:
@@ -245,11 +226,11 @@ def probe_ssh_only(owner, cloud_id, machine_id, host, key_id='', ssh_user='',
     # run SSH commands
     command = (
         "echo \""
-        "sudo -n uptime 2>&1|"
+        "LC_NUMERIC=en_US.UTF-8 sudo -n uptime 2>&1|"
         "grep load|"
         "wc -l && "
         "echo -------- && "
-        "uptime && "
+        "LC_NUMERIC=en_US.UTF-8 uptime && "
         "echo -------- && "
         "if [ -f /proc/uptime ]; then cat /proc/uptime | cut -d' ' -f1; "
         "else expr `date '+%s'` - `sysctl kern.boottime | sed -En 's/[^0-9]*([0-9]+).*/\\1/p'`;"  # noqa
@@ -277,7 +258,7 @@ def probe_ssh_only(owner, cloud_id, machine_id, host, key_id='', ssh_user='',
         cmd_output = ssh_command(owner, cloud_id, machine_id,
                                  host, command, key_id=key_id)
     else:
-        retval, cmd_output = shell.command(command)
+        _, cmd_output = shell.command(command)
     cmd_output = [str(part).strip()
                   for part in cmd_output.replace('\r', '').split('--------')]
     log.warn(cmd_output)
@@ -286,8 +267,10 @@ def probe_ssh_only(owner, cloud_id, machine_id, host, key_id='', ssh_user='',
     users = re.split(' users?', uptime_output)[0].split(', ')[-1].strip()
     uptime = cmd_output[2]
     cores = cmd_output[3]
-    ips = re.findall('inet addr:(\S+)', cmd_output[4])
-    m = re.findall('((?:[0-9a-fA-F]{1,2}:){5}[0-9a-fA-F]{1,2})', cmd_output[4])
+    ips = re.findall(r'inet addr:(\S+)', cmd_output[4]) or \
+        re.findall(r'inet (\S+)', cmd_output[4])
+    m = re.findall(r'((?:[0-9a-fA-F]{1,2}:){5}[0-9a-fA-F]{1,2})',
+                   cmd_output[4])
     if '127.0.0.1' in ips:
         ips.remove('127.0.0.1')
     macs = {}
@@ -327,8 +310,8 @@ def _ping_host(host, pkts=10):
                              '1', '-q', host], stdout=subprocess.PIPE)
     ping_parser = pingparsing.PingParsing()
     output = ping.stdout.read()
-    ping_parser.parse(output.decode().replace('pipe 8\n', ''))
-    return ping_parser.as_dict()
+    result = ping_parser.parse(output.decode().replace('pipe 8\n', ''))
+    return result.as_dict()
 
 
 def ping(owner, host, pkts=10):
@@ -381,7 +364,9 @@ def notify_user(owner, title, message="", email_notify=True, **kwargs):
     if 'command' in kwargs:
         output = '%s\n' % kwargs['command']
         if 'output' in kwargs:
-            output += '%s\n' % kwargs['output'].decode('utf-8', 'ignore')
+            if not isinstance(kwargs['output'], str):
+                kwargs['output'] = kwargs['output'].decode('utf-8', 'ignore')
+            output += '%s\n' % kwargs['output']
         if 'retval' in kwargs:
             output += 'returned with exit code %s.\n' % kwargs['retval']
         payload['output'] = output

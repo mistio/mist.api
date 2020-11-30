@@ -7,18 +7,13 @@ import ssl
 import json
 import logging
 import datetime
-
-# Python 2 and 3 support
-from future.standard_library import install_aliases
-install_aliases()
-
+import urllib
 import urllib.parse
-
 import libcloud.security
-from libcloud.compute.types import Provider
-from libcloud.container.types import Provider as Container_Provider
-
 from libcloud.compute.types import NodeState
+from libcloud.container.types import Provider as Container_Provider
+from libcloud.compute.types import Provider
+
 
 log = logging.getLogger(__name__)
 libcloud.security.SSL_VERSION = ssl.PROTOCOL_TLSv1_2
@@ -39,11 +34,10 @@ log.warn("MIST_API_DIR is %s" % MIST_API_DIR)
 ###############################################################################
 ###############################################################################
 
-PORTAL_NAME = "Mist.io"
+PORTAL_NAME = "Mist"
 CORE_URI = "http://localhost"
 LICENSE_KEY = ""
 AMQP_URI = "rabbitmq:5672"
-MEMCACHED_HOST = ["memcached:11211"]
 BROKER_URL = "amqp://guest:guest@rabbitmq/"
 SSL_VERIFY = True
 THEME = ""
@@ -76,6 +70,8 @@ ELASTICSEARCH = {
     'elastic_verify_certs': False
 }
 
+DATABASE_VERSION = 9
+
 UI_TEMPLATE_URL = "http://ui"
 LANDING_TEMPLATE_URL = "http://landing"
 
@@ -89,6 +85,17 @@ JS_LOG_LEVEL = 3
 
 ENABLE_DEV_USERS = False
 
+# policy to be applied on resources' owners
+OWNER_POLICY = {}
+
+# If true, on expiration schedule with action destroy,
+# instead of destroying a machine,
+# stop it, change ownership, untag the machine and
+# create a new schedule that will destroy the machine
+#  in <SAFE_EXPIRATION_DURATION> seconds
+SAFE_EXPIRATION = False
+SAFE_EXPIRATION_DURATION = 60 * 60 * 24 * 7
+
 MONGO_URI = "mongodb:27017"
 MONGO_DB = "mist2"
 
@@ -99,6 +106,7 @@ SUPPORT_URI = 'https://docs.mist.io/contact'
 
 INTERNAL_API_URL = 'http://api'
 GOCKY_HOST = 'gocky'
+GOCKY_PORT = 9096
 
 # InfluxDB
 INFLUX = {
@@ -117,7 +125,7 @@ INFLUXDB_BUILTIN_METRICS = {
         'min_value': 0,
     },
     'system.load1': {
-        'name': 'Load',
+        'name': 'system.load1',
         'unit': '',
         'max_value': 64,
         'min_value': 0,
@@ -221,7 +229,6 @@ GRAPHITE_BUILTIN_METRICS = {
     },
 }
 
-
 # Default Dashboards.
 HOME_DASHBOARD_DEFAULT = {
     "meta": {},
@@ -243,6 +250,190 @@ HOME_DASHBOARD_DEFAULT = {
                 "x-axis": True,
                 "y-axis": True
             }]
+        }],
+        "time": {
+            "from": "now-10m",
+            "to": "now"
+        },
+        "timepicker": {
+            "now": True,
+            "refresh_intervals": [],
+            "time_options": [
+                "10m",
+                "1h",
+                "6h",
+                "24h",
+                "7d",
+                "30d"
+            ]
+        },
+        "timezone": "browser"
+    }
+}
+
+FDB_MACHINE_DASHBOARD_DEFAULT = {
+    "meta": {},
+    "dashboard": {
+        "id": 1,
+        "refresh": "10sec",
+        "rows": [{
+            "height": 300,
+            "panels": [{
+                "id": 0,
+                "title": "Load",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "A",
+                    "target": urllib.parse.quote(
+                        "fetch(\"{id}.system.load(\d)+\"" +
+                        ", start=\"{start}\", stop=\"{stop}\"" +
+                        ", step=\"{step}\")")
+                }],
+                "x-axis": True,
+                "y-axis": True
+            }, {
+                "id": 1,
+                "title": "MEM",
+                "type": "graph",
+                "span": 6,
+                "stack": True,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "B",
+                    "target": urllib.parse.quote(
+                        "fetch(\"{id}.mem.(free|used|cached|buffered)$\"" +
+                        ", start=\"{start}\", stop=\"{stop}\"" +
+                        ", step=\"{step}\")")
+                }, ],
+                "yaxes": [{
+                    "label": "B"
+                }]
+            }, {
+                "id": 2,
+                "title": "CPU total",
+                "type": "graph",
+                "span": 6,
+                "stack": True,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "C",
+                    "target": urllib.parse.quote(
+                        "fetch(\"{id}.cpu.total.usage.*(?<!idle)$\"" +
+                        ", start=\"{start}\", stop=\"{stop}\"" +
+                        ", step=\"{step}\")")
+                }],
+                "yaxes": [{
+                    "label": "%"
+                }]
+            }, {
+                "id": 3,
+                "title": "CPU idle per core",
+                "type": "graph",
+                "span": 6,
+                "stack": True,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "Z",
+                    "target": urllib.parse.quote(
+                        "fetch(\"{id}.cpu.*usage_idle\"" +
+                        ", start=\"{start}\", stop=\"{stop}\"" +
+                        ", step=\"{step}\")")
+                }],
+                "yaxes": [{
+                    "label": "%"
+                }]
+            }, {
+                "id": 4,
+                "title": "NET RX",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "G",
+                    "target": urllib.parse.quote(
+                        "deriv(fetch(\"{id}.net.*.bytes_recv\"" +
+                        ", start=\"{start}\", stop=\"{stop}\"" +
+                        ", step=\"{step}\"))")
+                }],
+                "yaxes": [{
+                    "label": "B/s"
+                }]
+            }, {
+                "id": 5,
+                "title": "NET TX",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "H",
+                    "target": urllib.parse.quote(
+                        "deriv(fetch(\"{id}.net.*.bytes_sent\"" +
+                        ", start=\"{start}\", stop=\"{stop}\"" +
+                        ", step=\"{step}\"))")
+                }],
+                "yaxes": [{
+                    "label": "B/s"
+                }]
+            }, {
+                "id": 6,
+                "title": "DISK READ",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "I",
+                    "target": urllib.parse.quote(
+                        "deriv(fetch(\"{id}.diskio.*.read_bytes\"" +
+                        ", start=\"{start}\", stop=\"{stop}\"" +
+                        ", step=\"{step}\"))")
+                }],
+                "x-axis": True,
+                "y-axis": True,
+                "yaxes": [{
+                    "label": "B/s"
+                }]
+            }, {
+                "id": 7,
+                "title": "DISK WRITE",
+                "type": "graph",
+                "span": 6,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "J",
+                    "target": urllib.parse.quote(
+                        "deriv(fetch(\"{id}.diskio.*.write_bytes\"" +
+                        ", start=\"{start}\", stop=\"{stop}\"" +
+                        ", step=\"{step}\"))")
+                }],
+                "yaxes": [{
+                    "label": "B/s"
+                }]
+            }, {
+                "id": 8,
+                "title": "DF",
+                "type": "graph",
+                "span": 12,
+                "height": 400,
+                "stack": False,
+                "datasource": "mist.monitor",
+                "targets": [{
+                    "refId": "D",
+                    "target": urllib.parse.quote(
+                        "fetch(\"{id}.disk.*\.free\"" +
+                        ", start=\"{start}\", stop=\"{stop}\"" +
+                        ", step=\"{step}\")")
+                }],
+                "yaxes": [{
+                    "label": "B"
+                }]
+            }],
         }],
         "time": {
             "from": "now-10m",
@@ -752,6 +943,7 @@ WINDOWS_MACHINE_DASHBOARD_DEFAULT = {
 
 MONITORING_METHODS = (
     'telegraf-influxdb',
+    'telegraf-tsfdb'
 )
 DEFAULT_MONITORING_METHOD = 'telegraf-influxdb'
 
@@ -764,6 +956,9 @@ CILIA_GRAPHITE_NODATA_TARGETS = (
     "load.shortterm", "load.midterm", "cpu.0.idle"
 )
 CILIA_INFLUXDB_NODATA_TARGETS = (
+    "system.load1", "system.n_cpus", "cpu.cpu=cpu0.usage_user"
+)
+CILIA_FOUNDATIONDB_NODATA_TARGETS = (
     "system.load1", "system.n_cpus", "cpu.cpu=cpu0.usage_user"
 )
 
@@ -941,7 +1136,6 @@ CELERY_SETTINGS = {
         'mist.api.tasks.ssh_command': {'queue': 'command'},
 
         # Machines queue
-        'mist.api.tasks.list_machines': {'queue': 'machines'},
         'mist.api.poller.tasks.list_machines': {'queue': 'machines'},
 
         # Scripts queue (handled by gevent)
@@ -951,18 +1145,24 @@ CELERY_SETTINGS = {
         'mist.api.tasks.machine_action': {'queue': 'scripts'},
 
         # SSH probe queue (handled by gevent)
-        'mist.api.tasks.probe_ssh': {'queue': 'probe'},
         'mist.api.poller.tasks.ssh_probe': {'queue': 'probe'},
 
         # Ping probe queue (handled by gevent)
-        'mist.api.tasks.ping': {'queue': 'ping'},
         'mist.api.poller.tasks.ping_probe': {'queue': 'ping'},
 
         # Rule evaluation queue (handled by gevent)
         'mist.api.rules.tasks.evaluate': {'queue': 'rules'},
 
-        # Core tasks
-        'mist.cloudify_insights.tasks.list_deployments': {
+        # Deployment tasks
+        'mist.api.tasks.create_machine_async': {
+            'queue': 'deployments'},
+        'mist.api.tasks.post_deploy_steps': {
+            'queue': 'deployments'},
+        'mist.api.tasks.openstack_post_create_steps': {
+            'queue': 'deployments'},
+        'mist.api.tasks.azure_post_create_steps': {
+            'queue': 'deployments'},
+        'mist.api.tasks.rackspace_first_gen_post_create_steps': {
             'queue': 'deployments'},
         'mist.rbac.tasks.update_mappings': {'queue': 'mappings'},
         'mist.rbac.tasks.remove_mappings': {'queue': 'mappings'},
@@ -996,23 +1196,25 @@ LANDING_FORMS = [
 ###############################################################################
 
 STATES = {
-    NodeState.RUNNING: 'running',
-    NodeState.REBOOTING: 'rebooting',
-    NodeState.TERMINATED: 'terminated',
-    NodeState.PENDING: 'pending',
+    NodeState.RUNNING.value: 'running',
+    NodeState.REBOOTING.value: 'rebooting',
+    NodeState.TERMINATED.value: 'terminated',
+    NodeState.PENDING.value: 'pending',
     # we assume unknown means stopped, especially for the EC2 case
-    NodeState.UNKNOWN: 'unknown',
-    NodeState.UPDATING: 'updating',
-    NodeState.STOPPED: 'stopped',
-    NodeState.ERROR: 'error',
-    NodeState.PAUSED: 'paused',
-    NodeState.SUSPENDED: 'suspended',
-    NodeState.STARTING: 'starting',
-    NodeState.STOPPING: 'stopping',
-    NodeState.RECONFIGURING: 'reconfiguring',
-    NodeState.MIGRATING: 'migrating',
-    NodeState.NORMAL: 'normal',
+    NodeState.UNKNOWN.value: 'unknown',
+    NodeState.UPDATING.value: 'updating',
+    NodeState.STOPPED.value: 'stopped',
+    NodeState.ERROR.value: 'error',
+    NodeState.PAUSED.value: 'paused',
+    NodeState.SUSPENDED.value: 'suspended',
+    NodeState.STARTING.value: 'starting',
+    NodeState.STOPPING.value: 'stopping',
+    NodeState.RECONFIGURING.value: 'reconfiguring',
+    NodeState.MIGRATING.value: 'migrating',
+    NodeState.NORMAL.value: 'normal',
 }
+
+STAR_IMAGE_ON_MACHINE_CREATE = True
 
 EC2_SECURITYGROUP = {
     'name': 'mistio',
@@ -1035,6 +1237,9 @@ LINODE_DATACENTERS = {
     9: 'Singapore, SG',
     10: 'Frankfurt, DE'
 }
+
+PROVIDERS_WITH_CUSTOM_SIZES = ['vsphere', 'onapp', 'libvirt', 'lxd', 'gig_g8',
+                               'kubevirt']
 
 SUPPORTED_PROVIDERS = [
     # BareMetal
@@ -1308,6 +1513,7 @@ SUPPORTED_PROVIDERS = [
         'provider': Container_Provider.DOCKER,
         'regions': []
     },
+
     # vCloud
     {
         'title': 'VMware vCloud',
@@ -1338,10 +1544,34 @@ SUPPORTED_PROVIDERS = [
         'provider': Provider.VSPHERE,
         'regions': []
     },
-    # Packet
+    # EquinixMetal
     {
-        'title': 'Packet',
-        'provider': Provider.PACKET,
+        'title': 'EquinixMetal',
+        'provider': Provider.EQUINIXMETAL,
+        'regions': []
+    },
+    # Maxihost
+    {
+        'title': 'Maxihost',
+        'provider': Provider.MAXIHOST,
+        'regions': []
+    },
+    # KubeVirt
+    {
+        'title': 'Kubevirt',
+        'provider': Provider.KUBEVIRT,
+        'regions': []
+    },
+    # GigG8
+    {
+        'title': 'GigG8',
+        'provider': Provider.GIG_G8,
+        'regions': []
+    },
+    # LXD
+    {
+        'title': 'LXD',
+        'provider': 'lxd',
         'regions': []
     },
 ]
@@ -1480,13 +1710,13 @@ DOCKER_IMAGES = {
 }
 
 AZURE_ARM_IMAGES = {
-    'MicrosoftWindowsServer:WindowsServer:2012-Datacenter:9200.22776.20190604': 'MicrosoftWindowsServer WindowsServer 2012-Datacenter', # noqa
-    'MicrosoftWindowsServer:WindowsServer:2012-Datacenter-smalldisk:9200.22830.1908092125': 'MicrosoftWindowsServer WindowsServer 2012-Datacenter-smalldisk', # noqa
-    'MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core-smalldisk:14393.3025.20190604': 'MicrosoftWindowsServer WindowsServer 2016-Datacenter-Server-Core-smalldisk', # noqa
-    'MicrosoftWindowsServer:WindowsServer:2016-Datacenter-with-Containers:2016.127.20190603': 'MicrosoftWindowsServer WindowsServer 2016-Datacenter-with-Containers', # noqa
-    'MicrosoftWindowsServer:WindowsServer:2019-Datacenter:2019.0.20190410': 'MicrosoftWindowsServer WindowsServer 2019-Datacenter', # noqa
-    'Canonical:UbuntuServer:16.04.0-LTS:16.04.201906280': 'Canonical UbuntuServer 16.04.0-LTS', # noqa
-    'Canonical:UbuntuServer:18.04-LTS:18.04.201908131': 'Canonical UbuntuServer 18.04-LTS', # noqa
+    'MicrosoftWindowsServer:WindowsServer:2012-Datacenter:9200.22776.20190604': 'MicrosoftWindowsServer WindowsServer 2012-Datacenter',  # noqa
+    'MicrosoftWindowsServer:WindowsServer:2012-Datacenter-smalldisk:9200.22830.1908092125': 'MicrosoftWindowsServer WindowsServer 2012-Datacenter-smalldisk',  # noqa
+    'MicrosoftWindowsServer:WindowsServer:2016-Datacenter-Server-Core-smalldisk:14393.3025.20190604': 'MicrosoftWindowsServer WindowsServer 2016-Datacenter-Server-Core-smalldisk',  # noqa
+    'MicrosoftWindowsServer:WindowsServer:2016-Datacenter-with-Containers:2016.127.20190603': 'MicrosoftWindowsServer WindowsServer 2016-Datacenter-with-Containers',  # noqa
+    'MicrosoftWindowsServer:WindowsServer:2019-Datacenter:2019.0.20190410': 'MicrosoftWindowsServer WindowsServer 2019-Datacenter',  # noqa
+    'Canonical:UbuntuServer:16.04.0-LTS:16.04.201906280': 'Canonical UbuntuServer 16.04.0-LTS',  # noqa
+    'Canonical:UbuntuServer:18.04-LTS:18.04.201908131': 'Canonical UbuntuServer 18.04-LTS',  # noqa
     'RedHat:RHEL:7.3:7.3.2017090723': 'RedHat RHEL 7.3 7.3.2017090723',
     'RedHat:RHEL:6.9:6.9.2017090105': 'RedHat RHEL 6.9 6.9.2017090105',
 }
@@ -1560,7 +1790,7 @@ MACHINE_EXPIRE_NOTIFY_EMAIL_BODY = """Dear %s,
 Your machine `%s` will expire on %s
 
 If you'd like to prevent that, please update the expiration date at %s
-
+%s
 Best regards,
 The mist.io team
 
@@ -1741,6 +1971,7 @@ ALLOW_SIGNUP_GITHUB = False
 ALLOW_SIGNIN_EMAIL = True
 ALLOW_SIGNIN_GOOGLE = False
 ALLOW_SIGNIN_GITHUB = False
+LDAP_SETTINGS = {}
 STRIPE_PUBLIC_APIKEY = False
 ENABLE_AB = False
 ENABLE_R12N = False
@@ -1748,6 +1979,7 @@ ENABLE_MONITORING = True
 ENABLE_SHELL_CAPTURE = False
 MACHINE_PATCHES = True
 ACCELERATE_MACHINE_POLLING = True
+PROCESS_POOL_WORKERS = 0
 PLUGINS = []
 PRE_ACTION_HOOKS = {}
 POST_ACTION_HOOKS = {}
@@ -1755,6 +1987,8 @@ CURRENCY = {
     'sign': '$',
     'rate': '1'
 }
+ENABLE_VSPHERE_REST = False
+VSPHERE_IMAGE_FOLDERS = []
 # DO NOT PUT ANYTHING BELOW HERE UNLESS YOU KNOW WHAT YOU ARE DOING
 
 # Get settings from mist.core.
@@ -1839,7 +2073,7 @@ FROM_ENV_BOOLS = [
     'ALLOW_LIBVIRT_LOCALHOST', 'JS_BUILD', 'VERSION_CHECK', 'USAGE_SURVEY',
 ] + PLUGIN_ENV_BOOLS
 FROM_ENV_ARRAYS = [
-    'MEMCACHED_HOST', 'PLUGINS'
+    'PLUGINS'
 ] + PLUGIN_ENV_ARRAYS
 log.info("Reading settings from environmental variables.")
 for key in FROM_ENV_STRINGS:
@@ -1884,6 +2118,8 @@ HAS_CLOUDIFY_INSIGHTS = HAS_INSIGHTS and HAS_ORCHESTRATION \
 HAS_VPN = 'vpn' in PLUGINS
 HAS_EXPERIMENTS = 'experiments' in PLUGINS
 HAS_MANAGE = 'manage' in PLUGINS
+HAS_AUTH = 'auth' in PLUGINS
+HAS_PRICING = 'pricing' in PLUGINS
 
 # enable backup feature if aws creds have been set
 ENABLE_BACKUPS = bool(BACKUP['key']) and bool(BACKUP['secret'])
@@ -1949,6 +2185,17 @@ if NO_VERIFY_HOSTS:
 WHITELIST_CIDR = [
 ]
 
+if LDAP_SETTINGS and LDAP_SETTINGS.get('SERVER'):
+    if LDAP_SETTINGS.get('AD'):
+        ALLOW_SIGNIN_AD = True
+        ALLOW_SIGNIN_LDAP = False
+    else:
+        ALLOW_SIGNIN_AD = False
+        ALLOW_SIGNIN_LDAP = True
+else:
+    ALLOW_SIGNIN_AD = False
+    ALLOW_SIGNIN_LDAP = False
+
 HOMEPAGE_INPUTS = {
     'portal_name': PORTAL_NAME,
     'theme': THEME,
@@ -1968,6 +2215,8 @@ HOMEPAGE_INPUTS = {
         'signin_email': ALLOW_SIGNIN_EMAIL,
         'signin_google': ALLOW_SIGNIN_GOOGLE,
         'signin_github': ALLOW_SIGNIN_GITHUB,
+        'signin_ldap': ALLOW_SIGNIN_LDAP,
+        'signin_ad': ALLOW_SIGNIN_AD,
         'signin_home': REDIRECT_HOME_TO_SIGNIN,
         'landing_footer': SHOW_FOOTER,
         'docs': DOCS_URI,

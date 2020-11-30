@@ -14,3 +14,7 @@ def to_tunnel(owner, host):
 
 def cross_populate_session_data(event, kwargs):
     return
+
+
+def get_cost_from_price_catalog(machine):
+    return None, None, 1

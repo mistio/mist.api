@@ -1,0 +1,66 @@
+#!/bin/env python
+import csv
+import sys
+from time import time
+from datetime import datetime
+
+from mist.api.users.models import User
+
+
+def nice_date(tstamp):
+    if not tstamp:
+        return None
+    try:
+        return str(datetime.fromtimestamp(int(tstamp)))
+    except:
+        return 'ERROR'
+
+
+def print_csv():
+    """Export all users to csv."""
+    users = User.objects(state='confirmed')
+    with open('mist-%s.csv' % int(time()), 'w') as csvfile:
+        mistwriter = csv.writer(csvfile)
+        index = 1
+        mistwriter.writerow([
+            'email',
+            'first_name',
+            'last_name',
+            'status',
+            'registration_date',
+            'activation_date',
+            'last_login',
+            'monitored_machines',
+        ])
+        for user in users:
+            try:
+                if user.first_name:
+                    first_name = user.first_name
+                else:
+                    first_name = ''
+                if user.last_name:
+                    last_name = user.last_name
+                else:
+                    last_name = ''
+                if user.email:
+                    mistwriter.writerow([
+                        user.email,
+                        first_name,
+                        last_name,
+                        user.status,
+                        nice_date(user.registration_date),
+                        nice_date(user.activation_date),
+                        nice_date(user.last_login),
+                    ])
+            except:
+                print(sys.exc_info()[1])
+                pass
+        index += 1
+
+
+def main():
+    print_csv()
+
+
+if __name__ == "__main__":
+    main()

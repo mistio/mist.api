@@ -8,6 +8,7 @@ are in `mist.api.clouds.controllers.network.controllers`.
 
 """
 
+import asyncio
 import json
 import copy
 import logging
@@ -125,7 +126,7 @@ class BaseNetworkController(BaseController):
 
         # Invoke `self.list_networks` to update the UI and return the Network
         # object at the API. Try 3 times before failing
-        for _ in range(3):
+        for _ in range(5):
             for net in self.list_networks():
                 if net.network_id == libcloud_net.id:
                     return net
@@ -240,24 +241,43 @@ class BaseNetworkController(BaseController):
         """
         task_key = 'cloud:list_networks:%s' % self.cloud.id
         task = PeriodicTaskInfo.get_or_add(task_key)
+        first_run = False if task.last_success else True
+
+        async def _list_subnets_async(networks):
+            loop = asyncio.get_event_loop()
+            subnets = [
+                loop.run_in_executor(None, network.ctl.list_subnets)
+                for network in networks
+            ]
+            return await asyncio.gather(*subnets)
+
         with task.task_runner(persist=persist):
             # Get cached networks as dict
             cached_networks = {'%s-%s' % (n.id, n.network_id): n.as_dict()
                                for n in self.list_cached_networks()}
             networks = self._list_networks()
-            for network in networks:
-                network.ctl.list_subnets()
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                asyncio.set_event_loop(asyncio.new_event_loop())
+                loop = asyncio.get_event_loop()
+            loop.run_until_complete(_list_subnets_async(networks))
 
-        if amqp_owner_listening(self.cloud.owner.id):
+        # Publish patches to rabbitmq.
+        new_networks = {'%s-%s' % (n.id, n.network_id): n.as_dict()
+                        for n in networks}
+        # Exclude last seen and probe field
+        if cached_networks or new_networks:
             # Publish patches to rabbitmq.
-            new_networks = {'%s-%s' % (n.id, n.network_id): n.as_dict()
-                            for n in networks}
-            # Exclude last seen and probe field
-            if cached_networks or new_networks:
-                # Publish patches to rabbitmq.
-                patch = jsonpatch.JsonPatch.from_diff(cached_networks,
-                                                      new_networks).patch
-                if patch:
+            patch = jsonpatch.JsonPatch.from_diff(cached_networks,
+                                                  new_networks).patch
+            if patch:
+                if not first_run and self.cloud.observation_logs_enabled:
+                    from mist.api.logs.methods import log_observations
+                    log_observations(self.cloud.owner.id, self.cloud.id,
+                                     'network', patch, cached_networks,
+                                     new_networks)
+                if amqp_owner_listening(self.cloud.owner.id):
                     amqp_publish_user(self.cloud.owner.id,
                                       routing_key='patch_networks',
                                       data={'cloud_id': self.cloud.id,
@@ -350,6 +370,9 @@ class BaseNetworkController(BaseController):
             cloud=self.cloud, id__nin=[n.id for n in networks],
             missing_since=None
         ).update(missing_since=datetime.datetime.utcnow())
+        Network.objects(
+            cloud=self.cloud, id__in=[n.id for n in networks],
+        ).update(missing_since=None)
 
         # Update RBAC Mappings given the list of new networks.
         self.cloud.owner.mapper.update(new_networks, asynchronous=False)
@@ -558,9 +581,13 @@ class BaseNetworkController(BaseController):
 
         for subnet in Subnet.objects(network=network, missing_since=None):
             subnet.ctl.delete()
-
         libcloud_network = self._get_libcloud_network(network)
-        self._delete_network(network, libcloud_network)
+        try:
+            self._delete_network(network, libcloud_network)
+        except mist.api.exceptions.MistError as exc:
+            log.error("Could not delete network %s", network)
+            raise
+
         self.list_networks()
         from mist.api.poller.models import ListNetworksPollingSchedule
         ListNetworksPollingSchedule.add(cloud=self.cloud, interval=10, ttl=120)
@@ -592,7 +619,12 @@ class BaseNetworkController(BaseController):
         assert subnet.network.cloud == self.cloud
 
         libcloud_subnet = self._get_libcloud_subnet(subnet)
-        self._delete_subnet(subnet, libcloud_subnet)
+        try:
+            self._delete_subnet(subnet, libcloud_subnet)
+        except mist.api.exceptions.MistError as exc:
+            log.error("Could not delete subnet %s", subnet)
+            raise
+
         from mist.api.poller.models import ListNetworksPollingSchedule
         ListNetworksPollingSchedule.add(cloud=self.cloud, interval=10, ttl=120)
 
@@ -607,6 +639,46 @@ class BaseNetworkController(BaseController):
         Subclasses MAY override this method.
         """
         libcloud_subnet.destroy()
+
+    def list_portforwards(self, network):
+        """Available only for GigG8 networks.
+
+        Subclasses SHOULD NOT override or extend this method.
+        """
+        return self._list_portforwards(network)
+
+    def _list_portforwards(self, network):
+        """Available only for GigG8 networks.
+        Subclasses MAY override or extend this method.
+        """
+        raise NotImplementedError()
+
+    def create_portforward(self, network, **kwargs):
+        """Available only for GigG8 networks.
+
+        Subclasses SHOULD NOT override or extend this method.
+        """
+        return self._create_portforward(network, **kwargs)
+
+    def _create_portforward(self, network, **kwargs):
+        """Available only for GigG8 networks.
+        Subclasses MAY override or extend this method.
+        """
+        raise NotImplementedError()
+
+    def delete_portforward(self, network, **kwargs):
+        """Available only for GigG8 networks.
+
+        Subclasses SHOULD NOT override or extend this method.
+        """
+        return self._delete_portforward(network, **kwargs)
+
+    def _delete_portforward(self, network, **kwargs):
+        """Available only for GigG8 networks.
+
+        Subclasses MAY override or extend this method.
+        """
+        return NotImplementedError()
 
     def _get_libcloud_network(self, network):
         """Returns an instance of a libcloud network.
@@ -638,3 +710,17 @@ class BaseNetworkController(BaseController):
                 return sub
         raise mist.api.exceptions.SubnetNotFoundError(
             'Subnet %s with subnet_id %s' % (subnet.name, subnet.subnet_id))
+
+    def list_vnfs(self, host=None):
+        """Available only for Libvirt/KVM clouds
+
+        Subclasses MAY override or extend this method.
+        """
+        return self._list_vnfs(host=host)
+
+    def _list_vnfs(self, host=None):
+        """Available only for Libvirt/KVM clouds
+
+        Subclasses MAY override or extend this method.
+        """
+        return NotImplementedError()

@@ -5,6 +5,7 @@ import jsonpatch
 from random import randrange
 
 from mist.api.helpers import amqp_publish_user
+from mist.api.exceptions import MachineUnavailableError
 
 from mist.api.concurrency.models import PeriodicTaskInfo
 
@@ -55,6 +56,11 @@ class MachineController(object):
         return self.machine.cloud.ctl.compute.rename_machine(self.machine,
                                                              name)
 
+    def expose(self, port_forwards):
+        """Exposes a machine's port to a public one"""
+        return self.machine.cloud.ctl.compute.expose_port(self.machine,
+                                                          port_forwards)
+
     # TODO we want this also ?
     # def tag(self):
     #     return self.machine.cloud.ctl.compute.tag(self.machine)
@@ -86,10 +92,19 @@ class MachineController(object):
         return self.machine.cloud.ctl.compute.revert_machine_to_snapshot(
             self.machine, snapshot_name)
 
-    def undefine(self):
+    def undefine(self, delete_domain_image=False):
         """Undefines machine - used in KVM libvirt
         to destroy machine and delete XML conf"""
-        return self.machine.cloud.ctl.compute.undefine_machine(self.machine)
+        return self.machine.cloud.ctl.compute.undefine_machine(
+            self.machine,
+            delete_domain_image=delete_domain_image)
+
+    def clone(self, name=None):
+        """
+        Clones machine - used in KVM libvirt and vSphere
+        """
+        return self.machine.cloud.ctl.compute.clone_machine(self.machine,
+                                                            name=name)
 
     def associate_key(self, key, username=None, port=22, no_connect=False):
         """Associate an sshkey with a machine"""
@@ -103,7 +118,7 @@ class MachineController(object):
             return self.machine.public_ips[0]
         if self.machine.private_ips:
             return self.machine.private_ips[0]
-        raise RuntimeError("Couldn't find machine host.")
+        raise MachineUnavailableError("Couldn't find machine host.")
 
     def update(self, auth_context, params={}):
         if params.get('expiration'):
@@ -131,7 +146,7 @@ class MachineController(object):
                     'schedule_type': 'one_off',
                     'schedule_entry': exp_date,
                     'action': exp_action,
-                    'conditions': [
+                    'selectors': [
                         {'type': 'machines', 'ids': [self.machine.id]}
                     ],
                     'notify': exp_reminder
@@ -253,7 +268,7 @@ class MachineController(object):
             try:
                 data = probe_ssh_only(
                     self.machine.cloud.owner, self.machine.cloud.id,
-                    self.machine.machine_id, self.get_host(),
+                    self.machine.id, self.get_host(),
                 )
             except:
                 probe = self.machine.ssh_probe

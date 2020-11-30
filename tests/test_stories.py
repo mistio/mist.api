@@ -134,7 +134,7 @@ def test_error_stories(load_logs):
         logs = []
         for log in load_logs[story_type]:
             if log['%s_id' % story_type] == story['story_id']:
-                    logs.append(log)
+                logs.append(log)
         assert len(story['logs']) == len(logs)
 
 
@@ -159,7 +159,7 @@ def test_incidents(load_logs):
         logs = []
         for log in load_logs[story_type]:
             if log['%s_id' % story_type] == story['story_id']:
-                    logs.append(log)
+                logs.append(log)
         assert len(story['logs']) == len(logs)
 
     # Publish new event, which is meant to close the open incident.

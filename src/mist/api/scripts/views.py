@@ -96,7 +96,7 @@ def add_script(request):
 
     # SEC
     auth_context = auth_context_from_request(request)
-    script_tags = auth_context.check_perm("script", "add", None)
+    script_tags, _ = auth_context.check_perm("script", "add", None)
 
     kwargs = {}
 
@@ -421,7 +421,7 @@ def run_script(request):
             machine = Machine.objects.get(id=machine_uuid,
                                           state__ne='terminated')
             # used by logging_view_decorator
-            request.environ['machine_id'] = machine.machine_id
+            request.environ['machine_id'] = machine.id
             request.environ['cloud_id'] = machine.cloud.id
         except me.DoesNotExist:
             raise NotFoundError("Machine %s doesn't exist" % machine_uuid)

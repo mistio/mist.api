@@ -5,15 +5,20 @@ This file should only contain subclasses of `BaseNetworkController`.
 """
 
 import logging
+import asyncio
 
 from mist.api.helpers import rename_kwargs
 
 from mist.api.exceptions import SubnetNotFoundError
 from mist.api.exceptions import NetworkNotFoundError
+from mist.api.exceptions import MistNotImplementedError
+from mist.api.exceptions import MachineNotFoundError
+from mist.api.exceptions import PortForwardCreationError
 
 from mist.api.clouds.controllers.network.base import BaseNetworkController
 
 from libcloud.compute.drivers.azure_arm import AzureNetwork
+from libcloud.common.exceptions import BaseHTTPError
 
 
 log = logging.getLogger(__name__)
@@ -52,6 +57,26 @@ class AzureArmNetworkController(BaseNetworkController):
 
     def _list_subnets__cidr_range(self, subnet, libcloud_subnet):
         return subnet.extra.pop('addressPrefix')
+
+    def _get_libcloud_subnet(self, subnet):
+        networks = self.cloud.ctl.compute.connection.ex_list_networks()
+        network = None
+        for net in networks:
+            if net.id == subnet.network.network_id:
+                network = net
+                break
+        subnets = self.cloud.ctl.compute.connection.ex_list_subnets(network)
+        for sub in subnets:
+            if sub.id == subnet.subnet_id:
+                return sub
+        raise SubnetNotFoundError('Subnet %s with subnet_id \
+            %s' % (subnet.name, subnet.subnet_id))
+
+    def _delete_network(self, network, libcloud_network):
+        raise MistNotImplementedError()
+
+    def _delete_subnet(self, subnet, libcloud_subnet):
+        raise MistNotImplementedError()
 
 
 class AmazonNetworkController(BaseNetworkController):
@@ -120,7 +145,7 @@ class GoogleNetworkController(BaseNetworkController):
         network.mode = libcloud_network.mode
 
     def _list_subnets__fetch_subnets(self, network):
-        filter_expression = 'network eq %s' % network.extra['selfLink']
+        filter_expression = 'network eq %s' % network.extra.get('selfLink')
         return self.cloud.ctl.compute.connection.ex_list_subnetworks(
             filter_expression=filter_expression)
 
@@ -181,8 +206,7 @@ class OpenStackNetworkController(BaseNetworkController):
             setattr(subnet, field, value)
 
     def _delete_network(self, network, libcloud_network):
-        network_id = libcloud_network.id
-        self.cloud.ctl.compute.connection.ex_delete_network(network_id)
+        self.cloud.ctl.compute.connection.ex_delete_network(libcloud_network)
 
     def _delete_subnet(self, subnet, libcloud_subnet):
         self.cloud.ctl.compute.connection.ex_delete_subnet(libcloud_subnet.id)
@@ -190,17 +214,196 @@ class OpenStackNetworkController(BaseNetworkController):
 
 class LibvirtNetworkController(BaseNetworkController):
 
-    def _list_networks__fetch_networks(self):
-        networks = super(LibvirtNetworkController,
-                         self)._list_networks__fetch_networks()
-        networks.extend(self.cloud.ctl.compute.connection.ex_list_interfaces())
+    def list_networks_single_host(self, host):
+        networks = []
+        driver = self.cloud.ctl.compute._get_host_driver(host)
+        networks += driver.ex_list_networks()
+        networks += driver.ex_list_interfaces()
         return networks
+
+    async def list_networks_all_hosts(self, hosts, loop):
+        nets = [
+            loop.run_in_executor(None, self.list_networks_single_host, host)
+            for host in hosts
+        ]
+        return await asyncio.gather(*nets)
+
+    def _list_networks__fetch_networks(self):
+        from mist.api.machines.models import Machine
+        hosts = Machine.objects(cloud=self.cloud, parent=None,
+                                missing_since=None)
+        loop = asyncio.get_event_loop()
+        all_nets = loop.run_until_complete(self.list_networks_all_hosts(hosts,
+                                                                        loop))
+        return [net for host_nets in all_nets for net in host_nets]
+
+    def _list_networks__postparse_network(self, network, libcloud_network,
+                                          r_groups=[]):
+        location = None
+        host_name = libcloud_network.extra.get('host')
+        from mist.api.clouds.models import CloudLocation
+        try:
+            location = CloudLocation.objects.get(cloud=self.cloud,
+                                                 name=host_name)
+        except CloudLocation.DoesNotExist:
+            host_name = host_name.replace('.', '-')
+            try:
+                location = CloudLocation.objects.get(cloud=self.cloud,
+                                                     external_id=host_name)
+            except CloudLocation.DoesNotExist:
+                pass
+
+        network.location = location
 
     def _list_subnets__fetch_subnets(self, network):
         return []
+
+    def _delete_network(self, network, libcloud_network):
+        raise MistNotImplementedError()
+
+    def _delete_subnet(self, subnet, libcloud_subnet):
+        raise MistNotImplementedError()
+
+    def _list_vnfs(self, host=None):
+        from mist.api.machines.models import Machine
+        from mist.api.clouds.models import CloudLocation
+        if not host:
+            hosts = Machine.objects(
+                cloud=self.cloud, parent=None, missing_since=None)
+        else:
+            hosts = [host]
+        vnfs = []
+        for host in hosts:  # TODO: asyncio
+            driver = self.cloud.ctl.compute._get_host_driver(host)
+            host_vnfs = driver.ex_list_vnfs()
+            try:
+                location = CloudLocation.objects.get(cloud=self.cloud,
+                                                     name=host.name)
+            except CloudLocation.DoesNotExist:
+                host_name = host.name.replace('.', '-')
+                try:
+                    location = CloudLocation.objects.get(cloud=self.cloud,
+                                                         external_id=host_name)
+                except CloudLocation.DoesNotExist:
+                    location = None
+            except Exception as e:
+                log.error(e)
+                location = None
+            for vnf in host_vnfs:
+                vnf['location'] = location.id
+            vnfs += host_vnfs
+        return vnfs
 
 
 class VSphereNetworkController(BaseNetworkController):
 
     def _list_subnets__fetch_subnets(self, network):
         return []
+
+
+class LXDNetworkController(BaseNetworkController):
+    """
+    Network controller for LXD
+    """
+
+    def _create_network__prepare_args(self, kwargs):
+
+        if "description" not in kwargs:
+            kwargs["description"] = "No network description"
+
+        # do not expect that kwargs
+        # have the configuration wrapped
+        # this is the default config
+        kwargs["config"] = {"ipv4.address": "none",
+                            "ipv6.address": "none",
+                            "ipv6.nat": "false"}
+
+        if "cidr" in kwargs:
+            kwargs["config"]["ipv4.address"] = kwargs["cidr"]
+
+        if "ipv6.address" in kwargs:
+            kwargs["config"]["ipv6.address"] = kwargs["ipv6.address"]
+
+        if "ipv6.nat" in kwargs:
+            kwargs["config"]["ipv6.nat"] = kwargs["ipv6.nat"]
+
+    def _delete_network(self, network, libcloud_network):
+        conn = self.cloud.ctl.compute.connection
+        conn.ex_delete_network(name=libcloud_network.name)
+
+    def _list_subnets__fetch_subnets(self, network):
+        return []
+
+    def _list_networks__cidr_range(self, network, net):
+        return net.config.get("ipv4.address")
+
+
+class GigG8NetworkController(BaseNetworkController):
+
+    def _list_networks__postparse_network(self, network, libcloud_network,
+                                          r_groups=[]):
+        network.public_ip = libcloud_network.publicipaddress
+
+    def _list_subnets__fetch_subnets(self, network):
+        return []
+
+    def _list_portforwards(self, network):
+        connection = network.cloud.ctl.compute.connection
+        g8_network = None
+
+        for _network in connection.ex_list_networks():
+            if network.network_id == _network.id:
+                g8_network = _network
+                break
+
+        return connection.ex_list_portforwards(g8_network)
+
+    def _create_portforward(self, network, **kwargs):
+        connection = network.cloud.ctl.compute.connection
+        g8_network = None
+        for _network in connection.ex_list_networks():
+            if network.network_id == _network.id:
+                g8_network = _network
+                break
+
+        from mist.api.machines.models import Machine
+        try:
+            machine = Machine.objects.get(cloud=self.cloud,
+                                          id=kwargs.get('machine_id'))
+        except Machine.DoesNotExist:
+            raise MachineNotFoundError()
+
+        libcloud_node = None
+        for node in connection.list_nodes():
+            if node.id == machine.machine_id:
+                libcloud_node = node
+                break
+
+        try:
+            pf = connection.ex_create_portforward(g8_network, libcloud_node,
+                                                  kwargs.get('public_port'),
+                                                  kwargs.get('private_port'),
+                                                  kwargs.get('protocol',
+                                                             'tcp'))
+        except BaseHTTPError as exc:
+            raise PortForwardCreationError(exc.message)
+
+        return pf
+
+    def _delete_portforward(self, network, **kwargs):
+        connection = network.cloud.ctl.compute.connection
+        g8_network = None
+        for _network in connection.ex_list_networks():
+            if network.network_id == _network.id:
+                g8_network = _network
+                break
+
+        ex_portforward = None
+        for pf in connection.ex_list_portforwards(g8_network):
+            if pf.publicport == kwargs.get('public_port') and \
+               pf.protocol == kwargs.get('protocol'):
+                ex_portforward = pf
+                break
+
+        if ex_portforward:
+            connection.ex_delete_portforward(ex_portforward)

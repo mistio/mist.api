@@ -37,6 +37,10 @@ from mist.api.clouds.controllers.storage.base import BaseStorageController
 
 log = logging.getLogger(__name__)
 
+__all__ = [
+    "BaseMainController",
+]
+
 
 class BaseMainController(object):
     """Base main controller class for all cloud types
@@ -149,6 +153,8 @@ class BaseMainController(object):
 
         # Cloud specific argument preparsing cloud-wide argument
         self.cloud.dns_enabled = kwargs.pop('dns_enabled', False) is True
+        self.cloud.observation_logs_enabled = True
+        self.cloud.polling_interval = kwargs.pop('polling_interval', 30 * 60)
 
         # Cloud specific kwargs preparsing.
         try:
@@ -286,6 +292,16 @@ class BaseMainController(object):
             log.error("Cloud %s not unique error: %s", self.cloud, exc)
             raise CloudExistsError()
 
+        # Execute list_images immediately, addresses flaky edit creds test
+        from mist.api.poller.tasks import list_images
+        from mist.api.poller.models import ListImagesPollingSchedule
+        try:
+            schedule_id = str(ListImagesPollingSchedule.objects.get(
+                cloud=self.cloud).id)
+            list_images.apply_async((schedule_id,))
+        except ListImagesPollingSchedule.DoesNotExist:
+            pass
+
     def _update__preparse_kwargs(self, kwargs):
         """Preparse keyword arguments to `self.update`
 
@@ -312,6 +328,8 @@ class BaseMainController(object):
             raise CloudExistsError()
 
     def enable(self):
+        from mist.api.tasks import delete_periodic_tasks
+        delete_periodic_tasks(self.cloud.id)
         self.cloud.enabled = True
         self.cloud.save()
         self.add_polling_schedules()
@@ -326,8 +344,9 @@ class BaseMainController(object):
         # further polling tasks. This may result in `missing_since` being reset
         # to `None`. For that, we schedule a task in the future to ensure that
         # celery has executed all respective poller tasks first.
-        from mist.api.tasks import set_missing_since
+        from mist.api.tasks import set_missing_since, delete_periodic_tasks
         set_missing_since.apply_async((self.cloud.id, ), countdown=30)
+        delete_periodic_tasks.apply_async((self.cloud.id, ), countdown=30)
 
     def dns_enable(self):
         self.cloud.dns_enabled = True
@@ -335,6 +354,14 @@ class BaseMainController(object):
 
     def dns_disable(self):
         self.cloud.dns_enabled = False
+        self.cloud.save()
+
+    def observation_logs_enable(self):
+        self.cloud.observation_logs_enabled = True
+        self.cloud.save()
+
+    def observation_logs_disable(self):
+        self.cloud.observation_logs_enabled = False
         self.cloud.save()
 
     def set_polling_interval(self, interval):
@@ -358,9 +385,10 @@ class BaseMainController(object):
 
         # FIXME Imported here due to circular dependency issues.
         from mist.api.poller.models import ListMachinesPollingSchedule
-        from mist.api.poller.models import ListNetworksPollingSchedule
         from mist.api.poller.models import ListLocationsPollingSchedule
         from mist.api.poller.models import ListSizesPollingSchedule
+        from mist.api.poller.models import ListImagesPollingSchedule
+        from mist.api.poller.models import ListNetworksPollingSchedule
         from mist.api.poller.models import ListZonesPollingSchedule
         from mist.api.poller.models import ListVolumesPollingSchedule
 
@@ -387,6 +415,10 @@ class BaseMainController(object):
         schedule.save()
 
         schedule = ListSizesPollingSchedule.add(cloud=self.cloud)
+        schedule.set_default_interval(60 * 60 * 24)
+        schedule.save()
+
+        schedule = ListImagesPollingSchedule.add(cloud=self.cloud)
         schedule.set_default_interval(60 * 60 * 24)
         schedule.save()
 
@@ -419,4 +451,4 @@ class BaseMainController(object):
         This is only supported on Other Server clouds.
         """
         raise BadRequestError("Adding machines is only supported in Bare"
-                              "Metal clouds.")
+                              "Metal and KVM/Libvirt clouds.")

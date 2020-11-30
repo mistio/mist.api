@@ -1,3 +1,5 @@
+import re
+
 import mist.api.clouds.models as cloud_models
 
 from mist.api.clouds.models import Cloud
@@ -20,9 +22,16 @@ logging.basicConfig(level=config.PY_LOG_LEVEL,
 log = logging.getLogger(__name__)
 
 
+def validate_cloud_title(title):
+    if not re.search(r'^[0-9a-zA-Z]+[0-9a-zA-Z-_ .]{0,}[0-9a-zA-Z]+$', title):
+        raise BadRequestError(
+            "Cloud title may only contain ASCII letters, "
+            "numbers, dashes and dots")
+    return title
+
+
 def add_cloud_v_2(owner, title, provider, params):
     """Add cloud to owner"""
-
     # FIXME: Some of these should be explicit arguments, others shouldn't exist
     fail_on_error = params.pop('fail_on_error',
                                params.pop('remove_on_error', True))
@@ -31,6 +40,8 @@ def add_cloud_v_2(owner, title, provider, params):
     # Find proper Cloud subclass.
     if not provider:
         raise RequiredParameterMissingError("provider")
+
+    title = validate_cloud_title(title)
     log.info("Adding new cloud in provider '%s'", provider)
     if provider not in cloud_models.CLOUDS:
         raise BadRequestError("Invalid provider '%s'." % provider)
@@ -52,17 +63,14 @@ def add_cloud_v_2(owner, title, provider, params):
         owner.clouds_count = c_count
         owner.save()
 
-    cloud.polling_interval = 1800  # 30 min * 60 sec/min
-    cloud.save()
-
     return ret
 
 
 def rename_cloud(owner, cloud_id, new_name):
     """Renames cloud with given cloud_id."""
-
     log.info("Renaming cloud: %s", cloud_id)
     cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
+    new_name = validate_cloud_title(new_name)
     cloud.ctl.rename(new_name)
     log.info("Succesfully renamed cloud '%s'", cloud_id)
     trigger_session_update(owner, ['clouds'])

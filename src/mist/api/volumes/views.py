@@ -71,7 +71,7 @@ def list_volumes(request):
             if cloud.get('enabled'):
                 try:
                     vols = filter_list_volumes(auth_context, cloud.get('id'))
-                    volumes.append(vols)
+                    volumes += vols
                 except (CloudUnavailableError, CloudUnauthorizedError):
                     pass
 
@@ -139,15 +139,17 @@ def create_volume(request):
     auth_context.check_perm("cloud", "create_resources", cloud_id)
     auth_context.check_perm("location", "read", location)
     auth_context.check_perm("location", "create_resources", location)
-    tags = auth_context.check_perm("volume", "add", None) or {}
+    tags, _ = auth_context.check_perm("volume", "add", None)
 
-    if not name and cloud.ctl.provider != 'packet':
+    if not name and cloud.ctl.provider != 'equinixmetal':
         raise RequiredParameterMissingError('name')
 
     if not hasattr(cloud.ctl, 'storage'):
         raise NotImplementedError()
 
     volume = cloud.ctl.storage.create_volume(**params)
+    # ensure logging_view_decorator will log the right volume id
+    request.matchdict['volume'] = volume.id
 
     if tags:
         add_tags_to_resource(auth_context.owner, volume, tags)
@@ -167,6 +169,39 @@ def create_volume(request):
         )
 
     return volume.as_dict()
+
+
+@view_config(route_name='api_v1_storage_classes', request_method='GET',
+             renderer='json')
+def list_storage_classes(request):
+    """
+    Tags: volumes
+    ---
+    List the volumes of a cloud.
+
+    READ permission required on cloud.
+    READ permission required on location.
+    ---
+    cloud:
+      in: path
+      required: true
+      type: string
+    """
+    auth_context = auth_context_from_request(request)
+    cloud_id = request.matchdict.get('cloud')
+
+    try:
+        cloud = Cloud.objects.get(owner=auth_context.owner, id=cloud_id,
+                                  deleted=None)
+    except Cloud.DoesNotExist:
+        raise CloudNotFoundError()
+    if cloud.as_dict()['provider'] != 'kubevirt':
+        raise BadRequestError('Only available for KubeVirt clouds')
+    # SEC
+    auth_context.check_perm('cloud', 'read', cloud_id)
+    storage_classes = cloud.ctl.storage.list_storage_classes()
+
+    return storage_classes
 
 
 @view_config(route_name='api_v1_volume',
@@ -195,11 +230,11 @@ def delete_volume(request):
         type: string
     """
     cloud_id = request.matchdict.get('cloud')
-    external_id = request.matchdict.get('volume')
+    external_id = request.matchdict.get('volume_ext')
     if external_id:
         external_id = '/'.join(external_id)
 
-    volume_id = request.matchdict.get('volume_uuid')
+    volume_id = request.matchdict.get('volume_id')
 
     auth_context = auth_context_from_request(request)
 
@@ -216,11 +251,11 @@ def delete_volume(request):
         try:
             volume = Volume.objects.get(external_id=external_id, cloud=cloud,
                                         missing_since=None)
+            # ensure logging_view_decorator will log the right volume id
+            request.matchdict['volume'] = volume.id
         except me.DoesNotExist:
             raise VolumeNotFoundError()
-
     else:
-
         try:
             volume = Volume.objects.get(id=volume_id,
                                         missing_since=None)
@@ -285,11 +320,11 @@ def volume_action(request):
         raise RequiredParameterMissingError('machine')
 
     cloud_id = request.matchdict.get('cloud')
-    external_id = request.matchdict.get('volume')
+    external_id = request.matchdict.get('volume_ext')
     if external_id:
         external_id = '/'.join(external_id)
 
-    volume_id = request.matchdict.get('volume_uuid')
+    volume_id = request.matchdict.get('volume_id')
 
     if cloud_id:
 
@@ -305,6 +340,8 @@ def volume_action(request):
         try:
             volume = Volume.objects.get(external_id=external_id, cloud=cloud,
                                         missing_since=None)
+            # ensure logging_view_decorator will log the right thing
+            request.matchdict['volume'] = volume.id
         except me.DoesNotExist:
             raise VolumeNotFoundError()
 

@@ -282,7 +282,8 @@ class User(Owner):
     ips = me.EmbeddedDocumentListField(WhitelistIP, default=[])
 
     meta = {
-        'indexes': ['email', 'first_name', 'last_name', 'username']
+        'indexes': [
+            'email', 'first_name', 'last_name', 'username', 'last_login']
     }
 
     def __str__(self):
@@ -336,7 +337,7 @@ class User(Owner):
                 name = (self.first_name or '') + ' ' + (self.last_name or '')
                 return name.strip() or self.email
         except AttributeError:
-                return self.email
+            return self.email
 
     def get_ownership_mapper(self, org):
         """Return the `OwnershipMapper` in the specified Org context."""
