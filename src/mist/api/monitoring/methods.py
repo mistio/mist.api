@@ -54,6 +54,8 @@ from mist.api.rules.models import Rule
 
 from mist.api.tag.methods import get_tags_for_resource
 
+from mist.api.helpers import trigger_session_update
+
 log = logging.getLogger(__name__)
 
 
@@ -336,7 +338,7 @@ def check_monitoring(owner):
     return ret
 
 
-def update_monitoring_options(owner, emails):
+def update_monitoring_options(org, emails):
     """Set `emails` as global e-mail alert's recipients."""
     from mist.api.helpers import is_email_valid
 
@@ -344,12 +346,12 @@ def update_monitoring_options(owner, emails):
     emails = emails.replace(" ", "")
     emails = emails.replace("\n", ",")
     emails = emails.replace("\r", ",")
-    owner.alerts_email = [
+    org.alerts_email = [
         email for email in emails.split(",") if is_email_valid(email)
     ]
-    owner.save()
-    trigger_session_update(owner, ["monitoring"])
-    return {"alerts_email": owner.alerts_email}
+    org.save()
+    trigger_session_update(org, ["org"])
+    return {"alerts_email": org.alerts_email}
 
 
 def enable_monitoring(
