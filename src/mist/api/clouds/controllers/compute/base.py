@@ -2035,83 +2035,71 @@ class BaseComputeController(BaseController):
         """
         raise MistNotImplementedError()
 
-    def generate_create_machine_plan(self, auth_context,
-                                     create_machine_request, plan):
+    def generate_create_machine_plan(self, auth_context, plan, image=None,
+                                     location='', size=None, key=None,
+                                     networks=None, volumes=None, disks=None,
+                                     extra=None, cloudinit=None, fqdn=None,
+                                     monitoring=False, quantity=1):
         """Add provider specific parameters in place to machine creation plan from
         create_machine_request
         """
-        image_dict = create_machine_request.image or {}
-        image = self._parse_image_from_request(auth_context, image_dict)
+        image = self._parse_image_from_request(auth_context, image)
         if image:
             plan['image'] = image
 
-        location = self._parse_location_from_request(
-                        auth_context,
-                        create_machine_request.location)
-        if location:
-            plan['location'] = location
+        if self.cloud.ctl.has_feature('location'):
+            location = self._parse_location_from_request(
+                            auth_context,
+                            location)
+            if location:
+                plan['location'] = location
 
-        size_dict = create_machine_request.size or {}
-        size = self._parse_size_from_request(auth_context, size_dict)
+        size = self._parse_size_from_request(auth_context, size)
         if size:
             plan['size'] = size
 
-        key_dict = create_machine_request.key or {}
-        key = self._parse_key_from_request(auth_context, key_dict)
+        key = self._parse_key_from_request(auth_context, key)
         if key:
             plan['key'] = key
 
-        networks_dict = create_machine_request.net or {}
-        networks = self._parse_networks_from_request(auth_context,
-                                                     networks_dict)
-        if networks:
-            plan['networks'] = networks
+        if self.cloud.ctl.has_feature('networks'):
+            networks = self._parse_networks_from_request(auth_context,
+                                                         networks)
+            if networks:
+                plan['networks'] = networks
 
-        volumes_dict = create_machine_request.volumes or {}
-        volumes = self._parse_volumes_from_request(auth_context,
-                                                   volumes_dict)
-        if volumes:
-            plan['volumes'] = volumes
+        if self.cloud.ctl.has_feature('storage'):
+            volumes = self._parse_volumes_from_request(auth_context,
+                                                       volumes)
+            if volumes:
+                plan['volumes'] = volumes
 
-        disks_dict = create_machine_request.disks or {}
         disks = self._parse_disks_from_request(auth_context,
-                                               disks_dict)
+                                               disks)
         if disks:
             plan['disks'] = disks
 
-        scripts_dict = create_machine_request.scripts or {}
-        scripts = self._parse_scripts_from_request(auth_context,
-                                                   scripts_dict)
-        if scripts:
-            plan['scripts'] = scripts
-
-        extra = create_machine_request.extra or {}
+        extra = extra or {}
         self._parse_extra_from_request(extra, plan)
 
-        if create_machine_request.cloudinit:
-            plan['cloudinit'] = create_machine_request.cloudinit
+        if cloudinit and self.cloud.ctl.has_feature('cloudinit'):
+            plan['cloudinit'] = cloudinit
 
-        if create_machine_request.fqdn:
-            plan['fqdn'] = create_machine_request.fqdn
+        if fqdn and self.cloud.ctl.has_feature('dns'):
+            plan['fqdn'] = fqdn
 
-        if create_machine_request.monitoring is not None:
-            plan['monitoring'] = create_machine_request.monitoring
+        if monitoring is not None:
+            plan['monitoring'] = monitoring
 
-        if create_machine_request.quantity is not None:
-            plan['quantity'] = create_machine_request.quantity
-        else:
-            plan['quantity'] = 1
+        plan['quantity'] = quantity if quantity else 1
 
         self._post_parse_plan(plan)
         return plan
 
-    def _parse_image_from_request(self, auth_context, image_dict):
+    def _parse_image_from_request(self, auth_context, image):
         from mist.api.methods import list_resources
-        image_search = ''
-        for value in ['id', 'name']:
-            if value in image_dict:
-                image_search = image_dict[value]
-                break
+        image_dict = image or {}
+        image_search = image_dict.get('id', '') or image_dict.get('name', '')
         try:
             # TODO handle multiple images
             [image], _ = list_resources(
@@ -2119,6 +2107,7 @@ class BaseComputeController(BaseController):
                 cloud=self.cloud.id, limit=1
             )
         except ValueError:
+            # TODO providers with custom images
             raise NotFoundError('Image does not exist')
         return image.id
 
@@ -2137,31 +2126,32 @@ class BaseComputeController(BaseController):
                                 location.id)
         return location.id
 
-    def _parse_size_from_request(self, auth_context, size_dict):
-        from mist.api.methods import list_resources
-        size_search = ''
-        for value in ['id', 'name']:
-            if value in size_dict:
-                size_search = size_dict[value]
-                break
-        try:
-            [size], _ = list_resources(
-                auth_context, 'size', search=size_search,
-                cloud=self.cloud.id,
-                limit=1
-            )
-        except ValueError:
-            raise NotFoundError('Size does not exist')
+    def _parse_size_from_request(self, auth_context, size):
+        if self.cloud.ctl.has_feature('custom_size'):
+            size = self._parse_custom_size(size)
+            return size
+        else:
+            from mist.api.methods import list_resources
+            size_dict = size or {}
+            size_search = size_dict.get('id', '') or size_dict.get('name', '')
+            try:
+                [size], _ = list_resources(
+                    auth_context, 'size', search=size_search,
+                    cloud=self.cloud.id,
+                    limit=1
+                )
+            except ValueError:
+                raise NotFoundError('Size does not exist')
 
-        return size.id
+            return size.id
 
-    def _parse_key_from_request(self, auth_context, key_dict):
+    def _parse_custom_size(self, size):
+        pass
+
+    def _parse_key_from_request(self, auth_context, key):
         from mist.api.methods import list_resources
-        key_search = ''
-        for value in ['id', 'name']:
-            if value in key_dict:
-                key_search = key_dict[value]
-                break
+        key_dict = key or {}
+        key_search = key_dict.get('id', '') or key_dict.get('name', '')
         try:
             # TODO default key?
             [key], _ = list_resources(
@@ -2206,12 +2196,13 @@ class BaseComputeController(BaseController):
     def _parse_networks_from_request(self, auth_context, network_dict):
         pass
 
-    def _parse_volumes_from_request(self, auth_context, volumes_dict):
+    def _parse_volumes_from_request(self, auth_context, volumes):
         """
         volumes = {
             'id' or 'name: {}
         }
         """
+        volumes_dict = volumes or {}
         from mist.api.methods import list_resources
         # TODO handle handle volume creation
         ret_volumes = []
