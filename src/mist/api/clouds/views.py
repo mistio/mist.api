@@ -63,7 +63,7 @@ def add_cloud(request):
     apikey:
       type: string
       description: Required for Ec2, Hostvirtual, Linode, \
-      Packet, Rackspace, OnApp, SoftLayer, Vultr
+      EquinixMetal, Rackspace, OnApp, SoftLayer, Vultr
     apisecret:
       type: string
       description: Required for Ec2
@@ -141,7 +141,7 @@ def add_cloud(request):
       description: Required for GCE
     project_id:
       type: string
-      description: Required for GCE. Optional for Packet
+      description: Required for GCE. Optional for EquinixMetal
     provider:
       description: The cloud provider.
       required: True
@@ -471,7 +471,8 @@ def list_projects(request):
     Tags: projects
     ---
     Lists projects on cloud.
-    Only supported for Packet. For other providers, returns an empty list
+    Only supported for EquinixMetal.
+    For other providers,returns an empty list
     READ permission required on cloud.
     ---
     cloud:

@@ -1291,7 +1291,7 @@ def maybe_submit_cloud_task(cloud, task_name):
 
     """
     if task_name == 'list_projects':
-        if cloud.ctl.provider != 'packet':
+        if cloud.ctl.provider != 'equinixmetal':
             return False
     return True
 

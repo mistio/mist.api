@@ -98,12 +98,12 @@ def filter_list_locations(auth_context, cloud_id, locations=None, perm='read',
 
 def list_projects(owner, cloud_id):
     """List projects for each account.
-    Currently supported for Packet.net. For other providers
+    Currently supported for Equinix Metal clouds. For other providers
     this returns an empty list
     """
     cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
 
-    if cloud.ctl.provider in ['packet']:
+    if cloud.ctl.provider in ['equinixmetal']:
         conn = connect_provider(cloud)
         projects = conn.ex_list_projects()
         ret = [{'id': project.id,
@@ -364,7 +364,9 @@ def notify_user(owner, title, message="", email_notify=True, **kwargs):
     if 'command' in kwargs:
         output = '%s\n' % kwargs['command']
         if 'output' in kwargs:
-            output += '%s\n' % kwargs['output'].decode('utf-8', 'ignore')
+            if not isinstance(kwargs['output'], str):
+                kwargs['output'] = kwargs['output'].decode('utf-8', 'ignore')
+            output += '%s\n' % kwargs['output']
         if 'retval' in kwargs:
             output += 'returned with exit code %s.\n' % kwargs['retval']
         payload['output'] = output

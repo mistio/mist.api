@@ -364,7 +364,7 @@ class AlibabaStorageController(BaseStorageController):
                 volume.actions.detach = False
 
 
-class PacketStorageController(BaseStorageController):
+class EquinixMetalStorageController(BaseStorageController):
 
     def _create_volume__prepare_args(self, kwargs):
         # FIXME Imported here due to circular dependency issues.
@@ -544,6 +544,12 @@ class LXDStorageController(BaseStorageController):
                                 "type": "custom",
                                 "size_type": "GB",
                                 "config": config}
+
+    def _list_volumes__volume_actions(self, volume, libcloud_volume):
+        super(LXDStorageController, self)._list_volumes__volume_actions(
+            volume, libcloud_volume)
+        # detach_volume is not implemented in libcloud driver
+        volume.actions.detach = False
 
     def _attach_volume(self, libcloud_volume, libcloud_node, **kwargs):
 
