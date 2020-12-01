@@ -36,7 +36,7 @@ class MistInventory(object):
             if key_id not in self.keys:
                 key = SSHKey.objects.get(owner=self.owner, name=key_id,
                                          deleted=None)
-                self.keys[key_id] = key.private
+                self.keys[key_id] = key.private.value
                 if isinstance(key, SignedSSHKey):
                     # if signed ssh key, provide the key appending a -cert.pub
                     # on the name since this is how ssh will include it as

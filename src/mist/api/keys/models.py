@@ -12,6 +12,7 @@ from mist.api.keys import controllers
 from mist.api.keys.base import BaseKeyController
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.ownership.mixins import OwnershipMixin
+from mist.api.secrets.models import SecretValue
 
 log = logging.getLogger(__name__)
 
@@ -49,7 +50,7 @@ class Key(OwnershipMixin, me.Document):
     value should be a subclass of
     `mist.api.keys.controllers.BaseKeyController'. These
     subclasses are stored in `mist.api.keys.BaseKeyController`. When a key is
-    instanciated, it is given a `ctl` attribute which gives access to the
+    instantiated, it is given a `ctl` attribute which gives access to the
     keys controller. This way it is possible to do things like:
 
         key = SSKey.objects.get(id=key_id)
@@ -157,7 +158,7 @@ class SSHKey(Key):
     """An ssh key."""
 
     public = me.StringField(required=True)
-    private = me.StringField(required=True)
+    private = me.EmbeddedDocumentField(SecretValue, required=True)
 
     _controller_cls = controllers.SSHKeyController
     _private_fields = ('private',)
@@ -170,7 +171,7 @@ class SSHKey(Key):
 
         # Generate public key from private key file.
         try:
-            key = RSAKey.from_private_key(io.StringIO(self.private))
+            key = RSAKey.from_private_key(io.StringIO(self.private.value))
             self.public = 'ssh-rsa ' + key.get_base64()
         except Exception:
             log.exception("Error while constructing public key "
@@ -179,7 +180,8 @@ class SSHKey(Key):
 
 
 class SignedSSHKey(SSHKey):
-    """An signed ssh key"""
+    """An signed ssh key."""
+
     certificate = me.StringField(required=True)
 
     _controller_cls = controllers.BaseKeyController

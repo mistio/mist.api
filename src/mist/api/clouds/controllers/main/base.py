@@ -34,6 +34,11 @@ from mist.api.clouds.controllers.compute.base import BaseComputeController
 from mist.api.clouds.controllers.dns.base import BaseDNSController
 from mist.api.clouds.controllers.storage.base import BaseStorageController
 
+from mist.api.secrets.models import VaultSecret, SecretValue
+from mist.api.secrets.methods import maybe_get_secret_from_arg
+
+from mist.api import config
+
 
 log = logging.getLogger(__name__)
 
@@ -154,6 +159,7 @@ class BaseMainController(object):
         # Cloud specific argument preparsing cloud-wide argument
         self.cloud.dns_enabled = kwargs.pop('dns_enabled', False) is True
         self.cloud.observation_logs_enabled = True
+        self.cloud.polling_interval = kwargs.pop('polling_interval', 30 * 60)
 
         # Cloud specific kwargs preparsing.
         try:
@@ -255,14 +261,67 @@ class BaseMainController(object):
                 'msg': "Invalid parameters %s." % list(errors.keys()),
                 'errors': errors,
             })
-
         # Set fields to cloud model and perform early validation.
         for key, value in kwargs.items():
-            setattr(self.cloud, key, value)
+            if value:  # ignore empty values
+                # TODO: In an edge case, where some of the params have been
+                # given plain, and some to be obtained from vault, this doesn't
+                # ensure that the redundant resource (VaultSecret object) will
+                # be deleted
+                secret, _key, arg_from_vault = maybe_get_secret_from_arg(value,
+                                                                         self.
+                                                                         cloud.
+                                                                         owner)
+
+                if secret:  # value will be obtained from vault
+                    data = secret.ctl.read_secret()
+                    if _key not in data.keys():
+                        raise BadRequestError('The key specified (%s) does not exist in \
+                            secret `%s`' % (_key, secret.name))
+
+                    if key in self.cloud._private_fields:
+                        secret_value = SecretValue(secret=secret, key=_key)
+                        setattr(self.cloud, key, secret_value)
+                    else:
+                        setattr(self.cloud, key, data[_key])
+
+                else:
+                    try:
+                        secret = VaultSecret.objects.get(name='%s%s' %
+                                                         (config.
+                                                          VAULT_CLOUDS_PATH,
+                                                          self.cloud.title),
+                                                         owner=self.cloud.
+                                                         owner)
+                    except me.DoesNotExist:
+                        secret = VaultSecret(name='%s%s' %
+                                             (config.VAULT_CLOUDS_PATH,
+                                              self.cloud.title),
+                                             owner=self.cloud.owner)
+                        try:
+                            secret.save()
+                        except me.NotUniqueError:
+                            raise BadRequestError("The path `%s%s` exists on Vault. \
+                                Try changing the name of the cloud" %
+                                                  (config.VAULT_CLOUDS_PATH,
+                                                   self.cloud.title))
+
+                    secret.ctl.create_or_update_secret({key: value})
+
+                    if key in self.cloud._private_fields:
+                        secret_value = SecretValue(secret=secret, key=key)
+                        setattr(self.cloud, key, secret_value)
+                    else:
+                        setattr(self.cloud, key, value)
         try:
             self.cloud.validate(clean=True)
         except me.ValidationError as exc:
             log.error("Error updating %s: %s", self.cloud, exc.to_dict())
+            # delete VaultSecret object and secret
+            # if it was just added to Vault
+            if not arg_from_vault:
+                secret.delete()
+                secret.ctl.delete_secret()
             raise BadRequestError({'msg': str(exc),
                                    'errors': exc.to_dict()})
 
@@ -274,10 +333,20 @@ class BaseMainController(object):
                     SSLError) as exc:
                 log.error("Will not update cloud %s because "
                           "we couldn't connect: %r", self.cloud, exc)
+                # delete VaultSecret object and secret
+                # if it was just added to Vault
+                if not arg_from_vault:
+                    secret.delete()
+                    secret.ctl.delete_secret()
                 raise
             except Exception as exc:
                 log.exception("Will not update cloud %s because "
                               "we couldn't connect.", self.cloud)
+                # delete VaultSecret object and secret
+                # if it was just added to Vault
+                if not arg_from_vault:
+                    secret.delete()
+                    secret.ctl.delete_secret()
                 raise CloudUnavailableError(exc=exc)
 
         # Attempt to save.
@@ -285,10 +354,12 @@ class BaseMainController(object):
             self.cloud.save()
         except me.ValidationError as exc:
             log.error("Error updating %s: %s", self.cloud, exc.to_dict())
+            secret.delete()
             raise BadRequestError({'msg': str(exc),
                                    'errors': exc.to_dict()})
         except me.NotUniqueError as exc:
             log.error("Cloud %s not unique error: %s", self.cloud, exc)
+            secret.delete()
             raise CloudExistsError()
 
         # Execute list_images immediately, addresses flaky edit creds test

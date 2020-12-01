@@ -140,11 +140,12 @@ def add_routes(configurator):
         ui_sections = ['clouds', 'machines', 'images', 'keys', 'scripts',
                        'templates', 'stacks', 'teams', 'networks', 'volumes',
                        'tunnels', 'members', 'insights', 'my-account',
-                       'schedules', 'zones', 'rules']
-        landing_sections = ['sign-up', 'sign-in', 'forgot-password', 'about',
-                            'product', 'buy-license', 'request-pricing',
-                            'get-started', 'privacy-policy', 'pledge', 'tos',
-                            'error', 'index', 'blog']
+                       'schedules', 'zones', 'rules', 'secrets']
+        landing_sections = ['about', 'product', 'pricing',
+                            'sign-up', 'sign-in', 'forgot-password',
+                            'buy-license', 'request-pricing', 'get-started',
+                            'privacy-policy', 'pledge', 'tos',
+                            'error', 'index']
         for section in ui_sections + landing_sections:
             if request.path.startswith('/' + section):
                 return True
@@ -361,6 +362,10 @@ def add_routes(configurator):
     configurator.add_route('api_v1_schedules', '/api/v1/schedules')
     configurator.add_route('api_v1_schedule',
                            '/api/v1/schedules/{schedule_id}')
+
+    # Secrets
+    configurator.add_route('api_v1_secrets', '/api/v1/secrets')
+    configurator.add_route('api_v1_secret', '/api/v1/secrets/{secret}')
 
     # Tokens & sessions
     configurator.add_route('api_v1_tokens', '/api/v1/tokens')

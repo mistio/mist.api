@@ -122,6 +122,15 @@ INFLUX = {
 TELEGRAF_TARGET = ""
 TRAEFIK_API = "http://traefik:8080"
 
+# Hashicorp Vault Default Vars
+VAULT_TOKEN = ''
+VAULT_ADDR = 'http://vault:8200'
+# Mappings between organization names and secret engine paths
+VAULT_SECRET_ENGINE_PATHS = {}
+VAULT_KV_VERSION = 2  # 1 or 2
+VAULT_CLOUDS_PATH = 'clouds/'
+VAULT_KEYS_PATH = 'keys/'
+
 # Default, built-in metrics.
 INFLUXDB_BUILTIN_METRICS = {
     'cpu.cpu=cpu-total.usage_user': {
@@ -2519,7 +2528,7 @@ FROM_ENV_STRINGS = [
     'DOCKER_PORT', 'DOCKER_TLS_KEY', 'DOCKER_TLS_CERT', 'DOCKER_TLS_CA',
     'UI_TEMPLATE_URL', 'LANDING_TEMPLATE_URL', 'THEME',
     'DEFAULT_MONITORING_METHOD', 'LICENSE_KEY', 'AWS_ACCESS_KEY',
-    'AWS_SECRET_KEY', 'AWS_MONGO_BUCKET'
+    'AWS_SECRET_KEY', 'AWS_MONGO_BUCKET', 'VAULT_ADDR', 'VAULT_TOKEN'
 ] + PLUGIN_ENV_STRINGS
 FROM_ENV_INTS = [
     'SHARD_MANAGER_MAX_SHARD_PERIOD', 'SHARD_MANAGER_MAX_SHARD_CLAIMS',

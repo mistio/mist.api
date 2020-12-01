@@ -9,11 +9,6 @@ from mist.api.helpers import trigger_session_update
 from mist.api.exceptions import RequiredParameterMissingError
 from mist.api.exceptions import BadRequestError, NotFoundError
 
-from mist.api.poller.models import ListMachinesPollingSchedule
-from mist.api.poller.models import ListLocationsPollingSchedule
-from mist.api.poller.models import ListSizesPollingSchedule
-from mist.api.poller.models import ListImagesPollingSchedule
-
 from mist.api.monitoring.methods import disable_monitoring_cloud
 
 from mist.api import config
@@ -68,15 +63,6 @@ def add_cloud_v_2(owner, title, provider, params):
         owner.clouds_count = c_count
         owner.save()
 
-    cloud.polling_interval = 1800  # 30 min * 60 sec/min
-    cloud.save()
-
-    # TODO: remove below, most probably doesn't make any difference?
-    ListMachinesPollingSchedule.add(cloud=cloud)
-    ListLocationsPollingSchedule.add(cloud=cloud)
-    ListSizesPollingSchedule.add(cloud=cloud)
-    ListImagesPollingSchedule.add(cloud=cloud)
-
     return ret
 
 
@@ -90,7 +76,7 @@ def rename_cloud(owner, cloud_id, new_name):
     trigger_session_update(owner, ['clouds'])
 
 
-def delete_cloud(owner, cloud_id):
+def delete_cloud(owner, cloud_id, delete_from_vault=False):
     """Deletes cloud with given cloud_id."""
 
     log.info("Deleting cloud: %s", cloud_id)
@@ -108,6 +94,10 @@ def delete_cloud(owner, cloud_id):
         raise NotFoundError('Cloud does not exist')
 
     log.info("Successfully deleted cloud '%s'", cloud_id)
+
+    if delete_from_vault and cloud._private_fields:
+        getattr(cloud, cloud._private_fields[0]).secret.ctl.delete_secret()
+
     trigger_session_update(owner, ['clouds'])
     c_count = Cloud.objects(owner=owner, deleted=None).count()
     if owner.clouds_count != c_count:

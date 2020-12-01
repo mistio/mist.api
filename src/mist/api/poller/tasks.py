@@ -103,6 +103,19 @@ def list_volumes(schedule_id):
     sched.cloud.ctl.storage.list_volumes(persist=False)
 
 
+@app.task(time_limit=60, soft_time_limit=55)
+def list_vault_secrets(schedule_id):
+    """Perform list secrets in Vault. For every new secret found,
+       a VaultSecret object is stored in MongoDB
+    """
+    from mist.api.poller.models import ListVaultSecretsPollingSchedule
+    sched = ListVaultSecretsPollingSchedule.objects.get(id=schedule_id)
+    from mist.api.secrets.models import VaultSecret
+    # TODO: Is there a better way?
+    secret = VaultSecret(owner=sched.owner)
+    secret.ctl.list_secrets()
+
+
 @app.task(time_limit=45, soft_time_limit=40)
 def ping_probe(schedule_id):
     """Perform ping probe"""

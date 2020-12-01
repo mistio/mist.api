@@ -8,6 +8,7 @@ import mongoengine as me
 from mist.api import config
 from mist.api.clouds.models import Cloud
 from mist.api.machines.models import Machine
+from mist.api.users.models import Owner
 from mist.api.sharding.mixins import ShardedScheduleMixin
 
 
@@ -45,7 +46,7 @@ class PollingSchedule(ShardedScheduleMixin, me.Document):
     meta = {
         'allow_inheritance': True,
         'strict': False,
-        'indexes': ['shard_id']
+        'indexes': ['shard_id', 'shard_update_at']
     }
 
     # We use a unique name for easy identification and to avoid running the
@@ -234,6 +235,12 @@ class CloudPollingSchedule(PollingSchedule):
 
     cloud = me.ReferenceField(Cloud, reverse_delete_rule=me.CASCADE)
 
+    meta = {
+        'allow_inheritance': True,
+        'strict': False,
+        'indexes': ['cloud', 'shard_id', 'shard_update_at']
+    }
+
     def get_name(self):
         return '%s(%s)' % (super(CloudPollingSchedule, self).get_name(),
                            self.cloud.id)
@@ -401,3 +408,38 @@ class FindCoresMachinePollingSchedule(MachinePollingSchedule):
     def enabled(self):
         return (super(FindCoresMachinePollingSchedule, self).enabled and
                 config.ENABLE_METERING)
+
+
+class SecretsPollingSchedule(PollingSchedule):
+
+    owner = me.ReferenceField(Owner, reverse_delete_rule=me.CASCADE)
+
+    @classmethod
+    def add(cls, owner, run_immediately=True, interval=None, ttl=300):
+        try:
+            schedule = cls.objects.get(owner=owner)
+        except cls.DoesNotExist:
+            schedule = cls(owner=owner)
+            try:
+                schedule.save()
+            except me.NotUniqueError:
+                # Work around race condition where schedule was created since
+                # last time we checked.
+                schedule = cls.objects.get(owner=owner)
+        schedule.set_default_interval(60 * 60 * 2)
+        if interval is not None:
+            schedule.add_interval(interval, ttl)
+        if run_immediately:
+            schedule.run_immediately = True
+        schedule.cleanup_expired_intervals()
+        schedule.save()
+        return schedule
+
+    def get_name(self):
+        return '%s(%s)' % (super(SecretsPollingSchedule, self).get_name(),
+                           self.owner.id)
+
+
+class ListVaultSecretsPollingSchedule(SecretsPollingSchedule):
+
+    task = 'mist.api.poller.tasks.list_vault_secrets'
