@@ -1576,6 +1576,73 @@ class GoogleComputeController(BaseComputeController):
         except Exception as exc:
             raise BadRequestError('Failed to resize node: %s' % exc)
 
+    def _parse_networks_from_request(self, auth_context, network_dict):
+
+        subnetwork = network_dict.get('subnetwork')
+        network = network_dict.get('network')
+        networks = {}
+
+        from mist.api.methods import list_resources
+        if network:
+            try:
+                [network] = list_resources(auth_context, 'network',
+                                           search=network,
+                                           limit=1)
+            except ValueError:
+                raise NotFoundError('Network does not exist')
+            else:
+                network = network.id
+        else:
+            network = 'default'
+
+        networks['network'] = network
+        '''
+        When creating an instance, if neither the network
+        nor the subnetwork is specified,
+        the default network global/networks/default is used;
+        if the network is not specified but the subnetwork is specified,
+        the network is inferred.
+        '''
+        if subnetwork:
+            # try:
+            try:
+                [subnet], _ = list_resources(auth_context, 'subnet',
+                                             search=subnetwork,
+                                             limit=1)
+            except ValueError:
+                raise NotFoundError('Subnet not found %s' % subnet)
+            else:
+                networks['subnet'] = subnet.id
+
+        return networks
+
+    def _post_parse_plan(self, plan):
+        from mist.api.clouds.models import CloudLocation
+        from mist.api.clouds.models import CloudSize
+
+        location_id = plan['location']
+        location = CloudLocation.objects.get(id=location_id)
+        size_id = plan['size']
+        size = CloudSize.objects.get(id=size_id)
+
+        libcloud_sizes = self.connection.list_sizes(location=location.name)
+        for libcloud_size in libcloud_sizes:
+            if libcloud_size.id == size.external_id:
+                break
+        else:
+            raise BadRequestError('Size given is not supported'
+                                  ' in location %s' % location.name)
+
+        if not plan.get('volumes'):
+            from mist.api.images.models import CloudImage
+            image = CloudImage.objects.get(id=plan['image'])
+            # get minimum disk size required from image
+            try:
+                size = image.extra.get('diskSizeGb')
+            except AttributeError:
+                size = 10
+            plan['volumes'] = [{'size': size}]
+
 
 class HostVirtualComputeController(BaseComputeController):
 
