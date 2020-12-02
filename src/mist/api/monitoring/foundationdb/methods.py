@@ -51,7 +51,7 @@ def get_stats(machine, start="", stop="", step="", metrics=None):
                     returned_metric: {
                         "name": returned_metric,
                         "datapoints": raw_machine_data["series"].get(
-                            raw_metric, []),
+                            raw_metric, {}).get("value", []),
                     }
                 }
             )
@@ -116,7 +116,8 @@ def get_load(org, machines, start, stop, step):
             {
                 machine: {
                     "name": machine,
-                    "datapoints": raw_machine_data["series"].get(metric, []),
+                    "datapoints": raw_machine_data["series"].get(
+                        metric, {}).get("value", []),
                 }
             }
         )
@@ -156,7 +157,7 @@ def get_cores(org, machines, start, stop, step):
         machine, metric = machine_metric.split(".", 1)
         if not cores_datapoints.get(machine):
             cores_datapoints[machine] = {}
-        for _, timestamp in datapoints:
+        for _, timestamp in datapoints["value"]:
             if not cores_datapoints[machine].get(timestamp):
                 cores_datapoints[machine][timestamp] = set()
             cores_datapoints[machine][timestamp].add(metric)
