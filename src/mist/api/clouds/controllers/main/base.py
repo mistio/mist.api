@@ -453,12 +453,16 @@ class BaseMainController(object):
                               "Metal and KVM/Libvirt clouds.")
 
     def has_feature(self, feature):
-        """Returns a dictionary can accept certain parameters
-        in create_machine.
-        feature can be:
+        """Check wether a certain feature is supported by cloud
+        List of features:
             dns
             networks
             storage
+            custom_size
+            cloudinit
+            location
+            key
+            custom_image
         """
         from mist.api.config import PROVIDERS
         from mist.api.exceptions import NotFoundError
@@ -476,6 +480,9 @@ class BaseMainController(object):
         has_feature = False
         if feature in ['dns', 'networks', 'storage']:
             has_feature = provider_dict['features'].get(feature, False)
+        elif feature == 'key':
+            has_feature = provider_dict['features'].get(feature, True)
+            # if dictionary is returned key is supported but not required
         else:
             if provider_dict['features']['provision']:
                 has_feature = provider_dict['features']['provision'].get(
