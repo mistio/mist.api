@@ -2035,10 +2035,10 @@ class BaseComputeController(BaseController):
         """
         raise MistNotImplementedError()
 
-    def generate_create_machine_plan(self, auth_context, plan, image=None,
-                                     location='', size=None, key=None,
-                                     networks=None, volumes=None, disks=None,
-                                     extra=None, cloudinit=None, fqdn=None,
+    def generate_create_machine_plan(self, auth_context, plan, image={},
+                                     location='', size={}, key={},
+                                     networks={}, volumes={}, disks={},
+                                     extra={}, cloudinit='', fqdn='',
                                      monitoring=False, quantity=1):
         """Add provider specific parameters in place to machine creation plan from
         create_machine_request
@@ -2088,17 +2088,14 @@ class BaseComputeController(BaseController):
         if fqdn and self.cloud.ctl.has_feature('dns'):
             plan['fqdn'] = fqdn
 
-        if monitoring is not None:
-            plan['monitoring'] = monitoring
-
+        plan['monitoring'] = monitoring if monitoring is not None else False
         plan['quantity'] = quantity if quantity else 1
 
         self._post_parse_plan(plan)
         return plan
 
-    def _parse_image_from_request(self, auth_context, image):
+    def _parse_image_from_request(self, auth_context, image_dict):
         from mist.api.methods import list_resources
-        image_dict = image or {}
         image_search = image_dict.get('id', '') or image_dict.get('name', '')
         try:
             # TODO handle multiple images
@@ -2107,9 +2104,15 @@ class BaseComputeController(BaseController):
                 cloud=self.cloud.id, limit=1
             )
         except ValueError:
-            # TODO providers with custom images
-            raise NotFoundError('Image does not exist')
+            if self.cloud.ctl.has_feature('custom_image'):
+                image = self._parse_custom_image(image_dict)
+                return image
+            else:
+                raise NotFoundError('Image does not exist')
         return image.id
+
+    def _parse_custom_image(self, image_dict):
+        pass
 
     def _parse_location_from_request(self, auth_context, location_search):
         from mist.api.methods import list_resources
@@ -2126,13 +2129,12 @@ class BaseComputeController(BaseController):
                                 location.id)
         return location.id
 
-    def _parse_size_from_request(self, auth_context, size):
+    def _parse_size_from_request(self, auth_context, size_dict):
         if self.cloud.ctl.has_feature('custom_size'):
-            size = self._parse_custom_size(size)
+            size = self._parse_custom_size(size_dict)
             return size
         else:
             from mist.api.methods import list_resources
-            size_dict = size or {}
             size_search = size_dict.get('id', '') or size_dict.get('name', '')
             try:
                 [size], _ = list_resources(
@@ -2145,15 +2147,29 @@ class BaseComputeController(BaseController):
 
             return size.id
 
-    def _parse_custom_size(self, size):
-        pass
+    def _parse_custom_size(self, size_dict):
+        size = {}
+        size['cpu'] = size_dict.get('cpu', 1)
+        size['ram'] = size_dict.get('ram', 256)
 
-    def _parse_key_from_request(self, auth_context, key):
-        from mist.api.methods import list_resources
-        key_dict = key or {}
+        return size
+
+    def _parse_key_from_request(self, auth_context, key_dict):
+        feature = self.cloud.ctl.has_feature('key')
+        if feature is False:
+            return None
+
         key_search = key_dict.get('id', '') or key_dict.get('name', '')
+        #  key is not required and a key attribute was not given
+        if isinstance(feature, dict) \
+           and feature.get('required') is False \
+           and key_search == '':
+            return None
+        # TODO default key?
+
+        from mist.api.methods import list_resources
         try:
-            # TODO default key?
+
             [key], _ = list_resources(
                 auth_context, 'key', search=key_search, limit=1
             )
@@ -2193,18 +2209,18 @@ class BaseComputeController(BaseController):
                     })
         return ret_scripts
 
-    def _parse_networks_from_request(self, auth_context, network_dict):
+    def _parse_networks_from_request(self, auth_context, networks_dict):
         pass
 
-    def _parse_volumes_from_request(self, auth_context, volumes):
+    def _parse_volumes_from_request(self, auth_context, volumes_dict):
         """
         volumes = {
             'id' or 'name: {}
         }
         """
-        volumes_dict = volumes or {}
+        # TODO parse to be created volumes
         from mist.api.methods import list_resources
-        # TODO handle handle volume creation
+        # TODO handle volume creation
         ret_volumes = []
         for vol_id in volumes_dict:
             try:
@@ -2268,3 +2284,4 @@ class BaseComputeController(BaseController):
                             driver=self.connection)
 
         return image, location, size
+
