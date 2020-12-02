@@ -334,8 +334,8 @@ class AlibabaComputeController(AmazonComputeController):
     def _list_machines__cost_machine(self, machine, node_dict):
         size = node_dict['extra'].get('instance_type', {})
         driver_name = 'ecs-' + node_dict['extra'].get('zone_id')
-        price = get_size_price(driver_type='compute', driver_name=driver_name,
-                               size_id=size)
+        price = get_pricing(
+            driver_type='compute', driver_name=driver_name).get(size, {})
         image = node_dict['extra'].get('image_id', '')
         if 'win' in image:
             price = price.get('windows', '')
@@ -569,6 +569,7 @@ class GigG8ComputeController(BaseComputeController):
         from mist.api.clouds.models import CloudSize
         try:
             _size = CloudSize.objects.get(
+                cloud=self.cloud,
                 external_id=str(node['size'].get('id')))
         except me.DoesNotExist:
             _size = CloudSize(cloud=self.cloud,
@@ -923,24 +924,23 @@ class AzureArmComputeController(BaseComputeController):
             machine.os_type = os_type
             updated = True
 
-        net_id = node_dict['extra'].get('networkProfile')[0].get('id')
-        net_id = net_id.replace('networkInterfaces', 'virtualNetworks')
-        network_id = net_id + '-vnet'
+        subnet = node_dict['extra'].get('subnet')
+        if subnet:
+            network_id = subnet.split('/subnets')[0]
+            from mist.api.networks.models import Network
+            try:
+                network = Network.objects.get(cloud=self.cloud,
+                                              network_id=network_id,
+                                              missing_since=None)
+                if network != machine.network:
+                    machine.network = network
+                    updated = True
+            except me.DoesNotExist:
+                pass
+
+        network_id = machine.network.network_id if machine.network else ''
         if machine.extra.get('network') != network_id:
             machine.extra['network'] = network_id
-            updated = True
-
-        # Discover network of machine.
-        from mist.api.networks.models import Network
-        try:
-            network = Network.objects.get(cloud=self.cloud,
-                                          network_id=network_id,
-                                          missing_since=None)
-        except Network.DoesNotExist:
-            network = None
-
-        if network != machine.network:
-            machine.network = network
             updated = True
 
         return updated
