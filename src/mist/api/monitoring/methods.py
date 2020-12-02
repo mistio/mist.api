@@ -4,6 +4,7 @@ import uuid
 import time
 import datetime
 import logging
+import asyncio
 
 import mongoengine as me
 
@@ -16,6 +17,7 @@ from mist.api.helpers import trigger_session_update
 from mist.api.exceptions import NotFoundError
 from mist.api.exceptions import BadRequestError
 from mist.api.exceptions import MethodNotAllowedError
+from mist.api.exceptions import PolicyUnauthorizedError
 
 from mist.api.users.models import Metric
 from mist.api.clouds.models import Cloud
@@ -590,6 +592,23 @@ def disable_monitoring_cloud(owner, cloud_id, no_ssh=False):
             )
 
 
+async def async_find_metrics(resources):
+    loop = asyncio.get_event_loop()
+    metrics_all = [
+        loop.run_in_executor(None, find_metrics, resource)
+        for resource in resources
+    ]
+    metrics_all = await asyncio.gather(*metrics_all, return_exceptions=True)
+    metrics_dict = {}
+    for resource, metrics in zip(resources, metrics_all):
+        if isinstance(metrics, Exception):
+            log.error("Failed to get metrics for resource %s: %r" %
+                      (resource, metrics))
+        else:
+            metrics_dict.update(metrics)
+    return metrics_dict
+
+
 def find_metrics(resource):
     """Return the metrics associated with the specified resource."""
     if not hasattr(resource, "monitoring") or \
@@ -712,11 +731,9 @@ def list_resources_by_id(resource_type, resource_id, as_dict=True):
         return [resource.as_dict() for resource in resource_objs]
     return resource_objs
 
+
 # SEC
-
-
-def filter_list_resources(
-        resource_type, auth_context, perm='read', as_dict=True):
+def filter_list_resources(resource_type, auth_context, as_dict=True):
     """Returns a list of resources, which is filtered based on RBAC Mappings for
     non-Owners.
     """
@@ -756,7 +773,7 @@ def find_metrics_by_resource_id(auth_context, resource_id, resource_type):
                 for machine in machines:
                     metrics.update(find_metrics(machine))
                 return metrics
-        except:
+        except Cloud.DoesNotExist:
             pass
     for resource_type in resource_types:
         try:
@@ -766,7 +783,9 @@ def find_metrics_by_resource_id(auth_context, resource_id, resource_type):
                 resource_type, resource_id, as_dict=False)
             if resource_objs:
                 return find_metrics(resource_objs[0])
-        except:
+        except NotFoundError:
+            pass
+        except PolicyUnauthorizedError:
             pass
     raise NotFoundError("resource with id:%s" % resource_id)
 
@@ -778,20 +797,22 @@ def find_metrics_by_resource_type(auth_context, resource_type, tags):
     if resource_type == "machine":
         clouds = filter_list_clouds(auth_context, as_dict=False)
         for cloud in clouds:
-            resources += filter_list_machines(
-                auth_context, cloud.id, as_dict=False)
+            try:
+                resources += filter_list_machines(
+                    auth_context, cloud.id, cached=True, as_dict=False)
+            except Cloud.DoesNotExist:
+                log.error("Cloud with id=%s does not exist" % cloud.id)
     else:
         resources = filter_list_resources(
-            resource_type, auth_context, perm='read', as_dict=False)
+            resource_type, auth_context, as_dict=False)
 
     if tags and resources:
         resources = filter_resources_by_tags(resources, tags)
 
-    metrics = {}
-
-    for resource in resources:
-        metrics.update(find_metrics(resource))
-
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    metrics = loop.run_until_complete(async_find_metrics(resources))
+    loop.close()
     return metrics
 
 
@@ -799,15 +820,17 @@ def find_metrics_by_tags(auth_context, tags):
     resource_types = ['cloud', 'machine']
     resources = []
     for resource_type in resource_types:
-        resources += filter_list_resources(
-            resource_type, auth_context, perm='read', as_dict=False)
+        try:
+            resources += filter_list_resources(
+                resource_type, auth_context, as_dict=False)
+        except NotFoundError as e:
+            log.error("%r" % e)
 
     if resources:
         resources = filter_resources_by_tags(resources, tags)
 
-    metrics = {}
-
-    for resource in resources:
-        metrics.update(find_metrics(resource))
-
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    metrics = loop.run_until_complete(async_find_metrics(resources))
+    loop.close()
     return metrics
