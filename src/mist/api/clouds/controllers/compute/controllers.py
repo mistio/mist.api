@@ -1053,6 +1053,25 @@ class SoftLayerComputeController(BaseComputeController):
     def _destroy_machine(self, machine, node):
         self.connection.destroy_node(node)
 
+    def _parse_networks_from_request(self, auth_context, networks_dict):
+        ret_networks = {}
+        vlan = networks_dict.get('vlan')
+        if vlan:
+            ret_networks['vlan'] = vlan
+        return ret_networks
+
+    def _parse_extra_from_request(self, extra, plan):
+        metal = extra.get('metal', False)
+        hourly = extra.get('hourly', False)
+        plan['metal'] = metal
+        plan['hourly'] = hourly
+
+    def _post_parse_plan(self, plan):
+        machine_name = plan.get('machine_name')
+        if '.' in machine_name:
+            plan['domain'] = '.'.join(machine_name.split('.')[1:])
+            plan['machine_name'] = machine_name.split('.')[0]
+
 
 class AzureComputeController(BaseComputeController):
 
