@@ -98,12 +98,12 @@ def filter_list_locations(auth_context, cloud_id, locations=None, perm='read',
 
 def list_projects(owner, cloud_id):
     """List projects for each account.
-    Currently supported for Packet.net. For other providers
+    Currently supported for Equinix Metal clouds. For other providers
     this returns an empty list
     """
     cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
 
-    if cloud.ctl.provider in ['packet']:
+    if cloud.ctl.provider in ['equinixmetal']:
         conn = connect_provider(cloud)
         projects = conn.ex_list_projects()
         ret = [{'id': project.id,
@@ -364,7 +364,9 @@ def notify_user(owner, title, message="", email_notify=True, **kwargs):
     if 'command' in kwargs:
         output = '%s\n' % kwargs['command']
         if 'output' in kwargs:
-            output += '%s\n' % kwargs['output'].decode('utf-8', 'ignore')
+            if not isinstance(kwargs['output'], str):
+                kwargs['output'] = kwargs['output'].decode('utf-8', 'ignore')
+            output += '%s\n' % kwargs['output']
         if 'retval' in kwargs:
             output += 'returned with exit code %s.\n' % kwargs['retval']
         payload['output'] = output
@@ -510,8 +512,8 @@ def create_dns_a_record(owner, domain_name, ip_addr):
     return record
 
 
-def list_resources(auth_context, resource_type, search='',
-                   sort='', start=0, limit=100):
+def list_resources(auth_context, resource_type, search='', cloud='',
+                   only='', sort='', start=0, limit=100):
     """
     List resources of any type.
 
@@ -519,15 +521,28 @@ def list_resources(auth_context, resource_type, search='',
     """
     from mist.api.helpers import get_resource_model
     from mist.api.clouds.models import CLOUDS
-
     resource_model = get_resource_model(resource_type)
+
     # Init query dict
     if resource_type == 'rule':
         query = {"owner_id": auth_context.org.id}
-    else:
+    elif hasattr(resource_model, 'owner'):
         query = {"owner": auth_context.org}
+    else:
+        query = {}
+
+    if resource_type in ['cloud', 'key', 'script', 'template']:
+        query['deleted'] = False
+    elif resource_type in ['machine', 'network', 'volume', 'image']:
+        query['missing_since'] = None
+
+    if cloud:
+        clouds, _ = list_resources(auth_context, 'cloud', search=cloud, only='id')
+        query['cloud__in'] = clouds
+
     search = search or ''
     sort = sort or ''
+    only = only or ''
     # search filter is either an id or a space separated key/value terms
     if search and ':' not in search and '=' not in search:
         query['id'] = search
@@ -548,11 +563,24 @@ def list_resources(auth_context, resource_type, search='',
             # TODO: only allow terms on indexed fields
             # TODO: support OR keyword
             query[k] = v
-    result = resource_model.objects(**query)
-    if not auth_context.is_owner():
-        allowed_resources = auth_context.get_allowed_resources(
-            rtype=resource_type)
-        result = result.filter(id__in=allowed_resources)
-    sorted_result = result.order_by(sort)
 
-    return sorted_result[start:start + limit], sorted_result.count()
+    result = resource_model.objects(**query)
+
+    if only:
+        only_list = only.split(',')
+        result = result.only(*only_list)
+
+    if not result.count() and query.get('id'):
+        # Try searching for name or title field
+        field_name = 'name' if getattr(resource_model, 'name', None) else 'title'
+        query[field_name] = query.pop('id')
+        result = resource_model.objects(**query)
+
+    if result.count():
+        if not auth_context.is_owner():
+            allowed_resources = auth_context.get_allowed_resources(
+                rtype=resource_type)
+            result = result.filter(id__in=allowed_resources)
+        result = result.order_by(sort)
+
+    return result[start:start + limit], result.count()

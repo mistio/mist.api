@@ -742,7 +742,8 @@ rtype_to_classpath = {
     'volume': 'mist.api.volumes.models.Volume',
     'location': 'mist.api.clouds.models.CloudLocation',
     'image': 'mist.api.images.models.CloudImage',
-    'rule': 'mist.api.rules.models.Rule'
+    'rule': 'mist.api.rules.models.Rule',
+    'size': 'mist.api.clouds.models.CloudSize',
 }
 
 if config.HAS_VPN:
@@ -1292,7 +1293,7 @@ def maybe_submit_cloud_task(cloud, task_name):
 
     """
     if task_name == 'list_projects':
-        if cloud.ctl.provider != 'packet':
+        if cloud.ctl.provider != 'equinixmetal':
             return False
     return True
 
