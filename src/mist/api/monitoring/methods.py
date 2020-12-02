@@ -809,8 +809,11 @@ def find_metrics_by_resource_type(auth_context, resource_type, tags):
     if tags and resources:
         resources = filter_resources_by_tags(resources, tags)
 
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
     metrics = loop.run_until_complete(async_find_metrics(resources))
     loop.close()
     return metrics
@@ -829,8 +832,11 @@ def find_metrics_by_tags(auth_context, tags):
     if resources:
         resources = filter_resources_by_tags(resources, tags)
 
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
     metrics = loop.run_until_complete(async_find_metrics(resources))
     loop.close()
     return metrics
