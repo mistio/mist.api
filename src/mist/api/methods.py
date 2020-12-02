@@ -513,7 +513,7 @@ def create_dns_a_record(owner, domain_name, ip_addr):
 
 
 def list_resources(auth_context, resource_type, search='', cloud='',
-                   only='', sort='', start=0, limit=100):
+                   only='', sort='', start=0, limit=100, deref=None):
     """
     List resources of any type.
 
