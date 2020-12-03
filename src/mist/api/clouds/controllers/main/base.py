@@ -286,6 +286,9 @@ class BaseMainController(object):
                         setattr(self.cloud, key, data[_key])
 
                 else:
+                    # first store key in Vault
+                    secret.ctl.create_or_update_secret({key: value})
+
                     try:
                         secret = VaultSecret.objects.get(name='%s%s' %
                                                          (config.
@@ -307,8 +310,6 @@ class BaseMainController(object):
                                 Try changing the name of the cloud" %
                                                   (config.VAULT_CLOUDS_PATH,
                                                    self.cloud.title))
-
-                    secret.ctl.create_or_update_secret({key: value})
 
                     if key in self.cloud._private_fields:
                         secret_value = SecretValue(secret=secret, key=key)

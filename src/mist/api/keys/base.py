@@ -74,6 +74,9 @@ class BaseKeyController(object):
                     secret = VaultSecret(name='%s%s' % (config.VAULT_KEYS_PATH,
                                                         self.key.name),
                                          owner=self.key.owner)
+                    # first store key in Vault
+                    secret.ctl.create_or_update_secret({key: value})
+                    # save the VaultSecret object and assign owner
                     try:
                         secret.save()
                         if user:
@@ -84,7 +87,6 @@ class BaseKeyController(object):
                                               (config.VAULT_KEYS_PATH,
                                                self.key.name))
 
-                    secret.ctl.create_or_update_secret({key: value})
                     secret_value = SecretValue(secret=secret, key='private')
             else:
                 setattr(self.key, key, value)
