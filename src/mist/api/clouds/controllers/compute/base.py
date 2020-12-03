@@ -41,6 +41,7 @@ from mist.api.exceptions import CloudUnauthorizedError
 from mist.api.exceptions import SSLError
 from mist.api.exceptions import MistNotImplementedError
 from mist.api.exceptions import NotFoundError
+from mist.api.exceptions import MachineCreationError
 
 from mist.api.helpers import get_datetime
 from mist.api.helpers import amqp_publish
@@ -2285,3 +2286,100 @@ class BaseComputeController(BaseController):
 
         return image, location, size
 
+    def create_machine(self, plan):
+        args, kwargs = self._compute_args_kwargs(plan)
+
+        try:
+            if self.cloud.ctl.has_feature('container'):
+                # TODO this will not work for kubevirt
+                node = self.connection.deploy_container(*args, **kwargs)
+            else:
+                node = self.connection.create_node(*args, **kwargs)
+        except Exception as exc:
+            # TODO docker tries to pull image
+            # when exception occurs
+            self._handle_create_machine_exception(exc, args, kwargs)
+
+        self._post_machine_creation_steps(node, args, kwargs, plan)
+
+        return node
+
+    def _compute_args_kwargs(self, plan):
+        key = self._get_key_object_from_plan(plan.get('key'))
+        image = self._get_image_object_from_plan(plan.get('image'))
+        location = self._get_location_object_from_plan(plan.get('location'))
+        size = self._get_size_object_from_plan(plan.get('size'))
+
+        return (plan['machine_name'], image, size, location, key), {}
+
+    def _handle_create_machine_exception(self, exc, args, kwargs):
+        raise MachineCreationError("%s, got exception %s"
+                                   % (self.cloud.title, exc), exc)
+
+    def _post_machine_creation_steps(self, node, args, kwargs, plan):
+        pass
+
+    def _get_key_object_from_plan(self, key_id):
+        """
+        """
+        if key_id and self.cloud.ctl.has_feature('key'):
+            from mist.api.keys.models import Key
+            try:
+                key = Key.objects.get(id=key_id)
+            except me.DoesNotExist:
+                # this should not happen,key
+                # already exists in mongo since during plan generation
+                # the same query was sucessful
+                # TODO handle this
+                raise NotFoundError('Key does not exist')
+            key.public = key.public.replace('\n', '')
+            return key
+
+    def _get_image_object_from_plan(self, image):
+        if image:
+            from mist.api.images.models import CloudImage
+            try:
+                cloud_image = CloudImage.objects.get(id=image)
+            except me.DoesNotExist:
+                if self.cloud.ctl.has_feature('custom_image'):
+                    return image
+                else:
+                    raise NotFoundError('Image does not exist')
+            image_obj = NodeImage(cloud_image.external_id,
+                                  name=cloud_image.name,
+                                  extra=cloud_image.extra,
+                                  driver=self.connection)
+            return image_obj
+
+    def _get_location_object_from_plan(self, location_id):
+        if location_id and self.cloud.ctl.has_feature('location'):
+            from mist.api.clouds.models import CloudLocation
+            try:
+                cloud_location = CloudLocation.objects.get(id=location_id)
+            except me.DoesNotExist:
+                raise NotFoundError('Location does not exist')
+            location = NodeLocation(cloud_location.external_id,
+                                    name=cloud_location.name,
+                                    country=cloud_location.country,
+                                    extra=cloud_location.extra,
+                                    driver=self.connection)
+            return location
+
+    def _get_size_object_from_plan(self, size):
+        if self.cloud.ctl.has_feature('custom_size'):
+            return size
+        else:
+            from mist.api.clouds.models import CloudSize
+            try:
+                cloud_size = CloudSize.objects.get(id=size)
+            except me.DoesNotExist:
+                raise NotFoundError('Location does not exist')
+            size_obj = NodeSize(cloud_size.external_id,
+                                name=cloud_size.name,
+                                ram=cloud_size.ram,
+                                disk=cloud_size.disk,
+                                bandwidth=cloud_size.bandwidth,
+                                price=cloud_size.extra.get('price'),
+                                extra=cloud_size.extra,
+                                driver=self.connection)
+            return size_obj

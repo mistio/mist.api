@@ -478,7 +478,7 @@ class BaseMainController(object):
                 raise NotFoundError('Provider does not exist')
 
         has_feature = False
-        if feature in ['dns', 'networks', 'storage']:
+        if feature in ['dns', 'networks', 'storage', 'container']:
             has_feature = provider_dict['features'].get(feature, False)
         elif feature == 'key':
             has_feature = provider_dict['features'].get(feature, True)
