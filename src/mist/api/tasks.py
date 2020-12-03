@@ -1204,7 +1204,7 @@ def delete_periodic_tasks(cloud_id):
 
 @app.task
 def create_backup():
-    """Create mongo backup if s3 creds are set.
+    """Create mongo and influx backup if s3 creds are set.
     """
     # If MONGO_URI consists of multiple hosts get the last one
     mongo_backup_host = config.MONGO_URI.split('//')[-1].split('/')[0].split(
