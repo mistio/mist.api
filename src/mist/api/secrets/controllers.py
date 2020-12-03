@@ -42,6 +42,8 @@ class VaultSecretController(BaseSecretController):
         url = config.VAULT_ADDR
 
         self.client = hvac.Client(url=url, token=token)
+        #self.client = hvac.Client(url=url, token='s.bTMxur6uP18e6PEJzHbY4O4p')
+
         try:
             self.client.is_authenticated()
         except hvac.exceptions.VaultDown:
@@ -97,9 +99,6 @@ class VaultSecretController(BaseSecretController):
                 # find recursively all the secrets
                 secrets += self.list_secrets(key)
 
-        # delete secret objects that have been removed from Vault, from mongoDB
-        VaultSecret.objects(owner=org,
-                            id__nin=[s.id for s in secrets]).delete()
         return secrets
 
     def create_or_update_secret(self, secret):
