@@ -1061,10 +1061,8 @@ class SoftLayerComputeController(BaseComputeController):
         return ret_networks
 
     def _parse_extra_from_request(self, extra, plan):
-        metal = extra.get('metal', False)
-        hourly = extra.get('hourly', False)
-        plan['metal'] = metal
-        plan['hourly'] = hourly
+        plan['metal'] = extra.get('metal', False)
+        plan['hourly'] = extra.get('hourly', False)
 
     def _post_parse_plan(self, plan):
         machine_name = plan.get('machine_name')
