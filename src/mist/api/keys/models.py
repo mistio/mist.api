@@ -104,7 +104,7 @@ class Key(OwnershipMixin, me.Document):
                                      if field not in Key._fields]
 
     @classmethod
-    def add(cls, owner, name, id='', **kwargs):
+    def add(cls, owner, name, id='', user=None, **kwargs):
         """Add key
 
         This is a class method, meaning that it is meant to be called on the
@@ -122,7 +122,7 @@ class Key(OwnershipMixin, me.Document):
         key = cls(owner=owner, name=name)
         if id:
             key.id = id
-        key.ctl.add(**kwargs)
+        key.ctl.add(user=user, **kwargs)
         return key
 
     def delete(self):

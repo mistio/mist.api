@@ -67,9 +67,11 @@ def add_key(request):
         raise RequiredParameterMissingError("Private key is not provided")
 
     if certificate:
-        key = SignedSSHKey.add(auth_context.owner, key_name, **params)
+        key = SignedSSHKey.add(auth_context.owner, key_name,
+                               user=auth_context.user, **params)
     else:
-        key = SSHKey.add(auth_context.owner, key_name, **params)
+        key = SSHKey.add(auth_context.owner, key_name,
+                         user=auth_context.user, **params)
 
     # Set ownership.
     key.assign_to(auth_context.user)
