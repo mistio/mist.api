@@ -172,7 +172,7 @@ class Cloud(OwnershipMixin, me.Document):
                                        if field not in Cloud._fields]
 
     @classmethod
-    def add(cls, owner, title, id='', **kwargs):
+    def add(cls, owner, title, user, id='', **kwargs):
         """Add cloud
 
         This is a class method, meaning that it is meant to be called on the
@@ -200,7 +200,7 @@ class Cloud(OwnershipMixin, me.Document):
         cloud = cls(owner=owner, title=title)
         if id:
             cloud.id = id
-        cloud.ctl.add(**kwargs)
+        cloud.ctl.add(user, **kwargs)
         return cloud
 
     def delete(self):
