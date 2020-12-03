@@ -286,8 +286,6 @@ class BaseMainController(object):
                         setattr(self.cloud, key, data[_key])
 
                 else:
-                    # first store key in Vault
-                    secret.ctl.create_or_update_secret({key: value})
 
                     try:
                         secret = VaultSecret.objects.get(name='%s%s' %
@@ -296,11 +294,14 @@ class BaseMainController(object):
                                                           self.cloud.title),
                                                          owner=self.cloud.
                                                          owner)
+                        secret.ctl.create_or_update_secret({key: value})
                     except me.DoesNotExist:
                         secret = VaultSecret(name='%s%s' %
                                              (config.VAULT_CLOUDS_PATH,
                                               self.cloud.title),
                                              owner=self.cloud.owner)
+                        # first store key in Vault
+                        secret.ctl.create_or_update_secret({key: value})
                         try:
                             secret.save()
                             if user:
