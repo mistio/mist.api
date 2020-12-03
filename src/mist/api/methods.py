@@ -364,10 +364,9 @@ def notify_user(owner, title, message="", email_notify=True, **kwargs):
     if 'command' in kwargs:
         output = '%s\n' % kwargs['command']
         if 'output' in kwargs:
-            if isinstance(kwargs['output'], str):
-                output += '%s\n' % kwargs['output']
-            else:
-                output += '%s\n' % kwargs['output'].decode('utf-8', 'ignore')
+            if not isinstance(kwargs['output'], str):
+                kwargs['output'] = kwargs['output'].decode('utf-8', 'ignore')
+            output += '%s\n' % kwargs['output']
         if 'retval' in kwargs:
             output += 'returned with exit code %s.\n' % kwargs['retval']
         payload['output'] = output
@@ -514,7 +513,7 @@ def create_dns_a_record(owner, domain_name, ip_addr):
 
 
 def list_resources(auth_context, resource_type, search='', cloud='',
-                   only='', sort='', start=0, limit=100):
+                   only='', sort='', start=0, limit=100, deref=None):
     """
     List resources of any type.
 

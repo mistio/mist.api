@@ -1457,7 +1457,7 @@ class BaseComputeController(BaseController):
             # TODO move it up
             from mist.api.methods import ssh_command
             return ssh_command(self.cloud.owner, self.cloud.id,
-                               machine.machine_id, hostname, command)
+                               machine.id, hostname, command)
         except MistError as exc:
             log.error("Could not reboot machine %s", machine)
             raise
@@ -1556,7 +1556,7 @@ class BaseComputeController(BaseController):
             node_size = NodeSize(size.external_id, name=size.name,
                                  ram=size.ram, disk=size.disk,
                                  bandwidth=size.bandwidth,
-                                 price=size.extra['price'],
+                                 price=size.extra.get('price'),
                                  driver=self.connection)
             self._resize_machine(machine, node, node_size, kwargs)
         except Exception as exc:
