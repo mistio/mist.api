@@ -217,6 +217,10 @@ def home(request):
                         if images:
                             template_inputs['image'] = images[0].get(
                                 'content', '')
+                        rss = soup.select('link[type="application/rss+xml"]')
+                        if rss:
+                            template_inputs['rss'] = rss[0].get('href')
+                        template_inputs['url'] = request.url
                     except Exception as exc:
                         log.error("Failed to parse page `%s` from `%s`: %r" % (
                             page, page_uri, exc))
