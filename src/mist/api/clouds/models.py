@@ -172,6 +172,10 @@ class Cloud(OwnershipMixin, me.Document):
         self._cloud_specific_fields = [field for field in type(self)._fields
                                        if field not in Cloud._fields]
 
+    @property
+    def provider(self):
+        return self.ctl.provider
+
     @classmethod
     def add(cls, owner, title, id='', **kwargs):
         """Add cloud
