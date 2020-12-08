@@ -77,7 +77,7 @@ class BaseKeyController(object):
                     try:
                         secret.save()
                     except me.NotUniqueError:
-                        raise BadRequestError("The path `%s%s` exists on Vault. \
+                        raise KeyExistsError("The path `%s%s` exists on Vault. \
                             Try changing the name of the key" %
                                               (config.VAULT_KEYS_PATH,
                                                self.key.name))
