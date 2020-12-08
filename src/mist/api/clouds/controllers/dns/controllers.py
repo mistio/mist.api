@@ -194,7 +194,8 @@ class RackSpaceDNSController(BaseDNSController):
             elif self.cloud.region == 'lon':
                 region = 'uk'
             driver = get_driver(Provider.RACKSPACE)
-        return driver(self.cloud.username, self.cloud.apikey.value, region=region)
+        return driver(self.cloud.username, self.cloud.apikey.value,
+                      region=region)
 
     def _create_zone__prepare_args(self, kwargs):
         kwargs['extra'] = {'email': kwargs.pop('email', "")}
