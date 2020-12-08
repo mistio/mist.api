@@ -2,8 +2,12 @@
 import os
 import argparse
 import requests
+import shutil
+import json
+import asyncio
 
 from mist.api import config
+
 
 def main():
     argparser = argparse.ArgumentParser(
@@ -12,14 +16,15 @@ def main():
     argparser.add_argument('backup', help="Backup to restore.")
     args = argparser.parse_args()
     s3_host = config.BACKUP.get('host', 's3.amazonaws.com')
-    cmd = 's3cmd --host=%s --access_key=%s --secret_key=%s get %s' % (
+    cmd = 's3cmd --force --host=%s --host-bucket=\'%%(bucket).storage.googleapis.com\' --access_key=%s --secret_key=%s get %s' % (
         s3_host, config.BACKUP['key'], config.BACKUP['secret'],
         args.backup)
     os.system(cmd)
     dump_path = args.backup.split('/')[-1]
     if dump_path.endswith('.gpg'):
         new_path = dump_path.replace('.gpg', '')
-        cmd = 'gpg --pinentry-mode loopback -o %s -d %s' % (new_path, dump_path)
+        cmd = 'gpg --pinentry-mode loopback -o %s -d %s' % (
+            new_path, dump_path)
         os.system(cmd)
         dump_path = new_path
 
@@ -48,8 +53,62 @@ def main():
                 query = query % (db, db)
                 requests.post('%s?db=%s_bak&q=%s' % (url, db, query))
                 requests.post('%s?q=DROP database %s_bak' % (url, db))
+    elif 'tsfdb' in args.backup:
+        restore_tsfdb(dump_path)
     else:
         print('Unknown backup type')
+
+
+def restore_tsfdb(dump_path):
+    org = dump_path.split('-')[1]
+    shutil.unpack_archive(dump_path, f"/tmp/{org}", format='bztar')
+    from pathlib import Path
+    p = Path(f"/tmp/{org}")
+    json_files = [pth for pth in p.iterdir()
+                  if pth.suffix == '.json']
+    for json_file in json_files:
+        with open(json_file) as json_file:
+            json_file = json.load(json_file)
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            loop.run_until_complete(send_to_tsfdb(json_file, org))
+            loop.close()
+
+
+async def send_to_tsfdb(json_file, org):
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    tasks = [
+        loop.run_in_executor(None, post_to_tsfdb,
+                             *(f"{config.TSFDB_URI}/v1/datapoints",
+                               {key: json_file.get(key)},
+                               {'x-org-id': org}))
+        for key, _ in json_file.items()
+    ]
+    await gather_with_concurrency(10, *tasks)
+    # await asyncio.gather(*tasks)
+
+
+def post_to_tsfdb(url, payload, headers):
+    requests.post(
+        url, headers=headers, timeout=60, json=payload
+    )
+
+
+async def gather_with_concurrency(n, *tasks):
+    semaphore = asyncio.Semaphore(n)
+
+    async def sem_task(task):
+        async with semaphore:
+            return await task
+    return await asyncio.gather(*(sem_task(task) for task in tasks))
+
 
 if __name__ == '__main__':
     main()

@@ -754,7 +754,7 @@ def group_machines_actions(owner_id, action, name, machines_uuids):
                                                  exc)
 
     log_dict.update({'last_run_at': str(schedule.last_run_at or ''),
-                    'total_run_count': schedule.total_run_count or 0,
+                     'total_run_count': schedule.total_run_count or 0,
                      'error': log_dict['error']}
                     )
     log_event(action='schedule_finished', **log_dict)
@@ -878,7 +878,7 @@ def run_machine_action(owner_id, action, name, machine_uuid):
                     main_body = config.MACHINE_EXPIRE_NOTIFY_EMAIL_BODY
                     sch_entry = machine.expiration.schedule_type.entry
                     body = main_body % ((user.first_name + " " +
-                                        user.last_name).strip(),
+                                         user.last_name).strip(),
                                         machine.name,
                                         sch_entry,
                                         machine_uri + '/expiration',
@@ -1204,6 +1204,86 @@ def delete_periodic_tasks(cloud_id):
 
 @app.task
 def create_backup():
+    def fetch_tsfdb_datapoints_machine(org, machine, start,
+                                       stop, resolution, path_dir):
+        import requests
+        import urllib
+        import json
+        query = (f'fetch(\"{machine}.*\"'
+                 f', start=\"{start}\", stop=\"{stop}\"'
+                 f', step=\"{""}\", resolution=\"{resolution}\")')
+        data = requests.get(
+            f"{config.TSFDB_URI}/v1/datapoints?query="
+            f"{urllib.parse.quote(query)}",
+            headers={'x-org-id': org}, timeout=60
+        ).json().get("series")
+        print(data)
+        path_file = f"{path_dir}/{machine}.json"
+        with open(path_file, "w") as json_file:
+            json_file.write(json.dumps(data))
+
+    async def gather_with_concurrency(n, *tasks):
+        import asyncio
+        semaphore = asyncio.Semaphore(n)
+
+        async def sem_task(task):
+            async with semaphore:
+                return await task
+        return await asyncio.gather(*(sem_task(task) for task in tasks))
+
+    async def fetch_tsfdb_datapoints(org, start, stop, resolution, path_dir):
+        import asyncio
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        tasks = [
+            loop.run_in_executor(None, fetch_tsfdb_datapoints_machine,
+                                 *(org, machine, start,
+                                   stop, resolution, path_dir))
+            for machine in Machine.objects(owner=org, missing_since=None)
+        ]
+        await gather_with_concurrency(10, *tasks)
+        # await asyncio.gather(*tasks)
+
+    def create_tsfdb_backup(s3_host, portal_host):
+        import os
+        import errno
+        import shutil
+        import asyncio
+        dt = datetime.datetime.now()
+        dt = dt.replace(microsecond=0, second=0, minute=0)
+        orgs = Organization.objects()
+        start = dt - datetime.timedelta(hours=1)
+        stop = dt
+        resolution = "minute"
+        for org in orgs:
+            dir_name = "%s-%s-%s" % (org.id, start.strftime(
+                '%Y-%m-%d-%H%M'), stop.strftime('%Y-%m-%d-%H%M'))
+            path_dir = "/tmp/" + dir_name
+            try:
+                os.mkdir(path_dir)
+                print(path_dir)
+            except OSError as e:
+                if e.errno != errno.EEXIST:
+                    raise
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            loop.run_until_complete(fetch_tsfdb_datapoints(
+                org.id, start, stop, resolution, path_dir))
+            loop.close()
+            shutil.make_archive(path_dir, 'bztar', path_dir)
+            os.system(f"s3cmd --host={s3_host} --host-bucket="
+                      f"\'%%(bucket).storage.googleapis.com\'"
+                      f" --access_key={config.BACKUP['key']}"
+                      f" --secret_key={config.BACKUP['secret']} put "
+                      f"{path_dir}.tar.bz2 s3://{config.BACKUP['bucket']}"
+                      f"/tsfdb/{portal_host}-{dir_name} && rm -rf"
+                      f" {path_dir}.tar.bz2 {path_dir}")
     """Create mongo backup if s3 creds are set.
     """
     # If MONGO_URI consists of multiple hosts get the last one
@@ -1250,6 +1330,8 @@ def create_backup():
                 influx_backup_host, config.BACKUP['gpg']['recipient'],
                 s3_host, config.BACKUP['key'], config.BACKUP['secret'],
                 config.BACKUP['bucket'], portal_host, dt))
+
+    create_tsfdb_backup(s3_host, portal_host)
 
 
 @app.task
