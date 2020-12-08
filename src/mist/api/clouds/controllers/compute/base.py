@@ -2305,12 +2305,7 @@ class BaseComputeController(BaseController):
         pass
 
     def create_machine(self, plan):
-        image = self._get_image_object_from_plan(plan.get('image'))
-        location = self._get_location_object_from_plan(plan.get('location'))
-        size = self._get_size_object_from_plan(plan.get('size'))
-        key = self._get_key_object_from_plan(plan.get('key'))
-
-        kwargs = self._compute_kwargs(plan, image, size, location, key)
+        kwargs = self._create_machine__compute_kwargs(plan)
 
         try:
             if self.cloud.ctl.has_feature('container'):
@@ -2321,16 +2316,25 @@ class BaseComputeController(BaseController):
         except Exception as exc:
             # TODO docker tries to pull image
             # when exception occurs
-            self._handle_create_machine_exception(exc, kwargs)
+            self._create_machine__handle_exception(exc, kwargs)
 
-        self._post_machine_creation_steps(node, kwargs, plan)
+        self._create_machine__post_machine_creation_steps(node, kwargs, plan)
 
         return node
 
-    def _compute_kwargs(self, plan, image, size, location, key):
+    def _create_machine__compute_kwargs(self, plan):
+        """
+        """
         kwargs = {
             'name': plan['machine_name']
         }
+
+        image = self._create_machine__get_image_object(plan.get('image'))
+        location = self._create_machine__get_location_object(
+            plan.get('location'))
+        size = self._create_machine__get_size_object(plan.get('size'))
+        key = self._create_machine__get_key_object(plan.get('key'))
+
         if image:
             kwargs['image'] = image
 
@@ -2344,16 +2348,16 @@ class BaseComputeController(BaseController):
             kwargs['auth'] = key
         return kwargs
 
-    def _handle_create_machine_exception(self, exc, kwargs):
+    def _create_machine__handle_exception(self, exc, kwargs):
         raise MachineCreationError("%s, got exception %s"
                                    % (self.cloud.title, exc), exc)
 
-    def _post_machine_creation_steps(self, node, kwargs, plan):
+    def _create_machine__post_machine_creation_steps(self, node, kwargs, plan):
         """
         """
         pass
 
-    def _get_key_object_from_plan(self, key):
+    def _create_machine__get_key_object(self, key):
         """
         """
         if key and self.cloud.ctl.has_feature('key'):
@@ -2365,7 +2369,7 @@ class BaseComputeController(BaseController):
             key_obj.public = key_obj.public.replace('\n', '')
             return key_obj
 
-    def _get_image_object_from_plan(self, image):
+    def _create_machine__get_image_object(self, image):
         if image:
             from mist.api.images.models import CloudImage
             try:
@@ -2381,7 +2385,7 @@ class BaseComputeController(BaseController):
                                   driver=self.connection)
             return image_obj
 
-    def _get_location_object_from_plan(self, location):
+    def _create_machine__get_location_object(self, location):
         if location and self.cloud.ctl.has_feature('location'):
             from mist.api.clouds.models import CloudLocation
             try:
@@ -2395,7 +2399,7 @@ class BaseComputeController(BaseController):
                                         driver=self.connection)
             return location_οbj
 
-    def _get_size_object_from_plan(self, size):
+    def _create_machine__get_size_object(self, size):
         if self.cloud.ctl.has_feature('custom_size'):
             return size
         else:
