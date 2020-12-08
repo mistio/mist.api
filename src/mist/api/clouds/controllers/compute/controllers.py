@@ -311,7 +311,7 @@ class AmazonComputeController(BaseComputeController):
                 return 'vyatta'
             return 'linux'
 
-    def _parse_networks_from_request(self, auth_context, network_dict):
+    def _generate_plan__parse_networks(self, auth_context, network_dict):
         security_group = network_dict.get('security_group')
         subnet = network_dict.get('subnet')
 
@@ -364,24 +364,13 @@ class AmazonComputeController(BaseComputeController):
         # TODO
         pass
 
-    def create_machine(self, plan):
+    def _create_machine__compute_kwargs(self, plan):
+        kwargs = super()._create_machine__compute_kwargs(plan)
+        kwargs['ex_keyname'] = kwargs['auth'].name
+        kwargs['auth'] = NodeAuthSSHKey(pubkey=kwargs['auth'].public)
 
-        from mist.api.keys.models import Key
-
-        key = Key.objects.get(id=plan['key'])
-        image, location, size = self.get_libcloud_objects(plan)
-        kwargs = {
-            'auth': NodeAuthSSHKey(pubkey=key.public.replace('\n', '')),
-            'name': plan['machine_name'],
-            'image': image,
-            'size': size,
-            'location': location,
-            'ex_keyname': key.name,
-            'ex_userdata': plan.get('cloudinit', '')
-        }
-
+        kwargs['ex_userdata'] = plan.get('cloudinit', '')
         security_group = plan['networks']['security_group']
-
         # if id is not given, then default security group does not exist
         if not security_group.get('id'):
             try:
@@ -425,12 +414,7 @@ class AmazonComputeController(BaseComputeController):
                 'ex_securitygroup': plan['networks']['security_group']['name']
             })
 
-        try:
-            node = self.connection.create_node(**kwargs)
-        except Exception as exc:
-            raise MachineCreationError("EC2, got exception %s" % exc, exc)
-
-        return node
+        return kwargs
 
 
 class AlibabaComputeController(AmazonComputeController):
