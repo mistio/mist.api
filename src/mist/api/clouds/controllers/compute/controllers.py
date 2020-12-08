@@ -582,6 +582,26 @@ class DigitalOceanComputeController(BaseComputeController):
     def _list_sizes__get_cpu(self, size):
         return size.extra.get('vcpus')
 
+    def _compute_sizes_for_location(self, location, sizes):
+        """DigitalOcean size object has a `regions` key in `extra`
+        with all available locations for given size
+        """
+        size_list = []
+        for size in sizes:
+            if location.external_id in size.extra['regions']:
+                size_list.append(size)
+        return size_list
+
+    def _compute_images_for_size_location(self, location, size, images):
+        """DigitalOcean image object has a `regions` key in `extra`
+        with all available locations for given image
+        """
+        image_list = []
+        for image in images:
+            if location.external_id in image.extra['regions']:
+                image_list.append(image)
+        return image_list
+
     def create_machine(self, plan):
         """
         plan = {
