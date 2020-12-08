@@ -2129,8 +2129,8 @@ class BaseComputeController(BaseController):
         from mist.api.methods import list_resources
         # TODO make it required
         image_search = image_dict.get('id', '') or image_dict.get('name', '')
-        if not image_search:
-            raise BadRequestError('Image is required')
+        # if not image_search:
+        #    raise BadRequestError('Image id or name is required')
 
         try:
             images, _ = list_resources(
@@ -2173,8 +2173,8 @@ class BaseComputeController(BaseController):
         else:
             from mist.api.methods import list_resources
             size_search = size_dict.get('id', '') or size_dict.get('name', '')
-            if not size_search:
-                raise BadRequestError('Size is required')
+            # if not size_search:
+            #    raise BadRequestError('Size id or name is required')
             try:
                 sizes, _ = list_resources(
                     auth_context, 'size', search=size_search,
@@ -2197,7 +2197,7 @@ class BaseComputeController(BaseController):
     def _get_allowed_image_size_location_combinations(self, images=None,
                                                       locations=None,
                                                       sizes=None):
-        """ Find all possible triads of images, locations and sizes
+        """ Find all possible combinations of images, locations and sizes
         based on provider constraints.
         """
         ret_list = []
@@ -2209,7 +2209,6 @@ class BaseComputeController(BaseController):
                     location, size, images)
                 for image in available_images:
                     ret_list.append((image, size, location))
-
         return ret_list
 
     def _compute_sizes_for_location(self, location, sizes):
@@ -2234,6 +2233,9 @@ class BaseComputeController(BaseController):
         Subclasses that require special handling should override these, by
         default, dummy methods.
         """
+        if not combination_list:
+            raise NotFoundError('No available plan exists for given'
+                                'image, size, location')
         return combination_list[0]
 
     def _generate_plan__parse_key(self, auth_context, key_dict):
