@@ -1217,7 +1217,6 @@ def create_backup():
             f"{urllib.parse.quote(query)}",
             headers={'x-org-id': org}, timeout=60
         ).json().get("series")
-        print(data)
         path_file = f"{path_dir}/{machine}.json"
         with open(path_file, "w") as json_file:
             json_file.write(json.dumps(data))
@@ -1240,14 +1239,14 @@ def create_backup():
             asyncio.set_event_loop(loop)
         tasks = [
             loop.run_in_executor(None, fetch_tsfdb_datapoints_machine,
-                                 *(org, machine, start,
+                                 *(org, machine.id, start,
                                    stop, resolution, path_dir))
             for machine in Machine.objects(owner=org, missing_since=None)
         ]
         await gather_with_concurrency(10, *tasks)
         # await asyncio.gather(*tasks)
 
-    def create_tsfdb_backup(s3_host, portal_host):
+    def create_tsfdb_backup(s3_host, portal_host, host_bucket):
         import os
         import errno
         import shutil
@@ -1259,12 +1258,11 @@ def create_backup():
         stop = dt
         resolution = "minute"
         for org in orgs:
-            dir_name = "%s-%s-%s" % (org.id, start.strftime(
-                '%Y-%m-%d-%H%M'), stop.strftime('%Y-%m-%d-%H%M'))
+            dir_name = (f"{org.id}-{start.strftime('%Y-%m-%d-%H%M')}"
+                        f"-{stop.strftime('%Y-%m-%d-%H%M')}")
             path_dir = "/tmp/" + dir_name
             try:
                 os.mkdir(path_dir)
-                print(path_dir)
             except OSError as e:
                 if e.errno != errno.EEXIST:
                     raise
@@ -1277,8 +1275,7 @@ def create_backup():
                 org.id, start, stop, resolution, path_dir))
             loop.close()
             shutil.make_archive(path_dir, 'bztar', path_dir)
-            os.system(f"s3cmd --host={s3_host} --host-bucket="
-                      f"\'%%(bucket).storage.googleapis.com\'"
+            os.system(f"s3cmd --host={s3_host} --host-bucket=\'{host_bucket}\'"
                       f" --access_key={config.BACKUP['key']}"
                       f" --secret_key={config.BACKUP['secret']} put "
                       f"{path_dir}.tar.bz2 s3://{config.BACKUP['bucket']}"
@@ -1293,21 +1290,25 @@ def create_backup():
     influx_backup_host = config.INFLUX.get('backup', '').replace(
         'http://', '').replace('https://', '')
     s3_host = config.BACKUP.get('host', 's3.amazonaws.com')
+    host_bucket = config.BACKUP.get(
+        'host_bucket', '%%(bucket)s.s3.amazonaws.com')
     dt = datetime.datetime.now().strftime('%Y%m%d%H%M')
     portal_host = config.CORE_URI.split('//')[1]
     if all(value == '' for value in config.BACKUP.get('gpg', {}).values()):
         os.system("mongodump --host %s --gzip --archive | s3cmd --host=%s \
-        --access_key=%s --secret_key=%s put - s3://%s/mongo/%s-%s" % (
+        --access_key=%s --secret_key=%s --host-bucket=\'%s\' put \
+             - s3://%s/mongo/%s-%s" % (
             mongo_backup_host, s3_host, config.BACKUP['key'],
-            config.BACKUP['secret'], config.BACKUP['bucket'],
+            config.BACKUP['secret'], host_bucket, config.BACKUP['bucket'],
             portal_host, dt))
         if influx_backup_host:
             os.system("influxd backup -portable -host %s ./influx-snapshot &&\
-            tar cv influx-snapshot |\
+            tar cv influx-snapshot | \
             s3cmd --host=%s --access_key=%s --secret_key=%s \
-            put - s3://%s/influx/%s-%s && rm -rf influx-snapshot" % (
+                 --host-bucket=\'%s\' put - s3://%s/influx/%s-%s \
+                     && rm -rf influx-snapshot" % (
                 influx_backup_host, s3_host, config.BACKUP['key'],
-                config.BACKUP['secret'], config.BACKUP['bucket'],
+                config.BACKUP['secret'], host_bucket, config.BACKUP['bucket'],
                 portal_host, dt))
     elif config.BACKUP['gpg'].get('public'):  # encrypt with gpg if configured
         f = open('pub.key', 'w+')
@@ -1316,22 +1317,23 @@ def create_backup():
         os.system("gpg --import pub.key && \
         mongodump --host %s --gzip --archive |\
         gpg --yes --trust-model always --encrypt --recipient %s |\
-        s3cmd --host=%s --access_key=%s --secret_key=%s put \
-        - s3://%s/mongo/%s-%s.gpg" % (
+        s3cmd --host=%s --access_key=%s --secret_key=%s --host-bucket=\'%s\' \
+        put - s3://%s/mongo/%s-%s.gpg" % (
             mongo_backup_host, config.BACKUP['gpg']['recipient'],
             s3_host, config.BACKUP['key'], config.BACKUP['secret'],
-            config.BACKUP['bucket'], portal_host,
+            host_bucket, config.BACKUP['bucket'], portal_host,
             dt))
         if influx_backup_host:
             os.system("influxd backup -portable -host %s ./influx-snapshot \
             && tar cv influx-snapshot | gpg --yes --trust-model always \
             --encrypt --recipient %s | s3cmd --host=%s --access_key=%s \
-            --secret_key=%s put - s3://%s/influx/%s-%s.gpg" % (
+            --secret_key=%s --host-bucket=\'%s\' \
+                put - s3://%s/influx/%s-%s.gpg" % (
                 influx_backup_host, config.BACKUP['gpg']['recipient'],
                 s3_host, config.BACKUP['key'], config.BACKUP['secret'],
-                config.BACKUP['bucket'], portal_host, dt))
+                host_bucket, config.BACKUP['bucket'], portal_host, dt))
 
-    create_tsfdb_backup(s3_host, portal_host)
+    create_tsfdb_backup(s3_host, portal_host, host_bucket)
 
 
 @app.task
