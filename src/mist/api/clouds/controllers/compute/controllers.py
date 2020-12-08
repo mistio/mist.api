@@ -602,55 +602,36 @@ class DigitalOceanComputeController(BaseComputeController):
                 image_list.append(image)
         return image_list
 
-    def create_machine(self, plan):
-        """
-        plan = {
-        }
-        """
-        from mist.api.keys.models import Key
-        key = Key.objects.get(id=plan['key'])
-
-        public_key = key.public.replace('\n', '')
+    def _create_machine__get_key_object(self, key):
+        key_obj = super()._create_machine__get_key_object(key)
         server_key = ''
-        keys = self.connection.list_key_pairs()
-        for k in keys:
-            if public_key == k.public_key:
-                server_key = k
+        libcloud_keys = self.connection.list_key_pairs()
+        for libcloud_key in libcloud_keys:
+            if libcloud_key.public_key == key_obj.public:
+                server_key = libcloud_key
                 break
-
         if not server_key:
-            server_key = self.connection.create_key_pair(plan['machine_name'],
-                                                         public_key)
-
-        # _create_machine_digital_ocean checks for `private_networking`
-        # in location.extra but no location seems to return it.
-        private_networking = True
-        # ex_ssh_key_ids will be deprecated
-        # ex_ssh_key_ids = [str(server_key.extra.get('id'))]
-        ex_create_attr = {
-            'private_networking': private_networking,
-            'ssh_keys': [str(server_key.extra.get('id'))]
-        }
-        # TODO volumes
-
-        image, location, size = self.get_libcloud_objects(plan)
-
-        size.name = size.id
-        try:
-            node = self.connection.create_node(
-                name=plan['machine_name'],
-                image=image,
-                size=size,
-                location=location,
-                ex_create_attr=ex_create_attr,
-                ex_user_data=plan.get('cloudinit', ''),
-                volumes=[]
+            server_key = self.connection.create_key_pair(
+                key_obj.name, key_obj.public
             )
-        except Exception as e:
-            raise MachineCreationError(
-                "Digital Ocean, got exception %s" % e, e)
+        return server_key.extra.get('id')
 
-        return node
+    def _create_machine__get_size_object(self, size):
+        size_obj = super()._create_machine__get_size_object(size)
+        size_obj.name = size_obj.id
+        return size_obj
+
+    def _create_machine__compute_kwargs(self, plan):
+        kwargs = super()._create_machine__compute_kwargs(plan)
+        # apiV1 function _create_machine_digital_ocean checks for
+        # `private_networking` in location.extra but no location
+        # seems to return it.
+        kwargs['ex_create_attr'] = {
+            'private_networking': True,
+            'ssh_keys': [kwargs.pop('auth')]
+        }
+
+        return kwargs
 
 
 class MaxihostComputeController(BaseComputeController):
