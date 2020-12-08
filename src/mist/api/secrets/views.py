@@ -173,5 +173,5 @@ def delete_secret(request):
 
     auth_context.check_perm('secret', 'delete', secret_id)
     secret.ctl.delete_secret()
-
+    secret.delete()
     return OK
