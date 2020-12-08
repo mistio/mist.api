@@ -2036,52 +2036,80 @@ class BaseComputeController(BaseController):
         """
         raise MistNotImplementedError()
 
-    def generate_create_machine_plan(self, auth_context, plan, image={},
-                                     location='', size={}, key={},
-                                     networks={}, volumes={}, disks={},
-                                     extra={}, cloudinit='', fqdn='',
-                                     monitoring=False, quantity=1):
-        """Add provider specific parameters in place to machine creation plan from
-        create_machine_request
+    def generate_plan(self, auth_context, plan, image={},
+                      location='', size={}, key={},
+                      networks={}, volumes={}, disks={},
+                      extra={}, cloudinit='', fqdn='',
+                      monitoring=False, quantity=1):
+        """Generate a machine creation plan.
+
+        Subclasses SHOULD NOT override or extend this method
+
+        There are instead a number of methods that are called from this method,
+        to allow subclasses to modify the data according to the specifics of
+        their cloud type. These methods are:
+
+            `self._generate_plan__parse_image`
+            `self._generate_plan__parse_custom_image`
+            `self._generate_plan__parse_location`
+            `self._generate_plan__parse_size`
+            `self._generate_plan__parse_custom_size`
+            `self._generate_plan__get_image_size_location`
+            `self._generate_plan__parse_key`
+            `self._generate_plan__parse_networks`
+            `self._generate_plan__parse_volumes`
+            `self._generate_plan__parse_networks`
+            `self._generate_plan__parse_disks`
+            `self._generate_plan__parse_extra`
+            `self._generate_plan__post_parse_plan`
+
+        Subclasses that require special handling should override these methods.
         """
-        image = self._parse_image_from_request(auth_context, image)
-        if image:
-            plan['image'] = image
+        images = self._generate_plan__parse_image(auth_context, image)
 
         if self.cloud.ctl.has_feature('location'):
-            location = self._parse_location_from_request(
+            locations = self._generate_plan__parse_location(
                             auth_context,
                             location)
-            if location:
-                plan['location'] = location
+        else:
+            locations = None
 
-        size = self._parse_size_from_request(auth_context, size)
+        sizes = self._generate_plan__parse_size(auth_context, size)
+
+        comb_list = self._get_allowed_image_size_location_combinations(
+            images, locations, sizes)
+        image, size, location = self._compute_best_combination(comb_list)
+
+        if location:
+            plan['location'] = location.id
         if size:
-            plan['size'] = size
+            plan['size'] = size.id
+        if image:
+            plan['image'] = image.id
 
-        key = self._parse_key_from_request(auth_context, key)
+        key = self._generate_plan__parse_key(auth_context, key)
         if key:
             plan['key'] = key
 
         if self.cloud.ctl.has_feature('networks'):
-            networks = self._parse_networks_from_request(auth_context,
-                                                         networks)
+            networks = self._generate_plan__parse_networks(auth_context,
+                                                           networks)
             if networks:
                 plan['networks'] = networks
 
         if self.cloud.ctl.has_feature('storage'):
-            volumes = self._parse_volumes_from_request(auth_context,
-                                                       volumes)
+            volumes = self._generate_plan__parse_volumes(auth_context,
+                                                         volumes)
             if volumes:
                 plan['volumes'] = volumes
 
-        disks = self._parse_disks_from_request(auth_context,
-                                               disks)
+        disks = self._generate_plan__parse_disks(auth_context,
+                                                 disks)
         if disks:
             plan['disks'] = disks
 
         extra = extra or {}
-        self._parse_extra_from_request(extra, plan)
+        self._generate_plan__parse_extra(extra, plan)
 
         if cloudinit and self.cloud.ctl.has_feature('cloudinit'):
             plan['cloudinit'] = cloudinit
@@ -2092,70 +2120,123 @@ class BaseComputeController(BaseController):
         plan['monitoring'] = monitoring if monitoring is not None else False
         plan['quantity'] = quantity if quantity else 1
 
-        self._post_parse_plan(plan)
+        self._generate_plan__post_parse_plan(plan)
         return plan
 
-    def _parse_image_from_request(self, auth_context, image_dict):
+    def _generate_plan__parse_image(self, auth_context, image_dict):
+        """Subclasses MAY override this method.
+        """
         from mist.api.methods import list_resources
+        # TODO make it required
         image_search = image_dict.get('id', '') or image_dict.get('name', '')
+        if not image_search:
+            raise BadRequestError('Image is required')
+
         try:
-            # TODO handle multiple images
-            [image], _ = list_resources(
+            images, _ = list_resources(
                 auth_context, 'image', search=image_search,
-                cloud=self.cloud.id, limit=1
+                cloud=self.cloud.id
             )
         except ValueError:
             if self.cloud.ctl.has_feature('custom_image'):
-                image = self._parse_custom_image(image_dict)
-                return image
+                image = self._generate_plan__parse_custom_image(
+                    image_dict)
+                return [image]
             else:
                 raise NotFoundError('Image does not exist')
-        return image.id
+        return list(images)
 
-    def _parse_custom_image(self, image_dict):
+    def _generate_plan__parse_custom_image(self, image_dict):
+        """Get an image that is not saved in mongo.
+        This could be a docker image that needs to be pulled.
+        """
         pass
 
-    def _parse_location_from_request(self, auth_context, location_search):
+    def _generate_plan__parse_location(self, auth_context, location_search):
         from mist.api.methods import list_resources
         try:
-            # TODO handle multiple locations
-            [location], _ = list_resources(
+            locations, _ = list_resources(
                 auth_context, 'location',
                 search=location_search,
-                cloud=self.cloud.id, limit=1)
+                cloud=self.cloud.id)
         except ValueError:
             raise NotFoundError('Location does not exist')
         # TODO add perimissions other than read to list_resources
-        auth_context.check_perm('location', 'create_resources',
-                                location.id)
-        return location.id
+        # auth_context.check_perm('location', 'create_resources',
+        #                        location.id)
+        return list(locations)
 
-    def _parse_size_from_request(self, auth_context, size_dict):
+    def _generate_plan__parse_size(self, auth_context, size_dict):
         if self.cloud.ctl.has_feature('custom_size'):
-            size = self._parse_custom_size(size_dict)
-            return size
+            size = self._generate_plan__parse_custom_size(size_dict)
+            return [size]
         else:
             from mist.api.methods import list_resources
             size_search = size_dict.get('id', '') or size_dict.get('name', '')
+            if not size_search:
+                raise BadRequestError('Size is required')
             try:
-                [size], _ = list_resources(
+                sizes, _ = list_resources(
                     auth_context, 'size', search=size_search,
-                    cloud=self.cloud.id,
-                    limit=1
+                    cloud=self.cloud.id
                 )
             except ValueError:
                 raise NotFoundError('Size does not exist')
 
-            return size.id
+            return list(sizes)
 
-    def _parse_custom_size(self, size_dict):
+    def _generate_plan__parse_custom_size(self, size_dict):
+        """Providers with custom sizes SHOULD override/extend this method
+        """
         size = {}
         size['cpu'] = size_dict.get('cpu', 1)
         size['ram'] = size_dict.get('ram', 256)
 
         return size
 
-    def _parse_key_from_request(self, auth_context, key_dict):
+    def _get_allowed_image_size_location_combinations(self, images=None,
+                                                      locations=None,
+                                                      sizes=None):
+        """ Find all possible triads of images, locations and sizes
+        based on provider constraints.
+        """
+        ret_list = []
+        for location in locations:
+            available_sizes = self._compute_sizes_for_location(location,
+                                                               sizes)
+            for size in available_sizes:
+                available_images = self._compute_images_for_size_location(
+                    location, size, images)
+                for image in available_images:
+                    ret_list.append((image, size, location))
+
+        return ret_list
+
+    def _compute_sizes_for_location(self, location, sizes):
+        """Compute allowed sizes, given location
+
+        Subclasses that require special handling should override these, by
+        default, dummy methods.
+        """
+        return sizes
+
+    def _compute_images_for_size_location(self, location, size, images):
+        """Compute allowed images, given size and location
+
+        Subclasses that require special handling should override these, by
+        default, dummy methods.
+        """
+        return images
+
+    def _compute_best_combination(self, combination_list):
+        """Find the best combination of image,size,location
+
+        Subclasses that require special handling should override these, by
+        default, dummy methods.
+        """
+        return combination_list[0]
+
+    def _generate_plan__parse_key(self, auth_context, key_dict):
         feature = self.cloud.ctl.has_feature('key')
         if feature is False:
             return None
@@ -2166,7 +2247,7 @@ class BaseComputeController(BaseController):
            and feature.get('required') is False \
            and key_search == '':
             return None
-        # TODO default key?
+        # TODO default key, if key_search empty check for default
 
         from mist.api.methods import list_resources
         try:
@@ -2179,41 +2260,10 @@ class BaseComputeController(BaseController):
 
         return key.id
 
-    def _parse_scripts_from_request(self, auth_context, scripts_dict):
-        from mist.api.methods import list_resources
-        """
-        Scripts dictionary could be:
-        {
-            id OR name: {
-                params: str(optional)
-            },
-            dummy_script_key: {
-                inline: str
-            }
-        }
-        """
-        ret_scripts = []
-        for key, value in scripts_dict.items():
-            if value.get('inline'):
-                ret_scripts.append({key: value})
-            else:
-                try:
-                    [script], _ = list_resources(auth_context, 'script',
-                                                 search=key,
-                                                 limit=1)
-                except ValueError:
-                    raise NotFoundError('Script does not exist')
-                else:
-                    auth_context.check_perm('script', 'run', script.id)
-                    ret_scripts.append({
-                        script.id: value.get('params')
-                    })
-        return ret_scripts
-
-    def _parse_networks_from_request(self, auth_context, networks_dict):
+    def _generate_plan__parse_networks(self, auth_context, networks_dict):
         pass
 
-    def _parse_volumes_from_request(self, auth_context, volumes_dict):
+    def _generate_plan__parse_volumes(self, auth_context, volumes_dict):
         """
         volumes = {
             'id' or 'name: {}
@@ -2234,106 +2284,84 @@ class BaseComputeController(BaseController):
                 ret_volumes.append(volume.id)
         return ret_volumes
 
-    def _parse_disks_from_request(self, auth_context, disks_dict):
+    def _generate_plan__parse_disks(self, auth_context, disks_dict):
         pass
 
-    def _parse_extra_from_request(self, extra, plan):
-        """Extract provider specific parameters from extra and add them to plan
+    def _generate_plan__parse_extra(self, extra, plan):
+        """Extract provider specific parameters from extra dictionary
+        and add them in place to plan
+
+        Subclasses MAY override this method.
         """
         pass
 
-    def _post_parse_plan(self, plan):
-        """Used to parse whole plan in place, instead of specific aspects of it.
+    def _generate_plan__post_parse_plan(self, plan):
+        """Used to parse whole plan in place, instead of specific parts of it.
         For example a provider could have some parameters from extra and
         networks that need to be processed together
         """
         pass
 
-    def get_libcloud_objects(self, plan):
-        """Convert mongo ids to libcloud objects
-        """
-        from mist.api.images.models import CloudImage
-        from mist.api.clouds.models import CloudLocation
-        from mist.api.clouds.models import CloudSize
-
-        image = None
-        location = None
-        size = None
-
-        if plan.get('image'):
-            cloud_image = CloudImage.objects.get(id=plan['image'])
-            image = NodeImage(cloud_image.external_id,
-                              name=cloud_image.name,
-                              extra=cloud_image.extra,
-                              driver=self.connection)
-
-        if plan.get('location'):
-            cloud_location = CloudLocation.objects.get(id=plan['location'])
-            location = NodeLocation(cloud_location.external_id,
-                                    name=cloud_location.name,
-                                    country=cloud_location.country,
-                                    extra=cloud_location.extra,
-                                    driver=self.connection)
-        if plan.get('size'):
-            cloud_size = CloudSize.objects.get(id=plan['size'])
-            size = NodeSize(cloud_size.external_id,
-                            name=cloud_size.name,
-                            ram=cloud_size.ram,
-                            disk=cloud_size.disk,
-                            bandwidth=cloud_size.bandwidth,
-                            price=cloud_size.extra.get('price'),
-                            driver=self.connection)
-
-        return image, location, size
-
     def create_machine(self, plan):
-        args, kwargs = self._compute_args_kwargs(plan)
+        image = self._get_image_object_from_plan(plan.get('image'))
+        location = self._get_location_object_from_plan(plan.get('location'))
+        size = self._get_size_object_from_plan(plan.get('size'))
+        key = self._get_key_object_from_plan(plan.get('key'))
+
+        kwargs = self._compute_kwargs(plan, image, size, location, key)
 
         try:
             if self.cloud.ctl.has_feature('container'):
                 # TODO this will not work for kubevirt
-                node = self.connection.deploy_container(*args, **kwargs)
+                node = self.connection.deploy_container(**kwargs)
             else:
-                node = self.connection.create_node(*args, **kwargs)
+                node = self.connection.create_node(**kwargs)
         except Exception as exc:
             # TODO docker tries to pull image
             # when exception occurs
-            self._handle_create_machine_exception(exc, args, kwargs)
+            self._handle_create_machine_exception(exc, kwargs)
 
-        self._post_machine_creation_steps(node, args, kwargs, plan)
+        self._post_machine_creation_steps(node, kwargs, plan)
 
         return node
 
-    def _compute_args_kwargs(self, plan):
-        key = self._get_key_object_from_plan(plan.get('key'))
-        image = self._get_image_object_from_plan(plan.get('image'))
-        location = self._get_location_object_from_plan(plan.get('location'))
-        size = self._get_size_object_from_plan(plan.get('size'))
+    def _compute_kwargs(self, plan, image, size, location, key):
+        kwargs = {
+            'name': plan['machine_name']
+        }
+        if image:
+            kwargs['image'] = image
 
-        return (plan['machine_name'], image, size, location, key), {}
+        if size:
+            kwargs['size'] = size
 
-    def _handle_create_machine_exception(self, exc, args, kwargs):
+        if location:
+            kwargs['location'] = location
+
+        if key:
+            kwargs['auth'] = key
+        return kwargs
+
+    def _handle_create_machine_exception(self, exc, kwargs):
         raise MachineCreationError("%s, got exception %s"
                                    % (self.cloud.title, exc), exc)
 
-    def _post_machine_creation_steps(self, node, args, kwargs, plan):
+    def _post_machine_creation_steps(self, node, kwargs, plan):
+        """
+        """
         pass
 
-    def _get_key_object_from_plan(self, key_id):
+    def _get_key_object_from_plan(self, key):
         """
         """
-        if key_id and self.cloud.ctl.has_feature('key'):
+        if key and self.cloud.ctl.has_feature('key'):
             from mist.api.keys.models import Key
             try:
-                key = Key.objects.get(id=key_id)
+                key_obj = Key.objects.get(id=key)
             except me.DoesNotExist:
-                # this should not happen,key
-                # already exists in mongo since during plan generation
-                # the same query was sucessful
-                # TODO handle this
                 raise NotFoundError('Key does not exist')
-            key.public = key.public.replace('\n', '')
-            return key
+            key_obj.public = key_obj.public.replace('\n', '')
+            return key_obj
 
     def _get_image_object_from_plan(self, image):
         if image:
@@ -2351,19 +2379,19 @@ class BaseComputeController(BaseController):
                                   driver=self.connection)
             return image_obj
 
-    def _get_location_object_from_plan(self, location_id):
-        if location_id and self.cloud.ctl.has_feature('location'):
+    def _get_location_object_from_plan(self, location):
+        if location and self.cloud.ctl.has_feature('location'):
             from mist.api.clouds.models import CloudLocation
             try:
-                cloud_location = CloudLocation.objects.get(id=location_id)
+                cloud_location = CloudLocation.objects.get(id=location)
             except me.DoesNotExist:
                 raise NotFoundError('Location does not exist')
-            location = NodeLocation(cloud_location.external_id,
-                                    name=cloud_location.name,
-                                    country=cloud_location.country,
-                                    extra=cloud_location.extra,
-                                    driver=self.connection)
-            return location
+            location_οbj = NodeLocation(cloud_location.external_id,
+                                        name=cloud_location.name,
+                                        country=cloud_location.country,
+                                        extra=cloud_location.extra,
+                                        driver=self.connection)
+            return location_οbj
 
     def _get_size_object_from_plan(self, size):
         if self.cloud.ctl.has_feature('custom_size'):
