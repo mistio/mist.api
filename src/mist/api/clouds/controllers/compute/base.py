@@ -2131,7 +2131,6 @@ class BaseComputeController(BaseController):
         image_search = image_dict.get('id', '') or image_dict.get('name', '')
         # if not image_search:
         #    raise BadRequestError('Image id or name is required')
-
         try:
             images, _ = list_resources(
                 auth_context, 'image', search=image_search,
@@ -2194,9 +2193,9 @@ class BaseComputeController(BaseController):
 
         return size
 
-    def _get_allowed_image_size_location_combinations(self, images=None,
-                                                      locations=None,
-                                                      sizes=None):
+    def _get_allowed_image_size_location_combinations(self, images,
+                                                      locations,
+                                                      sizes):
         """ Find all possible combinations of images, locations and sizes
         based on provider constraints.
         """
@@ -2346,6 +2345,7 @@ class BaseComputeController(BaseController):
 
         if key:
             kwargs['auth'] = key
+        # TODO post parse
         return kwargs
 
     def _create_machine__handle_exception(self, exc, kwargs):

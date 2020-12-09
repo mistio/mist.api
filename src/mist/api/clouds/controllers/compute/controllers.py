@@ -1578,7 +1578,7 @@ class GoogleComputeController(BaseComputeController):
         except Exception as exc:
             raise BadRequestError('Failed to resize node: %s' % exc)
 
-    def _parse_networks_from_request(self, auth_context, network_dict):
+    def _generate_plan__parse_networks(self, auth_context, network_dict):
 
         subnetwork = network_dict.get('subnetwork')
         network = network_dict.get('network')
@@ -1593,7 +1593,7 @@ class GoogleComputeController(BaseComputeController):
             except ValueError:
                 raise NotFoundError('Network does not exist')
             else:
-                network = network.id
+                network = network.name
         else:
             network = 'default'
 
@@ -1614,27 +1614,11 @@ class GoogleComputeController(BaseComputeController):
             except ValueError:
                 raise NotFoundError('Subnet not found %s' % subnet)
             else:
-                networks['subnet'] = subnet.id
+                networks['subnet'] = subnet.name
 
         return networks
 
-    def _post_parse_plan(self, plan):
-        from mist.api.clouds.models import CloudLocation
-        from mist.api.clouds.models import CloudSize
-
-        location_id = plan['location']
-        location = CloudLocation.objects.get(id=location_id)
-        size_id = plan['size']
-        size = CloudSize.objects.get(id=size_id)
-
-        libcloud_sizes = self.connection.list_sizes(location=location.name)
-        for libcloud_size in libcloud_sizes:
-            if libcloud_size.id == size.external_id:
-                break
-        else:
-            raise BadRequestError('Size given is not supported'
-                                  ' in location %s' % location.name)
-
+    def _generate_plan__post_parse_plan(self, plan):
         if not plan.get('volumes'):
             from mist.api.images.models import CloudImage
             image = CloudImage.objects.get(id=plan['image'])
@@ -1644,6 +1628,48 @@ class GoogleComputeController(BaseComputeController):
             except AttributeError:
                 size = 10
             plan['volumes'] = [{'size': size}]
+
+    def _compute_sizes_for_location(self, location, sizes):
+        """Compute allowed sizes, given location
+
+        Subclasses that require special handling should override these, by
+        default, dummy methods.
+        """
+
+        libcloud_sizes = {libcloud_size.id for libcloud_size in
+                          self.connection.list_sizes(location=location.name)}
+
+        valid_sizes = [size for size in sizes if size.external_id in
+                       libcloud_sizes]
+
+        return valid_sizes
+
+    def _create_machine__compute_kwargs(self, plan):
+        kwargs = super()._create_machine__compute_kwargs(plan)
+        key = kwargs.pop('auth')
+        username = plan.get('username') or 'user'
+        metadata = {
+            'sshKeys': '%s:%s' % (username, key.public)
+        }
+        if plan.get('cloudinit'):
+            metadata['startup-script'] = plan('cloudinit')
+        kwargs['ex_metadata'] = metadata
+
+        # TODO add volumes
+        kwargs['disk_size'] = plan['volumes'][0]['size']
+        kwargs['ex_network'] = plan['networks'].get('network')
+        kwargs['ex_subnetwork'] = plan['networks'].get('subnet')
+
+        return kwargs
+
+    def _create_machine__get_size_object(self, size):
+        # when providing a Libcloud NodeSize object
+        # gce driver tries to get `selfLink` key of size.extra
+        # dictionary. Mist sizes do not save selfLink in extra
+        # so a KeyError is thrown. Providing only size id
+        # seems to resolve this issue
+        size_obj = super()._create_machine__get_size_object(size)
+        return size_obj.id
 
 
 class HostVirtualComputeController(BaseComputeController):
