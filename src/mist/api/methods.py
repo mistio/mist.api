@@ -513,7 +513,7 @@ def create_dns_a_record(owner, domain_name, ip_addr):
 
 
 def list_resources(auth_context, resource_type, search='', cloud='',
-                   only='', sort='', start=0, limit=100):
+                   only='', sort='', start=0, limit=100, deref=''):
     """
     List resources of any type.
 
@@ -537,8 +537,9 @@ def list_resources(auth_context, resource_type, search='', cloud='',
         query['missing_since'] = None
 
     if cloud:
-        clouds, _ = list_resources(auth_context, 'cloud',
-                                   search=cloud, only='id')
+        clouds, _ = list_resources(
+            auth_context, 'cloud', search=cloud, only='id'
+        )
         query['cloud__in'] = clouds
 
     search = search or ''
@@ -573,8 +574,10 @@ def list_resources(auth_context, resource_type, search='', cloud='',
 
     if not result.count() and query.get('id'):
         # Try searching for name or title field
-        field_name = 'name' if getattr(
-            resource_model, 'name', None) else 'title'
+        if getattr(resource_model, 'name', None):
+            field_name = 'name'
+        else:
+            field_name = 'title'
         query[field_name] = query.pop('id')
         result = resource_model.objects(**query)
 

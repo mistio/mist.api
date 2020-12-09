@@ -402,24 +402,118 @@ class Machine(OwnershipMixin, me.Document):
             log.error(exc)
 
     def as_dict_v2(self, deref='auto', only=''):
-        only_fields = only.split(',')
-        deref_fields = [] if deref == 'auto' else deref.split(',')
-        ret = {}
-        if self.id or 'id' in only_fields:
-            ret['id'] = self.id
-        if self.name or 'name' in only_fields:
-            ret['name'] = self.name
-        if self.cloud or 'cloud' in only_fields:
-            if deref == 'auto':
-                ret['cloud'] = self.cloud.title
-            else:
-                deref_filtered = [f for f in deref_fields
-                                  if f.strip().startswith('cloud:')]
-                if deref_filtered:
-                    target = deref_filtered[0].split(':')[1]
-                    ret['cloud'] = getattr(self.cloud, target, None)
+        only_fields = [f for f in only.split(',') if f]
+        deref = deref.replace(' ', '')
+        deref_fields = {
+            'cloud': 'title',
+            'parent': 'name',
+            'location': 'name',
+            'image': 'name',
+            'size': 'name',
+            'network': 'name',
+            'subnet': 'name',
+            'owned_by': 'email',
+            'created_by': 'email'
+        }
+        if not deref or deref == 'none':
+            deref_fields = {k: 'id' for k in deref_fields.keys()}
+        elif deref != 'auto':
+            deref_split = [f for f in deref.split(',') if f]
+            for f in deref_split:
+                if ':' in f:
+                    k, v = f.split(':')
+                    deref_fields[k] = v
                 else:
-                    ret['cloud'] = self.cloud.id
+                    deref_fields[k] = 'name' if k != 'cloud' else 'title'
+
+        if only_fields:
+            deref_fields = {
+                k: v for k, v in deref_fields.items() if k in only_fields}
+
+        ret = {}
+
+        standard_fields = [
+            'id', 'name', 'hostname', 'state', 'public_ips', 'private_ips',
+            'created', 'last_seen', 'missing_since', 'unreachable_since',
+            'os_type', 'cores', 'extra']
+
+        for field in standard_fields:
+            ret[field] = getattr(self, field)
+
+        for k, v in deref_fields.items():
+            ref = getattr(self, k)
+            ret[k] = getattr(ref, v, '')
+
+        if 'type' in only_fields or not only_fields:
+            ret['type'] = None
+            if self.machine_type:
+                ret['type'] = self.machine_type
+
+        if 'external_id' in only_fields or not only_fields:
+            ret['external_id'] = None
+            if self.machine_id:
+                ret['external_id'] = self.machine_id
+
+        if 'tags' in only_fields or not only_fields:
+            ret['tags'] = {
+                tag.key: tag.value for tag in mist.api.tag.models.Tag.objects(
+                    resource_id=self.id, resource_type='machine').only(
+                        'key', 'value')}
+
+        if 'cost' in only_fields or not only_fields:
+            ret['cost'] = self.cost.as_dict()
+
+        if 'monitoring' in only_fields or not only_fields:
+            if self.monitoring and self.monitoring.hasmonitoring:
+                ret['monitoring'] = self.monitoring.as_dict()
+            else:
+                ret['monitoring'] = ''
+
+        if 'key_associations' in only_fields or not only_fields:
+            ret['key_associations'] = [
+                ka.as_dict() for ka in KeyMachineAssociation.objects(
+                    machine=self)
+            ]
+
+        if 'probe' in only_fields or not only_fields:
+            ret['probe'] = {}
+            if self.ssh_probe is not None:
+                ret['probe']['ssh'] = self.ssh_probe.as_dict()
+            if self.ping_probe:
+                ret['probe']['ping'] = self.ping_probe.as_dict()
+
+        if 'ports' in only_fields or not only_fields:
+            ret['ports'] = {}
+            if self.ssh_port:
+                ret['ports']['ssh'] = self.ssh_port
+            if self.rdp_port:
+                ret['ports']['rdp'] = self.rdp_port
+
+        if 'actions' in only_fields or not only_fields:
+            ret['actions'] = {
+                action: self.actions[action] for action in self.actions
+            }
+
+        if 'expiration' in only_fields or not only_fields:
+            ret['expiration'] = None
+            if self.expiration:
+                try:
+                    ret['expiration'] = {
+                        'id': self.expiration.id,
+                        'action': self.expiration.task_type.action,
+                        'date':
+                            self.expiration.schedule_type.entry.isoformat(),
+                        'notify': self.expiration.reminder and int((
+                            self.expiration.schedule_type.entry -
+                            self.expiration.reminder.schedule_type.entry
+                        ).total_seconds()) or 0,
+                    }
+                except Exception as exc:
+                    log.error("Error getting expiration for machine %s: %r" % (
+                        self.id, exc))
+                    self.expiration = None
+                    self.save()
+
         return ret
 
     def as_dict(self):
