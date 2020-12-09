@@ -5,7 +5,7 @@ import mongoengine as me
 
 from mist.api import config
 
-from mist.api.exceptions import BadRequestError
+from mist.api.exceptions import BadRequestError, ForbiddenError
 
 log = logging.getLogger(__name__)
 
@@ -54,7 +54,10 @@ class VaultSecretController(BaseSecretController):
         the org. If it doesn't, it creates one.
         '''
         org = self.secret.owner
-        response = self.client.sys.list_mounted_secrets_engines()
+        try:
+            response = self.client.sys.list_mounted_secrets_engines()
+        except hvac.exceptions.Forbidden:
+            raise ForbiddenError("Make sure your token has access to the Vault instance")
         existing_secret_engines = response['data'].keys()
         # if no secret engine exists for the org, create one
         if org.vault_secret_engine_path + '/' not in existing_secret_engines:
