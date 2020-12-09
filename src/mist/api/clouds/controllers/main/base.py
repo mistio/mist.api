@@ -327,7 +327,14 @@ class BaseMainController(object):
                                                   (config.VAULT_CLOUDS_PATH,
                                                    self.cloud.title))
 
-                    secret.ctl.create_or_update_secret({key: value})
+                    try:
+                        secret.ctl.create_or_update_secret({key: value})
+                    except Exception as exc:
+                        # in case secret is not successfully stored in Vault,
+                        # delete it from database as well
+                        if not arg_from_vault:
+                            secret.delete()
+                        raise exc
 
                     if key in self.cloud._private_fields:
                         secret_value = SecretValue(secret=secret, key=key)

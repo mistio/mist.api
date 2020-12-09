@@ -57,7 +57,8 @@ class VaultSecretController(BaseSecretController):
         try:
             response = self.client.sys.list_mounted_secrets_engines()
         except hvac.exceptions.Forbidden:
-            raise ForbiddenError("Make sure your token has access to the Vault instance")
+            raise ForbiddenError("Make sure your token has access to the \
+                Vault instance")
         existing_secret_engines = response['data'].keys()
         # if no secret engine exists for the org, create one
         if org.vault_secret_engine_path + '/' not in existing_secret_engines:
