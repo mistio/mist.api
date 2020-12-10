@@ -2036,11 +2036,11 @@ class BaseComputeController(BaseController):
         """
         raise MistNotImplementedError()
 
-    def generate_plan(self, auth_context, plan, image={},
-                      location='', size={}, key={},
-                      networks={}, volumes={}, disks={},
-                      extra={}, cloudinit='', fqdn='',
-                      monitoring=False, quantity=1):
+    def generate_plan(self, auth_context, plan, image,
+                      size, location='', key={},
+                      networks={}, volumes=[], disks={},
+                      extra={}, scripts=[], cloudinit='',
+                      fqdn='', monitoring=False, quantity=1):
         """Generate a machine creation plan.
 
         Subclasses SHOULD NOT override or extend this method
@@ -2107,6 +2107,10 @@ class BaseComputeController(BaseController):
                                                  disks)
         if disks:
             plan['disks'] = disks
+
+        scripts = self._generate_plan__parse_scripts(auth_context, scripts)
+        if scripts:
+            plan['scripts'] = scripts
 
         extra = extra or {}
         self._generate_plan__parse_extra(extra, plan)
@@ -2225,6 +2229,31 @@ class BaseComputeController(BaseController):
         default, dummy methods.
         """
         return images
+
+    def _generate_plan__parse_scripts(self, auth_context, scripts):
+        ret_scripts = []
+        from mist.api.methods import list_resources
+        for script in scripts:
+            if script.get('id') or script.get('name'):
+                script_search = script.get('id') or script.get('name')
+                try:
+                    [script_obj], _ = list_resources(auth_context, 'script',
+                                                     search=script_search,
+                                                     limit=1)
+                except ValueError:
+                    raise NotFoundError('Script does not exist')
+                auth_context.check_perm('script', 'run', script_obj.id)
+                ret_scripts.append({
+                    'id': script_obj.id,
+                    'params': script.get('params')
+                })
+            else:
+                # inline script
+                if script.get('inline'):
+                    ret_scripts.append({
+                        'inline': script['inline']
+                    })
+        return ret_scripts
 
     def _compute_best_combination(self, combination_list):
         """Find the best combination of image,size,location
