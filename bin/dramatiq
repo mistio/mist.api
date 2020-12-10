@@ -6,7 +6,4 @@ dramatiq mist.api.dramatiq_tasks -Q dramatiq_create_machine \
                                     dramatiq_post_deploy_steps \
                                     dramatiq_add_schedules \
                                     dramatiq_add_dns_record \
-                                    dramatiq_enable_monitoring \
-                                    dramatiq_probe_ssh \
-                                    dramatiq_cloud_post_deploy \
-                                    dramatiq_run_scripts
+                                    dramatiq_ssh_tasks

@@ -213,46 +213,17 @@ def dramatiq_post_deploy(auth_context_serialized, owner_id, cloud_id,
             kwargs={"fqdn": plan.get("fqdn")},
             pipe_ignore=True
         )
-        | dramatiq_cloud_post_deploy.message_with_options(
-            args=(auth_context_serialized, cloud_id, host,
-                  external_id, node.name),
+        | dramatiq_ssh_tasks.message_with_options(
+            args=(auth_context_serialized, cloud_id, plan.get('key', ''), host,
+                  external_id, node.name, machine_id, plan.get('scripts'),
+                  log_dict),
             kwargs={
-                "username": None,
-                "password": None,
-                "port": 22,
-                "key_id": plan.get("key")
-            },
-            pipe_ignore=True
-        )
-        | dramatiq_probe_ssh.message_with_options(
-            args=(auth_context_serialized, host, cloud_id,
-                  machine_id, log_dict),
-            kwargs={
-                "username": None,
-                "password": None,
-                "port": 22,
-                "key_id": plan.get("key")
-            },
-            pipe_ignore=True
-        )
-        | dramatiq_run_scripts.message_with_options(
-            args=(auth_context_serialized, host, plan.get('scripts'),
-                  cloud_id, machine_id, log_dict,
-                  node.name, plan.get("key")),
-            kwargs={
-                "job_id": job_id,
-                "username": None,
-                "password": None,
-                "port": 22
-            },
-            pipe_ignore=True
-        )
-        | dramatiq_enable_monitoring.message_with_options(
-            args=(auth_context_serialized, cloud_id, job_id,
-                  external_id, log_dict),
-            kwargs={
-                "monitoring": plan.get("monitoring", False),
-                "plugins": None,
+                'monitoring': True,
+                'plugins': None,
+                'job_id': job_id,
+                'username': None,
+                'password': None,
+                'port': 22
             },
             pipe_ignore=True
         )
@@ -320,185 +291,133 @@ def dramatiq_add_dns_record(auth_context_serialized, host,
                       error=str(exc), **log_dict)
 
 
-@dramatiq.actor(queue_name="dramatiq_cloud_post_deploy")
-def dramatiq_cloud_post_deploy(auth_context_serialized, cloud_id,
-                               host, external_id, machine_name,
-                               username=None, password=None, port=22,
-                               key_id=None):
-    """
-    Run post deploy steps defined in CLOUD_POST_DEPLOY.
+@dramatiq.actor(queue_name="dramatiq_ssh_tasks")
+def dramatiq_ssh_tasks(auth_context_serialized, cloud_id, key_id, host,
+                       external_id, machine_name, machine_id, scripts,
+                       log_dict, monitoring=False, plugins=None,
+                       job_id=None, username=None, password=None, port=22):
 
-    """
     auth_context = AuthContext.deserialize(auth_context_serialized)
-
-    try:
-        cloud_post_deploy_steps = config.CLOUD_POST_DEPLOY.get(cloud_id, [])
-    except AttributeError:
-        cloud_post_deploy_steps = []
     try:
         shell = Shell(host)
-        for post_deploy_step in cloud_post_deploy_steps:
-            predeployed_key_id = post_deploy_step.get('key')
-            if predeployed_key_id and key_id:
-                # Use predeployed key to deploy the user selected key
-                shell.autoconfigure(
-                    auth_context.owner, cloud_id, external_id,
-                    predeployed_key_id, username, password, port
-                )
-                retval, output = shell.command(
-                            'echo %s >> ~/.ssh/authorized_keys'
-                            % Key.objects.get(id=key_id).public)
-                if retval > 0:
-                    notify_admin('Deploy user key failed for machine %s'
-                                 % machine_name)
-            command = post_deploy_step.get('script', '').replace(
-                        '${node.name}', machine_name)
-            if command and key_id:
-                tmp_log('Executing cloud post deploy cmd: %s' % command)
-                shell.autoconfigure(
-                    auth_context.owner, cloud_id, external_id, key_id,
-                    username, password, port
-                )
-                retval, output = shell.command(command)
-                if retval > 0:
-                    notify_admin('Cloud post deploy command `%s` failed '
-                                 'for machine %s' % (command, machine_name))
+        cloud_post_deploy(auth_context, shell, cloud_id, key_id, external_id,
+                          machine_name, username=username, password=password,
+                          port=port)
+        create_key_association(auth_context, shell, cloud_id, key_id,
+                               machine_id, host, log_dict, username=username,
+                               password=password, port=port)
+        run_scripts(auth_context, shell, scripts, cloud_id, host, machine_id,
+                    machine_name, log_dict, job_id)
         shell.disconnect()
     except (ServiceUnavailableError, SSHException) as exc:
         tmp_log_error(repr(exc))
         raise Retry(delay=60000)
-        # raise self.retry(exc=exc, countdown=60, max_retries=15)
-
-
-@dramatiq.actor(queue_name="dramatiq_probe_ssh")
-def dramatiq_probe_ssh(auth_context_serialized, host, cloud_id,
-                       machine_id, log_dict,
-                       key_id=None, username=None, password=None,
-                       port=22):
-    try:
-        if key_id:
-            # connect with ssh even if no command, to create association
-            # to be able to enable monitoring
-            auth_context = AuthContext.deserialize(auth_context_serialized)
-            shell = Shell(host)
-            tmp_log('attempting to connect to shell')
-            key_id, ssh_user = shell.autoconfigure(
-                auth_context.owner, cloud_id, machine_id, key_id, username,
-                password, port
-            )
-            tmp_log('connected to shell')
-            result = probe_ssh_only(auth_context.owner, cloud_id, machine_id,
-                                    host=None, key_id=key_id,
-                                    ssh_user=ssh_user, shell=shell)
-
-            log_dict['ssh_user'] = ssh_user
-            log_event(action='probe', result=result, **log_dict)
-            shell.disconnect()
-    except (ServiceUnavailableError, SSHException) as exc:
-        tmp_log_error(repr(exc))
-        raise Retry(delay=60000)
-
-
-@dramatiq.actor(queue_name="dramatiq_run_scripts")
-def dramatiq_run_scripts(auth_context_serialized, host, scripts,
-                         cloud_id, machine_id, log_dict,
-                         machine_name, key_id,
-                         job_id=None, username=None, password=None,
-                         port=22):
-    """
-    """
-    auth_context = AuthContext.deserialize(auth_context_serialized)
-    try:
-        shell = Shell(host)
-        for name, script in scripts.items():
-            if script.get('id'):
-                tmp_log('will run script_id %s', script['id'])
-                ret = run_script.run(
-                    auth_context.owner, script['id'], machine_id,
-                    params=script.get('params'), host=host, job_id=job_id
-                )
-                # error = ret['error']
-                tmp_log('executed script_id %s', script['id'])
-            elif script.get('body'):
-                key_id, ssh_user = shell.autoconfigure(
-                    auth_context.owner, cloud_id, machine_id,
-                    key_id, username, password,
-                    port
-                )
-                log_dict['ssh_user'] = ssh_user
-                tmp_log('will run script')
-                log_event(action='deployment_script_started',
-                          command=script['body'],
-                          **log_dict)
-                start_time = time.time()
-                key_id, ssh_user = shell.autoconfigure(
-                    auth_context.owner, cloud_id, machine_id,
-                    key_id, username, password,
-                    port
-                )
-                retval, output = shell.command(script['body'])
-                tmp_log('executed script %s', script['body'])
-                execution_time = time.time() - start_time
-                title = "Deployment script %s" % ('failed' if retval
-                                                  else 'succeeded')
-                # error = retval > 0
-                notify_user(auth_context.owner, title,
-                            cloud_id=cloud_id,
-                            machine_id=machine_id,
-                            machine_name=machine_name,
-                            command=script['body'],
-                            output=output,
-                            duration=execution_time,
-                            retval=retval,
-                            error=retval > 0)
-                log_event(action='deployment_script_finished',
-                          error=retval > 0,
-                          return_value=retval,
-                          command=script['body'],
-                          stdout=output,
-                          **log_dict)
-        shell.disconnect()
-    except (ServiceUnavailableError, SSHException) as exc:
-        tmp_log_error(repr(exc))
-        # raise self.retry(exc=exc, countdown=60, max_retries=15)
-        raise Retry(delay=60000)
-    except AttributeError:
-        # TODO fix scripts
-        pass
-
-
-@dramatiq.actor(queue_name="dramatiq_enable_monitoring")
-def dramatiq_enable_monitoring(auth_context_serialized, cloud_id, job_id,
-                               external_id, log_dict, monitoring=False,
-                               plugins=None):
 
     if monitoring:
-        auth_context = AuthContext.deserialize(auth_context_serialized)
         try:
-            tmp_log('Enabling monitoring')
-            enable_monitoring(
-                auth_context.owner,
-                cloud_id,
-                external_id,
-                no_ssh=False,
-                dry=False,
-                job_id=job_id,
-                plugins=plugins,
-                deploy_async=False,
-            )
-            tmp_log('Monitoring enabled')
+            enable_monitoring(auth_context.owner, cloud_id, external_id,
+                              no_ssh=False, dry=False, job_id=job_id,
+                              plugins=plugins, deploy_async=False)
         except Exception as e:
-            tmp_log_error(repr(e))
+            print(repr(e))
+            error = True
             notify_user(
                 auth_context.owner,
-                "Enable monitoring failed for machine %s" % external_id,
-                repr(e),
+                "Enable monitoring failed for machine %s" % machine_id,
+                repr(e)
             )
-            notify_admin(
-                "Enable monitoring on creation failed for "
-                "user %s machine %s: %r"
-                % (str(auth_context.owner), external_id, e)
+            notify_admin('Enable monitoring on creation failed for '
+                         'user %s machine %s: %r'
+                         % (str(auth_context.owner), machine_id, e))
+            log_event(action='enable_monitoring_failed', error=repr(e),
+                      **log_dict)
+    log_event(action='post_deploy_finished', error=False, **log_dict)
+    # TODO catch other exceptions
+
+
+def cloud_post_deploy(auth_context, cloud_id, shell, key_id, external_id,
+                      machine_name, username=None, password=None, port=22):
+    try:
+        cloud_post_deploy_steps = config.CLOUD_POST_DEPLOY.get(
+          cloud_id, [])
+    except AttributeError:
+        cloud_post_deploy_steps = []
+    for post_deploy_step in cloud_post_deploy_steps:
+        predeployed_key_id = post_deploy_step.get('key')
+        if predeployed_key_id and key_id:
+            # Use predeployed key to deploy the user selected key
+            shell.autoconfigure(
+                        auth_context.owner, cloud_id, external_id,
+                        predeployed_key_id,
+                        username, password, port
+                    )
+            retval, output = shell.command(
+                            'echo %s >> ~/.ssh/authorized_keys'
+                            % Key.objects.get(id=key_id).public)
+            if retval > 0:
+                notify_admin('Deploy user key failed for machine %s'
+                             % machine_name)
+        command = post_deploy_step.get('script', '').replace(
+                        '${node.name}', machine_name)
+        if command and key_id:
+            tmp_log('Executing cloud post deploy cmd: %s' % command)
+            shell.autoconfigure(
+                auth_context.owner, cloud_id, machine_name,
+                key_id, username, password, port
             )
-            log_event(
-                action="enable_monitoring_failed", error=repr(e), **log_dict
-            )
+            retval, output = shell.command(command)
+            if retval > 0:
+                notify_admin('Cloud post deploy command `%s` failed '
+                             'for machine %s' % (command, machine_name))
+
+
+def create_key_association(auth_context, shell, cloud_id, key_id, machine_id,
+                           host, log_dict, username=None, password=None,
+                           port=22):
+    if key_id:
+        # connect with ssh even if no command, to create association
+        # to be able to enable monitoring
+        tmp_log('attempting to connect to shell')
+        key_id, ssh_user = shell.autoconfigure(
+            auth_context.owner, cloud_id, machine_id, key_id, username,
+            password, port
+        )
+        tmp_log('connected to shell')
+        result = probe_ssh_only(auth_context.owner, cloud_id, machine_id,
+                                host=None, key_id=key_id,
+                                ssh_user=ssh_user, shell=shell)
+
+        log_dict['ssh_user'] = ssh_user
+        log_event(action='probe', result=result, **log_dict)
+
+
+def run_scripts(auth_context, shell, scripts, cloud_id, host, machine_id,
+                machine_name, log_dict, job_id):
+    for script in scripts:
+        if script.get('id'):
+            tmp_log('will run script_id %s', script['id'])
+            params = script.get('params', '')
+            ret = run_script.run(
+                    auth_context.owner, script['id'], machine_id,
+                    params=params, host=host, job_id=job_id
+                )
+            error = ret['error']
+            tmp_log('executed script_id %s', script['id'])
+        elif script.get('inline'):
+            tmp_log('will run inline script')
+            log_event(action='deployment_script_started', command=script,
+                      **log_dict)
+            start_time = time.time()
+            retval, output = shell.command(script['inline'])
+            tmp_log('executed script')
+            execution_time = time.time() - start_time
+            title = "Deployment script %s" % ('failed' if retval
+                                              else 'succeeded')
+            notify_user(auth_context.owner, title, cloud_id=cloud_id,
+                        machine_id=machine_id, machine_name=machine_name,
+                        command=script, output=output, duration=execution_time,
+                        retval=retval, error=retval > 0)
+            log_event(action='deployment_script_finished',
+                      error=retval > 0, return_value=retval,
+                      command=script,  stdout=output,
+                      **log_dict)
