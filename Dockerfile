@@ -35,6 +35,10 @@ COPY libcloud /mist.api/libcloud
 
 RUN pip install -e libcloud/
 
+COPY v2 /mist.api/v2
+
+RUN pip install -e v2/
+
 COPY . /mist.api/
 
 RUN pip install -e src/
