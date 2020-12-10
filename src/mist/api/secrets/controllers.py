@@ -76,21 +76,38 @@ class VaultSecretController(BaseSecretController):
     def list_secrets(self, path='.'):
         self.check_if_secret_engine_exists()
         org = self.secret.owner
-        try:
-            response = self.client.secrets.kv.list_secrets(
-                mount_point=org.vault_secret_engine_path,
-                path=path
-            )
-            keys = response['data']['keys']
-        except hvac.exceptions.InvalidPath:
-            if path == '.':  # there aren't any secrets stored
-                keys = []
-            else:
-                raise BadRequestError("The path specified does not exist \
-                    in Vault.")
-        except hvac.exceptions.Forbidden:
-            raise BadRequestError("Make sure your Vault token has the \
-                permissions to list secrets")
+        if config.VAULT_KV_VERSION == 2:
+            try:
+                response = self.client.secrets.kv.list_secrets(
+                    mount_point=org.vault_secret_engine_path,
+                    path=path
+                )
+                keys = response['data']['keys']
+            except hvac.exceptions.InvalidPath:
+                if path == '.':  # there aren't any secrets stored
+                    keys = []
+                else:
+                    raise BadRequestError("The path specified does not exist \
+                        in Vault.")
+            except hvac.exceptions.Forbidden:
+                raise BadRequestError("Make sure your Vault token has the \
+                    permissions to list secrets")
+        else:
+            try:
+                response = self.client.secrets.kv1.list_secrets(
+                    mount_point=org.vault_secret_engine_path,
+                    path=path
+                )
+                keys = response['data']['keys']
+            except hvac.exceptions.InvalidPath:
+                if path == '.':  # there aren't any secrets stored
+                    keys = []
+                else:
+                    raise BadRequestError("The path specified does not exist \
+                        in Vault.")
+            except hvac.exceptions.Forbidden:
+                raise BadRequestError("Make sure your Vault token has the \
+                    permissions to list secrets")
         path = create_secret_name(path)
         from mist.api.secrets.models import VaultSecret
         secrets = []
