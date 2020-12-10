@@ -1697,6 +1697,7 @@ PROVIDERS['rackspace']['regions'] = [
         'id': 'rackspace_first_gen:uk'
     },
 ]
+
 # Deprecated in Mist v5
 SUPPORTED_PROVIDERS = [
     # BareMetal
