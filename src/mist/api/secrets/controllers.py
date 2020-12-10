@@ -119,46 +119,87 @@ class VaultSecretController(BaseSecretController):
                 path=self.secret.name,
                 secret=secret
             )
-        except KeyError:  # kv1 update
-            self.client.secrets.kv.v1.create_or_update_secret(
-                mount_point=self.secret.owner.vault_secret_engine_path,
-                path=self.secret.name,
-                secret=secret
-            )
-        except hvac.exceptions.InvalidPath:  # kv1 and kv2 create
+        # except KeyError:  # kv1 update
+        #     self.client.secrets.kv.v1.create_or_update_secret(
+        #         mount_point=self.secret.owner.vault_secret_engine_path,
+        #         path=self.secret.name,
+        #         secret=secret
+        #     )
+        except hvac.exceptions.InvalidPath:
             # no existing data in this path
-            self.client.secrets.kv.v2.create_or_update_secret(
-                mount_point=self.secret.owner.vault_secret_engine_path,
-                path=self.secret.name,
-                secret=secret
-            )
+            if config.VAULT_KV_VERSION == 2:  # kv2 create
+                self.client.secrets.kv.v2.create_or_update_secret(
+                    mount_point=self.secret.owner.vault_secret_engine_path,
+                    path=self.secret.name,
+                    secret=secret
+                )
+            else:
+                # needs to be different than version 2
+                # it seems that some secrets in kv1 are arbitrary
+                # stored under /data and others not
+                try:  # existing secret
+                    existing_secret = self.secret.ctl.read_secret()
+                except BadRequestError:  # new secret
+                    existing_secret = {}
+                secret.update(existing_secret)
+                self.client.secrets.kv.v1.create_or_update_secret(
+                    mount_point=self.secret.owner.vault_secret_engine_path,
+                    path=self.secret.name,
+                    secret=secret
+                )
         except hvac.exceptions.Forbidden:
             raise BadRequestError("Make sure your Vault token has the \
                 permissions to create secret")
 
     def read_secret(self):
         """ Read a Vault KV* Secret """
-        try:
-            api_response = self.client.secrets.kv.v2.read_secret_version(
-                mount_point=self.secret.owner.vault_secret_engine_path,
-                path=self.secret.name
-            )
-        except hvac.exceptions.Forbidden:
-            raise BadRequestError("Make sure your Vault token has the \
-                permissions to read secret")
+        if config.VAULT_KV_VERSION == 2:
+            try:
+                api_response = self.client.secrets.kv.v2.read_secret_version(
+                    mount_point=self.secret.owner.vault_secret_engine_path,
+                    path=self.secret.name
+                )
+            except hvac.exceptions.Forbidden:
+                raise BadRequestError("Make sure your Vault token has the \
+                    permissions to read secret")
+            except hvac.exceptions.InvalidPath:
+                raise BadRequestError("Secret does not exist")
 
-        return api_response['data']['data']
+            return api_response['data']['data']
+        else:
+            try:
+                api_response = self.client.secrets.kv.v1.read_secret(
+                    mount_point=self.secret.owner.vault_secret_engine_path,
+                    path=self.secret.name
+                )
+            except hvac.exceptions.Forbidden:
+                raise BadRequestError("Make sure your Vault token has the \
+                    permissions to read secret")
+            except hvac.exceptions.InvalidPath:
+                raise BadRequestError("Secret does not exist")
+
+            return api_response['data']
 
     def delete_secret(self):
         " Delete a Vault KV* Secret"
-        try:
-            self.client.secrets.kv.v2.delete_metadata_and_all_versions(
-                mount_point=self.secret.owner.vault_secret_engine_path,
-                path=self.secret.name
-            )
-        except hvac.exceptions.Forbidden:
-            raise BadRequestError("Make sure your Vault token has the \
-                permissions to delete secret")
+        if config.VAULT_KV_VERSION == 2:
+            try:
+                self.client.secrets.kv.v2.delete_metadata_and_all_versions(
+                    mount_point=self.secret.owner.vault_secret_engine_path,
+                    path=self.secret.name
+                )
+            except hvac.exceptions.Forbidden:
+                raise BadRequestError("Make sure your Vault token has the \
+                    permissions to delete secret")
+        else:
+            try:
+                self.client.secrets.kv.v1.delete_secret(
+                    mount_point=self.secret.owner.vault_secret_engine_path,
+                    path=self.secret.name
+                )
+            except hvac.exceptions.Forbidden:
+                raise BadRequestError("Make sure your Vault token has the \
+                    permissions to delete secret")
 
         # list all secrets
         self.list_secrets(path='.')
