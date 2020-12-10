@@ -261,6 +261,9 @@ class BaseMainController(object):
                 'msg': "Invalid parameters %s." % list(errors.keys()),
                 'errors': errors,
             })
+
+        secret = None
+        arg_from_vault = False
         # Set fields to cloud model and perform early validation.
         for key, value in kwargs.items():
             if value:  # ignore empty values
@@ -312,6 +315,15 @@ class BaseMainController(object):
                                                   (config.VAULT_CLOUDS_PATH,
                                                    self.cloud.title))
 
+                    try:
+                        secret.ctl.create_or_update_secret({key: value})
+                    except Exception as exc:
+                        # in case secret is not successfully stored in Vault,
+                        # delete it from database as well
+                        if not arg_from_vault:
+                            secret.delete()
+                        raise exc
+
                     if key in self.cloud._private_fields:
                         secret_value = SecretValue(secret=secret, key=key)
                         setattr(self.cloud, key, secret_value)
@@ -323,7 +335,7 @@ class BaseMainController(object):
             log.error("Error updating %s: %s", self.cloud, exc.to_dict())
             # delete VaultSecret object and secret
             # if it was just added to Vault
-            if not arg_from_vault:
+            if not arg_from_vault and secret:
                 secret.delete()
                 secret.ctl.delete_secret()
             raise BadRequestError({'msg': str(exc),
