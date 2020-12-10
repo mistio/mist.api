@@ -96,12 +96,23 @@ log = logging.getLogger(__name__)
 OK = Response("OK", 200)
 
 
-def get_ui_template():
-    get_file(config.UI_TEMPLATE_URL, 'templates/ui.pt')
+def get_ui_template(build_path=''):
+    if build_path and build_path[0] != '/':
+        build_path = '/' + build_path
+    #     template_url = config.UI_TEMPLATE_URL_URL
+    # else:
+    #     template_url = config.UI_TEMPLATE_URL_URL + ':8000'
+    template_url = config.UI_TEMPLATE_URL
+    get_file(template_url + build_path, 'templates/ui.pt')
 
 
-def get_landing_template():
-    get_file(config.LANDING_TEMPLATE_URL, 'templates/landing.pt')
+def get_landing_template(build_path=''):
+    if build_path and build_path[0] != '/':
+        build_path = '/' + build_path
+        template_url = config.LANDING_TEMPLATE_URL
+    else:
+        template_url = config.LANDING_TEMPLATE_URL + ':8000'
+    get_file(template_url + build_path, 'templates/landing.pt')
 
 
 @view_config(context=Exception)
@@ -169,17 +180,31 @@ def home(request):
                                     backend=external_auth)
             raise RedirectError(url)
 
-        get_landing_template()
+        get_landing_template(build_path)
         page = request.path.strip('/').replace('.', '')
         if not page:
             page = 'home'
         if page not in config.LANDING_FORMS:
-            page_uri = '%s/static/landing/sections/%s.html' % (
-                request.application_url, page)
+            if 'blog' in page:
+                uri_prefix = config.BLOG_CDN_URI or \
+                    request.application_url + "/static/blog/dist"
+                page_uri = '%s/%s.html' % (uri_prefix, page)
+            else:
+                page_uri = '%s/static/landing/sections/%s.html' % (
+                    request.application_url, page)
             try:
                 response = requests.get(page_uri)
                 if response.ok:
-                    section = response.text
+                    try:
+                        from bs4 import BeautifulSoup
+                        soup = BeautifulSoup(response.text, 'html.parser')
+                        body = soup.select('body')[0]
+                        section = body.renderContents().decode()
+                        template_inputs['title'] = soup.select('title')[0].text
+                    except Exception as exc:
+                        log.error("Failed to parse page `%s` from `%s`: %r" % (
+                            page, page_uri, exc))
+                        section = response.text
                     template_inputs['section'] = section
                 else:
                     log.error("Failed to fetch page `%s` from `%s`: %r" % (
@@ -200,7 +225,7 @@ def home(request):
         auth_context.owner.last_active = datetime.now()
         auth_context.owner.save()
 
-    get_ui_template()
+    get_ui_template(build_path)
     return render_to_response('templates/ui.pt', template_inputs)
 
 
@@ -226,11 +251,11 @@ def not_found(request):
                                     backend=external_auth)
             raise RedirectError(url)
 
-        get_landing_template()
+        get_landing_template(build_path)
         return render_to_response('templates/landing.pt', template_inputs,
                                   request=request)
 
-    get_ui_template()
+    get_ui_template(build_path)
     return render_to_response('templates/ui.pt', template_inputs,
                               request=request)
 
@@ -762,7 +787,7 @@ def reset_password(request):
         template_inputs['build_path'] = build_path
         template_inputs['csrf_token'] = json.dumps(get_csrf_token(request))
 
-        get_landing_template()
+        get_landing_template(build_path)
         return render_to_response('templates/landing.pt', template_inputs)
     elif request.method == 'POST':
 
@@ -914,7 +939,7 @@ def set_password(request):
         template_inputs['build_path'] = build_path
         template_inputs['csrf_token'] = json.dumps(get_csrf_token(request))
 
-        get_landing_template()
+        get_landing_template(build_path)
         return render_to_response('templates/landing.pt', template_inputs)
     elif request.method == 'POST':
         password = params.get('password', '')

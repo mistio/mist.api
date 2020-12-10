@@ -2159,7 +2159,12 @@ def _create_machine_gce(conn, key_name, private_key, public_key, machine_name,
         network = 'default'
 
     ex_disk = None
-    disk_size = 10
+    try:
+        # get minimum disk size required from image
+        disk_size = image.extra.get('diskSizeGb')
+    except Exception:
+        disk_size = 10
+
     if volumes:
         if volumes[0].get('volume_id'):
             from mist.api.volumes.models import Volume
