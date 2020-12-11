@@ -2297,7 +2297,7 @@ class BaseComputeController(BaseController):
         something provider specific.
 
         Subclasses MAY override this method, even though overriding
-        `self._generate_plan__parse_custom_volume` is enough in
+        `self._generate_plan__parse_custom_volume` should be enough for
         most cases
         """
         ret_volumes = []
@@ -2321,6 +2321,8 @@ class BaseComputeController(BaseController):
 
     def _generate_plan__parse_custom_volume(self, volume_dict):
         """
+        Parse non-mist volumes e.g volumes to be created.
+
         Subclasses that require special handling should override this
         by default, dummy method
         """
