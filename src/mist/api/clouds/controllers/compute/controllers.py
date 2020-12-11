@@ -1691,8 +1691,20 @@ class GoogleComputeController(BaseComputeController):
             metadata['startup-script'] = plan('cloudinit')
         kwargs['ex_metadata'] = metadata
 
-        # TODO add volumes
-        kwargs['disk_size'] = plan['volumes'][0]['size']
+        volume = plan['volumes'][0]
+        if volume.get('id'):
+            from mist.api.volumes.models import Volume
+            from libcloud.compute.base import StorageVolume
+            vol = Volume.objects.get(id=volume['id'])
+            libcloud_vol = StorageVolume(id=vol.external_id,
+                                         name=vol.name,
+                                         size=vol.size,
+                                         driver=self.connection,
+                                         extra=vol.extra)
+            kwargs['ex_boot_disk'] = libcloud_vol
+        else:
+            kwargs['disk_size'] = volume.get('size')
+
         kwargs['ex_network'] = plan['networks'].get('network')
         kwargs['ex_subnetwork'] = plan['networks'].get('subnet')
 
