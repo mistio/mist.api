@@ -360,6 +360,35 @@ class AmazonComputeController(BaseComputeController):
 
         return networks
 
+    def _generate_plan__parse_volume_attrs(self, volume_dict, vol_obj):
+        if not volume_dict.get('device'):
+            raise BadRequestError('Device is mandatory when attaching a volume')
+        ret_dict = {
+            'id': vol_obj.id,
+            'device': volume_dict['device']
+        }
+        return ret_dict
+
+    def _generate_plan__parse_custom_volume(self, volume_dict):
+        size = volume_dict.get('size')
+        name = volume_dict.get('name')
+        volume_type = volume_dict.get('volume_type')
+        iops = volume_dict.get('iops')
+        delete_on_termination = volume_dict.get('delete_on_termination')
+
+        if size is None or name is None:
+            raise BadRequestError('Volume required parameter missing')
+
+        ret_dict = {
+            'size': size,
+            'name': name,
+            'volume_type': volume_type,
+            'iops': iops,
+            'delete_on_termination': delete_on_termination
+        }
+
+        return ret_dict
+
     def _parse_volumes_from_request(self, auth_context, volumes_dict):
         # TODO
         pass
@@ -413,8 +442,56 @@ class AmazonComputeController(BaseComputeController):
             kwargs.update({
                 'ex_securitygroup': plan['networks']['security_group']['name']
             })
-
+        mappings = []
+        for volume in plan.get('volumes', []):
+            # here only the mappings are handled
+            # volumes will be created and attached after machine creation
+            if not volume.get('id'):
+                mapping = {}
+                mapping.update({'Ebs':
+                                {'VolumeSize': int(volume.get('size'))}})
+                if volume.get('name'):
+                    mapping.update({'DeviceName': volume.get('name')})
+                if volume.get('volume_type'):
+                    volume_type = {'VolumeType': volume.get('volume_type')}
+                    mapping['Ebs'].update(volume_type)
+                if volume.get('iops'):
+                    mapping['Ebs'].update({'Iops': volume.get('iops')})
+                if volume.get('delete_on_termination'):
+                    delete_on_term = volume.get('delete_on_termination')
+                    mapping['Ebs'].update({
+                        'DeleteOnTermination': delete_on_term})
+                mappings.append(mapping)
+        kwargs.update({'ex_blockdevicemappings': mappings})
         return kwargs
+
+    def _create_machine__post_machine_creation_steps(self, node, kwargs, plan):
+        volumes = []
+        for volume in plan.get('volumes', []):
+            if volume.get('id'):
+                from mist.api.volumes.models import Volume
+                from libcloud.compute.base import StorageVolume
+                vol = Volume.objects.get(id=volume['id'])
+                libcloud_vol = StorageVolume(id=vol.external_id,
+                                             name=vol.name,
+                                             size=vol.size,
+                                             driver=self.connection,
+                                             extra=vol.extra)
+                ex_vol = {
+                    'volume': libcloud_vol,
+                    'device': volume.get('device')
+                }
+                volumes.append(ex_vol)
+        if volumes:
+            ready = False
+            while not ready:
+                lib_nodes = self.connection.list_nodes()
+                for lib_node in lib_nodes:
+                    if lib_node.id == node.id and lib_node.state == 'running':
+                        ready = True
+            for volume in volumes:
+                self.connection.attach_volume(node, volume.get('volume'),
+                                              volume.get('device'))
 
 
 class AlibabaComputeController(AmazonComputeController):
