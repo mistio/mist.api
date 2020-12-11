@@ -2310,14 +2310,23 @@ class BaseComputeController(BaseController):
                         cloud=self.cloud.id
                     )
                 except ValueError:
-                    raise NotFoundError('Size does not exist')
-                ret_volumes.append({
-                    'id': vol.id
-                })
+                    raise NotFoundError('Volume does not exist')
+                volume_dict = self._generate_plan__parse_volume_attrs(volume,
+                                                                      vol)
+                ret_volumes.append(volume_dict)
             else:
                 vol = self._generate_plan__parse_custom_volume(volume)
                 ret_volumes.append(vol)
         return ret_volumes
+
+    def _generate_plan__parse_volume_attrs(self, volume_dict, vol_obj):
+        """Create and return a dictionary with all of the provider's
+        attributes necessary to attach the volume to a machine.
+
+        Subclasses that require special handling should override this
+        by default, dummy method
+        """
+        return {'id': vol_obj.id}
 
     def _generate_plan__parse_custom_volume(self, volume_dict):
         """
