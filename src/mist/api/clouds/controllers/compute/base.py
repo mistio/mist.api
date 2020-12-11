@@ -2062,8 +2062,6 @@ class BaseComputeController(BaseController):
             `self._generate_plan__parse_disks`
             `self._generate_plan__parse_extra`
             `self._generate_plan__post_parse_plan`
-
-        Subclasses that require special handling should override these methods.
         """
         images = self._generate_plan__parse_image(auth_context, image)
 
@@ -2293,26 +2291,41 @@ class BaseComputeController(BaseController):
     def _generate_plan__parse_networks(self, auth_context, networks_dict):
         pass
 
-    def _generate_plan__parse_volumes(self, auth_context, volumes_dict):
+    def _generate_plan__parse_volumes(self, auth_context, volumes):
+        """Returns a list of dictionaries containing either volume IDs,
+        volume to be created attributes e.g size, name, filesystem or
+        something provider specific.
+
+        Subclasses MAY override this method, even though overriding
+        `self._generate_plan__parse_custom_volume` is enough in
+        most cases
         """
-        volumes = {
-            'id' or 'name: {}
-        }
-        """
-        # TODO parse to be created volumes
-        from mist.api.methods import list_resources
-        # TODO handle volume creation
         ret_volumes = []
-        for vol_id in volumes_dict:
-            try:
-                [volume], _ = list_resources(auth_context, 'volume',
-                                             search=vol_id,
-                                             limit=1)
-            except ValueError:
-                raise NotFoundError('Volume does not exist')
+        from mist.api.methods import list_resources
+        for volume in volumes:
+            if volume.get('id'):
+                try:
+                    [vol], _ = list_resources(
+                        auth_context, 'volume', search=volume['id'],
+                        cloud=self.cloud.id
+                    )
+                except ValueError:
+                    raise NotFoundError('Size does not exist')
+                ret_volumes.append({
+                    'id': vol.id
+                })
             else:
-                ret_volumes.append(volume.id)
+                vol = self._generate_plan__parse_custom_volume(volume)
+                ret_volumes.append(vol)
         return ret_volumes
+
+    def _generate_plan__parse_custom_volume(self, volume_dict):
+        """
+        Subclasses that require special handling should override this
+        by default, dummy method
+        """
+        size = volume_dict.get('size')
+        return {'size': size}
 
     def _generate_plan__parse_disks(self, auth_context, disks_dict):
         pass
