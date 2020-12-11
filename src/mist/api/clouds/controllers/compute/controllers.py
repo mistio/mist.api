@@ -586,6 +586,20 @@ class DigitalOceanComputeController(BaseComputeController):
                 image_list.append(image)
         return image_list
 
+    def _generate_plan__parse_custom_volume(self, volume_dict):
+        size = volume_dict.get('size')
+        name = volume_dict.get('name')
+        fs_type = volume_dict.get('filesystem_type', '')
+        if not size and name:
+            raise BadRequestError('Size and name are mandatory'
+                                  'for volume creation')
+        volume = {
+            'size': size,
+            'name': name,
+            'filesystem_type': fs_type
+        }
+        return volume
+
     def _create_machine__get_key_object(self, key):
         key_obj = super()._create_machine__get_key_object(key)
         server_key = ''
@@ -614,6 +628,28 @@ class DigitalOceanComputeController(BaseComputeController):
             'private_networking': True,
             'ssh_keys': [kwargs.pop('auth')]
         }
+
+        volumes = []
+        from mist.api.volumes.models import Volume
+        for volume in plan.get('volumes', []):
+            if volume.get('id'):
+                try:
+                    mist_vol = Volume.objects.get(id=volume.get(volume['id']))
+                    volumes.append(mist_vol.external_id)
+                except me.DoesNotExist:
+                    # this shouldn't happen as during plan creation
+                    # volume id existed in mongo
+                    continue
+            else:
+                fs_type = volume.get('filesystem_type', '')
+                name = volume.get('name')
+                size = int(volume.get('size'))
+                location = kwargs['location']
+                # TODO create_volume might raise ValueError
+                new_volume = self.connection.create_volume(
+                    size, name, location=location, filesystem_type=fs_type)
+                volumes.append(new_volume.id)
+        kwargs['volumes'] = volumes
 
         return kwargs
 
