@@ -77,12 +77,18 @@ class BaseKeyController(object):
                     try:
                         secret.save()
                     except me.NotUniqueError:
-                        raise BadRequestError("The path `%s%s` exists on Vault. \
+                        raise KeyExistsError("The path `%s%s` exists on Vault. \
                             Try changing the name of the key" %
-                                              (config.VAULT_KEYS_PATH,
-                                               self.key.name))
-
-                    secret.ctl.create_or_update_secret({key: value})
+                                             (config.VAULT_KEYS_PATH,
+                                              self.key.name))
+                    try:
+                        secret.ctl.create_or_update_secret({key: value})
+                    except Exception as exc:
+                        # in case secret is not successfully stored in Vault,
+                        # delete it from database as well
+                        if not arg_from_vault:
+                            secret.delete()
+                        raise exc
                     secret_value = SecretValue(secret=secret, key='private')
             else:
                 setattr(self.key, key, value)

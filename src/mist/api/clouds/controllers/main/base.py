@@ -261,6 +261,9 @@ class BaseMainController(object):
                 'msg': "Invalid parameters %s." % list(errors.keys()),
                 'errors': errors,
             })
+
+        secret = None
+        arg_from_vault = False
         # Set fields to cloud model and perform early validation.
         for key, value in kwargs.items():
             if value:  # ignore empty values
@@ -306,7 +309,14 @@ class BaseMainController(object):
                                                   (config.VAULT_CLOUDS_PATH,
                                                    self.cloud.title))
 
-                    secret.ctl.create_or_update_secret({key: value})
+                    try:
+                        secret.ctl.create_or_update_secret({key: value})
+                    except Exception as exc:
+                        # in case secret is not successfully stored in Vault,
+                        # delete it from database as well
+                        if not arg_from_vault:
+                            secret.delete()
+                        raise exc
 
                     if key in self.cloud._private_fields:
                         secret_value = SecretValue(secret=secret, key=key)
@@ -319,7 +329,7 @@ class BaseMainController(object):
             log.error("Error updating %s: %s", self.cloud, exc.to_dict())
             # delete VaultSecret object and secret
             # if it was just added to Vault
-            if not arg_from_vault:
+            if not arg_from_vault and secret:
                 secret.delete()
                 secret.ctl.delete_secret()
             raise BadRequestError({'msg': str(exc),
@@ -463,32 +473,39 @@ class BaseMainController(object):
         from mist.api.poller.models import ListVolumesPollingSchedule
 
         # Add machines' polling schedule.
-        ListMachinesPollingSchedule.add(cloud=self.cloud)
+        ListMachinesPollingSchedule.add(
+            cloud=self.cloud, run_immediately=True)
 
         # Add networks' polling schedule, if applicable.
         if hasattr(self.cloud.ctl, 'network'):
-            ListNetworksPollingSchedule.add(cloud=self.cloud)
+            ListNetworksPollingSchedule.add(
+                cloud=self.cloud, run_immediately=True)
 
         # Add zones' polling schedule, if applicable.
         if hasattr(self.cloud.ctl, 'dns') and self.cloud.dns_enabled:
-            ListZonesPollingSchedule.add(cloud=self.cloud)
+            ListZonesPollingSchedule.add(
+                cloud=self.cloud, run_immediately=True)
 
         # Add volumes' polling schedule, if applicable.
         if hasattr(self.cloud.ctl, 'storage'):
-            ListVolumesPollingSchedule.add(cloud=self.cloud)
+            ListVolumesPollingSchedule.add(
+                cloud=self.cloud, run_immediately=True)
 
         # Add extra cloud-level polling schedules with lower frequency. Such
         # schedules poll resources that should hardly ever change. Thus, we
         # add the schedules, increase their interval, and forget about them.
-        schedule = ListLocationsPollingSchedule.add(cloud=self.cloud)
+        schedule = ListLocationsPollingSchedule.add(
+            cloud=self.cloud, run_immediately=True)
         schedule.set_default_interval(60 * 60 * 24)
         schedule.save()
 
-        schedule = ListSizesPollingSchedule.add(cloud=self.cloud)
+        schedule = ListSizesPollingSchedule.add(
+            cloud=self.cloud, run_immediately=True)
         schedule.set_default_interval(60 * 60 * 24)
         schedule.save()
 
-        schedule = ListImagesPollingSchedule.add(cloud=self.cloud)
+        schedule = ListImagesPollingSchedule.add(
+            cloud=self.cloud, run_immediately=True)
         schedule.set_default_interval(60 * 60 * 24)
         schedule.save()
 
