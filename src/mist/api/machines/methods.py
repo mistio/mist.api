@@ -2313,7 +2313,6 @@ def destroy_machine(user, cloud_id, machine_id):
 
 # SEC
 def filter_machine_ids(auth_context, cloud_id, machine_ids):
-
     if not isinstance(machine_ids, set):
         machine_ids = set(machine_ids)
 

@@ -1142,6 +1142,7 @@ CELERY_SETTINGS = {
     'worker_concurrency': 8,
     'worker_max_tasks_per_child': 32,
     'worker_max_memory_per_child': 1024000,  # 1024,000 KiB - 1000 MiB
+    'worker_send_task_events': True,
     'mongodb_scheduler_db': 'mist2',
     'mongodb_scheduler_collection': 'schedules',
     'mongodb_scheduler_url': MONGO_URI,
@@ -1706,6 +1707,7 @@ PROVIDERS['rackspace']['regions'] = [
         'id': 'rackspace_first_gen:uk'
     },
 ]
+
 # Deprecated in Mist v5
 SUPPORTED_PROVIDERS = [
     # BareMetal
