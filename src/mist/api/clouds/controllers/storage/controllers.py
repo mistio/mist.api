@@ -87,7 +87,7 @@ class AmazonStorageController(BaseStorageController):
         if machine_id:
             try:
                 machine = Machine.objects.get(
-                    machine_id=machine_id, cloud=self.cloud, missing_since=None
+                    external_id=machine_id, cloud=self.cloud, missing_since=None
                 )
                 volume.attached_to = [machine]
             except Machine.DoesNotExist:
@@ -144,7 +144,7 @@ class DigitalOceanStorageController(BaseStorageController):
         for machine_id in libcloud_volume.extra.get('droplet_ids', []):
             try:
                 machine = Machine.objects.get(
-                    machine_id=str(machine_id), cloud=self.cloud,
+                    external_id=str(machine_id), cloud=self.cloud,
                     missing_since=None
                 )
                 volume.attached_to.append(machine)
@@ -192,7 +192,7 @@ class OpenstackStorageController(BaseStorageController):
         for attachment in libcloud_volume.extra.get('attachments', []):
             machine_id = attachment.get('server_id')
             try:
-                machine = Machine.objects.get(machine_id=machine_id,
+                machine = Machine.objects.get(external_id=machine_id,
                                               cloud=self.cloud)
                 volume.attached_to.append(machine)
             except Machine.DoesNotExist:
@@ -370,7 +370,7 @@ class AlibabaStorageController(BaseStorageController):
         if machine_id:
             try:
                 machine = Machine.objects.get(
-                    machine_id=machine_id, cloud=self.cloud, missing_since=None
+                    external_id=machine_id, cloud=self.cloud, missing_since=None
                 )
                 volume.attached_to = [machine]
             except Machine.DoesNotExist:
@@ -428,7 +428,7 @@ class EquinixMetalStorageController(BaseStorageController):
             assert external_volume_id == volume.external_id
             machine_id = attachment_data['device']['href'].split('/')[-1]
             try:
-                machine = Machine.objects.get(machine_id=machine_id,
+                machine = Machine.objects.get(external_id=machine_id,
                                               cloud=self.cloud)
                 volume.attached_to.append(machine)
             except Machine.DoesNotExist:
@@ -641,8 +641,7 @@ class LinodeStorageController(BaseStorageController):
         if machine_id:
             try:
                 machine = Machine.objects.get(
-                    machine_id=str(machine_id),
-                    cloud=self.cloud,
+                    external_id=str(machine_id), cloud=self.cloud,
                     missing_since=None
                 )
                 volume.attached_to = [machine]

@@ -261,9 +261,9 @@ class BaseComputeController(BaseController):
 
     def produce_and_publish_patch(self, cached_machines, fresh_machines,
                                   first_run=False):
-        old_machines = {'%s-%s' % (m['id'], m['machine_id']): copy.copy(m)
+        old_machines = {'%s-%s' % (m['id'], m['external_id']): copy.copy(m)
                         for m in cached_machines}
-        new_machines = {'%s-%s' % (m.id, m.machine_id): m.as_dict()
+        new_machines = {'%s-%s' % (m.id, m.external_id): m.as_dict()
                         for m in fresh_machines}
         # Exclude last seen and probe fields from patch.
         for md in old_machines, new_machines:
@@ -486,11 +486,11 @@ class BaseComputeController(BaseController):
         from mist.api.machines.models import Machine
         try:
             machine = Machine.objects.get(cloud=self.cloud,
-                                          machine_id=node['id'])
+                                          external_id=node['id'])
         except Machine.DoesNotExist:
             try:
                 machine = Machine(
-                    cloud=self.cloud, machine_id=node['id']).save()
+                    cloud=self.cloud, external_id=node['id']).save()
                 is_new = True
             except me.ValidationError as exc:
                 log.warn("Validation error when saving new machine: %r" %
@@ -1544,14 +1544,14 @@ class BaseComputeController(BaseController):
         # assert isinstance(machine.cloud, Machine)
         assert self.cloud == machine.cloud
         for node in self.connection.list_nodes():
-            if node.id == machine.machine_id:
+            if node.id == machine.external_id:
                 return node
         if no_fail:
-            return Node(machine.machine_id, name=machine.machine_id,
+            return Node(machine.external_id, name=machine.external_id,
                         state=0, public_ips=[], private_ips=[],
                         driver=self.connection)
         raise MachineNotFoundError(
-            "Machine with machine_id '%s'." % machine.machine_id
+            "Machine with external_id '%s'." % machine.external_id
         )
 
     def start_machine(self, machine):

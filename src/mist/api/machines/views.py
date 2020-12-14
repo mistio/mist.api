@@ -669,7 +669,7 @@ def edit_machine(request):
         auth_context.check_perm("cloud", "read", cloud_id)
         try:
             machine = Machine.objects.get(cloud=cloud_id,
-                                          machine_id=machine_id,
+                                          external_id=machine_id,
                                           state__ne='terminated')
             # used by logging_view_decorator
             request.environ['machine_uuid'] = machine.id
@@ -686,7 +686,7 @@ def edit_machine(request):
                     "Machine %s has been terminated" % machine_uuid
                 )
             # used by logging_view_decorator
-            request.environ['machine_id'] = machine.machine_id
+            request.environ['machine_id'] = machine.external_id
             request.environ['cloud_id'] = machine.cloud.id
         except Machine.DoesNotExist:
             raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
@@ -786,7 +786,7 @@ def machine_actions(request):
         auth_context.check_perm("cloud", "read", cloud_id)
         try:
             machine = Machine.objects.get(cloud=cloud_id,
-                                          machine_id=machine_id)
+                                          external_id=machine_id)
             # VMs in libvirt can be started no matter if they are terminated
             # also they may be undefined from a terminated state
             if machine.state == 'terminated' and not isinstance(machine.cloud,
@@ -809,7 +809,7 @@ def machine_actions(request):
                     "Machine %s has been terminated" % machine_uuid
                 )
             # used by logging_view_decorator
-            request.environ['machine_id'] = machine.machine_id
+            request.environ['machine_id'] = machine.external_id
             request.environ['cloud_id'] = machine.cloud.id
         except Machine.DoesNotExist:
             raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
@@ -836,10 +836,10 @@ def machine_actions(request):
 
     if action == 'destroy':
         result = methods.destroy_machine(auth_context.owner, cloud_id,
-                                         machine.machine_id)
+                                         machine.external_id)
     elif action == 'remove':
         log.info('Removing machine %s in cloud %s'
-                 % (machine.machine_id, cloud_id))
+                 % (machine.external_id, cloud_id))
 
         # if machine has monitoring, disable it
         if machine.monitoring.hasmonitoring:
@@ -974,7 +974,7 @@ def machine_rdp(request):
         auth_context.check_perm("cloud", "read", cloud_id)
         try:
             machine = Machine.objects.get(cloud=cloud_id,
-                                          machine_id=machine_id,
+                                          external_id=machine_id,
                                           state__ne='terminated')
             # used by logging_view_decorator
             request.environ['machine_uuid'] = machine.id
@@ -986,7 +986,7 @@ def machine_rdp(request):
             machine = Machine.objects.get(id=machine_uuid,
                                           state__ne='terminated')
             # used by logging_view_decorator
-            request.environ['machine_id'] = machine.machine_id
+            request.environ['machine_id'] = machine.external_id
             request.environ['cloud_id'] = machine.cloud.id
         except Machine.DoesNotExist:
             raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
@@ -1058,7 +1058,7 @@ def machine_console(request):
         auth_context.check_perm("cloud", "read", cloud_id)
         try:
             machine = Machine.objects.get(cloud=cloud_id,
-                                          machine_id=machine_id,
+                                          external_id=machine_id,
                                           state__ne='terminated')
             # used by logging_view_decorator
             request.environ['machine_uuid'] = machine.id
@@ -1070,7 +1070,7 @@ def machine_console(request):
             machine = Machine.objects.get(id=machine_uuid,
                                           state__ne='terminated')
             # used by logging_view_decorator
-            request.environ['machine_id'] = machine.machine_id
+            request.environ['machine_id'] = machine.external_id
             request.environ['cloud_id'] = machine.cloud.id
         except Machine.DoesNotExist:
             raise NotFoundError("Machine %s doesn't exist" % machine_uuid)
@@ -1121,7 +1121,7 @@ def machine_console(request):
         return render_to_response('../templates/novnc.pt', {'url': proxy_uri})
     if machine.cloud.ctl.provider == 'vsphere':
         console_uri = machine.cloud.ctl.compute.connection.ex_open_console(
-            machine.machine_id
+            machine.external_id
         )
         protocol, host = config.CORE_URI.split('://')
         protocol = protocol.replace('http', 'ws')
@@ -1130,7 +1130,7 @@ def machine_console(request):
         return render_to_response('../templates/novnc.pt', {'url': proxy_uri})
     else:
         console_url = machine.cloud.ctl.compute.connection.ex_open_console(
-            machine.machine_id
+            machine.external_id
         )
     raise RedirectError(console_url)
 

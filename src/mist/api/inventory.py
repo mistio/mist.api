@@ -23,7 +23,7 @@ class MistInventory(object):
         self.keys = {}
         if not machines:
             clouds = Cloud.objects(owner=self.owner, deleted=None)
-            machines = [(machine.cloud.id, machine.machine_id)
+            machines = [(machine.cloud.id, machine.external_id)
                         for machine in Machine.objects(cloud__in=clouds)]
         for bid, mid in machines:
             try:
@@ -101,7 +101,7 @@ class MistInventory(object):
 
     def find_ssh_settings(self, cloud_id, machine_id):
         cloud = Cloud.objects.get(owner=self.owner, id=cloud_id, deleted=None)
-        machine = Machine.objects.get(cloud=cloud, machine_id=machine_id)
+        machine = Machine.objects.get(cloud=cloud, external_id=machine_id)
         key_associations = KeyMachineAssociation.objects(machine=machine)
         if not key_associations:
             raise Exception("Machine doesn't have SSH association")
