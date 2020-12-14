@@ -413,7 +413,7 @@ def associate_ip(request):
     auth_context = auth_context_from_request(request)
     auth_context.check_perm("cloud", "read", cloud_id)
     try:
-        machine = Machine.objects.get(cloud=cloud_id, machine_id=machine_id)
+        machine = Machine.objects.get(cloud=cloud_id, external_id=machine_id)
         machine_uuid = machine.id
     except me.DoesNotExist:
         machine_uuid = ""

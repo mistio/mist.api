@@ -431,7 +431,7 @@ def run_script(request):
                 raise RequiredParameterMissingError(key)
         try:
             machine = Machine.objects.get(cloud=cloud_id,
-                                          machine_id=machine_id,
+                                          external_id=machine_id,
                                           state__ne='terminated')
             # used by logging_view_decorator
             request.environ['machine_uuid'] = machine.id

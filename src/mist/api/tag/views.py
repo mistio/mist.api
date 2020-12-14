@@ -356,7 +356,7 @@ def set_machine_tags(request):
     machine_id = request.matchdict["machine_id"]
     auth_context.check_perm("cloud", "read", cloud_id)
     try:
-        machine = Machine.objects.get(cloud=cloud_id, machine_id=machine_id)
+        machine = Machine.objects.get(cloud=cloud_id, external_id=machine_id)
     except me.DoesNotExist:
         raise NotFoundError('Resource with that id does not exist')
 
@@ -383,7 +383,7 @@ def set_machine_tags(request):
 
         patch = jsonpatch.JsonPatch.from_diff(old_tags, new_tags).patch
         for item in patch:
-            item['path'] = '/%s-%s/tags%s' % (machine.id, machine.machine_id,
+            item['path'] = '/%s-%s/tags%s' % (machine.id, machine.external_id,
                                               item['path'])
         amqp_publish_user(auth_context.owner.id,
                           routing_key='patch_machines',
