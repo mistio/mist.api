@@ -400,7 +400,7 @@ def notify_user(owner, title, message="", email_notify=True, **kwargs):
             else:
                 try:
                     name = Machine.objects.get(cloud=cloud,
-                                               machine_id=machine_id).name
+                                               external_id=machine_id).name
                 except DoesNotExist:
                     name = ''
             if name:
