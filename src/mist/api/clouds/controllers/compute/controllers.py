@@ -1326,35 +1326,35 @@ class AzureComputeController(BaseComputeController):
         return cloud_service
 
     def _get_libcloud_node(self, machine, no_fail=False):
-        cloud_service = self._cloud_service(machine.machine_id)
+        cloud_service = self._cloud_service(machine.external_id)
         for node in self.connection.list_nodes(
                 ex_cloud_service_name=cloud_service):
-            if node.id == machine.machine_id:
+            if node.id == machine.external_id:
                 return node
             if no_fail:
-                return Node(machine.machine_id, name=machine.machine_id,
+                return Node(machine.external_id, name=machine.external_id,
                             state=0, public_ips=[], private_ips=[],
                             driver=self.connection)
             raise MachineNotFoundError("Machine with id '%s'." %
-                                       machine.machine_id)
+                                       machine.external_id)
 
     def _start_machine(self, machine, node):
-        cloud_service = self._cloud_service(machine.machine_id)
+        cloud_service = self._cloud_service(machine.external_id)
         return self.connection.ex_start_node(
             node, ex_cloud_service_name=cloud_service)
 
     def _stop_machine(self, machine, node):
-        cloud_service = self._cloud_service(machine.machine_id)
+        cloud_service = self._cloud_service(machine.external_id)
         return self.connection.ex_stop_node(
             node, ex_cloud_service_name=cloud_service)
 
     def _reboot_machine(self, machine, node):
-        cloud_service = self._cloud_service(machine.machine_id)
+        cloud_service = self._cloud_service(machine.external_id)
         return self.connection.reboot_node(
             node, ex_cloud_service_name=cloud_service)
 
     def _destroy_machine(self, machine, node):
-        cloud_service = self._cloud_service(machine.machine_id)
+        cloud_service = self._cloud_service(machine.external_id)
         return self.connection.destroy_node(
             node, ex_cloud_service_name=cloud_service)
 
@@ -3180,8 +3180,8 @@ class DockerComputeController(BaseComputeController):
             if getattr(machine, attr) != val:
                 setattr(machine, attr, val)
                 changed = True
-        if not machine.machine_id:
-            machine.machine_id = machine.id
+        if not machine.external_id:
+            machine.external_id = machine.id
             changed = True
         try:
             ip_addr = socket.gethostbyname(machine.hostname)
@@ -3311,11 +3311,11 @@ class DockerComputeController(BaseComputeController):
         """
         assert self.cloud == machine.cloud
         for node in self.connection.list_containers():
-            if node.id == machine.machine_id:
+            if node.id == machine.external_id:
                 return node
         if no_fail:
-            container = Container(id=machine.machine_id,
-                                  name=machine.machine_id,
+            container = Container(id=machine.external_id,
+                                  name=machine.external_id,
                                   image=machine.image.id,
                                   state=0,
                                   ip_addresses=[],
@@ -3326,7 +3326,7 @@ class DockerComputeController(BaseComputeController):
             container.size = None
             return container
         raise MachineNotFoundError(
-            "Machine with machine_id '%s'." % machine.machine_id
+            "Machine with external_id '%s'." % machine.external_id
         )
 
     def _start_machine(self, machine, node):
@@ -3445,14 +3445,14 @@ class LXDComputeController(BaseComputeController):
         # assert isinstance(machine.cloud, Machine)
         assert self.cloud == machine.cloud
         for node in self.connection.list_containers():
-            if node.id == machine.machine_id:
+            if node.id == machine.external_id:
                 return node
         if no_fail:
-            return Node(machine.machine_id, name=machine.machine_id,
+            return Node(machine.external_id, name=machine.external_id,
                         state=0, public_ips=[], private_ips=[],
                         driver=self.connection)
         raise MachineNotFoundError(
-            "Machine with machine_id '%s'." % machine.machine_id
+            "Machine with external_id '%s'." % machine.external_id
         )
 
     def _connect(self, **kwargs):
@@ -3528,7 +3528,7 @@ class LibvirtComputeController(BaseComputeController):
         location = CloudLocation.objects.get(
             id=kwargs.get('location_id'), cloud=self.cloud)
         host = Machine.objects.get(
-            cloud=self.cloud, parent=None, machine_id=location.external_id)
+            cloud=self.cloud, parent=None, external_id=location.external_id)
 
         return self._get_host_driver(host)
 
@@ -3686,7 +3686,7 @@ class LibvirtComputeController(BaseComputeController):
                 hypervisor = hypervisor.replace('.', '-')
                 try:
                     parent = Machine.objects.get(cloud=machine.cloud,
-                                                 machine_id=hypervisor)
+                                                 external_id=hypervisor)
                 except me.DoesNotExist:
                     parent = None
             if machine.parent != parent:
@@ -3754,7 +3754,7 @@ class LibvirtComputeController(BaseComputeController):
         hosts = Machine.objects(cloud=self.cloud,
                                 missing_since=None,
                                 parent=None)
-        locations = [NodeLocation(id=host.machine_id,
+        locations = [NodeLocation(id=host.external_id,
                                   name=host.name,
                                   country='', driver=None,
                                   extra=copy.deepcopy(host.extra))
@@ -3816,15 +3816,15 @@ class LibvirtComputeController(BaseComputeController):
         driver = self._get_host_driver(host)
 
         for node in driver.list_nodes():
-            if node.id == machine.machine_id:
+            if node.id == machine.external_id:
                 return node
 
         if no_fail:
-            return Node(machine.machine_id, name=machine.machine_id,
+            return Node(machine.external_id, name=machine.external_id,
                         state=0, public_ips=[], private_ips=[],
                         driver=self.connection)
         raise MachineNotFoundError(
-            "Machine with machine_id '%s'." % machine.machine_id
+            "Machine with external_id '%s'." % machine.external_id
         )
 
     def _reboot_machine(self, machine, node):
