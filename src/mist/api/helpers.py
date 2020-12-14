@@ -1446,3 +1446,33 @@ def node_to_dict(node):
         ret['extra'] = json.loads(json.dumps(
             ret['extra'], default=node_to_dict))
     return ret
+
+
+def prepare_dereferenced_dict(standard_fields, deref_map, obj, deref, only):
+    only_fields = [f for f in only.split(',') if f]
+    deref = deref.replace(' ', '')
+    if not deref or deref == 'none':
+        deref_map = {k: 'id' for k in deref_map.keys()}
+    elif deref != 'auto':
+        deref_split = [f for f in deref.split(',') if f]
+        for f in deref_split:
+            if ':' in f:
+                k, v = f.split(':')
+                deref_map[k] = v
+            else:
+                deref_map[k] = 'name' if k != 'cloud' else 'title'
+
+    if only_fields:
+        deref_map = {
+            k: v for k, v in deref_map.items() if k in only_fields}
+
+    ret = {}
+
+    for field in standard_fields:
+        if field in only_fields or not only_fields:
+            ret[field] = getattr(obj, field)
+
+    for k, v in deref_map.items():
+        ref = getattr(obj, k)
+        ret[k] = getattr(ref, v, '')
+    return ret
