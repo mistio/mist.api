@@ -39,7 +39,7 @@ def _get_alert_details(resource, rule, incident_id,
     if isinstance(rule, MachineMetricRule):
         return _alert_pretty_machine_details(
             rule.owner, rule.title, value, triggered, timestamp,
-            resource.cloud.id, resource.machine_id, action, level, description
+            resource.cloud.id, resource.external_id, action, level, description
         )
 
     # A human-readable string of the query conditions.
@@ -109,7 +109,7 @@ def _alert_pretty_machine_details(owner, rule_id, value, triggered, timestamp,
     rule = Rule.objects.get(owner_id=owner.id, title=rule_id)
 
     cloud = Cloud.objects.get(owner=owner, id=cloud_id, deleted=None)
-    machine = Machine.objects.get(cloud=cloud, machine_id=machine_id)
+    machine = Machine.objects.get(cloud=cloud, external_id=machine_id)
 
     metrics = find_metrics(machine)
 
@@ -213,7 +213,7 @@ def _log_alert(resource, rule, value, triggered, timestamp, incident_id,
     if isinstance(resource, Machine):
         info['cloud_id'] = resource.cloud.id
         info['machine_id'] = resource.id
-        info['external_id'] = resource.machine_id
+        info['external_id'] = resource.external_id
 
     # Update info with additional kwargs.
     info.update(kwargs)

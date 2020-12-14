@@ -106,7 +106,7 @@ class BaseKeyController(object):
         from mist.api.machines.models import KeyMachineAssociation
 
         log.info("Associating key %s to machine %s", self.key.id,
-                 machine.machine_id)
+                 machine.external_id)
 
         if isinstance(port, string_types):
             if port.isdigit():
@@ -131,7 +131,7 @@ class BaseKeyController(object):
         if key_assoc:
             log.warning("Key '%s' already associated with machine '%s' "
                         "in cloud '%s'", self.key.id,
-                        machine.cloud.id, machine.machine_id)
+                        machine.cloud.id, machine.external_id)
 
             return key_assoc[0]
 
@@ -148,7 +148,7 @@ class BaseKeyController(object):
 
         from mist.api.machines.models import KeyMachineAssociation
 
-        log.info("Disassociating key of machine '%s' " % machine.machine_id)
+        log.info("Disassociating key of machine '%s' " % machine.external_id)
 
         # removing key association
         KeyMachineAssociation.objects(key=self.key,
