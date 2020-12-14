@@ -597,7 +597,7 @@ def create_machine(auth_context, cloud_id, key_id, machine_name, location_id,
 
     for i in range(0, 10):
         try:
-            machine = Machine.objects.get(cloud=cloud, machine_id=node.id)
+            machine = Machine.objects.get(cloud=cloud, external_id=node.id)
             break
         except me.DoesNotExist:
             if i < 6:
@@ -1538,7 +1538,7 @@ def _create_machine_libvirt(cloud, machine_name, disk_size, ram, cpu,
     """
     try:
         host = Machine.objects.get(
-            cloud=cloud, machine_id=location.id)
+            cloud=cloud, external_id=location.id)
     except me.DoesNotExist:
         raise MachineCreationError("The host specified does not exist")
 
@@ -2291,7 +2291,7 @@ def destroy_machine(user, cloud_id, machine_id):
     """
     log.info('Destroying machine %s in cloud %s' % (machine_id, cloud_id))
 
-    machine = Machine.objects.get(cloud=cloud_id, machine_id=machine_id)
+    machine = Machine.objects.get(cloud=cloud_id, external_id=machine_id)
 
     # if machine has monitoring, disable it.
     if machine.monitoring.hasmonitoring:
@@ -2381,14 +2381,14 @@ def run_action_hooks(action_hooks, machine, user):
         if hook_type == 'webhook':
             url = hook.get('url').replace(
                 '{cloud_id}', cloud_id).replace(
-                    '{machine_id}', machine.machine_id).replace(
+                    '{machine_id}', machine.external_id).replace(
                         '{machine_name}', machine.name).replace(
                             '{user_email}', user.email)
             payload = hook.get('payload')
             for k in payload:
                 payload[k] = payload[k].replace(
                     '{cloud_id}', cloud_id).replace(
-                        '{machine_id}', machine.machine_id).replace(
+                        '{machine_id}', machine.external_id).replace(
                             '{machine_name}', machine.name).replace(
                                 '{user_email}', user.email)
             ret = requests.request(
