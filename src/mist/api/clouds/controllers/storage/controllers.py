@@ -87,7 +87,8 @@ class AmazonStorageController(BaseStorageController):
         if machine_id:
             try:
                 machine = Machine.objects.get(
-                    external_id=machine_id, cloud=self.cloud, missing_since=None
+                    external_id=machine_id, cloud=self.cloud,
+                    missing_since=None
                 )
                 volume.attached_to = [machine]
             except Machine.DoesNotExist:
@@ -374,7 +375,8 @@ class AlibabaStorageController(BaseStorageController):
         if machine_id:
             try:
                 machine = Machine.objects.get(
-                    external_id=machine_id, cloud=self.cloud, missing_since=None
+                    external_id=machine_id, cloud=self.cloud,
+                    missing_since=None
                 )
                 volume.attached_to = [machine]
             except Machine.DoesNotExist:
