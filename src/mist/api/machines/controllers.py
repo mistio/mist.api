@@ -61,6 +61,9 @@ class MachineController(object):
         return self.machine.cloud.ctl.compute.expose_port(self.machine,
                                                           port_forwards)
 
+    def power_cycle(self):
+        return self.mahine.cloud.ctl.compute.power_cycle(self.machine)
+
     # TODO we want this also ?
     # def tag(self):
     #     return self.machine.cloud.ctl.compute.tag(self.machine)

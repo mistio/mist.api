@@ -79,6 +79,7 @@ class Actions(me.EmbeddedDocument):
     suspend = me.BooleanField(default=False)
     undefine = me.BooleanField(default=False)
     clone = me.BooleanField(default=False)
+    power_cycle = me.BooleanField(default=False)
     create_snapshot = me.BooleanField(default=False)
     remove_snapshot = me.BooleanField(default=False)
     revert_to_snapshot = me.BooleanField(default=False)

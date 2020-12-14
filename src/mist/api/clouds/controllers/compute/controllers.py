@@ -416,6 +416,7 @@ class DigitalOceanComputeController(BaseComputeController):
               self)._list_machines__machine_actions(machine, node_dict)
         machine.actions.rename = True
         machine.actions.resize = True
+        machine.actions.power_cycle = True
 
     def _resize_machine(self, machine, node, node_size, kwargs):
         try:
@@ -432,6 +433,10 @@ class DigitalOceanComputeController(BaseComputeController):
 
     def _start_machine(self, machine, node):
         self.connection.ex_power_on_node(node)
+
+    def _power_cycle_machine(self, machine, node):
+        # TODO: Implement and test!
+        pass
 
     def _list_machines__get_location(self, node):
         return node['extra'].get('region')

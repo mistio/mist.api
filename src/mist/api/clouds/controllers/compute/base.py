@@ -733,6 +733,9 @@ class BaseComputeController(BaseController):
         machine.actions.suspend = False
         machine.actions.undefine = False
 
+        # Action power_cycle, is related to DigitalOcean
+        machine.actions.power_cycle = False
+
         # Default actions for other states.
         if node_dict['state'] in (NodeState.REBOOTING,
                                   NodeState.PENDING):
@@ -1773,6 +1776,24 @@ class BaseComputeController(BaseController):
 
         Different cloud controllers should override this private method, which
         is called by the public method `undefine_machine`.
+        """
+        raise MistNotImplementedError()
+
+    def power_cycle_machine(self, machine, node):
+        # TODO: Implement and test!
+        pass
+
+    def _power_cycle_machine(self, machine, node):
+        """Private method to perform a `power cycle` action to a machine.
+
+        Only DigitalOceanComputeController subclass implements this method.
+
+        Params:
+            machine: instance of machine model of this cloud
+            node: instance of corresponding libcloud node
+
+        Different cloud controllers should override this private method, which
+        is called by the public method `power_cycle_machine`.
         """
         raise MistNotImplementedError()
 

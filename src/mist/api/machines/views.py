@@ -725,6 +725,7 @@ def machine_actions(request):
       - remove_snapshot
       - revert_to_snapshot
       - expose
+      - power_cycle
       required: true
       type: string
     name:
@@ -808,7 +809,7 @@ def machine_actions(request):
     actions = ('start', 'stop', 'reboot', 'destroy', 'resize',
                'rename', 'undefine', 'suspend', 'resume', 'remove',
                'list_snapshots', 'create_snapshot', 'remove_snapshot',
-               'revert_to_snapshot', 'clone', 'expose')
+               'revert_to_snapshot', 'clone', 'expose', 'power_cycle')
 
     if action not in actions:
         raise BadRequestError("Action '%s' should be "
