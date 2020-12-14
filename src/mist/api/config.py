@@ -35,6 +35,10 @@ log.warn("MIST_API_DIR is %s" % MIST_API_DIR)
 ###############################################################################
 
 PORTAL_NAME = "Mist"
+DESCRIPTION = "A secure cloud management platform for automation,\
+ orchestration, cost and usage monitoring of public and private clouds,\
+ hypervisors and container hosts. Provides multi-cloud RBAC. Enables\
+ self service provisioning. Cost analysis and cloud spending optimization"
 CORE_URI = "http://localhost"
 LICENSE_KEY = ""
 AMQP_URI = "rabbitmq:5672"
@@ -48,6 +52,8 @@ VERSION_CHECK = True
 USAGE_SURVEY = False
 ENABLE_METERING = True
 BACKUP_INTERVAL = 24
+LANDING_CDN_URI = ""
+BLOG_CDN_URI = ""
 
 # backups
 BACKUP = {
@@ -1127,6 +1133,7 @@ CELERY_SETTINGS = {
     'worker_concurrency': 8,
     'worker_max_tasks_per_child': 32,
     'worker_max_memory_per_child': 1024000,  # 1024,000 KiB - 1000 MiB
+    'worker_send_task_events': True,
     'mongodb_scheduler_db': 'mist2',
     'mongodb_scheduler_collection': 'schedules',
     'mongodb_scheduler_url': MONGO_URI,
@@ -1241,6 +1248,458 @@ LINODE_DATACENTERS = {
 PROVIDERS_WITH_CUSTOM_SIZES = ['vsphere', 'onapp', 'libvirt', 'lxd', 'gig_g8',
                                'kubevirt']
 
+PROVIDERS = {
+    'amazon': {
+        'name': 'Amazon Web Services',
+        'aliases': ['aws', 'ec2'],
+        'driver': 'ec2',
+        'category': 'public cloud',
+        'features': {
+            'compute': True,
+            'provision': True,
+            'dns': True,
+            'storage': True,
+            'networks': True
+        }
+    },
+    'azure': {
+        'name': 'Microsoft Azure',
+        'aliases': ['arm', 'azure_arm'],
+        'driver': 'azure_arm',
+        'category': 'public cloud',
+        'features': {
+            'compute': True,
+            'provision': True,
+            'storage': True,
+            'networks': True
+        }
+    },
+    'google': {
+        'name': 'Google Cloud Platform',
+        'aliases': ['gcp', 'gce', 'google cloud'],
+        'driver': 'gce',
+        'category': 'public cloud',
+        'features': {
+            'compute': True,
+            'provision': True,
+            'dns': True,
+            'storage': True,
+            'networks': True
+        }
+    },
+    'alibaba': {
+        'name': 'Alibaba Cloud',
+        'aliases': ['aliyun', 'aliyun ecs', 'ecs'],
+        'driver': 'aliyun_ecs',
+        'category': 'public cloud',
+        'features': {
+            'compute': True,
+            'provision': True,
+            'storage': True,
+            'networks': True
+        }
+    },
+    'equinix': {
+        'name': 'Equinix Metal',
+        'aliases': ['packet', 'packet.net'],
+        'driver': 'equinixmetal',
+        'category': 'public cloud',
+        'features': {
+            'compute': True,
+            'provision': True,
+            'storage': True,
+            'networks': True,
+            'metal': True
+        }
+    },
+    'ibm': {
+        'name': 'IBM Cloud',
+        'aliases': ['softlayer', 'ibm cloud'],
+        'driver': 'softlayer',
+        'category': 'public cloud',
+        'features': {
+            'compute': True,
+            'provision': True,
+            'metal': True
+        }
+    },
+    'digitalocean': {
+        'name': 'DigitalOcean',
+        'aliases': [],
+        'driver': 'digitalocean',
+        'category': 'public cloud',
+        'features': {
+            'compute': True,
+            'provision': True,
+            'storage': True,
+        }
+    },
+    'linode': {
+        'name': 'Linode',
+        'aliases': [],
+        'driver': 'linode',
+        'category': 'public cloud',
+        'features': {
+            'compute': True,
+            'provision': True,
+            'dns': True,
+            'storage': True,
+        }
+    },
+    'rackspace': {
+        'name': 'Rackspace',
+        'aliases': [],
+        'driver': 'rackspace',
+        'category': 'public cloud',
+        'features': {
+            'compute': True,
+            'provision': True,
+            'dns': True,
+            'storage': True,
+        }
+    },
+    'maxihost': {
+        'name': 'Maxihost',
+        'aliases': [],
+        'driver': 'maxihost',
+        'category': 'public cloud',
+        'features': {
+            'compute': True,
+            'provision': True,
+            'metal': True,
+        }
+    },
+    'vultr': {
+        'name': 'Vultr',
+        'aliases': [],
+        'driver': 'vultr',
+        'category': 'public cloud',
+        'features': {
+            'compute': True,
+            'provision': True,
+        }
+    },
+    'g8': {
+        'name': 'G8',
+        'aliases': ['gig g8', 'gig-g8', 'gig'],
+        'driver': 'gig_g8',
+        'category': 'private cloud',
+        'features': {
+            'compute': True,
+            'provision': True,
+            'storage': True,
+        }
+    },
+    'openstack': {
+        'name': 'OpenStack',
+        'aliases': [],
+        'driver': 'openstack',
+        'category': 'private cloud',
+        'features': {
+            'compute': True,
+            'provision': True,
+            'storage': True,
+        }
+    },
+    'onapp': {
+        'name': 'OnApp',
+        'aliases': [],
+        'driver': 'onapp',
+        'category': 'private cloud',
+        'features': {
+            'compute': True,
+            'provision': True,
+            'storage': False,
+        }
+    },
+    'vsphere': {
+        'name': 'vSphere',
+        'aliases': ['vcenter', 'esxi'],
+        'driver': 'vsphere',
+        'category': 'private cloud',
+        'features': {
+            'compute': True,
+            'provision': True,
+            'storage': False,
+        }
+    },
+    'vcloud': {
+        'name': 'vCloud',
+        'aliases': [],
+        'driver': 'cloud',
+        'category': 'private cloud',
+        'features': {
+            'compute': True,
+            'provision': True,
+            'storage': False,
+        }
+    },
+    'kvm': {
+        'name': 'KVM',
+        'aliases': ['libvirt'],
+        'driver': 'libvirt',
+        'category': 'hypervisor',
+        'features': {
+            'compute': True,
+            'provision': True,
+            'storage': False,
+        }
+    },
+    'lxd': {
+        'name': 'LXD',
+        'aliases': ['lxc'],
+        'driver': 'lxd',
+        'category': 'container host',
+        'features': {
+            'compute': True,
+            'container': True,
+            'provision': True,
+            'storage': True,
+        }
+    },
+    'docker': {
+        'name': 'Docker',
+        'aliases': [],
+        'driver': 'docker',
+        'category': 'container host',
+        'features': {
+            'compute': True,
+            'container': True,
+            'provision': True,
+            'storage': False,
+        }
+    },
+    'kubevirt': {
+        'name': 'KubeVirt',
+        'aliases': [],
+        'driver': 'kubevirt',
+        'category': 'container host',
+        'features': {
+            'compute': True,
+            'container': True,
+            'provision': True,
+            'storage': True,
+        }
+    },
+    'other': {
+        'name': 'Other server',
+        'aliases': ['ssh', 'bare_metal'],
+        'driver': '',
+        'category': 'other',
+        'features': {
+            'compute': True,
+            'provision': False,
+            'storage': False,
+        }
+    },
+}
+
+PROVIDERS['amazon']['regions'] = [
+    {
+        'location': 'Tokyo',
+        'id': 'ap-northeast-1'
+    },
+    {
+        'location': 'Seoul',
+        'id': 'ap-northeast-2'
+    },
+    {
+        'location': 'Osaka',
+        'id': 'ap-northeast-3'
+    },
+    {
+        'location': 'Singapore',
+        'id': 'ap-southeast-1'
+    },
+    {
+        'location': 'Sydney',
+        'id': 'ap-southeast-2'
+    },
+    {
+        'location': 'Frankfurt',
+        'id': 'eu-central-1'
+    },
+    {
+        'location': 'Ireland',
+        'id': 'eu-west-1'
+    },
+    {
+        'location': 'London',
+        'id': 'eu-west-2'
+    },
+    {
+        'location': 'Paris',
+        'id': 'eu-west-3'
+    },
+    {
+        'location': 'Stockholm',
+        'id': 'eu-north-1'
+    },
+    {
+        'location': 'Canada Central',
+        'id': 'ca-central-1'
+    },
+    {
+        'location': 'Sao Paulo',
+        'id': 'sa-east-1'
+    },
+    {
+        'location': 'N. Virginia',
+        'id': 'us-east-1'
+    },
+    {
+        'location': 'N. California',
+        'id': 'us-west-1'
+    },
+    {
+        'location': 'Oregon',
+        'id': 'us-west-2'
+    },
+    {
+        'location': 'Ohio',
+        'id': 'us-east-2'
+    },
+    {
+        'location': 'Mumbai',
+        'id': 'ap-south-1'
+    },
+    {
+        'location': 'Hong Kong',
+        'id': 'ap-east-1'
+    },
+    {
+        'location': 'Beijing',
+        'id': 'cn-north-1'
+    },
+    {
+        'location': 'Ningxia',
+        'id': 'cn-northwest-1'
+    },
+    {
+        'location': 'GovCloud (US)',
+        'id': 'us-gov-west-1'
+    },
+    {
+        'location': 'GovCloud (US-East)',
+        'id': 'us-gov-east-1'
+    },
+]
+
+PROVIDERS['alibaba']['regions'] = [
+    {
+        'location': 'China North 1 (Qingdao)',
+        'id': 'cn-qingdao'
+    },
+    {
+        'location': 'China North 2 (Beijing)',
+        'id': 'cn-beijing'
+    },
+    {
+        'location': 'China North 3 (Zhangjiakou)',
+        'id': 'cn-zhangjiakou'
+    },
+    {
+        'location': 'China North 5 (Huhehaote)',
+        'id': 'cn-huhehaote'
+    },
+    {
+        'location': 'China East 1 (Hangzhou)',
+        'id': 'cn-hangzhou'
+    },
+    {
+        'location': 'China East 2 (Shanghai)',
+        'id': 'cn-shanghai'
+    },
+    {
+        'location': 'China South 1 (Shenzhen)',
+        'id': 'cn-shenzhen'
+    },
+    {
+        'location': 'Hong Kong',
+        'id': 'cn-hongkong'
+    },
+    {
+        'location': 'EU Central 1 (Frankfurt)',
+        'id': 'eu-central-1'
+    },
+    {
+        'location': 'Middle East 1 (Dubai)',
+        'id': 'me-east-1'
+    },
+    {
+        'location': 'England (London)',
+        'id': 'eu-west-1'
+    },
+    {
+        'location': 'US West 1 (Silicon Valley)',
+        'id': 'us-west-1'
+    },
+    {
+        'location': 'US East 1 (Virginia)',
+        'id': 'us-east-1'
+    },
+    {
+        'location': 'South Asia 1 (Mumbai)',
+        'id': 'ap-south-1'
+    },
+    {
+        'location': 'Southeast Asia 5 (Jakarta)',
+        'id': 'ap-southeast-5'
+    },
+    {
+        'location': 'Southeast Asia 3 (Kuala Lumpur)',
+        'id': 'ap-southeast-3'
+    },
+    {
+        'location': 'Southeast Asia 2 (Sydney)',
+        'id': 'ap-southeast-2'
+    },
+    {
+        'location': 'Southeast Asia 1 (Singapore)',
+        'id': 'ap-southeast-1'
+    },
+    {
+        'location': 'Northeast Asia Pacific 1 (Tokyo)',
+        'id': 'ap-northeast-1'
+    },
+]
+
+PROVIDERS['rackspace']['regions'] = [
+    {
+        'location': 'Dallas',
+        'id': 'dfw'
+    },
+    {
+        'location': 'Chicago',
+        'id': 'ord'
+    },
+    {
+        'location': 'N. Virginia',
+        'id': 'iad'
+    },
+    {
+        'location': 'London',
+        'id': 'lon'
+    },
+    {
+        'location': 'Sydney',
+        'id': 'syd'
+    },
+    {
+        'location': 'Hong Kong',
+        'id': 'hkg'
+    },
+    {
+        'location': 'US-First Gen',
+        'id': 'rackspace_first_gen:us'
+    },
+    {
+        'location': 'UK-First Gen',
+        'id': 'rackspace_first_gen:uk'
+    },
+]
+
+# Deprecated in Mist v5
 SUPPORTED_PROVIDERS = [
     # BareMetal
     {
@@ -2200,6 +2659,7 @@ HOMEPAGE_INPUTS = {
     'portal_name': PORTAL_NAME,
     'theme': THEME,
     'cta': CTA,
+    'description': DESCRIPTION,
     'features': {
         'monitoring': ENABLE_MONITORING,
         'rbac': HAS_RBAC,

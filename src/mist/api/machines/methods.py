@@ -2159,7 +2159,12 @@ def _create_machine_gce(conn, key_name, private_key, public_key, machine_name,
         network = 'default'
 
     ex_disk = None
-    disk_size = 10
+    try:
+        # get minimum disk size required from image
+        disk_size = image.extra.get('diskSizeGb')
+    except Exception:
+        disk_size = 10
+
     if volumes:
         if volumes[0].get('volume_id'):
             from mist.api.volumes.models import Volume
@@ -2325,7 +2330,6 @@ def destroy_machine(user, cloud_id, machine_id):
 
 # SEC
 def filter_machine_ids(auth_context, cloud_id, machine_ids):
-
     if not isinstance(machine_ids, set):
         machine_ids = set(machine_ids)
 
