@@ -134,7 +134,8 @@ def machine_dashboard(request):
     for i in range(0, len(dashboard['rows'])):
         for j in range(0, len(dashboard['rows'][i]['panels'])):
             dashboard['rows'][i]['panels'][j]['machine'] = [machine.cloud.id,
-                                                            machine.external_id]
+                                                            machine.
+                                                            external_id]
     return ret
 
 
