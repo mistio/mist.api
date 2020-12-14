@@ -248,7 +248,7 @@ class Cloud(OwnershipMixin, me.Document):
                       if key not in self._private_fields})
         return cdict
 
-    def as_dict_v2(self):
+    def as_dict_v2(self, deref='auto', only=''):
         cdict = {
             'id': self.id,
             'title': self.title,
