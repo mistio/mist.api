@@ -163,7 +163,8 @@ class CommandAction(BaseAlertAction):
         from mist.api.methods import ssh_command
         assert isinstance(machine, Machine)
         assert machine.owner == self._instance.owner
-        return ssh_command(machine.owner, machine.cloud.id, machine.external_id,
+        return ssh_command(machine.owner, machine.cloud.id,
+                           machine.external_id,
                            machine.hostname, self.command)
 
     def as_dict(self):
