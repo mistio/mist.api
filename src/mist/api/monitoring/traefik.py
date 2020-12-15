@@ -27,7 +27,7 @@ def _gen_machine_config(machine):
                 "X-Gocky-Tag-Org-Id": machine.cloud.owner.id,
                 "X-Gocky-Tag-Cloud-Id": machine.cloud.id,
                 "X-Gocky-Tag-Machine-Id": machine.id,
-                "X-Gocky-Tag-Machine-External-Id": machine.machine_id,
+                "X-Gocky-Tag-Machine-External-Id": machine.external_id,
                 "X-Gocky-Tag-Source-Type": machine.os_type,
             },
         },

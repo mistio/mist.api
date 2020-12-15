@@ -76,7 +76,7 @@ def migrate_machine_logs(year=None, delete_missing=False, print_missing=False):
                 # Get machine by external id
                 machine = Machine.objects.get(
                     cloud=m['_source']['cloud_id'],
-                    machine_id=m['_source']['machine_id'])
+                    machine_id=m['_source']['external_id'])
             except (Machine.DoesNotExist, KeyError):
                 try:
                     # Try to get machine by unique id just in case
@@ -104,7 +104,7 @@ def migrate_machine_logs(year=None, delete_missing=False, print_missing=False):
                 body={
                     "doc": {
                         "machine_id": machine.id,
-                        "external_id": machine.machine_id
+                        "external_id": machine.external_id
                     }
                 }
             )
