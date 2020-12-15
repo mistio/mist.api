@@ -165,13 +165,13 @@ class MachineController(object):
                 patch = [{
                     'op': 'remove',
                     'path': '/%s-%s/expiration' % (
-                        self.machine.id, self.machine.machine_id)
+                        self.machine.id, self.machine.external_id)
                 }]
             else:
                 patch = [{
                     'op': 'replace',
                     'path': '/%s-%s/expiration' % (
-                        self.machine.id, self.machine.machine_id),
+                        self.machine.id, self.machine.external_id),
                     'value': not self.machine.expiration and None or {
                         'id': self.machine.expiration.id,
                         'date': self.machine.expiration.schedule_type.entry,
@@ -202,7 +202,7 @@ class MachineController(object):
             if self.machine.ping_probe is not None:
                 data = self.machine.ping_probe.as_dict()
             return {
-                '%s-%s' % (self.machine.id, self.machine.machine_id): {
+                '%s-%s' % (self.machine.id, self.machine.external_id): {
                     'probe': {
                         'ping': data
                     }
@@ -256,7 +256,7 @@ class MachineController(object):
             if self.machine.ssh_probe is not None:
                 data = self.machine.ssh_probe.as_dict()
             return {
-                '%s-%s' % (self.machine.id, self.machine.machine_id): {
+                '%s-%s' % (self.machine.id, self.machine.external_id): {
                     'probe': {
                         'ssh': data
                     }
