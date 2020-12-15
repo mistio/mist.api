@@ -1779,11 +1779,24 @@ class BaseComputeController(BaseController):
         """
         raise MistNotImplementedError()
 
-    def power_cycle_machine(self, machine, node):
-        # TODO: Implement and test!
-        pass
+    def power_cycle_machine(self, machine):
+        assert self.cloud == machine.cloud
+        if not machine.actions.power_cycle:
+            raise ForbiddenError("Machine doesn't support power_cycle.")
 
-    def _power_cycle_machine(self, machine, node):
+        node = self._get_libcloud_node(machine)
+        log.debug("Executing power_cycle action on machine %s", machine)
+
+        try:
+            return self._power_cycle_machine(node)
+        except MistError as exc:
+            log.error("Could not execute power_cycle on machine %s", machine)
+            raise exc
+        except Exception as exc:
+            log.exception(exc)
+            raise BadRequestError(str(exc))
+
+    def _power_cycle_machine(self, node):
         """Private method to perform a `power cycle` action to a machine.
 
         Only DigitalOceanComputeController subclass implements this method.

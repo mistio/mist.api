@@ -837,7 +837,8 @@ def machine_actions(request):
         result = machine.ctl.remove()
         # Schedule a UI update
         trigger_session_update(auth_context.owner, ['clouds'])
-    elif action in ('start', 'stop', 'reboot', 'suspend', 'resume'):
+    elif action in ('start', 'stop', 'reboot', 'suspend', 'resume',
+                    'power_cycle'):
         result = getattr(machine.ctl, action)()
     elif action == 'undefine':
         result = getattr(machine.ctl, action)(delete_domain_image)

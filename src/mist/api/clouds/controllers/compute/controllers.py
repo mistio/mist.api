@@ -434,9 +434,12 @@ class DigitalOceanComputeController(BaseComputeController):
     def _start_machine(self, machine, node):
         self.connection.ex_power_on_node(node)
 
-    def _power_cycle_machine(self, machine, node):
-        # TODO: Implement and test!
-        pass
+    def _power_cycle_machine(self, node):
+        try:
+            self.connection.ex_hard_reboot(node)
+        except Exception as exc:
+            raise BadRequestError('Failed to execute power_cycle on \
+                node: %s' % exc)
 
     def _list_machines__get_location(self, node):
         return node['extra'].get('region')
