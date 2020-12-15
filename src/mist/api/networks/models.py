@@ -45,7 +45,7 @@ class Network(OwnershipMixin, me.Document):
     owner = me.ReferenceField('Organization', reverse_delete_rule=me.CASCADE)
     cloud = me.ReferenceField(Cloud, required=True,
                               reverse_delete_rule=me.CASCADE)
-    network_id = me.StringField()  # required=True)
+    external_id = me.StringField()  # required=True)
 
     name = me.StringField()
     cidr = me.StringField()
@@ -62,7 +62,7 @@ class Network(OwnershipMixin, me.Document):
         'collection': 'networks',
         'indexes': [
             {
-                'fields': ['cloud', 'network_id'],
+                'fields': ['cloud', 'external_id'],
                 'sparse': False,
                 'unique': True,
                 'cls': False,
@@ -135,7 +135,7 @@ class Network(OwnershipMixin, me.Document):
             'subnets': {s.id: s.as_dict() for s
                         in Subnet.objects(network=self, missing_since=None)},
             'cloud': self.cloud.id,
-            'network_id': self.network_id,
+            'external_id': self.external_id,
             'name': self.name,
             'cidr': self.cidr,
             'description': self.description,

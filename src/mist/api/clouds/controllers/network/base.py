@@ -128,7 +128,7 @@ class BaseNetworkController(BaseController):
         # object at the API. Try 3 times before failing
         for _ in range(5):
             for net in self.list_networks():
-                if net.network_id == libcloud_net.id:
+                if net.external_id == libcloud_net.id:
                     return net
             time.sleep(1)
         raise mist.api.exceptions.NetworkListingError()
@@ -198,7 +198,7 @@ class BaseNetworkController(BaseController):
         from mist.api.networks.models import Subnet
         for _ in range(3):
             for n in self.list_networks():
-                if n.network_id == subnet.network.network_id:
+                if n.external_id == subnet.network.external_id:
                     for s in Subnet.objects(network=n, missing_since=None):
                         if s.subnet_id == libcloud_subnet.id:
                             return s
@@ -257,7 +257,7 @@ class BaseNetworkController(BaseController):
 
         with task.task_runner(persist=persist):
             # Get cached networks as dict
-            cached_networks = {'%s-%s' % (n.id, n.network_id): n.as_dict()
+            cached_networks = {'%s-%s' % (n.id, n.external_id): n.as_dict()
                                for n in self.list_cached_networks()}
             networks = self._list_networks()
             try:
@@ -270,7 +270,7 @@ class BaseNetworkController(BaseController):
             loop.run_until_complete(_list_subnets_async(networks))
 
         # Publish patches to rabbitmq.
-        new_networks = {'%s-%s' % (n.id, n.network_id): n.as_dict()
+        new_networks = {'%s-%s' % (n.id, n.external_id): n.as_dict()
                         for n in networks}
         # Exclude last seen and probe field
         if cached_networks or new_networks:
@@ -330,10 +330,10 @@ class BaseNetworkController(BaseController):
         for net in libcloud_nets:
             try:
                 network = Network.objects.get(cloud=self.cloud,
-                                              network_id=net.id)
+                                              external_id=net.id)
             except Network.DoesNotExist:
                 network = NETWORKS[self.provider](cloud=self.cloud,
-                                                  network_id=net.id)
+                                                  external_id=net.id)
                 new_networks.append(network)
 
             network.name = net.name
@@ -696,11 +696,11 @@ class BaseNetworkController(BaseController):
         """
         networks = self.cloud.ctl.compute.connection.ex_list_networks()
         for net in networks:
-            if net.id == network.network_id:
+            if net.id == network.external_id:
                 return net
         raise mist.api.exceptions.NetworkNotFoundError(
-            'Network %s with network_id %s' %
-            (network.name, network.network_id))
+            'Network %s with external_id %s' %
+            (network.name, network.external_id))
 
     def _get_libcloud_subnet(self, subnet):
         """Returns an instance of a libcloud subnet.
