@@ -442,6 +442,17 @@ def create_machine(request):
         except ImportError:
             pass
 
+    # constraints do not apply on custom sizes
+    if not isinstance(size, dict):
+        # check size constraint
+        size_constraint = constraints.get('size', {})
+        if size_constraint:
+            try:
+                from mist.rbac.methods import check_size
+                check_size(auth_context.org, size_constraint, size)
+            except ImportError:
+                pass
+
     args = (cloud_id, key_id, machine_name,
             location_id, image_id, size,
             image_extra, disk, image_name, size_name,
@@ -714,6 +725,7 @@ def machine_actions(request):
       - remove_snapshot
       - revert_to_snapshot
       - expose
+      - power_cycle
       required: true
       type: string
     name:
@@ -797,7 +809,7 @@ def machine_actions(request):
     actions = ('start', 'stop', 'reboot', 'destroy', 'resize',
                'rename', 'undefine', 'suspend', 'resume', 'remove',
                'list_snapshots', 'create_snapshot', 'remove_snapshot',
-               'revert_to_snapshot', 'clone', 'expose')
+               'revert_to_snapshot', 'clone', 'expose', 'power_cycle')
 
     if action not in actions:
         raise BadRequestError("Action '%s' should be "
@@ -825,7 +837,8 @@ def machine_actions(request):
         result = machine.ctl.remove()
         # Schedule a UI update
         trigger_session_update(auth_context.owner, ['clouds'])
-    elif action in ('start', 'stop', 'reboot', 'suspend', 'resume'):
+    elif action in ('start', 'stop', 'reboot', 'suspend', 'resume',
+                    'power_cycle'):
         result = getattr(machine.ctl, action)()
     elif action == 'undefine':
         result = getattr(machine.ctl, action)(delete_domain_image)
@@ -850,6 +863,15 @@ def machine_actions(request):
                 check_cost(auth_context.org, cost_constraint)
             except ImportError:
                 pass
+        # check size constraint
+        size_constraint = constraints.get('size', {})
+        if size_constraint:
+            try:
+                from mist.rbac.methods import check_size
+                check_size(auth_context.org, size_constraint, size_id)
+            except ImportError:
+                pass
+
         kwargs = {}
         if memory:
             kwargs['memory'] = memory

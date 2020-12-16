@@ -35,6 +35,10 @@ log.warn("MIST_API_DIR is %s" % MIST_API_DIR)
 ###############################################################################
 
 PORTAL_NAME = "Mist"
+DESCRIPTION = "A secure cloud management platform for automation,\
+ orchestration, cost and usage monitoring of public and private clouds,\
+ hypervisors and container hosts. Provides multi-cloud RBAC. Enables\
+ self service provisioning. Cost analysis and cloud spending optimization"
 CORE_URI = "http://localhost"
 LICENSE_KEY = ""
 AMQP_URI = "rabbitmq:5672"
@@ -48,6 +52,7 @@ VERSION_CHECK = True
 USAGE_SURVEY = False
 ENABLE_METERING = True
 BACKUP_INTERVAL = 24
+LANDING_CDN_URI = ""
 BLOG_CDN_URI = ""
 
 # backups
@@ -71,7 +76,7 @@ ELASTICSEARCH = {
     'elastic_verify_certs': False
 }
 
-DATABASE_VERSION = 9
+DATABASE_VERSION = 10
 
 UI_TEMPLATE_URL = "http://ui"
 LANDING_TEMPLATE_URL = "http://landing"
@@ -1137,6 +1142,7 @@ CELERY_SETTINGS = {
     'worker_concurrency': 8,
     'worker_max_tasks_per_child': 32,
     'worker_max_memory_per_child': 1024000,  # 1024,000 KiB - 1000 MiB
+    'worker_send_task_events': True,
     'mongodb_scheduler_db': 'mist2',
     'mongodb_scheduler_collection': 'schedules',
     'mongodb_scheduler_url': MONGO_URI,
@@ -1702,6 +1708,7 @@ PROVIDERS['rackspace']['regions'] = [
     },
 ]
 
+# Deprecated in Mist v5
 SUPPORTED_PROVIDERS = [
     # BareMetal
     {
@@ -2661,6 +2668,7 @@ HOMEPAGE_INPUTS = {
     'portal_name': PORTAL_NAME,
     'theme': THEME,
     'cta': CTA,
+    'description': DESCRIPTION,
     'features': {
         'monitoring': ENABLE_MONITORING,
         'rbac': HAS_RBAC,
