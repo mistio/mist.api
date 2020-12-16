@@ -42,7 +42,6 @@ class VaultSecretController(BaseSecretController):
         url = config.VAULT_ADDR
 
         self.client = hvac.Client(url=url, token=token)
-        #self.client = hvac.Client(url=url, token='s.bTMxur6uP18e6PEJzHbY4O4p')
 
         try:
             self.client.is_authenticated()
