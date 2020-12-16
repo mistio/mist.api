@@ -667,10 +667,18 @@ class GigG8ComputeController(BaseComputeController):
 class LinodeComputeController(BaseComputeController):
 
     def _connect(self, **kwargs):
-        return get_driver(Provider.LINODE)(self.cloud.apikey)
+        if self.cloud.apiversion is not None:
+            return get_driver(Provider.LINODE)(
+                self.cloud.apikey,
+                api_version=self.cloud.apiversion)
+        else:
+            return get_driver(Provider.LINODE)(self.cloud.apikey)
 
     def _list_machines__machine_creation_date(self, machine, node_dict):
-        return node_dict['extra'].get('CREATE_DT')  # iso8601 string
+        if self.cloud.apiversion is not None:
+            return node_dict['extra'].get('CREATE_DT')  # iso8601 string
+        else:
+            return node_dict.get('created_at')
 
     def _list_machines__machine_actions(self, machine, node_dict):
         super(LinodeComputeController, self)._list_machines__machine_actions(
@@ -683,16 +691,51 @@ class LinodeComputeController(BaseComputeController):
             machine.actions.start = True
 
     def _list_machines__cost_machine(self, machine, node_dict):
-        size = node_dict['extra'].get('PLANID')
-        price = get_size_price(driver_type='compute', driver_name='linode',
-                               size_id=size)
-        return 0, price or 0
+        if self.cloud.apiversion is not None:
+            size = node_dict['extra'].get('PLANID')
+            try:
+                price = get_size_price(driver_type='compute',
+                                       driver_name='linode',
+                                       size_id=size)
+            except KeyError:
+                price = 0
+            return 0, price or 0
+        else:
+            size = node_dict.get('size')
+            from mist.api.clouds.models import CloudSize
+            try:
+                _size = CloudSize.objects.get(external_id=size,
+                                              cloud=self.cloud)
+            except CloudSize.DoesNotExist:
+                raise NotFoundError()
+
+            price_per_month = _size.extra.get('monthly_price', 0.0)
+            price_per_hour = _size.extra.get('price', 0.0)
+
+            return price_per_hour, price_per_month
 
     def _list_machines__get_size(self, node):
-        return node['extra'].get('PLANID')
+        if self.cloud.apiversion is not None:
+            return node['extra'].get('PLANID')
+        else:
+            return node.get('size')
 
     def _list_machines__get_location(self, node):
-        return str(node['extra'].get('DATACENTERID'))
+        if self.cloud.apiversion is not None:
+            return str(node['extra'].get('DATACENTERID'))
+        else:
+            return node['extra'].get('location')
+
+    def _list_images__fetch_images(self, search=None):
+        """ Convert datetime object to isoformat
+        """
+        images = self.connection.list_images()
+        from datetime import datetime
+        for image in images:
+            if 'created' in image.extra and \
+                    isinstance(image.extra['created'], datetime):
+                image.extra['created'] = image.extra['created'].isoformat()
+        return images
 
 
 class RackSpaceComputeController(BaseComputeController):
