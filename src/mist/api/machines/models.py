@@ -79,6 +79,7 @@ class Actions(me.EmbeddedDocument):
     suspend = me.BooleanField(default=False)
     undefine = me.BooleanField(default=False)
     clone = me.BooleanField(default=False)
+    power_cycle = me.BooleanField(default=False)
     create_snapshot = me.BooleanField(default=False)
     remove_snapshot = me.BooleanField(default=False)
     revert_to_snapshot = me.BooleanField(default=False)
@@ -402,9 +403,12 @@ class Machine(OwnershipMixin, me.Document):
             log.error(exc)
 
     def as_dict_v2(self, deref='auto', only=''):
-        only_fields = [f for f in only.split(',') if f]
-        deref = deref.replace(' ', '')
-        deref_fields = {
+        from mist.api.helpers import prepare_dereferenced_dict
+        standard_fields = [
+            'id', 'name', 'hostname', 'state', 'public_ips', 'private_ips',
+            'created', 'last_seen', 'missing_since', 'unreachable_since',
+            'os_type', 'cores', 'extra']
+        deref_map = {
             'cloud': 'title',
             'parent': 'name',
             'location': 'name',
@@ -415,86 +419,60 @@ class Machine(OwnershipMixin, me.Document):
             'owned_by': 'email',
             'created_by': 'email'
         }
-        if not deref or deref == 'none':
-            deref_fields = {k: 'id' for k in deref_fields.keys()}
-        elif deref != 'auto':
-            deref_split = [f for f in deref.split(',') if f]
-            for f in deref_split:
-                if ':' in f:
-                    k, v = f.split(':')
-                    deref_fields[k] = v
-                else:
-                    deref_fields[k] = 'name' if k != 'cloud' else 'title'
+        ret = prepare_dereferenced_dict(standard_fields, deref_map, self,
+                                        deref, only)
 
-        if only_fields:
-            deref_fields = {
-                k: v for k, v in deref_fields.items() if k in only_fields}
-
-        ret = {}
-
-        standard_fields = [
-            'id', 'name', 'hostname', 'state', 'public_ips', 'private_ips',
-            'created', 'last_seen', 'missing_since', 'unreachable_since',
-            'os_type', 'cores', 'extra']
-
-        for field in standard_fields:
-            ret[field] = getattr(self, field)
-
-        for k, v in deref_fields.items():
-            ref = getattr(self, k)
-            ret[k] = getattr(ref, v, '')
-
-        if 'type' in only_fields or not only_fields:
+        if 'type' in only or not only:
             ret['type'] = None
             if self.machine_type:
                 ret['type'] = self.machine_type
 
-        if 'external_id' in only_fields or not only_fields:
+        if 'external_id' in only or not only:
             ret['external_id'] = None
             if self.machine_id:
                 ret['external_id'] = self.machine_id
 
-        if 'tags' in only_fields or not only_fields:
+        if 'tags' in only or not only:
             ret['tags'] = {
                 tag.key: tag.value for tag in mist.api.tag.models.Tag.objects(
                     resource_id=self.id, resource_type='machine').only(
                         'key', 'value')}
 
-        if 'cost' in only_fields or not only_fields:
+        if 'cost' in only or not only:
             ret['cost'] = self.cost.as_dict()
 
-        if 'monitoring' in only_fields or not only_fields:
+        if 'monitoring' in only or not only:
             if self.monitoring and self.monitoring.hasmonitoring:
                 ret['monitoring'] = self.monitoring.as_dict()
             else:
                 ret['monitoring'] = ''
 
-        if 'key_associations' in only_fields or not only_fields:
+        if 'key_associations' in only or not only:
             ret['key_associations'] = [
                 ka.as_dict() for ka in KeyMachineAssociation.objects(
                     machine=self)
             ]
 
-        if 'probe' in only_fields or not only_fields:
+        if 'probe' in only or not only:
             ret['probe'] = {}
             if self.ssh_probe is not None:
                 ret['probe']['ssh'] = self.ssh_probe.as_dict()
             if self.ping_probe:
                 ret['probe']['ping'] = self.ping_probe.as_dict()
 
-        if 'ports' in only_fields or not only_fields:
+        if 'ports' in only or not only:
             ret['ports'] = {}
             if self.ssh_port:
                 ret['ports']['ssh'] = self.ssh_port
             if self.rdp_port:
                 ret['ports']['rdp'] = self.rdp_port
 
-        if 'actions' in only_fields or not only_fields:
+        if 'actions' in only or not only:
             ret['actions'] = {
                 action: self.actions[action] for action in self.actions
             }
 
-        if 'expiration' in only_fields or not only_fields:
+        if 'expiration' in only or not only:
             ret['expiration'] = None
             if self.expiration:
                 try:

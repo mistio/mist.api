@@ -62,6 +62,7 @@ class GoogleDNSController(BaseDNSController):
     """
     Google DNS provider specific overrides.
     """
+
     def _connect(self):
         return get_driver(Provider.GOOGLE)(self.cloud.email,
                                            self.cloud.private_key,
@@ -96,13 +97,32 @@ class LinodeDNSController(BaseDNSController):
     """
 
     def _connect(self):
-        return get_driver(Provider.LINODE)(self.cloud.apikey)
+        if self.cloud.apiversion is None:
+            return get_driver(Provider.LINODE)(self.cloud.apikey)
+        else:
+            return get_driver(Provider.LINODE)(
+                self.cloud.apikey,
+                api_version=self.cloud.apiversion)
 
     def _create_zone__prepare_args(self, kwargs):
+        """
+        Parse keyword arguments. The request can contain
+        either `SOA_Email` or `SOA_email` and `master_ips`
+        independently of type
+        """
+        if 'SOA_email' in kwargs:
+            soa_email = kwargs.pop('SOA_email', '')
+        elif 'SOA_Email' in kwargs:
+            soa_email = kwargs.pop('SOA_Email', '')
+        if 'master_ips' in kwargs:
+            ips = kwargs.pop('master_ips', '')
+
         if kwargs['type'] == "master":
-            kwargs['extra'] = {'SOA_Email': kwargs.pop('SOA_Email', "")}
+            if self.cloud.apiversion is None:
+                kwargs['extra'] = {'soa_email': soa_email}
+            else:
+                kwargs['extra'] = {'SOA_Email': soa_email}
         if kwargs['type'] == "slave":
-            ips = kwargs.pop('master_ips', "")
             if not isinstance(ips, list):
                 ips = ips.split()
             kwargs['extra'] = {'master_ips': ips}
@@ -124,6 +144,39 @@ class LinodeDNSController(BaseDNSController):
             else:
                 raise BadRequestError('Please provide only the '
                                       'mailserver hostname')
+
+    def _list_zones__fetch_zones(self):
+        """
+        Overriden to convert datetime objects to isoformat in order to
+        be json serializable
+        """
+        zones = super(LinodeDNSController, self)._list_zones__fetch_zones()
+        from datetime import datetime
+        for zone in zones:
+            if 'created' in zone.extra and \
+                    isinstance(zone.extra['created'], datetime):
+                zone.extra['created'] = zone.extra['created'].isoformat()
+            if 'updated' in zone.extra and \
+                    isinstance(zone.extra['updated'], datetime):
+                zone.extra['updated'] = zone.extra['updated'].isoformat()
+        return zones
+
+    def _list_records__fetch_records(self, zone_id):
+        """
+        Overriden to convert datetime objects to isoformat in order to
+        be json serializable
+        """
+        records = super(
+            LinodeDNSController, self)._list_records__fetch_records(zone_id)
+        from datetime import datetime
+        for record in records:
+            if 'created' in record.extra and \
+                    isinstance(record.extra['created'], datetime):
+                record.extra['created'] = record.extra['created'].isoformat()
+            if 'updated' in record.extra and \
+                    isinstance(record.extra['updated'], datetime):
+                record.extra['updated'] = record.extra['updated'].isoformat()
+        return records
 
 
 class RackSpaceDNSController(BaseDNSController):

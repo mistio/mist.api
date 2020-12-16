@@ -173,6 +173,10 @@ class Cloud(OwnershipMixin, me.Document):
                                        if field not in Cloud._fields]
 
     @property
+    def name(self):
+        return self.title
+
+    @property
     def provider(self):
         return self.ctl.provider
 
@@ -250,34 +254,41 @@ class Cloud(OwnershipMixin, me.Document):
                       if key not in self._private_fields})
         return cdict
 
-    def as_dict_v2(self):
-        cdict = {
-            'id': self.id,
-            'title': self.title,
-            'provider': self.ctl.provider,
-            'features': {
-                'compute': self.enabled,
-                'dns': self.dns_enabled,
-                'observation_logs': self.observation_logs_enabled,
-                'polling': self.polling_interval
-            },
-            'config': {},
-            'tags': {
+    def as_dict_v2(self, deref='auto', only=''):
+        from mist.api.helpers import prepare_dereferenced_dict
+        standard_fields = ['id', 'name', 'provider']
+        deref_map = {
+            'owned_by': 'email',
+            'created_by': 'email'
+        }
+        ret = prepare_dereferenced_dict(standard_fields, deref_map, self,
+                                        deref, only)
+
+        if 'tags' in only or not only:
+            ret['tags'] = {
                 tag.key: tag.value
                 for tag in Tag.objects(
                     owner=self.owner,
                     resource_id=self.id,
                     resource_type='cloud').only('key', 'value')
-            },
-            'owned_by': self.owned_by.id if self.owned_by else '',
-            'created_by': self.created_by.id if self.created_by else '',
-        }
-        cdict['config'].update({
-            key: getattr(self, key)
-            for key in self._cloud_specific_fields
-            if key not in self._private_fields
-        })
-        return cdict
+            }
+
+        if 'features' in only or not only:
+            ret['features'] = {
+                'compute': self.enabled,
+                'dns': self.dns_enabled,
+                'observations': self.observation_logs_enabled,
+                'polling': self.polling_interval
+            }
+
+        if 'config' in only or not only:
+            ret['config'] = {}
+            ret['config'].update({
+                key: getattr(self, key)
+                for key in self._cloud_specific_fields
+                if key not in self._private_fields
+            })
+        return ret
 
     def __str__(self):
         return '%s cloud %s (%s) of %s' % (type(self), self.title,
@@ -421,7 +432,7 @@ class GigG8Cloud(Cloud):
 class LinodeCloud(Cloud):
 
     apikey = me.StringField(required=True)
-
+    apiversion = me.StringField(null=True, default=None)
     _private_fields = ('apikey', )
     _controller_cls = controllers.LinodeMainController
 

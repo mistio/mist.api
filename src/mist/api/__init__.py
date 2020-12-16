@@ -141,14 +141,18 @@ def add_routes(configurator):
                        'templates', 'stacks', 'teams', 'networks', 'volumes',
                        'tunnels', 'members', 'insights', 'my-account',
                        'schedules', 'zones', 'rules']
-        landing_sections = ['about', 'product', 'pricing',
-                            'sign-up', 'sign-in', 'forgot-password',
-                            'buy-license', 'request-pricing', 'get-started',
-                            'privacy-policy', 'pledge', 'tos',
-                            'error', 'index']
+        landing_sections = ['sign-up', 'sign-in', 'forgot-password', 'about',
+                            'product', 'buy-license', 'request-pricing',
+                            'get-started', 'privacy-policy', 'pledge', 'tos',
+                            'error', 'index', 'blog']
         for section in ui_sections + landing_sections:
             if request.path.startswith('/' + section):
                 return True
+        for category in config.LANDING_CATEGORIES:
+            if category['href'] != '/' and \
+                    request.path.startswith(category['href']):
+                return True
+
         return False
 
     configurator.add_route('version', '/version')

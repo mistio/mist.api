@@ -97,8 +97,8 @@ OK = Response("OK", 200)
 
 
 def get_ui_template(build_path=''):
-    # if build_path and build_path[0] != '/':
-    #     build_path = '/' + build_path
+    if build_path and build_path[0] != '/':
+        build_path = '/' + build_path
     #     template_url = config.UI_TEMPLATE_URL_URL
     # else:
     #     template_url = config.UI_TEMPLATE_URL_URL + ':8000'
@@ -185,12 +185,47 @@ def home(request):
         if not page:
             page = 'home'
         if page not in config.LANDING_FORMS:
-            page_uri = '%s/static/landing/sections/%s.html' % (
-                request.application_url, page)
+            if 'blog' in page:
+                uri_prefix = config.BLOG_CDN_URI or \
+                    request.application_url + "/static/blog/dist"
+                if params.get('page', None):
+                    page = 'page%s' % params.get('page')
+            else:
+                uri_prefix = config.LANDING_CDN_URI or \
+                    request.application_url + "/static/landing/sections/"
+            page_uri = '%s/%s.html' % (uri_prefix, page)
             try:
                 response = requests.get(page_uri)
                 if response.ok:
-                    section = response.text
+                    try:
+                        from bs4 import BeautifulSoup
+                        soup = BeautifulSoup(response.text, 'html.parser')
+                        body = soup.select('body')[0]
+                        section = body.renderContents().decode()
+                        titles = soup.select('title')
+                        if titles:
+                            template_inputs['title'] = titles[0].text
+                        else:
+                            template_inputs['title'] = '%s :: %s' % (
+                                config.PORTAL_NAME, page)
+                        descriptions = soup.select('meta[name="description"]')
+                        if descriptions:
+                            template_inputs['description'] = \
+                                descriptions[0].get('content', '')
+                        else:
+                            template_inputs['description'] = config.DESCRIPTION
+                        images = soup.select('meta[property="og:image"]')
+                        if images:
+                            template_inputs['image'] = images[0].get(
+                                'content', '')
+                        rss = soup.select('link[type="application/rss+xml"]')
+                        if rss:
+                            template_inputs['rss'] = rss[0].get('href')
+                        template_inputs['url'] = request.url
+                    except Exception as exc:
+                        log.error("Failed to parse page `%s` from `%s`: %r" % (
+                            page, page_uri, exc))
+                        section = response.text
                     template_inputs['section'] = section
                 else:
                     log.error("Failed to fetch page `%s` from `%s`: %r" % (
@@ -1301,7 +1336,7 @@ def list_supported_providers(request):
     Return all of our SUPPORTED PROVIDERS
     ---
     """
-    return {'supported_providers': config.SUPPORTED_PROVIDERS}
+    return {'supported_providers': list(config.PROVIDERS.values())}
 
 
 @view_config(route_name='api_v1_avatars',
@@ -2386,14 +2421,34 @@ def version(request):
     return {'version': config.VERSION}
 
 
-@view_config(route_name='api_v1_section', request_method='GET',
-             renderer='json')
+@view_config(route_name='api_v1_section', request_method='GET')
 def section(request):
     '''
-    Redirect to the static JSON file that corresponds to the requested section
+    Redirect to or fetch the static HTML file that corresponds to the
+    requested section
     '''
     section_id = request.matchdict['section']
 
-    path = '/static/' + section_id.replace('--', '/sections/') + '.html'
+    if not section_id.startswith('landing--blog'):
+        path = '/static/' + section_id.replace('--', '/sections/') + '.html'
+        return HTTPFound(path)
 
-    return HTTPFound(path)
+    page = 'blog'
+    post = section_id.split('--')[-1]
+    if post != 'blog':
+        page = post if post.startswith('page') else 'blog/%s' % post
+    uri_prefix = config.BLOG_CDN_URI or \
+        request.application_url + "/static/blog/dist"
+    page_uri = '%s/%s.html' % (uri_prefix, page)
+    try:
+        response = requests.get(page_uri)
+        if response.ok:
+            return Response(response.text, 200)
+        else:
+            log.error("Failed to fetch page `%s` from `%s`: %r" % (
+                page, page_uri, response))
+            raise ServiceUnavailableError(response)
+    except Exception as exc:
+        log.error("Failed to fetch page `%s` from `%s`: %r" % (
+            page, page_uri, exc))
+        raise ServiceUnavailableError(exc)
