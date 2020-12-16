@@ -3,16 +3,15 @@ FROM mist/python3:latest
 # Install libvirt which requires system dependencies.
 RUN apk add --update --no-cache g++ gcc libvirt libvirt-dev libxml2-dev libxslt-dev gnupg ca-certificates wget mongodb-tools
 
-RUN wget https://dl.influxdata.com/influxdb/releases/influxdb-1.6.0-static_linux_amd64.tar.gz && \
-    tar xvfz influxdb-1.6.0-static_linux_amd64.tar.gz && rm influxdb-1.6.0-static_linux_amd64.tar.gz
+RUN wget https://dl.influxdata.com/influxdb/releases/influxdb-1.8.3-static_linux_amd64.tar.gz && \
+    tar xvfz influxdb-1.8.3-static_linux_amd64.tar.gz && rm influxdb-1.8.3-static_linux_amd64.tar.gz
 
-RUN ln -s /influxdb-1.6.0-1/influxd /usr/local/bin/influxd
+RUN ln -s /influxdb-1.8.3-1/influxd /usr/local/bin/influxd
 
-RUN pip install --no-cache-dir --upgrade pip
-RUN pip install --no-cache-dir --upgrade setuptools
-RUN pip install libvirt-python==5.10.0 uwsgi==2.0.18
-
-RUN pip install --no-cache-dir ipython ipdb flake8 pytest pytest-cov
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir --upgrade setuptools && \
+    pip install libvirt-python==5.10.0 uwsgi==2.0.18 && \
+    pip install --no-cache-dir ipython ipdb flake8 pytest pytest-cov
 
 # Remove `-frozen` to build without strictly pinned dependencies.
 COPY requirements-frozen.txt /mist.api/requirements.txt
@@ -21,19 +20,17 @@ COPY requirements.txt /requirements-mist.api.txt
 
 WORKDIR /mist.api/
 
-RUN pip install --no-cache-dir -r /mist.api/requirements.txt
-
 COPY paramiko /mist.api/paramiko
-
-RUN pip install -e paramiko/
-
 COPY celerybeat-mongo /mist.api/celerybeat-mongo
-
-RUN pip install -e celerybeat-mongo/
-
 COPY libcloud /mist.api/libcloud
+COPY v2 /mist.api/v2
 
-RUN pip install -e libcloud/
+RUN pip install --no-cache-dir -r /mist.api/requirements.txt && \
+    pip install -e paramiko/ && \
+    pip install -e celerybeat-mongo/ && \
+    pip install -e libcloud/ && \
+    pip install -e v2/ && \
+    pip install --no-cache-dir -r v2/requirements.txt
 
 COPY . /mist.api/
 

@@ -2210,20 +2210,37 @@ def _create_machine_linode(conn, key_name, public_key,
     sanitized by create_machine.
 
     """
+    from libcloud.compute.drivers.linode import LinodeNodeDriverV4
+    from libcloud.utils.misc import get_secure_random_string
 
-    auth = NodeAuthSSHKey(public_key)
+    if isinstance(conn, LinodeNodeDriverV4):
+        root_pass = get_secure_random_string(size=10)
+        try:
+            node = conn.create_node(
+                location=location,
+                size=size,
+                name=machine_name,
+                image=image,
+                ex_authorized_keys=[public_key],
+                root_pass=root_pass,
+                ex_private_ip=True
+            )
+        except Exception as e:
+            raise MachineCreationError("Linode, got exception %s" % e, e)
 
-    try:
-        node = conn.create_node(
-            name=machine_name,
-            image=image,
-            size=size,
-            location=location,
-            auth=auth,
-            ex_private=True
-        )
-    except Exception as e:
-        raise MachineCreationError("Linode, got exception %s" % e, e)
+    else:
+        auth = NodeAuthSSHKey(public_key)
+        try:
+            node = conn.create_node(
+                name=machine_name,
+                image=image,
+                size=size,
+                location=location,
+                auth=auth,
+                ex_private=True
+            )
+        except Exception as e:
+            raise MachineCreationError("Linode, got exception %s" % e, e)
     return node
 
 
@@ -2313,7 +2330,6 @@ def destroy_machine(user, cloud_id, machine_id):
 
 # SEC
 def filter_machine_ids(auth_context, cloud_id, machine_ids):
-
     if not isinstance(machine_ids, set):
         machine_ids = set(machine_ids)
 

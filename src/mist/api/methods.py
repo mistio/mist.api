@@ -510,3 +510,82 @@ def create_dns_a_record(owner, domain_name, ip_addr):
         raise MistError(msg + " failed: %r" % repr(exc))
     log.info(msg + " succeeded.")
     return record
+
+
+def list_resources(auth_context, resource_type, search='', cloud='',
+                   only='', sort='', start=0, limit=100, deref=''):
+    """
+    List resources of any type.
+
+    Supports filtering, sorting, pagination. Enforces RBAC.
+    """
+    from mist.api.helpers import get_resource_model
+    from mist.api.clouds.models import CLOUDS
+    resource_model = get_resource_model(resource_type)
+
+    # Init query dict
+    if resource_type == 'rule':
+        query = {"owner_id": auth_context.org.id}
+    elif hasattr(resource_model, 'owner'):
+        query = {"owner": auth_context.org}
+    else:
+        query = {}
+
+    if resource_type in ['cloud', 'key', 'script', 'template']:
+        query['deleted'] = False
+    elif resource_type in ['machine', 'network', 'volume', 'image']:
+        query['missing_since'] = None
+
+    if cloud:
+        clouds, _ = list_resources(
+            auth_context, 'cloud', search=cloud, only='id'
+        )
+        query['cloud__in'] = clouds
+
+    search = search or ''
+    sort = sort or ''
+    only = only or ''
+    # search filter is either an id or a space separated key/value terms
+    if search and ':' not in search and '=' not in search:
+        query['id'] = search
+    elif search:
+        for term in search.split(' '):
+            if ':' in term:
+                k, v = term.split(':')
+            elif '=' in term:
+                k, v = term.split('=')
+            elif 'and' in term.lower() or not term:
+                continue
+            else:
+                log.error('Invalid query term', term)
+                continue
+            if k == 'provider' and 'cloud' in resource_type:
+                k = '_cls'
+                v = CLOUDS[v]()._cls
+            # TODO: only allow terms on indexed fields
+            # TODO: support OR keyword
+            query[k] = v
+
+    result = resource_model.objects(**query)
+
+    if only:
+        only_list = only.split(',')
+        result = result.only(*only_list)
+
+    if not result.count() and query.get('id'):
+        # Try searching for name or title field
+        if getattr(resource_model, 'name', None):
+            field_name = 'name'
+        else:
+            field_name = 'title'
+        query[field_name] = query.pop('id')
+        result = resource_model.objects(**query)
+
+    if result.count():
+        if not auth_context.is_owner():
+            allowed_resources = auth_context.get_allowed_resources(
+                rtype=resource_type)
+            result = result.filter(id__in=allowed_resources)
+        result = result.order_by(sort)
+
+    return result[start:start + limit], result.count()
