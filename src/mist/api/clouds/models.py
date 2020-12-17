@@ -220,6 +220,8 @@ class Cloud(OwnershipMixin, me.Document):
         cloud = cls(owner=owner, name=name)
         if id:
             cloud.id = id
+        fail_on_error = kwargs.pop('fail_on_error', True)
+        fail_on_invalid_params = kwargs.pop('fail_on_invalid_params', False)
         cloud.ctl.add(user, **kwargs)
         return cloud
 

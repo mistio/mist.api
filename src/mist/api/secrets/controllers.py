@@ -31,7 +31,6 @@ class BaseSecretController(object):
         """
         self.secret = secret
 
-
 class VaultSecretController(BaseSecretController):
 
     client = hvac.Client
@@ -76,6 +75,7 @@ class VaultSecretController(BaseSecretController):
     def list_secrets(self, path='.'):
         self.check_if_secret_engine_exists()
         org = self.secret.owner
+        import ipdb; ipdb.set_trace()
         if config.VAULT_KV_VERSION == 2:
             try:
                 response = self.client.secrets.kv.list_secrets(
@@ -94,7 +94,7 @@ class VaultSecretController(BaseSecretController):
                     permissions to list secrets")
         else:
             try:
-                response = self.client.secrets.kv1.list_secrets(
+                response = self.client.secrets.kv.v1.list_secrets(
                     mount_point=org.vault_secret_engine_path,
                     path=path
                 )
@@ -152,7 +152,7 @@ class VaultSecretController(BaseSecretController):
                 )
             else:
                 # needs to be different than version 2
-                # it seems that some secrets in kv1 are arbitrary
+                # it seems that some secrets in kv1 are arbitrary 
                 # stored under /data and others not
                 try:  # existing secret
                     existing_secret = self.secret.ctl.read_secret()
@@ -181,7 +181,7 @@ class VaultSecretController(BaseSecretController):
                     permissions to read secret")
             except hvac.exceptions.InvalidPath:
                 raise BadRequestError("Secret does not exist")
-
+            
             return api_response['data']['data']
         else:
             try:
@@ -216,7 +216,7 @@ class VaultSecretController(BaseSecretController):
                 )
             except hvac.exceptions.Forbidden:
                 raise BadRequestError("Make sure your Vault token has the \
-                    permissions to delete secret")
+                    permissions to delete secret") 
 
         # list all secrets
         self.list_secrets(path='.')
