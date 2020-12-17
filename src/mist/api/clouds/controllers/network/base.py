@@ -715,7 +715,8 @@ class BaseNetworkController(BaseController):
             if sub.id == subnet.external_id:
                 return sub
         raise mist.api.exceptions.SubnetNotFoundError(
-            'Subnet %s with external_id %s' % (subnet.name, subnet.external_id))
+            'Subnet %s with external_id %s' % (subnet.name,
+                                               subnet.external_id))
 
     def list_vnfs(self, host=None):
         """Available only for Libvirt/KVM clouds
