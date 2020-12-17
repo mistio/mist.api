@@ -2425,32 +2425,53 @@ class BaseComputeController(BaseController):
             raise BadRequestError('schedule type must be one of '
                                   'these (crontab, interval, one_off)]'
                                   )
-        action = schedule.get('action')
-        script = schedule.get('script')
-        if action is None and script is None:
-            raise BadRequestError('Action or script not defined')
 
-        if action and action not in ['reboot', 'destroy', 'start', 'stop']:
-            raise BadRequestError("Action is not correct")
+        if not schedule.get('entry'):
+            raise BadRequestError('schedule requires date given in '
+                                  'schedule_entry')
 
         ret_schedule = {
             'name': machine_name,
             'schedule_type': schedule_type,
             'description': schedule.get('description', ''),
             'task_enabled': schedule.get('task_enabled', True),
+            'schedule_entry': schedule.get('entry'),
         }
 
+        action = schedule.get('action')
+        script = schedule.get('script')
+        if action is None and script is None:
+            raise BadRequestError('Action or script not defined')
+
         if action:
+            if action not in ['reboot', 'destroy', 'start', 'stop']:
+                raise BadRequestError('Action is not correct')
             ret_schedule['action'] = action
         else:
-            # TODO list_resources script
-            ret_schedule['scipt_id'] = script
+            from mist.api.methods import list_resources
+            try:
+                [script_obj], _ = list_resources(auth_context, 'script',
+                                                 search=script,
+                                                 limit=1)
+            except ValueError:
+                raise NotFoundError('Schedule script does not exist')
+            auth_context.check_perm('script', 'run', script_obj.id)
+            ret_schedule['script_id'] = script_obj.id
 
-        if schedule_type == 'one_off':
-            if not schedule.get('entry'):
-                raise BadRequestError('one_off schedule '
-                                      'requires date given in schedule_entry')
-            ret_schedule['schedule_entry'] = schedule['entry']
+        if schedule_type == 'interval':
+            if not all(k in schedule['entry'] for k in ('every', 'period')):
+                raise BadRequestError('Parameter in schedule entry missing')
+        elif schedule_type == 'crontab':
+            if not all(k in schedule['entry'] for k in ('minute',
+                                                        'hour',
+                                                        'day_of_month',
+                                                        'month_of_year',
+                                                        'day_of_week')):
+                raise BadRequestError('Parameter in schedule entry missing')
+
+        ret_schedule['start_after'] = schedule.get('start_after')
+        ret_schedule['expires'] = schedule.get('expires')
+        ret_schedule['max_run_count'] = schedule.get('max_run_count')
 
         return ret_schedule
 
